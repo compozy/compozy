@@ -159,7 +159,7 @@ func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[st
 		case failed > 0:
 			v.MostUrgent = loopNodeOutputFailed
 		case live+resumed > 0:
-			v.MostUrgent = "running"
+			v.MostUrgent = runtimeStatusRunning
 		}
 		out[row.ParentSessionID] = v
 	}
@@ -219,24 +219,27 @@ func (g *SessionRepo) ListUnfinalizedNative(ctx context.Context) ([]store.Sessio
 	return subagentsFromSQL(rows)
 }
 
-func (g *SessionRepo) ListNativeMissingResult(
+func (g *SessionRepo) ListNativeReplayCandidates(
 	ctx context.Context,
 	since time.Time,
-	after store.NativeMissingResultCursor,
+	after store.NativeReplayCursor,
 	limit int,
 ) ([]store.SessionSubagent, error) {
 	if limit <= 0 {
-		return nil, fmt.Errorf("store: invalid native missing-result limit %d", limit)
+		return nil, fmt.Errorf("store: invalid native replay candidate limit %d", limit)
 	}
 	if err := g.checkReady(ctx, "list native subagents missing results"); err != nil {
 		return nil, err
 	}
-	rows, err := g.readQueries.ListNativeMissingResultSubagents(ctx, sqlcgen.ListNativeMissingResultSubagentsParams{
-		Since:      sql.NullString{String: store.FormatTimestamp(since), Valid: true},
-		CursorID:   after.ID,
-		CursorTime: sql.NullString{String: store.FormatTimestamp(after.SettledAt), Valid: after.ID != ""},
-		RowLimit:   int64(limit),
-	})
+	rows, err := g.readQueries.ListNativeReplayCandidatesSubagents(
+		ctx,
+		sqlcgen.ListNativeReplayCandidatesSubagentsParams{
+			Since:      sql.NullString{String: store.FormatTimestamp(since), Valid: true},
+			CursorID:   after.ID,
+			CursorTime: sql.NullString{String: store.FormatTimestamp(after.SettledAt), Valid: after.ID != ""},
+			RowLimit:   int64(limit),
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

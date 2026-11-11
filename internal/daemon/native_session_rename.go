@@ -43,5 +43,5 @@ func (n *daemonNativeTools) sessionRename(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SessionPayloadFromInfo(info)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }

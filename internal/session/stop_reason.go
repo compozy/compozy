@@ -110,7 +110,7 @@ func (m *Manager) guardedStopWithCauseReceipt(
 			m.logger.ErrorContext(ctx, "subagent.stop_cascade", "session_id", id, "error", cascadeErr)
 		}
 	}
-	outcome, err := waitSessionStopRun(ctx, run)
+	outcome, err := m.waitSessionStopRun(ctx, strings.TrimSpace(id), run)
 	if previousRun == run && outcome.Verified && outcome.FinalState == StateStopped {
 		err = nil
 	}
@@ -161,6 +161,7 @@ const (
 	stopPreparationFatalPromptFailure
 )
 
+// prepareStopWithCauseMode fences startup ownership before hook dispatch and durable stop intent.
 func (m *Manager) prepareStopWithCauseMode(
 	ctx context.Context,
 	id string,
@@ -182,6 +183,10 @@ func (m *Manager) prepareStopWithCauseMode(
 			)
 		}
 		return session, nil, true, false, true, nil
+	}
+	// Startup admission owns pre-stop hooks as well as the durable stop intent.
+	if start := m.sessionStartRun(session.ID); start != nil && !start.activationCommitted.Load() {
+		return nil, nil, false, false, false, errStopNeedsStartGate
 	}
 	process := session.processHandle()
 	stopWasAlreadyRequested := session.stopWasRequested()

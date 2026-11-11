@@ -30,7 +30,7 @@ starting --> active: runtime restored
 active --> stopping: stop requested
 active --> stopping: shutdown or process exit
 stopping --> stopped: finalization complete`}
-  caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
+  caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through the stopping state."
 />
 
 | State      | Meaning                                                                                                                                                                                                                                  | Valid live transition |
@@ -101,6 +101,18 @@ If the agent declares a `fallback_chain`, the first prompt binds the session on 
 provider accepts. Routes refused before ACP acceptance are recorded as `session.fallback.used` events and
 `provider_failure` transcript markers; `runtime.effective` on `GET /api/sessions/{id}` shows the route that
 was accepted. See [provider recovery](/docs/agents/providers#recover-from-a-provider-refusal-before-acceptance).
+
+A continuation with an explicit provider/runtime selection uses that exact selection instead of walking the agent's
+fallback chain. If it cannot start, the request reports the launch failure and the new session
+remains unbound with a runtime diagnostic. The Continue dialog sends the full runtime displayed
+when you confirm, including model, reasoning effort, and speed, even when you keep its defaults.
+
+In the dialog's advanced options, **Provider default** launches the value the provider advertises as
+its default, sent as an explicit value because an omitted option keeps inheriting from the agent. If
+the provider advertises no default, Continue asks you to choose a value. Continue also refuses, before
+creating anything, a Cursor effort, speed, and thinking combination the model does not advertise, and
+an advanced setting you chose that the model no longer offers. An inherited unrestricted option that
+the agent's permission level excludes is not shown as active and is not sent.
 
 ### Creation provenance
 
@@ -276,9 +288,15 @@ sign-in to come back and retries on its own, for every ACP provider:
   `runtime_recovery_started`, `runtime_recovery_succeeded`, and `runtime_recovery_exhausted` events
   and hooks report progress.
 
-When the window ends without a sign-in, the turn fails exactly as before: one terminal error with the
-usual `provider_error` guidance. Later turns in that session then fail right away instead of waiting
-again, until a turn completes. Cancelling the prompt stops the wait. Set
+When the window ends without a sign-in, the turn ends with one terminal error, login guidance, and
+`waiting-for-auth` attention. After signing in, send another prompt: CompozyOS stops the stale
+provider process and reloads the same conversation before sending it. A successful provider auth
+probe or Usage refresh also reloads matching auth-failed sessions in that profile, and wakes a retry
+immediately when an auth recovery is still in progress. Healthy sessions and other providers or
+account routes stay intact. A probe without a profile selector uses the default profile (or its
+calling managed session profile); Usage carries its selected profile. The exhausted automatic wait
+remains spent until a turn completes or the provider changes. Cancelling the prompt stops the wait.
+Set
 `session.auth_recovery.enabled = false` to turn the wait off.
 
 Automatic replay can repeat a tool or external side effect whose completion was not persisted before
@@ -438,7 +456,7 @@ wake is waiting to be delivered, until the watch expires after `session.messagin
 Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
 Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`
-with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe`.
+with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe` with `result_view: "full"`.
 Signals are rebuilt from their owners after restart. They are not persisted as keep-alive flags.
 Expired evidence stops counting as work. A stale tool, stopping child, or Loop raises attention;
 a source inspection error is `unknown`, raises attention, and prevents an automatic inactivity stop

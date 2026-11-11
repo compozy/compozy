@@ -5,6 +5,139 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.0 - 2026-11-11
+
+### Bug Fixes
+
+- Publish User-scope instance reports, notifications and event summaries (#1410)
+- Preserve pre-permission assistant prose ordering (#1397)
+- Honor the runtime confirmed when continuing a session (#1417)
+- Order lifecycle attention baselines with permission publication (#1426)
+- Align continuation preflight and advanced default semantics (#1430)
+- Keep a reload from restoring All profiles after leaving it (#1443)
+- Retain canonical attention baselines through dismissal and shutdown (#1429)
+- Stop re-sending static prompt context and count provider costs per turn (#1437)
+- Publish committed dismissal when status lookup fails (#1446)
+- Refuse monitors that cannot resume Claude native subagents (#1450)
+- Settle native parent turns independently of attention badges (#1449)
+- Explain hosted terminal calls without an active run (#1452)
+- Clarify instance list capacity and missing target errors (#1454)
+- Preserve actionable skill catalog resolution failures (#1453)
+- Preserve newer native tracking during turn cancellation (#1458)
+- Stop pinning the embedded tailscale node to the default-route device (#1459)
+- Align batch session actions and bound parallel execution (#1469)
+- Cap open child-session lists at six with Show more (#1476)
+- Run providers unrestricted under Full access (#1477)
+- Bound session family traversal and refresh SQLite statistics (#1466)
+- Recover provider sessions after signing in again (#1483)
+- Keep file tree and diff path names readable on deep paths (#1482)
+- Bound native history and catalog reads (#1484)
+- Lead the session head with the list toggle and make the composer context control a toggle (#1490)
+- Retain persisted turn identity in native call tracking (#1496)
+- Show resumed Claude subagents as running (#1499)
+- Share one session batch lock and show progress on every running target (#1498)
+- List profile-only providers and mark a session's disabled provider (#1503)
+- Return compact records from native tools by default (#1515)
+- **BREAKING:** return compact records from native tools by default (#1515)
+- Keep daemon startup and instance pause available when a report fails to publish (#1492)
+- Reclaim oversized telemetry WAL allocation (#1501)
+- Preserve startup Stop ownership and Loop runtime provenance (#1500)
+- Restore main CI after the v0.6.0 release merges (#1527)
+- Start full access sessions without an advertised mode option (#1525)
+- Refresh hosted MCP catalogs and reduce native schema boot overhead (#1537)
+
+### Features
+
+- Seed a realistic always-on team in the demo seed (#1415)
+- Let operators disable providers they don't use (#1372)
+- Adopt the v1.2 brand identity, add the brand manual and redesign compozy.com (#1408)
+- Answer provider interactive questions through ACP elicitation (#1478)
+- Group the session list by project by default (#1488)
+
+### Performance Improvements
+
+- Stop unchanged workspace-catalog polls from re-rendering the shell (#1457)
+
+### Testing
+
+- Isolate migration-tail timeout from fixture admission (#1423)
+- Cover permission dispatch with a full event channel (#1427)
+- Assert pending permission blocker on dismissal retry (#1455)
+- Serve every agent-editors request so MSW never opens a real socket (#1456)
+- Strengthen routing, file reveal and automation page coverage (#1495)
+- Finish followed sessions before daemon teardown (#1497)
+
+## 0.5.5 - 2026-11-09
+
+### Bug Fixes
+
+- Keep SQLite statement journals in memory during write transactions (#1367)
+- Hide automation-run sessions from the session list (#1366)
+- Make TestSetProcessGroupNiceness deterministic and document the setpriority fork race (#1373)
+- Keep session owner snapshots valid while the writer appends WAL frames (#1371)
+- Let triage cleanup wait for the full stop ladder before archiving (#1365)
+- Keep internal daemon handoff variables out of session and terminal environments (#1364)
+- Prevent source executable contention and isolate cooldown fixtures (#1375)
+- Keep the Files identity in its window head and route transcript paths to Files tabs (#1378)
+- Return main CI to green after the 2026-11-08 merges (#1380)
+- Apply Linux launch niceness before exec (#1386)
+- Preserve prompt completion across concurrent steering events (#1376)
+- Move core WAL restart synchronization to maintenance (#1377)
+- Settle automation fires after agent startup failures (#1389)
+- Preserve explicitly empty environments through process launch (#1390)
+- Wait for archive responses before retiring session windows (#1392)
+- Name automation and always-on sessions by origin and keep relative times live (#1391)
+- Clear acknowledged always-on agent attention (#1395)
+- Retain lifecycle ownership across startup and shutdown races (#1394)
+- Recover acknowledged attention without blocking live sessions (#1396)
+- Retain startup recovery through process and storage failures (#1398)
+- Preserve attention publication ordering and lifetimes (#1401)
+- Preserve failed startup event sequences and cleanup ownership (#1404)
+- Bind approvals to run identity and explain terminal denials (#1412)
+
+### Features
+
+- Browse the CompozyOS marketplace by category with one-step Add and a curated plugin catalog (#1360)
+- Let always-on check-ins call the agent's tools and auto-accept declared proposals (#1385)
+
+### Testing
+
+- Repair check-in proposal pick runtime fixtures (#1406)
+
+## 0.5.4 - 2026-11-07
+
+### Bug Fixes
+
+- Retain oversized tool results in User sessions (#1322)
+- Allow profile moves with stopped subagent descendants (#1321)
+- Compare SQLite commit pauses against paired storage tails (#1325)
+- Accept fenced proactive triage replies (#1319)
+- Preserve managed Goal pause ownership until coordinator settlement (#1329)
+- Read proactive check events in heartbeat status (#1332)
+- Hold MCP server form errors until a field is touched (#1338)
+- Settle expired permissions and stopped session interactions (#1335)
+- Keep the CompozyOS desktop window open when Settings restarts the daemon (#1339)
+- Compact always-on agent cards and hide deleted agents (#1341)
+- Keep dispatched children responsive after definition pauses (#1333)
+- Defer oversized invoked skills to skill_view instead of failing dispatch (#1330)
+- Refresh MCP tools in open sessions (#1342)
+- Preserve permission recovery reports and terminal refusals (#1347)
+
+### Features
+
+- Route new issues through an unattended issue vetter
+- Add a desktop download page and header download CTA to the site
+- Add daily CompozyOS daemon log triage agent (#1353)
+- Add project file explorer, file viewer and session Changes panel (#1351)
+
+### Refactoring
+
+- Rename the workspace always-on agents by their pipeline role
+
+### Testing
+
+- Observe paused child monitor settlement before receipts (#1349)
+
 ## 0.5.3 - 2026-11-06
 
 ### Bug Fixes
@@ -1282,6 +1415,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.6.0]: https://github.com/compozy/compozy/compare/v0.5.5...v0.6.0
+[0.5.5]: https://github.com/compozy/compozy/compare/v0.5.4...v0.5.5
+[0.5.4]: https://github.com/compozy/compozy/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/compozy/compozy/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/compozy/compozy/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/compozy/compozy/compare/v0.5.0...v0.5.1

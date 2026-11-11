@@ -23,6 +23,19 @@
                             "text": "alpha follow-up"
                         }
                     ]
+                },
+                {
+                    "name": "native-tool-policy-report",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "Tools allowed:"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "The session tool policy is available."
+                        }
+                    ]
                 }
             ]
         },

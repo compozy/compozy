@@ -1,0 +1,42 @@
+/* Blog-only finish (ported from the blog draft): the shade under poster type, numbered sections and the lead-in paragraph. */
+.blog-shade {
+  background: linear-gradient(
+    180deg,
+    rgb(10 10 10 / 0.08) 0%,
+    rgb(10 10 10 / 0.5) 46%,
+    #0a0a0a 90%
+  );
+}
+
+.blog-shade-side {
+  background: linear-gradient(90deg, transparent 55%, rgb(14 14 14 / 0.9) 100%);
+}
+
+.blog-prose {
+  counter-reset: section;
+}
+
+.blog-prose .blog-body h2 {
+  position: relative;
+  counter-increment: section;
+}
+
+@media (min-width: 1024px) {
+  .blog-prose .blog-body h2::before {
+    position: absolute;
+    top: 0.62em;
+    right: calc(100% + 28px);
+    color: var(--color-subtle);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1;
+    letter-spacing: 0;
+    content: counter(section, decimal-leading-zero);
+  }
+}
+
+.blog-prose .blog-body > p:first-child {
+  color: var(--color-fg);
+  font-size: 21px;
+  line-height: 1.6;
+}

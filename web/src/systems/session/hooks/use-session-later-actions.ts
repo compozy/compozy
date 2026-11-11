@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "@compozy/ui";
 
 import {
@@ -14,7 +14,12 @@ import {
   reportBatch,
   type BatchVerb,
 } from "../lib/session-batch-feedback";
-import { runSessionBatch, sessionBatchFailureMessage } from "../lib/session-batch";
+import {
+  runningSessionIds,
+  runSessionBatch,
+  sessionBatchFailureMessage,
+} from "../lib/session-batch";
+import type { SessionBatchAdmission } from "./use-session-batch-admission";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import type { SessionPayload } from "../types";
 import { requireWorkspace } from "./session-action-workspace";
@@ -98,16 +103,19 @@ export function useResumeSessionFromLater() {
 /**
  * Move to Later and Back from Later for a session list host, single and bulk.
  * Move to Later always asks first (an optional reason and return date); Back
- * from Later runs at once. Batches run sequentially through `runSessionBatch`
+ * from Later runs at once. Batches run with bounded concurrency through `runSessionBatch`
  * and report once, as archive does. `busy` is the host's other lifecycle work:
  * while it runs, these verbs decline, and the host folds `pendingAction` back
- * into its own lock.
+ * into its own lock. `batchRunning` is the host's one synchronous batch admission,
+ * so a Later batch and any sibling batch family cannot both start in one turn.
  */
 export function useSessionLaterActions({
   busy,
+  batchRunning,
   onMovedToLater,
 }: {
   busy: boolean;
+  batchRunning: SessionBatchAdmission;
   /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
   onMovedToLater?: (session: SessionPayload) => void;
 }) {
@@ -117,20 +125,20 @@ export function useSessionLaterActions({
     sessions: readonly SessionPayload[];
     skipped: ReadonlyMap<string, number>;
   } | null>(null);
-  const [batch, setBatch] = useState<{ action: LaterVerb; runningId: string | null } | null>(null);
-  const batchRunning = useRef(false);
+  const [batch, setBatch] = useState<{ action: LaterVerb; runningIds: readonly string[] } | null>(
+    null
+  );
 
   const pendingMutation = move.isPending ? "later" : back.isPending ? "back-from-later" : null;
   const pendingAction: LaterVerb | null = batch?.action ?? pendingMutation;
-  const pendingSessionId =
+  const pendingMutationId = move.isPending ? move.variables?.id : back.variables?.id;
+  const pendingSessionIds: readonly string[] =
     batch !== null
-      ? batch.runningId
-      : move.isPending
-        ? (move.variables?.id ?? null)
-        : back.isPending
-          ? (back.variables?.id ?? null)
-          : null;
-  const locked = () => busy || pendingAction !== null || batchRunning.current;
+      ? batch.runningIds
+      : pendingMutation !== null && pendingMutationId
+        ? [pendingMutationId]
+        : [];
+  const locked = () => busy || pendingAction !== null || batchRunning.held();
 
   const runBatch = (
     action: LaterVerb,
@@ -138,33 +146,30 @@ export function useSessionLaterActions({
     skipped: ReadonlyMap<string, number>,
     execute: (session: SessionPayload) => Promise<unknown>
   ) => {
-    if (batchRunning.current) return Promise.resolve(null);
-    batchRunning.current = true;
-    setBatch({ action, runningId: null });
+    if (batchRunning.held()) return Promise.resolve(null);
+    batchRunning.hold();
+    setBatch({ action, runningIds: [] });
     const byId = new Map(sessions.map(session => [session.id, session]));
     return runSessionBatch({
       action,
       ids: sessions.map(session => session.id),
       previous: [],
+      sessions,
       execute: id => execute(byId.get(id)!),
-      onProgress: results =>
-        setBatch({
-          action,
-          runningId: results.find(result => result.status === "running")?.id ?? null,
-        }),
+      onProgress: results => setBatch({ action, runningIds: runningSessionIds(results) }),
     })
       .then(results => {
         reportBatch(action, results, sessions, skipped);
         return results;
       })
       .finally(() => {
-        batchRunning.current = false;
+        batchRunning.release();
         setBatch(null);
       });
   };
 
   const confirmMove = (body: MoveSessionToLaterRequest) => {
-    if (!target || move.isPending || batchRunning.current) return;
+    if (!target || move.isPending || batchRunning.held()) return;
     const { sessions, skipped } = target;
     if (sessions.length === 1 && skipped.size === 0) {
       const session = sessions[0]!;
@@ -195,7 +200,7 @@ export function useSessionLaterActions({
 
   return {
     pendingAction,
-    pendingSessionId,
+    pendingSessionIds,
     handlers: {
       onMoveToLater: (session: SessionPayload) => {
         if (!locked()) setTarget({ sessions: [session], skipped: new Map() });
@@ -222,7 +227,7 @@ export function useSessionLaterActions({
       sessions: target?.sessions ?? [],
       isMoving: move.isPending || batch?.action === "later",
       onOpenChange: open => {
-        if (!open && !move.isPending && !batchRunning.current) setTarget(null);
+        if (!open && !move.isPending && !batchRunning.held()) setTarget(null);
       },
       onConfirm: confirmMove,
     } satisfies SessionLaterConfirmation,

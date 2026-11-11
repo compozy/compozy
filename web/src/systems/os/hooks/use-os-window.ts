@@ -34,6 +34,7 @@ export const OS_WINDOW_DRAG_CANCEL_SELECTOR = [
   '[data-slot="os-traffic-lights"]',
   '[data-slot="os-window-tab"]',
   '[data-slot="os-window-tab-add"]',
+  '[data-slot="topbar-start"]',
   '[data-slot="topbar-back"]',
   '[data-slot="topbar-crumb"]',
   '[data-slot="topbar-crumb-more"]',

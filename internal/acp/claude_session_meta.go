@@ -3,6 +3,7 @@ package acp
 import (
 	"maps"
 	"runtime"
+	"strconv"
 
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/shellwait"
@@ -26,12 +27,15 @@ var claudeDaemonOwnedBackgroundEnv = map[string]string{
 // claudeBackgroundShellDenyReason is the guidance a refused background shell returns.
 const claudeBackgroundShellDenyReason = "CompozyOS cannot wake you when a background shell command exits. " +
 	"Run it with compozy__terminal_exec and register compozy__monitor_create on the returned terminal_id; " +
-	"end your turn only when every remaining step waits on that monitor."
+	"end your turn only when every remaining step waits on that monitor. " +
+	"If you are a provider-native subagent, return pending work and the terminal_id to your parent instead; " +
+	"monitors wake the parent session and cannot resume you."
 
 const claudeBackgroundShellDenyOutput = `{"hookSpecificOutput":{"hookEventName":"PreToolUse",` +
 	`"permissionDecision":"deny","permissionDecisionReason":"` + claudeBackgroundShellDenyReason + `"}}`
 
 const claudeHookTypeCommand = "command"
+const claudeHooksKey = "hooks"
 
 // claudeBackgroundShellMatcher covers both shell tools that accept run_in_background.
 const claudeBackgroundShellMatcher = "Bash|PowerShell"
@@ -64,18 +68,15 @@ func claudeShellHook(goos string, posixCommand string, powerShellCommand string)
 // lets the command run.
 const claudeShellWaitHookTimeoutSeconds = 5
 
-// claudeShellWaitDenyHook redirects a foreground wait to a daemon-owned monitor.
-// A shell-builtin prefilter keeps ordinary commands free of a process spawn;
-// only input that mentions a wait reaches the compozy binary, which parses the
-// command. A missing binary or any other failure lets the command run.
+// claudeShellWaitDenyHook guards waits before MCP loses the provider-native subagent identity.
 func claudeShellWaitDenyHook(goos string) map[string]any {
 	verb := "__internal " + shellwait.HookCommandName
 	hook := claudeShellHook(
 		goos,
-		`input=$(cat); case "$input" in *sleep*|*Sleep*|*watch*|*tail*) `+
+		`input=$(cat); case "$input" in *sleep*|*Sleep*|*watch*|*tail*|*compozy__monitor_create*) `+
 			`printf '%s' "$input" | "${COMPOZY_BIN:-compozy}" `+verb+` 2>/dev/null;; esac; exit 0`,
 		`$hookInput = [Console]::In.ReadToEnd(); `+
-			`if ($hookInput -match 'sleep|watch|tail' -and $env:COMPOZY_BIN) { `+
+			`if ($hookInput -match 'sleep|watch|tail|compozy__monitor_create' -and $env:COMPOZY_BIN) { `+
 			`$hookInput | & $env:COMPOZY_BIN `+verb+` }; exit 0`,
 	)
 	hook["timeout"] = claudeShellWaitHookTimeoutSeconds
@@ -101,27 +102,36 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 		return nil
 	}
 	if opts.InputOnly {
-		return claudeCodeInputOnlySessionMeta()
+		return claudeCodeInputOnlySessionMeta(opts)
 	}
 	env := make(map[string]string, len(claudeDaemonOwnedBackgroundEnv))
 	maps.Copy(env, claudeDaemonOwnedBackgroundEnv)
-	return map[string]any{
+	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
+		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
+	}
+	options := map[string]any{
+		"disallowedTools": append([]string(nil), claudeDaemonOwnedBackgroundTools...),
+		"env":             env,
+		"settings": map[string]any{claudeHooksKey: map[string]any{"PreToolUse": []any{
+			map[string]any{"matcher": claudeBackgroundShellMatcher, claudeHooksKey: claudePreToolUseHooks(opts)},
+			map[string]any{
+				"matcher":      "(^|.*__)compozy__monitor_create$",
+				claudeHooksKey: []any{claudeShellWaitDenyHook(runtime.GOOS)},
+			},
+		}}},
+	}
+	meta := map[string]any{
 		"claudeCode": map[string]any{
 			"emitRawSDKMessages": claudeTaskRawSDKFilters(),
-			"options": map[string]any{
-				"disallowedTools": append([]string(nil), claudeDaemonOwnedBackgroundTools...),
-				"env":             env,
-				"settings": map[string]any{
-					"hooks": map[string]any{
-						"PreToolUse": []any{map[string]any{
-							"matcher": claudeBackgroundShellMatcher,
-							"hooks":   claudePreToolUseHooks(opts),
-						}},
-					},
-				},
-			},
+			"options":            options,
 		},
 	}
+	if opts.LeanEnvironment {
+		env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+		env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
+		options["strictMcpConfig"] = true
+	}
+	return meta
 }
 
 // claudeInputOnlySystemPrompt replaces the Claude Code preset, which describes
@@ -143,9 +153,12 @@ var claudeInputOnlyEnv = map[string]string{
 // built-in tools, no MCP servers beyond the empty session/new list, no plugins,
 // skills, or settings hooks. Measured on a loaded host, this cuts session/new
 // from 5-9s to about 1s and the prompt from about 45k to under 1k tokens.
-func claudeCodeInputOnlySessionMeta() any {
+func claudeCodeInputOnlySessionMeta(opts StartOpts) any {
 	env := make(map[string]string, len(claudeInputOnlyEnv))
 	maps.Copy(env, claudeInputOnlyEnv)
+	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
+		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
+	}
 	return map[string]any{
 		"systemPrompt": claudeInputOnlySystemPrompt,
 		"claudeCode": map[string]any{

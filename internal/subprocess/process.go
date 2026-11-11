@@ -51,7 +51,8 @@ type LaunchConfig struct {
 	Executable string
 	Args       []string
 	Dir        string
-	Env        []string
+	// Env inherits when nil; explicit empty excludes parent entries except OS-required variables.
+	Env []string
 
 	Logger *slog.Logger
 
@@ -249,6 +250,7 @@ func resolveLaunchRuntime(cfg LaunchConfig) launchRuntimeConfig {
 	}
 }
 
+// startManagedCommand binds executable resolution, priority inheritance, and process ownership.
 func startManagedCommand(
 	cfg LaunchConfig,
 ) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *boundedBuffer, *stderrPipeline, error) {
@@ -284,7 +286,7 @@ func startManagedCommand(
 	stderr := &boundedBuffer{limit: 128 * 1024}
 	stderrPipeline := newStderrPipeline(stderr, cfg.StderrSink, cfg.StderrTransform)
 	cmd.Stderr = stderrPipeline
-	if err := cmd.Start(); err != nil {
+	if err := StartWithLaunchNiceness(resolveLaunchRuntime(cfg).logger, cfg.Niceness, cmd, cmd.Start); err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: start %q: %w", cfg.Command, err)
 	}
 	if err := registerManagedCommand(cmd); err != nil {

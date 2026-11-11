@@ -192,3 +192,8 @@ Supporting checks: `-provider-usage-settings-page.test.tsx` (UT-010–UT-012) an
 
 Targeted evidence: [#1266 report](../reports/2026-11-04-provider-usage-runtime-alias.md) — QA-3 Pass. The
 broader scenario keeps its status.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): The usage tray drops a turned-off provider's row immediately after a Settings toggle and makes no usage requests for it; it returns after re-enabling. Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): not walked live — labs disable provider usage collection by contract. The tray row removal is covered by `TestProviderUsageResolverDisabledProviders` and the web usage tests; status stays `untested` until a live-provider lab walks it. See `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.

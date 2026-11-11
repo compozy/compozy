@@ -5,7 +5,12 @@ import (
 	"fmt"
 )
 
+// shutdownPersistentResources preserves replacement discovery after singleton ownership ends.
 func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	// Caller expiry retains remaining resources; an earlier attempt may have released the singleton.
+	if targets.sessionShutdownIncomplete {
+		return
+	}
 	if targets.viewPatches != nil {
 		targets.viewPatches.CloseViewPatches()
 	}
@@ -18,8 +23,10 @@ func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutd
 	if targets.marketplace != nil {
 		appendWrappedError(errs, "daemon: shutdown marketplace", targets.marketplace.Shutdown(ctx))
 	}
-	if err := RemoveInfo(targets.infoPath); err != nil {
-		*errs = append(*errs, err)
+	if targets.lock != nil && !targets.lock.released.Load() {
+		if err := RemoveInfo(targets.infoPath); err != nil {
+			*errs = append(*errs, err)
+		}
 	}
 	if targets.registry != nil {
 		appendWrappedError(errs, "daemon: close global database", targets.registry.Close(ctx))

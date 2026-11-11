@@ -2139,6 +2139,57 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 
 func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 	t.Parallel()
+	// Owner: settings persistence. A window-only edit must preserve the authored
+	// provider overlay, including launch policy and raw model curation.
+	for _, providerName := range []string{"claude", "custom"} {
+		t.Run(
+			"Should preserve the "+providerName+" overlay when only the compaction window changes",
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				writeFile(t, home.ConfigFile, baseSettingsConfig()+strings.ReplaceAll(`
+
+[providers.claude]
+command = "custom-wrapper"
+base_url = "https://provider.example/v1"
+home_policy = "isolated"
+display_name = "Custom Claude"
+auth_login_command = "custom-login"
+
+[providers.claude.models]
+default = "custom-model"
+
+[[providers.claude.models.curated]]
+id = "custom-model"
+display_name = "Authored model"
+`, "providers.claude", "providers."+providerName))
+				before, err := compozyconfig.LoadForHome(home)
+				if err != nil {
+					t.Fatal(err)
+				}
+				service := testService(t, home, Dependencies{})
+				for _, window := range []int{200000, 400000, 400000} {
+					_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+						Collection: CollectionProviders,
+						Name:       providerName,
+						Provider:   &ProviderSettings{AutoCompactWindow: new(window)},
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					after, err := compozyconfig.LoadForHome(home)
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := before.Providers[providerName]
+					want.AutoCompactWindow = new(window)
+					if got := after.Providers[providerName]; !reflect.DeepEqual(got, want) {
+						t.Fatalf("window edit changed provider fields: got=%+v want=%+v", got, want)
+					}
+				}
+			},
+		)
+	}
 
 	t.Run("Should read the persisted catalog without starting an implicit refresh", func(t *testing.T) {
 		t.Parallel()

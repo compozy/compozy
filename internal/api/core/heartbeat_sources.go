@@ -197,10 +197,10 @@ func (h *BaseHandlers) mutateHeartbeatScript(c *gin.Context, revoke bool) {
 	}
 	now := time.Now().UTC()
 	via := string(taskOriginKindForTransport(h.TransportName))
-	if c.Request.UserAgent() == "compozy-cli" {
-		via = "cli"
+	if c.Request.UserAgent() == operatorCLIUserAgent {
+		via = operatorViaCLI
 	} else if c.GetHeader("X-Compozy-Client-ID") != "" {
-		via = "web"
+		via = operatorViaWeb
 	}
 	if err := storage.ApproveScript(c.Request.Context(), target.profileID, dir, name, hash, via, now); err != nil {
 		h.respondError(c, 500, err)

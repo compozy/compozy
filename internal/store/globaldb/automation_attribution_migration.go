@@ -17,6 +17,9 @@ func applyGlobalMigrations(ctx context.Context, db *sql.DB, path string, progres
 	if err := applyTelemetryRelocation(ctx, db, path, status.Version, progress); err != nil {
 		return err
 	}
+	if err := repairUsageCosts(ctx, db, path); err != nil {
+		return err
+	}
 	if status.Version >= 149 {
 		return nil
 	}

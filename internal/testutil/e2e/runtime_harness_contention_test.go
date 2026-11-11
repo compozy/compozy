@@ -65,6 +65,8 @@ func TestSQLiteContentionDaemonLoad(t *testing.T) {
 				HTTPPort:     port,
 				SocketPath:   env["COMPOZY_UDS_PATH"],
 				DefaultAgent: contentionAgent,
+				// Keep the bootstrap's no-account-polling policy in the seeded config.
+				Mutate: func(cfg *config.Config) { cfg.ProviderUsage.Enabled = false },
 			},
 			Workspace: WorkspaceSeedOptions{Root: env["RUNTIME_WORKSPACE_PATH"]},
 			MockAgents: []MockAgentSpec{
@@ -81,16 +83,6 @@ func TestSQLiteContentionDaemonLoad(t *testing.T) {
 			t.Fatal("prebuilt daemon binary is required")
 		}
 		layout := prepareRuntimeLayout(t, opts)
-		// ConfigSeed writes a test config; restore the bootstrap's no-account-polling policy before launch.
-		file, err := os.OpenFile(paths.ConfigFile, os.O_APPEND|os.O_WRONLY, 0600)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, writeErr := file.WriteString("\n[provider_usage]\nenabled = false\n")
-		closeErr := file.Close()
-		if writeErr != nil || closeErr != nil {
-			t.Fatalf("disable provider usage: %v / %v", writeErr, closeErr)
-		}
 		layout.Env = runtimeEnv(paths, env["PROVIDER_HOME"], opts.Env)
 		layout.Env, err = withRuntimeCLIEnv(paths, layout.Env, opts.BinaryPath)
 		if err != nil {

@@ -334,10 +334,8 @@ export {
   type SessionStopAttention,
 } from "./lib/session-stop-attention";
 export { SessionPanelToggle } from "./components/session-panel-toggle";
-export {
-  SessionThinkingRow,
-  type SessionThinkingRowProps,
-} from "./components/session-thinking-row";
+export { SessionReviewPanel } from "./components/session-review-panel";
+export { SessionThinkingRow } from "./components/session-thinking-row";
 export {
   agentCountLabel,
   deriveWorkingStatus,

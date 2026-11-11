@@ -119,3 +119,12 @@ a parent cancel) and a daemon restart mid-run is pending; deterministic fixture 
 (`claude_agent_acp_0.98.0_task_lifecycle.jsonl`, adapter 0.98.0).
 
 Drawer inspection steps were verified in the targeted [2026-10-28 run](../reports/2026-10-28-subagent-drawer.md). That run records its bounded coverage and does not re-certify unrelated lifecycle branches.
+
+QA impact 2026-11-10 (#1438): after a background task completes, have the parent
+resume it with SendMessage. While the provider reports renewed activity, verify
+both the sidebar row and the right-hand detail show Working, without the first
+completion's frozen elapsed or result. Its next completion must show Done with
+the new result and settlement time; reload and verify the persisted state.
+Automated owners: `TestSubagentNativeLifecycle`, `TestGlobalDBSubagentNativeRecovery`,
+and `TestSubagentNativeDaemonIntegration` (isolated daemon, SQLite, ACP subprocess
+lifecycle frames). Real Claude/visual walk remains pending; no Web rendering code changes.

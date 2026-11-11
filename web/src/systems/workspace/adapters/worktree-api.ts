@@ -36,7 +36,7 @@ export async function fetchWorktrees(
     {
       params: {
         path: { workspace_id: workspaceID },
-        query: options.refresh === undefined ? undefined : { refresh: options.refresh },
+        query: { refresh: options.refresh, include_removed: true },
       },
       signal,
     }

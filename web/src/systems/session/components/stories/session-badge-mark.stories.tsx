@@ -51,7 +51,7 @@ const meta: Meta<typeof BadgeDictionary> = {
     docs: {
       description: {
         component:
-          "The exported badge dictionary at both scales (12 px row marks, 18 px footprints), drawn with StateGlyph. Needs-you asks share the orange attention dot and failures share the danger ring, so those badges always speak their state word; `done` never counts toward needs-you; `unknown` names itself instead of resting on the idle dot, so the shell never fakes liveness.",
+          "The exported badge dictionary at both scales (12 px row marks, 18 px footprints), drawn with StateGlyph. Needs-you asks share the amber attention dot and failures share the danger ring, so those badges always speak their state word; `done` never counts toward needs-you; `unknown` names itself instead of resting on the idle dot, so the shell never fakes liveness.",
       },
     },
   },

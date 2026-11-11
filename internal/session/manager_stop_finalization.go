@@ -162,9 +162,7 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 		m.hostedMCP.ReleaseSession(session.ID)
 	}
 	m.dispatchSessionPostStop(ctx, session)
-	if m.notifier != nil {
-		m.notifier.OnSessionStopped(ctx, session)
-	}
+	m.notifyStoppedSession(ctx, session)
 	if _, healthErr := m.persistSessionStoppedHealth(ctx, session, m.now()); healthErr != nil {
 		m.sessionLogger(session).Warn("session: persist stopped health failed", "error", healthErr)
 	}

@@ -15,6 +15,7 @@ import {
   useSessionCommands,
   useSessionGoalHeader,
   useSessionInspectorState,
+  useSessionReviewPanelState,
   useSessionLinkedWork,
   useSessionPromptRuntimeContext,
   sessionSuccessorId,
@@ -83,6 +84,7 @@ export function useSessionWindowController(input: {
     workspaceId: session.workspace_id,
   });
   const inspector = useSessionInspectorState(sessionId);
+  const review = useSessionReviewPanelState(sessionId);
   const usageEnabled = liveDataEnabled || inspector.open;
   const sessionContext = useSessionContext(sessionId, workspaceId, session.state, {
     enabled: usageEnabled,
@@ -129,6 +131,7 @@ export function useSessionWindowController(input: {
   });
 
   const instances = useAgentInstances();
+  const successorId = sessionSuccessorId(session, instances);
   const linkedWork = useSessionLinkedWork({ session, workspaceId, enabled: liveDataEnabled });
 
   useSessionTopbarSlot({
@@ -162,11 +165,15 @@ export function useSessionWindowController(input: {
     isStopping: controls.isStopping,
     isUnarchiving: controls.isUnarchiving,
     inspectorOpen: inspector.open,
+    reviewOpen: review.open,
+    onReviewToggle: review.toggle,
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
     transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,
     hasLiveGoal: goal.hasLiveGoal,
     onInspectorToggle: inspector.toggle,
+    // A superseded session's window is read-only: no composer, so no composer context control.
+    composerContextControl: successorId === null,
     onStop: controls.handleStop,
     onUnarchive: controls.handleUnarchive,
     origin,
@@ -176,6 +183,7 @@ export function useSessionWindowController(input: {
   return {
     controls,
     inspector,
+    review,
     sidebar,
     sessionContext,
     sessionUsageTurns,
@@ -188,7 +196,7 @@ export function useSessionWindowController(input: {
     },
     worktreeBinding,
     onSendPrompt: pullRequest.onSendPrompt,
-    successorId: sessionSuccessorId(session, instances),
+    successorId,
     /** An always-on agent's current main: its window drops the message trail and context meter. */
     alwaysOnMain: alwaysOnMainInstance(instances, session.id) !== undefined,
     /** Dialogs and progress of an exit action started from the PR chip. */

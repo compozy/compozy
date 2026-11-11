@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsi
 export type CatalogEmptyTone = "brand" | "info" | "warning" | "neutral";
 
 const TONE_CLASS: Record<CatalogEmptyTone, string> = {
-  brand: "bg-brand-tint text-brand",
+  brand: "bg-brand-tint text-brand-strong",
   info: "bg-info-tint text-info",
   warning: "bg-warning-tint text-warning",
   neutral: "bg-surface-2 text-muted-foreground",

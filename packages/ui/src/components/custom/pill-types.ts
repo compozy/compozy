@@ -1,4 +1,12 @@
-export type PillTone = "neutral" | "brand" | "success" | "warning" | "destructive" | "info";
+/** `attn` is the needs-you amber; `brand` is a volt highlight, never needs-you. */
+export type PillTone =
+  | "neutral"
+  | "brand"
+  | "attn"
+  | "success"
+  | "warning"
+  | "destructive"
+  | "info";
 /** `count` is the compact numeric badge (unread/needs-you counts); prefer `PillCount`. */
 export type PillSize = "xs" | "sm" | "md" | "count";
 /**

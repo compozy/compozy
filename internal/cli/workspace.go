@@ -147,7 +147,13 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 
   # Emit resolved workspace details as JSON
   compozy workspace info ws_1234 -o json`,
-		Args: cobra.RangeArgs(0, 1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			// Reject a blank override before profile setup performs workspace lookups.
+			if commandWorkspaceFlagIsBlank(cmd, workspaceRef) {
+				return errWorkspaceReferenceRequired
+			}
+			return cobra.RangeArgs(0, 1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -177,6 +183,7 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 			"",
 			"Override workspace context (ID, name, or path) when no positional ref is supplied",
 		)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

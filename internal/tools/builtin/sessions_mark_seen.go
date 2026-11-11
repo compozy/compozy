@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -26,8 +24,7 @@ func sessionMarkSeenDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "attention"},
 		[]string{"mark session as seen", "dismiss needs you", "clear needs attention", "acknowledge session"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
 }
 
 const sessionMarkSeenInputSchema = `{

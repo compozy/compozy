@@ -45,7 +45,7 @@ When a worker should rely on its provider shell, say so in `prompt_overlay` or t
 Use `compozy__session_prompt` with `notify_on_complete: true` when you need an answer from an
 existing session. Save `reply_watch.id`, finish the steps that do not need the answer, then end your
 turn and let the reply wake resume your work. The watch follows the message through queued or steered delivery, not an unrelated turn.
-Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. While the target
+Call `compozy__session_status` with `result_view: "full"` and inspect `reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
 you wait. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24h by default) with
 the `expired` outcome. Once you end your turn you are idle, and an idle session is never stopped for

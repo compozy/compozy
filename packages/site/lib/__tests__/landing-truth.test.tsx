@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { HREF } from "@/components/landing/content";
 import { BUILTIN_PROVIDER_INTEGRATIONS } from "@/components/landing/provider-data";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -9,19 +10,21 @@ const repoRoot = resolve(siteRoot, "../..");
 const landingRoot = resolve(siteRoot, "components/landing");
 const runtimeRoot = resolve(siteRoot, "content/docs");
 const providerSourceRoot = resolve(repoRoot, "internal/config");
-const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
-  resolve(landingRoot, file)
-);
-const clientSupportedAgentsImportPattern = /(?:from\s+|import\()\s*["'][^"']*supported-agents["']/;
+const USE_CLIENT = /^\s*["']use client["'];/;
 
-const deepCitationTargets = new Map([
-  ["hooks catalog", "/docs/hooks"],
-  ["skills guide", "/docs/skills"],
-  ["automation", "/docs/automation"],
-  ["sessions lifecycle", "/docs/sessions/lifecycle"],
-  ["daemon surfaces", "/docs/operations/daemon"],
-  ["permissions", "/docs/sessions/permissions"],
-]);
+/** A `@/` or relative import, resolved to its source file; `null` for packages. */
+function resolveSiteImport(from: string, specifier: string): string | null {
+  const base = specifier.startsWith("@/")
+    ? resolve(siteRoot, specifier.slice(2))
+    : specifier.startsWith(".")
+      ? resolve(dirname(from), specifier)
+      : null;
+  if (!base) return null;
+  for (const candidate of [`${base}.tsx`, `${base}.ts`, resolve(base, "index.ts")]) {
+    if (statSync(candidate, { throwIfNoEntry: false })?.isFile()) return candidate;
+  }
+  return null;
+}
 
 function listFiles(dir: string, suffix: string): string[] {
   const files: string[] = [];
@@ -123,14 +126,25 @@ describe("landing truth", () => {
     expect(Object.fromEntries(landingProviders)).toEqual(Object.fromEntries(runtimeProviders));
   });
 
-  it("keeps server-rendered landing metrics off client-only provider UI modules", () => {
-    const violations = serverLandingMetricModules.flatMap(file => {
-      const source = readFileSync(file, "utf8");
-      if (!clientSupportedAgentsImportPattern.test(source)) return [];
-      return [
-        `${relative(siteRoot, file)} imports the client-only supported agent UI module for a server metric`,
-      ];
-    });
+  it("keeps server-rendered landing values off client modules, which only export components to the server", () => {
+    // A server component that imports a constant (the provider count) from a "use client" module
+    // receives a client reference, not the value, so it would render a broken metric.
+    const violations = listFiles(landingRoot, ".tsx")
+      .filter(file => !USE_CLIENT.test(readFileSync(file, "utf8")))
+      .flatMap(file => {
+        const source = readFileSync(file, "utf8");
+        return [
+          ...source.matchAll(/import\s+(?!type\b)\{([^}]*)\}\s+from\s+["']([^"']+)["']/g),
+        ].flatMap(([, names = "", specifier = ""]) => {
+          const target = resolveSiteImport(file, specifier);
+          if (!target || !USE_CLIENT.test(readFileSync(target, "utf8"))) return [];
+          return names
+            .split(",")
+            .map(name => name.trim().split(/\s+as\s+/)[0] ?? "")
+            .filter(name => name && !name.startsWith("type ") && !/^[A-Z][a-z]/.test(name))
+            .map(name => `${relative(siteRoot, file)} imports ${name} from client ${specifier}`);
+        });
+      });
 
     expect(violations).toEqual([]);
   });
@@ -151,19 +165,9 @@ var builtinProviders = map[string]ProviderConfig{
     );
   });
 
-  it("points landing source citations at the specific docs they name", () => {
-    const violations = listFiles(landingRoot, ".tsx").flatMap(file => {
-      const source = readFileSync(file, "utf8");
-      return [...source.matchAll(/cite:\s*\{\s*href:\s*"([^"]+)",\s*label:\s*"([^"]+)"/g)]
-        .map(match => ({ href: match[1] ?? "", label: match[2] ?? "" }))
-        .filter(cite => deepCitationTargets.has(cite.label))
-        .filter(cite => cite.href !== deepCitationTargets.get(cite.label))
-        .map(cite => `${relative(siteRoot, file)}: ${cite.label} -> ${cite.href}`);
-    });
-    const missingTargets = [...deepCitationTargets.values()]
-      .filter(route => !runtimeRouteExists(route))
-      .map(route => `missing route: ${route}`);
-
-    expect([...violations, ...missingTargets]).toEqual([]);
+  it("points every landing docs link at a published docs page", () => {
+    const docsLinks = Object.values(HREF).filter(href => href.startsWith("/docs"));
+    expect(docsLinks.length).toBeGreaterThan(0);
+    expect(docsLinks.filter(route => !runtimeRouteExists(route))).toEqual([]);
   });
 });

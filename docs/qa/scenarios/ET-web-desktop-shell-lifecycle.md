@@ -185,3 +185,15 @@ real-daemon walk observed startup status reads 6→2 and Tasks data/code before 
 focused dock/auth suites cover compact and failure boundaries. This slice does not
 re-certify the complete lifecycle/peer envelope. See
 `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
+
+QA impact 2026-11-10 (#1448): an unchanged workspace-catalog poll must not re-render the
+shell. Each 10 s refresh used to re-render every `useActiveWorkspace` caller (the hook
+spread the whole query result), every worktree listing (it read the catalog's refresh
+time), and callers that read no catalog field; on a CI peer that render landed in the
+E2E-023 convergence window as a 54 ms long task. Keep the 50 ms convergence limit and
+measurement unchanged. Verify that a catalog whose rows change still updates the project
+rail, palette, and worktree listings, and that a listing parked on a gone root (410)
+recovers on the next catalog observation even when the rows are unchanged. With the peer
+CPU throttled 6x, a 20 s idle window on both peers recorded 6 and 4 long tasks of
+71–130 ms before the change and none after. The workspace hook suites cover both
+behaviors; repeated unmodified E2E-023 runs passed with 0 ms peer-convergence tasks.

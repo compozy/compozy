@@ -96,6 +96,7 @@ Provider overrides and custom providers are configured in `config.toml`.
 | `auth_login_command`    | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command.                                                                                                                                                                                                                                                                                                       |
 | `auth_acp_method`       | string | no                       | Protocol-owned login method id (for example `oauth-personal` on `agy`). Used by `compozy provider auth login` and remote probes when no native login/status command is configured; read surfaces expose only `source: auth_acp_method` with the executable basename and presence.                                                                                                                                                                   |
 | `session_mcp_transport` | string | no                       | How per-session stdio MCP servers, including CompozyOS native tools, reach an ACP provider. Empty or `stdio` passes them unchanged. `http` serves each one on a loopback HTTP endpoint guarded by a per-session bearer token, for agents that accept only remote MCP servers. Agents on MCP protocol versions before 2026-07-28 do not receive tool-list change notifications through it. Requires `harness = "acp"`. `copilot` defaults to `http`. |
+| `enabled`               | bool   | no                       | `false` turns the provider off: it stays listed in inventories but leaves pickers, the model catalog and usage views, and new launches fail with `provider_disabled`. Global and profile config only. Not the same as `compozy gateway provider disable`, which manages gateway upstreams. See [Turn off a provider](/docs/configuration/config-toml#turn-off-a-provider).                                                                          |
 | `credential_slots`      | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                                                                                                                                                                                                                                                                                                                          |
 | `mcp_servers`           | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                                                                                                                                                                                                                                                                                                                                   |
 
@@ -203,7 +204,7 @@ What Copilot supports through CompozyOS:
   itself (Auto), model refresh reports that no model option was advertised, and an explicit model
   or effort fails before the first prompt instead of being ignored.
 - **Permissions.** Copilot asks for approval through ACP and CompozyOS answers with the session's
-  permission mode. `permissions.provider_full_access` turns on Copilot's `allow_all` option.
+  permission mode. `approve-all` turns on Copilot's `allow_all` option.
   Copilot's Autopilot mode also approves everything, so CompozyOS treats it as an unrestricted
   mode that requires `approve-all`.
 - **CompozyOS native tools.** Copilot ignores stdio MCP servers sent over ACP, so `copilot`
@@ -252,6 +253,12 @@ Each key is the target environment variable name. Values must be `env:NAME` or a
 Literal values are rejected. A string declaration is required by default; an absent required
 reference fails launch, while an absent optional reference is skipped with a diagnostic.
 Undeclared variables retain the existing environment filter, including socket variables.
+An explicitly supplied empty launch environment stays empty instead of restoring daemon
+variables; only an unspecified (`nil`) environment inherits. ACP preparation still adds
+`COMPOZY_BIN` and its binary directory to `PATH` when executable discovery succeeds.
+Missing optional targets are removed without restoring operator credentials.
+On Windows, Go retains its documented `SYSTEMROOT` addition when that required system
+variable is absent; an explicitly supplied value is preserved.
 `COMPOZY_` names are reserved for managed runtime identity.
 
 The configuration CLI accepts a reference for a single binding or JSON for a structured binding:
@@ -477,8 +484,8 @@ Only when that window ends, or for a rate-limit failure, does the failure end th
 keeping the session available. After restoring authentication or waiting for the provider to recover,
 send another prompt in the same session. CompozyOS does not automatically retry rate-limited prompts.
 
-On a user session, a `session/prompt` failure classified `rate_limited` or `not_authenticated` prescribes
-`handoff`: the error event's `provider_error.next_action` is `handoff` and its guidance names the continue
+On a user session, a `session/prompt` rate-limit failure prescribes `handoff`. Native CLI authentication
+failures keep `login` guidance and recover the same conversation after sign-in. For a handoff: the error event's `provider_error.next_action` is `handoff` and its guidance names the continue
 command.
 
 ```json
@@ -601,6 +608,9 @@ secret_ref = "env:OPENROUTER_API_KEY"
 kind = "api_key"
 required = true
 ```
+
+`target_env` names starting with `COMPOZY_INTERNAL_` are reserved for CompozyOS process handoff and
+are never delivered to the agent process.
 
 For CompozyOS-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
 through the settings API or web provider editor. The `<provider>` and `<slot>` segments are lowercase
@@ -896,3 +906,12 @@ notification per the ACP extension rules, with zero behavior change.
 - [Provider Model Catalog](/docs/agents/model-catalog) covers the daemon-owned catalog, sources, refresh lifecycle, OpenAI-compatible projection, and extension `model.source`.
 - [CLI agent reference](/docs/cli/agent) lists the current `compozy agent` inspection commands.
 - [`compozy provider models` CLI](/docs/cli/provider/models) inspects and refreshes the catalog without a UI.
+
+## Reduced environment for Claude workers
+
+Set `lean_environment: true` in an agent's `AGENT.md` to disable ambient Claude MCP
+servers, claude.ai connectors, and auto-memory. Session-configured MCP servers,
+repository `CLAUDE.md` instructions, skills, tools, and settings hooks remain
+available. The option applies on new and resumed sessions. Other providers ignore
+it. User and spawned sessions retain their existing defaults when it is absent.
+Daemon `system` and heartbeat `triage` sessions always use the reduced environment.

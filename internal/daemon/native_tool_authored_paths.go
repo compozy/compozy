@@ -203,6 +203,10 @@ func (n *daemonNativeTools) invalidSkillDefinition(
 		return nil, false, err
 	}
 	diagnostics, err := registry.SkillDiagnostics(ctx, resolved, strings.TrimSpace(scope.AgentName))
+	if errors.Is(err, skills.ErrAgentNotFound) {
+		// Concrete session agents need not have an authored definition in this catalog.
+		diagnostics, err = registry.SkillDiagnostics(ctx, resolved, "")
+	}
 	if err != nil {
 		return nil, false, err
 	}
@@ -245,6 +249,7 @@ type nativeAuthoredAgentTarget struct {
 	agentPath       string
 	agentLayer      string
 	heartbeatConfig compozyconfig.HeartbeatConfig
+	checkInLimits   heartbeat.CheckInLimits
 }
 
 // authoredAgentTarget resolves the native caller Profile and registered workspace before selecting agent paths.
@@ -294,12 +299,17 @@ func (n *daemonNativeTools) authoredAgentTarget(
 		agentPath:       nativeAuthoredAgentPath(resolved, name),
 		agentLayer:      agentLayer,
 		heartbeatConfig: resolved.Config.Agents.Heartbeat,
+		checkInLimits: heartbeat.CheckInLimits{
+			MaxToolCalls:  resolved.Config.Agents.AlwaysOn.CheckInMaxToolCalls,
+			MaxWriteCalls: resolved.Config.Agents.AlwaysOn.CheckInMaxWriteCalls,
+		},
 	}, nil
 }
 
 // heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
+		CheckInLimits: &t.checkInLimits,
 		ProfileID:     t.profileID,
 		ProfileName:   t.profileName,
 		WorkspaceID:   t.authoringWorkspaceID(),

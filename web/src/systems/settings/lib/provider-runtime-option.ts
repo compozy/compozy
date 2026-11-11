@@ -1,5 +1,6 @@
 import type { SettingsProviderEntry } from "../types";
 import { providerNeedsAuth } from "@/systems/model-catalog";
+import { isProviderEnabled } from "@/systems/providers";
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
 /**
@@ -18,5 +19,6 @@ export function settingsProviderToOption(provider: SettingsProviderEntry): Runti
     ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
     runtime_strategy: provider.runtime_strategy,
     needs_auth: providerNeedsAuth(provider.auth_status?.state),
+    ...(isProviderEnabled(provider.settings) ? {} : { disabled: true }),
   };
 }

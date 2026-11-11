@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -12,6 +14,9 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	core "github.com/compozy/compozy/internal/api/core"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -1538,4 +1543,379 @@ func TestInstanceNativeApprovalBeyondDefaultTimeout(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestTerminalApprovalPreservesRunRestrictions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		inactive    bool
+		run         string
+		wantMessage string
+	}{
+		{name: "Should execute after allow once for the same active run", run: "run-a"},
+		{name: "Should explain an inactive run after allow once", inactive: true, wantMessage: "terminal action requires an active prompt run"},
+		{name: "Should explain a replaced run after allow once", run: "run-b", wantMessage: "terminal action belongs to a different prompt run"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			approved := false
+			requester := &recordingPermissionRequester{
+				fn: func(context.Context, string, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+					approved = true
+					return acp.RequestPermissionResponse{
+						Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalAllowOnceID),
+					}, nil
+				},
+			}
+			var approvalLog bytes.Buffer
+			writer := &recordingToolEventSummaryStore{}
+			bridge := newToolApprovalBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				nil,
+				nil,
+				slog.New(slog.NewJSONHandler(&approvalLog, nil)),
+			)
+			manager := &terminalNativeManagerStub{}
+			deps := &daemonNativeToolsDeps{
+				Terminals:  func() terminalpkg.Manager { return manager },
+				Workspaces: nativeTestWorkspaceService(t),
+				Sessions: &apitest.StubSessionManager{
+					StatusFn: func(context.Context, string) (*sessionpkg.Info, error) {
+						return &sessionpkg.Info{
+							ID:                "sess-a",
+							ProfileID:         "profile-a",
+							WorkspaceID:       "workspace-a",
+							AgentName:         "agent-a",
+							RuntimeGeneration: 1,
+						}, nil
+					},
+					ActivePromptRunFn: func(context.Context, string) (sessionpkg.PromptRunIdentity, error) {
+						if approved && tc.inactive {
+							return sessionpkg.PromptRunIdentity{}, sessionpkg.ErrPromptNotActive
+						}
+						run := "run-a"
+						if approved {
+							run = tc.run
+						}
+						return sessionpkg.PromptRunIdentity{
+							SessionID:   "sess-a",
+							ProfileID:   "profile-a",
+							WorkspaceID: "workspace-a",
+							RunID:       run,
+							Generation:  1,
+						}, nil
+					},
+				},
+			}
+			policy := nativeApproveAllPolicyInputs()
+			policy.SystemPermissionMode = toolspkg.PermissionModeApproveReads
+			registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps,
+				toolspkg.NewStaticPolicyInputResolver(policy), nil, toolspkg.WithApprovalBridge(bridge),
+				toolspkg.WithToolEventSink(&daemonToolEventSink{writer: writer}))
+			_, err := registry.Call(t.Context(), toolspkg.Scope{
+				ProfileID:   "profile-a",
+				WorkspaceID: "workspace-a",
+				SessionID:   "sess-a",
+				AgentName:   "agent-a",
+				RunID:       "run-a",
+				Generation:  1,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalExec, ToolCallID: "call-a", Input: []byte(`{"command":"echo","args":["sensitive-command-argument"]}`)})
+			if !approved || len(requester.requests) != 1 {
+				t.Fatalf("approval calls = %d, want one accepted allow once", len(requester.requests))
+			}
+			var applied struct {
+				RequestID     string `json:"request_id"`
+				CorrelationID string `json:"correlation_id"`
+				RunID         string `json:"run_id"`
+				Approval      string `json:"approval"`
+				Source        string `json:"source"`
+			}
+			if err := json.Unmarshal(approvalLog.Bytes(), &applied); err != nil {
+				t.Fatal(err)
+			}
+			request := requester.lastRequest(t)
+			if applied.RequestID != request.Meta[acp.PermissionRequestIDMetaKey] || applied.CorrelationID != "call-a" ||
+				applied.RunID != "run-a" || applied.Approval != "approved_once" || applied.Source != "permission_response" ||
+				strings.Contains(approvalLog.String(), "sensitive-command-argument") {
+				t.Fatalf("approval application = %s", approvalLog.Bytes())
+			}
+			if len(writer.summaries) == 0 {
+				t.Fatal("no execution outcome was recorded")
+			}
+			var outcome toolspkg.ToolCallEvent
+			if err := json.Unmarshal(writer.summaries[len(writer.summaries)-1].Content, &outcome); err != nil {
+				t.Fatal(err)
+			}
+			if outcome.CorrelationID != applied.CorrelationID || outcome.RunID != applied.RunID ||
+				outcome.Generation != 1 {
+				t.Fatalf("execution outcome = %#v, want approval correlation", outcome)
+			}
+			if tc.wantMessage == "" {
+				if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" {
+					t.Fatalf("exec calls=%d approval=%q error=%v", manager.execCalls, manager.execRequest.Approval, err)
+				}
+				return
+			}
+			requireToolReason(t, err, terminalpkg.ErrRunIdentityIncomplete, toolspkg.ReasonSessionDenied)
+			response := core.ToolErrorResponseForError(err, core.StatusForToolError(err), true)
+			if manager.execCalls != 0 || response.Error.Code != toolspkg.ErrorCodeDenied ||
+				response.Error.Message != tc.wantMessage {
+				t.Fatalf("exec calls=%d error response=%#v", manager.execCalls, response)
+			}
+		})
+	}
+}
+
+func TestToolApprovalResultViews(t *testing.T) {
+	t.Parallel()
+	inputs := []string{
+		`{"result_view":"full","z":1,"a":"value"}`,
+		`{"z":1,"result_view":"compact","a":"value"}`,
+		`{"z":1,"a":"value","result_view":"full"}`,
+	}
+	for _, decision := range []toolspkg.ApprovalGrantDecision{toolspkg.ApprovalGrantAllow, toolspkg.ApprovalGrantReject} {
+		t.Run("Should preserve pre-view exact "+string(decision)+" grants", func(t *testing.T) {
+			t.Parallel()
+			view := toolApprovalTestView()
+			view.Descriptor.SetResultViews(&toolspkg.ResultViews{})
+			scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+			original := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
+			original.Input = json.RawMessage(`{"z":1,"a":"value"}`)
+			key, err := toolApprovalGrantKey(scope, original, view.Descriptor.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			grants := &recordingApprovalGrantStore{
+				grants: []toolspkg.ApprovalGrant{{ApprovalGrantKey: key, Decision: decision}},
+			}
+			requester := selectedPermissionRequester(toolApprovalAllowOnceID)
+			bridge := newToolApprovalBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				nil,
+				grants,
+				nil,
+			)
+			for _, input := range inputs {
+				call := original
+				call.Input = json.RawMessage(input)
+				err := bridge.RequestToolApproval(t.Context(), scope, &call, &view)
+				if (err != nil) != (decision == toolspkg.ApprovalGrantReject) {
+					t.Fatalf("decision=%s err=%v", decision, err)
+				}
+			}
+			if len(requester.requests) != 0 {
+				t.Fatal("matching grant prompted again")
+			}
+			changed := original
+			changed.Input = json.RawMessage(`{"z":2,"a":"value","result_view":"full"}`)
+			if err := bridge.RequestToolApproval(t.Context(), scope, &changed, &view); err != nil {
+				t.Fatal(err)
+			}
+			if len(requester.requests) != 1 {
+				t.Fatal("changed operation reused the grant")
+			}
+		})
+	}
+	t.Run("Should remember a view call under the operation digest", func(t *testing.T) {
+		t.Parallel()
+		view := toolApprovalTestView()
+		view.Descriptor.SetResultViews(&toolspkg.ResultViews{})
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+		grants := &recordingApprovalGrantStore{}
+		requester := selectedPermissionRequester(toolApprovalAllowAlwaysID)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			grants,
+			nil,
+		)
+		for _, input := range inputs {
+			call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
+			call.Input = json.RawMessage(input)
+			if err := bridge.RequestToolApproval(t.Context(), scope, &call, &view); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(requester.requests) != 1 || len(grants.grants) != 1 {
+			t.Fatalf("prompts=%d grants=%d", len(requester.requests), len(grants.grants))
+		}
+		digest, err := toolspkg.ApprovalInputDigest(json.RawMessage(`{"z":1,"a":"value"}`), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if grants.grants[0].InputDigest != digest {
+			t.Fatal("selector affected grant identity")
+		}
+	})
+	t.Run("Should consume pre-view one-shot tokens for either view", func(t *testing.T) {
+		t.Parallel()
+		view := toolApprovalTestView()
+		view.Descriptor.SetResultViews(&toolspkg.ResultViews{})
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+		tokens := toolspkg.NewApprovalTokenStore(time.Minute)
+		bridge := newToolApprovalBridge(nil, time.Second, tokens, nil, nil)
+		for _, input := range inputs {
+			call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
+			grant, err := tokens.CreateToolApproval(
+				t.Context(),
+				scope,
+				toolspkg.ApprovalTokenRequest{
+					ToolID:      call.ToolID,
+					SessionID:   call.SessionID,
+					WorkspaceID: call.WorkspaceID,
+					AgentName:   call.AgentName,
+					Input:       json.RawMessage(`{"z":1,"a":"value"}`),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			call.Input = json.RawMessage(input)
+			call.ApprovalToken = grant.ApprovalToken
+			if err := bridge.RequestToolApproval(t.Context(), scope, &call, &view); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	t.Run("Should bind non-native approvals to their entire input", func(t *testing.T) {
+		t.Parallel()
+		view := toolApprovalTestView()
+		view.Descriptor.Backend.Kind = toolspkg.BackendMCP
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
+		call.Input = json.RawMessage(`{"z":1,"a":"value"}`)
+		key, err := toolApprovalGrantKey(scope, call, call.ToolID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grants := &recordingApprovalGrantStore{
+			grants: []toolspkg.ApprovalGrant{{ApprovalGrantKey: key, Decision: toolspkg.ApprovalGrantAllow}},
+		}
+		requester := selectedPermissionRequester(toolApprovalAllowOnceID)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			grants,
+			nil,
+		)
+		call.Input = json.RawMessage(inputs[0])
+		if err := bridge.RequestToolApproval(t.Context(), scope, &call, &view); err != nil {
+			t.Fatal(err)
+		}
+		if len(requester.requests) != 1 {
+			t.Fatal("non-native selector was ignored")
+		}
+	})
+}
+
+func TestCheckInResultViewApproval(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reuse the operation grant for check-in views", func(t *testing.T) {
+		t.Parallel()
+		d := toolApprovalTestView().Descriptor
+		d.SetResultViews(&toolspkg.ResultViews{})
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", AgentName: "codex"}
+		key, err := toolApprovalGrantKey(
+			scope,
+			toolspkg.CallRequest{Input: json.RawMessage(`{"z":1,"a":"value"}`)},
+			d.ID,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grants := &recordingApprovalGrantStore{
+			grants: []toolspkg.ApprovalGrant{{ApprovalGrantKey: key, Decision: toolspkg.ApprovalGrantAllow}},
+		}
+		resolver := &nativeToolPolicyResolver{approvalGrants: grants}
+		for _, input := range []string{`{"result_view":"full","z":1,"a":"value"}`, `{"z":1,"result_view":"compact","a":"value"}`, `{"z":1,"a":"value","result_view":"full"}`} {
+			if !resolver.checkInApprovalAllows(t.Context(), scope, d, json.RawMessage(input)) {
+				t.Fatal("selector changed check-in approval")
+			}
+		}
+		if resolver.checkInApprovalAllows(
+			t.Context(),
+			scope,
+			d,
+			json.RawMessage(`{"z":2,"a":"value","result_view":"full"}`),
+		) {
+			t.Fatal("changed operation reused approval")
+		}
+		grants.grants[0].Decision = toolspkg.ApprovalGrantReject
+		if resolver.checkInApprovalAllows(
+			t.Context(),
+			scope,
+			d,
+			json.RawMessage(`{"z":1,"a":"value","result_view":"full"}`),
+		) {
+			t.Fatal("reject grant allowed check-in")
+		}
+	})
+}
+
+func TestBoundResultViewApprovalToken(t *testing.T) {
+	t.Parallel()
+	t.Run("Should mint tokens from either view and consume them without the selector", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager("ws-1"),
+				Workspaces: nativeTestWorkspaceService(t),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		tokens := toolspkg.NewApprovalTokenStore(time.Minute)
+		issuer := &boundToolApprovalIssuer{registry: registry, tokens: tokens, binder: resultViewApprovalInputBinder{}}
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID, SessionID: "sess-1"}
+		for _, input := range []string{`{"result_view":"full","z":1,"a":"value"}`, `{"z":1,"result_view":"compact","a":"value"}`, `{"z":1,"a":"value","result_view":"full"}`} {
+			digest, err := toolspkg.ApprovalInputDigest(json.RawMessage(`{"z":1,"a":"value"}`), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			grant, err := issuer.CreateToolApproval(
+				t.Context(),
+				scope,
+				toolspkg.ApprovalTokenRequest{
+					ToolID:      toolspkg.ToolIDSessionArchive,
+					Input:       json.RawMessage(input),
+					InputDigest: digest,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if grant.InputDigest != digest {
+				t.Fatal("token includes selector")
+			}
+			if err := tokens.ConsumeToolApproval(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID:        toolspkg.ToolIDSessionArchive,
+					Input:         json.RawMessage(`{"z":1,"a":"value"}`),
+					ApprovalToken: grant.ApprovalToken,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
+type resultViewApprovalInputBinder struct{}
+
+var _ toolspkg.CallInputBinder = resultViewApprovalInputBinder{}
+
+func (resultViewApprovalInputBinder) BindCallInput(
+	_ context.Context,
+	_ toolspkg.Scope,
+	_ toolspkg.Descriptor,
+	input json.RawMessage,
+) (json.RawMessage, error) {
+	return input, nil
 }

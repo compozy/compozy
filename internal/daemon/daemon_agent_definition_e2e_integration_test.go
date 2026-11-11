@@ -21,6 +21,7 @@ import (
 	"time"
 
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1174,6 +1175,286 @@ func TestDaemonE2EHeartbeatSourceCatalog(t *testing.T) {
 		run(&instance, "agent", "instance", "show", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
 		if len(instance.Instance.Sources) != 1 || instance.Instance.Sources[0].Status != "ok" {
 			t.Fatalf("instance sources=%+v check=%v", instance.Instance.Sources, check)
+		}
+	})
+}
+
+func TestDaemonE2ECheckInProposalPickCLI(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Run("Should complete the operator pick golden path [E2E-001]", func(t *testing.T) {
+		data, err := os.ReadFile(mockFixturePath(t, "multi_agent_fixture.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fixture acpmock.Fixture
+		if err := json.Unmarshal(data, &fixture); err != nil {
+			t.Fatal(err)
+		}
+		fixture.Agents = fixture.Agents[:1]
+		fixture.Agents[0].ConfigOptions = []acpmock.SessionConfigOptionFixture{
+			{
+				ID:       "mode",
+				Name:     "Mode",
+				Category: "mode",
+				Current:  "read-only",
+				Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "read-only"}},
+			},
+			{
+				ID:       "model",
+				Name:     "Model",
+				Category: "model",
+				Current:  "model-v1",
+				Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "model-v1"}},
+			},
+		}
+		fixture.Agents[0].Turns = []acpmock.TurnFixture{
+			{
+				Name:  "proposal",
+				Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceUser},
+				Steps: []acpmock.Step{
+					{
+						Kind: acpmock.StepKindAssistant,
+						Text: `{"proposals":[{"title":"Write report","body":"Review evidence","item_keys":["source:incoming:1"],"action":"report"},{"title":"Review manually","body":"Review this separately","item_keys":["source:incoming:2"]}]}`,
+					},
+				},
+			},
+		}
+		path := filepath.Join(t.TempDir(), "pick-fixture.json")
+		data, err = json.Marshal(fixture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		harness := e2etest.StartRuntimeHarness(
+			t,
+			&e2etest.RuntimeHarnessOptions{
+				ConfigSeed: agentDefinitionE2EConfigSeed(t),
+				MockAgents: []e2etest.MockAgentSpec{
+					{FixturePath: path, FixtureAgent: fixture.Agents[0].Name, AgentName: "pick-provider"},
+				},
+			},
+		)
+		registration, ok := harness.MockAgentRegistration("pick-provider")
+		if !ok {
+			t.Fatal("MockAgentRegistration(pick-provider) = missing, want present")
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancel()
+		run := func(result any, args ...string) {
+			t.Helper()
+			if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, result, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var agent compozycontract.AgentPayload
+		run(
+			&agent,
+			"agent",
+			"create",
+			"pick-agent",
+			"--workspace",
+			harness.WorkspaceRoot,
+			"--kind",
+			"always_on",
+			"--provider",
+			acpmock.ProviderName,
+			"--command",
+			registration.Command,
+			"--model",
+			"model-v1",
+			"--prompt",
+			"Review incoming evidence.",
+			"-o",
+			"json",
+		)
+		dir := filepath.Join(
+			harness.WorkspaceRoot,
+			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
+			compozyconfig.AgentsDirName,
+			"pick-agent",
+		)
+		if err := os.MkdirAll(filepath.Join(dir, "sources"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "sources", "incoming"),
+			[]byte(
+				"#!/bin/sh\nprintf '{\"items\":[{\"key\":\"1\",\"title\":\"Incoming evidence\"},{\"key\":\"2\",\"title\":\"Separate evidence\"}]}'\n",
+			),
+			0700,
+		); err != nil {
+			t.Fatal(err)
+		}
+		policy := []byte(
+			"---\nversion: 1\ncontext:\n  include: []\n  sources:\n    - id: incoming\n      script: incoming\nactions:\n  - id: report\n    title: Report\n    instructions: Write a report from the evidence.\n    auto_accept: true\n---\nReport a useful finding.\n",
+		)
+		policyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")
+		if err := os.WriteFile(policyPath, policy, 0600); err != nil {
+			t.Fatal(err)
+		}
+		var written map[string]any
+		run(
+			&written,
+			"agent",
+			"heartbeat",
+			"write",
+			"pick-agent",
+			"--file",
+			policyPath,
+			"--approve-authority",
+			"--yes",
+			"--workspace",
+			harness.WorkspaceRoot,
+			"-o",
+			"json",
+		)
+		var approval map[string]any
+		run(
+			&approval,
+			"agent",
+			"heartbeat",
+			"sources",
+			"approve",
+			"pick-agent",
+			"incoming",
+			"--workspace",
+			harness.WorkspaceRoot,
+			"--yes",
+			"-o",
+			"json",
+		)
+		var validation map[string]any
+		run(
+			&validation,
+			"agent",
+			"heartbeat",
+			"validate",
+			"pick-agent",
+			"--file",
+			policyPath,
+			"--workspace",
+			harness.WorkspaceRoot,
+			"-o",
+			"json",
+		)
+		var instance compozycontract.AgentInstanceResponse
+		run(&instance, "agent", "instance", "create", "pick-agent", "--workspace", harness.WorkspaceRoot, "-o", "json")
+		var check map[string]any
+		run(&check, "agent", "instance", "check", instance.Instance.ID, "-o", "json")
+		var checks compozycontract.AgentInstanceCheckInsResponse
+		run(&checks, "agent", "instance", "check-ins", instance.Instance.ID, "-o", "json")
+		if len(checks.CheckIns) == 0 {
+			t.Fatalf("check-ins=%+v", checks)
+		}
+		run(
+			&checks,
+			"agent",
+			"instance",
+			"check-ins",
+			instance.Instance.ID,
+			"--occurrence",
+			checks.CheckIns[0].OccurrenceID,
+			"-o",
+			"json",
+		)
+		var reports compozycontract.AgentInstanceReportsResponse
+		run(&reports, "agent", "instance", "reports", instance.Instance.ID, "-o", "json")
+		if len(reports.Reports) == 0 || len(reports.Reports[0].Proposals) != 2 || len(reports.Reports[0].Picks) != 1 {
+			t.Fatalf("reports=%+v", reports)
+		}
+		for i, itemKey := range []string{"source:incoming:1", "source:incoming:2"} {
+			if got := reports.Reports[0].Proposals[i].ItemKeys; !slices.Equal(got, []string{itemKey}) {
+				t.Fatalf("proposal %d item keys = %v, want [%s]", i+1, got, itemKey)
+			}
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if len(prompts) == 0 {
+			t.Fatal("mock agent received no prompts")
+		}
+		for _, fragment := range []string{
+			"Report a useful finding.",
+			"Write a report from the evidence.",
+			"source:incoming:1",
+			"Incoming evidence",
+			"source:incoming:2",
+			"Separate evidence",
+		} {
+			if !strings.Contains(prompts[0].Prompt, fragment) {
+				t.Fatalf("triage prompt missing %q", fragment)
+			}
+		}
+		const jsonFence = "\n```json\n"
+		start := strings.LastIndex(prompts[0].Prompt, jsonFence)
+		if start < 0 {
+			t.Fatal("triage prompt missing source JSON")
+		}
+		var digest struct {
+			Items []struct {
+				Key     string `json:"key"`
+				Summary string `json:"summary"`
+			} `json:"items"`
+		}
+		if err := json.NewDecoder(strings.NewReader(prompts[0].Prompt[start+len(jsonFence):])).
+			Decode(&digest); err != nil {
+			t.Fatalf("decode triage source JSON: %v", err)
+		}
+		summaries := make(map[string]string, len(digest.Items))
+		for _, item := range digest.Items {
+			if _, duplicate := summaries[item.Key]; duplicate {
+				t.Fatalf("triage prompt repeats source item %q", item.Key)
+			}
+			summaries[item.Key] = item.Summary
+		}
+		for key, title := range map[string]string{
+			"source:incoming:1": "Incoming evidence",
+			"source:incoming:2": "Separate evidence",
+		} {
+			if !strings.Contains(summaries[key], title) {
+				t.Fatalf("triage item %q summary = %q, want title %q", key, summaries[key], title)
+			}
+		}
+		var picked compozycontract.AgentInstancePickResponse
+		run(&picked, "agent", "instance", "pick", instance.Instance.ID, reports.Reports[0].ID, "2", "-o", "json")
+		if picked.Pick.Actor != "operator" || picked.Pick.ProposalIndex != 1 {
+			t.Fatalf("pick=%+v", picked)
+		}
+		_, stderr, err := harness.CLI.Run(
+			ctx,
+			"agent",
+			"instance",
+			"pick",
+			instance.Instance.ID,
+			reports.Reports[0].ID,
+			"2",
+			"-o",
+			"json",
+		)
+		if err == nil || !strings.Contains(stderr, "proposal_already_picked") {
+			t.Fatalf("repeat=%v stderr=%s", err, stderr)
+		}
+		var authority compozycontract.HeartbeatAuthorityPayload
+		run(
+			&authority,
+			"agent",
+			"heartbeat",
+			"authority",
+			"show",
+			"pick-agent",
+			"--workspace",
+			harness.WorkspaceRoot,
+			"-o",
+			"json",
+		)
+		if authority.Status != "approved" {
+			t.Fatalf("authority=%+v", authority)
 		}
 	})
 }

@@ -39,6 +39,7 @@ type extensionNameInput struct {
 }
 
 type extensionInstallInput struct {
+	Enable               bool                            `json:"enable"`
 	Scope                string                          `json:"scope"`
 	Workspace            string                          `json:"workspace"`
 	Profile              string                          `json:"profile"`
@@ -54,7 +55,7 @@ type extensionInstallInput struct {
 
 func (i extensionInstallInput) request() contract.InstallExtensionRequest {
 	return contract.InstallExtensionRequest{
-		Scope: i.Scope, WorkspaceID: i.Workspace, Profile: i.Profile,
+		Enable: i.Enable, Scope: i.Scope, WorkspaceID: i.Workspace, Profile: i.Profile,
 		Inputs: i.Inputs, ExpectedDigest: i.ExpectedDigest,
 		Source: i.Source, Ref: i.Ref, Version: i.Version, Asset: i.Asset,
 		AllowUnverified: i.AllowUnverified, ConfirmGatewayDigest: i.ConfirmGatewayDigest,
@@ -171,7 +172,10 @@ func (n *daemonNativeTools) extensionInstall(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
+	return (resultViews[*contract.InstallExtensionResponse]{
+		Compact: compactExtensionRecord,
+		Preview: func(*contract.InstallExtensionResponse) string { return item.Name },
+	}).result(req.View, &contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError})
 }
 
 func (n *daemonNativeTools) extensionUpdate(

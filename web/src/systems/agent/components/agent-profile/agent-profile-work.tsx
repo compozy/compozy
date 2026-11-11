@@ -45,7 +45,7 @@ export function FindingRow({
         </span>
       </span>
       {finding.waiting ? (
-        <Pill size="sm" tone="brand">
+        <Pill size="sm" tone="attn">
           Your call
         </Pill>
       ) : null}

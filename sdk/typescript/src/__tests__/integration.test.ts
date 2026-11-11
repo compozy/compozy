@@ -310,6 +310,7 @@ describe("SDK integration", () => {
     );
   });
 
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real subprocess startup, JSON-RPC exchanges and shutdown retain the bounded 180s integration deadline; responses synchronize through stdio events.
   it(
     "builds an SDK-based extension and serves real JSON-RPC over stdio",
     async () => {
@@ -458,6 +459,7 @@ describe("SDK integration", () => {
     integrationTimeoutMs
   );
 
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real extension subprocess discovery, tool calls and shutdown retain the bounded 180s integration deadline; responses synchronize through stdio events.
   it(
     "serves extension.tool descriptors and calls over real stdio",
     async () => {

@@ -41,7 +41,16 @@ func (m *Manager) sessionStartOpts(
 	shellWaitGuard := m.sessionCanRedirectShellWaits(s, resolved)
 	opts := acp.StartOpts{
 		PermissionPolicy: &acp.StartPermissionPolicy{
-			Rules: configuredPermissionRules(s.permissionRules), Denials: session.permissionDenialsState(),
+			Rules:   configuredPermissionRules(s.permissionRules),
+			Denials: session.permissionDenialsState(),
+			// Provider questions and tool approvals share one session operator.
+			ElicitationAsker: m.elicitationAsker(
+				s.sessionID,
+				s.workspace.ID,
+				s.profileID,
+				resolved.Name,
+				s.sessionType,
+			),
 		},
 		AgentName:              resolved.Name,
 		CompozySessionID:       s.sessionID,
@@ -63,6 +72,7 @@ func (m *Manager) sessionStartOpts(
 		ResumeSessionID:        s.acpSessionID,
 		InputOnly:              IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
 		ShellWaitGuard:         shellWaitGuard,
+		LeanEnvironment:        sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
 		PermissionEventHandler: m.permissionEventHandler(session),
 		ToolGateway:            newProviderNativeToolGateway(m, session, s.runtimeMode, shellWaitGuard),
 		ActivateMCPServers: m.sessionMCPServerActivator(
@@ -71,10 +81,10 @@ func (m *Manager) sessionStartOpts(
 		),
 	}
 	if s.sessionType == SessionTypeTriage {
+		session.checkInToolsStatus = s.checkInToolsStatus
 		opts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
 		opts.Permissions = compozyconfig.PermissionModeApproveReads
-		opts.MCPServers = nil
-		opts.ActivateMCPServers = nil
+		opts.CheckInTools = len(mcpServers) > 0
 		opts.ShellWaitGuard = false
 	}
 	return applyProviderRuntimeAdapter(resolved, opts)
@@ -190,4 +200,11 @@ func sessionEnvironmentKey(name string) string {
 		return strings.ToUpper(name)
 	}
 	return name
+}
+
+func sessionLeanEnvironment(sessionType Type, authored *bool) bool {
+	if sessionType == SessionTypeSystem || sessionType == SessionTypeTriage {
+		return true
+	}
+	return authored != nil && *authored
 }

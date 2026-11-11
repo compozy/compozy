@@ -6,13 +6,13 @@ const worktreeDescriptorKey = "worktree"
 
 func worktreeDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
-		nativeDescriptor(
+		withResultViews(nativeDescriptor(
 			toolspkg.ToolIDWorktreeList, "worktree_list", "Worktree List",
-			"List registered and discovered worktrees for one workspace.",
+			"List registered and discovered worktrees, excluding removed records unless include_removed is true.",
 			worktreeListInputSchema, toolspkg.RiskRead, true, false, false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorktrees},
 			[]string{worktreeDescriptorKey, descriptorKeywordList}, []string{"worktree list", "git worktrees"},
-		),
+		), worktreeListCompactOutputSchema, `{"type":"object"}`),
 		nativeDescriptor(
 			toolspkg.ToolIDWorktreeInspect, "worktree_inspect", "Worktree Inspect",
 			"Inspect one worktree with cached status, forge state, and agent activity.",
@@ -52,7 +52,8 @@ const worktreeListInputSchema = `{
 	"type":"object",
 	"properties":{
 		"workspace":{"type":"string"},
-		"refresh":{"type":"boolean"}
+		"refresh":{"type":"boolean"},
+		"include_removed":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`

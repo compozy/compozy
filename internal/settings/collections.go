@@ -52,7 +52,7 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 		}
 		envelope.Providers = items
 	case CollectionMCPServers:
-		items, buildErr := s.buildMCPServerItems(ctx, scope, workspaceID, profileName, resolved)
+		items, buildErr := s.buildMCPServerItems(ctx, scope, workspaceID, profileName, resolved, req.SkipRuntimeStatus)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
@@ -171,66 +171,78 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 
 	items := make([]ProviderItem, 0, len(names))
 	for _, name := range names {
-		resolved, err := cfg.ResolveProvider(name)
-		if err != nil {
-			return nil, fmt.Errorf("settings: resolve provider %q: %w", name, err)
-		}
-
-		settings, err := s.providerSettingsFromConfig(ctx, name, resolved)
+		item, err := s.buildProviderItem(ctx, cfg, name)
 		if err != nil {
 			return nil, err
 		}
-		credentials, err := s.providerCredentialStatuses(ctx, resolved)
-		if err != nil {
-			return nil, fmt.Errorf("settings: provider %q credential status: %w", name, err)
-		}
-		authStatus, err := providerAuthStatus(
-			ctx,
-			s.homePaths,
-			name,
-			resolved,
-			credentials,
-			s.providerAuthCommandResolver,
-			s.providerAuthVerdicts,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("settings: provider %q auth status: %w", name, err)
-		}
-		item := ProviderItem{
-			Name:             name,
-			Settings:         settings,
-			Default:          strings.TrimSpace(cfg.Defaults.Provider) == name,
-			CommandAvailable: s.providerLaunchAvailable(name, resolved),
-			Credentials:      credentials,
-			AuthStatus:       authStatus,
-		}
-		item.SessionEnvStatus, err = s.sessionEnvironmentStatuses(ctx, resolved.SessionEnv)
-		if err != nil {
-			return nil, fmt.Errorf("settings: provider %q session environment status: %w", name, err)
-		}
-
-		if overlay, ok := cfg.Providers[name]; ok {
-			item.SourceMetadata = SourceMetadata{
-				EffectiveSource:  sourceRefForWriteTarget(WriteTargetGlobalConfig, "", ""),
-				AvailableTargets: []WriteTargetKind{WriteTargetGlobalConfig},
-			}
-			if builtin, builtinOK := builtins[name]; builtinOK {
-				item.SourceMetadata.ShadowedSources = []SourceRef{builtinProviderSource()}
-				item.Fallback = providerFallbackFromBuiltin(name, builtin)
-			}
-			if strings.TrimSpace(overlay.Command) == "" && item.Settings.Command == "" {
-				item.CommandAvailable = false
-			}
-		} else {
-			item.SourceMetadata = SourceMetadata{
-				EffectiveSource:  builtinProviderSource(),
-				AvailableTargets: []WriteTargetKind{WriteTargetGlobalConfig},
-			}
-		}
-
-		items = append(items, cloneProviderItem(&item))
+		items = append(items, item)
 	}
 	return items, nil
+}
+
+// buildProviderItem projects one provider, so a single-provider read never depends on another
+// provider's credential or environment lookups.
+func (s *service) buildProviderItem(ctx context.Context, cfg *compozyconfig.Config, name string) (ProviderItem, error) {
+	builtins := compozyconfig.BuiltinProviders()
+	resolved, err := cfg.ResolveProvider(name)
+	if err != nil {
+		return ProviderItem{}, fmt.Errorf("settings: resolve provider %q: %w", name, err)
+	}
+
+	settings, err := s.providerSettingsFromConfig(ctx, name, resolved)
+	if err != nil {
+		return ProviderItem{}, err
+	}
+	credentials, err := s.providerCredentialStatuses(ctx, resolved)
+	if err != nil {
+		return ProviderItem{}, fmt.Errorf("settings: provider %q credential status: %w", name, err)
+	}
+	authStatus, err := providerAuthStatus(
+		ctx,
+		s.homePaths,
+		name,
+		resolved,
+		credentials,
+		s.providerAuthCommandResolver,
+		s.providerAuthVerdicts,
+	)
+	if err != nil {
+		return ProviderItem{}, fmt.Errorf("settings: provider %q auth status: %w", name, err)
+	}
+	item := ProviderItem{
+		Name:             name,
+		Settings:         settings,
+		Default:          strings.TrimSpace(cfg.Defaults.Provider) == name,
+		Enabled:          !cfg.IsProviderDisabled(name),
+		CommandAvailable: s.providerLaunchAvailable(name, resolved),
+		Credentials:      credentials,
+		AuthStatus:       authStatus,
+	}
+	item.SessionEnvStatus, err = s.sessionEnvironmentStatuses(ctx, resolved.SessionEnv)
+	if err != nil {
+		return ProviderItem{}, fmt.Errorf("settings: provider %q session environment status: %w", name, err)
+	}
+
+	if overlay, ok := cfg.Providers[name]; ok {
+		item.SourceMetadata = SourceMetadata{
+			EffectiveSource:  sourceRefForWriteTarget(WriteTargetGlobalConfig, "", ""),
+			AvailableTargets: []WriteTargetKind{WriteTargetGlobalConfig},
+		}
+		if builtin, builtinOK := builtins[name]; builtinOK {
+			item.SourceMetadata.ShadowedSources = []SourceRef{builtinProviderSource()}
+			item.Fallback = providerFallbackFromBuiltin(name, builtin)
+		}
+		if strings.TrimSpace(overlay.Command) == "" && item.Settings.Command == "" {
+			item.CommandAvailable = false
+		}
+	} else {
+		item.SourceMetadata = SourceMetadata{
+			EffectiveSource:  builtinProviderSource(),
+			AvailableTargets: []WriteTargetKind{WriteTargetGlobalConfig},
+		}
+	}
+
+	return cloneProviderItem(&item), nil
 }
 
 func providerAuthStatus(

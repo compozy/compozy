@@ -7,6 +7,303 @@ import (
 	"time"
 )
 
+// HeartbeatConfigSubsetPayload is a daemon API value.
+type HeartbeatConfigSubsetPayload struct {
+	Enabled                      bool   `json:"enabled"`
+	MaxBodyBytes                 int64  `json:"max_body_bytes"`
+	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
+	MinInterval                  string `json:"min_interval"`
+	DefaultInterval              string `json:"default_interval"`
+	WakeCooldown                 string `json:"wake_cooldown"`
+	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool   `json:"active_session_only"`
+	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
+	WakeEventRetention           string `json:"wake_event_retention"`
+	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
+	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
+}
+
+// HeartbeatContextProjectionPayload is a daemon API value.
+type HeartbeatContextProjectionPayload struct {
+	Sources []Ref    `json:"sources,omitempty"`
+	Include []string `json:"include,omitzero"`
+}
+
+// HeartbeatDeleteByPathRequest is a daemon API value.
+type HeartbeatDeleteByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
+// HeartbeatFrontmatterPayload is a daemon API value.
+type HeartbeatFrontmatterPayload struct {
+	Actions     []ActionDecl                           `json:"actions"`
+	CheckIns    CheckInsPolicy                         `json:"check_ins"`
+	Version     int                                    `json:"version"`
+	Enabled     bool                                   `json:"enabled"`
+	Summary     string                                 `json:"summary,omitempty"`
+	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
+	Context     HeartbeatContextProjectionPayload      `json:"context"`
+}
+
+// HeartbeatFrontmatterPreferencesPayload is a daemon API value.
+type HeartbeatFrontmatterPreferencesPayload struct {
+	MinInterval  string                       `json:"min_interval,omitempty"`
+	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
+}
+
+// HeartbeatHistoryResponse is a daemon API value.
+type HeartbeatHistoryResponse struct {
+	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
+	NextCursor string                     `json:"next_cursor,omitempty"`
+}
+
+// HeartbeatMutationResponse is a daemon API value.
+type HeartbeatMutationResponse struct {
+	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
+	Revision  HeartbeatRevisionPayload `json:"revision"`
+}
+
+// HeartbeatPolicyPayload is a daemon API value.
+type HeartbeatPolicyPayload struct {
+	Actions          []ActionDecl                       `json:"actions"`
+	Authority        HeartbeatAuthorityPayload          `json:"authority"`
+	AgentName        string                             `json:"agent_name,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	SchemaVersion    int                                `json:"schema_version"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
+	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Limits           AuthoredContextLimitsPayload       `json:"limits"`
+	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
+}
+
+// HeartbeatPreferencesPayload is a daemon API value.
+type HeartbeatPreferencesPayload struct {
+	MinInterval  string                            `json:"min_interval"`
+	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
+	Context      HeartbeatContextProjectionPayload `json:"context"`
+}
+
+// HeartbeatPromptContributionPayload is a daemon API value.
+type HeartbeatPromptContributionPayload struct {
+	Active           bool                               `json:"active"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Truncated        bool                               `json:"truncated"`
+	MaxBytes         int64                              `json:"max_bytes"`
+	MaxBodyBytes     int64                              `json:"max_body_bytes"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Context          HeartbeatContextProjectionPayload  `json:"context"`
+}
+
+// HeartbeatPutByPathRequest is a daemon API value.
+type HeartbeatPutByPathRequest struct {
+	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
+	WorkspaceID            string `json:"workspace_id,omitempty"`
+	Body                   string `json:"body"`
+	ExpectedDigest         string `json:"expected_digest"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatRevisionOperation is a daemon API value.
+type HeartbeatRevisionOperation string
+
+// HeartbeatRevisionPayload is a daemon API value.
+type HeartbeatRevisionPayload struct {
+	ID             string                     `json:"id"`
+	AgentName      string                     `json:"agent_name"`
+	SourcePath     string                     `json:"source_path"`
+	Operation      HeartbeatRevisionOperation `json:"operation"`
+	PreviousDigest string                     `json:"previous_digest,omitempty"`
+	NewDigest      string                     `json:"new_digest,omitempty"`
+	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
+	Actor          HeartbeatActorPayload      `json:"actor"`
+	CreatedAt      time.Time                  `json:"created_at"`
+}
+
+// HeartbeatRollbackByPathRequest is a daemon API value.
+type HeartbeatRollbackByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	TargetDigest   string `json:"target_digest,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatScriptApprovalPayload is a daemon API value.
+type HeartbeatScriptApprovalPayload struct {
+	Script     string    `json:"script"`
+	SHA256     string    `json:"sha256"`
+	ApprovedAt time.Time `json:"approved_at"`
+}
+
+// HeartbeatScriptApprovalRequest is a daemon API value.
+type HeartbeatScriptApprovalRequest struct {
+	SHA256 string `json:"sha256"`
+}
+
+// HeartbeatSourceCatalogPayload is a daemon API value.
+type HeartbeatSourceCatalogPayload struct {
+	Agent          string                         `json:"agent"`
+	ScriptsEnabled bool                           `json:"scripts_enabled"`
+	Limits         HeartbeatSourceLimitsPayload   `json:"limits"`
+	Kinds          []KindDescriptor               `json:"kinds"`
+	Scripts        []HeartbeatSourceScriptPayload `json:"scripts"`
+}
+
+// HeartbeatSourceLimitsPayload is a daemon API value.
+type HeartbeatSourceLimitsPayload struct {
+	MaxPerAgent int `json:"max_per_agent"`
+	MaxItems    int `json:"max_items"`
+}
+
+// HeartbeatSourceScriptPayload is a daemon API value.
+type HeartbeatSourceScriptPayload struct {
+	LineCount      int        `json:"line_count,omitzero"`
+	LastModified   *time.Time `json:"last_modified,omitempty"`
+	Name           string     `json:"name"`
+	Path           string     `json:"path,omitempty"`
+	Executable     bool       `json:"executable"`
+	SHA256         string     `json:"sha256"`
+	Approved       bool       `json:"approved"`
+	ApprovedSHA256 *string    `json:"approved_sha256"`
+}
+
+// HeartbeatSourceStatus is a daemon API value.
+type HeartbeatSourceStatus struct {
+	ID               string `json:"id"`
+	Kind             string `json:"kind,omitempty"`
+	Script           string `json:"script,omitempty"`
+	Status           string `json:"status"`
+	LastPolledAt     string `json:"last_polled_at,omitempty"`
+	LastSuccessAt    string `json:"last_success_at,omitempty"`
+	LastItemCount    int64  `json:"last_item_count"`
+	FailureStreak    int64  `json:"failure_streak"`
+	Error            *Error `json:"error,omitempty"`
+	NextPollAt       string `json:"next_poll_at,omitempty"`
+	ScriptSHA256     string `json:"script_sha256,omitempty"`
+	ScriptPath       string `json:"script_path,omitempty"`
+	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
+}
+
+// HeartbeatStatusResponse is a daemon API value.
+type HeartbeatStatusResponse struct {
+	AgentName        string                             `json:"agent_name"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
+	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
+}
+
+// HeartbeatTimeWindowPayload is a daemon API value.
+type HeartbeatTimeWindowPayload struct {
+	Timezone string `json:"timezone"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+}
+
+// HeartbeatValidateByPathRequest is a daemon API value.
+type HeartbeatValidateByPathRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Body        string `json:"body"`
+}
+
+// HeartbeatWakeByPathRequest is a daemon API value.
+type HeartbeatWakeByPathRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitzero"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatWakeDecisionPayload is a daemon API value.
+type HeartbeatWakeDecisionPayload struct {
+	WakeEventID       string                             `json:"wake_event_id,omitempty"`
+	Result            HeartbeatWakeResult                `json:"result"`
+	Reason            HeartbeatWakeReason                `json:"reason"`
+	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest      string                             `json:"policy_digest,omitempty"`
+	ConfigDigest      string                             `json:"config_digest,omitempty"`
+	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
+	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// HeartbeatWakeEventPayload is a daemon API value.
+type HeartbeatWakeEventPayload struct {
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id,omitempty"`
+	AgentName         string              `json:"agent_name,omitempty"`
+	SessionID         string              `json:"session_id,omitempty"`
+	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
+	Source            HeartbeatWakeSource `json:"source"`
+	Result            HeartbeatWakeResult `json:"result"`
+	Reason            HeartbeatWakeReason `json:"reason"`
+	Detail            string              `json:"detail,omitempty"`
+	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	ExpiresAt         time.Time           `json:"expires_at"`
+}
+
+// HeartbeatWakeReason is a daemon API value.
+type HeartbeatWakeReason string
+
+// HeartbeatWakeResponse is a daemon API value.
+type HeartbeatWakeResponse struct {
+	Decision HeartbeatWakeDecisionPayload `json:"decision"`
+}
+
+// HeartbeatWakeResult is a daemon API value.
+type HeartbeatWakeResult string
+
+// HeartbeatWakeSource is a daemon API value.
+type HeartbeatWakeSource string
+
+// HeartbeatWakeStatePayload is a daemon API value.
+type HeartbeatWakeStatePayload struct {
+	WorkspaceID      string              `json:"workspace_id,omitempty"`
+	AgentName        string              `json:"agent_name,omitempty"`
+	SessionID        string              `json:"session_id"`
+	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
+	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
+	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
+	CoalescedCount   int                 `json:"coalesced_count"`
+	LastResult       HeartbeatWakeResult `json:"last_result"`
+	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
+	UpdatedAt        time.Time           `json:"updated_at"`
+}
+
 // HookCatalogPayload is a daemon API value.
 type HookCatalogPayload struct {
 	Order        int               `json:"order"`
@@ -122,6 +419,7 @@ type InputType string
 
 // InstallExtensionRequest is a daemon API value.
 type InstallExtensionRequest struct {
+	Enable               bool                   `json:"enable,omitzero"`
 	Scope                string                 `json:"scope,omitempty"`
 	WorkspaceID          string                 `json:"workspace_id,omitempty"`
 	Profile              string                 `json:"profile,omitempty"`
@@ -135,312 +433,14 @@ type InstallExtensionRequest struct {
 	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
 }
 
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
+}
+
 // InstallExtensionSource is a daemon API value.
 type InstallExtensionSource string
 
 // InvokeStatus is a daemon API value.
 type InvokeStatus string
-
-// JobPayload is a daemon API value.
-type JobPayload struct {
-	ID           string                           `json:"id"`
-	ProfileID    string                           `json:"profile_id"`
-	ProfileName  string                           `json:"profile_name"`
-	ProfileColor string                           `json:"profile_color,omitempty"`
-	ProfileIcon  string                           `json:"profile_icon,omitempty"`
-	Scope        Scope                            `json:"scope"`
-	Name         string                           `json:"name"`
-	TargetKind   TargetKind                       `json:"target_kind"`
-	AgentName    string                           `json:"agent_name"`
-	WorkspaceID  string                           `json:"workspace_id,omitempty"`
-	Prompt       string                           `json:"prompt"`
-	Schedule     *ScheduleSpec                    `json:"schedule,omitzero"`
-	Task         *JobTaskConfig                   `json:"task,omitzero"`
-	LoopTarget   *LoopTarget                      `json:"loop_target,omitzero"`
-	Enabled      bool                             `json:"enabled"`
-	Retry        RetryConfig                      `json:"retry"`
-	FireLimit    FireLimitConfig                  `json:"fire_limit"`
-	Source       JobSource                        `json:"source"`
-	CreatedAt    time.Time                        `json:"created_at"`
-	UpdatedAt    time.Time                        `json:"updated_at"`
-	NextRun      *time.Time                       `json:"next_run,omitempty"`
-	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
-	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
-}
-
-// JobResponse is a daemon API value.
-type JobResponse struct {
-	Job JobPayload `json:"job"`
-}
-
-// JobSource is a daemon API value.
-type JobSource string
-
-// JobTaskConfig is a daemon API value.
-type JobTaskConfig struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Owner       *Ownership `json:"owner,omitempty"`
-}
-
-// JobsResponse is a daemon API value.
-type JobsResponse struct {
-	Jobs []JobPayload             `json:"jobs"`
-	Page CountedCursorPagePayload `json:"page"`
-}
-
-// KindDescriptor is a daemon API value.
-type KindDescriptor struct {
-	Kind         string          `json:"kind"`
-	Extension    string          `json:"extension"`
-	Title        string          `json:"title"`
-	Description  string          `json:"description,omitempty"`
-	ParamsSchema json.RawMessage `json:"params_schema,omitempty"`
-}
-
-// LineageKind is a daemon API value.
-type LineageKind string
-
-// LogEventPayload is a daemon API value.
-type LogEventPayload struct {
-	ID                   string          `json:"id"`
-	ProfileID            string          `json:"profile_id"`
-	ProfileName          string          `json:"profile_name"`
-	ProfileColor         string          `json:"profile_color"`
-	ProfileIcon          string          `json:"profile_icon,omitempty"`
-	ProfileEmoji         string          `json:"profile_emoji,omitempty"`
-	ProfileArchived      bool            `json:"profile_archived"`
-	SessionID            string          `json:"session_id"`
-	WorkspaceID          string          `json:"workspace_id,omitempty"`
-	Type                 string          `json:"type"`
-	AgentName            string          `json:"agent_name"`
-	Provider             string          `json:"provider,omitempty"`
-	Component            string          `json:"component,omitempty"`
-	Outcome              string          `json:"outcome,omitempty"`
-	Content              json.RawMessage `json:"content,omitempty"`
-	WorktreeID           string          `json:"worktree_id,omitempty"`
-	TaskID               string          `json:"task_id,omitempty"`
-	RunID                string          `json:"run_id,omitempty"`
-	Generation           int64           `json:"generation,omitzero"`
-	WorkflowID           string          `json:"workflow_id,omitempty"`
-	ClaimTokenHash       string          `json:"claim_token_hash,omitempty"`
-	LeaseUntil           *time.Time      `json:"lease_until,omitempty"`
-	CoordinatorSessionID string          `json:"coordinator_session_id,omitempty"`
-	SchedulerReason      string          `json:"scheduler_reason,omitempty"`
-	HookEvent            string          `json:"hook_event,omitempty"`
-	HookName             string          `json:"hook_name,omitempty"`
-	ActorKind            string          `json:"actor_kind,omitempty"`
-	ActorID              string          `json:"actor_id,omitempty"`
-	ReleaseReason        string          `json:"release_reason,omitempty"`
-	ParentSessionID      string          `json:"parent_session_id,omitempty"`
-	RootSessionID        string          `json:"root_session_id,omitempty"`
-	SpawnDepth           int             `json:"spawn_depth"`
-	Summary              string          `json:"summary,omitempty"`
-	Timestamp            time.Time       `json:"timestamp"`
-}
-
-// LogTailStatusPayload is a daemon API value.
-type LogTailStatusPayload struct {
-	Available bool   `json:"available"`
-	Status    string `json:"status"`
-}
-
-// LogsListResponse is a daemon API value.
-type LogsListResponse struct {
-	Events []LogEventPayload `json:"events"`
-}
-
-// LookupState is a daemon API value.
-type LookupState string
-
-// LoopAmendmentValueSummary is a daemon API value.
-type LoopAmendmentValueSummary struct {
-	ByteSize    int    `json:"byte_size"`
-	ContentHash string `json:"content_hash"`
-}
-
-// LoopAnnotationPayload is a daemon API value.
-type LoopAnnotationPayload struct {
-	NodeID string  `json:"node_id"`
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-}
-
-// LoopAnnotationsResponse is a daemon API value.
-type LoopAnnotationsResponse struct {
-	Annotations []LoopAnnotationPayload `json:"annotations"`
-}
-
-// LoopBudget is a daemon API value.
-type LoopBudget struct {
-	Tokens       int                `json:"tokens"`
-	WallClockSec int                `json:"wall_clock_sec"`
-	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-// LoopBudgetExceeded is a daemon API value.
-type LoopBudgetExceeded string
-
-// LoopCatalogAggregateEntryPayload is a daemon API value.
-type LoopCatalogAggregateEntryPayload struct {
-	WorkspaceID   string                      `json:"workspace_id,omitempty"`
-	Name          string                      `json:"name"`
-	Version       int                         `json:"version"`
-	Description   string                      `json:"description,omitempty"`
-	Source        LoopCatalogSourcePayload    `json:"source"`
-	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
-	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
-	Start         []LoopStartBinding          `json:"start,omitempty"`
-	Contract      LoopContract                `json:"contract"`
-	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
-	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
-	SuccessRate30 float64                     `json:"success_rate_30d"`
-}
-
-// LoopCatalogAggregatePayload is a daemon API value.
-type LoopCatalogAggregatePayload struct {
-	Runs      int `json:"runs"`
-	Succeeded int `json:"succeeded"`
-	Failed    int `json:"failed"`
-}
-
-// LoopCatalogBatchResponse is a daemon API value.
-type LoopCatalogBatchResponse struct {
-	Entries   []LoopCatalogAggregateEntryPayload `json:"entries"`
-	Errors    []LoopCatalogWorkspaceError        `json:"errors"`
-	Truncated bool                               `json:"truncated"`
-}
-
-// LoopCatalogEntryPayload is a daemon API value.
-type LoopCatalogEntryPayload struct {
-	WorkspaceID   string                      `json:"workspace_id,omitempty"`
-	Name          string                      `json:"name"`
-	Version       int                         `json:"version"`
-	Description   string                      `json:"description,omitempty"`
-	Source        LoopSource                  `json:"source"`
-	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
-	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
-	Start         []LoopStartBinding          `json:"start,omitempty"`
-	Contract      LoopContract                `json:"contract"`
-	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
-	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
-	SuccessRate30 float64                     `json:"success_rate_30d"`
-}
-
-// LoopCatalogFacetsPayload is a daemon API value.
-type LoopCatalogFacetsPayload struct {
-	Kinds      map[string]int `json:"kinds"`
-	Categories map[string]int `json:"categories"`
-	Statuses   map[string]int `json:"statuses"`
-}
-
-// LoopCatalogLastRunPayload is a daemon API value.
-type LoopCatalogLastRunPayload struct {
-	ID             string        `json:"id"`
-	Status         LoopRunStatus `json:"status"`
-	BestGeneration *int64        `json:"best_generation,omitzero"`
-	BestScore      *float64      `json:"best_score,omitzero"`
-	CreatedAt      time.Time     `json:"created_at"`
-}
-
-// LoopCatalogResourceSpec is a daemon API value.
-type LoopCatalogResourceSpec struct {
-	UseWhen  string   `json:"use_when,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Category string   `json:"category,omitempty"`
-}
-
-// LoopCatalogSourcePayload is a daemon API value.
-type LoopCatalogSourcePayload struct {
-	Kind  LoopSource `json:"kind"`
-	Layer string     `json:"layer"`
-}
-
-// LoopCatalogWorkspaceError is a daemon API value.
-type LoopCatalogWorkspaceError struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-}
-
-// LoopCompletionState is a daemon API value.
-type LoopCompletionState string
-
-// LoopConfig is a daemon API value.
-type LoopConfig struct {
-	HumanGateEnabled  *bool                  `json:"human_gate_enabled,omitzero"`
-	ReattemptStrategy *LoopReattemptStrategy `json:"reattempt_strategy,omitzero"`
-	EnabledChecks     json.RawMessage        `json:"enabled_checks_json,omitempty"`
-	IterationCap      *int                   `json:"iteration_cap,omitzero"`
-	BudgetTokens      *int                   `json:"budget_tokens,omitzero"`
-	BudgetWallSec     *int                   `json:"budget_wall_sec,omitzero"`
-	BudgetOnExceeded  *LoopBudgetExceeded    `json:"budget_on_exceeded,omitzero"`
-	NoProgressWindow  *int                   `json:"no_progress_window,omitzero"`
-	FanOutWidth       *int                   `json:"fan_out_width,omitzero"`
-	GateMaxRevisions  *int                   `json:"gate_max_revisions,omitzero"`
-	RuntimeDefaults   *LoopRuntimeDefaults   `json:"runtime_defaults,omitzero"`
-	RuntimeRules      []LoopRuntimeRule      `json:"runtime_rules,omitempty"`
-	Environment       *LoopEnvironment       `json:"environment,omitzero"`
-}
-
-// LoopConfigResponse is a daemon API value.
-type LoopConfigResponse struct {
-	Config          *LoopConfig         `json:"config"`
-	EffectiveConfig LoopEffectiveConfig `json:"effective_config"`
-}
-
-// LoopContract is a daemon API value.
-type LoopContract struct {
-	Goal             string               `json:"goal"`
-	DefinitionOfDone string               `json:"definition_of_done"`
-	Constraints      []string             `json:"constraints,omitempty"`
-	Boundaries       []string             `json:"boundaries,omitempty"`
-	StopWhen         StopWhenSpec         `json:"stop_when,omitzero"`
-	Verification     []LoopGateCriterion  `json:"verification,omitempty"`
-	TerminalStates   []string             `json:"terminal_states,omitempty"`
-	IterationCap     int                  `json:"iteration_cap"`
-	NoProgress       LoopNoProgress       `json:"no_progress"`
-	Budget           LoopBudget           `json:"budget"`
-	RuntimeDefaults  *LoopRuntimeDefaults `json:"runtime_defaults,omitzero"`
-	RuntimeRules     []LoopRuntimeRule    `json:"runtime_rules,omitempty"`
-	OnDone           []LoopEffectSpec     `json:"on_done,omitempty"`
-	OnNoOp           []LoopEffectSpec     `json:"on_noop,omitempty"`
-	OnBlocked        []LoopEffectSpec     `json:"on_blocked,omitempty"`
-	OnFailed         []LoopEffectSpec     `json:"on_failed,omitempty"`
-	OnExhausted      []LoopEffectSpec     `json:"on_exhausted,omitempty"`
-	OnStalled        []LoopEffectSpec     `json:"on_stalled,omitempty"`
-	OnCanceled       []LoopEffectSpec     `json:"on_canceled,omitempty"`
-}
-
-// LoopControlProvenancePayload is a daemon API value.
-type LoopControlProvenancePayload struct {
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	Reason      string    `json:"reason,omitempty"`
-	RuleID      string    `json:"rule_id,omitempty"`
-	RequestedAt time.Time `json:"requested_at"`
-}
-
-// LoopDefinitionDocument is a daemon API value.
-// LoopDefinitionDocument preserves its custom JSON wire representation.
-type LoopDefinitionDocument = json.RawMessage
-
-// LoopDefinitionPayload is a daemon API value.
-type LoopDefinitionPayload struct {
-	Name               string                       `json:"name"`
-	Version            int                          `json:"version"`
-	Description        string                       `json:"description,omitempty"`
-	Source             LoopSource                   `json:"source"`
-	Catalog            LoopCatalogResourceSpec      `json:"catalog"`
-	Definition         LoopDefinitionDocument       `json:"definition"`
-	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitzero"`
-	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitzero"`
-}
-
-// LoopDiffEndpoint is a daemon API value.
-type LoopDiffEndpoint struct {
-	RunID      string        `json:"run_id"`
-	Generation int64         `json:"generation"`
-	Status     LoopRunStatus `json:"status"`
-	AsOf       bool          `json:"as_of,omitzero"`
-}

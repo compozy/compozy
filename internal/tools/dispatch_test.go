@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -497,7 +500,7 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
+			Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex", RunID: "run-1", Generation: 7},
 			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"original"}`)},
 		)
 		if err != nil {
@@ -510,7 +513,8 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 			t.Fatalf("approval calls = %d, want %d", got, want)
 		}
 		call := bridge.calls[0]
-		if call.scope.SessionID != "sess-1" || call.req.WorkspaceID != "ws-1" || call.req.AgentName != "codex" {
+		if call.scope.SessionID != "sess-1" || call.req.WorkspaceID != "ws-1" || call.req.AgentName != "codex" ||
+			call.req.RunID != "run-1" || call.req.Generation != 7 {
 			t.Fatalf("approval call context = %#v / %#v, want scoped request", call.scope, call.req)
 		}
 		if string(call.req.Input) != `{"query":"patched"}` {
@@ -518,6 +522,46 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 		}
 		if !call.view.Decision.ApprovalRequired || call.view.Descriptor.ID != descriptor.ID {
 			t.Fatalf("approval view = %#v, want descriptor decision requiring approval", call.view)
+		}
+	})
+
+	t.Run("Should reject conflicting run identity before requesting approval", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			run        string
+			generation int64
+		}{
+			{name: "Should reject another run", run: "other-run", generation: 7},
+			{name: "Should reject another generation", run: "run-1", generation: 6},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				descriptor := validDispatchDescriptor()
+				bridge := &recordingApprovalBridge{}
+				called := false
+				provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+					descriptor:   descriptor,
+					availability: availableDispatchHandle(),
+					call:         func(context.Context, CallRequest) (ToolResult, error) { called = true; return ToolResult{}, nil },
+				})
+				registry := mustDispatchRegistry(t, provider,
+					WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+					WithApprovalBridge(bridge))
+				_, err := registry.Call(
+					t.Context(),
+					Scope{RunID: "run-1", Generation: 7},
+					CallRequest{
+						ToolID:     descriptor.ID,
+						RunID:      tc.run,
+						Generation: tc.generation,
+						Input:      json.RawMessage(`{"query":"x"}`),
+					},
+				)
+				if !errors.Is(err, ErrToolDenied) || len(bridge.calls) != 0 || called {
+					t.Fatalf("conflicting identity: error=%v approvals=%d invoked=%t", err, len(bridge.calls), called)
+				}
+			})
 		}
 	})
 
@@ -1920,4 +1964,401 @@ func (a scopeMarkingAuthorizer) AuthorizeCallInput(ctx context.Context, _ Scope,
 		MarkOutsideCallerScope(ctx)
 	}
 	return nil
+}
+
+type checkInRecorderProbe struct {
+	begins, finishes int
+	err              error
+	attempt          CheckInAttempt
+	outcome          string
+}
+
+func (r *checkInRecorderProbe) Begin(_ context.Context, a CheckInAttempt, _ CheckInPolicy) (CheckInDecision, error) {
+	r.begins++
+	r.attempt = a
+	return CheckInDecision{Seq: 1, Allowed: a.DenyReason == "", Reason: a.DenyReason}, r.err
+}
+
+func (r *checkInRecorderProbe) Finish(
+	_ context.Context,
+	_ string,
+	_ int,
+	outcome string,
+	_ string,
+	_ time.Duration,
+) error {
+	r.outcome = outcome
+	r.finishes++
+	return nil
+}
+
+var _ CheckInRecorder = (*checkInRecorderProbe)(nil)
+
+func TestCheckInDispatchAccounting(t *testing.T) {
+	for _, tc := range []struct {
+		name, input   string
+		auditFails    bool
+		hookMode      string
+		cancelAfter   bool
+		semanticError bool
+		backendError  error
+		wantError     bool
+		wantCalls     int
+	}{
+		{name: "Should record semantic MCP failure", semanticError: true, input: `{"query":"ok"}`, wantCalls: 1},
+		{name: "Should record successful backend invocation", input: `{"query":"ok"}`, wantCalls: 1},
+		{name: "Should record invalid input before backend invocation", input: `{}`, wantError: true},
+		{name: "Should record backend failure", input: `{"query":"ok"}`, backendError: errors.New("remote error"), wantError: true, wantCalls: 1},
+		{name: "Should record pre-hook denial", input: `{"query":"ok"}`, hookMode: "deny", wantError: true},
+		{name: "Should re-evaluate rewritten input", input: `{"query":"ok"}`, hookMode: "rewrite", wantError: true},
+		{name: "Should record success followed by cancellation", input: `{"query":"ok"}`, cancelAfter: true, wantError: true, wantCalls: 1},
+		{name: "Should record backend cancellation", input: `{"query":"ok"}`, backendError: context.Canceled, wantError: true, wantCalls: 1},
+		{name: "Should fail closed when audit is unavailable", input: `{"query":"ok"}`, auditFails: true, wantError: true},
+	} {
+		t.Run(tc.name+" [UT-006]", func(t *testing.T) {
+			t.Parallel()
+			d := validDispatchDescriptor()
+			called := 0
+			recorder := &checkInRecorderProbe{}
+			if tc.auditFails {
+				recorder.err = errors.New("audit unavailable")
+			}
+			callCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			hooks := &recordingHookRunner{
+				pre: func(_ context.Context, req CallRequest) (CallRequest, EffectiveToolDecision, error) {
+					if tc.hookMode == "deny" {
+						return req, EffectiveToolDecision{Callable: false}, nil
+					}
+					if tc.hookMode == "rewrite" {
+						req.Input = json.RawMessage(`{"query":"write"}`)
+					}
+					return req, hookAllowedDecision(), nil
+				},
+			}
+			provider := dispatchProviderWithHandle(
+				d,
+				&registryTestHandle{
+					descriptor:   d,
+					availability: availableDispatchHandle(),
+					call: func(context.Context, CallRequest) (ToolResult, error) {
+						called++
+						if tc.cancelAfter {
+							cancel()
+						}
+						return ToolResult{
+							Metadata: map[string]json.RawMessage{
+								"is_error": json.RawMessage(strconv.FormatBool(tc.semanticError)),
+							},
+						}, tc.backendError
+					},
+				},
+			)
+			registry := mustDispatchRegistry(
+				t,
+				provider,
+				WithPolicyInputs(
+					PolicyInputs{
+						SystemPermissionMode: PermissionModeApproveReads,
+						CheckIn: &CheckInPolicy{
+							OccurrenceID:  "test",
+							MaxToolCalls:  25,
+							MaxWriteCalls: 5,
+							Ceiling:       func(_ Descriptor, input json.RawMessage) bool { return !bytes.Contains(input, []byte("write")) },
+						},
+					},
+					ToolsetCatalog{},
+				),
+				WithCheckInRecorder(recorder),
+				WithHookRunner(hooks),
+			)
+			if _, err := registry.List(t.Context(), Scope{}); err != nil {
+				t.Fatal(err)
+			}
+			if recorder.begins != 0 {
+				t.Fatal("listing spent budget")
+			}
+			_, err := registry.Call(callCtx, Scope{}, CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input)})
+			if (err != nil) != tc.wantError {
+				t.Fatalf("call error=%v", err)
+			}
+			wantFinishes := 1
+			if tc.auditFails {
+				wantFinishes = 0
+			}
+			wantOutcome := "denied"
+			if tc.wantCalls > 0 {
+				wantOutcome = "ok"
+				if tc.backendError != nil || tc.semanticError {
+					wantOutcome = "error"
+				}
+				if tc.cancelAfter || errors.Is(tc.backendError, context.Canceled) {
+					wantOutcome = "cancelled" //nolint:misspell // persisted enum
+				}
+			}
+			if wantFinishes > 0 && recorder.outcome != wantOutcome {
+				t.Fatalf("outcome=%s want=%s", recorder.outcome, wantOutcome)
+			}
+			if recorder.begins != 1 || recorder.finishes != wantFinishes || called != tc.wantCalls {
+				t.Fatalf("begin=%d finish=%d calls=%d", recorder.begins, recorder.finishes, called)
+			}
+		})
+	}
+}
+
+// Result selection belongs to dispatch; hooks cannot replace the caller's pin or approval identity.
+func TestRuntimeRegistryDispatchResultViews(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain the selector in audit and event inputs", func(t *testing.T) {
+		t.Parallel()
+		d := resultViewDispatchDescriptor()
+		input := json.RawMessage(`{"query":"x","result_view":"full"}`)
+		recorder := &checkInRecorderProbe{}
+		sink := &recordingToolEventSink{}
+		provider := dispatchProviderWithHandle(d, &registryTestHandle{
+			descriptor: d, availability: availableDispatchHandle(),
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+				if req.View != ResultViewFull || string(req.Input) != `{"query":"x"}` {
+					t.Fatalf("handler request = %#v", req)
+				}
+				return ToolResult{Structured: json.RawMessage(`{}`)}, nil
+			},
+		})
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithPolicyInputs(
+				PolicyInputs{
+					SystemPermissionMode: PermissionModeApproveReads,
+					CheckIn: &CheckInPolicy{
+						OccurrenceID:  "view-audit",
+						MaxToolCalls:  25,
+						MaxWriteCalls: 5,
+					},
+				},
+				ToolsetCatalog{},
+			),
+			WithCheckInRecorder(recorder),
+			WithToolEventSink(sink),
+		)
+		if _, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-1"},
+			CallRequest{ToolID: d.ID, Input: input},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if recorder.begins != 1 || recorder.finishes != 1 || recorder.attempt.ArgsPreview != string(input) {
+			t.Fatalf("audit = %#v", recorder)
+		}
+		events := sink.snapshot()
+		if len(events) != 2 || events[0].Kind != ToolCallStarted || events[1].Kind != ToolCallCompleted {
+			t.Fatalf("events = %#v", events)
+		}
+		for _, event := range events {
+			if event.InputDigest != digestRaw(redactInputForEvents(input, nil)) {
+				t.Fatalf("event input = %s", event.InputDigest)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name, input, patch string
+		single             bool
+		code               ErrorCode
+		pin                ResultView
+		want               ResultView
+		reason             ReasonCode
+	}{
+		{name: "Should default to compact", input: `{"query":"x"}`, want: ResultViewCompact},
+		{name: "Should select full and strip the selector", input: `{"query":"x","result_view":"full"}`, want: ResultViewFull},
+		{name: "Should reject an unknown selector", input: `{"query":"x","result_view":"summary"}`, reason: ReasonSchemaInvalid},
+		{name: "Should reject a non-string selector", input: `{"query":"x","result_view":true}`, reason: ReasonSchemaInvalid},
+		{name: "Should reject a selector on single results", input: `{"query":"x","result_view":"full"}`, single: true, reason: ReasonSchemaInvalid},
+		{name: "Should preserve the descriptor input error code", input: `{"query":"x","result_view":"full"}`, single: true, code: ErrorCodeInvalidRequest, reason: ReasonSchemaInvalid},
+		{name: "Should resolve the hook selected view", input: `{"query":"x"}`, patch: `{"query":"x","result_view":"full"}`, want: ResultViewFull},
+		{name: "Should reject an invalid hook selector", input: `{"query":"x"}`, patch: `{"query":"x","result_view":"summary"}`, reason: ReasonSchemaInvalid},
+		{name: "Should enforce a pin before approval even when a hook clears it", input: `{"query":"x","result_view":"full"}`, patch: `{"query":"x","result_view":"compact"}`, pin: ResultViewFull, reason: ReasonResultViewPinned},
+		{name: "Should execute a matching pinned view", input: `{"query":"x","result_view":"full"}`, pin: ResultViewFull, want: ResultViewFull},
+		{name: "Should execute a matching hook and pin", input: `{"query":"x"}`, patch: `{"query":"x","result_view":"full"}`, pin: ResultViewFull, want: ResultViewFull},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := resultViewDispatchDescriptor()
+			if tc.single {
+				d = validDispatchDescriptor()
+			}
+			metadata := d.ExecutionMetadata()
+			metadata.InputErrorCode = tc.code
+			d.ToolExecutionMetadata = &metadata
+			calls := 0
+			sink := &recordingToolEventSink{}
+			bridge := &recordingApprovalBridge{}
+			hooks := &recordingHookRunner{
+				pre: func(_ context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error) {
+					if tc.patch != "" {
+						return CallRequest{Input: json.RawMessage(tc.patch)}, hookAllowedDecision(), nil
+					}
+					return call, hookAllowedDecision(), nil
+				},
+				post: func(_ context.Context, call CallRequest, result ToolResult) (ToolResult, error) {
+					expected := tc.input
+					if tc.patch != "" {
+						expected = tc.patch
+					}
+					if string(call.Input) != expected || call.View != tc.want {
+						t.Fatalf("post-call request = %#v", call)
+					}
+					return result, nil
+				},
+			}
+			provider := dispatchProviderWithHandle(
+				d,
+				&registryTestHandle{
+					descriptor:   d,
+					availability: availableDispatchHandle(),
+					call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+						calls++
+						if req.View != tc.want || string(req.Input) != `{"query":"x"}` || req.PinnedView != tc.pin {
+							t.Fatalf("handler request=%#v", req)
+						}
+						return ToolResult{Structured: json.RawMessage(`{}`)}, nil
+					},
+				},
+			)
+			registry := mustDispatchRegistry(
+				t,
+				provider,
+				WithHookRunner(hooks),
+				WithApprovalBridge(bridge),
+				WithToolEventSink(sink),
+				WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+			)
+			_, err := registry.Call(
+				t.Context(),
+				Scope{SessionID: "sess-1"},
+				CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input), PinnedView: tc.pin, View: ResultViewFull},
+			)
+			if tc.reason != "" {
+				requireToolReason(t, err, tc.reason)
+				toolErr, ok := errors.AsType[*ToolError](err)
+				if !ok {
+					t.Fatal(err)
+				}
+				code := tc.code
+				if code == "" {
+					code = ErrorCodeInvalidInput
+				}
+				if tc.reason == ReasonResultViewPinned {
+					code = ErrorCodeDenied
+				}
+				if toolErr.Code != code {
+					t.Fatalf("code=%s want %s", toolErr.Code, code)
+				}
+				wantMessage := fmt.Sprintf(
+					"tool %q input %q must be one of %q, %q",
+					d.ID,
+					ResultViewInputKey,
+					ResultViewCompact,
+					ResultViewFull,
+				)
+				if tc.single {
+					wantMessage = fmt.Sprintf(
+						"tool %q returns a single result and does not accept %q",
+						d.ID,
+						ResultViewInputKey,
+					)
+				}
+				if tc.reason == ReasonResultViewPinned {
+					wantMessage = fmt.Sprintf("tool %q result view is pinned to %q by the caller", d.ID, tc.pin)
+				}
+				if toolErr.Message != wantMessage {
+					t.Fatalf("message=%q want %q", toolErr.Message, wantMessage)
+				}
+				if calls != 0 || len(bridge.calls) != 0 {
+					t.Fatalf("executions=%d approvals=%d", calls, len(bridge.calls))
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || len(bridge.calls) != 1 {
+				t.Fatalf("executions=%d approvals=%d", calls, len(bridge.calls))
+			}
+			expected := tc.input
+			if tc.patch != "" {
+				expected = tc.patch
+			}
+			if string(bridge.calls[0].req.Input) != expected {
+				t.Fatalf("approval input=%s", bridge.calls[0].req.Input)
+			}
+			for _, event := range sink.snapshot() {
+				if event.Kind == ToolCallStarted &&
+					event.InputDigest != digestRaw(redactInputForEvents(json.RawMessage(tc.input), nil)) {
+					t.Fatalf("started input=%s", event.InputDigest)
+				}
+			}
+		})
+	}
+}
+
+func resultViewDispatchDescriptor() Descriptor {
+	d := validDispatchDescriptor()
+	d.InputSchema = json.RawMessage(
+		`{"type":"object","required":["query"],"properties":{"query":{"type":"string"},"result_view":` + ResultViewSelectorSchema + `},"additionalProperties":false}`,
+	)
+	d.OutputSchema = json.RawMessage(`{"type":"object","additionalProperties":false}`)
+	d.SetResultViews(&ResultViews{
+		Compact: ResultViewContract{Schema: cloneRawMessage(d.OutputSchema)},
+		Full:    ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
+	})
+	return d
+}
+
+func TestRuntimeRegistryNonNativeResultView(t *testing.T) {
+	t.Parallel()
+	for _, backend := range []BackendKind{BackendExtensionHost, BackendMCP} {
+		t.Run("Should leave "+string(backend)+" input untouched", func(t *testing.T) {
+			t.Parallel()
+			d := extensionDenyAllDescriptor()
+			if backend == BackendMCP {
+				d.ID = "mcp__server__lookup"
+				d.Backend = BackendRef{Kind: BackendMCP, MCPServer: "server", MCPTool: "lookup"}
+				d.Source = SourceRef{Kind: SourceMCP, Owner: "server", RawServerName: "server", RawToolName: "lookup"}
+			}
+			d.InputSchema = json.RawMessage(`{"type":"object"}`)
+			for _, input := range []string{`{ "result_view" : "custom" }`, `{"result_view":"full"}`} {
+				called := false
+				provider := dispatchProviderWithSourceAndHandle(
+					d.Source,
+					d,
+					&registryTestHandle{
+						descriptor:   d,
+						availability: availableDispatchHandle(),
+						call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+							called = true
+							if req.View != "" || string(req.Input) != input {
+								t.Fatalf("request=%#v", req)
+							}
+							return ToolResult{}, nil
+						},
+					},
+				)
+				registry := mustDispatchRegistry(
+					t,
+					provider,
+					WithPolicyEvaluator(staticPolicyEvaluator{decision: hookAllowedDecision()}),
+				)
+				_, err := registry.Call(
+					t.Context(),
+					Scope{Operator: true},
+					CallRequest{ToolID: d.ID, Input: json.RawMessage(input), View: ResultViewFull},
+				)
+				if err != nil || !called {
+					t.Fatalf("called=%v err=%v", called, err)
+				}
+			}
+		})
+	}
 }

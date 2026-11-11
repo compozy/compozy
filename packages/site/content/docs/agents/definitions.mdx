@@ -99,7 +99,8 @@ Agent list and detail responses identify the effective definition with `origin` 
 `workspace`) and `workspace_id` when the winner is workspace-local. They also return the resolved
 `skills` policy, a canonical `definition_digest`, and a workspace-scoped `effective_runtime`
 projection. That projection reports provider, model, reasoning effort, speed, ACP options, and source
-metadata without rewriting the authored fields. Use it instead of inferring the winner or runtime
+metadata without rewriting the authored fields. `policy_excluded_acp_options` lists the inherited
+unrestricted ACP options a new session drops because of its permission level. Use it instead of inferring the winner or runtime
 from a filesystem path.
 
 A workspace definition shadows a global definition with the same name. Updates, duplicates, and
@@ -489,7 +490,7 @@ The release after v0.5.2 rejects `stays_on` with `agent_kind_invalid`:
 "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
 Persisted definitions migrate on load, including repository, workspace-profile, additional-root
 and extension files. Read-only or unsupported edit layouts decode canonically and log guidance
-to update the source before the persisted-file migration shim is removed in v0.6.0.
+to update the source before the persisted-file migration shim is removed in v0.6.1.
 Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless

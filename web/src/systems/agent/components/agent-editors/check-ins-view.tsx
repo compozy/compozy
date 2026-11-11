@@ -25,6 +25,9 @@ import {
 import { agentEditorMark } from "../../lib/agent-editor-mark";
 import type { AgentPayload } from "../../types";
 import { AgentMark } from "../agent-mark";
+import { checkInActionsProblem } from "../../lib/agent-check-in-authority";
+import { AuthoritySaveConfirm, CheckInAuthorityNotice } from "./check-in-authority";
+import { CheckInActions, CheckInWrites } from "./check-in-changes";
 import { CheckInSources } from "./check-in-sources";
 import { NextCard, RecentCard } from "./check-ins-activity";
 import { ConflictCard } from "./conflict-card";
@@ -102,6 +105,8 @@ function SettingsCard({
         />
       </SettingRow>
       <CheckInSources agentLabel={agentLabel} disabled={disabled} model={model} />
+      <CheckInWrites disabled={disabled} model={model} />
+      <CheckInActions disabled={disabled} model={model} />
       <SettingRow title="What it looks at">
         <div className="flex flex-col divide-y divide-line-soft">
           {LOOKS_AT.map(item => (
@@ -271,6 +276,7 @@ export function AgentCheckInsView({ agent, state, model, onAddToProject }: Agent
         </div>
       </EditorHead>
       {readOnly ? <ReadOnlyNotice agent={agent} /> : null}
+      <CheckInAuthorityNotice model={model} />
       <CheckInsConflict label={label} model={model} />
       <div className="grid grid-cols-[minmax(0,1fr)_23rem] items-start gap-5">
         <CheckInsFile agentLabel={label} model={model} />
@@ -278,7 +284,13 @@ export function AgentCheckInsView({ agent, state, model, onAddToProject }: Agent
       </div>
       {readOnly ? null : (
         <UnsavedDock
-          blocked={document.problem ? "Fix the file first" : undefined}
+          blocked={
+            document.problem
+              ? "Fix the file first"
+              : document.raw === null
+                ? checkInActionsProblem(settings.authority.actions)
+                : undefined
+          }
           count={document.changes}
           onDiscard={() => {
             document.discard();
@@ -288,6 +300,7 @@ export function AgentCheckInsView({ agent, state, model, onAddToProject }: Agent
           saving={document.saving}
         />
       )}
+      <AuthoritySaveConfirm model={model} />
     </div>
   );
 }

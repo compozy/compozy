@@ -166,7 +166,7 @@ export interface PillCountProps extends Omit<PillProps, "size" | "children" | "m
  * Numeric badge (unread, needs-you). Solid accent by default; renders nothing
  * at zero so callers never paint a "0" badge.
  */
-function PillCount({ count, max = 9, tone = "brand", solid = true, ...props }: PillCountProps) {
+function PillCount({ count, max = 9, tone = "attn", solid = true, ...props }: PillCountProps) {
   if (count <= 0) return null;
   return (
     <Pill size="count" tone={tone} solid={solid} data-count={count} {...props}>

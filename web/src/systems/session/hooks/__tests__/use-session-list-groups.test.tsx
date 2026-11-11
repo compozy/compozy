@@ -260,22 +260,31 @@ describe("useSessionListGroups", () => {
     );
   });
 
-  it("Should count finished automation runs only while a search can reach them", async () => {
+  it("Should count automation runs only while a search or the window's filter shows them", async () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse());
     const { rerender } = renderHook(
-      ({ search }: { search?: string }) => useSessionListGroups(groupsInput({ search })),
-      { wrapper, initialProps: {} }
+      ({ search, showAutomation }: { search?: string; showAutomation?: boolean }) =>
+        useSessionListGroups(groupsInput({ search, showAutomation })),
+      { wrapper, initialProps: {} as { search?: string; showAutomation?: boolean } }
     );
     await waitFor(() =>
       expect(fetchSessionFacets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ exclude_finished_automation: true }),
+        expect.objectContaining({ exclude_automation: true }),
         expect.any(AbortSignal)
       )
     );
     rerender({ search: "nightly" });
     await waitFor(() =>
       expect(fetchSessionFacets).toHaveBeenLastCalledWith(
-        expect.not.objectContaining({ exclude_finished_automation: true }),
+        expect.not.objectContaining({ exclude_automation: true }),
+        expect.any(AbortSignal)
+      )
+    );
+    vi.mocked(fetchSessionFacets).mockClear();
+    rerender({ showAutomation: true });
+    await waitFor(() =>
+      expect(fetchSessionFacets).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ exclude_automation: true }),
         expect.any(AbortSignal)
       )
     );

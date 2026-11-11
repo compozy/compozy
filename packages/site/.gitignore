@@ -11,5 +11,16 @@ tsconfig.tsbuildinfo
 /content/docs/api/*.mdx
 /content/docs/api/meta.json
 !/content/docs/api/index.mdx
+/lib/api-reference-data.json
 .vercel
 .env*
+
+# scripts/generate-sdk-reference.ts output — regenerated on every build
+/content/docs/sdk/*.mdx
+/content/docs/sdk/meta.json
+!/content/docs/sdk/index.mdx
+!/content/docs/sdk/client.mdx
+!/content/docs/sdk/prompt.mdx
+!/content/docs/sdk/events.mdx
+!/content/docs/sdk/errors.mdx
+/lib/sdk-reference-data.json

@@ -60,6 +60,11 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 			return response, err
 		}
 		for _, report := range reports {
+			if api.ProjectReport != nil {
+				if err := api.ProjectReport(ctx, id, &report); err != nil {
+					return response, err
+				}
+			}
 			if seen != nil && !report.CreatedAt.After(*seen) {
 				continue
 			}
@@ -78,6 +83,7 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 	}
 }
 
+// MarkAgentInstanceSeen commits acknowledgement before scheduling projection publication.
 func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "instance mark seen") {
 		return
@@ -86,8 +92,7 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	if !ok {
 		return
 	}
-	reader, ok := h.AgentInstances.Store.(agentinstance.SeenStore)
-	if !ok {
+	if _, ok := h.AgentInstances.Store.(agentinstance.SeenStore); !ok {
 		h.respondError(c, 503, errors.New("instance seen storage unavailable"))
 		return
 	}
@@ -95,7 +100,7 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	if h.Now != nil {
 		now = h.Now()
 	}
-	at, err := reader.MarkSeen(c.Request.Context(), instance.ID, agentinstance.LocalOperator, now)
+	at, err := h.AgentInstances.MarkSeen(c.Request.Context(), instance.ID, now)
 	if err != nil {
 		h.instanceError(c, err)
 		return
@@ -103,9 +108,48 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.AgentInstanceSeenResponse{LastSeenAt: at})
 }
 
+// MarkSeen keeps operator acknowledgement separate from provider report delivery.
+func (api *AgentInstanceAPI) MarkSeen(ctx context.Context, id string, now time.Time) (time.Time, error) {
+	reader, ok := api.Store.(agentinstance.SeenStore)
+	if !ok {
+		return time.Time{}, errors.New("instance seen storage unavailable")
+	}
+	instance, err := api.Store.Get(ctx, id)
+	if err != nil {
+		return time.Time{}, err
+	}
+	at, err := reader.MarkSeen(ctx, id, agentinstance.LocalOperator, now)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if api.AfterSeen != nil {
+		api.AfterSeen(ctx, instance, at.Interactions)
+	}
+	return at.LastSeenAt, nil
+}
+
 func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {
 	instance, ok := h.instanceTarget(c, "reports")
 	if !ok {
+		return
+	}
+	if occurrence := c.Query("occurrence"); occurrence != "" {
+		reader, ok := h.AgentInstances.Store.(agentinstance.CheckInToolReader)
+		if !ok {
+			h.respondError(c, 503, errors.New("check-in tool storage unavailable"))
+			return
+		}
+		row, err := reader.CheckInOccurrence(c.Request.Context(), instance.ID, occurrence)
+		if err != nil {
+			h.instanceError(c, err)
+			return
+		}
+		c.JSON(
+			200,
+			contract.AgentInstanceCheckInsResponse{
+				CheckIns: []contract.AgentInstanceCheckInPayload{checkInPayload(row)},
+			},
+		)
 		return
 	}
 	limit := 50
@@ -150,16 +194,21 @@ func (api *AgentInstanceAPI) CheckIns(
 		response.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
-		response.CheckIns = append(
-			response.CheckIns,
-			contract.AgentInstanceCheckInPayload{
-				ID:        row.ID,
-				Result:    row.Result,
-				Reason:    row.Reason,
-				Detail:    row.Detail,
-				CreatedAt: row.CreatedAt,
-			},
-		)
+		response.CheckIns = append(response.CheckIns, checkInPayload(row))
 	}
 	return response, nil
+}
+
+func checkInPayload(row agentinstance.CheckIn) contract.AgentInstanceCheckInPayload {
+	return contract.AgentInstanceCheckInPayload{
+		ID:           row.ID,
+		OccurrenceID: row.OccurrenceID,
+		ToolsStatus:  row.ToolsStatus,
+		ToolCalls:    row.ToolCalls,
+		Proposals:    row.Proposals,
+		Result:       row.Result,
+		Reason:       row.Reason,
+		Detail:       row.Detail,
+		CreatedAt:    row.CreatedAt,
+	}
 }

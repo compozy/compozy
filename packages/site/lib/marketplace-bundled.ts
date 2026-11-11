@@ -7,7 +7,6 @@ import { siteConfig } from "./site-config";
 
 /** Read built-in resources from the same manifests enrolled at daemon boot. */
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const bundledSkillsRoot = resolve(repoRoot, "skills");
 const bundledDefinitions = [
   { name: "spec-cycle", displayName: "Spec Cycle" },
   { name: "open-design", displayName: "Open Design" },
@@ -99,12 +98,6 @@ export interface BundledExtension {
   statusCommand: string;
 }
 
-export interface BundledSkill {
-  name: string;
-  description: string;
-  repositoryUrl: string;
-}
-
 function listResourceFiles(root: string, paths: string[], filename: string): string[] {
   return paths
     .flatMap(path => {
@@ -163,9 +156,7 @@ function readBundledExtension(definition: (typeof bundledDefinitions)[number]): 
   };
 }
 
-export function parseBundledSkillFrontmatter(
-  raw: string
-): Pick<BundledSkill, "name" | "description"> {
+export function parseBundledSkillFrontmatter(raw: string): z.infer<typeof skillFrontmatterSchema> {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(raw);
   if (!match?.[1]) {
     throw new Error("SKILL.md must begin with YAML frontmatter");
@@ -173,23 +164,4 @@ export function parseBundledSkillFrontmatter(
   return skillFrontmatterSchema.parse(parseYaml(match[1]));
 }
 
-/** `skills/embed.go` compiles every directory here into the binary. */
-function readBundledSkills(): BundledSkill[] {
-  const skills: BundledSkill[] = [];
-  for (const entry of readdirSync(/* turbopackIgnore: true */ bundledSkillsRoot, {
-    withFileTypes: true,
-  })) {
-    if (!entry.isDirectory()) continue;
-    const raw = readFileSync(resolve(bundledSkillsRoot, entry.name, "SKILL.md"), "utf8");
-    const { name, description } = parseBundledSkillFrontmatter(raw);
-    skills.push({
-      name,
-      description,
-      repositoryUrl: `${siteConfig.repoUrl}/tree/${siteConfig.repoBranch}/skills/${entry.name}`,
-    });
-  }
-  return skills.sort((left, right) => left.name.localeCompare(right.name));
-}
-
 export const bundledExtensions: BundledExtension[] = bundledDefinitions.map(readBundledExtension);
-export const bundledSkills: BundledSkill[] = readBundledSkills();

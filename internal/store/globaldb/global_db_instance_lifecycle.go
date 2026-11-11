@@ -90,6 +90,16 @@ func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinsta
 		"pause instance wake",
 		func(ctx context.Context, tx *store.WriteTx) error {
 			q := sqlcgen.New(tx)
+			if err := q.CancelInstanceAutoPicks(
+				ctx,
+				sqlcgen.CancelInstanceAutoPicksParams{
+					CanceledAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
+					UpdatedAt:  store.FormatTimestamp(r.now()),
+					InstanceID: id,
+				},
+			); err != nil {
+				return err
+			}
 			if err := q.CancelInstanceWake(ctx, id); err != nil {
 				return err
 			}
@@ -184,6 +194,16 @@ func (r *InstanceRepo) Archive(ctx context.Context, id string) (agentinstance.In
 		"archive instance wake",
 		func(ctx context.Context, tx *store.WriteTx) error {
 			q := sqlcgen.New(tx)
+			if err := q.CancelInstanceAutoPicks(
+				ctx,
+				sqlcgen.CancelInstanceAutoPicksParams{
+					CanceledAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
+					UpdatedAt:  store.FormatTimestamp(r.now()),
+					InstanceID: id,
+				},
+			); err != nil {
+				return err
+			}
 			if err := q.CancelInstanceWake(ctx, id); err != nil {
 				return err
 			}
@@ -275,4 +295,13 @@ func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (b
 	}
 	value, err := r.readQueries.InstanceNeedsAttention(ctx, instanceID)
 	return value.Bool, err
+}
+
+// HasLiveInteractions prevents acknowledgement from hiding requests that still have a runtime.
+func (r *InstanceRepo) HasLiveInteractions(ctx context.Context, instanceID string) (bool, error) {
+	if err := r.checkReady(ctx, "read instance live interactions"); err != nil {
+		return false, err
+	}
+	value, err := r.readQueries.InstanceHasLiveInteractions(ctx, instanceID)
+	return value, err
 }

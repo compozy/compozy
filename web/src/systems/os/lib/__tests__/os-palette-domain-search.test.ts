@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { Clock3, Radio } from "@compozy/ui/icons";
 import { describe, expect, it } from "vitest";
 
+import { buildWorktreeFixture } from "@/systems/workspace/mocks/worktree-fixtures";
 import type { AutomationView } from "@/systems/automation";
 import { automationStoryJobs, automationStoryTriggers } from "@/systems/automation/mocks";
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
@@ -21,6 +22,7 @@ import {
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
   projectAutomationRows,
+  projectWorktreeRows,
   section,
   taskRoute,
   terminalRoute,
@@ -259,5 +261,27 @@ describe("paletteAutomationViews", () => {
     );
     expect(rerun?.workspaceLabel).toBeUndefined();
     expect(rows.map(row => row.label)).toEqual(views.map(view => view.name));
+  });
+});
+
+// Palette projection owns selectable rows and their total, independently of
+// the shared query retaining removed records for session binding resolution.
+describe("projectWorktreeRows", () => {
+  it("Should omit removed worktrees before building and counting rows", () => {
+    const ready = buildWorktreeFixture({ id: "wt-ready", name: "ready", state: "ready" });
+    const removed = buildWorktreeFixture({ id: "wt-removed", name: "removed", state: "removed" });
+    const rows = projectWorktreeRows([ready, removed], () => "Project");
+    const view = section(
+      "Worktrees",
+      rows,
+      { isLoading: false, isError: false, error: null },
+      true,
+      "",
+      SIGNALS,
+      { catalogTotal: rows.length }
+    );
+    expect(view.total).toBe(1);
+    expect(view.rows.map(row => row.label)).toEqual(["ready"]);
+    expect(view.rows[0]?.worktreeSelection?.worktreeId).toBe("wt-ready");
   });
 });

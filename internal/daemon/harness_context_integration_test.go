@@ -944,14 +944,7 @@ func bootHarnessPolicyDaemon(
 
 	var capturedDeps SessionManagerDeps
 
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
+	d := newTestDaemon(t, homePaths, cfg)
 	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
 		capturedDeps = deps
 		return &fakeSessionManager{}, nil

@@ -87,7 +87,7 @@ func newToolListCommand(deps commandDeps) *cobra.Command {
 
 func newToolSearchCommand(deps commandDeps) *cobra.Command {
 	var scope toolScopeFlags
-	var limit int
+	var limit, offset int
 	cmd := &cobra.Command{
 		Use:   toolOperatorSearchQueryValue,
 		Short: "Search operator-visible registry tools",
@@ -113,6 +113,7 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 				}
 				request := ToolSearchRequest{
 					Query:       query,
+					Offset:      offset,
 					Limit:       limit,
 					WorkspaceID: scopeQuery.WorkspaceID,
 					SessionID:   scopeQuery.SessionID,
@@ -127,7 +128,8 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	scope.bind(cmd)
-	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum number of tools to return")
+	cmd.Flags().IntVar(&limit, "limit", 20, "Maximum tools per page (1-100; zero uses 20)")
+	cmd.Flags().IntVar(&offset, "offset", 0, "Continue at the returned next_offset")
 	return cmd
 }
 

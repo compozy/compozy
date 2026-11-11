@@ -89,6 +89,7 @@ var Matrix = []Rule{
 	{Pattern: "skills.custom_sources", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "providers.*.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},

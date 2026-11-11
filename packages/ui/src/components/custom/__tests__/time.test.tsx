@@ -34,6 +34,40 @@ describe("Time", () => {
     expect(node?.getAttribute("title")).toBe("5m ago");
   });
 
+  it("Should keep the absolute mode's relative tooltip current when iso changes later", () => {
+    const past = new Date(FIXED_NOW - 5 * 60_000).toISOString();
+    const { container, rerender } = render(<Time iso={past} mode="absolute" />);
+    const node = container.querySelector<HTMLTimeElement>('[data-slot="time"]');
+
+    act(() => {
+      vi.advanceTimersByTime(10 * 60_000);
+    });
+    expect(node?.getAttribute("title")).toBe("15m ago");
+
+    rerender(<Time iso={new Date(Date.now()).toISOString()} mode="absolute" />);
+    expect(node?.getAttribute("title")).toBe("just now");
+  });
+
+  it("Should measure an iso that arrives between ticks against the current clock", () => {
+    const past = new Date(FIXED_NOW - 5 * 60_000).toISOString();
+    const { container, rerender } = render(
+      <Time iso={past} mode="compact" refreshMs={60 * 60_000} />
+    );
+    const node = container.querySelector<HTMLTimeElement>('[data-slot="time"]');
+
+    act(() => {
+      vi.advanceTimersByTime(10 * 60_000);
+    });
+    rerender(
+      <Time
+        iso={new Date(Date.now() - 2 * 60_000).toISOString()}
+        mode="compact"
+        refreshMs={60 * 60_000}
+      />
+    );
+    expect(node?.textContent).toBe("2m");
+  });
+
   it("Should render the compact relative text with the absolute timestamp as its title", () => {
     const past = new Date(FIXED_NOW - 5 * 60_000).toISOString();
     const { container } = render(<Time iso={past} mode="compact" />);

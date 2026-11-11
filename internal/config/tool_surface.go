@@ -381,7 +381,10 @@ func providerMutableConfigPolicy(clean []string) (PathPolicy, bool) {
 			policy.Kind = ConfigValueString
 			policy.Redacted = true
 			return policy, true
-		case "session_mcp":
+		case "auto_compact_window":
+			policy.Kind = ConfigValueInt
+			return policy, true
+		case "session_mcp", "enabled":
 			policy.Kind = ConfigValueBool
 			return policy, true
 		}

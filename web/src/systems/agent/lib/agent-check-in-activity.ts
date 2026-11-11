@@ -1,4 +1,5 @@
 import type { AgentInstanceCheckIn, AgentInstancePayload } from "../types";
+import { summarizeToolCalls, toolsStatusLabel } from "./agent-check-in-tool-calls";
 
 export type DayCell = "quiet" | "told" | "failed" | "next" | "later";
 
@@ -14,6 +15,10 @@ export interface RecentCheckIn {
   description?: string;
   told?: boolean;
   failed?: boolean;
+  /** The audited calls its tools made, for the tools badge and list. */
+  toolCalls?: AgentInstanceCheckIn["tool_calls"];
+  /** "Tools off" or "Tools unavailable" when the check-in ran without them. */
+  tools?: string;
 }
 
 export interface CheckInActivity {
@@ -63,8 +68,14 @@ export function checkInReason(reason: string | null | undefined) {
   return REASON[reason ?? ""] ?? "It skipped this one.";
 }
 
+/** A check-in whose approved writes ran published an activity report, whatever its outcome. */
+function changedSomething(checkIn: AgentInstanceCheckIn) {
+  const summary = summarizeToolCalls(checkIn.tool_calls ?? []);
+  return summary.writes_done + summary.writes_maybe > 0;
+}
+
 function isTold(checkIn: AgentInstanceCheckIn) {
-  return checkIn.result === "reported" || checkIn.result === "sent";
+  return checkIn.result === "reported" || checkIn.result === "sent" || changedSomething(checkIn);
 }
 
 function cellOf(checkIn: AgentInstanceCheckIn): DayCell {
@@ -91,8 +102,22 @@ export function clockAt(at: string) {
   return CLOCK.format(new Date(at));
 }
 
+/** A check-in that used tools, or ran without them, keeps its own row. */
+function toolFacts(checkIn: AgentInstanceCheckIn) {
+  const calls = checkIn.tool_calls ?? [];
+  const tools = toolsStatusLabel(checkIn.tools_status);
+  return {
+    ...(calls.length > 0 ? { toolCalls: calls } : {}),
+    ...(tools ? { tools } : {}),
+  };
+}
+
 function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
-  const base = { key: checkIn.id, time: clockAt(checkIn.created_at) };
+  const base = {
+    key: checkIn.id,
+    time: clockAt(checkIn.created_at),
+    ...toolFacts(checkIn),
+  };
   const sentence = checkInReason(checkIn.reason);
   if (checkIn.result === "failed") {
     // A configuration diagnostic leads with the advice; the provider's detail follows it.
@@ -103,7 +128,9 @@ function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
     return { ...base, title: "Couldn't finish", description, failed: true };
   }
   if (isTold(checkIn)) {
-    return { ...base, title: "Told you something", description: checkIn.detail, told: true };
+    const description =
+      checkIn.detail || (changedSomething(checkIn) ? "It told you what it changed." : undefined);
+    return { ...base, title: "Told you something", description, told: true };
   }
   const title = checkIn.result === "skipped" ? "Skipped" : "All quiet";
   return { ...base, title, description: checkIn.detail || sentence };
@@ -135,7 +162,7 @@ export function checkInActivity(
     run = [];
   };
   for (const item of today) {
-    if (cellOf(item) === "quiet") {
+    if (cellOf(item) === "quiet" && Object.keys(toolFacts(item)).length === 0) {
       run.push(item);
       continue;
     }

@@ -145,3 +145,79 @@ lookup failure also leaves the turn unflagged. Owning automated evidence:
 `TestManagerEarlyStopSupervision` in `internal/session/spawn_wake_test.go`, the early-stop cases in
 `TestCanonicalBadgeAttentionPrecedence`, the idle-release case in
 `TestSupervisionReleasesIdleRuntime`, and `TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog`.
+
+QA impact 2026-11-08: when acknowledgement clears a child's last question, configure the creator's
+synchronous input.pre_submit hook to call child presence. Verify the attention edge arrives first,
+the hook completes successfully, and the creator wake is delivered after the child's attention
+lock is released. Session-layer SQLite and synchronous wake-boundary regression coverage lives in
+TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen. CI owns the live daemon journey;
+this change does not claim a new local E2E run.
+
+QA impact 2026-11-09 (harness token efficiency): replay the same child's attention revision
+after its first wake was admitted, including after daemon restart. The durable message identity
+must prevent a second turn. A new revision still wakes the parent, and failure to read the ledger
+must be reported rather than acknowledged as delivered. Monitor batching, reply-watch coverage
+and informative child events keep their existing behavior.
+
+QA impact 2026-11-09 (lifecycle baseline ordering): repeat the synchronous creator-to-child
+presence callback for lifecycle publication as well as ordinary and reconciled interaction
+publication. The callback must finish after the child publication lock is released. The canonical
+attention hook suite owns this boundary check; completed-wake suppression for canceled turns
+remains covered by `TestFinishPromptPumpSpawnWakeCancelSuppression`.
+
+QA impact 2026-11-09 (native settlement callback): complete a parent turn with unfinished
+provider-native work. Native interruption and parent attention settlement must finish before
+lifecycle publication takes its attention lock. Verify the native row becomes interrupted and
+the parent receives a durable settled revision without waiting for cancellation. The canonical
+attention hook suite covers this with the real subagent service, SQLite store, and manager runtime.
+
+QA impact 2026-11-09 (direct attention publication): delay clarification resolution publication
+until after an early-stop dismissal. Require exactly one waiting-for-input-to-idle event/hook,
+with no creator wake. Repeat with a first dismissal and delayed presence publication to ensure
+the clearing edge is retained once. Reconcile a padded session ID together with its canonical
+ID, retry it, then remove the session; require one edge and no retained baseline. Close worker
+admission before a transient ordinary publication read failure and require bounded synchronous
+recovery with one hook and one creator wake after unlock. The existing attention ordering and
+hook suites verify these SQLite schedules; CI owns the full transport/extension journey.
+
+QA impact 2026-11-10 (dismissal response read failure): let the initial Status and fenced
+dismissal succeed, then fail the final Status read. Require the canonical SQLite projection
+to be cleared and exactly one truthful clearing catalog event and attention hook before retry.
+Repeat mark-seen and require no duplicate event/hook or creator wake, including a child with
+notify_creator enabled and a return from Later. The existing Manager dismissal/ordering suite
+executes these SQLite schedules with an injected store read failure. The response still reports
+the read error; CI owns the broader transport/extension journey.
+
+QA impact 2026-11-10 (native parent settlement): capture parent turn-end snapshots while a
+permission keeps both badges at `waiting-for-auth`, resolve the permission, then publish the
+delayed lifecycle snapshots. Unfinished native work must become interrupted exactly once;
+canonical parent attention must settle and catalog/hook edges must agree without duplicate
+permission-clearing edges. Owning SQLite/manager regression: the native-work cases in
+`TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen`. Retain canceled-turn wake
+suppression, unrelated-session progress, and shutdown lock cancellation. CI owns the full
+public-surface walkthrough; focused daemon integration uses real ACP subprocesses and SQLite.
+
+QA impact 2026-11-10 (delayed native cancellation): cancel turn N while a follow-up prompt
+is queued, and delay N's native cleanup until N+1 records its background Agent calls and
+early task observations. N's unfinished native rows become interrupted exactly once;
+N+1 retains task-result stitching and completes on its own terminal evidence or turn-end
+fallback. Repeating N's interruption must not affect N+1 or emit a completed wake for N.
+The existing native service, native ACP daemon integration, and canceled-turn spawn-wake
+suites own these checks; CI owns the full public-surface journey.
+
+QA impact 2026-11-10 — Native result views: inspect the default compact result and
+repeat with `result_view: "full"`. Reuse identity, follow-up fences and TTL values;
+permission policy and diagnostic detail require full. The bounded result-view walk
+is recorded in [the S10 report](../reports/2026-11-10-native-result-views.md); it does
+not replace this scenario's broader historical redaction/wake matrix.
+
+QA impact 2026-11-11 (native call turn identity): launch a background Agent call in turn A,
+then deliver a non-task update for the same call with turn B or no turn. Interrupt B twice,
+then finish A twice. The row must retain A, complete once through the background fallback,
+and produce no delegated-child wake. Repeat with an empty persisted turn and a named update;
+the empty identity remains authoritative. `TestSubagentNativeRecoveryEdges` owns this
+deterministic service regression. The existing native daemon integration exercises real ACP
+subprocesses and SQLite; CI owns the full transport journey. ET-042's hook contract and
+attention lock ordering are unchanged; its native-settlement coverage remains applicable.
+After A completes and its tracking is retired, send a late Agent update in B and settle B.
+Metadata may refresh, but a later nested heartbeat must not recreate tracking or read storage.

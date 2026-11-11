@@ -49,6 +49,9 @@ import type {
   ApplySettingsUpdateData,
   ApplySettingsUpdateErrors,
   ApplySettingsUpdateResponses,
+  ApproveAgentHeartbeatAuthorityData,
+  ApproveAgentHeartbeatAuthorityErrors,
+  ApproveAgentHeartbeatAuthorityResponses,
   ApproveAgentHeartbeatScriptData,
   ApproveAgentHeartbeatScriptErrors,
   ApproveAgentHeartbeatScriptResponses,
@@ -403,6 +406,12 @@ import type {
   FanOutTaskRunsData,
   FanOutTaskRunsErrors,
   FanOutTaskRunsResponses,
+  FindFilesData,
+  FindFilesErrors,
+  FindFilesResponses,
+  FindSessionFilesData,
+  FindSessionFilesErrors,
+  FindSessionFilesResponses,
   ForceFailTaskRunData,
   ForceFailTaskRunErrors,
   ForceFailTaskRunResponses,
@@ -432,6 +441,9 @@ import type {
   GetAgentDefinitionSoulErrors,
   GetAgentDefinitionSoulResponses,
   GetAgentErrors,
+  GetAgentHeartbeatAuthorityData,
+  GetAgentHeartbeatAuthorityErrors,
+  GetAgentHeartbeatAuthorityResponses,
   GetAgentHeartbeatData,
   GetAgentHeartbeatErrors,
   GetAgentHeartbeatResponses,
@@ -556,6 +568,9 @@ import type {
   GetMarketplaceCatalogEntryData,
   GetMarketplaceCatalogEntryErrors,
   GetMarketplaceCatalogEntryResponses,
+  GetMarketplaceSectionsData,
+  GetMarketplaceSectionsErrors,
+  GetMarketplaceSectionsResponses,
   GetObserveOverviewData,
   GetObserveOverviewErrors,
   GetObserveOverviewResponses,
@@ -609,6 +624,15 @@ import type {
   GetSessionByIDData,
   GetSessionByIDErrors,
   GetSessionByIDResponses,
+  GetSessionChangeContentsData,
+  GetSessionChangeContentsErrors,
+  GetSessionChangeContentsResponses,
+  GetSessionChangePatchesData,
+  GetSessionChangePatchesErrors,
+  GetSessionChangePatchesResponses,
+  GetSessionChangesData,
+  GetSessionChangesErrors,
+  GetSessionChangesResponses,
   GetSessionCommandsData,
   GetSessionCommandsErrors,
   GetSessionCommandsResponses,
@@ -867,6 +891,9 @@ import type {
   ListExtensionSecretsResponses,
   ListExtensionsErrors,
   ListExtensionsResponses,
+  ListFileEntriesData,
+  ListFileEntriesErrors,
+  ListFileEntriesResponses,
   ListGatewayDevicesData,
   ListGatewayDevicesErrors,
   ListGatewayDevicesResponses,
@@ -942,6 +969,9 @@ import type {
   ListRolesData,
   ListRolesErrors,
   ListRolesResponses,
+  ListSessionChangeBasesData,
+  ListSessionChangeBasesErrors,
+  ListSessionChangeBasesResponses,
   ListSessionClarificationsData,
   ListSessionClarificationsErrors,
   ListSessionClarificationsResponses,
@@ -954,6 +984,9 @@ import type {
   ListSessionFacetsData,
   ListSessionFacetsErrors,
   ListSessionFacetsResponses,
+  ListSessionFileEntriesData,
+  ListSessionFileEntriesErrors,
+  ListSessionFileEntriesResponses,
   ListSessionFoldersData,
   ListSessionFoldersErrors,
   ListSessionFoldersResponses,
@@ -1113,6 +1146,9 @@ import type {
   PauseTaskData,
   PauseTaskErrors,
   PauseTaskResponses,
+  PickAgentInstanceProposalData,
+  PickAgentInstanceProposalErrors,
+  PickAgentInstanceProposalResponses,
   PinCmdPaletteCommandData,
   PinCmdPaletteCommandErrors,
   PinCmdPaletteCommandResponses,
@@ -1194,9 +1230,15 @@ import type {
   QueryTerminalJournalData,
   QueryTerminalJournalErrors,
   QueryTerminalJournalResponses,
+  ReadFileContentData,
+  ReadFileContentErrors,
+  ReadFileContentResponses,
   ReadSessionAttachmentBytesData,
   ReadSessionAttachmentBytesErrors,
   ReadSessionAttachmentBytesResponses,
+  ReadSessionFileContentData,
+  ReadSessionFileContentErrors,
+  ReadSessionFileContentResponses,
   ReadTaskRunResultData,
   ReadTaskRunResultErrors,
   ReadTaskRunResultResponses,
@@ -1371,6 +1413,9 @@ import type {
   RetryTaskRunData,
   RetryTaskRunErrors,
   RetryTaskRunResponses,
+  RevokeAgentHeartbeatAuthorityData,
+  RevokeAgentHeartbeatAuthorityErrors,
+  RevokeAgentHeartbeatAuthorityResponses,
   RevokeAgentHeartbeatScriptData,
   RevokeAgentHeartbeatScriptErrors,
   RevokeAgentHeartbeatScriptResponses,
@@ -1404,9 +1449,15 @@ import type {
   SearchAgentMemoryData,
   SearchAgentMemoryErrors,
   SearchAgentMemoryResponses,
+  SearchFileContentsData,
+  SearchFileContentsErrors,
+  SearchFileContentsResponses,
   SearchGlobalSessionTranscriptData,
   SearchGlobalSessionTranscriptErrors,
   SearchGlobalSessionTranscriptResponses,
+  SearchSessionFileContentsData,
+  SearchSessionFileContentsErrors,
+  SearchSessionFileContentsResponses,
   SearchSessionFilesData,
   SearchSessionFilesErrors,
   SearchSessionFilesResponses,
@@ -1437,6 +1488,9 @@ import type {
   SetSessionRuntimeData,
   SetSessionRuntimeErrors,
   SetSessionRuntimeResponses,
+  SetSettingsProviderEnabledData,
+  SetSettingsProviderEnabledErrors,
+  SetSettingsProviderEnabledResponses,
   SetTaskExecutionProfileData,
   SetTaskExecutionProfileErrors,
   SetTaskExecutionProfileResponses,
@@ -1965,6 +2019,33 @@ export class agents extends HeyApiClient {
   }
 
   /**
+   * Pick an instance proposal
+   */
+  public pickAgentInstanceProposal<ThrowOnError extends boolean = true>(
+    options: Options<PickAgentInstanceProposalData, ThrowOnError>
+  ): RequestResult<
+    PickAgentInstanceProposalResponses,
+    PickAgentInstanceProposalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PickAgentInstanceProposalResponses,
+      PickAgentInstanceProposalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/reports/{report_id}/pick",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Resume an agent instance
    */
   public resumeAgentInstance<ThrowOnError extends boolean = true>(
@@ -2359,6 +2440,79 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agents/{name}/heartbeat",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * show check-in authority
+   */
+  public getAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    GetAgentHeartbeatAuthorityResponses,
+    GetAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentHeartbeatAuthorityResponses,
+      GetAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority",
+      ...options,
+    });
+  }
+
+  /**
+   * revoke check-in authority
+   */
+  public revokeAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    RevokeAgentHeartbeatAuthorityResponses,
+    RevokeAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      RevokeAgentHeartbeatAuthorityResponses,
+      RevokeAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority/approve",
+      ...options,
+    });
+  }
+
+  /**
+   * approve check-in authority
+   */
+  public approveAgentHeartbeatAuthority<ThrowOnError extends boolean = true>(
+    options: Options<ApproveAgentHeartbeatAuthorityData, ThrowOnError>
+  ): RequestResult<
+    ApproveAgentHeartbeatAuthorityResponses,
+    ApproveAgentHeartbeatAuthorityErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ApproveAgentHeartbeatAuthorityResponses,
+      ApproveAgentHeartbeatAuthorityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/authority/approve",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -5962,6 +6116,29 @@ export class marketplace extends HeyApiClient {
   }
 
   /**
+   * Browse Featured and category sections
+   */
+  public getMarketplaceSections<ThrowOnError extends boolean = true>(
+    options?: Options<GetMarketplaceSectionsData, ThrowOnError>
+  ): RequestResult<
+    GetMarketplaceSectionsResponses,
+    GetMarketplaceSectionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetMarketplaceSectionsResponses,
+      GetMarketplaceSectionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/marketplace/sections",
+      ...options,
+    });
+  }
+
+  /**
    * List global plugin marketplace sources
    *
    * @stability experimental
@@ -6960,6 +7137,33 @@ export class settings extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/settings/providers/{name}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Enable or disable one provider
+   */
+  public setSettingsProviderEnabled<ThrowOnError extends boolean = true>(
+    options: Options<SetSettingsProviderEnabledData, ThrowOnError>
+  ): RequestResult<
+    SetSettingsProviderEnabledResponses,
+    SetSettingsProviderEnabledErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).patch<
+      SetSettingsProviderEnabledResponses,
+      SetSettingsProviderEnabledErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/providers/{name}/enabled",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -12014,6 +12218,252 @@ export class workspaces extends HeyApiClient {
   }
 
   /**
+   * Read project file content
+   */
+  public readFileContent<ThrowOnError extends boolean = true>(
+    options: Options<ReadFileContentData, ThrowOnError>
+  ): RequestResult<ReadFileContentResponses, ReadFileContentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ReadFileContentResponses,
+      ReadFileContentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/content",
+      ...options,
+    });
+  }
+
+  /**
+   * List project file entries
+   */
+  public listFileEntries<ThrowOnError extends boolean = true>(
+    options: Options<ListFileEntriesData, ThrowOnError>
+  ): RequestResult<ListFileEntriesResponses, ListFileEntriesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListFileEntriesResponses,
+      ListFileEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/entries",
+      ...options,
+    });
+  }
+
+  /**
+   * Find project files
+   */
+  public findFiles<ThrowOnError extends boolean = true>(
+    options: Options<FindFilesData, ThrowOnError>
+  ): RequestResult<FindFilesResponses, FindFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      FindFilesResponses,
+      FindFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Search project file contents
+   */
+  public searchFileContents<ThrowOnError extends boolean = true>(
+    options: Options<SearchFileContentsData, ThrowOnError>
+  ): RequestResult<SearchFileContentsResponses, SearchFileContentsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      SearchFileContentsResponses,
+      SearchFileContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/search",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChanges<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangesData, ThrowOnError>
+  ): RequestResult<GetSessionChangesResponses, GetSessionChangesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionChangesResponses,
+      GetSessionChangesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public listSessionChangeBases<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionChangeBasesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionChangeBasesResponses,
+    ListSessionChangeBasesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionChangeBasesResponses,
+      ListSessionChangeBasesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/bases",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChangeContents<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangeContentsData, ThrowOnError>
+  ): RequestResult<
+    GetSessionChangeContentsResponses,
+    GetSessionChangeContentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionChangeContentsResponses,
+      GetSessionChangeContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/contents",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session changes
+   */
+  public getSessionChangePatches<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionChangePatchesData, ThrowOnError>
+  ): RequestResult<
+    GetSessionChangePatchesResponses,
+    GetSessionChangePatchesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionChangePatchesResponses,
+      GetSessionChangePatchesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/changes/patches",
+      ...options,
+    });
+  }
+
+  /**
+   * Read project file content
+   */
+  public readSessionFileContent<ThrowOnError extends boolean = true>(
+    options: Options<ReadSessionFileContentData, ThrowOnError>
+  ): RequestResult<
+    ReadSessionFileContentResponses,
+    ReadSessionFileContentErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadSessionFileContentResponses,
+      ReadSessionFileContentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content",
+      ...options,
+    });
+  }
+
+  /**
+   * List project file entries
+   */
+  public listSessionFileEntries<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionFileEntriesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionFileEntriesResponses,
+    ListSessionFileEntriesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionFileEntriesResponses,
+      ListSessionFileEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/entries",
+      ...options,
+    });
+  }
+
+  /**
+   * Find project files
+   */
+  public findSessionFiles<ThrowOnError extends boolean = true>(
+    options: Options<FindSessionFilesData, ThrowOnError>
+  ): RequestResult<FindSessionFilesResponses, FindSessionFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      FindSessionFilesResponses,
+      FindSessionFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Search project file contents
+   */
+  public searchSessionFileContents<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionFileContentsData, ThrowOnError>
+  ): RequestResult<
+    SearchSessionFileContentsResponses,
+    SearchSessionFileContentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      SearchSessionFileContentsResponses,
+      SearchSessionFileContentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/search",
+      ...options,
+    });
+  }
+
+  /**
    * List workspace terminals
    */
   public listTerminals<ThrowOnError extends boolean = true>(
@@ -12848,7 +13298,7 @@ export class tools extends HeyApiClient {
   }
 
   /**
-   * Search operator-visible registry tools
+   * Search operator-visible registry tools (default 20, maximum 100 per page)
    */
   public searchTools<ThrowOnError extends boolean = true>(
     options: Options<SearchToolsData, ThrowOnError>

@@ -79,13 +79,36 @@ describe("GitHub changelog boundary", () => {
           version: "v0.3.0-beta.3",
           body: releaseFixture.body,
           channel: "beta",
-          categories: [{ id: "runtime", label: "Runtime", itemCount: 1 }],
           pullRequestNumbers: [123],
           assets: [expect.objectContaining({ name: "compozy_darwin_arm64.tar.gz", size: 42 })],
         }),
       ],
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps reading past a short page until the cutoff", async () => {
+    // GitHub hides some entries, so a page can hold fewer than `per_page` releases mid-list.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([{ ...releaseFixture, tag_name: "v0.3.0-beta.5" }]))
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { ...releaseFixture, tag_name: "v0.3.0-beta.4" },
+          { ...releaseFixture, tag_name: "v0.2.9", prerelease: false },
+        ])
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChangelogReleases();
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.releases.map(release => release.version)).toEqual([
+      "v0.3.0-beta.5",
+      "v0.3.0-beta.4",
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns an explicit unavailable result when GitHub violates the release schema", async () => {

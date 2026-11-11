@@ -20,6 +20,8 @@ interface MarketplaceSearchStripOptions {
   testId: string;
   /** Browse only: the Plugins | MCPs toggle after the search; `?q=` survives a switch. */
   kind?: MarketplaceKind;
+  /** Category page: the search commits to `/marketplace/categories/$category` instead of `to`. */
+  category?: string;
 }
 
 /**
@@ -34,17 +36,25 @@ function useMarketplaceSearchStrip({
   label,
   testId,
   kind,
+  category,
 }: MarketplaceSearchStripOptions) {
   const navigate = useNavigate();
   const searchInputRef = useListingSearchShortcut();
   const draft = useDebouncedInput({
     externalValue: query,
-    onCommit: value =>
-      void navigate({
-        replace: true,
-        search: { kind: kindParam(kind), q: value.trim() || undefined },
-        to,
-      }),
+    onCommit: value => {
+      const q = value.trim() || undefined;
+      if (category !== undefined) {
+        void navigate({
+          params: { category },
+          replace: true,
+          search: { q },
+          to: "/marketplace/categories/$category",
+        });
+        return;
+      }
+      void navigate({ replace: true, search: { kind: kindParam(kind), q }, to });
+    },
   });
   /** Carries the typed draft into the next kind and cancels its pending commit for the old one. */
   const switchKind = (next: MarketplaceKind) => {

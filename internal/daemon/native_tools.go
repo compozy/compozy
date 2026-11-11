@@ -190,6 +190,9 @@ func appendToolEventSinkOption(
 	now func() time.Time,
 	profileForSession func(context.Context, string) (string, error),
 ) []toolspkg.RegistryOption {
+	if provider, ok := registry.(instanceRepositoryProvider); ok {
+		options = append(options, toolspkg.WithCheckInRecorder(provider.Instances().CheckInRecorder()))
+	}
 	writer := extensionEventSummaryStore(registry)
 	if writer == nil {
 		return options

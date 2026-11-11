@@ -12,6 +12,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 
 	"uuid"
 )
@@ -204,7 +205,7 @@ func (r restartRequestRuntime) launchRelaunchHelper(
 	_, err = r.startDetached(ctx, detachedStartRequest{
 		binary:  binary,
 		args:    []string{harnessSummaryDefaultAgentName, "relaunch"},
-		sandbox: withRestartOperationEnv(os.Environ(), operationID),
+		sandbox: withRestartOperationEnv(procutil.WithoutInternalHandoffEnv(os.Environ()), operationID),
 		logPath: homePaths.LogFile,
 	})
 	if err != nil {

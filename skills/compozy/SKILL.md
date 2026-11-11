@@ -11,87 +11,48 @@ metadata:
 
 # CompozyOS
 
-This body routes to the matching reference. When tools and skills are enabled, startup includes this router, not the full reference manuals. With tools enabled and skills disabled, capable sessions retain the two complete tool manuals inline because native skill reads are unavailable. Daemon-owned title generation omits the tool router because its role consumes supplied input and returns output; other tools-enabled sessions retain the appropriate guidance.
+Use native tools and structured results for CompozyOS operations. Canonical `compozy__*` IDs are registry identities: discover with `compozy__tool_search`, inspect the live descriptor, and invoke the reference returned by the active harness. Keep canonical IDs in policy and `tool_id` inputs.
 
-To read a reference in a managed session, resolve `compozy__skill_view` through the active harness and call the returned tool reference with `{"name":"compozy","file":"references/<file>.md"}` using the exact path below. Tool discovery, descriptor reads, skill reads, and retained-result reads needed to load these references are the bootstrap exception to the reading prerequisite. Inspect the live descriptor before calling other tools; discover capabilities with `compozy__tool_search`. Keep existing tool authorization: missing guidance does not grant or revoke access, and a denied skill read is not permission to bypass policy through CLI or filesystem access.
-
-If a reference result is truncated and includes an artifact, resolve `compozy__tool_artifact_read` through the active harness. Pass the returned artifact URI unchanged as `artifact_uri`, start at `offset: 0`, and continue with each `next_offset` until `eof`. Decode and concatenate `data_base64` pages to read the retained result envelope, including its full structured `content`; preserve any redactions in display text. Use the current workspace scope. A preview alone is not a complete reference. If the result has no usable artifact or a continuation is denied, report the reference as unavailable; do not use CLI or filesystem access to bypass it.
+Load references through resolved `compozy__skill_view` with `{"name":"compozy","file":"references/<file>.md"}`. Do not read skill files directly or invoke the operator-only `compozy skill view` CLI from a managed session. Missing guidance never grants access; never bypass withheld capabilities through CLI, filesystem, another identity, or direct state edits. Continue independent authorized repository work if a native operation is blocked.
 
 ## Required Reading Router
 
-Match the CompozyOS operation to the row and read its listed references before that operation, unless the bounded descriptor fallback in Error Handling applies.
+Before native operational calls or tool/skill mutations, read **references/tools-and-skills.md** and **references/native-tools.md** in full. Discovery, descriptor inspection, skill/reference reads and retained-result continuation are bootstrap exceptions. Authorized provider-owned coding, research and review do not require CompozyOS manuals.
 
-A delegated coding, research, or review assignment can use its authorized provider tools without first loading CompozyOS manuals. Being called a worker, coordinator, or reviewer does not itself create a daemon Task claim, lease, or review authority. If native tools or their references are unavailable, continue independent provider work and report only the dependent CompozyOS operation as blocked. Never bypass a withheld native capability through CLI, filesystem access, or direct state edits.
+Also read the applicable references below before the operation. Paths are relative to this skill; retain the `references/` prefix in calls.
 
-| Task                                                                                                                           | MUST read                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Use CompozyOS to delegate code changes on an isolated branch, inspect subagent Git/PR facts, or deliver its work               | references/native-tools.md; references/worktrees.md                |
-| Start, inspect, prompt, stop, resume, compact, or debug CompozyOS sessions and daemon state                                    | references/runtime-operations.md                                   |
-| Work in the User scope (`@user`, no project) or read All projects aggregates (`--all-workspaces`, `all_workspaces=true`)       | references/runtime-operations.md + references/native-tools.md      |
-| Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
-| Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing             | references/runtime-operations.md + references/agent-definitions.md |
-| Inspect, refresh, curate, or configure provider models, runtime strategies, ACP options, reasoning, Fast, or pricing           | references/runtime-operations.md + references/native-tools.md      |
-| Read or refresh provider usage (subscription limits, resets, credits, balances) or configure its collection and consent        | references/runtime-operations.md + references/native-tools.md      |
-| Configure provider authentication or run provider authentication login                                                         | references/agent-definitions.md + references/native-tools.md       |
-| Expose one CompozyOS workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                   |
-| Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |
-| Open, inspect, attach to, execute in, or interact with CompozyOS terminals; answer terminal input or audit terminal commands   | references/terminal.md + references/native-tools.md                |
-| Create or review CompozyOS agent definitions, provider defaults, permissions, workspace access, or MCP sidecars                | references/agent-definitions.md + references/tools-and-skills.md   |
-| Propose a reusable skill or inspect its operator review                                                                        | references/skill-authoring.md + references/native-tools.md         |
-| Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
-| List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
-| Claim, run, review, block, recover, or coordinate daemon Tasks; or wake a Task creator                                         | references/tasks-and-orchestration.md                              |
-| Delegate a task to a subagent on another agent, provider, or model; read, list, or cancel subagents                            | references/native-tools.md + references/tasks-and-orchestration.md |
-| Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
-| Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks            | references/extensions.md + references/native-tools.md              |
-| Write or scaffold extension code: manifests, permissions, provide surfaces, contributed commands, or command palette entries   | references/extension-authoring.md + references/extensions.md       |
-| Create or manage Automations (jobs and triggers), read their last run, or review suggestions                                   | references/native-tools.md + references/configuration.md           |
-| Create, inspect, bind sessions to, exit, publish, remove, or recover workspace worktrees                                       | references/worktrees.md + references/native-tools.md               |
-| Inspect or manage Gateway posture, tier surfaces, device pairing, connection profiles, SSH forwards, or stream tickets         | references/runtime-operations.md + references/configuration.md     |
-| List, select, create, update, rename, archive, unarchive, delete, or retry profile lifecycle operations                        | references/profiles.md + references/native-tools.md                |
-| Build an external app with the TypeScript or Go client, or create, audit, update, and revoke app tokens                        | references/app-sdk.md                                              |
-| Read or change CompozyOS configuration: config.toml keys, defaults, scopes, and the settings apply lifecycle                   | references/configuration.md                                        |
+- Sessions and daemon lifecycle/debugging; MCP serve; User scope and All projects; provider models, ACP options, reasoning, Fast, pricing and usage: references/runtime-operations.md.
+- Desktop app attachment, recovery and host/app updates: references/desktop.md.
+- Agent definitions, provider defaults/authentication, permissions, workspace access, MCP sidecars: references/agent-definitions.md.
+- Background roles, builtin identities and fallback routing: references/runtime-operations.md; references/agent-definitions.md.
+- Virtual desktops, windows and layouts: references/window-management.md.
+- Terminals, command execution, input and journal: references/terminal.md.
+- Skill proposals, installation scope and operator review: references/skill-authoring.md.
+- Explicit always-on notes/memory: references/agent-memory.md.
+- Daemon Tasks: claims, leases, coordination, review and recovery; subagent delegation/status/cancel: references/tasks-and-orchestration.md.
+- Loops and Goals: author, run, approve, observe, stop and `/goal`: references/loops.md.
+- Extension install, build, dev, publish, remove, kits, secrets and hooks: references/extensions.md.
+- Extension code, manifests, permissions, SDK declarations and palette contributions: references/extension-authoring.md; references/extensions.md.
+- Config keys/defaults/scopes/apply lifecycle; Automations and suggestions: references/configuration.md.
+- Gateway posture, profiles/SSH, pairing, forwards and stream tickets: references/runtime-operations.md; references/configuration.md.
+- Worktree creation/binding/exit/delivery/removal/recovery; isolated delegation and subagent Git/PR facts: references/worktrees.md.
+- Operator profile selection and lifecycle: references/profiles.md.
+- External apps, TypeScript/Go clients and app tokens: references/app-sdk.md.
 
-## Reference Index
+Command palette operations use `references/native-tools.md`. Tool/skill discovery, Marketplace and manual MCP management use `references/tools-and-skills.md`. Authorized CLI fallbacks are indexed in `references/cli-fallback.md`; a denied native capability does not authorize a fallback.
 
-For explicit always-on memory reads or writes, also read `references/agent-memory.md`.
+Read **references/tasks-and-orchestration.md in full** before exercising daemon Task authority or submitting a review verdict. A delegated assignment or role label alone grants no Task claim, lease or review authority.
 
-- references/skill-authoring.md - proposed skills, inert drafts, operator review, and installation scope.
-- references/agent-memory.md - explicit always-on agent notes, identity boundaries, budgets, revisions, and memory tools.
-- references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, operations, lifecycle diagnostics, and runtime troubleshooting.
-- references/desktop.md - desktop app commands, attachment and ownership, runtime and app updates, diagnostics, and recovery.
-- references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
-- references/terminal.md - deliberate terminal activation, native tool IDs, approval and shared input, input requests, untrusted output, journal, profile, and platform rules.
-- references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
-- references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
-- references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
-- references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, subagents versus spawned workers, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
-- references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
-- references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
-- references/extension-authoring.md - code-backed and resource-only extension authoring: templates, SDK declarations, static manifests, permissions, provide surfaces, contributed commands, command palette entries, and structured workflows.
-- references/app-sdk.md - external TypeScript and Go apps, daemon discovery, prompt/event streams, local app-token management, browser origin boundaries, and runtime OpenAPI.
-- references/configuration.md - layered config.toml desired state, profile credentials, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, session rebuild, role, and window-manager settings.
-- references/worktrees.md - workspace worktree lifecycle, session binding, exit plans and actions, forge integration, cleanup evidence, and public management surfaces.
-- references/profiles.md - operator-profile selection, immutable session binding, lifecycle plans, local-only mutations, errors, events, and public management surfaces.
+## Waiting and authority
 
-## Operating Loop
+Use `compozy__monitor_create` for external waits: `kind: "pull_request"` for PR checks/reviews (armed across wakes until the PR ends), `kind: "timer"` for delays. For other commands, call `compozy__terminal_exec` with executable in `command` and arguments in `args`; on `still_running`, register `kind: "terminal"` with the returned `terminal_id`. Never substitute shell polling or provider-internal background tasks/wakeups: they cannot start a CompozyOS turn. If policy withholds the terminal/monitor tools, shell waits remain allowed. Keep doing independent work; end the turn only after delivery or when every remaining step depends on a registered monitor or subagent.
 
-1. Read the references for the intended CompozyOS operation, or qualify for the bounded descriptor fallback below.
-2. Prefer CompozyOS-native tools and structured outputs over prose, logs, or direct internal access when managing CompozyOS.
-3. Keep authority with the daemon: task state, review verdicts, session lifecycle, extension lifecycle, hooks, and tool calls must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
-4. After a mutation, confirm the result through a structured read instead of assuming success.
+Use public surfaces for session lifecycle, Task state/reviews, extension lifecycle, hooks and tools. Never edit SQLite, process internals or generated projections directly. Confirm mutations through structured reads.
 
-## Error Handling
+## Incomplete references and errors
 
-If a required resource read fails, retry `compozy__skill_view` once with the exact router path. Correct
-`tool_not_found` or `tool_invalid_input` before retrying; retry `tool_backend_failed` once without
-changing the request. After a second failure, proceed only when one native call's live descriptor
-fully defines the requested operation, risk, and result handling. A visible `terminal_exec` qualifies
-for a one-command terminal demonstration; multi-step terminal interaction still requires
-`references/terminal.md`. Otherwise stop
-the affected operation and report the exact path. Preserve structured runtime errors, follow the
-diagnostic order in `references/runtime-operations.md`, and keep daemon-owned state authoritative.
+For a truncated result with an artifact, resolve `compozy__tool_artifact_read`. Pass its URI unchanged as `artifact_uri`, start at `offset: 0`, then follow `next_offset` to `eof`. Decode and concatenate `data_base64` pages, reading the retained envelope's full structured `content` in the current workspace scope. Preserve redactions. A preview is not a complete read; absent artifacts or denied continuation make the reference unavailable, not permission to bypass the reader.
 
-**Read references/tools-and-skills.md and references/native-tools.md in full before CompozyOS-native operational tool calls or tool/skill mutations.** Discovery, descriptor inspection, reference reads, and their retained-result continuations may run first to load that guidance. Provider-owned repository tools do not trigger this prerequisite.
+Retry a failed required read once at the exact path. Correct `tool_not_found`/`tool_invalid_input` first; retry `tool_backend_failed` unchanged. After the second failure, only proceed if one native call's live descriptor fully defines the operation, risk and result handling. A visible `terminal_exec` qualifies for a one-command demonstration; multi-step terminal work still requires `references/terminal.md`. Otherwise stop the affected operation and report the path. Preserve structured errors and follow `references/runtime-operations.md`'s diagnostic order.
 
-**Read references/tasks-and-orchestration.md in full before exercising daemon Task authority or submitting a Task review verdict.** A general delegated assignment does not confer that authority.
+Startup includes this router when tools and skills are enabled, the complete tool manuals when skills are disabled, and no tool router for input-only title generation.

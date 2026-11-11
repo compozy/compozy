@@ -2,11 +2,15 @@ package extensionpkg
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/marketplace"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -78,6 +82,7 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		default:
 			return nil, fmt.Errorf("extension: unsupported synthesized MCP transport %q", server.Transport)
 		}
+		config.Auth = clientManifestOAuth(server)
 		servers[name] = config
 	}
 
@@ -93,6 +98,11 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		Permissions:       PermissionsConfig{},
 		Subprocess:        SubprocessConfig{},
 	}
+	manifest.Inputs, err = derivedManifestInputs(pkg.Inputs)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -110,13 +120,27 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 		if value.Code == agentplugin.ClientComponentIgnored {
 			code = diagnosticcontract.CodeExtensionClientComponentIgnored
 		}
+		id := "extension/" + strings.TrimSpace(name) + "/agent-plugin/" + scope
+		if value.Code == agentplugin.ClientFieldIgnored {
+			id += "/" + fmt.Sprintf("%x", sha256.Sum256([]byte(message)))[:16]
+		}
+		severity, title := diagnosticcontract.SeverityWarn, "Component skipped"
+		switch value.Code {
+		case agentplugin.ClientPlaceholderInvalid:
+			code = diagnosticcontract.CodeExtensionClientPlaceholderInvalid
+		case agentplugin.ClientFieldIgnored:
+			code = diagnosticcontract.CodeExtensionClientFieldIgnored
+		case agentplugin.ClientMCPDiscovered:
+			code = diagnosticcontract.CodeExtensionClientMCPDiscovered
+			severity, title = diagnosticcontract.SeverityInfo, "MCP configuration discovered"
+		}
 		items = append(items, diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
-			ID:            "extension/" + strings.TrimSpace(name) + "/agent-plugin/" + scope,
+			ID:            id,
 			Code:          code,
 			Category:      diagnosticcontract.CategoryExtension,
-			Title:         "Component skipped",
+			Title:         title,
 			Message:       agentPluginDiagnosticMessage(component, scope, message),
-			Severity:      diagnosticcontract.SeverityWarn,
+			Severity:      severity,
 			DataFreshness: diagnosticcontract.FreshnessLive,
 		}, diagnosticspkg.WithEvidence(map[string]any{
 			diagnosticEvidenceScopeKey: scope, diagnosticEvidenceComponentKey: component,
@@ -164,4 +188,46 @@ func agentPluginDiagnosticMessage(component, scope, message string) string {
 		return fmt.Sprintf("skill %q: %s", strings.TrimPrefix(scope, "skill:"), message)
 	}
 	return message
+}
+
+func derivedManifestInputs(derivedInputs []agentplugin.DerivedInput) ([]ManifestInput, error) {
+	var inputs []ManifestInput
+
+	for _, derived := range derivedInputs {
+		input := ManifestInput{
+			ID:       derived.ID,
+			Prompt:   derived.ID,
+			Type:     "string",
+			Required: derived.Required,
+			Binding:  marketplace.InputBinding{Type: manifestInputBindingTemplate, Name: derived.ID},
+		}
+		if derived.Secret {
+			input.Type = manifestInputTypeSecret
+		} else if !derived.Required && derived.Default != "" {
+			value, err := json.Marshal(derived.Default)
+			if err != nil {
+				return nil, err
+			}
+			input.Default = value
+		}
+		inputs = append(inputs, input)
+	}
+	return inputs, nil
+}
+
+func clientManifestOAuth(server agentplugin.ServerSpec) *MCPServerAuthConfig {
+	if server.Auth == nil {
+		return nil
+	}
+	auth := &MCPServerAuthConfig{
+		Method:            "oauth",
+		Registration:      "dynamic",
+		ClientID:          server.Auth.ClientID,
+		Scopes:            slices.Clone(server.Auth.Scopes),
+		ClientSecretInput: server.Auth.ClientSecret,
+	}
+	if server.Auth.ClientID != "" {
+		auth.Registration = "pre_registered"
+	}
+	return auth
 }

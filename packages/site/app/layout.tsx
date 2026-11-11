@@ -1,13 +1,12 @@
 import "./global.css";
-import { Geist, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import { Figtree, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { Toaster, UIProvider } from "@compozy/ui";
-import { SiteFooter } from "@/components/site/site-footer";
-import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
 
 const SITE_TOASTER_STYLE = {
@@ -15,22 +14,23 @@ const SITE_TOASTER_STYLE = {
   "--normal-border": "var(--color-line-soft)",
 } as CSSProperties;
 
-const geist = Geist({
+const figtree = Figtree({
   subsets: ["latin"],
-  variable: "--font-geist",
+  variable: "--font-figtree",
   display: "swap",
 });
 
-const playfairDisplay = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-playfair",
+/** The display face is the same variable Instrument Sans file the app and the drafts load (`@fontsource-variable`). */
+const instrumentSans = localFont({
+  src: "../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2",
+  variable: "--font-instrument-sans",
   display: "swap",
-  weight: ["400"],
+  weight: "400 700",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "CompozyOS: one complete environment to create, automate, and supervise agent work",
+        alt: "CompozyOS: the autonomous control plane for your agents",
       },
     ],
   },
@@ -82,19 +82,20 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#E8572A",
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`dark ${geist.variable} ${playfairDisplay.variable} ${jetbrainsMono.variable}`}
+      className={`dark ${figtree.variable} ${instrumentSans.variable} ${geistMono.variable}`}
     >
       <body className="flex min-h-dvh flex-col bg-fd-background font-sans text-fd-foreground antialiased">
+        {/* Above the fixed site header (z-50), which paints later in the document. */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:border focus:border-line focus:bg-elevated focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-fg"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:rounded-lg focus:border focus:border-line focus:bg-elevated focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-fg"
         >
           Skip to content
         </a>
@@ -103,20 +104,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             // D9: the site's toasts keep the lifted canvas-soft surface and soft hairline.
             style={SITE_TOASTER_STYLE}
           />
-          <SiteSearchProvider>
-            <RootProvider
-              search={{
-                SearchDialog: SiteSearchDialog,
-                options: {
-                  api: "/api/search",
-                },
-              }}
-              theme={{ enabled: false }}
-            >
-              {children}
-              <SiteFooter />
-            </RootProvider>
-          </SiteSearchProvider>
+          {/* Docs search is the docs shell's own palette (components/docs/docs-search.tsx), a
+              client of the same `/api/search` index; Fumadocs' dialog and its ⌘K are off. */}
+          <RootProvider search={{ enabled: false }} theme={{ enabled: false }}>
+            {children}
+          </RootProvider>
         </UIProvider>
         <Analytics />
         <SpeedInsights />

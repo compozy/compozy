@@ -193,3 +193,66 @@ export function resolveFilePath(
 export function filePathBasename(path: string, options: FilePathPlatformOptions = {}): string {
   return lastSegment(path, options.windows ?? false) || path;
 }
+
+export interface FilePathRoot {
+  /** Absolute path of the session root: the bound worktree, else the project checkout. */
+  root: string;
+  /** The session's working directory; relative tokens resolve against it, else the root. */
+  workingDir?: string;
+  /** The daemon user's home directory, for `~/` tokens. */
+  home?: string;
+}
+
+export type RootRelativeResolution =
+  | { inside: true; path: string; line?: number; column?: number }
+  | { inside: false; path: string };
+
+function withoutTrailingSeparator(path: string): string {
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
+/** POSIX-style form for containment checks; Windows drive paths keep their drive. */
+function slashed(path: string, windows: boolean): string {
+  return windows ? path.replaceAll("\\", "/") : path;
+}
+
+/**
+ * Resolves `token` to a path relative to the session root (spec Data flow, step 2). Lexical
+ * only: the daemon re-checks containment and symlinks on read. `..` never climbs above the
+ * filesystem root, and any result outside `root` is `{inside:false}` with the path as written.
+ */
+export function resolveRootRelative(
+  token: FilePathToken,
+  base: FilePathRoot,
+  options: FilePathPlatformOptions = {}
+): RootRelativeResolution {
+  const windows = options.windows ?? false;
+  const outside = { inside: false as const, path: token.path };
+  const root = slashed(
+    withoutTrailingSeparator(normalizeLexically(base.root.trim(), windows)),
+    windows
+  );
+  if (root === "" || (!root.startsWith("/") && !WINDOWS_DRIVE.test(root))) return outside;
+  let absolute: string;
+  if (token.path.startsWith("~/")) {
+    const home = base.home?.trim();
+    if (!home) return outside;
+    absolute = `${home}/${token.path.slice(2)}`;
+  } else if (token.relative) {
+    absolute = `${base.workingDir?.trim() || root}/${token.path}`;
+  } else {
+    absolute = token.path;
+  }
+  const resolved = slashed(normalizeLexically(absolute, windows), windows);
+  const compare = (value: string) => (windows ? value.toLowerCase() : value);
+  const prefix = root === "/" ? "/" : `${root}/`;
+  if (!compare(resolved).startsWith(compare(prefix))) return outside;
+  const path = resolved.slice(prefix.length);
+  if (path === "") return outside;
+  return {
+    inside: true,
+    path,
+    ...(token.line !== undefined ? { line: token.line } : {}),
+    ...(token.column !== undefined ? { column: token.column } : {}),
+  };
+}

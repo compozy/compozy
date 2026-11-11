@@ -1,0 +1,74 @@
+---
+title: Search files
+description: Go to file by name, search text across a project with Search, and find text in the open file.
+---
+
+The [Files app](/docs/files/files-app) has three ways to find things.
+
+| Shortcut                                                     | Opens           | Finds                      |
+| ------------------------------------------------------------ | --------------- | -------------------------- |
+| <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>P</kbd>                  | **Go to file**  | A file or folder by name   |
+| <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | **Search** pane | Text across the whole root |
+| <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>F</kbd>                  | Find in file    | Text in the open file      |
+
+The shortcuts apply only while focus is inside the explorer (for Find in file, inside the viewer).
+Elsewhere they keep their usual meaning, and no CompozyOS shortcut changes. The Files ↔ Search switch
+above the tree and the **Go to file** button do the same without a keyboard.
+
+## Go to file
+
+Type any part of a path. Matching is fuzzy and tolerates gaps, so `sesrev` finds
+`session-review-panel.tsx`. Results are ranked with the matched characters highlighted, up to 50 at
+a time.
+
+- With an empty query, the box lists up to 10 **Recent** files you opened in this root.
+- Add `:42` to the query, such as `handler.go:42`, to open the file at line 42. The footer says
+  **Opens at line 42**.
+- Choosing a folder expands and reveals it in the tree.
+- Sensitive files show a lock. Opening one leads to the viewer's **Show contents** gate.
+- <kbd>Esc</kbd> closes the box and returns focus to where you were.
+
+Go to file searches tracked and untracked files, not Git-ignored ones. The footer shows how many
+files are indexed. The index refreshes every few seconds as files change, and holds up to 200,000
+files; past that, the footer adds "some files aren't searchable by name".
+
+## Search
+
+Type at least two characters. Results update as you type, and <kbd>Enter</kbd> runs the search at
+once. Matches are grouped by file; click a match, or step through matches with <kbd>↑</kbd> and
+
+<kbd>↓</kbd> in the result list, to open the file at that line with Find in file already set to the
+match.
+
+| Option                     | Effect                                                             |
+| -------------------------- | ------------------------------------------------------------------ |
+| **Match case**             | Case-sensitive matching.                                           |
+| **Match whole word**       | Only whole-word matches.                                           |
+| **Use regular expression** | Treats the query as a POSIX extended regular expression.           |
+| **files to include**       | Comma-separated globs relative to the root, such as `web/**/*.ts`. |
+| **files to exclude**       | Comma-separated globs to leave out, such as `**/*.test.ts`.        |
+
+Open the include and exclude fields with **Toggle search details**. Each field takes up to ten
+globs. Globs can't start with `/` or `:`, and can't contain `..`. An invalid regular expression shows the error under the query.
+
+In the query field, <kbd>↑</kbd> and <kbd>↓</kbd> walk your last 10 searches for this root. The
+options and history are remembered per root.
+
+### What Search covers
+
+Search reads tracked and untracked files with `git grep`, and skips Git-ignored files. In a folder
+that isn't a Git repository, it reads the files on disk and notes **Not a git repository · searched
+files on disk**. It skips binary files, files over 1 MB, symlinks, and the `.git` folder.
+
+| Note under the summary                                    | Meaning                                               |
+| --------------------------------------------------------- | ----------------------------------------------------- |
+| **2 sensitive files not searched**                        | Sensitive files are never searched; this counts them. |
+| **Showing the first 2,000 results · refine your search**  | Search stops at 2,000 matching lines, 100 per file.   |
+| **Search stopped after 10 s · results may be incomplete** | Search returns what it found within 10 seconds.       |
+
+When nothing matches, the pane says **No results for** your query and names any active options.
+
+## Find in file
+
+<kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>F</kbd> in the viewer finds literal text in the open file. See
+[File viewer › Find in file](/docs/files/file-viewer#find-in-file).

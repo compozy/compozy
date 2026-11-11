@@ -4,7 +4,7 @@ area: RT
 title: Navigate persistent desktops through the minimal pager
 persona: Théo
 journey: J-administer-window-manager
-expected: The desktop pager sits in the topbar tray before All desktops: one 6px dot per persistent desktop in order, the active desktop drawn as an 18px foreground pill, and an orange dot on an off-screen desktop that needs you, each named "Desktop N of T: {name}" ("— needs you" appended when it does); click and Left/Right/Home/End switch only the active client; 1, 2, and 7 desktops stay direct and 8+ window ±2 behind "Show N earlier/later desktops" controls; All desktops opens the Desktops overview over the desk — the title "Desktops", one live layout thumbnail per desktop with its name, window count and position key, the active desktop ringed, a New desktop card, and Done/Esc to close — which creates, renames, reorders, transfers, and deletes desktops with honest pending, conflict, empty, and disconnected states.
+expected: The desktop pager sits in the topbar tray before All desktops: one 6px dot per persistent desktop in order, the active desktop drawn as an 18px foreground pill, and an amber (`attn`) dot on an off-screen desktop that needs you, each named "Desktop N of T: {name}" ("— needs you" appended when it does); click and Left/Right/Home/End switch only the active client; 1, 2, and 7 desktops stay direct and 8+ window ±2 behind "Show N earlier/later desktops" controls; All desktops opens the Desktops overview over the desk — the title "Desktops", one live layout thumbnail per desktop with its name, window count and position key, the active desktop ringed, a New desktop card, and Done/Esc to close — which creates, renames, reorders, transfers, and deletes desktops with honest pending, conflict, empty, and disconnected states.
 entry_points: web topbar tray pager; All desktops button; Desktops overview; keyboard navigation
 qa_status: skipped
 bug_ids: BUG-20260724-stale-return-anchor-on-desktop-transfer
@@ -39,3 +39,5 @@ qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless til
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-08 brand identity v1.2 (spec `.compozy/tasks/brand-site/`). The needs-you dot moved from the retired orange brand hue to its own amber `--color-attn` (`StatusDot tone="attn"`, `#f5b14c` dark / `#9a5b00` light). Expectation updated; status unchanged.

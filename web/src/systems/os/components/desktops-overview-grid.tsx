@@ -339,7 +339,7 @@ export function DesktopsOverviewGrid({
                 <span className="shrink-0 text-meta text-muted-foreground">
                   {windowCount} window{windowCount === 1 ? "" : "s"}
                 </span>
-                {needsYou ? <StatusDot tone="brand" size="sm" label="Needs you" /> : null}
+                {needsYou ? <StatusDot tone="attn" size="sm" label="Needs you" /> : null}
                 {desktop.switchShortcut ? (
                   <Kbd className="ml-auto">{desktop.switchShortcut}</Kbd>
                 ) : null}

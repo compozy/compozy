@@ -66,7 +66,7 @@ type wireUsage struct {
 	ThoughtTokens     *int64 `json:"thoughtTokens,omitzero"`
 	CachedReadTokens  *int64 `json:"cachedReadTokens,omitzero"`
 	CachedWriteTokens *int64 `json:"cachedWriteTokens,omitzero"`
-	// compat(v0.4.0→v0.5.0, remove in v0.6.0)
+	// compat(v0.4.0→v0.5.0, remove in v0.6.1)
 	LegacyCacheReadTokens  *int64 `json:"cacheReadTokens,omitzero"`
 	LegacyCacheWriteTokens *int64 `json:"cacheWriteTokens,omitzero"`
 }
@@ -124,6 +124,8 @@ func (p *AgentProcess) handleInboundRequest(
 		return handleInboundRequest(ctx, params, p.handleWriteTextFile)
 	case acpsdk.ClientMethodSessionRequestPermission:
 		return handleInboundRequest(ctx, params, p.handleRequestPermission)
+	case acpsdk.ClientMethodElicitationCreate:
+		return p.handleCreateElicitation(ctx, params)
 	case acpsdk.ClientMethodTerminalCreate:
 		return handleInboundRequest(ctx, params, p.handleCreateTerminal)
 	case acpsdk.ClientMethodTerminalKill:

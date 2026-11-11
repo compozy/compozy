@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateMetadata, generateStaticParams } from "../../app/blog/[slug]/page";
-import { allPosts, authorByHandle } from "../blog";
+import { allPosts, authorByHandle, blogPostCover } from "../blog";
 
 function pageProps(slug: string) {
   return {
@@ -53,21 +53,16 @@ describe("blog metadata", () => {
     expect(metadata).toEqual({});
   });
 
-  it("uses the generated social card when a post has no cover", async () => {
-    const metadata = await generateMetadata(pageProps("introducing-compozyos"));
-    const openGraphImage =
-      Array.isArray(metadata.openGraph?.images) && typeof metadata.openGraph.images[0] === "object"
-        ? (metadata.openGraph.images[0] as { url?: string; alt?: string })
-        : null;
-    const twitterImage =
-      Array.isArray(metadata.twitter?.images) && typeof metadata.twitter.images[0] === "string"
-        ? metadata.twitter.images[0]
-        : null;
+  it("publishes every post's cover as its social image", async () => {
+    for (const post of allPosts()) {
+      const metadata = await generateMetadata(pageProps(post.slug.replace(/^posts\//, "")));
+      const openGraphImage =
+        Array.isArray(metadata.openGraph?.images) &&
+        typeof metadata.openGraph.images[0] === "object"
+          ? (metadata.openGraph.images[0] as { url?: string })
+          : null;
 
-    expect(openGraphImage?.url).toBe("/og/blog/introducing-compozyos/image.png");
-    expect(openGraphImage?.alt).toBe(
-      `${allPosts().find(post => post.slug === "posts/introducing-compozyos")?.title} | CompozyOS`
-    );
-    expect(twitterImage).toBe("/og/blog/introducing-compozyos/image.png");
+      expect(openGraphImage?.url, post.slug).toBe(blogPostCover(post).src);
+    }
   });
 });

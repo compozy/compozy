@@ -20,7 +20,8 @@ export interface RuntimeAdvancedOptionsProps {
   disabled?: boolean;
   providerManaged?: boolean;
   onExpandedChange: (expanded: boolean) => void;
-  onChange: (selection: RuntimeACPOptionSelection | null) => void;
+  /** A null selection returns the option to its provider default. */
+  onChange: (optionID: string, selection: RuntimeACPOptionSelection | null) => void;
 }
 
 type RuntimeAdvancedOptionControlProps = Pick<
@@ -85,7 +86,7 @@ function SelectOption({
       disabled={disabled || values.length === 0}
       onChange={event => {
         const next = event.target.value;
-        onChange(next ? { id: option.id, value_id: next } : null);
+        onChange(option.id, next ? { id: option.id, value_id: next } : null);
       }}
       size="sm"
       value={value}
@@ -123,7 +124,7 @@ function BooleanOption({
       checked={selectedBoolean(option, selections)}
       data-testid={`runtime-selector-option-${option.id}`}
       disabled={disabled}
-      onCheckedChange={checked => onChange({ id: option.id, bool_value: checked })}
+      onCheckedChange={checked => onChange(option.id, { id: option.id, bool_value: checked })}
       size="sm"
     />
   );

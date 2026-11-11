@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type AgentLifecyclePatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type AgentLifecyclePayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -246,8 +250,4 @@ type AgentSoulValidateRequest struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
 	Body        string `json:"body,omitempty"`
-}
-
-type AgentSpawnedPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

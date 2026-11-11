@@ -467,6 +467,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: true,
     command_available: true,
     settings: {
+      enabled: true,
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
       display_name: "Claude Code",
       models: {
@@ -524,6 +525,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     fallback: {
       settings: {
+        enabled: true,
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         models: {
           default: "claude-sonnet-5",
@@ -547,6 +549,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: false,
     command_available: true,
     settings: {
+      enabled: true,
       command: "npx -y @agentclientprotocol/codex-acp@latest",
       models: {
         default: "gpt-5.6-sol",
@@ -605,6 +608,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: false,
     command_available: true,
     settings: {
+      enabled: true,
       command: "npx -y pi-acp@latest",
       display_name: "OpenRouter",
       models: {
@@ -663,6 +667,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: false,
     command_available: true,
     settings: {
+      enabled: true,
       command: "kimi acp",
       display_name: "Kimi CLI",
       harness: "acp",
@@ -694,6 +699,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: false,
     command_available: true,
     settings: {
+      enabled: true,
       command: "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
       display_name: "Qwen Code",
       models: { default: "qwen3.6-plus", curated: [{ id: "qwen3.6-plus" }] },
@@ -709,6 +715,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: false,
     command_available: true,
     settings: {
+      enabled: true,
       command: "agy_acp_server.par --uid=",
       display_name: "Google Antigravity",
       harness: "acp",

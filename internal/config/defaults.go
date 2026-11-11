@@ -39,14 +39,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Agent: DefaultAgentName,
 		},
 		Agents: AgentsConfig{
-			AlwaysOn: AlwaysOnConfig{
-				UnattendedTurnLimit: 300,
-				RotationThreshold:   0.8,
-				MaxActiveInstances:  10,
-				ApprovalTimeout:     12 * time.Hour,
-				MaxProposals:        2,
-				TriageTimeout:       10 * time.Minute,
-			},
+			AlwaysOn:  DefaultAlwaysOnConfig(),
 			Soul:      DefaultSoulConfig(),
 			Heartbeat: DefaultHeartbeatConfig(),
 		},

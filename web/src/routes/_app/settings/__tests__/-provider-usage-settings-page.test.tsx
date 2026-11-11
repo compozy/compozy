@@ -338,6 +338,41 @@ describe("ProviderUsageSettingsPage", () => {
     );
   });
 
+  // UT-031: a provider turned off in Settings → Providers shows that instead of its switch, and
+  // its stored usage opt-in is left as it is.
+  it("Should show Provider disabled instead of the switch for a disabled provider (UT-031)", async () => {
+    const user = userEvent.setup();
+    renderPage({
+      providers: Promise.resolve(
+        json({
+          providers: [
+            { name: "codex", settings: { enabled: false } },
+            { name: "cursor", settings: { display_name: "Cursor", enabled: false } },
+          ],
+        })
+      ),
+    });
+
+    const row = await screen.findByTestId("settings-provider-usage-provider-codex-row");
+    expect(within(row).getByText("Provider disabled")).toBeInTheDocument();
+    expect(within(row).queryByRole("switch")).toBeNull();
+    expect(screen.queryByTestId("settings-provider-usage-provider-cursor")).toBeNull();
+
+    await user.selectOptions(screen.getByTestId("settings-provider-usage-interval"), "10m");
+    await user.click(screen.getByTestId("settings-page-provider-usage-save"));
+    await waitFor(async () =>
+      expect(await patchBodies()).toEqual([
+        {
+          config: {
+            enabled: true,
+            refresh_interval: "10m",
+            providers: { cursor: { enabled: false } },
+          },
+        },
+      ])
+    );
+  });
+
   it("Should list aliases eligible by config with their family logo (UT-010, UT-011)", async () => {
     renderPage({
       providers: Promise.resolve(json(ALIAS_PROVIDERS)),

@@ -263,8 +263,9 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	}
 
 	sessions := core.SessionPayloadsForWorkspace([]*session.Info{
-		{ID: "sess-1", WorkspaceID: "ws_alpha"},
+		{ID: "sess-1", ProfileID: store.DefaultProfileID, WorkspaceID: "ws_alpha"},
 		{ID: "sess-2", WorkspaceID: "ws_beta"},
+		{ID: "foreign-profile", ProfileID: "foreign-profile", WorkspaceID: "ws_alpha"},
 		{ID: "hidden-triage", WorkspaceID: "ws_alpha", Type: session.SessionTypeTriage},
 		{
 			ID:          "sess-5",
@@ -277,7 +278,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 				SpawnRole:       session.SpawnRoleAutoTitle,
 			},
 		},
-	}, "ws_alpha")
+	}, "ws_alpha", store.ReadScope{ProfileID: store.DefaultProfileID})
 	if len(sessions) != 1 || sessions[0].ID != "sess-1" {
 		t.Fatalf("SessionPayloadsForWorkspace() = %#v", sessions)
 	}

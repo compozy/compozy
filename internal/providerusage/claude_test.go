@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,19 +160,21 @@ func TestClaudeCollector(t *testing.T) {
 				t.Parallel()
 				target, _, _ := claudeFixture(t, true)
 				var calls atomic.Int32
-				server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+				transport := fixtureTransport(func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
 					calls.Add(1)
 					if r.URL.RawQuery == "" {
 						requireEqual(t, "claude-code/2.1.0", r.Header.Get("User-Agent"))
 						claudeResponse(t, w, `{"five_hour":{"utilization":1}}`)
-						return
+						return w.Result(), nil
 					}
 					w.Header().Set("Retry-After", tc.retry)
 					w.WriteHeader(tc.status)
 					claudeResponse(t, w, tc.body)
+					return w.Result(), nil
 				})
 				clock := fixtureClock(t)
-				c := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeHTTP(server.URL, nil))
+				c := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeHTTP("https://claude.test", transport))
 				_, err := collectClaude(t, c, target, IntentBackground)
 				if tc.code == "" {
 					requireNoError(t, err)

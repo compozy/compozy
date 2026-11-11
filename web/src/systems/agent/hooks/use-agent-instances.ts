@@ -9,6 +9,7 @@ import {
   createAgentInstance,
   ensureAgentInstanceMain,
   pauseAgentInstance,
+  markAgentInstanceSeen,
   resumeAgentInstance,
   type AgentInstancesRead,
 } from "../adapters/agent-instance-api";
@@ -51,6 +52,15 @@ export function applyAgentInstanceUpdate(queryClient: QueryClient, next: AgentIn
     }
   );
   if (!known || slotMoved) void invalidateAgentInstances(queryClient);
+}
+
+/**
+ * An instance changed: a pick, an auto pick or a finished check-in. Its reports and check-ins are
+ * reread where something shows them, so a transcript report shows its live pick state.
+ */
+export function invalidateAgentInstanceReads(queryClient: QueryClient, id: string) {
+  void queryClient.invalidateQueries({ queryKey: agentKeys.instanceReports(id) });
+  void queryClient.invalidateQueries({ queryKey: agentKeys.instanceCheckIns(id) });
 }
 
 export function invalidateAgentInstances(queryClient: QueryClient) {
@@ -191,4 +201,19 @@ export function useAgentInstanceInScope(name: string, workspace: string | null) 
       instance.profile_name === destination &&
       instance.workspace_id === (workspace === "@user" ? "" : (workspace ?? ""))
   );
+}
+
+export function useMarkAgentInstanceSeen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: markAgentInstanceSeen,
+    onError: error => notifyUser({ message: error.message, tone: "error" }),
+    onSuccess: async (_, instance) => {
+      invalidateAgentInstanceReads(queryClient, instance.id);
+      await Promise.all([
+        invalidateAgentInstances(queryClient),
+        queryClient.invalidateQueries({ queryKey: agentKeys.instanceAway(instance.id) }),
+      ]);
+    },
+  });
 }

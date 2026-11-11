@@ -3,12 +3,14 @@ import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
+import { buildApiOperationFacts } from "../lib/api-reference-build";
 import { API_TAG_ICONS } from "../lib/docs-icons";
 import { COMPOZY_OPENAPI_ID, COMPOZY_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/docs-navigation";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(HERE, "../content/docs/api");
+const DATA_FILE = path.resolve(HERE, "../lib/api-reference-data.json");
 const REPO_ROOT = path.resolve(HERE, "../../..");
 const PRESERVE = new Set(["index.mdx"]);
 const OPENAPI_METHODS = new Set(["get", "post", "patch", "put", "delete"]);
@@ -225,8 +227,15 @@ function iconForTitle(title: string): string | undefined {
   return API_TAG_ICONS[tagSlug(title)];
 }
 
+/** The operation facts the pages' `llms` Markdown lists, read before fumadocs touches the document. */
+async function writeOperationFacts(): Promise<void> {
+  const facts = buildApiOperationFacts(await loadReferenceDocument());
+  await fs.writeFile(DATA_FILE, `${JSON.stringify(facts)}\n`, "utf8");
+}
+
 async function main(): Promise<void> {
   await cleanGenerated();
+  await writeOperationFacts();
   await generateFiles({
     input: referenceOpenAPI,
     output: OUT_DIR,

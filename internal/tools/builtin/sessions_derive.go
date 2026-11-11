@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -23,8 +21,7 @@ func sessionContinueDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "continue", "handoff"},
 		[]string{"continue session", "handoff session", "switch agent"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionDeriveOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionDeriveCompactOutputSchema, sessionDeriveOutputSchema)
 }
 
 func sessionForkDescriptor() toolspkg.Descriptor {
@@ -45,8 +42,7 @@ func sessionForkDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "fork", "branch"},
 		[]string{"fork session", "branch session", "fork from message"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionDeriveOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionDeriveCompactOutputSchema, sessionDeriveOutputSchema)
 }
 
 const sessionForkInputSchema = `{

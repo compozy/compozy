@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -70,10 +71,10 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err := s.updateNativeRuntime(ctx, &row, &ev); err != nil {
 		return false, err
 	}
-	call := s.rememberNativeCall(parent, ev)
 	if store.IsSubagentStatusTerminal(row.Status) {
 		return created, nil
 	}
+	call := s.rememberNativeCall(parent, row.ParentTurnID, ev)
 	changed, err := s.finalizeNativeToolResult(ctx, row, ev, call.background)
 	if err != nil || !changed {
 		return created, err
@@ -123,10 +124,11 @@ func (s *subagentService) finalizeNativeToolResult(
 
 // nativeCall is what the parent's stream has shown about one native Agent/Task call.
 type nativeCall struct {
+	turnID     string
 	background bool
 }
 
-func (s *subagentService) rememberNativeCall(parent string, ev NativeSubagentEvent) nativeCall {
+func (s *subagentService) rememberNativeCall(parent, turn string, ev NativeSubagentEvent) nativeCall {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.nativeKnown == nil {
@@ -136,6 +138,7 @@ func (s *subagentService) rememberNativeCall(parent string, ev NativeSubagentEve
 		s.nativeKnown[parent] = make(map[string]nativeCall)
 	}
 	call := s.nativeKnown[parent][ev.ProviderToolCallID]
+	call.turnID = turn
 	call.background = call.background || ev.Background
 	s.nativeKnown[parent][ev.ProviderToolCallID] = call
 	return call
@@ -259,9 +262,27 @@ func (s *subagentService) interruptNative(ctx context.Context, parent, turn stri
 		}
 		changed = true
 	}
+	// Cancellation may finish after the next turn starts, so retain tracking owned by other turns.
 	s.mu.Lock()
-	delete(s.nativeKnown, parent)
-	delete(s.nativeQueued, parent)
+	maps.DeleteFunc(s.nativeKnown[parent], func(_ string, call nativeCall) bool {
+		return turn == "" || call.turnID == turn
+	})
+	if len(s.nativeKnown[parent]) == 0 {
+		delete(s.nativeKnown, parent)
+	}
+	for call, queued := range s.nativeQueued[parent] {
+		queued = slices.DeleteFunc(queued, func(ev NativeSubagentEvent) bool {
+			return turn == "" || ev.ParentTurnID == turn
+		})
+		if len(queued) == 0 {
+			delete(s.nativeQueued[parent], call)
+		} else {
+			s.nativeQueued[parent][call] = queued
+		}
+	}
+	if len(s.nativeQueued[parent]) == 0 {
+		delete(s.nativeQueued, parent)
+	}
 	s.mu.Unlock()
 	if changed {
 		return s.settleParent(ctx, parent)

@@ -17,7 +17,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	for _, action := range []string{
 		automationCreateKey,
 		agentListKey,
-		"show",
+		configShowKey,
 		"pause",
 		"resume",
 		workspaceArchiveAction,
@@ -35,6 +35,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	for _, action := range []string{"on", agentInstanceChecksOff} {
 		checks.AddCommand(newAgentInstanceAction(deps, action))
 	}
+	parent.AddCommand(newAgentInstancePickCommand(deps))
 	parent.AddCommand(checks, newAgentInstanceOccurrenceCommand(deps))
 	return parent
 }
@@ -59,6 +60,9 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		}
 		cmd.Flags().StringVar(&options.cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&options.limit, listLimitField, 50, "Page size (1-100)")
+	}
+	if action == agentInstanceCheckInsAction {
+		cmd.Flags().StringVar(&options.occurrence, "occurrence", "", "Read one occurrence and its tool calls")
 	}
 	if action == agentListKey {
 		cmd.Flags().BoolVar(&options.peers, "peers", false, "List reachable always-on peers")
@@ -189,6 +193,7 @@ func instanceListText(page contract.AgentInstanceListResponse) string {
 type agentInstanceOptions struct {
 	global, all, peers, dryRun, noWait bool
 	state, cursor, sessionID, agent    string
+	occurrence                         string
 	limit                              int
 }
 
@@ -237,11 +242,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 		if err != nil {
 			return err
 		}
-		var text strings.Builder
-		for _, report := range result.Reports {
-			fmt.Fprintf(&text, "%s\t%s\t%s\n", report.ID, report.Kind, report.State)
-		}
-		return writeInstanceOutput(cmd, result, text.String())
+		return writeInstanceOutput(cmd, result, instanceReportsText(result))
 	}
 	return mutateAgentInstance(cmd, client, action, id)
 }
@@ -273,6 +274,9 @@ func (options agentInstanceOptions) query(
 			query.Set("state", options.state)
 		}
 		query.Set("cursor", options.cursor)
+		if action == agentInstanceCheckInsAction {
+			query.Set("occurrence", options.occurrence)
+		}
 	}
 	return query, nil
 }
@@ -306,7 +310,7 @@ func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, 
 				if !ok {
 					return "", errors.New("cli: agent instances unavailable")
 				}
-				instance, err := instanceClient.MutateAgentInstance(cmd.Context(), id, "show")
+				instance, err := instanceClient.MutateAgentInstance(cmd.Context(), id, configShowKey)
 				if err != nil {
 					return instanceCheckText(result, target, nil), nil
 				}
@@ -353,7 +357,7 @@ func mutateAgentInstance(cmd *cobra.Command, client agentInstancesClient, action
 	var err error
 	var before contract.AgentInstanceResponse
 	if action == workspaceArchiveAction {
-		before, err = client.MutateAgentInstance(cmd.Context(), id, "show")
+		before, err = client.MutateAgentInstance(cmd.Context(), id, configShowKey)
 		if err != nil {
 			return err
 		}
@@ -381,3 +385,35 @@ const (
 	agentInstanceReportsAction  = "reports"
 	agentInstanceCheckInsAction = "check-ins"
 )
+
+func instanceReportsText(result contract.AgentInstanceReportsResponse) string {
+	var text strings.Builder
+	for _, report := range result.Reports {
+		fmt.Fprintf(&text, "%s\t%s\t%s\n", report.ID, report.Kind, report.State)
+		for index, proposal := range report.Proposals {
+			state := "waiting"
+			for _, pick := range report.Picks {
+				if pick.ProposalIndex == index {
+					state = pick.State
+				}
+			}
+			fmt.Fprintf(
+				&text,
+				"  %d %s [%s; auto_accept_status=%s]\n",
+				index+1,
+				proposal.Title,
+				state,
+				proposal.AutoAcceptStatus,
+			)
+		}
+		fmt.Fprintf(
+			&text,
+			"  tools: %d (%d writes done, %d writes maybe, %d denied)\n",
+			report.ToolCalls.Total,
+			report.ToolCalls.WritesDone,
+			report.ToolCalls.WritesMaybe,
+			report.ToolCalls.Denied,
+		)
+	}
+	return text.String()
+}

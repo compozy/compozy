@@ -12,6 +12,8 @@ import {
   fetchAgentInstanceCheckIns,
   fetchAgentInstanceReports,
   fetchAgentInstanceOccurrence,
+  fetchAgentInstanceOccurrenceCheckIn,
+  fetchAgentInstanceProjectedReports,
   fetchAgentInstances,
   fetchAgentInstanceAway,
   type AgentInstanceRef,
@@ -21,6 +23,7 @@ import {
   fetchAgentHeartbeatHistory,
   fetchAgentHeartbeatSources,
   fetchAgentHeartbeatStatus,
+  fetchAgentTools,
   type FetchAgentHeartbeatStatusParams,
 } from "../adapters/agent-heartbeat-api";
 import {
@@ -113,6 +116,29 @@ export function agentInstanceIndeterminateReportsOptions(ref: AgentInstanceRef) 
   return queryOptions({
     queryKey: agentKeys.instanceIndeterminateReports(ref.id),
     queryFn: ({ signal }) => fetchAgentInstanceReports(ref, undefined, signal, "indeterminate"),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * One shared read per instance of its kept reports, projected live. `agent_instance.updated`
+ * marks it stale after a pick, an auto pick or a finished check-in.
+ */
+export function agentInstanceProjectedReportsOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceProjectedReports(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceProjectedReports(ref, signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** One check-in's audited tool calls, read when its list opens. */
+export function agentInstanceOccurrenceCheckInOptions(ref: AgentInstanceRef, occurrence: string) {
+  return queryOptions({
+    queryKey: agentKeys.instanceOccurrenceCheckIn(ref.id, occurrence),
+    queryFn: ({ signal }) => fetchAgentInstanceOccurrenceCheckIn(ref, occurrence, signal),
     staleTime: 30_000,
     retry: false,
   });
@@ -298,6 +324,15 @@ export function agentMemoryHistoryOptions(
     queryFn: ({ signal }) => fetchAgentMemoryHistory(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
+  });
+}
+
+export function agentToolsOptions(name: string, workspace?: string | null, profile = "default") {
+  return queryOptions({
+    queryKey: agentKeys.tools(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentTools(name, workspace, signal, profile),
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

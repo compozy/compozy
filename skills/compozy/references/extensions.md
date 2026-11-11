@@ -6,6 +6,7 @@
 - Packaged inputs and server auth
 - Built-in open design
 - Portable Agent Plugins
+- Marketplace categories and Add
 - Install trust
 - Authoring and dev loop
 - Instance scoping
@@ -134,6 +135,15 @@ and install records the unused portable manifest as a note. Without a root manif
 `.cursor-plugin/plugin.json` are tried in that order. Their client grammar adapter loads skills
 from `skills/` and declared paths, and MCP servers from a contained `mcpServers` JSON file or
 inline map. Authored commands/agents/hooks emit `client_component_ignored` and are not loaded.
+When a client manifest omits `mcpServers`, a root `mcp.json` (preferred) or `.mcp.json` is loaded
+and reported as `client_mcp_discovered`; a plugin with no manifest loads default skills and root MCP
+file under its marketplace entry name. `${CLAUDE_PLUGIN_ROOT}`/`${CURSOR_PLUGIN_ROOT}` alias
+`${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` aliases `${PLUGIN_DATA}`. Unsupported server fields are
+dropped with `client_field_ignored` instead of rejecting the server. `${NAME}` / `${NAME:-default}`
+in a server's `url`, `headers`, `env`, or `args` become typed plugin inputs: required unless
+defaulted, secret (vault ref) when the name ends in `KEY`, `TOKEN`, `SECRET`, or `PASSWORD`; bad
+names report `client_placeholder_invalid`. A remote server's `auth` (`CLIENT_ID`, `${CLIENT_SECRET}`,
+`scopes`) maps to its OAuth configuration.
 Package bytes are unchanged; provenance records the selected layout. Layout grants no trust.
 
 Portable ingestion synthesizes a resource-only extension from immediate child skills and `mcp.json`
@@ -161,6 +171,33 @@ directory is created immediately before its first stdio launch, survives updates
 remove. A failed deletion is renamed out of the reusable instance key and reported as a quarantine
 warning; if quarantine also fails, removal fails and the instance remains installed.
 
+## Marketplace Categories And Add
+
+Every catalog entry has exactly one category id: `productivity`, `communication`, `design`,
+`development`, `data`, `cloud`, `finance`, `sales-marketing`, `research`, `security`, `ai-agents`,
+`more`; `featured` is a reserved section fed only by CompozyOS-curated sources (`compozy-catalog`,
+`compozy-plugins`, which honor `x-compozy.category|featured|supersedes`). Listings carry `category`,
+`category_label`, and `featured`.
+
+- `compozy marketplace categories [query] -o json` / `compozy__marketplace_categories {query}`:
+  taxonomy with counts (human output hides zero counts; JSON keeps them, plus `featured`).
+- `compozy marketplace search --category <id>` / `compozy__marketplace_search {category}` /
+  `GET /api/marketplace?category=<id>`: one category, paged; the cursor binds the category. An
+  unknown id is `marketplace_category_unknown` (CLI exit 2, HTTP/UDS 400, tool error).
+- `GET /api/marketplace/sections?per_section=1..12`: the Browse home in one read.
+- Add = `compozy extension install <ref> --enable` / `compozy__extensions_install {enable: true}` /
+  `POST /api/extensions {"enable": true}`: install and enable in one operation. Every install gate
+  still applies (`extension_inputs_required`, consent, conflicts, gateway). If enabling fails after
+  install, the result is still success (`201`, exit 0) with `extension.enabled: false` and
+  `enable_error {error, code}`; the package stays installed. Retry with
+  `compozy extension enable <name>` / `compozy__extensions_enable`.
+- Setup state after Add: missing inputs via `compozy extension status <name>` /
+  `compozy__extensions_info`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
+  `compozy mcp auth login <server>`. Do not report a plugin as ready from install success alone.
+
+Plugin sources accept `url` and `git-subdir` source objects and the Codex index
+`.agents/plugins/marketplace.json`; an unreadable shape is reported as `unsupported_source`.
+
 ## Install Trust
 
 Bundled upgrades migrate superseded registrations such as `dev-cycle` to `spec-cycle`, preserving
@@ -168,7 +205,7 @@ compatible installation scopes and profile enablement. Conflicting enablement or
 inputs and credentials retain the old registration; inspect `compozy doctor` and migrate that state
 before using its suggested removal command. Doctor names the actual workspace and profile attachment;
 `--global` removes a global attachment or recovers an unattached registration, not every workspace.
-Successor enrollment and scope transfer commit together. The bundled-name translation expires in v0.6.0.
+Successor enrollment and scope transfer commit together. The bundled-name translation expires in v0.6.1.
 
 One extension's startup failure remains visible in status without aborting another package's
 mutation. If a previous failed install left a package with no scoped installations, an operator

@@ -402,7 +402,7 @@ describe("SubagentComposerControl (issue #766)", () => {
     expect(trigger).toHaveTextContent("3");
     // The live count widens it into the padded tool pill at the same height (#826).
     expect(trigger).toHaveAttribute("data-size", "tool");
-    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute("data-tone", "brand");
+    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute("data-tone", "attn");
     rerender(
       <TestUI>
         <SubagentComposerControl subagents={rows} counts={counts(2, 6)} />

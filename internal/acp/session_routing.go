@@ -146,11 +146,23 @@ func (p *AgentProcess) foreignSessionTrafficDropped() uint64 {
 // bound session. A clone or foreign session cannot ask the bound session's
 // operator; foreign requests are also counted and logged.
 func (p *AgentProcess) permissionRequestIsBound(id acpsdk.SessionId) bool {
+	return p.interactiveCallbackIsBound(id, acpsdk.ClientMethodSessionRequestPermission)
+}
+
+// elicitationRequestIsBound reports whether an elicitation callback belongs to
+// the bound session. A clone or foreign session cannot ask the operator.
+func (p *AgentProcess) elicitationRequestIsBound(id acpsdk.SessionId) bool {
+	return p.interactiveCallbackIsBound(id, acpsdk.ClientMethodElicitationCreate)
+}
+
+// interactiveCallbackIsBound reports whether an operator-facing callback
+// belongs to the bound session, counting and logging foreign traffic.
+func (p *AgentProcess) interactiveCallbackIsBound(id acpsdk.SessionId, method string) bool {
 	switch p.routeSessionUpdate(id) {
 	case sessionUpdateRouteBound:
 		return true
 	case sessionUpdateRouteForeign:
-		p.dropForeignSessionTraffic(id, acpsdk.ClientMethodSessionRequestPermission)
+		p.dropForeignSessionTraffic(id, method)
 	case sessionUpdateRouteFork:
 	}
 	return false

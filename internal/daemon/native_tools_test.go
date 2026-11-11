@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -21,19 +22,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/httpapi"
-	"github.com/compozy/compozy/internal/api/udsapi"
-	"github.com/gin-gonic/gin"
-
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -48,6 +46,8 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/sessionprocess"
@@ -67,6 +67,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
+	"github.com/gin-gonic/gin"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
@@ -1305,6 +1307,80 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) *apitest
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bound default tool search results with continuation metadata", func(t *testing.T) {
+		t.Parallel()
+		deps := &daemonNativeToolsDeps{}
+		newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		result, err := (&daemonNativeTools{deps: deps}).toolSearch(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolSearch, Input: json.RawMessage(`{"query":""}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Tools      []json.RawMessage `json:"tools"`
+			HasMore    bool              `json:"has_more"`
+			NextOffset int               `json:"next_offset"`
+			Total      int               `json:"total"`
+		}
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Tools) != 20 || !page.HasMore || page.NextOffset != len(page.Tools) {
+			t.Fatalf(
+				"default search returned %d tools, has_more=%v, next_offset=%d",
+				len(page.Tools),
+				page.HasMore,
+				page.NextOffset,
+			)
+		}
+		seen := map[toolspkg.ToolID]bool{}
+		offset := 0
+		for {
+			input, err := json.Marshal(toolSearchInput{Query: "", Offset: offset, Limit: 37})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := (&daemonNativeTools{deps: deps}).toolSearch(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolSearch, Input: input},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var next struct {
+				Tools      []toolspkg.ToolView `json:"tools"`
+				Total      int                 `json:"total"`
+				HasMore    bool                `json:"has_more"`
+				NextOffset int                 `json:"next_offset"`
+			}
+			if err := json.Unmarshal(result.Structured, &next); err != nil {
+				t.Fatal(err)
+			}
+			for _, view := range next.Tools {
+				if seen[view.Descriptor.ID] {
+					t.Fatalf("duplicate tool %s", view.Descriptor.ID)
+				}
+				seen[view.Descriptor.ID] = true
+			}
+			if !next.HasMore {
+				if len(seen) != next.Total {
+					t.Fatalf("found %d of %d", len(seen), next.Total)
+				}
+				break
+			}
+			if next.NextOffset <= offset {
+				t.Fatal("offset did not advance")
+			}
+			offset = next.NextOffset
+		}
+	})
 	t.Run("Should explain invalid monitor fields without creating a monitor or exposing input", func(t *testing.T) {
 		t.Parallel()
 		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})
@@ -3111,6 +3187,28 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
 		requireNativeStructuredContains(t, searchResult, []byte(`"origin":""`))
 
+		for _, catalog := range []struct {
+			id      toolspkg.ToolID
+			compact toolspkg.ToolResult
+			input   string
+		}{
+			{toolspkg.ToolIDSkillList, listResult, `{"result_view":"full"}`},
+			{toolspkg.ToolIDSkillSearch, searchResult, `{"query":"sessions","result_view":"full"}`},
+		} {
+			if bytes.Contains(catalog.compact.Structured, []byte(`"diagnostics"`)) {
+				t.Fatalf("%s compact includes healthy diagnostic internals: %s", catalog.id, catalog.compact.Structured)
+			}
+			full, callErr := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: catalog.id,
+				Input:  json.RawMessage(catalog.input),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			requireNativeStructuredContains(t, full, []byte(`"diagnostics"`))
+			requireNativeStructuredContains(t, full, []byte(`"verification_status":"passed"`))
+		}
+
 		artifactStore := openDaemonTestToolArtifactStore(t)
 		workspaceResolver := nativeTestWorkspaceService(t)
 		const reducedBudget = 32 << 10
@@ -3329,6 +3427,143 @@ func TestDaemonNativeTools(t *testing.T) {
 				requireNativeStructuredContains(t, result, []byte(`"owner_scope":"user"`))
 				requireNativeStructuredContains(t, result, []byte(`"exposures":[]`))
 			})
+		}
+	})
+
+	t.Run("Should classify unavailable agent skill catalogs without backend failures", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			definition string
+			wantCode   toolspkg.ErrorCode
+			wantCause  error
+			wantReason toolspkg.ReasonCode
+		}{
+			{name: "Should report a missing authored agent as unavailable", wantCode: toolspkg.ErrorCodeUnavailable, wantCause: skills.ErrAgentNotFound, wantReason: toolspkg.ReasonDependencyMissing},
+			{name: "Should report an invalid authored agent as invalid input", definition: "---\nname: [invalid\n---\n", wantCode: toolspkg.ErrorCodeInvalidInput, wantCause: skills.ErrAgentLocalInvalid, wantReason: toolspkg.ReasonSchemaInvalid},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				agentsDir := t.TempDir()
+				agentPath := filepath.Join(agentsDir, "fixture-agent", "AGENT.md")
+				if tc.definition != "" {
+					if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(agentPath, []byte(tc.definition), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				skillRegistry := skills.NewRegistry(
+					skills.RegistryConfig{BundledFS: skillbundled.FS(), GlobalAgentsDir: agentsDir},
+				)
+				if err := skillRegistry.LoadAll(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				manager := &nativeSessionAgentManager{
+					StubSessionManager: *nativeTestSessionManager("ws-fixture"),
+					agent:              compozyconfig.AgentDef{Name: "fixture-agent", SourcePath: agentPath},
+				}
+				workspaceResolver := nativeTestWorkspaceService(t)
+				workspaceResolver.ResolveForProfileFn = func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
+					resolved := workspacepkg.ResolvedWorkspace{
+						ID: "ws-fixture", RootDir: agentsDir,
+					}
+					if tc.definition != "" {
+						if _, err := compozyconfig.LoadAgentDefFile(agentPath); err != nil {
+							resolved.AgentDiagnostics = []workspacepkg.AgentDiagnostic{
+								{Name: "fixture-agent", Path: agentPath, Message: err.Error()},
+							}
+						}
+					}
+					return resolved, nil
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{
+						Skills:            skillRegistry,
+						Sessions:          manager,
+						WorkspaceResolver: workspaceResolver,
+						Workspaces:        workspaceResolver,
+					},
+					nativeApproveAllPolicyInputs(),
+				)
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{
+						Operator:    true,
+						WorkspaceID: "ws-fixture",
+						SessionID:   "sess-fixture",
+						AgentName:   "fixture-agent",
+					},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"compozy"}`),
+					},
+				)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || toolErr.Code != tc.wantCode || !errors.Is(err, tc.wantCause) {
+					t.Fatalf("skill_view error = %#v, want %s wrapping %v", err, tc.wantCode, tc.wantCause)
+				}
+				if !slices.Contains(toolErr.ReasonCodes, tc.wantReason) {
+					t.Fatalf("skill_view reasons = %v, want %q", toolErr.ReasonCodes, tc.wantReason)
+				}
+				if toolErr.Operator == nil || toolErr.Operator.Recovery == "" ||
+					slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
+					t.Fatalf("skill_view diagnostics = %#v, want actionable non-backend failure", toolErr)
+				}
+				public, err := json.Marshal(toolErr)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Contains(public, []byte(agentsDir)) {
+					t.Fatalf("skill_view leaked private path: %s", public)
+				}
+			})
+		}
+	})
+
+	t.Run("Should keep missing skills distinct from catalog backend failures", func(t *testing.T) {
+		t.Parallel()
+		sessions := &nativeSessionAgentManager{
+			StubSessionManager: *nativeTestSessionManager("ws-fixture"),
+			agent:              testPromptAgent("Read fixture skills."),
+		}
+		workspace := nativeTestWorkspaceService(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(
+				t,
+			),
+			Sessions:          sessions,
+			WorkspaceResolver: workspace,
+			Workspaces:        workspace,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				Operator:    true,
+				WorkspaceID: "ws-fixture",
+				SessionID:   "sess-fixture",
+				AgentName:   sessions.agent.Name,
+			},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView, Input: json.RawMessage(`{"name":"missing-fixture"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		privateCause := errors.New("private backend path and credential")
+		backendErr := skillViewCatalogError(t.Context(), toolspkg.ToolIDSkillView, privateCause)
+		requireToolReason(t, backendErr, toolspkg.ErrToolBackendFailed, toolspkg.ReasonBackendUnhealthy)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](backendErr)
+		if !ok || toolErr.Operator == nil || !strings.Contains(toolErr.Operator.Cause, "skill_catalog_resolve") ||
+			!errors.Is(backendErr, privateCause) {
+			t.Fatalf("catalog backend error = %#v", backendErr)
+		}
+		public, err := json.Marshal(toolErr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(public, []byte("private")) {
+			t.Fatalf("catalog backend leaked private cause: %s", public)
 		}
 	})
 
@@ -4089,6 +4324,127 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+	})
+
+	t.Run("Should discover result view contracts through native catalog tools", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeTestSessionManager(""), Skills: bundledSkills,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{Operator: true}
+		view, err := registry.Get(t.Context(), scope, toolspkg.ToolIDSessionStatus)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDToolInfo, `{"tool_id":"compozy__session_status"}`},
+			{toolspkg.ToolIDToolSearch, `{"query":"compozy__session_status","limit":1,"result_view":"full"}`},
+		} {
+			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if result.Truncated {
+				t.Fatalf("%s result was truncated", tc.id)
+			}
+			var payload struct {
+				Tool  toolspkg.ToolView   `json:"tool"`
+				Tools []toolspkg.ToolView `json:"tools"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			got := payload.Tool
+			if tc.id == toolspkg.ToolIDToolSearch {
+				if len(payload.Tools) != 1 {
+					t.Fatalf("search returned %d rows, want 1", len(payload.Tools))
+				}
+				got = payload.Tools[0]
+			}
+			if got.Descriptor.ID != view.Descriptor.ID || got.Descriptor.ResultViews() == nil {
+				t.Fatalf("%s omitted the requested descriptor or views", tc.id)
+			}
+			contracts := got.Descriptor.ResultViews()
+			wantJSON, err := json.Marshal(view.Descriptor.ResultViews())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want toolspkg.ResultViews
+			if err := json.Unmarshal(wantJSON, &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(contracts.Compact, want.Compact) || !reflect.DeepEqual(contracts.Full, want.Full) {
+				t.Fatalf("%s changed result contracts", tc.id)
+			}
+			if !bytes.Equal(got.Descriptor.OutputSchema, contracts.Compact.Schema) ||
+				got.Descriptor.OutputSchemaDigest != contracts.Compact.Digest {
+				t.Fatal("default output contract differs from compact")
+			}
+			t.Logf(
+				"%s input=%s structured_bytes=%d result_bytes=%d",
+				tc.id,
+				tc.input,
+				len(result.Structured),
+				result.Bytes,
+			)
+		}
+		foundViews, foundSingle := false, false
+		totalBytes := 0
+		for offset := 0; ; {
+			result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolList,
+				Input:  json.RawMessage(fmt.Sprintf(`{"offset":%d,"limit":100}`, offset)),
+			})
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if result.Truncated {
+				t.Fatal("tool_list page was truncated")
+			}
+			var page struct {
+				Tools []struct {
+					Descriptor map[string]json.RawMessage `json:"descriptor"`
+				} `json:"tools"`
+				NextOffset int  `json:"next_offset"`
+				HasMore    bool `json:"has_more"`
+			}
+			if err := json.Unmarshal(result.Structured, &page); err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range page.Tools {
+				switch string(row.Descriptor["id"]) {
+				case `"compozy__session_status"`:
+					foundViews = true
+					if string(row.Descriptor["has_result_views"]) != "true" {
+						t.Fatal("tool_list omitted has_result_views for session_status")
+					}
+				case `"compozy__skill_view"`:
+					foundSingle = true
+					if _, exists := row.Descriptor["has_result_views"]; exists {
+						t.Fatal("tool_list marked a single result tool")
+					}
+				}
+			}
+			totalBytes += len(result.Structured)
+			t.Logf("compozy__tool_list offset=%d limit=100 rows=%d structured_bytes=%d result_bytes=%d",
+				offset, len(page.Tools), len(result.Structured), result.Bytes)
+			if !page.HasMore {
+				break
+			}
+			if page.NextOffset <= offset {
+				t.Fatal("tool_list did not advance")
+			}
+			offset = page.NextOffset
+		}
+		if !foundViews || !foundSingle {
+			t.Fatal("tool_list omitted requested catalog rows")
+		}
+		t.Logf("compozy__tool_list all_pages_structured_bytes=%d", totalBytes)
 	})
 
 	t.Run("Should expose bootstrap diagnostics and exclude non-MVP lifecycle tools", func(t *testing.T) {
@@ -4997,6 +5353,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ModelCatalog: catalog,
+			// Production wires the profile store; an unresolvable scope profile is a tool error.
+			Profiles: selectionProfileNames{"profile-marketing": "marketing"},
+			// Workspace-scoped calls filter with the workspace's effective config.
+			WorkspaceResolver: &selectionConfigResolver{
+				workspace: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}),
+			},
 			Settings: func() core.SettingsService {
 				return settingsService
 			},
@@ -8956,7 +9318,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			want  []byte
 		}{
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
-			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`), []byte(`"max_attempts":3`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","result_view":"full"}`), []byte(`"max_attempts":3`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"runtime_recovery_started"`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"page":{"limit":1,"has_more":false}`)},
 			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
@@ -12272,7 +12634,7 @@ func collectNativeToolListPages(
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolList,
 			Input: json.RawMessage(fmt.Sprintf(
-				`{"offset":%d,"limit":%d}`,
+				`{"offset":%d,"limit":%d,"result_view":"full"}`,
 				offset,
 				maxNativeToolListLimit,
 			)),
@@ -14061,7 +14423,7 @@ func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
 					Input: json.RawMessage(
-						`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true}`,
+						`{"workspace":"ws-1","agent_name":"coder","include_recent_wake_events":true,"result_view":"full"}`,
 					),
 				},
 			)
@@ -14419,7 +14781,9 @@ func TestNativeSubagentBindings(t *testing.T) {
 			result, err := n.subagentToolBindings()[tc.id].call(
 				t.Context(),
 				toolspkg.Scope{SessionID: "parent", WorkspaceID: "ws"},
-				toolspkg.CallRequest{ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input)},
+				toolspkg.CallRequest{
+					ToolID: tc.id, TurnID: "turn", Input: json.RawMessage(tc.input), View: toolspkg.ResultViewFull,
+				},
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -15391,10 +15755,12 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDSessionSpawn,
-			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,` +
-				`"skills":[],"toolsets":["compozy__sessions"],` +
-				`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
-				`"prompt":"Implement auth and commit."}`),
+			Input: json.RawMessage(
+				`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,"result_view":"full",` +
+					`"skills":[],"toolsets":["compozy__sessions"],` +
+					`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
+					`"prompt":"Implement auth and commit."}`,
+			),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(session_spawn) error = %v", err)
@@ -15777,7 +16143,11 @@ func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
 				t.Fatalf("envelope %s, want last_known runtime", envelope)
 			}
 			for _, toolID := range toolIDs {
-				requireNativeOutputSchemaAccepts(t, descriptors[toolID], envelope)
+				descriptor := descriptors[toolID]
+				if views := descriptor.ResultViews(); views != nil {
+					descriptor.OutputSchema = views.Full.Schema
+				}
+				requireNativeOutputSchemaAccepts(t, descriptor, envelope)
 			}
 		})
 	}
@@ -16131,7 +16501,8 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 				Workspaces: workspaces, Sessions: manager,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1"}`),
+				ToolID: toolID,
+				Input:  json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1","result_view":"full"}`),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -16150,6 +16521,7 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 			}
 			for _, descriptor := range builtintools.NativeDescriptors() {
 				if descriptor.ID == toolID {
+					descriptor.OutputSchema = descriptor.ResultViews().Full.Schema
 					requireNativeOutputSchemaAccepts(t, descriptor, encoded)
 				}
 			}
@@ -16951,4 +17323,993 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 			t.Fatalf("refused move error = %v, want session_move_to_profile_worktree_dirty", err)
 		}
 	})
+}
+
+func TestNativeSessionChanges(t *testing.T) {
+	t.Run("Should log sanitized failures and keep public errors fixed", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		root := "/private/project"
+		external := "/outside/private-orderfile"
+		cause := fmt.Errorf(
+			"%w: git diff at %s orderfile '%s': %w",
+			changes.ErrUnavailable,
+			root,
+			external,
+			context.DeadlineExceeded,
+		)
+		result, err := nativeChangesError(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), root, cause)
+		if err != nil || !bytes.Contains(result.Structured, []byte("changes_unavailable")) ||
+			bytes.Contains(result.Structured, []byte("deadline")) {
+			t.Fatalf("result=%s err=%v", result.Structured, err)
+		}
+		if strings.Contains(logs.String(), external) || strings.Contains(logs.String(), root) ||
+			!strings.Contains(logs.String(), "deadline exceeded") {
+			t.Fatalf("logs=%s", &logs)
+		}
+	})
+
+	for _, mode := range []string{"once", "continuous", "capped"} {
+		continuous := mode == "continuous"
+		t.Run(fmt.Sprintf("Should fence changing summary fingerprints mode=%s", mode), func(t *testing.T) {
+			t.Parallel()
+			root, rootErr := projectfiles.CanonicalRoot(projectfiles.Root{AbsPath: t.TempDir()})
+			if rootErr != nil {
+				t.Fatal(rootErr)
+			}
+			for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+				cmd := exec.CommandContext(t.Context(), "git", args...)
+				cmd.Dir = root.AbsPath
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("%s %v", out, err)
+				}
+			}
+			path := filepath.Join(root.AbsPath, "a.go")
+			if err := os.WriteFile(path, []byte("first\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			engine := &editingChangesEngine{
+				Engine:     changes.NewEngine(),
+				t:          t,
+				path:       path,
+				continuous: continuous,
+				capped:     mode == "capped",
+			}
+			summary, patches, err := readSessionChanges(
+				t.Context(),
+				engine,
+				root,
+				changes.Request{Scope: changes.Uncommitted},
+				[]string{"a.go"},
+			)
+			if engine.capped {
+				if err != nil || len(patches) != 1 || engine.calls != 1 {
+					t.Fatalf("capped patches=%+v calls=%d err=%v", patches, engine.calls, err)
+				}
+				return
+			}
+			if engine.calls != 2 {
+				t.Fatalf("summary calls=%d err=%v", engine.calls, err)
+			}
+			if continuous {
+				if !errors.Is(err, changes.ErrStale) {
+					t.Fatalf("error=%v", err)
+				}
+			} else if err != nil || len(patches) != 1 || patches[0].Fingerprint != summary.Files[0].Fingerprint {
+				t.Fatalf("mixed response: %+v %+v %v", summary, patches, err)
+			}
+		})
+	}
+
+	t.Parallel()
+	t.Run("Should return real changes and gate sensitive patches", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for _, args := range [][]string{{"init"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"}} {
+			cmd := exec.CommandContext(t.Context(), "git", args...)
+			cmd.Dir = root
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git: %v %s", err, out)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(root, "c.go"), []byte("package changed\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".env"), []byte("SECRET=private\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:   nativeTestSessionManager("ws-1"),
+				Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, root, "stable-ws-1"),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["c.go",".env"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			contract.SessionChangesResponse
+			Patches []contract.ChangePatchPayload `json:"patches"`
+		}
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Revision == "" || len(response.Patches) != 2 ||
+			!strings.Contains(response.Patches[0].Patch, "package changed") ||
+			!response.Patches[1].Sensitive ||
+			bytes.Contains(result.Structured, []byte("SECRET")) ||
+			bytes.Contains(result.Structured, []byte(root)) {
+			t.Fatalf("response: %s", result.Structured)
+		}
+		if response.Root.WorkspaceID != "ws-1" {
+			t.Fatalf("root workspace_id=%q want the public registry ID", response.Root.WorkspaceID)
+		}
+		if err := os.Symlink(filepath.Join(root, ".git", "config"), filepath.Join(root, "protected.txt")); err != nil {
+			t.Fatal(err)
+		}
+		protected, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input: json.RawMessage(
+					`{"workspace":"ws-1","session_id":"sess-1","scope":"uncommitted","patch_paths":["protected.txt"]}`,
+				),
+			},
+		)
+		if err != nil || !bytes.Contains(protected.Structured, []byte("path_denied")) ||
+			bytes.Contains(protected.Structured, []byte(root)) {
+			t.Fatalf("protected result %s error %v", protected.Structured, err)
+		}
+	})
+	t.Run("Should classify unknown and user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Sessions: &apitest.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "missing" {
+							return nil, session.ErrSessionNotFound
+						}
+						return &session.Info{ID: id, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}, nil
+					},
+				},
+				Workspaces: nativeTestWorkspaceService(t),
+			},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"session_id":"missing"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("session_not_found")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+	t.Run("Should return root unavailable for user scope sessions", func(t *testing.T) {
+		t.Parallel()
+		service := nativeTestWorkspaceService(t)
+		service.ResolveUserFn = func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser}, nil
+		}
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{Sessions: nativeTestSessionManager(""), Workspaces: service},
+		}
+		result, err := n.sessionChanges(
+			t.Context(),
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionChanges,
+				Input:  json.RawMessage(`{"workspace":"@user","session_id":"sess-user"}`),
+			},
+		)
+		if err != nil || !bytes.Contains(result.Structured, []byte("root_unavailable")) {
+			t.Fatalf("result %s err %v", result.Structured, err)
+		}
+	})
+}
+
+type editingChangesEngine struct {
+	changes.Engine
+	t          *testing.T
+	path       string
+	calls      int
+	continuous bool
+	capped     bool
+}
+
+func (e *editingChangesEngine) Summary(
+	ctx context.Context,
+	root projectfiles.Root,
+	req changes.Request,
+) (changes.Summary, error) {
+	e.t.Helper()
+	s, err := e.Engine.Summary(ctx, root, req)
+	e.calls++
+	if e.capped {
+		s.Files = nil
+		s.Truncated = true
+		return s, err
+	}
+	if e.continuous || e.calls == 1 {
+		if err := os.WriteFile(e.path, []byte(fmt.Sprintf("edit %d\n", e.calls)), 0600); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	return s, err
+}
+
+func TestNativeResultViewHelper(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		view toolspkg.ResultView
+		full func(map[string]any) any
+		want string
+	}{
+		{"Should default an empty view to compact", "", nil, `{"id":"x"}`},
+		{"Should project compact", toolspkg.ResultViewCompact, nil, `{"id":"x"}`},
+		{"Should return the original full value", toolspkg.ResultViewFull, nil, `{"extra":"detail","id":"x"}`},
+		{"Should apply a full wrapper", toolspkg.ResultViewFull, func(p map[string]any) any { return map[string]any{"record": p} }, `{"record":{"extra":"detail","id":"x"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			views := resultViews[map[string]any]{
+				Compact: func(p map[string]any) any { return map[string]any{"id": p["id"]} },
+				Full:    tc.full,
+				Preview: func(map[string]any) string { return "x" },
+			}
+			got, err := views.result(tc.view, map[string]any{"id": "x", "extra": "detail"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got.Structured) != tc.want || got.Preview != "x" {
+				t.Fatalf("result=%#v", got)
+			}
+		})
+	}
+}
+
+type nativeResultViewFixture struct {
+	ToolID   toolspkg.ToolID
+	Name     string
+	Result   func(toolspkg.ResultView) (toolspkg.ToolResult, error)
+	MustKeep []string
+}
+
+func TestNativeResultViewContracts(t *testing.T) {
+	t.Parallel()
+	fixtures := map[toolspkg.ToolID][]nativeResultViewFixture{}
+	for _, family := range nativeResultViewFixtureFamilies {
+		for _, row := range family(t) {
+			fixtures[row.ToolID] = append(fixtures[row.ToolID], row)
+		}
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		if descriptor.ResultViews() == nil {
+			continue
+		}
+		t.Run("Should preserve both result contracts for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			if err := descriptor.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			rows := fixtures[descriptor.ID]
+			if len(rows) == 0 {
+				t.Fatalf("missing view fixture for %s", descriptor.ID)
+			}
+			var compactSchema, fullSchema map[string]any
+			if err := json.Unmarshal(descriptor.ResultViews().Compact.Schema, &compactSchema); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(descriptor.ResultViews().Full.Schema, &fullSchema); err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range nativeResultSchemaPaths(compactSchema, nil) {
+				if !nativeResultSchemaAcceptsPath(fullSchema, path) {
+					t.Fatalf(
+						"%s compact schema path %s is not accepted by full",
+						descriptor.ID,
+						strings.Join(path, "."),
+					)
+				}
+			}
+			for _, row := range rows {
+				compact, err := row.Result(toolspkg.ResultViewCompact)
+				if err != nil {
+					t.Fatal(err)
+				}
+				full, err := row.Result(toolspkg.ResultViewFull)
+				if err != nil {
+					t.Fatal(err)
+				}
+				requireNativeOutputSchemaAccepts(t, descriptor, compact.Structured)
+				fullDescriptor := descriptor
+				fullDescriptor.OutputSchema = descriptor.ResultViews().Full.Schema
+				requireNativeOutputSchemaAccepts(t, fullDescriptor, full.Structured)
+				var c, f any
+				if err := json.Unmarshal(compact.Structured, &c); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(full.Structured, &f); err != nil {
+					t.Fatal(err)
+				}
+				requireNativeResultProjection(t, "$", c, f)
+				for _, path := range row.MustKeep {
+					if _, ok := nativeResultAtPath(c, strings.Split(path, ".")); !ok {
+						t.Fatalf("%s %s missing must-keep path %s", row.ToolID, row.Name, path)
+					}
+				}
+				if compact.Preview != full.Preview {
+					t.Fatal("preview differs by view")
+				}
+				t.Logf(
+					"%s/%s full=%d compact=%d reduction=%.2f%%",
+					row.ToolID,
+					row.Name,
+					len(full.Structured),
+					len(compact.Structured),
+					100*(1-float64(len(compact.Structured))/float64(len(full.Structured))),
+				)
+			}
+		})
+	}
+}
+
+func requireNativeResultProjection(t *testing.T, path string, compact, full any) {
+	t.Helper()
+	switch value := compact.(type) {
+	case map[string]any:
+		source, ok := full.(map[string]any)
+		if !ok {
+			t.Fatalf("%s full is not an object", path)
+		}
+		for key, item := range value {
+			original, exists := source[key]
+			if !exists {
+				t.Fatalf("%s.%s absent from full", path, key)
+			}
+			requireNativeResultProjection(t, path+"."+key, item, original)
+		}
+	case []any:
+		source, ok := full.([]any)
+		if !ok || len(source) != len(value) {
+			t.Fatalf("%s array shape changed", path)
+		}
+		for i, item := range value {
+			requireNativeResultProjection(t, fmt.Sprintf("%s.%d", path, i), item, source[i])
+		}
+	default:
+		if !reflect.DeepEqual(compact, full) {
+			t.Fatalf("%s compact=%v full=%v", path, compact, full)
+		}
+	}
+}
+
+func nativeResultAtPath(value any, path []string) (any, bool) {
+	if len(path) == 0 {
+		return value, true
+	}
+	switch node := value.(type) {
+	case map[string]any:
+		child, ok := node[path[0]]
+		if !ok {
+			return nil, false
+		}
+		return nativeResultAtPath(child, path[1:])
+	case []any:
+		index, err := strconv.Atoi(path[0])
+		if err != nil || index < 0 || index >= len(node) {
+			return nil, false
+		}
+		return nativeResultAtPath(node[index], path[1:])
+	default:
+		return nil, false
+	}
+}
+
+func nativeResultSchemaPaths(schema map[string]any, prefix []string) [][]string {
+	var paths [][]string
+	properties, _ := schema["properties"].(map[string]any)
+	for key, value := range properties {
+		path := append(slices.Clone(prefix), key)
+		paths = append(paths, path)
+		child, _ := value.(map[string]any)
+		paths = append(paths, nativeResultSchemaPaths(child, path)...)
+	}
+	if items, ok := schema["items"].(map[string]any); ok {
+		paths = append(paths, nativeResultSchemaPaths(items, append(slices.Clone(prefix), "[]"))...)
+	}
+	for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+		if branches, ok := schema[key].([]any); ok {
+			for _, branch := range branches {
+				node, _ := branch.(map[string]any)
+				paths = append(paths, nativeResultSchemaPaths(node, prefix)...)
+			}
+		}
+	}
+	return paths
+}
+
+func nativeResultSchemaAcceptsPath(schema map[string]any, path []string) bool {
+	if len(path) == 0 {
+		return true
+	}
+	for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+		if branches, ok := schema[key].([]any); ok {
+			for _, branch := range branches {
+				node, _ := branch.(map[string]any)
+				if nativeResultSchemaAcceptsPath(node, path) {
+					return true
+				}
+			}
+		}
+	}
+	if path[0] == "[]" {
+		items, ok := schema["items"].(map[string]any)
+		return !ok || nativeResultSchemaAcceptsPath(items, path[1:])
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	if child, ok := properties[path[0]].(map[string]any); ok {
+		return nativeResultSchemaAcceptsPath(child, path[1:])
+	}
+	object := schema["type"] == nil || schema["type"] == "object"
+	if types, ok := schema["type"].([]any); ok {
+		object = slices.Contains(types, any("object"))
+	}
+	return object && schema["additionalProperties"] != false
+}
+
+var nativeResultViewFixtureFamilies = []func(*testing.T) []nativeResultViewFixture{
+	nativeResultViewFixturesSession,
+	nativeResultViewFixturesSubagent,
+	nativeResultViewFixturesAgent,
+	nativeResultViewFixturesAutomation,
+	nativeResultViewFixturesLoop,
+	nativeResultViewFixturesGoal,
+	nativeResultViewFixturesTask,
+	nativeResultViewFixturesWorkspace,
+	nativeResultViewFixturesWorktree,
+	nativeResultViewFixturesExtensions,
+	nativeResultViewFixturesMarketplace,
+	nativeResultViewFixturesProvider,
+	nativeResultViewFixturesResources,
+	nativeResultViewFixturesObserve,
+	nativeResultViewFixturesDesktop,
+	nativeResultViewFixturesLayout,
+	nativeResultViewFixturesTool,
+	nativeResultViewFixturesSkill,
+	nativeResultViewFixturesCmd,
+	nativeResultViewFixturesCommand,
+}
+
+func TestNativeSessionResultViews(t *testing.T) {
+	t.Parallel()
+	for _, bound := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should preserve session facts and measure both views when bound is %t", bound),
+			func(t *testing.T) {
+				t.Parallel()
+				now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+				policy := nativeResultViewPermissions()
+				info := &session.Info{
+					ID:            "sess-view",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "general",
+					WorkspaceID:   "ws-view",
+					RuntimeStatus: session.RuntimeStatusFailed,
+					State:         session.StateStopped,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+					Lineage: &store.SessionLineage{
+						ParentSessionID: "sess-parent",
+						RootSessionID:   "sess-parent",
+						TTLExpiresAt:    &now,
+						PermissionPolicy: store.SessionPermissionPolicy{
+							Tools:          policy.Tools,
+							Skills:         policy.Skills,
+							MCPServers:     policy.MCPServers,
+							WorkspacePaths: policy.WorkspacePaths,
+						},
+					},
+					StopReason: "failed",
+					StopDetail: "provider failed",
+					Failure:    &store.SessionFailure{Kind: "runtime", Summary: "provider failed"},
+					PendingInteractions: []store.PendingInteraction{
+						{
+							SessionID:         "sess-view",
+							InteractionID:     "int-view",
+							Kind:              "permission",
+							ProviderRequestID: "req-view",
+							Status:            "pending",
+							CreatedAt:         now,
+						},
+					},
+				}
+				if bound {
+					info.RuntimeGeneration = 2
+					info.TranscriptEpoch = 1
+				}
+				created := &session.Info{
+					ID:            "sess-created",
+					ProfileID:     store.DefaultProfileID,
+					AgentName:     "general",
+					WorkspaceID:   "ws-view",
+					RuntimeStatus: session.RuntimeStatusUnbound,
+					State:         session.StateActive,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+				}
+				manager := &nativeOrchestrationSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						if id == "sess-parent" {
+							return &session.Info{
+								ID:          id,
+								ProfileID:   store.DefaultProfileID,
+								AgentName:   "general",
+								WorkspaceID: "ws-view",
+								State:       session.StateActive,
+							}, nil
+						}
+						if id == "sess-created" {
+							return created, nil
+						}
+						return info, nil
+					},
+					CreateAcceptedFn: func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error) { return created, nil },
+					ArchiveFn: func(context.Context, string, string) (*session.Info, error) {
+						archived := *info
+						archived.ArchivedAt = &now
+						return &archived, nil
+					},
+					spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+						return &session.Session{
+							ID:            "sess-child",
+							AgentName:     "general",
+							WorkspaceID:   "ws-view",
+							RuntimeStatus: session.RuntimeStatusUnbound,
+							State:         session.StateActive,
+							Lineage: &store.SessionLineage{
+								SpawnDepth:       1,
+								SpawnRole:        "worker",
+								TTLExpiresAt:     &now,
+								PermissionPolicy: info.Lineage.PermissionPolicy,
+							},
+						}, nil
+					},
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{
+						Sessions:   manager,
+						Workspaces: nativeTestWorkspaceServiceWithRootAndIdentity(t, t.TempDir(), "ws-view"),
+					},
+					nativeApproveAllPolicyInputs(),
+				)
+				scope := toolspkg.Scope{
+					ProfileID:   store.DefaultProfileID,
+					SessionID:   "sess-parent",
+					WorkspaceID: "ws-view",
+					AgentName:   "general",
+				}
+				for _, tc := range []struct {
+					id    toolspkg.ToolID
+					input string
+				}{
+					{toolspkg.ToolIDSessionStatus, `{"session_id":"sess-view"}`},
+					{toolspkg.ToolIDSessionArchive, `{"session_id":"sess-view"}`},
+					{toolspkg.ToolIDSessionSpawn, `{"agent_name":"general","ttl_seconds":600}`},
+					{toolspkg.ToolIDSessionCreate, `{"agent":"general"}`},
+				} {
+					compact, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(tc.input)},
+					)
+					if err != nil {
+						t.Fatalf("%s compact: %v", tc.id, err)
+					}
+					fullInput := strings.TrimSuffix(tc.input, "}") + `,"result_view":"full"}`
+					full, err := registry.Call(
+						t.Context(),
+						scope,
+						toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(fullInput)},
+					)
+					if err != nil {
+						t.Fatalf("%s full: %v", tc.id, err)
+					}
+					descriptor, err := registry.Get(t.Context(), scope, tc.id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					requireNativeOutputSchemaAccepts(t, descriptor.Descriptor, compact.Structured)
+					var c, f any
+					if err := json.Unmarshal(compact.Structured, &c); err != nil {
+						t.Fatal(err)
+					}
+					if err := json.Unmarshal(full.Structured, &f); err != nil {
+						t.Fatal(err)
+					}
+					requireNativeResultProjection(t, "$", c, f)
+					reduction := 100 * (1 - float64(len(compact.Structured))/float64(len(full.Structured)))
+					t.Logf(
+						"IT-003 %s full=%d compact=%d reduction=%.2f%%",
+						tc.id,
+						len(full.Structured),
+						len(compact.Structured),
+						reduction,
+					)
+					if tc.id != toolspkg.ToolIDSessionCreate && reduction < 80 {
+						t.Fatalf("%s reduction %.2f%% < 80%%", tc.id, reduction)
+					}
+					if tc.id == toolspkg.ToolIDSessionStatus {
+						previous, err := core.SessionPayloadWithQueue(t.Context(), manager, info)
+						if err != nil {
+							t.Fatal(err)
+						}
+						owned, err := core.SessionPayloadsWithProfileOwners(
+							t.Context(),
+							[]contract.SessionPayload{previous},
+							nil,
+						)
+						if err != nil {
+							t.Fatal(err)
+						}
+						expected, err := structuredResult(map[string]any{"session": owned[0]}, previous.ID)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if !bytes.Equal(full.Structured, expected.Structured) {
+							t.Fatalf(
+								"full view changed previous payload: got %s want %s",
+								full.Structured,
+								expected.Structured,
+							)
+						}
+						for _, path := range []string{"session.lineage.permission_policy", "session.stop_reason", "session.stop_detail", "session.failure", "session.pending_interactions.0.interaction_id", "session.pending_interactions.0.kind"} {
+							value := c
+							if strings.Contains(path, "permission_policy") {
+								value = f
+							}
+							if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); !ok {
+								t.Fatalf("missing %s", path)
+							}
+						}
+						for _, path := range []string{"session.runtime.generation", "session.transcript_epoch"} {
+							for _, value := range []any{c, f} {
+								if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); ok != bound {
+									t.Fatalf("%s presence=%v bound=%v", path, ok, bound)
+								}
+							}
+						}
+					}
+					if tc.id == toolspkg.ToolIDSessionCreate {
+						for _, path := range []string{"session.runtime.generation", "session.transcript_epoch"} {
+							for _, value := range []any{c, f} {
+								if _, ok := nativeResultAtPath(value, strings.Split(path, ".")); ok {
+									t.Fatalf("new session contains %s", path)
+								}
+							}
+						}
+					}
+				}
+			},
+		)
+	}
+}
+
+func TestNativeToolHookResultViews(t *testing.T) {
+	t.Parallel()
+	for _, view := range []toolspkg.ResultView{"", toolspkg.ResultViewCompact, toolspkg.ResultViewFull} {
+		t.Run("Should report the resolved request view "+string(view), func(t *testing.T) {
+			t.Parallel()
+			descriptor := toolspkg.Descriptor{
+				ID: "compozy__hook_views", Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo}, ReadOnly: true,
+			}
+			if view != "" {
+				descriptor.SetResultViews(&toolspkg.ResultViews{})
+			}
+			call := toolspkg.CallRequest{
+				ToolID:     descriptor.ID,
+				ToolCallID: "call-views",
+				Input:      json.RawMessage(`{}`),
+				View:       view,
+				PinnedView: view,
+			}
+			wantRef := hookspkg.ToolCallRef{
+				ToolID: descriptor.ID.String(), ToolCallID: call.ToolCallID, ReadOnly: true,
+				HasResultViews: view != "", PinnedResultView: string(view),
+			}
+			var events []string
+			hooks := &fakeHookRuntime{
+				onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+					events = append(events, "pre")
+					if payload.ToolCallRef != wantRef {
+						t.Errorf("pre-call ref=%#v, want %#v", payload.ToolCallRef, wantRef)
+					}
+					return nil
+				},
+				onToolPostCall: func(_ context.Context, payload hookspkg.ToolPostCallPayload) error {
+					events = append(events, "post")
+					if payload.ToolCallRef != wantRef || payload.ResultView != string(view) {
+						t.Errorf(
+							"post-call ref/view=%#v/%s, want %#v/%s",
+							payload.ToolCallRef,
+							payload.ResultView,
+							wantRef,
+							view,
+						)
+					}
+					return nil
+				},
+				onToolPostError: func(_ context.Context, payload hookspkg.ToolPostErrorPayload) error {
+					events = append(events, "error")
+					if payload.ToolCallRef != wantRef {
+						t.Errorf("post-error ref=%#v, want %#v", payload.ToolCallRef, wantRef)
+					}
+					return nil
+				},
+			}
+			runner := &nativeToolHookRunner{hooks: hooks, binder: &nativeWorkspaceInputBinder{}}
+			if _, _, err := runner.PreCall(t.Context(), toolspkg.Scope{}, descriptor, call); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runner.PostCall(
+				t.Context(),
+				toolspkg.Scope{},
+				descriptor,
+				call,
+				toolspkg.ToolResult{},
+			); err != nil {
+				t.Fatal(err)
+			}
+			failure := errors.New("handler failed")
+			if got, err := runner.PostError(
+				t.Context(),
+				toolspkg.Scope{},
+				descriptor,
+				call,
+				failure,
+			); err != nil ||
+				!errors.Is(got, failure) {
+				t.Fatalf("PostError=%v, %v", got, err)
+			}
+			if !slices.Equal(events, []string{"pre", "post", "error"}) {
+				t.Fatalf("hook events=%v", events)
+			}
+		})
+	}
+}
+
+// UT-032: handler payloads carrying corrected fields satisfy the declared output contract.
+func TestNativeCorrectedOutputSchemas(t *testing.T) {
+	t.Parallel()
+	opened := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	request := contract.LoopRequestPayload{
+		WorkspaceID: "ws-a",
+		ProfileID:   "profile-a",
+		LoopRunID:   "run-a",
+		Generation:  1,
+		NodeID:      "ask",
+		Kind:        "ask",
+		State:       "pending",
+		Context:     json.RawMessage(`{}`),
+		Decisions:   []string{"respond"},
+		Agents:      "allow",
+		OpenedAt:    opened,
+	}
+	grant := materializedApprovalGrant(
+		"grant-a",
+		toolspkg.ApprovalGrantKey{
+			ProfileID:   "profile-a",
+			WorkspaceID: "ws-a",
+			ToolID:      toolspkg.ToolIDLoopRuns,
+			AccessScope: "workspace:ws-b",
+		},
+		toolspkg.ApprovalGrantAllow,
+	)
+	loopRuns := contract.LoopRunsResponse{
+		Runs:       []contract.LoopRunPayload{},
+		Aggregates: contract.LoopRunsAggregatePayload{Historical: 1},
+	}
+	loopStatus := contract.LoopRunResponse{
+		Run: contract.LoopRunPayload{ID: "run-a", CompletionState: "complete"},
+		Generations: []contract.LoopGenerationPayload{
+			{
+				Generation:  1,
+				Origin:      "initial",
+				RouteCauses: []contract.LoopRouteCausePayload{},
+				Verdicts: []contract.LoopGateVerdictPayload{
+					{
+						GateID:         "gate",
+						ItemIndex:      2,
+						Outcome:        "approved",
+						BlockingIssues: []contract.LoopGateBlockingIssuePayload{},
+						Criteria:       []contract.LoopGateCriterionDetailPayload{},
+					},
+				},
+				Outputs: []contract.LoopGenerationOutput{
+					{NodeID: "agent", Status: "succeeded", SessionID: "sess-a"},
+				},
+			},
+		},
+		NodeControls: []contract.LoopNodeControlPayload{},
+		Waits:        []contract.LoopNodeWaitPayload{},
+		Requests:     []contract.LoopRequestPayload{request},
+		Amendments:   []contract.LoopNodeAmendmentPayload{},
+	}
+	loopNodes := contract.LoopNodeInventoryResponse{Items: []contract.LoopNodeInventoryItem{{
+		WorkspaceID: "ws-a", State: contract.LoopNodeInventoryRetrying,
+		LoopRunID: "run-a", LoopName: "repair", Generation: 1, NodeID: "agent", StateAt: opened,
+		Output: &contract.LoopGenerationOutput{NodeID: "agent", Status: "failed", SessionID: "sess-a"},
+	}}}
+	loopRequests := contract.LoopRequestsResponse{Items: []contract.LoopRequestPayload{request}}
+	inputs := map[toolspkg.ToolID]string{
+		toolspkg.ToolIDLoopNodes:         `{"state":"retrying"}`,
+		toolspkg.ToolIDLoopRuns:          `{}`,
+		toolspkg.ToolIDLoopStatus:        `{"run_id":"run-a"}`,
+		toolspkg.ToolIDLoopRequests:      `{}`,
+		toolspkg.ToolIDLoopRequest:       `{"run_id":"run-a","generation":1,"node_id":"ask"}`,
+		toolspkg.ToolIDCmdPaletteInvoke:  `{"id":"core.test"}`,
+		toolspkg.ToolIDToolApprovalsSet:  `{"tool_id":"compozy__loop_runs","decision":"allow","scope":"tool"}`,
+		toolspkg.ToolIDToolApprovalsList: `{}`,
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		rawInput, ok := inputs[descriptor.ID]
+		if !ok {
+			continue
+		}
+		t.Run("Should accept returned fields for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			service := &nativeLoopServiceStub{
+				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+					return loopNodes, nil
+				},
+				listLoopRunsFn: func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
+					return loopRuns, nil
+				},
+				getLoopRunFn: func(context.Context, string, string) (contract.LoopRunResponse, error) {
+					return loopStatus, nil
+				},
+				listLoopRequestsFn: func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
+					return loopRequests, nil
+				},
+				getLoopRequestFn: func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error) {
+					return request, nil
+				},
+			}
+			palette := &nativeCmdPaletteRegistryStub{invokeResult: cmdpalette.InvokeResult{Status: "completed"}}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					Sessions:   nativeTestSessionManager("ws-a"),
+					Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"ws-a": "ws-a"}},
+					Loops:      func() core.LoopService { return service },
+					CmdPalette: func() cmdpalette.Registry { return palette },
+					ApprovalGrants: &correctedOutputGrantStore{
+						recordingApprovalGrantStore: &recordingApprovalGrantStore{
+							grants: []toolspkg.ApprovalGrant{grant},
+						},
+					},
+				},
+				nativeApproveAllPolicyInputs(),
+			)
+			input := json.RawMessage(rawInput)
+			if descriptor.ResultViews() != nil {
+				var fields map[string]any
+				if err := json.Unmarshal(input, &fields); err != nil {
+					t.Fatal(err)
+				}
+				fields[toolspkg.ResultViewInputKey] = "full"
+				var err error
+				input, err = json.Marshal(fields)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					ProfileID:   store.DefaultProfileID,
+					WorkspaceID: "ws-a",
+					SessionID:   "sess-a",
+					AgentName:   "codex",
+				},
+				toolspkg.CallRequest{ToolID: descriptor.ID, Input: input},
+			)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if views := descriptor.ResultViews(); views != nil {
+				descriptor.OutputSchema = views.Full.Schema
+			}
+			requireNativeOutputSchemaAccepts(t, descriptor, result.Structured)
+		})
+	}
+	mutation := contract.LoopMutationResponse{
+		OK: true, RunID: "run-a", NodeID: "agent", ItemIndex: new(1), Status: "paused",
+		Provenance: &contract.LoopControlProvenancePayload{
+			ActorKind: "human", ActorID: "user-a", Reason: "repair", RuleID: "rule-a", RequestedAt: opened,
+		},
+		Control: &contract.LoopNodeControlPayload{
+			LoopRunID: "run-a", NodeID: "agent", Paused: true, Quarantined: true,
+			QuarantineEntry: json.RawMessage(`{"failure":"provider unavailable"}`),
+			AttentionFlag:   "blocked", AttentionReason: "repair", AttentionProducerNodeID: "producer",
+			CancelState: "requested", DeathResumeStreak: 2, Revision: 3, UpdatedAt: opened,
+		},
+	}
+	singleResults := map[toolspkg.ToolID]any{
+		toolspkg.ToolIDLoopCancel:      mutation,
+		toolspkg.ToolIDLoopNodeCancel:  mutation,
+		toolspkg.ToolIDLoopNodePause:   mutation,
+		toolspkg.ToolIDLoopNodeRequeue: mutation,
+		toolspkg.ToolIDLoopNodeResume:  mutation,
+		toolspkg.ToolIDLoopRequest:     request,
+		toolspkg.ToolIDLoopRespond: contract.RespondLoopRequestResponse{
+			OK: true, RunID: "run-a", NodeID: "ask", Decision: "respond", State: "answered",
+			Provenance: contract.LoopRequestProvenance{ActorKind: "human", ActorID: "user-a", AnsweredAt: opened},
+		},
+		toolspkg.ToolIDLoopRerun: contract.RerunLoopResponse{
+			RunID:            "run-a",
+			Generation:       2,
+			ParentGeneration: 1,
+			RerunNodes:       []string{"agent"},
+			Carried:          1,
+			Replayed:         true,
+		},
+		toolspkg.ToolIDLoopDiff: contract.LoopDiffResponse{
+			Kind: "generation", DefinitionDivergence: true,
+			Base:    contract.LoopDiffEndpoint{RunID: "run-a", Generation: 1, Status: "failed", AsOf: true},
+			Against: contract.LoopDiffEndpoint{RunID: "run-a", Generation: 2, Status: "done", AsOf: true},
+			Inputs: []contract.LoopDiffInputRow{{
+				Key: "brief", Base: contract.LoopDiffValue{Inline: json.RawMessage(`"original"`)},
+				Against: contract.LoopDiffValue{Size: 20000, Hash: "sha256:changed"},
+			}},
+			Nodes: []contract.LoopDiffNodeRow{{
+				NodeID: "agent", ItemIndex: 1, Change: "changed", Cause: "repair",
+				Base:    contract.LoopDiffValue{Inline: json.RawMessage(`{"error":"provider unavailable"}`)},
+				Against: contract.LoopDiffValue{Size: 20000, Hash: "sha256:changed"},
+			}},
+			Terminal: &contract.LoopDiffTerminalRow{Base: "failed", Against: "done"},
+		},
+	}
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		payload, ok := singleResults[descriptor.ID]
+		if !ok {
+			continue
+		}
+		t.Run("Should retain populated single-result fields for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			data, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeOutputSchemaAccepts(t, descriptor, data)
+		})
+	}
+}
+
+type correctedOutputGrantStore struct{ *recordingApprovalGrantStore }
+
+func (s *correctedOutputGrantStore) PutApprovalGrant(
+	context.Context,
+	toolspkg.ApprovalGrant,
+) (toolspkg.ApprovalGrant, error) {
+	return s.grants[0], nil
 }

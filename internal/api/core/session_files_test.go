@@ -9,6 +9,7 @@ package core_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -22,6 +23,9 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/projectfiles"
+	"github.com/compozy/compozy/internal/projectfiles/changes"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspacefiles"
@@ -230,12 +234,14 @@ func newSessionFilesHandlerEngine(
 	t *testing.T,
 	root string,
 	searcher core.SessionFileSearcher,
+	engines ...changes.Engine,
 ) (*gin.Engine, workingDirCallLog) {
 	t.Helper()
 	gone := filepath.Join(t.TempDir(), "removed")
 	infos := map[string]*session.Info{}
 	for id, workspaceID := range map[string]string{
 		"sess-ok":               "registry-workspace",
+		"sess-user":             "",
 		"sess-gone":             "registry-workspace",
 		"sess-missing-worktree": "registry-workspace",
 		"sess-broken":           "registry-workspace",
@@ -281,18 +287,33 @@ func newSessionFilesHandlerEngine(
 				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 			}
 			return workspacepkg.ResolvedWorkspace{
-				ID: "registry-workspace", Name: "workspace", WorkspaceID: "stable-workspace",
+				ID: "registry-workspace", Name: "workspace", WorkspaceID: "stable-workspace", RootDir: root,
 			}, nil
 		},
 	}
+	var changeEngine changes.Engine
+	if len(engines) > 0 {
+		changeEngine = engines[0]
+	}
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		Sessions:     manager,
-		Workspaces:   workspaces,
-		SessionFiles: searcher,
-		Logger:       slog.New(slog.NewTextHandler(log.logs, nil)),
+		Sessions:       manager,
+		Workspaces:     workspaces,
+		SessionFiles:   searcher,
+		SessionChanges: changeEngine,
+		Logger:         slog.New(slog.NewTextHandler(log.logs, nil)),
 	})
 	engine := gin.New()
 	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files", handlers.SearchSessionFiles)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files/entries", handlers.ListSessionFileEntries)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/files/content", handlers.ReadSessionFileContent)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes", handlers.GetSessionChanges)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes/patches", handlers.GetSessionChangePatches)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes/contents", handlers.GetSessionChangeContents)
+	engine.GET("/api/workspaces/:workspace_id/sessions/:session_id/changes/bases", handlers.ListSessionChangeBases)
+
+	engine.GET("/api/workspaces/:workspace_id/files/entries", handlers.ListFileEntries)
+	engine.GET("/api/workspaces/:workspace_id/files/content", handlers.ReadFileContent)
+
 	return engine, log
 }
 
@@ -301,4 +322,167 @@ func serveSessionFilesRequest(t *testing.T, engine http.Handler, path string) *h
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
 	return recorder
+}
+
+// File content handlers own the app-token reveal boundary and response path redaction.
+func TestProjectFileContentReveal(t *testing.T) {
+	t.Parallel()
+	t.Run("Should gate app reveals and redact host paths for workspace and session forms", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for name, body := range map[string]string{"README.md": "public", ".env": "secret"} {
+			if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		engine, _ := newSessionFilesHandlerEngine(t, root, workspacefiles.New(nil))
+		for _, prefix := range []string{"/api/workspaces/workspace/files", "/api/workspaces/workspace/sessions/sess-ok/files"} {
+			for _, tc := range []struct {
+				query  string
+				app    bool
+				status int
+				kind   string
+			}{
+				{"path=README.md", true, 200, "text"}, {"path=.env", true, 200, "sensitive"}, {"path=.env&reveal=true", true, 403, ""}, {"path=.env&reveal=true", false, 200, "text"}, {"path=missing", false, 404, ""}, {"path=%2Fetc%2Fpasswd", false, 400, ""},
+			} {
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					prefix+"/content?"+tc.query,
+					http.NoBody,
+				)
+				if tc.app {
+					request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+				}
+				response := httptest.NewRecorder()
+				engine.ServeHTTP(response, request)
+				if response.Code != tc.status {
+					t.Fatalf("%s status %d: %s", tc.query, response.Code, response.Body.String())
+				}
+				if strings.Contains(response.Body.String(), root) {
+					t.Fatal("response leaked host root")
+				}
+				if tc.kind != "" {
+					var got contract.FileContentResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+						t.Fatal(err)
+					}
+					if got.Kind != tc.kind {
+						t.Fatalf("kind=%s want %s", got.Kind, tc.kind)
+					}
+					// Clients route by the root's workspace ID, so it must be the public one.
+					if got.Root.WorkspaceID != "registry-workspace" {
+						t.Fatalf("root workspace_id=%q want the public registry ID", got.Root.WorkspaceID)
+					}
+					if got.Kind == "sensitive" && got.Text != nil {
+						t.Fatal("sensitive bytes leaked")
+					}
+				} else if !strings.Contains(response.Body.String(), "code") {
+					t.Fatal("missing structured error")
+				}
+			}
+		}
+	})
+}
+
+func TestProjectChangesReveal(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject app token reveal before running git", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		engine, _ := newSessionFilesHandlerEngine(t, root, workspacefiles.New(nil))
+		for _, suffix := range []string{"/patches", "/contents"} {
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/workspaces/workspace/sessions/sess-ok/changes"+suffix+"?path=.env&revision=x&reveal=true",
+				http.NoBody,
+			)
+			req = req.WithContext(core.ContextWithAppToken(req.Context(), gateway.AppToken{}))
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, req)
+			if response.Code != 403 || !strings.Contains(response.Body.String(), "reveal_forbidden") ||
+				strings.Contains(response.Body.String(), root) {
+				t.Fatalf("%d: %s", response.Code, response.Body.String())
+			}
+		}
+	})
+}
+
+func TestProjectChangesUserScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report user session roots as unavailable for every Changes operation", func(t *testing.T) {
+		t.Parallel()
+		engine, _ := newSessionFilesHandlerEngine(t, t.TempDir(), workspacefiles.New(nil))
+		for _, suffix := range []string{"", "/patches", "/contents", "/bases"} {
+			response := serveSessionFilesRequest(t, engine, "/api/workspaces/@user/sessions/sess-user/changes"+suffix)
+			if response.Code != 409 || !strings.Contains(response.Body.String(), "root_unavailable") {
+				t.Fatalf("%d %s", response.Code, response.Body.String())
+			}
+		}
+	})
+}
+
+func TestProjectChangesDiagnostics(t *testing.T) {
+	t.Parallel()
+	for _, suffix := range []string{"", "/patches?revision=r&path=a.go", "/contents?revision=r&path=a.go", "/bases"} {
+		t.Run("Should log sanitized cause for "+suffix, func(t *testing.T) {
+			t.Parallel()
+			root, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			external := "/outside/private-orderfile"
+			cause := fmt.Errorf(
+				"%w: git diff at %s orderfile '%s': %w",
+				changes.ErrUnavailable,
+				root,
+				external,
+				context.DeadlineExceeded,
+			)
+			engine, log := newSessionFilesHandlerEngine(
+				t,
+				root,
+				workspacefiles.New(nil),
+				failedChangesEngine{cause: cause},
+			)
+			response := serveSessionFilesRequest(t, engine, "/api/workspaces/workspace/sessions/sess-ok/changes"+suffix)
+			if response.Code != 500 || !strings.Contains(response.Body.String(), "changes_unavailable") ||
+				strings.Contains(response.Body.String(), "deadline") {
+				t.Fatalf("response %d %s", response.Code, response.Body)
+			}
+			if strings.Contains(log.logs.String(), external) || strings.Contains(log.logs.String(), root) ||
+				!strings.Contains(log.logs.String(), "deadline exceeded") ||
+				!strings.Contains(log.logs.String(), "WARN") {
+				t.Fatalf("logs %s", log.logs)
+			}
+		})
+	}
+}
+
+type failedChangesEngine struct{ cause error }
+
+func (e failedChangesEngine) Summary(context.Context, projectfiles.Root, changes.Request) (changes.Summary, error) {
+	return changes.Summary{}, e.cause
+}
+
+func (e failedChangesEngine) Patches(
+	context.Context,
+	projectfiles.Root,
+	changes.Request,
+	[]changes.PatchTarget,
+) ([]changes.Patch, error) {
+	return nil, e.cause
+}
+
+func (e failedChangesEngine) Contents(
+	context.Context,
+	projectfiles.Root,
+	changes.Request,
+	changes.PatchTarget,
+) (changes.Contents, error) {
+	return changes.Contents{}, e.cause
+}
+func (e failedChangesEngine) Bases(context.Context, projectfiles.Root, string, int) (changes.BaseList, error) {
+	return changes.BaseList{}, e.cause
 }

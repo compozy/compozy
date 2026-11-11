@@ -30,6 +30,9 @@ func normalizeCallInput(input json.RawMessage) json.RawMessage {
 }
 
 func validateCallInput(d Descriptor, input json.RawMessage) (err error) {
+	if err := checkResultViewSelector(d, input); err != nil {
+		return err
+	}
 	defer func() { err = descriptorInputError(d, input, err) }()
 	normalized := normalizeCallInput(input)
 	if !json.Valid(normalized) {

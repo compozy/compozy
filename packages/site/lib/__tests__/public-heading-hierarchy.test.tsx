@@ -27,10 +27,15 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/server", () => ({
   connection: vi.fn(),
+}));
+
+vi.mock("@/components/site/github-stars-api", () => ({
+  loadGithubStars: async () => null,
 }));
 
 vi.mock("@/lib/changelog/github-client", () => ({
@@ -55,27 +60,29 @@ function expectNoSkippedHeadingLevels(): void {
 }
 
 describe("public heading hierarchy", () => {
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- The full asynchronous page and accessible heading tree render together; this bounds real DOM traversal.
   it("keeps the landing page to one primary heading", async () => {
     render(await HomePage());
 
     // The h1 is the locked hero headline (COPY.md §2 Hero Lock). Section h2 copy is owned by
     // components/landing/__tests__/landing.test.tsx; this suite owns the hierarchy itself,
     // so it stays valid when the landing IA changes.
-    expectSingleH1("The system around the agent, already built.");
+    expectSingleH1("The autonomous control plane for your agents.");
     expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(0);
     expectNoSkippedHeadingLevels();
   }, 15_000);
 
   it("keeps blog index and category archive pages to one primary heading", async () => {
     render(await BlogIndexPage());
-    expectSingleH1("Practical engineering for working with AI agents.");
+    // The approved blog draft titles the front page and every category view "Blog".
+    expectSingleH1("Blog");
     cleanup();
 
     const category =
       BLOG_CATEGORIES.find(candidate => postsByCategory(candidate).length === 0) ??
       BLOG_CATEGORIES[0];
     render(await CategoryArchivePage({ params: Promise.resolve({ category }) }));
-    expectSingleH1(new RegExp(`^${category}`, "i"));
+    expectSingleH1("Blog");
   });
 
   it("keeps generated blog article pages to one primary heading", async () => {
@@ -89,14 +96,14 @@ describe("public heading hierarchy", () => {
 
   it("keeps changelog and fallback pages to one primary heading", async () => {
     render(await ChangelogPage());
-    expectSingleH1("Complete notes for every CompozyOS release.");
+    expectSingleH1("Changelog");
     cleanup();
 
     render(<NotFound />);
-    expectSingleH1("This route is not in the runtime.");
+    expectSingleH1("This page is not here.");
     cleanup();
 
-    render(<ErrorPage error={new Error("render failed")} reset={vi.fn()} />);
+    render(<ErrorPage error={new Error("render failed")} retry={vi.fn()} />);
     expectSingleH1("The site hit a recoverable boundary.");
   });
 });

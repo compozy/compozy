@@ -17,45 +17,53 @@ tokens:
       desk: "#131313"
       canvas: "#131313"
       canvas-soft: "#1a1a1a"
-      sunken: "#0e0e0e"
+      sunken: "#0a0a0a"
       surface-2: "#232323"
       selected: "#262626"
       code-bg: "#1a1a1a"
       sidebar: "var(--color-sunken)"
-      elevated: "#1c1c1c"
+      elevated: "#1b1b1b"
       hover: "var(--color-surface-2)"
-      disabled: "#4d4d4d"
-      line: "#2a2a2a"
+      disabled: "#5e5e5e"
+      line: "#262626"
       line-soft: "#202020"
-      line-strong: "#3a3a3a"
-      line-focus: "#5c5c5c"
+      line-strong: "#383838"
+      line-focus: "#3df2e0"
       indicator: "#707070"
-      knob: "#f5f5f5"
-      fg: "#f5f5f5"
+      knob: "#ececec"
+      fg: "#ececec"
       fg-strong: "#ffffff"
-      fg-2: "#c4c4c4"
-      fg-3: "#dcdcdc"
-      muted-foreground: "#a3a3a3"
+      fg-2: "#bababa"
+      fg-3: "#d3d3d3"
+      muted-foreground: "#989898"
       subtle: "#8e8e8e"
       faint: "#8d8d8d"
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
-      brand: "#e8572a"
-      brand-hover: "#d14e25"
-      brand-strong: "#f6874f"
-      brand-ink: "#17110f"
-      brand-tint: "rgba(232, 87, 42, 0.1)"
-      brand-tint-strong: "rgba(232, 87, 42, 0.16)"
-      brand-dim: "rgba(232, 87, 42, 0.24)"
-      brand-glow: "rgba(232, 87, 42, 0.05)"
-      attn: "var(--color-brand)"
+      brand: "#1f87fc"
+      brand-hover: "#3d95ff"
+      brand-strong: "#4a9dff"
+      brand-ink: "#0a0a0a"
+      brand-tint: "rgba(31, 135, 252, 0.1)"
+      brand-tint-strong: "rgba(31, 135, 252, 0.16)"
+      brand-dim: "rgba(31, 135, 252, 0.24)"
+      brand-glow: "rgba(31, 135, 252, 0.05)"
+      brand-volt: "#2f5bff"
+      brand-sky: "#1f87fc"
+      brand-teal: "#1df0d7"
+      brand-cyan: "#3df2e0"
+      brand-glint: "#b5faf6"
+      brand-deep: "#0b31f7"
+      attn: "#f5b14c"
+      attn-tint: "rgba(245, 177, 76, 0.1)"
       success: "#34d399"
       success-tint: "rgba(52, 211, 153, 0.1)"
       warning: "#f5b14c"
       warning-tint: "rgba(245, 177, 76, 0.1)"
       destructive: "#f87171"
       destructive-tint: "rgba(248, 113, 113, 0.1)"
+      destructive-ink: "#17110f"
       info: "#8e8eb5"
       info-tint: "rgba(142, 142, 181, 0.12)"
       well: "#1e342c"
@@ -71,6 +79,9 @@ tokens:
       viz-other: "rgba(255, 255, 255, 0.26)"
       viz-grid: "rgba(255, 255, 255, 0.045)"
       viz-cell: "#ffffff"
+      qr-plate: "#ffffff"
+      qr-module: "#0a0a0a"
+      on-gradient: "#0a0a0a"
       bar-fill: "rgba(255, 255, 255, 0.085)"
       chat-fill-user: "rgba(255, 255, 255, 0.045)"
       chat-fill-code: "rgba(255, 255, 255, 0.03)"
@@ -103,7 +114,7 @@ tokens:
       destructive-foreground: "var(--color-fg-strong)"
       border: "var(--color-line)"
       input: "var(--color-line)"
-      ring: "var(--color-line-strong)"
+      ring: "#3df2e0"
       chart-1: "var(--color-brand)"
       chart-2: "var(--color-success)"
       chart-3: "var(--color-info)"
@@ -152,7 +163,7 @@ tokens:
       line: "#e6e6e9"
       line-soft: "#efeff1"
       line-strong: "#d6d6db"
-      line-focus: "#b8bcc4"
+      line-focus: "#0a6f86"
       indicator: "#888888"
       knob: "#ffffff"
       fg: "#1a1a1a"
@@ -165,20 +176,23 @@ tokens:
       primary: "#0b0d12"
       primary-hover: "#2a2f3a"
       primary-foreground: "#ffffff"
-      brand: "#c94b24"
-      brand-hover: "#b9441f"
-      brand-strong: "#b9441f"
+      brand: "#2448e6"
+      brand-hover: "#1f3fcc"
+      brand-strong: "#2448e6"
       brand-ink: "#ffffff"
-      brand-tint: "rgba(201, 75, 36, 0.08)"
-      brand-tint-strong: "rgba(201, 75, 36, 0.14)"
-      brand-dim: "rgba(201, 75, 36, 0.22)"
-      brand-glow: "rgba(201, 75, 36, 0.05)"
-      success: "#15a06a"
-      success-tint: "rgba(21, 160, 106, 0.08)"
-      warning: "#d98404"
-      warning-tint: "rgba(217, 132, 4, 0.08)"
-      destructive: "#dc2626"
-      destructive-tint: "rgba(220, 38, 38, 0.07)"
+      brand-tint: "rgba(36, 72, 230, 0.08)"
+      brand-tint-strong: "rgba(36, 72, 230, 0.14)"
+      brand-dim: "rgba(36, 72, 230, 0.22)"
+      brand-glow: "rgba(36, 72, 230, 0.05)"
+      attn: "#9a5b00"
+      attn-tint: "rgba(154, 91, 0, 0.08)"
+      success: "#0a7650"
+      success-tint: "rgba(10, 118, 80, 0.08)"
+      warning: "#9a5b00"
+      warning-tint: "rgba(154, 91, 0, 0.08)"
+      destructive: "#c81e1e"
+      destructive-tint: "rgba(200, 30, 30, 0.07)"
+      destructive-ink: "#ffffff"
       info: "#5f5f94"
       info-tint: "rgba(95, 95, 148, 0.1)"
       well: "#def2ea"
@@ -214,12 +228,13 @@ tokens:
       avatar-human-2-bg: "rgba(170, 130, 140, 0.16)"
       avatar-human-2-fg: "#74525c"
       destructive-foreground: "#ffffff"
+      ring: "#0a6f86"
     fonts:
-      sans: 'var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
+      sans: 'var(--user-font-sans), "Figtree Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
       mono: 'var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace'
-      display: "var(--font-sans)"
-      keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif'
-      weight-normal: "425"
+      display: '"Instrument Sans Variable", "Instrument Sans", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
+      keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Figtree Variable", sans-serif'
+      weight-normal: "450"
       weight-medium: "500"
       weight-semibold: "600"
       weight-bold: "600"
@@ -233,7 +248,7 @@ tokens:
       eyebrow: { size: "0.75rem", line: "1rem", tracking: "-0.005em" }
       eyebrow-caps: { size: "0.6875rem", line: "1rem", tracking: "0.06em" }
       kbd: { size: "0.75rem", line: "1rem", tracking: "0.03em" }
-      kbd--font-weight: { size: "425" }
+      kbd--font-weight: { size: "450" }
       display-2xl: { size: "1.5rem", line: "1.25" }
       site-lead: { size: "1.1875rem", line: "1.5" }
       micro: { size: "0.6875rem", line: "0.75rem" }
@@ -269,13 +284,13 @@ tokens:
       transcript-caption: { size: "0.6875rem" }
       workspace-avatar: { size: "9px" }
     rounded:
-      DEFAULT: "8px"
-      xxs: "3px"
+      DEFAULT: "10px"
+      xxs: "4px"
       xs: "6px"
-      sm: "7px"
-      md: "8px"
-      lg: "12px"
-      xl: "18px"
+      sm: "6px"
+      md: "10px"
+      lg: "14px"
+      xl: "20px"
       pill: "9999px"
       chip: "7px"
       mono-badge: "4px"
@@ -308,8 +323,8 @@ tokens:
       pop: "0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006"
       overlay: "0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.035)"
-      focus-ring: "0 0 0 2px rgba(255, 255, 255, 0.5)"
-      focus-inset: "inset 0 0 0 2px rgba(255, 255, 255, 0.5)"
+      focus-ring: "0 0 0 2px rgba(61, 242, 224, 1)"
+      focus-inset: "inset 0 0 0 2px rgba(61, 242, 224, 1)"
       hairline: "0 0 0 1px var(--color-line-soft)"
       hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
@@ -320,8 +335,8 @@ tokens:
       pop: "0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
       overlay: "0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.7)"
-      focus-ring: "0 0 0 2px rgba(10, 13, 18, 0.5)"
-      focus-inset: "inset 0 0 0 2px rgba(10, 13, 18, 0.5)"
+      focus-ring: "0 0 0 2px rgba(10, 111, 134, 1)"
+      focus-inset: "inset 0 0 0 2px rgba(10, 111, 134, 1)"
     sizes:
       height-button-xs: "22px"
       height-button-sm: "26px"
@@ -469,114 +484,32 @@ tokens:
       space-chart-tooltip-x: "8px"
   site:
     typography-clamps:
-      hero: "clamp(2.6rem, 5vw, 4.5rem)"
-      error-title: "clamp(2.6rem, 6vw, 4.8rem)"
-      hero-section: "clamp(2.6rem, 5.5vw, 4.2rem)"
-      blog-title: "clamp(2.6rem, 5.4vw, 4.6rem)"
-      doc-title: "clamp(2.4rem, 4vw, 3.4rem)"
-      doc-lead: "1.125rem"
-      doc-lead--line-height: "1.65"
-      doc-prose: "1rem"
-      doc-prose--line-height: "var(--leading-doc-body)"
-      doc-prose-compact: "0.95rem"
-      doc-prose-compact--line-height: "1.75"
-      doc-subheading: "1.25rem"
-      doc-subheading--line-height: "1.25"
-      api-body: "0.9375rem"
-      api-body--line-height: "1.65"
-      api-heading: "1.625rem"
-      api-heading--line-height: "1.15"
-      api-subheading: "1.125rem"
-      api-code: "0.8125rem"
-      protocol-title: "clamp(2.4rem, 5vw, 3.8rem)"
-      page-title: "clamp(2.4rem, 4.4vw, 4rem)"
-      article-title: "clamp(2.4rem, 4.4vw, 3.6rem)"
-      section-title: "clamp(2.2rem, 4.6vw, 3.6rem)"
-      category-title: "clamp(2.2rem, 4vw, 3.4rem)"
-      cta-title: "clamp(2rem, 4.5vw, 3.2rem)"
-      feature-title: "clamp(2rem, 3.4vw, 2.8rem)"
-      subsection-title: "clamp(1.9rem, 3.4vw, 2.6rem)"
-      doc-heading: "clamp(1.6rem, 2.6vw, 2.15rem)"
       group-label: "0.625rem"
       group-label--line-height: "0.75rem"
-      release-title: "clamp(1.6rem, 3vw, 2.1rem)"
-      empty-title: "clamp(1.55rem, 3vw, 2rem)"
-      quote: "clamp(1.5rem, 2.4vw, 1.95rem)"
-      card-title: "clamp(1.45rem, 3vw, 1.9rem)"
-      subheading: "clamp(1.25rem, 1.7vw, 1.45rem)"
-      bento-2xl: "2.5rem"
-      bento-xl: "2.35rem"
-      bento-lg: "2rem"
-      bento-md: "1.9rem"
-      bento-sm: "1.8rem"
-      bento-xs: "1.65rem"
-      doc-body: "1.8"
     layout:
-      layout-width: "1200px"
-      doc-layout-width: "96rem"
-      doc-sidebar-width: "16rem"
-      doc-toc-width: "14rem"
-      doc-sidebar-marker-offset: "0.75rem"
-      doc-sidebar-marker-inset: "0.375rem"
-      doc-sidebar-nested-marker-offset: "0.6875rem"
-      doc-sidebar-tree-indent: "0.875rem"
-      doc-sidebar-tree-gutter: "0.625rem"
-      doc-sidebar-tree-line-inset: "0.25rem"
-      doc-sidebar-first-group-gap: "0.375rem"
-      doc-toc-gutter: "1rem"
-      doc-index-label-width: "11.875rem"
-      doc-hairline: "1px"
-      doc-sidebar-section-label-offset: "1.625rem"
-      doc-sidebar-section-label-tracking: "0.09em"
-      doc-sidebar-section-label-color: "color-mix( in srgb, var(--color-brand) 65%, var(--color-muted-foreground) )"
-      doc-sidebar-group-gap: "0.4375rem"
-      doc-sidebar-group-label-tracking: "0.08em"
-      doc-sidebar-group-label-color: "color-mix(in srgb, var(--color-subtle) 72%, transparent)"
-      doc-masthead-context-gap: "1rem"
-      doc-masthead-context-height: "1.75rem"
-      doc-masthead-crumb-gap: "0.5rem"
-      doc-masthead-crumb-tracking: "0.08em"
-      doc-masthead-crumb-rule-width: "0.875rem"
-      doc-masthead-action-gap: "0.375rem"
-      doc-masthead-title-offset: "1.125rem"
-      doc-masthead-title-leading: "1.02"
-      doc-masthead-title-tracking: "-0.02em"
-      doc-masthead-lead-offset: "1rem"
-      doc-masthead-lead-width: "64ch"
-      doc-masthead-meta-gap: "1.25rem"
-      doc-masthead-meta-offset: "1.5rem"
-      doc-masthead-meta-rule-gap: "0.875rem"
-      doc-inline-gap: "0.4375rem"
-      doc-meta-icon-opacity: "0.7"
-      doc-action-padding-inline: "0.625rem"
-      doc-action-success-border: "color-mix(in srgb, var(--color-success) 35%, transparent)"
-      doc-action-success-background: "color-mix(in srgb, var(--color-success) 10%, transparent)"
-      doc-section-offset: "4rem"
-      doc-section-rule-gap: "1rem"
-      doc-section-leading: "1.1"
-      doc-subsection-offset: "2.25rem"
-      doc-prose-width: "72ch"
-      doc-list-indent: "1.3rem"
-      doc-code-padding-inline: "0.38rem"
-      doc-code-padding-block: "0.12rem"
-      doc-link-underline-offset: "0.24em"
-      doc-section-offset-compact: "3.25rem"
-      api-content-width: "90rem"
-      api-operation-separation: "3rem"
-      api-column-gap: "2rem"
-      api-column-gap-medium: "2.5rem"
-      api-column-gap-wide: "3.5rem"
-      api-sticky-row-fallback: "2rem"
-      api-sticky-offset: "1rem"
-      api-example-width: "22rem"
-      api-example-width-wide: "26rem"
-      api-content-gap: "1.25rem"
-      api-heading-content-gap: "0.875rem"
-      api-subheading-offset: "2.5rem"
-      api-schema-min-width: "18rem"
-      diagram-node-stroke-width: "1.4px"
-      bento-overlay-runtime: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )"
-      bento-overlay-extensibility: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )"
+      light-025: "rgb(255 255 255 / 0.025)"
+      light-030: "rgb(255 255 255 / 0.03)"
+      light-040: "rgb(255 255 255 / 0.04)"
+      light-050: "rgb(255 255 255 / 0.05)"
+      light-060: "rgb(255 255 255 / 0.06)"
+      light-070: "rgb(255 255 255 / 0.07)"
+      light-080: "rgb(255 255 255 / 0.08)"
+      light-090: "rgb(255 255 255 / 0.09)"
+      light-100: "rgb(255 255 255 / 0.1)"
+      light-120: "rgb(255 255 255 / 0.12)"
+      light-150: "rgb(255 255 255 / 0.15)"
+      light-200: "rgb(255 255 255 / 0.2)"
+      light-250: "rgb(255 255 255 / 0.25)"
+      light-350: "rgb(255 255 255 / 0.35)"
+      dark-030: "rgb(0 0 0 / 0.03)"
+      dark-100: "rgb(0 0 0 / 0.1)"
+      dark-150: "rgb(0 0 0 / 0.15)"
+      dark-400: "rgb(0 0 0 / 0.4)"
+      dark-450: "rgb(0 0 0 / 0.45)"
+      dark-550: "rgb(0 0 0 / 0.55)"
+      dark-600: "rgb(0 0 0 / 0.6)"
+      dark-700: "rgb(0 0 0 / 0.7)"
+      spot-teal: "rgb(29 240 215 / 0.14)"
 ---
 
 # Design System: CompozyOS
@@ -599,8 +532,8 @@ generated token regions by hand. Change the CSS source, then run
 CompozyOS is an agent operating system for everyone who works with AI agents — not
 an expert-only console. The product should feel quiet, calm, and intentional:
 neutral chroma-free greys, restrained text, quiet depth, pill actions with a
-single inverted primary, and the brand orange only where something needs you. It
-is not a marketing-gradient system, not a generic SaaS blue-gray dashboard,
+single inverted primary, brand volt for highlights, and amber only where
+something needs you. It is not a marketing-gradient system, not a generic SaaS blue-gray dashboard,
 and no longer the dense operator cockpit of its early direction.
 
 The runtime ships two themes. Dark is the default; light is the same system's
@@ -619,10 +552,11 @@ The core atmosphere is:
   step to `surface-2`.
 - Two surface levels. Content sits on a card surface; secondary lists sit in a
   sunken inset panel with no border.
-- One primary, one highlight. The single primary action is inverted
-  (`--color-primary`). `--color-brand` (the brand orange, also `--color-attn`)
-  marks highlights and needs-you, and should usually appear once in a
-  viewport. Amber (`--color-warning`) is only for real warnings.
+- One primary, one highlight, one loud exception. The single primary action is
+  inverted (`--color-primary`). `--color-brand` (volt) marks highlights; brand
+  used as text takes `--color-brand-strong`. Needs-you rides its own amber
+  (`--color-attn`, never an alias of brand): one amber element per view region.
+  `--color-warning` stays for real warnings.
 - Quiet depth. Hierarchy comes from the surface ramp, opaque hairlines, and the
   small `shadow-card` / `shadow-elevated` / `shadow-pop` whitelist. Hovers step
   the surface or add `shadow-card`; they never dim the text.
@@ -669,15 +603,15 @@ token or component at the source; do not locally override one callsite.
 | `--color-desk`          | `#131313`                | `#ffffff`                |
 | `--color-canvas`        | `#131313`                | `#ffffff`                |
 | `--color-canvas-soft`   | `#1a1a1a`                | `#ffffff`                |
-| `--color-sunken`        | `#0e0e0e`                | `#f7f7f8`                |
+| `--color-sunken`        | `#0a0a0a`                | `#f7f7f8`                |
 | `--color-surface-2`     | `#232323`                | `#f4f4f5`                |
 | `--color-selected`      | `#262626`                | `#efeff1`                |
 | `--color-code-bg`       | `#1a1a1a`                | `#f6f6f7`                |
 | `--color-sidebar`       | `var(--color-sunken)`    | `var(--color-sunken)`    |
-| `--color-elevated`      | `#1c1c1c`                | `#ffffff`                |
+| `--color-elevated`      | `#1b1b1b`                | `#ffffff`                |
 | `--color-well`          | `#1e342c`                | `#def2ea`                |
 | `--color-hover`         | `var(--color-surface-2)` | `var(--color-surface-2)` |
-| `--color-disabled`      | `#4d4d4d`                | `#c4c7cc`                |
+| `--color-disabled`      | `#5e5e5e`                | `#c4c7cc`                |
 
 <!-- END:tokens:surface-ramp -->
 
@@ -687,10 +621,10 @@ token or component at the source; do not locally override one callsite.
 
 | Token                 | Dark      | Light     |
 | --------------------- | --------- | --------- |
-| `--color-line`        | `#2a2a2a` | `#e6e6e9` |
+| `--color-line`        | `#262626` | `#e6e6e9` |
 | `--color-line-soft`   | `#202020` | `#efeff1` |
-| `--color-line-strong` | `#3a3a3a` | `#d6d6db` |
-| `--color-line-focus`  | `#5c5c5c` | `#b8bcc4` |
+| `--color-line-strong` | `#383838` | `#d6d6db` |
+| `--color-line-focus`  | `#3df2e0` | `#0a6f86` |
 
 <!-- END:tokens:hairlines -->
 
@@ -700,11 +634,11 @@ token or component at the source; do not locally override one callsite.
 
 | Token                      | Dark      | Light     |
 | -------------------------- | --------- | --------- |
-| `--color-fg`               | `#f5f5f5` | `#1a1a1a` |
+| `--color-fg`               | `#ececec` | `#1a1a1a` |
 | `--color-fg-strong`        | `#ffffff` | `#0b0d12` |
-| `--color-fg-2`             | `#c4c4c4` | `#4c4c4c` |
-| `--color-fg-3`             | `#dcdcdc` | `#333333` |
-| `--color-muted-foreground` | `#a3a3a3` | `#6b6b6b` |
+| `--color-fg-2`             | `#bababa` | `#4c4c4c` |
+| `--color-fg-3`             | `#d3d3d3` | `#333333` |
+| `--color-muted-foreground` | `#989898` | `#6b6b6b` |
 | `--color-subtle`           | `#8e8e8e` | `#6b6b6b` |
 | `--color-faint`            | `#8d8d8d` | `#6b6b6b` |
 
@@ -713,8 +647,8 @@ token or component at the source; do not locally override one callsite.
 ### Primary action
 
 The single primary action is inverted: near-white on dark, near-black on
-light. It is never the brand hue; the brand orange marks highlights and
-needs-you (`--color-attn`), not the default action.
+light. It is never the brand hue; volt (`--color-brand`) marks highlights and
+amber (`--color-attn`) marks needs-you, never the default action.
 
 <!-- BEGIN:tokens:primary -->
 
@@ -730,17 +664,24 @@ needs-you (`--color-attn`), not the default action.
 
 <!-- BEGIN:tokens:brand -->
 
-| Token                       | Dark                      | Light                     |
-| --------------------------- | ------------------------- | ------------------------- |
-| `--color-brand`             | `#e8572a`                 | `#c94b24`                 |
-| `--color-brand-hover`       | `#d14e25`                 | `#b9441f`                 |
-| `--color-brand-strong`      | `#f6874f`                 | `#b9441f`                 |
-| `--color-brand-ink`         | `#17110f`                 | `#ffffff`                 |
-| `--color-brand-tint`        | `rgba(232, 87, 42, 0.1)`  | `rgba(201, 75, 36, 0.08)` |
-| `--color-brand-tint-strong` | `rgba(232, 87, 42, 0.16)` | `rgba(201, 75, 36, 0.14)` |
-| `--color-brand-dim`         | `rgba(232, 87, 42, 0.24)` | `rgba(201, 75, 36, 0.22)` |
-| `--color-brand-glow`        | `rgba(232, 87, 42, 0.05)` | `rgba(201, 75, 36, 0.05)` |
-| `--color-attn`              | `var(--color-brand)`      | `var(--color-brand)`      |
+| Token                       | Dark                       | Light                     |
+| --------------------------- | -------------------------- | ------------------------- |
+| `--color-brand`             | `#1f87fc`                  | `#2448e6`                 |
+| `--color-brand-hover`       | `#3d95ff`                  | `#1f3fcc`                 |
+| `--color-brand-strong`      | `#4a9dff`                  | `#2448e6`                 |
+| `--color-brand-ink`         | `#0a0a0a`                  | `#ffffff`                 |
+| `--color-brand-tint`        | `rgba(31, 135, 252, 0.1)`  | `rgba(36, 72, 230, 0.08)` |
+| `--color-brand-tint-strong` | `rgba(31, 135, 252, 0.16)` | `rgba(36, 72, 230, 0.14)` |
+| `--color-brand-dim`         | `rgba(31, 135, 252, 0.24)` | `rgba(36, 72, 230, 0.22)` |
+| `--color-brand-glow`        | `rgba(31, 135, 252, 0.05)` | `rgba(36, 72, 230, 0.05)` |
+| `--color-brand-volt`        | `#2f5bff`                  | `#2f5bff`                 |
+| `--color-brand-sky`         | `#1f87fc`                  | `#1f87fc`                 |
+| `--color-brand-teal`        | `#1df0d7`                  | `#1df0d7`                 |
+| `--color-brand-cyan`        | `#3df2e0`                  | `#3df2e0`                 |
+| `--color-brand-glint`       | `#b5faf6`                  | `#b5faf6`                 |
+| `--color-brand-deep`        | `#0b31f7`                  | `#0b31f7`                 |
+| `--color-attn`              | `#f5b14c`                  | `#9a5b00`                 |
+| `--color-attn-tint`         | `rgba(245, 177, 76, 0.1)`  | `rgba(154, 91, 0, 0.08)`  |
 
 <!-- END:tokens:brand -->
 
@@ -750,13 +691,28 @@ needs-you (`--color-attn`), not the default action.
 
 | Role        | Token                 | Dark      | Light     | Tint dark                   | Tint light                  |
 | ----------- | --------------------- | --------- | --------- | --------------------------- | --------------------------- |
-| Success     | `--color-success`     | `#34d399` | `#15a06a` | `rgba(52, 211, 153, 0.1)`   | `rgba(21, 160, 106, 0.08)`  |
-| Warning     | `--color-warning`     | `#f5b14c` | `#d98404` | `rgba(245, 177, 76, 0.1)`   | `rgba(217, 132, 4, 0.08)`   |
-| Destructive | `--color-destructive` | `#f87171` | `#dc2626` | `rgba(248, 113, 113, 0.1)`  | `rgba(220, 38, 38, 0.07)`   |
+| Success     | `--color-success`     | `#34d399` | `#0a7650` | `rgba(52, 211, 153, 0.1)`   | `rgba(10, 118, 80, 0.08)`   |
+| Warning     | `--color-warning`     | `#f5b14c` | `#9a5b00` | `rgba(245, 177, 76, 0.1)`   | `rgba(154, 91, 0, 0.08)`    |
+| Destructive | `--color-destructive` | `#f87171` | `#c81e1e` | `rgba(248, 113, 113, 0.1)`  | `rgba(200, 30, 30, 0.07)`   |
 | Info        | `--color-info`        | `#8e8eb5` | `#5f5f94` | `rgba(142, 142, 181, 0.12)` | `rgba(95, 95, 148, 0.1)`    |
 | Neutral     | `--color-neutral`     | `#7a7a80` | `#8a8a90` | `rgba(150, 150, 155, 0.06)` | `rgba(110, 110, 120, 0.07)` |
 
 <!-- END:tokens:signal -->
+
+### Brand gradients
+
+Brand decoration only, never product state. Always 45deg (bottom-left →
+top-right); `--color-brand-deep` never appears in a gradient. Consume through
+`bg-(image:--gradient-brand)`.
+
+<!-- BEGIN:tokens:gradients -->
+
+| Token              | Dark                                                            | Light                                                           |
+| ------------------ | --------------------------------------------------------------- | --------------------------------------------------------------- |
+| `--gradient-brand` | `linear-gradient(45deg, #1f87fc 0%, #1df0d7 60%, #b5faf6 100%)` | `linear-gradient(45deg, #1f87fc 0%, #1df0d7 60%, #b5faf6 100%)` |
+| `--gradient-live`  | `linear-gradient(45deg, #2f5bff, #3df2e0)`                      | `linear-gradient(45deg, #2f5bff, #3df2e0)`                      |
+
+<!-- END:tokens:gradients -->
 
 ### Surface glaze ladder
 
@@ -832,44 +788,46 @@ never a legal color for UI copy.
 
 <!-- BEGIN:tokens:terminal-ansi -->
 
-| Token                  | Dark                        | Light                    |
-| ---------------------- | --------------------------- | ------------------------ |
-| `--terminal-bg`        | `#1a1a1a`                   | `#ffffff`                |
-| `--terminal-fg`        | `#dcdcdc`                   | `#434343`                |
-| `--terminal-cursor`    | `#f5f5f5`                   | `#1a1a1a`                |
-| `--terminal-selection` | `rgba(255, 255, 255, 0.16)` | `rgba(10, 13, 18, 0.12)` |
-| `--terminal-ansi-0`    | `#2b2b2b`                   | `#1a1a1a`                |
-| `--terminal-ansi-1`    | `#f87171`                   | `#dc2626`                |
-| `--terminal-ansi-2`    | `#34d399`                   | `#15a06a`                |
-| `--terminal-ansi-3`    | `#f5b14c`                   | `#b86e00`                |
-| `--terminal-ansi-4`    | `#7d9bc8`                   | `#2f6fd0`                |
-| `--terminal-ansi-5`    | `#b48ec6`                   | `#9a4fb5`                |
-| `--terminal-ansi-6`    | `#6fb5ab`                   | `#178a8a`                |
-| `--terminal-ansi-7`    | `#c9c9c9`                   | `#8a8a8a`                |
-| `--terminal-ansi-8`    | `#737373`                   | `#737373`                |
-| `--terminal-ansi-9`    | `#fa9494`                   | `#b91c1c`                |
-| `--terminal-ansi-10`   | `#6ee7b7`                   | `#0f8a5a`                |
-| `--terminal-ansi-11`   | `#f8c77a`                   | `#a86200`                |
-| `--terminal-ansi-12`   | `#9db9e3`                   | `#1d5bbf`                |
-| `--terminal-ansi-13`   | `#cdaade`                   | `#83399e`                |
-| `--terminal-ansi-14`   | `#8fd0c6`                   | `#0e7373`                |
-| `--terminal-ansi-15`   | `#f5f5f5`                   | `#b0b0b0`                |
+| Token                  | Dark                      | Light                     |
+| ---------------------- | ------------------------- | ------------------------- |
+| `--terminal-bg`        | `#0a0a0a`                 | `#f6f6f6`                 |
+| `--terminal-fg`        | `#ececec`                 | `#0a0a0a`                 |
+| `--terminal-cursor`    | `#3df2e0`                 | `#2448e6`                 |
+| `--terminal-selection` | `rgba(47, 91, 255, 0.32)` | `rgba(36, 72, 230, 0.18)` |
+| `--terminal-ansi-0`    | `#1b1b1b`                 | `#1a1a1a`                 |
+| `--terminal-ansi-1`    | `#f87171`                 | `#c4302b`                 |
+| `--terminal-ansi-2`    | `#34d399`                 | `#0a7650`                 |
+| `--terminal-ansi-3`    | `#f5b14c`                 | `#9a5b00`                 |
+| `--terminal-ansi-4`    | `#5b7fff`                 | `#2448e6`                 |
+| `--terminal-ansi-5`    | `#a78bfa`                 | `#6d4fd8`                 |
+| `--terminal-ansi-6`    | `#3df2e0`                 | `#0a6f86`                 |
+| `--terminal-ansi-7`    | `#c4d1d9`                 | `#3a4852`                 |
+| `--terminal-ansi-8`    | `#5f7382`                 | `#7b8a95`                 |
+| `--terminal-ansi-9`    | `#fa9494`                 | `#a3221e`                 |
+| `--terminal-ansi-10`   | `#6ee7b7`                 | `#0b6e4b`                 |
+| `--terminal-ansi-11`   | `#f8c77a`                 | `#7a4800`                 |
+| `--terminal-ansi-12`   | `#8fa6ff`                 | `#1d3cc4`                 |
+| `--terminal-ansi-13`   | `#c4b5fd`                 | `#5638b8`                 |
+| `--terminal-ansi-14`   | `#b5faf6`                 | `#085a6d`                 |
+| `--terminal-ansi-15`   | `#ffffff`                 | `#0a0a0a`                 |
 
 <!-- END:tokens:terminal-ansi -->
 
 ## 3. Typography and eyebrow contract
 
-Inter Variable (wght) is the runtime typeface. Geist Mono Variable is reserved
+Figtree Variable (wght) is the runtime typeface. Geist Mono Variable is reserved
 for ids, code, paths, the terminal, and fixed-width operational values. The
-site keeps its own families (Geist + JetBrains Mono via `next/font`) and
-binds `--font-display` to Playfair Display for landing (`.site-home`) and docs
+site loads the same families through `next/font` (Figtree, Instrument Sans,
+Geist Mono) and binds `--font-display` to Instrument Sans for landing
+(`.site-home`) and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only — never
 below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
-alias, not a type-ramp utility.
+alias, not a type-ramp utility: it resolves to Instrument Sans Variable 400 at
+`--tracking-display` (−0.025em) for logo/wordmark and site display surfaces.
 
-The body baseline is set once in `tokens-runtime.css`: Inter 425 at
-`--text-body` (13.5px), line height 1.5, `--tracking-body` (−0.01em), and
-Inter's `cv11` (single-storey a). The weight ladder is 425 / 500 / 600
+The body baseline is set once in `tokens-runtime.css`: Figtree 450 at
+`--text-body` (13.5px), line height 1.5, and `--tracking-body` (−0.01em). The
+weight ladder is 450 / 500 / 600
 (`font-normal` / `font-medium` / `font-semibold`; `font-bold` caps at 600) —
 no 620 or 700; KPI and metric values are `font-semibold` with tabular numerals.
 The brand ramp is compact: 11 (micro, caps) · 12 (`text-xs`, eyebrow, kbd) ·
@@ -883,7 +841,7 @@ allowed.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
 primitive with two fixed renditions, both utilities in `tokens-runtime.css`.
-The default is Inter sentence case 12/500/-0.005em (`.eyebrow`). Uppercase is
+The default is Figtree sentence case 12/500/-0.005em (`.eyebrow`). Uppercase is
 opt-in through `<Eyebrow variant="caps">`, which renders the `.eyebrow-caps`
 kicker — 11/600/+0.06em: one size step down, positive tracking, because
 uppercase reads optically ~20% larger and must never take negative tracking.
@@ -892,7 +850,7 @@ Reach for `caps` only where a label is a true typographic kicker. Eyebrow is for
 such as table heads, metadata terms, section labels, and
 breadcrumbs. Metrics, KPI labels, ids, code, and pills are not eyebrows just
 because they are small. Docs-shell labels are the exception: they keep the
-`<Eyebrow>` wrapper but speak JetBrains Mono via `--text-badge` (section /
+`<Eyebrow>` wrapper but speak Geist Mono via `--text-badge` (section /
 crumbs) or `--text-group-label` (in-folder groups) — not marketing
 `--text-eyebrow`.
 
@@ -902,11 +860,11 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 | Token                    | Value                                                                                                                                      |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--font-sans`            | `var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif`                                     |
+| `--font-sans`            | `var(--user-font-sans), "Figtree Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif`                                   |
 | `--font-mono`            | `var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace` |
-| `--font-display`         | `var(--font-sans)`                                                                                                                         |
-| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif`                                                            |
-| `--font-weight-normal`   | `425`                                                                                                                                      |
+| `--font-display`         | `"Instrument Sans Variable", "Instrument Sans", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif`                               |
+| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Figtree Variable", sans-serif`                                                          |
+| `--font-weight-normal`   | `450`                                                                                                                                      |
 | `--font-weight-medium`   | `500`                                                                                                                                      |
 | `--font-weight-semibold` | `600`                                                                                                                                      |
 | `--font-weight-bold`     | `600`                                                                                                                                      |
@@ -928,7 +886,7 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--text-eyebrow`            | `0.75rem`    | `1rem`      | `-0.005em` |
 | `--text-eyebrow-caps`       | `0.6875rem`  | `1rem`      | `0.06em`   |
 | `--text-kbd`                | `0.75rem`    | `1rem`      | `0.03em`   |
-| `--text-kbd--font-weight`   | `425`        |             |            |
+| `--text-kbd--font-weight`   | `450`        |             |            |
 | `--text-display-2xl`        | `1.5rem`     | `1.25`      |            |
 | `--text-site-lead`          | `1.1875rem`  | `1.5`       |            |
 | `--text-micro`              | `0.6875rem`  | `0.75rem`   |            |
@@ -980,7 +938,7 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--tracking-redacted`     | `0.35em`   | `--tracking-kbd`          | `0.03em`   |
 | `--tracking-body`         | `-0.01em`  | `--tracking-row-title`    | `-0.01em`  |
 | `--tracking-prose-h1`     | `-0.015em` | `--tracking-prose-h2`     | `-0.015em` |
-| `--tracking-prose-h3`     | `-0.01em`  |                           |            |
+| `--tracking-prose-h3`     | `-0.01em`  | `--tracking-display`      | `-0.025em` |
 
 <!-- END:tokens:tracking-ladder -->
 
@@ -991,7 +949,7 @@ The runtime shell is a desktop with flat chrome on `--color-rail`:
 - A full-width topbar (`--height-menubar`, 52px). Its first
   `--width-traffic-lights` (84px) are reserved for the frameless window's macOS
   controls; the mark, the menus, and the tray follow. The tray carries the
-  pager dots (the active desktop is a pill; an orange dot marks an off-screen
+  pager dots (the active desktop is a pill; an amber dot marks an off-screen
   desktop that needs you) and the All desktops button that opens the overview.
 - A left rail (`--width-rail`, 60px; items `--size-rail-item`, 40px) that is
   the dock: app launchers in dock order without dividers, a running dot per
@@ -1032,10 +990,10 @@ widths come from `--site-*` tokens.
 
 | Token                | Value  | Token                 | Value    |
 | -------------------- | ------ | --------------------- | -------- |
-| `--radius`           | `8px`  | `--radius-xxs`        | `3px`    |
-| `--radius-xs`        | `6px`  | `--radius-sm`         | `7px`    |
-| `--radius-md`        | `8px`  | `--radius-lg`         | `12px`   |
-| `--radius-xl`        | `18px` | `--radius-pill`       | `9999px` |
+| `--radius`           | `10px` | `--radius-xxs`        | `4px`    |
+| `--radius-xs`        | `6px`  | `--radius-sm`         | `6px`    |
+| `--radius-md`        | `10px` | `--radius-lg`         | `14px`   |
+| `--radius-xl`        | `20px` | `--radius-pill`       | `9999px` |
 | `--radius-chip`      | `7px`  | `--radius-mono-badge` | `4px`    |
 | `--radius-icon-well` | `7px`  | `--radius-deck-tab`   | `9px`    |
 
@@ -1142,8 +1100,8 @@ and the marketing site keeps its hero mock's window radius and shadow in its own
 | `--shadow-pop`               | `0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a` |
 | `--shadow-overlay`           | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line)`                                              | `0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line)`                                                   |
 | `--shadow-highlight`         | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                        | `inset 0 1px 0 rgba(255, 255, 255, 0.7)`                                                                                  |
-| `--shadow-focus-ring`        | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                              | `0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                         |
-| `--shadow-focus-inset`       | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                        | `inset 0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                   |
+| `--shadow-focus-ring`        | `0 0 0 2px rgba(61, 242, 224, 1)`                                                                                 | `0 0 0 2px rgba(10, 111, 134, 1)`                                                                                         |
+| `--shadow-focus-inset`       | `inset 0 0 0 2px rgba(61, 242, 224, 1)`                                                                           | `inset 0 0 0 2px rgba(10, 111, 134, 1)`                                                                                   |
 | `--shadow-hairline`          | `0 0 0 1px var(--color-line-soft)`                                                                                | `0 0 0 1px var(--color-line-soft)`                                                                                        |
 | `--shadow-hairline-inset`    | `inset 0 0 0 1px var(--color-line-soft)`                                                                          | `inset 0 0 0 1px var(--color-line-soft)`                                                                                  |
 | `--shadow-inset-strong`      | `inset 0 0 0 1px var(--color-line-strong)`                                                                        | `inset 0 0 0 1px var(--color-line-strong)`                                                                                |
@@ -1272,7 +1230,8 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   the normal action; `ghost` / `quiet` are icon buttons and low-emphasis
   actions; text links ("Edit ›", "View all ›") are `link` or `quiet` at `sm`,
   `muted-foreground` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
-  the `surface-2` plate, never a ring. New callsites should not use outline as
+  the `surface-2` plate, never a ring; a pressed `quiet` icon toggle (window and
+  session head toggles) is its glyph in `brand` ink with no plate. New callsites should not use outline as
   the default secondary choice.
 - `<Pill>`: compact status/category chip. Neutral pills are tint-only.
   Status indicators ("Idle", "Running") use `form="plain"` — dot + 12px
@@ -1377,10 +1336,10 @@ is listed.
 shadow vocabulary. It extends the system with site-only font binding,
 responsive type clamps, layout widths, doc body classes, and bento overlays.
 
-Playfair Display is allowed on the site for landing display roles and docs
+Instrument Sans (`--font-display`) is allowed on the site for landing display roles and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only. Runtime
 UI, shared UI primitives, blog bodies, changelog bodies, marketplace catalog
-chrome, and all other docs chrome (sidebar, TOC, actions, `h3`+) stay on Geist.
+chrome, and all other docs chrome (sidebar, TOC, actions, `h3`+) stay on Figtree.
 Docs mono labels bind `--text-badge` / `--text-group-label`, not
 `--text-eyebrow`.
 
@@ -1388,28 +1347,16 @@ Outside the two docs roles above, a heading declares its own face with the
 `font-display` utility — always paired with `font-normal` and a site clamp
 token. No element selector may assign a face to a bare `h1`/`h2`: a blanket
 rule outranks the utility and silently overrides every heading that asked for
-Geist.
+Figtree.
 
 ### Site typography clamps
 
 <!-- BEGIN:tokens:site-clamps -->
 
-| Token                                     | Value                           | Token                                        | Value                            | Token                                | Value                           |
-| ----------------------------------------- | ------------------------------- | -------------------------------------------- | -------------------------------- | ------------------------------------ | ------------------------------- |
-| `--text-site-hero`                        | `clamp(2.6rem, 5vw, 4.5rem)`    | `--text-site-error-title`                    | `clamp(2.6rem, 6vw, 4.8rem)`     | `--text-site-hero-section`           | `clamp(2.6rem, 5.5vw, 4.2rem)`  |
-| `--text-site-blog-title`                  | `clamp(2.6rem, 5.4vw, 4.6rem)`  | `--text-site-doc-title`                      | `clamp(2.4rem, 4vw, 3.4rem)`     | `--text-site-doc-lead`               | `1.125rem`                      |
-| `--text-site-doc-lead--line-height`       | `1.65`                          | `--text-site-doc-prose`                      | `1rem`                           | `--text-site-doc-prose--line-height` | `var(--leading-doc-body)`       |
-| `--text-site-doc-prose-compact`           | `0.95rem`                       | `--text-site-doc-prose-compact--line-height` | `1.75`                           | `--text-site-doc-subheading`         | `1.25rem`                       |
-| `--text-site-doc-subheading--line-height` | `1.25`                          | `--text-site-api-body`                       | `0.9375rem`                      | `--text-site-api-body--line-height`  | `1.65`                          |
-| `--text-site-api-heading`                 | `1.625rem`                      | `--text-site-api-heading--line-height`       | `1.15`                           | `--text-site-api-subheading`         | `1.125rem`                      |
-| `--text-site-api-code`                    | `0.8125rem`                     | `--text-site-protocol-title`                 | `clamp(2.4rem, 5vw, 3.8rem)`     | `--text-site-page-title`             | `clamp(2.4rem, 4.4vw, 4rem)`    |
-| `--text-site-article-title`               | `clamp(2.4rem, 4.4vw, 3.6rem)`  | `--text-site-section-title`                  | `clamp(2.2rem, 4.6vw, 3.6rem)`   | `--text-site-category-title`         | `clamp(2.2rem, 4vw, 3.4rem)`    |
-| `--text-site-cta-title`                   | `clamp(2rem, 4.5vw, 3.2rem)`    | `--text-site-feature-title`                  | `clamp(2rem, 3.4vw, 2.8rem)`     | `--text-site-subsection-title`       | `clamp(1.9rem, 3.4vw, 2.6rem)`  |
-| `--text-site-doc-heading`                 | `clamp(1.6rem, 2.6vw, 2.15rem)` | `--text-group-label`                         | `0.625rem`                       | `--text-group-label--line-height`    | `0.75rem`                       |
-| `--text-site-release-title`               | `clamp(1.6rem, 3vw, 2.1rem)`    | `--text-site-empty-title`                    | `clamp(1.55rem, 3vw, 2rem)`      | `--text-site-quote`                  | `clamp(1.5rem, 2.4vw, 1.95rem)` |
-| `--text-site-card-title`                  | `clamp(1.45rem, 3vw, 1.9rem)`   | `--text-site-subheading`                     | `clamp(1.25rem, 1.7vw, 1.45rem)` | `--text-site-bento-2xl`              | `2.5rem`                        |
-| `--text-site-bento-xl`                    | `2.35rem`                       | `--text-site-bento-lg`                       | `2rem`                           | `--text-site-bento-md`               | `1.9rem`                        |
-| `--text-site-bento-sm`                    | `1.8rem`                        | `--text-site-bento-xs`                       | `1.65rem`                        | `--leading-doc-body`                 | `1.8`                           |
+| Token                             | Value      |
+| --------------------------------- | ---------- |
+| `--text-group-label`              | `0.625rem` |
+| `--text-group-label--line-height` | `0.75rem`  |
 
 <!-- END:tokens:site-clamps -->
 
@@ -1417,37 +1364,23 @@ Geist.
 
 <!-- BEGIN:tokens:site-layout -->
 
-| Token                                       | Value                                                                                                                                                               | Token                                    | Value                                                                                                                                                               | Token                                     | Value                                                       |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- |
-| `--site-layout-width`                       | `1200px`                                                                                                                                                            | `--site-doc-layout-width`                | `96rem`                                                                                                                                                             | `--site-doc-sidebar-width`                | `16rem`                                                     |
-| `--site-doc-toc-width`                      | `14rem`                                                                                                                                                             | `--site-doc-sidebar-marker-offset`       | `0.75rem`                                                                                                                                                           | `--site-doc-sidebar-marker-inset`         | `0.375rem`                                                  |
-| `--site-doc-sidebar-nested-marker-offset`   | `0.6875rem`                                                                                                                                                         | `--site-doc-sidebar-tree-indent`         | `0.875rem`                                                                                                                                                          | `--site-doc-sidebar-tree-gutter`          | `0.625rem`                                                  |
-| `--site-doc-sidebar-tree-line-inset`        | `0.25rem`                                                                                                                                                           | `--site-doc-sidebar-first-group-gap`     | `0.375rem`                                                                                                                                                          | `--site-doc-toc-gutter`                   | `1rem`                                                      |
-| `--site-doc-index-label-width`              | `11.875rem`                                                                                                                                                         | `--site-doc-hairline`                    | `1px`                                                                                                                                                               | `--site-doc-sidebar-section-label-offset` | `1.625rem`                                                  |
-| `--site-doc-sidebar-section-label-tracking` | `0.09em`                                                                                                                                                            | `--site-doc-sidebar-section-label-color` | `color-mix( in srgb, var(--color-brand) 65%, var(--color-muted-foreground) )`                                                                                       | `--site-doc-sidebar-group-gap`            | `0.4375rem`                                                 |
-| `--site-doc-sidebar-group-label-tracking`   | `0.08em`                                                                                                                                                            | `--site-doc-sidebar-group-label-color`   | `color-mix(in srgb, var(--color-subtle) 72%, transparent)`                                                                                                          | `--site-doc-masthead-context-gap`         | `1rem`                                                      |
-| `--site-doc-masthead-context-height`        | `1.75rem`                                                                                                                                                           | `--site-doc-masthead-crumb-gap`          | `0.5rem`                                                                                                                                                            | `--site-doc-masthead-crumb-tracking`      | `0.08em`                                                    |
-| `--site-doc-masthead-crumb-rule-width`      | `0.875rem`                                                                                                                                                          | `--site-doc-masthead-action-gap`         | `0.375rem`                                                                                                                                                          | `--site-doc-masthead-title-offset`        | `1.125rem`                                                  |
-| `--site-doc-masthead-title-leading`         | `1.02`                                                                                                                                                              | `--site-doc-masthead-title-tracking`     | `-0.02em`                                                                                                                                                           | `--site-doc-masthead-lead-offset`         | `1rem`                                                      |
-| `--site-doc-masthead-lead-width`            | `64ch`                                                                                                                                                              | `--site-doc-masthead-meta-gap`           | `1.25rem`                                                                                                                                                           | `--site-doc-masthead-meta-offset`         | `1.5rem`                                                    |
-| `--site-doc-masthead-meta-rule-gap`         | `0.875rem`                                                                                                                                                          | `--site-doc-inline-gap`                  | `0.4375rem`                                                                                                                                                         | `--site-doc-meta-icon-opacity`            | `0.7`                                                       |
-| `--site-doc-action-padding-inline`          | `0.625rem`                                                                                                                                                          | `--site-doc-action-success-border`       | `color-mix(in srgb, var(--color-success) 35%, transparent)`                                                                                                         | `--site-doc-action-success-background`    | `color-mix(in srgb, var(--color-success) 10%, transparent)` |
-| `--site-doc-section-offset`                 | `4rem`                                                                                                                                                              | `--site-doc-section-rule-gap`            | `1rem`                                                                                                                                                              | `--site-doc-section-leading`              | `1.1`                                                       |
-| `--site-doc-subsection-offset`              | `2.25rem`                                                                                                                                                           | `--site-doc-prose-width`                 | `72ch`                                                                                                                                                              | `--site-doc-list-indent`                  | `1.3rem`                                                    |
-| `--site-doc-code-padding-inline`            | `0.38rem`                                                                                                                                                           | `--site-doc-code-padding-block`          | `0.12rem`                                                                                                                                                           | `--site-doc-link-underline-offset`        | `0.24em`                                                    |
-| `--site-doc-section-offset-compact`         | `3.25rem`                                                                                                                                                           | `--site-api-content-width`               | `90rem`                                                                                                                                                             | `--site-api-operation-separation`         | `3rem`                                                      |
-| `--site-api-column-gap`                     | `2rem`                                                                                                                                                              | `--site-api-column-gap-medium`           | `2.5rem`                                                                                                                                                            | `--site-api-column-gap-wide`              | `3.5rem`                                                    |
-| `--site-api-sticky-row-fallback`            | `2rem`                                                                                                                                                              | `--site-api-sticky-offset`               | `1rem`                                                                                                                                                              | `--site-api-example-width`                | `22rem`                                                     |
-| `--site-api-example-width-wide`             | `26rem`                                                                                                                                                             | `--site-api-content-gap`                 | `1.25rem`                                                                                                                                                           | `--site-api-heading-content-gap`          | `0.875rem`                                                  |
-| `--site-api-subheading-offset`              | `2.5rem`                                                                                                                                                            | `--site-api-schema-min-width`            | `18rem`                                                                                                                                                             | `--site-diagram-node-stroke-width`        | `1.4px`                                                     |
-| `--site-bento-overlay-runtime`              | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )` | `--site-bento-overlay-extensibility`     | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )` |                                           |                                                             |
+| Token              | Value                      | Token              | Value                     | Token              | Value                     |
+| ------------------ | -------------------------- | ------------------ | ------------------------- | ------------------ | ------------------------- |
+| `--site-light-025` | `rgb(255 255 255 / 0.025)` | `--site-light-030` | `rgb(255 255 255 / 0.03)` | `--site-light-040` | `rgb(255 255 255 / 0.04)` |
+| `--site-light-050` | `rgb(255 255 255 / 0.05)`  | `--site-light-060` | `rgb(255 255 255 / 0.06)` | `--site-light-070` | `rgb(255 255 255 / 0.07)` |
+| `--site-light-080` | `rgb(255 255 255 / 0.08)`  | `--site-light-090` | `rgb(255 255 255 / 0.09)` | `--site-light-100` | `rgb(255 255 255 / 0.1)`  |
+| `--site-light-120` | `rgb(255 255 255 / 0.12)`  | `--site-light-150` | `rgb(255 255 255 / 0.15)` | `--site-light-200` | `rgb(255 255 255 / 0.2)`  |
+| `--site-light-250` | `rgb(255 255 255 / 0.25)`  | `--site-light-350` | `rgb(255 255 255 / 0.35)` | `--site-dark-030`  | `rgb(0 0 0 / 0.03)`       |
+| `--site-dark-100`  | `rgb(0 0 0 / 0.1)`         | `--site-dark-150`  | `rgb(0 0 0 / 0.15)`       | `--site-dark-400`  | `rgb(0 0 0 / 0.4)`        |
+| `--site-dark-450`  | `rgb(0 0 0 / 0.45)`        | `--site-dark-550`  | `rgb(0 0 0 / 0.55)`       | `--site-dark-600`  | `rgb(0 0 0 / 0.6)`        |
+| `--site-dark-700`  | `rgb(0 0 0 / 0.7)`         | `--site-spot-teal` | `rgb(29 240 215 / 0.14)`  |                    |                           |
 
 <!-- END:tokens:site-layout -->
 
 Site classes are intentionally narrow:
 
 - `.site-home` gates landing layout width and canvas, never typography.
-- `.site-doc-masthead__title` and `.site-doc-body h2` are the docs Playfair roles.
+- `.site-doc-masthead__title` and `.site-doc-body h2` are the docs display roles.
 - `.site-doc-body` owns docs prose rhythm and MDX article width.
 - `.site-bento-overlay-*` fades illustration assets into the dark ramp.
 - `.compozy-mermaid` owns Mermaid diagram theming for docs.

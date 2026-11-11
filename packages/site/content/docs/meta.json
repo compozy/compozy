@@ -13,6 +13,7 @@
         "---Core concepts---",
         "sessions",
         "terminal",
+        "files",
         "agents",
         "autonomy",
         "workspaces",
@@ -37,6 +38,7 @@
         "configuration",
         "---Reference---",
         "cli",
-        "api"
+        "api",
+        "sdk"
     ]
 }

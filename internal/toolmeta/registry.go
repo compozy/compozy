@@ -1,6 +1,9 @@
 package toolmeta
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // HostedServerName is the MCP server name Compozy injects into every ACP
 // session for its hosted native tools.
@@ -26,4 +29,14 @@ func NormalizeHostedToolName(name string) string {
 		}
 	}
 	return name
+}
+
+// NativeToolIDs lists every native tool ID in sorted order.
+func NativeToolIDs() []string {
+	ids := make([]string, 0, len(nativeEntries))
+	for id := range nativeEntries {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }

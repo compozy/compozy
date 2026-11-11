@@ -122,3 +122,17 @@ PR #1161 backend review regressions:
 - Link and unlink a child's work while parent and grandparent catalogs are subscribed. Both receive scoped upserts immediately. Foreign workspace/profile ancestry receives none; a cycle cannot repeat publication. Automated owner: `TestSessionCatalogBroadcaster/Should wake every scoped ancestor on link and unlink`.
 
 These regressions pass in focused backend suites. The browser/provider walk is not repeated by this backend remediation task.
+
+Statistics-free family traversal regression:
+
+- Use a temporary migrated database with 840 sessions in 120 parent/child trees and no
+  `sqlite_stat1`. Recreate an existing profile/workspace catalog index with its unchanged
+  definition to exercise upgrade-dependent index ordering. The recursive family step must
+  seek `idx_sessions_parent`, return all seven members per root, and preserve scope/lineage
+  fences. Compare five samples of `BenchmarkSessionWorkFamily` before and after the fix.
+- The active catalog continues to send all roots in one family batch. Verify the existing
+  `TestSessionLinkedWorkProjection` batch case and `TestManagerBoardCatalog` real-SQLite cases.
+  Session list, facets and attention consumers retain their response shapes and board rules.
+- Verify `TestStoreSQLiteHelpers`: background maintenance creates missing index statistics,
+  yields to an occupied writer, honors cancellation, and keeps checkpoint/shutdown behavior.
+  These are storage/read-model checks; they do not claim a browser or live-provider walk.

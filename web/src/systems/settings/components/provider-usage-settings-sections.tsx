@@ -124,15 +124,25 @@ export function ProviderUsageProvidersSection({
             </span>
           }
           control={
-            <Switch
-              aria-label={`Collect ${provider.name} usage`}
-              checked={providerUsageProviderEnabled(draft, provider.id)}
-              data-testid={`settings-provider-usage-provider-${provider.id}`}
-              disabled={disabled}
-              onCheckedChange={enabled =>
-                onChange(withProviderUsageProviderEnabled(draft, provider.id, enabled))
-              }
-            />
+            provider.disabled ? (
+              // The stored opt-in stays as it is; it applies again once the provider is back on.
+              <span
+                className="text-small-body text-muted-foreground"
+                data-testid={`settings-provider-usage-provider-${provider.id}-disabled`}
+              >
+                Provider disabled
+              </span>
+            ) : (
+              <Switch
+                aria-label={`Collect ${provider.name} usage`}
+                checked={providerUsageProviderEnabled(draft, provider.id)}
+                data-testid={`settings-provider-usage-provider-${provider.id}`}
+                disabled={disabled}
+                onCheckedChange={enabled =>
+                  onChange(withProviderUsageProviderEnabled(draft, provider.id, enabled))
+                }
+              />
+            )
           }
         />
       ))}

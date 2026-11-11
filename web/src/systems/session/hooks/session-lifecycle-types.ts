@@ -5,6 +5,8 @@ import type { SessionPayload } from "../types";
 import type { SessionLaterConfirmation } from "./use-session-later-actions";
 
 export type SessionLifecycleAction =
+  | "mark-seen"
+  | "make-top-level"
   | "rename"
   | "stop"
   | "archive"
@@ -23,7 +25,8 @@ export interface SessionProcessChoice {
 
 export interface SessionLifecycleActionHandlers {
   pendingAction: SessionLifecycleAction | null;
-  pendingSessionId: string | null;
+  /** Every session a pending action is working on; a parallel batch lists each running target. */
+  pendingSessionIds: readonly string[];
   onStop: (session: SessionPayload) => void;
   onRename: (session: SessionPayload) => void;
   onArchive: (session: SessionPayload) => void;
@@ -39,6 +42,8 @@ export interface SessionLifecycleActionHandlers {
   onBackFromLaterMany?: (sessions: readonly SessionPayload[]) => void;
   /** Clears a dismissible Needs you; absent where the host offers no Mark as seen. */
   onMarkSeen?: (session: SessionPayload) => void;
+  onMarkSeenMany?: (sessions: readonly SessionPayload[]) => void;
+  onMakeTopLevelMany?: (sessions: readonly SessionPayload[]) => void;
   onDeleteMany?: (
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void

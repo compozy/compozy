@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -8,9 +8,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 
-import { fetchAgentInstanceCheckIns } from "../../adapters/agent-instance-api";
+import {
+  fetchAgentInstanceCheckIns,
+  fetchAgentInstanceProjectedReports,
+} from "../../adapters/agent-instance-api";
 import { useTryCheck } from "../use-agent-instance-checks";
 import { agentKeys } from "../../lib/query-keys";
+import { agentInstancesOptions } from "../../lib/query-options";
 import { agentPayloadFixture, teamItemFixture } from "../../mocks/team-fixtures";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import {
@@ -20,6 +24,7 @@ import {
   useAgentInstances,
   useAgentDefinitionInstances,
   useResumeAgentInstances,
+  useMarkAgentInstanceSeen,
 } from "../use-agent-instances";
 
 const server = setupServer(...profileHandlers);
@@ -96,6 +101,56 @@ describe("instance routes and the selected profile", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
+
+  // Invariant: acknowledgement refreshes server attention in the owning profile; failures propagate.
+  // Owner: instance mutation hooks; canonical HTTP boundary suite.
+  it("Should refresh attention after marking seen in the instance profile", async () => {
+    let attention = true;
+    const profiles: string[] = [];
+    server.use(
+      http.get("*/api/agent-instances", () =>
+        HttpResponse.json({
+          instances: [agentInstanceFixture({ id: "seen", needs_attention: attention })],
+          next_cursor: "",
+          max_active_instances: 10,
+          active_count: 1,
+        })
+      ),
+      http.post("*/api/agent-instances/:id/away", ({ request }) => {
+        profiles.push(new URL(request.url).searchParams.get("profile") ?? "");
+        attention = false;
+        return HttpResponse.json({ last_seen_at: "2026-11-08T00:00:00Z" });
+      })
+    );
+    const { result } = renderHook(
+      () => ({
+        instances: useQuery(agentInstancesOptions("work", ["work"])).data?.instances ?? [],
+        seen: useMarkAgentInstanceSeen(),
+      }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.instances[0]?.needs_attention).toBe(true));
+    await act(async () => {
+      await result.current.seen.mutateAsync(result.current.instances[0]!);
+    });
+    expect(result.current.instances[0]?.needs_attention).toBe(false);
+    expect(profiles).toEqual(["work"]);
+  });
+
+  it("Should reject an explicit acknowledgement when the instance disappeared", async () => {
+    server.use(
+      http.post("*/api/agent-instances/:id/away", () =>
+        HttpResponse.json({ error: "Instance no longer exists" }, { status: 404 })
+      )
+    );
+    const { result } = renderHook(() => useMarkAgentInstanceSeen(), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync(agentInstanceFixture())).rejects.toThrow(
+        "Instance no longer exists"
+      );
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
 
   // Invariant: a late check response cannot replace a newer request or another instance.
   // Owner and canonical suite: agent instance interaction hooks, HTTP I/O boundary.
@@ -323,4 +378,37 @@ describe("fetchAgentInstanceCheckIns", () => {
     expect(result.check_ins).toHaveLength(250);
     expect(result.check_ins[249]?.id).toBe("c249");
   });
+});
+
+describe("fetchAgentInstanceProjectedReports", () => {
+  it.each(["complete", "cap", "failure"])(
+    "Should preserve cursor order and stop on %s",
+    async mode => {
+      const cursors: string[] = [];
+      server.use(
+        http.get("*/api/agent-instances/:id/reports", ({ request }) => {
+          const cursor = new URL(request.url).searchParams.get("cursor") ?? "0";
+          cursors.push(cursor);
+          const page = Number(cursor);
+          if (mode === "failure" && page === 1) return new HttpResponse(null, { status: 500 });
+          return HttpResponse.json({
+            reports: [{ id: `report-${page}` }],
+            next_cursor: mode === "complete" && page === 2 ? "" : String(page + 1),
+          });
+        })
+      );
+      const read = fetchAgentInstanceProjectedReports({ id: "a", profile_name: "default" });
+      if (mode === "failure") {
+        await expect(read).rejects.toThrow();
+        expect(cursors).toEqual(["0", "1"]);
+      } else {
+        const reports = await read;
+        const count = mode === "cap" ? 10 : 3;
+        expect(cursors).toEqual(Array.from({ length: count }, (_, index) => String(index)));
+        expect(reports.map(report => report.id)).toEqual(
+          Array.from({ length: count }, (_, index) => `report-${index}`)
+        );
+      }
+    }
+  );
 });

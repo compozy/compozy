@@ -117,7 +117,7 @@ export interface SessionLinkedWorkStatusProps extends SessionLinkedWorkListProps
   /** Delivery actions: they act on the session's own branch, so only its chip carries them. */
   ownChip: Pick<
     SessionPullRequestChipProps,
-    "exitPlan" | "exitRunning" | "onExitAction" | "onRefresh" | "refreshing"
+    "exitPlan" | "exitRunning" | "onExitAction" | "onRefresh" | "refreshing" | "onReviewChanges"
   >;
   /** Opens the worktree a linked item lives in, when this client can show it. */
   worktreeAction?: (item: SessionLinkedWorkItem) => (() => void) | undefined;
@@ -197,7 +197,7 @@ function SessionLinkedWorkCount({
     >
       <Icon as={GitPullRequest} size="sm" />
       {label}
-      {attention ? <Pill.Dot size="sm" tone="brand" /> : null}
+      {attention ? <Pill.Dot size="sm" tone="attn" /> : null}
     </SessionLinkedWorkPopover>
   );
 }

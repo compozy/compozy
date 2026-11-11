@@ -72,10 +72,12 @@ type AgentProcess struct {
 
 	permissionDenials *PermissionDenials
 	reviewerMode      string
-	providerName      string
-	providerAuthMode  compozyconfig.ProviderAuthMode
-	providerFailureMu sync.Mutex
-	providerFailures  map[string]ProviderErrorDiagnostic
+	// Set during startup and immutable after Start returns.
+	unadvertisedStartupMode string
+	providerName            string
+	providerAuthMode        compozyconfig.ProviderAuthMode
+	providerFailureMu       sync.Mutex
+	providerFailures        map[string]ProviderErrorDiagnostic
 
 	logger       *slog.Logger
 	compactionMu sync.Mutex
@@ -97,6 +99,7 @@ type AgentProcess struct {
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
 	permissionEventHandler func(AgentEvent, bool)
+	elicitationAsker       ElicitationAsker
 	hostedApprovals        hostedApprovals
 	hostedAnnounced        hostedAnnouncements
 	compozySessionID       string

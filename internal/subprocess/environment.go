@@ -17,7 +17,7 @@ func LookupEnv(env []string, key string) (string, bool) {
 
 // LookupEnvFunc snapshots env and returns a platform-aware lookup closure.
 func LookupEnvFunc(env []string) func(string) (string, bool) {
-	snapshot := append([]string(nil), env...)
+	snapshot := slices.Clone(env)
 	return func(key string) (string, bool) {
 		return LookupEnv(snapshot, key)
 	}
@@ -31,7 +31,7 @@ func SetEnvValue(env []string, key string, value string) []string {
 func setEnvValueForPlatform(env []string, key string, value string, caseInsensitive bool) []string {
 	trimmedKey := strings.TrimSpace(key)
 	if trimmedKey == "" || strings.Contains(trimmedKey, "=") {
-		return append([]string(nil), env...)
+		return slices.Clone(env)
 	}
 	result := make([]string, 0, len(env)+1)
 	for _, entry := range env {

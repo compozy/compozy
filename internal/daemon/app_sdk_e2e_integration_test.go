@@ -417,7 +417,8 @@ func appSDKRunQuickstart(t *testing.T, root string, harness *e2etest.RuntimeHarn
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, remaining, found := strings.Cut(string(page), "```js\n")
+	// The tutorial titles the program with the file name this test writes it to.
+	_, remaining, found := strings.Cut(string(page), "```js title=\"run.mjs\"\n")
 	script, _, closed := strings.Cut(remaining, "\n```")
 	if !found || !closed {
 		t.Fatal("published quickstart has no complete JavaScript program")

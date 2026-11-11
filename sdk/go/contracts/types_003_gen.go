@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type AgentSpawnedPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type AgentSpawnedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -203,9 +207,4 @@ type AutomationJobsParams struct {
 	Query       string `json:"q,omitempty"`
 	Cursor      string `json:"cursor,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
-}
-
-type AutomationJobsResult struct {
-	Jobs []Job                    `json:"jobs"`
-	Page CountedCursorPagePayload `json:"page"`
 }

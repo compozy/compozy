@@ -21,6 +21,11 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	AfterSeen           func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
+	PickActions         func(context.Context, string) ([]agentinstance.ActionSnapshot, error)
+	ProjectReport       func(context.Context, string, *agentinstance.Report) error
+	QueueCap            int
+	AfterPicks          func(context.Context, string, []agentinstance.Pick) error
 	SourceExtensions    source.ExtensionPoller
 	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
 	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)

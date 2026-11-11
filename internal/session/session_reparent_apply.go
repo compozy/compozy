@@ -293,7 +293,7 @@ func (m *Manager) writeReparentLineage(change *reparentChange, now time.Time) (f
 // canceled stop it was. Releases through v0.4.7 recorded a stop that interrupted
 // a launch (for example the spawn reaper canceling a resumed child) as a process
 // failure, which marks the runtime dead and refuses every resume. Take-over is the
-// recovery path for those sessions. Remove in v0.6.0.
+// recovery path for those sessions. Remove in v0.6.1.
 func recoverStopCanceledStartFailure(failure *store.SessionFailure) *store.SessionFailure {
 	if failure == nil || failure.Kind != store.FailureProcess ||
 		!strings.HasPrefix(strings.TrimSpace(failure.Summary), errStartupCanceledByStop.Error()+" for ") {

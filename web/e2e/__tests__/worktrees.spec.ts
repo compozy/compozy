@@ -71,9 +71,18 @@ interface WorktreeRecord {
   origin: string;
 }
 
-async function listWorktrees(runtime: BrowserRuntime, workspaceId: string, refresh = false) {
+async function listWorktrees(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  refresh = false,
+  includeRemoved = false
+) {
+  const query = new URLSearchParams({
+    refresh: String(refresh),
+    include_removed: String(includeRemoved),
+  });
   return runtime.requestJSON<{ worktrees: WorktreeRecord[]; discovered: Array<{ path: string }> }>(
-    `/api/workspaces/${workspaceId}/worktrees${refresh ? "?refresh=true" : ""}`
+    `/api/workspaces/${workspaceId}/worktrees?${query}`
   );
 }
 
@@ -400,7 +409,7 @@ test("operator must pass the force doorway before a dirty worktree is removed", 
   await expect
     .poll(
       async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
+        const listing = await listWorktrees(runtime, workspace.id, true, true);
         return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
       },
       { timeout: 30_000 }
@@ -941,7 +950,7 @@ test("operator reads cleanup evidence before removing a finished worktree", asyn
   await expect
     .poll(
       async () => {
-        const listing = await listWorktrees(runtime, workspace.id, true);
+        const listing = await listWorktrees(runtime, workspace.id, true, true);
         return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
       },
       { timeout: 30_000 }
@@ -1058,7 +1067,7 @@ for (const surface of ["menubar", "overview"] as const) {
     await dialog.getByRole("button", { name: "Remove 4 worktrees", exact: true }).click();
     await expect(dialog.getByRole("status")).toContainText("3 of 4 done · 1 failed");
     await appPage.screenshot({ path: testInfo.outputPath(`${surface}-partial-result.png`) });
-    const partial = await listWorktrees(runtime, workspace.id, true);
+    const partial = await listWorktrees(runtime, workspace.id, true, true);
     expect(partial.worktrees.find(row => row.id === clean.id)?.state).toBe("removed");
     expect(partial.worktrees.find(row => row.id === dirty.id)?.state).toBe("ready");
     expect(partial.worktrees.some(row => row.id === missing.id)).toBe(false);
@@ -1068,7 +1077,7 @@ for (const surface of ["menubar", "overview"] as const) {
     await expect(dialog.getByRole("status")).toContainText("4 of 4 done");
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    const final = await listWorktrees(runtime, workspace.id, true);
+    const final = await listWorktrees(runtime, workspace.id, true, true);
     expect(final.worktrees.find(row => row.id === dirty.id)?.state).toBe("removed");
     expect(final.worktrees.some(row => row.id === missing.id)).toBe(false);
     expect(final.discovered.some(row => row.path.endsWith("external-work"))).toBe(false);

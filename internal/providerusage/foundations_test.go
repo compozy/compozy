@@ -14,6 +14,10 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+type fixtureTransport func(*http.Request) (*http.Response, error)
+
+func (f fixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 func credentialFile(t *testing.T, name, content string) string {
 	t.Helper()
 	home := t.TempDir()

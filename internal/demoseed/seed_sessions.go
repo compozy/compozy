@@ -69,18 +69,20 @@ func writeSessionRecords(
 ) error {
 	stopReason := store.StopReason(story.stopReason())
 	lineage := sessionLineage(story)
-	stopDetail := story.StopDetail
+	stopDetail := persistedStopDetail(story)
 	meta := store.SessionMeta{
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
-		ProfileID:   store.DefaultProfileID,
-		Model:       story.Model,
-		WorkspaceID: record.ID,
-		SessionType: story.SessionType, State: string(session.StateStopped),
+		ProfileID:       store.DefaultProfileID,
+		Model:           story.Model,
+		ReasoningEffort: sessionEffort(story),
+		WorkspaceID:     record.ID,
+		SessionType:     story.SessionType, State: string(session.StateStopped),
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		StopReason:    &stopReason, StopDetail: stopDetail,
 		Failure:   sessionFailure(story),
 		Lineage:   lineage,
 		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
+		InitiatorKind: story.InitiatorKind, InitiatorID: story.InitiatorID,
 	}
 	meta.SetCWD(record.RootDir)
 	meta.SetEffectivePermissions(permissions)
@@ -88,13 +90,25 @@ func writeSessionRecords(
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}
 	if err := db.RegisterSession(ctx, new(store.SessionInfo{
-		ID: story.ID, ProfileID: store.DefaultProfileID,
-		Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
-		Model: story.Model, WorkspaceID: record.ID, SessionType: story.SessionType,
-		Lineage: lineage,
-		State:   string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
-		StopReason: stopReason, StopDetail: stopDetail, Failure: sessionFailure(story),
-		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
+		ID:              story.ID,
+		ProfileID:       store.DefaultProfileID,
+		Name:            story.Name,
+		AgentName:       story.AgentName,
+		Provider:        story.Provider,
+		Model:           story.Model,
+		ReasoningEffort: sessionEffort(story),
+		WorkspaceID:     record.ID,
+		SessionType:     story.SessionType,
+		Lineage:         lineage,
+		InitiatorKind:   story.InitiatorKind,
+		InitiatorID:     story.InitiatorID,
+		State:           string(session.StateStopped),
+		RuntimeStatus:   store.SessionRuntimeUnbound,
+		StopReason:      stopReason,
+		StopDetail:      stopDetail,
+		Failure:         sessionFailure(story),
+		CreatedAt:       story.StartedAt,
+		UpdatedAt:       story.EndedAt,
 	})); err != nil {
 		return fmt.Errorf("demo seed: register session %q: %w", story.ID, err)
 	}
@@ -107,6 +121,9 @@ func sessionPermissions(story sessionStory) (string, error) {
 			return agent.Permissions, nil
 		}
 	}
+	if permissions, ok := bundledAgentPermissions[story.AgentName]; ok {
+		return permissions, nil
+	}
 	return "", fmt.Errorf(
 		"demo seed: agent %q is not defined in workspace %q",
 		story.AgentName,
@@ -118,9 +135,14 @@ func sessionLineage(story sessionStory) *store.SessionLineage {
 	if strings.TrimSpace(story.ParentID) == "" {
 		return nil
 	}
+	root, depth := story.ParentID, 1
+	if story.RootID != "" {
+		root, depth = story.RootID, story.SpawnDepth
+	}
 	lineage := &store.SessionLineage{
-		ParentSessionID: story.ParentID, RootSessionID: story.ParentID,
-		SpawnDepth: 1, SpawnRole: story.SpawnRole, AutoStopOnParent: true,
+		ParentSessionID: story.ParentID, RootSessionID: root,
+		SpawnDepth: depth, SpawnRole: story.SpawnRole, AutoStopOnParent: true,
+		Kind: story.LineageKind, OriginAgentName: story.OriginAgent,
 	}
 	store.UpgradeSessionLineageKind(story.SessionType, lineage)
 	return lineage
@@ -166,4 +188,25 @@ func writeSessionTranscript(
 		return 0, fmt.Errorf("demo seed: write transcript usage for session %q: %w", story.ID, err)
 	}
 	return len(persisted), nil
+}
+
+// persistedStopDetail keeps the detail only on abnormal stops. A session that finished normally
+// stores none, and the session view can read a stop detail as a failure message.
+func persistedStopDetail(story sessionStory) string {
+	if story.stopReason() == string(store.StopCompleted) {
+		return ""
+	}
+	return story.StopDetail
+}
+
+// sessionEffort is the reasoning level a team runs each model at.
+func sessionEffort(story sessionStory) string {
+	switch story.Model {
+	case modelCodex:
+		return "high"
+	case modelClaudeOpus:
+		return "medium"
+	default:
+		return ""
+	}
 }

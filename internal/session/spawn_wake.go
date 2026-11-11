@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -32,6 +33,8 @@ var (
 	ErrSpawnWakeValidation = errors.New("session: spawn wake validation failed")
 	// ErrSpawnWakeSessionNotLive reports that the creator cannot accept a wake prompt.
 	ErrSpawnWakeSessionNotLive = errors.New("session: spawn wake creator is not live")
+	// ErrSpawnWakeRetryable marks a failure before dispatch; retry must still consult durable admission.
+	ErrSpawnWakeRetryable = errors.New("session: spawn wake can be retried")
 )
 
 // SpawnWakeReason identifies why a child woke its creator.
@@ -206,6 +209,9 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 		return
 	}
 	if err := m.spawnWakeNotifier.WakeSpawnCreator(context.WithoutCancel(ctx), creatorSessionID, event); err != nil {
+		if errors.Is(err, ErrSpawnWakeRetryable) {
+			m.releaseSpawnWakeEvent(event.WakeEventID)
+		}
 		if errors.Is(err, ErrSpawnWakeSessionNotLive) {
 			m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "session_not_live", nil)
 			return
@@ -261,6 +267,16 @@ func (m *Manager) forgetSpawnWakeEvents(sessionID string) {
 		retained = append(retained, key)
 	}
 	m.spawnWakeEventOrder = retained
+}
+
+// releaseSpawnWakeEvent removes only the failed attempt's reservation, including
+// its eviction entry so a later retry cannot be evicted by the stale reservation.
+func (m *Manager) releaseSpawnWakeEvent(wakeEventID string) {
+	key := strings.TrimSpace(wakeEventID)
+	m.spawnWakeMu.Lock()
+	defer m.spawnWakeMu.Unlock()
+	delete(m.spawnWakeEventIDs, key)
+	m.spawnWakeEventOrder = slices.DeleteFunc(m.spawnWakeEventOrder, func(value string) bool { return value == key })
 }
 
 func (m *Manager) logSpawnWakeSuppressed(

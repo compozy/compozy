@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1525,4 +1527,65 @@ func TestPiBridgeStartupFailures(t *testing.T) {
 			t.Fatalf("typed diagnostic = %#v", event.ProviderError)
 		}
 	})
+}
+
+func TestProviderEmptyEnvironmentLaunch(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	t.Setenv("OPERATOR_API_KEY", "parent-credential")
+	for _, policy := range []compozyconfig.ProviderEnvPolicy{compozyconfig.ProviderEnvPolicyFiltered, compozyconfig.ProviderEnvPolicyIsolated} {
+		t.Run(
+			"Should preserve empty environment through "+string(policy)+" policy and optional removal",
+			func(t *testing.T) {
+				env := sessionStartEnvForProvider(
+					[]string{"COMPOZY_INTERNAL_TEST_HANDOFF=internal", "OPERATOR_API_KEY=excluded"},
+					nil,
+					policy,
+					"",
+				)
+				if env == nil || len(env) != 0 {
+					t.Fatalf("filtered environment = %#v", env)
+				}
+				env = setSessionStartEnvValue(env, "PATH", "removed")
+				manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+				bindings, err := manager.injectProviderSecrets(t.Context(), compozyconfig.ResolvedAgent{
+					SessionEnv: compozyconfig.SessionEnv{"PATH": {Ref: "env:MISSING", Required: false}},
+				}, env)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if bindings.env == nil || len(bindings.env) != 0 {
+					t.Fatalf("optional target removal = %#v", bindings.env)
+				}
+				launcher := acp.NewLocalLauncher(nil, time.Second)
+				handle, err := launcher.Launch(
+					t.Context(),
+					acp.LaunchSpec{
+						Command: "/bin/sh -c 'printf %s \"${OPERATOR_API_KEY:-absent}\"'",
+						Cwd:     t.TempDir(),
+						Env:     bindings.env,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := handle.Stop(t.Context()); err != nil {
+						t.Errorf("stop child: %v", err)
+					}
+				})
+				output, err := io.ReadAll(handle.Stdout())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := handle.Wait(); err != nil {
+					t.Fatal(err)
+				}
+				if string(output) != "absent" {
+					t.Fatalf("operator credential inherited: %q", output)
+				}
+			},
+		)
+	}
 }

@@ -13,6 +13,7 @@ import {
 import type { OsAppId, OsWindowFallbackProps } from "./os-types";
 import { AgentsWindowFallback } from "../apps/agents/agents-window-fallback";
 import { AutomationsWindowFallback } from "../apps/automations/automations-window-fallback";
+import { FilesWindowFallback } from "../apps/files/files-window-fallback";
 import { LoopsWindowFallback } from "../apps/loops/loops-window-fallback";
 import { MarketplaceWindowFallback } from "../apps/marketplace/marketplace-window-fallback";
 import { NewTabWindowSkeleton } from "../apps/new-tab/new-tab-window-skeleton";
@@ -49,6 +50,7 @@ const APP_LOADERS: Record<OsAppId, () => Promise<{ default: OsAppDefinition["Con
     import("../apps/terminal/terminal-window").then(m => ({ default: m.TerminalWindow })),
   tasks: () => import("../apps/tasks/tasks-window").then(m => ({ default: m.TasksWindow })),
   agents: () => import("../apps/agents/agents-window").then(m => ({ default: m.AgentsWindow })),
+  files: () => import("../apps/files/files-window").then(m => ({ default: m.FilesWindow })),
   vault: () => import("../apps/vault/vault-window").then(m => ({ default: m.VaultWindow })),
   loops: () => import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow })),
   automations: () =>
@@ -127,6 +129,11 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     preload: preloadAgents,
     Controller: lazy(APP_LOADERS.agents),
     LoadingFallback: AgentsWindowFallback,
+  },
+  files: {
+    ...OS_APP_DESCRIPTORS.files,
+    Controller: lazy(APP_LOADERS.files),
+    LoadingFallback: FilesWindowFallback,
   },
   tasks: {
     ...OS_APP_DESCRIPTORS.tasks,

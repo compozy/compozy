@@ -380,8 +380,8 @@ agent = "designer"
 				id    toolspkg.ToolID
 				input string
 			}{
-				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q}`, parent.ID)},
-				{toolspkg.ToolIDSessionList, `{}`},
+				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q,"result_view":"full"}`, parent.ID)},
+				{toolspkg.ToolIDSessionList, `{"result_view":"full"}`},
 			} {
 				result, err := d.toolRegistry.Call(
 					t.Context(),
@@ -649,6 +649,11 @@ func newSubagentDaemonWithSetup(
 	}
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
+		acpmock.TurnFixture{
+			Name:  "native-resume",
+			Match: acpmock.TurnMatch{UserText: "native resumed work"},
+			Steps: nativeResumeSteps(t),
+		},
 		acpmock.TurnFixture{Name: "native", Match: acpmock.TurnMatch{UserText: "native work"}, Steps: nativeSteps},
 		acpmock.TurnFixture{
 			Name:  "native-background",
@@ -803,8 +808,91 @@ func nativeBackgroundSteps(t *testing.T) []acpmock.Step {
 	)
 }
 
+func nativeResumeSteps(t *testing.T) []acpmock.Step {
+	t.Helper()
+	steps := nativeBackgroundSteps(t)
+	steps = steps[:len(steps)-2]
+	for _, message := range []string{
+		`{"type":"system","subtype":"task_started","task_id":"agent-resume","run_id":"0001","tool_use_id":"toolu_background","task_type":"local_agent","is_backgrounded":true}`,
+		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0001","tool_use_id":"toolu_background","status":"completed","summary":"First answer"}`,
+		`{"type":"system","subtype":"task_started","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_send_message","task_type":"local_agent","is_backgrounded":true}`,
+		`{"type":"system","subtype":"task_updated","task_id":"agent-resume","run_id":"0002","patch":{"status":"running"}}`,
+		`{"type":"system","subtype":"task_notification","task_id":"agent-resume","run_id":"0002","tool_use_id":"toolu_send_message","status":"completed","summary":"Second answer"}`,
+	} {
+		steps = append(
+			steps,
+			acpmock.Step{Kind: acpmock.StepKindDriverControl, DriverControl: &acpmock.DriverControlStep{
+				Action:     acpmock.DriverControlWriteRawJSONRPC,
+				RawJSONRPC: `{"jsonrpc":"2.0","method":"_claude/sdkMessage","params":{"sessionId":"subagent-test-session-1","message":` + message + `}}`,
+			}},
+			acpmock.Step{
+				Kind:          acpmock.StepKindDriverControl,
+				DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDelay, DelayMS: 750},
+			},
+		)
+	}
+	return append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "Resumed work finished."})
+}
+
 // IT-020: committed ACP Agent/Task traffic creates readable native rows without creating child sessions or wakes.
 func TestSubagentNativeDaemonIntegration(t *testing.T) {
+	t.Run("Should project a resumed background task through its second completion", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+			provider := cfg.Providers[acpmock.ProviderName]
+			provider.SessionMCP = new(false)
+			cfg.Providers[acpmock.ProviderName] = provider
+		}, "", func(d *Daemon) {
+			alias := filepath.Join(t.TempDir(), "claude-agent-acp")
+			driver := acpmock.RequireDriver(t)
+			if err := os.Symlink(driver, alias); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(data), driver, alias)), 0600); err != nil {
+				t.Fatal(err)
+			}
+		})
+		parent, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := manager.SendPrompt(
+			t.Context(),
+			parent.ID,
+			session.SendPromptOpts{Message: "native resumed work"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, phase := range []struct{ status, result string }{{"completed", "First answer"}, {"running", ""}, {"completed", "Second answer"}} {
+			waitForRuntimeCondition(t, "native phase "+phase.status+phase.result, 10*time.Second, func() bool {
+				page, err := d.SubagentService().
+					List(t.Context(), store.SubagentListQuery{WorkspaceID: workspace, ParentSessionID: parent.ID, Limit: 20})
+				if err != nil || len(page.Items) != 1 {
+					return false
+				}
+				row := page.Items[0]
+				if row.Status != phase.status {
+					return false
+				}
+				if phase.status == "running" {
+					return row.Result == nil && row.SettledAt == nil
+				}
+				return row.Result != nil && *row.Result == phase.result && row.SettledAt != nil
+			})
+		}
+		for range response.Events {
+			continue
+		}
+	})
+
 	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
 	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)

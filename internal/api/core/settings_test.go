@@ -54,6 +54,7 @@ type stubSettingsService struct {
 	DeleteItemFn         func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
 	ApplyDeleteFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn             func(context.Context) (settingspkg.ApplyResult, error)
+	SetProviderEnabledFn func(context.Context, string, bool) (settingspkg.ProviderItem, settingspkg.ApplyResult, error)
 	ListApplyRecordsFn   func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 	PendingRestartFn     func(context.Context) (bool, error)
 
@@ -284,6 +285,17 @@ func (s *stubSettingsService) ApplyCollectionDelete(
 		return applyResultFromMutation(result), nil
 	}
 	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
+}
+
+func (s *stubSettingsService) SetProviderEnabled(
+	ctx context.Context,
+	name string,
+	enabled bool,
+) (settingspkg.ProviderItem, settingspkg.ApplyResult, error) {
+	if s.SetProviderEnabledFn == nil {
+		return settingspkg.ProviderItem{Name: name, Enabled: enabled}, defaultApplyResult(""), nil
+	}
+	return s.SetProviderEnabledFn(ctx, name, enabled)
 }
 
 func (s *stubSettingsService) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {
@@ -551,6 +563,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.GET("/providers/:name", handlers.GetSettingsProvider)
 	settings.PUT("/providers/:name", handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
+	settings.PATCH("/providers/:name/enabled", handlers.SetSettingsProviderEnabled)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)
 	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
@@ -3178,6 +3191,22 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
+			name:   "Should update only the provider compaction window",
+			method: http.MethodPut,
+			path:   "/api/settings/providers/claude",
+			body: contract.PutSettingsProviderRequest{
+				Settings: contract.SettingsProviderWritePayload{AutoCompactWindow: new(200000)},
+			},
+			assert: func(t *testing.T, service *stubSettingsService) {
+				t.Helper()
+				provider := service.LastPutCollectionRequest.Provider
+				if provider == nil || provider.AutoCompactWindow == nil || *provider.AutoCompactWindow != 200000 {
+					t.Fatalf("provider compaction update = %+v", provider)
+				}
+			},
+			assertResponse: assertAppliedSettingsMutation,
+		},
+		{
 			name:   "put provider",
 			method: http.MethodPut,
 			path:   "/api/settings/providers/openai",
@@ -4038,7 +4067,10 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 			t.Run("Should decode the shared request", func(t *testing.T) {
 				t.Parallel()
 				service := &stubSettingsService{
-					ListCollectionFn: func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+					ListCollectionFn: func(_ context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error) {
+						if !req.SkipRuntimeStatus {
+							t.Fatal("definition GET requested a runtime probe")
+						}
 						return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{
 							{
 								Name:        "github",

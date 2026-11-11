@@ -225,18 +225,19 @@ func (q HookRunQuery) Validate() error {
 
 // TokenUsage captures per-turn usage data reported by an ACP provider.
 type TokenUsage struct {
-	TurnID           string
-	InputTokens      *int64
-	OutputTokens     *int64
-	TotalTokens      *int64
-	ThoughtTokens    *int64
-	CacheReadTokens  *int64
-	CacheWriteTokens *int64
-	ContextUsed      *int64
-	ContextSize      *int64
-	CostAmount       *float64
-	CostCurrency     *string
-	Timestamp        time.Time
+	TurnID             string
+	InputTokens        *int64
+	OutputTokens       *int64
+	TotalTokens        *int64
+	ThoughtTokens      *int64
+	CacheReadTokens    *int64
+	CacheWriteTokens   *int64
+	ContextUsed        *int64
+	ContextSize        *int64
+	CostAmount         *float64
+	ReportedCostAmount *float64
+	CostCurrency       *string
+	Timestamp          time.Time
 }
 
 // Validate ensures the usage payload has the required fields.

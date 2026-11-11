@@ -4,6 +4,22 @@ import type { MarketplaceCatalogListing } from "../types";
 
 export const COMPOZY_CATALOG_SOURCE = "compozy-catalog";
 
+/**
+ * Plain names for the preset sources CompozyOS ships; any other source reads as its own name.
+ * The daemon reports source ids only, so the preset wording lives here beside the catalog id.
+ */
+const SOURCE_LABELS: Readonly<Record<string, string>> = {
+  [COMPOZY_CATALOG_SOURCE]: "CompozyOS catalog",
+  "compozy-plugins": "CompozyOS plugins",
+  "claude-plugins-official": "Claude plugins",
+};
+
+/** "Claude plugins" for `claude-plugins-official`; a custom source keeps its registered name. */
+export function marketplaceSourceLabel(source: string): string {
+  const name = source.trim();
+  return Object.hasOwn(SOURCE_LABELS, name) ? SOURCE_LABELS[name]! : name;
+}
+
 /** Stable origin key for a catalog row: `source_ref` when the daemon reports it, else the source name. */
 export function marketplaceOriginKey(entry: {
   entry_id: string;

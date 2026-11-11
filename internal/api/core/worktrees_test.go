@@ -107,6 +107,66 @@ func TestWorktreeOwnerProjection(t *testing.T) {
 func TestProfileAwareWorktreeHandlers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should exclude removed records unless explicitly included", func(t *testing.T) {
+		t.Parallel()
+		handlers := &BaseHandlers{
+			Workspaces: workspaceServiceStub{
+				resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{ID: "registry-a", WorkspaceID: "metadata-a"}, nil
+				},
+			},
+			Worktrees: worktreeServiceStub{
+				listDetails: func(context.Context, string, bool) (*worktree.DetailedListing, error) {
+					return &worktree.DetailedListing{
+						Worktrees: []worktree.Inspection{
+							{
+								Worktree: worktree.Worktree{
+									ID:        "ready",
+									ProfileID: store.DefaultProfileID,
+									State:     worktree.StateReady,
+								},
+							},
+							{
+								Worktree: worktree.Worktree{
+									ID:        "removed",
+									ProfileID: store.DefaultProfileID,
+									State:     worktree.StateRemoved,
+								},
+							},
+						},
+					}, nil
+				},
+			},
+		}
+		router := gin.New()
+		router.GET("/workspaces/:workspace_id/worktrees", handlers.ListWorktrees)
+		for _, tc := range []struct {
+			query string
+			count int
+		}{{"", 1}, {"?include_removed=true", 2}, {"?include_removed=false", 1}} {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodGet,
+					"/workspaces/registry-a/worktrees"+tc.query,
+					nil,
+				),
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("HTTP %d: %s", response.Code, response.Body.String())
+			}
+			var payload contract.WorktreesResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Worktrees) != tc.count {
+				t.Fatalf("%s got %d records, want %d", tc.query, len(payload.Worktrees), tc.count)
+			}
+		}
+	})
+
 	const (
 		profileID   = "profile-marketing"
 		profileName = "marketing"

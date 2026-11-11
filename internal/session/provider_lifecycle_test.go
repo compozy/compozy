@@ -671,3 +671,260 @@ func assertCapturedLogAttr(t *testing.T, record capturedLogRecord, key string, w
 		t.Fatalf("log %q attr %q = %q, want %q", record.Message, key, got, want)
 	}
 }
+
+// setHarnessProviderEnabled swaps in a provider map with providers.<name>.enabled set, the
+// way a config apply publishes a new snapshot.
+func setHarnessProviderEnabled(t *testing.T, h *harness, name string, enabled bool) {
+	t.Helper()
+	providers := compozyconfig.CloneProviderConfigs(h.cfg.Providers)
+	provider := providers[name]
+	provider.Enabled = new(enabled)
+	providers[name] = provider
+	h.cfg.Providers = providers
+	h.resolver.mu.Lock()
+	defer h.resolver.mu.Unlock()
+	resolved := h.resolver.byRef[h.workspaceID]
+	resolved.Config = h.cfg
+	h.resolver.upsert(&resolved)
+}
+
+func TestDisabledProviderGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse a start on a disabled provider and persist nothing", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		for attempt := range 2 {
+			_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
+				AgentName: "coder", Name: "disabled", Workspace: h.workspaceID, Provider: "codex",
+			}))
+			if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("Create() attempt %d error = %v, want ErrProviderDisabled", attempt, err)
+			}
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+		infos, err := h.manager.ListAll(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListAll() error = %v", err)
+		}
+		if len(infos) != 0 {
+			t.Fatalf("ListAll() = %d sessions, want none persisted", len(infos))
+		}
+	})
+
+	t.Run("Should admit starts before a disable and refuse them after", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		admitted, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
+			AgentName: "coder", Name: "before", Workspace: h.workspaceID, Provider: "codex",
+		}))
+		if err != nil {
+			t.Fatalf("Create(before disable) error = %v", err)
+		}
+		t.Cleanup(func() { _ = h.manager.Stop(testutil.Context(t), admitted.ID) })
+		setHarnessProviderEnabled(t, h, "codex", false)
+		_, err = h.manager.Create(testutil.Context(t), new(CreateOpts{
+			AgentName: "coder", Name: "after", Workspace: h.workspaceID, Provider: "codex",
+		}))
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Create(after disable) error = %v, want ErrProviderDisabled", err)
+		}
+		if _, ok := h.manager.Get(admitted.ID); !ok {
+			t.Fatal("admitted session stopped after the disable, want it running")
+		}
+	})
+
+	t.Run("Should refuse resuming a stopped session on a disabled provider", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		setHarnessProviderEnabled(t, h, "claude", false)
+		_, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Resume() error = %v, want ErrProviderDisabled", err)
+		}
+		if got := len(h.driver.startCalls); got != 1 {
+			t.Fatalf("driver start calls = %d, want 1 (create only)", got)
+		}
+	})
+
+	// IT-007/UT-041: a hosted MCP tool change releases and rebinds the running session on its
+	// accepted route; that rebind is recovery, so a provider disabled meanwhile does not refuse it.
+	t.Run("Should rebind a running session on its disabled route after hosted MCP tools change", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		codex := h.cfg.Providers["codex"]
+		codex.Command = "codex-acp"
+		h.cfg.Providers["codex"] = codex
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace.Config.Providers["codex"] = codex
+		h.resolver.upsert(&workspace)
+		active, err := h.manager.Create(
+			t.Context(),
+			&CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "codex"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		previous := active.processHandle()
+		nativeID := active.Info().ACPSessionID
+		hosted := h.manager.hostedMCP.(*recordingHostedMCPLauncher)
+		hosted.mu.Lock()
+		hosted.initialToolDigest, hosted.toolDigest = "initial", "initial"
+		hosted.mu.Unlock()
+		if err := h.manager.captureHostedMCPDigest(t.Context(), active); err != nil {
+			t.Fatal(err)
+		}
+		setHarnessProviderEnabled(t, h, "codex", false)
+		hosted.mu.Lock()
+		hosted.toolDigest = "changed"
+		hosted.mu.Unlock()
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if !isProcessDone(previous) {
+				return nil, errors.New("native session still has a writer")
+			}
+			if opts.FinalizeStartup != nil {
+				if _, _, err := opts.FinalizeStartup(t.Context()); err != nil {
+					return nil, err
+				}
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+		}
+		events, err := h.manager.Prompt(t.Context(), active.ID, "use the changed MCP catalog")
+		if err != nil {
+			t.Fatalf("Prompt() after MCP change on disabled codex error = %v, want the same-route rebind", err)
+		}
+		collectEvents(t, events)
+		if active.processHandle() == previous || active.Info().ACPSessionID != nativeID {
+			t.Fatal("MCP change did not rebind the same native session on its accepted route")
+		}
+		if got := active.Info().Provider; got != "codex" {
+			t.Fatalf("rebound provider = %q, want codex", got)
+		}
+	})
+
+	t.Run("Should exempt recovery of the accepted route but gate another disabled route", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { _ = h.manager.Stop(testutil.Context(t), session.ID) })
+		setHarnessProviderEnabled(t, h, "claude", false)
+		setHarnessProviderEnabled(t, h, "codex", false)
+		ctx := testutil.Context(t)
+		accepted := session.Info().EffectiveRuntime()
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, accepted, "", nil); err != nil {
+			t.Fatalf("preparePromptRuntimePlanForRoute(accepted route) error = %v, want recovery allowed", err)
+		}
+		modelOmitted := accepted
+		modelOmitted.Model = ""
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, modelOmitted, "", nil); err != nil {
+			t.Fatalf(
+				"preparePromptRuntimePlanForRoute(model omitted) error = %v, want the resolved bound model allowed",
+				err,
+			)
+		}
+		retuned := accepted
+		retuned.ReasoningEffort = "high"
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, retuned, "", nil); err != nil {
+			t.Fatalf("preparePromptRuntimePlanForRoute(retuned accepted route) error = %v, want recovery allowed", err)
+		}
+		otherModel := accepted
+		otherModel.Model = "claude-other-model"
+		for name, selection := range map[string]RuntimeSelection{
+			"another model on the bound provider": otherModel,
+			"another provider":                    {Provider: "codex"},
+		} {
+			_, err := h.manager.preparePromptRuntimePlanForRoute(ctx, session, selection, "", nil)
+			if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+				t.Fatalf("preparePromptRuntimePlanForRoute(%s) error = %v, want ErrProviderDisabled", name, err)
+			}
+		}
+	})
+}
+
+// A logical session (CreateAccepted) carries provider and model metadata before any bind accepts
+// them, so its first prompt is a new route, not recovery of an accepted one (BR-5).
+func TestDisabledProviderGateFirstBind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse the first prompt of a never-bound session on a disabled provider", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		cleanupTestManager(t, h.manager)
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Provider: "claude", Model: "sonnet"},
+		}))
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		logical, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find the logical session", created.ID)
+		}
+		meta := readMeta(t, logical.MetaPath())
+		if meta.Provider != "claude" || meta.Model != "sonnet" || meta.AcceptedRoute != nil {
+			t.Fatalf("logical meta = provider %q model %q accepted %v, want claude/sonnet unbound",
+				meta.Provider, meta.Model, meta.AcceptedRoute)
+		}
+		setHarnessProviderEnabled(t, h, "claude", false)
+
+		_, err = h.manager.Prompt(t.Context(), created.ID, "hello")
+		if !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("Prompt() error = %v, want ErrProviderDisabled for the first bind", err)
+		}
+		if _, err := h.manager.preparePromptRuntimePlanForRoute(
+			t.Context(), logical, logical.Info().EffectiveRuntime(), "", nil,
+		); !errors.Is(err, compozyconfig.ErrProviderDisabled) {
+			t.Fatalf("preparePromptRuntimePlanForRoute(unbound route) error = %v, want ErrProviderDisabled", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+	})
+}
+
+func TestRuntimeChangeAdmission(t *testing.T) {
+	t.Parallel()
+
+	bound := acceptedRoute{provider: "claude", model: "sonnet"}
+	for _, tc := range []struct {
+		name     string
+		selected acceptedRoute
+		want     runtimeAdmission
+	}{
+		{name: "Should exempt the same provider and model", selected: bound, want: admissionAcceptedRecovery},
+		{
+			name:     "Should gate another model on the same provider",
+			selected: acceptedRoute{provider: "claude", model: "opus"},
+			want:     admissionRuntimeChange,
+		},
+		{
+			name:     "Should gate another provider",
+			selected: acceptedRoute{provider: "codex", model: "sonnet"},
+			want:     admissionRuntimeChange,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := runtimeChangeAdmission(bound, tc.selected); got != tc.want {
+				t.Fatalf("runtimeChangeAdmission(%+v) = %v, want %v", tc.selected, got, tc.want)
+			}
+		})
+	}
+	t.Run("Should gate when the session has no bound provider", func(t *testing.T) {
+		t.Parallel()
+		if got := runtimeChangeAdmission(acceptedRoute{}, bound); got != admissionRuntimeChange {
+			t.Fatalf("runtimeChangeAdmission(unbound) = %v, want runtime change", got)
+		}
+	})
+}

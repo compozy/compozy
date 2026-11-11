@@ -1,6 +1,7 @@
 package demoseed
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -58,3 +59,24 @@ func (t timeline) todayAt(offset time.Duration) time.Time {
 func (t timeline) dayKey(daysBack int) string {
 	return t.dayStart(daysBack).Format(time.DateOnly)
 }
+
+// writeClock is the instant the store stamps rows with. Stories that go through store
+// paths owning their own timestamps move it before each write, then reset it to now.
+type writeClock struct {
+	now     time.Time
+	current atomic.Int64
+}
+
+func newWriteClock(now time.Time) *writeClock {
+	clock := &writeClock{now: now}
+	clock.current.Store(now.UnixNano())
+	return clock
+}
+
+func (c *writeClock) Now() time.Time { return time.Unix(0, c.current.Load()).UTC() }
+
+// at stamps the following writes at instant.
+func (c *writeClock) at(instant time.Time) { c.current.Store(instant.UnixNano()) }
+
+// reset returns the store clock to the scenario's now.
+func (c *writeClock) reset() { c.current.Store(c.now.UnixNano()) }

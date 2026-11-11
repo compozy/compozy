@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -153,6 +155,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/agents/:name",
 		"GET /api/agents/:name/heartbeat",
 		"GET /api/agents/:name/heartbeat/sources",
+		"GET /api/agents/:name/heartbeat/authority",
+		"POST /api/agents/:name/heartbeat/authority/approve",
+		"DELETE /api/agents/:name/heartbeat/authority/approve",
+		"POST /api/agent-instances/:id/reports/:report_id/pick",
 		"POST /api/agents/:name/heartbeat/scripts/:script/approve",
 		"DELETE /api/agents/:name/heartbeat/scripts/:script/approve",
 		"GET /api/agents/:name/activity",
@@ -203,6 +209,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/logs/stream",
 		"GET /api/mcp/oauth/callback",
 		"GET /api/marketplace",
+		"GET /api/marketplace/sections",
 		"GET /api/marketplace/entries/:entry_id",
 		"GET /api/marketplace/sources",
 		"POST /api/marketplace/sources",
@@ -267,6 +274,18 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/commands",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/files",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/entries",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/content",
+		"GET /api/workspaces/:workspace_id/files/entries",
+		"GET /api/workspaces/:workspace_id/files/content",
+		"GET /api/workspaces/:workspace_id/files/find",
+		"GET /api/workspaces/:workspace_id/files/search",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/find",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/files/search",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/patches",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/contents",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/changes/bases",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/goal",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
@@ -578,6 +597,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
+		"PATCH /api/settings/providers/:name/enabled",
 		"PUT /api/tool-approval-grants",
 		"PUT /api/workspaces/:workspace_id/loops/:name/annotations",
 		"PUT /api/workspaces/:workspace_id/loops/:name/config",
@@ -4951,4 +4971,61 @@ func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) err
 	}
 	s.awaitErr = ctx.Err()
 	return s.awaitErr
+}
+
+func TestExtensionEnablementValidationFailure(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		err    error
+		status int
+		mask   bool
+	}{
+		{"Should preserve manifest validation issues", fmt.Errorf("%w: invalid MCP declaration", extensionpkg.ErrManifestInvalid), http.StatusBadRequest, true},
+		{"Should preserve missing inputs and environment", &extensionpkg.InputsRequiredError{MissingInputs: []string{"HOST"}, MissingEnv: []string{"TOKEN"}}, http.StatusUnprocessableEntity, true},
+		{"Should mask internal enablement failures", errors.New("private registry path"), http.StatusInternalServerError, true},
+		{"Should respect disabled internal masking", errors.New("private registry path"), http.StatusInternalServerError, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			handlers := newTestHandlersWithSettingsAndExtensions(t, "127.0.0.1",
+				&stubSettingsService{}, &stubSettingsRestartController{}, stubExtensionService{
+					SetEnablementFn: func(context.Context, string, contract.SetExtensionEnablementRequest, taskpkg.ActorContext) (contract.ExtensionEnablementPayload, error) {
+						return contract.ExtensionEnablementPayload{}, test.err
+					},
+				}, newTestHomePaths(t))
+			handlers.MaskInternalErrors = test.mask
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodPut,
+				"/api/extensions/demo/enablement", []byte(`{"profile":"default","enabled":true}`))
+			var payload struct {
+				contract.ExtensionOperationErrorPayload
+				Issues []contract.ValidationIssue `json:"issues"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != test.status || payload.Error == "" {
+				t.Fatalf("response = %d %s", response.Code, response.Body)
+			}
+			switch test.status {
+			case http.StatusBadRequest:
+				if len(payload.Issues) != 1 || !strings.Contains(payload.Issues[0].Message, "invalid MCP declaration") {
+					t.Fatalf("missing validation issues: %s", response.Body)
+				}
+			case http.StatusUnprocessableEntity:
+				if payload.Code != "extension_inputs_required" || !slices.Equal(payload.Inputs, []string{"HOST"}) ||
+					!slices.Equal(payload.MissingEnv, []string{"TOKEN"}) {
+					t.Fatalf("missing input details: %s", response.Body)
+				}
+			case http.StatusInternalServerError:
+				want := "private registry path"
+				if test.mask {
+					want = http.StatusText(http.StatusInternalServerError)
+				}
+				if payload.Error != want {
+					t.Fatalf("error = %q, want %q", payload.Error, want)
+				}
+			}
+		})
+	}
 }

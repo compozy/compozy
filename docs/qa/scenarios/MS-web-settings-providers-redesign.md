@@ -6,13 +6,13 @@ persona: Dora
 journey: J-22
 expected: The Providers settings page renders ready/needs-setup/not-installed meta counts, a toolbar (provider search, Status filter button), and one provider card grid (no Rows/Cards toggle) with the pcard anatomy — glyph, display name + Default badge, status line where "Ready · N models" stays neutral (muted text, neutral dot) and only states needing attention ("Needs setup" / "Needs sign-in" / "Not installed") carry warning or danger color, and the auth summary foot ("Uses your local login" / "Key stored in Vault" / "No sign-in needed") with Edit or Set up action. New provider lives in the window head.
 entry_points: web settings window Providers section
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-11-07-provider-enable-toggle.md
 overlaps: MS-058; MS-web-settings-takeover-redesign
 ---
 
@@ -27,3 +27,8 @@ Removing the native file permits npm fallback, and an executable native command 
 without npx. Backend regression coverage lives in `TestProviderListCommandAvailableHonorsOpenCodeNPMLaunchFallback`
 and `TestProviderListCommandAvailableRejectsNonExecutableOpenCode`; browser status remains
 blocked-verify until re-walked.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): Settings → Providers gains an "Enabled" switch per provider card. Turned-off providers collapse into a "Disabled (N)" group, the header adds "· N disabled", and the Status filter gains a disabled state. Walk E2E-002 steps 1 and 4 (turn Gemini off, then back on from the group). Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.

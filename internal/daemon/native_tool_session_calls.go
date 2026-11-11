@@ -49,7 +49,7 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsSessionKey: owned[0]}, payload.ID)
+	return sessionRecordViews.result(req.View, owned[0])
 }
 
 func (n *daemonNativeTools) commandList(
@@ -92,10 +92,7 @@ func (n *daemonNativeTools) commandList(
 		)
 	}
 	payload := core.SessionCommandsResponseFromCatalog(catalog)
-	return structuredResult(map[string]any{
-		"commands": payload.Commands,
-		"revision": payload.Revision,
-	}, fmt.Sprintf("%d commands", len(payload.Commands)))
+	return commandListViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) sessionHealth(
@@ -194,7 +191,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	if err := contract.ValidateAuthoredContextRedacted(payload); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"heartbeat": payload}, string(payload.ValidationStatus))
+	return agentHeartbeatStatusViews.result(req.View, payload)
 }
 
 // agentHeartbeatWake requests a Heartbeat wake using the caller Profile and workspace identity.
@@ -381,11 +378,8 @@ func (n *daemonNativeTools) sessionDescribe(
 	if resolved.RootMissing {
 		payload.Diagnostics = core.MissingWorkspaceDiagnostics(resolved.ID)
 	}
-	return structuredResult(map[string]any{
-		nativeToolsSessionKey:     payload,
-		nativeToolsEventsKey:      eventPayload,
-		nativeToolsEventsPageKey:  eventsPage,
-		nativeToolsHistoryKey:     sessionHistoryPayload(history, info),
-		nativeToolsHistoryPageKey: historyPage,
-	}, info.ID)
+	return sessionDescribeViews.result(req.View, sessionDescribeResult{
+		Session: payload, Events: eventPayload, EventsPage: eventsPage,
+		History: sessionHistoryPayload(history, info), HistoryPage: historyPage,
+	})
 }

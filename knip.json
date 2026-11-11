@@ -1,6 +1,11 @@
 {
     "$schema": "https://unpkg.com/knip@6/schema.json",
     "workspaces": {
+        "packages/brand": {
+            "entry": ["src/routes/**/*.tsx", "scripts/**/*.ts"],
+            "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+            "ignoreDependencies": ["@fontsource-variable/.+"]
+        },
         "packages/site": {
             "entry": [
                 "app/**/*.{ts,tsx}",

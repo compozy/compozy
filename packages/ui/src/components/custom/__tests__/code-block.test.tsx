@@ -109,6 +109,27 @@ describe("CodeBlock", () => {
     expect(container.querySelectorAll('[data-slot="code-block-token"]').length).toBeGreaterThan(0);
   });
 
+  it("Should render caller-highlighted lines as given and never run the client highlighter", () => {
+    const { container } = render(
+      <CodeBlock
+        code="compozy daemon start"
+        language="bash"
+        highlighted={
+          <code data-testid="prerendered">
+            <span style={{ color: "#4d9375" }}>compozy</span> daemon start
+          </code>
+        }
+      />
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
+    expect(root).toHaveAttribute("data-highlight-state", "highlighted");
+    expect(root).toHaveAttribute("data-language", "bash");
+    const pre = container.querySelector('[data-slot="code-block-pre"]');
+    expect(pre?.querySelector('[data-testid="prerendered"]')).not.toBeNull();
+    expect(pre?.querySelector('[data-slot="code-block-code"]')).toBeNull();
+    expect(container.querySelector('[data-slot="code-block-language"]')?.textContent).toBe("bash");
+  });
+
   it("Should normalize language aliases before highlighting", async () => {
     const { container } = render(
       <CodeBlock code="const value = 1;" language="ts" showPrompt={false} themeMode="light" />

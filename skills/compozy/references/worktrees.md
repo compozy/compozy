@@ -318,3 +318,16 @@ New worktree… composes materialization before explicit binding. Branch/PR/boar
 projections update without navigation. `/worktree`, `/worktree-fork`, and conversation forks retain
 their existing new-session behavior. Confirm `worktree_id` through
 `GET /api/workspaces/{ws}/sessions/{id}` or `compozy session list --workspace <ws> --worktree <ref> -o json`.
+
+## Review a worktree's changes
+
+A session bound to a worktree reads its changes from that checkout, never from the provider's
+resumed CWD. Call `compozy__session_changes` with the session's `session_id` (or run
+`compozy session changes <session-id>`): `scope: "branch"` compares the worktree against its merge
+base with the worktree's recorded base ref unless `base` names another ref, and
+`scope: "uncommitted"` shows only edits since HEAD. A removed or unavailable worktree returns
+`root_unavailable`; it does not fall back to the project root. To review a worktree with no
+session, the Web Files app's root picker and the HTTP/UDS file routes accept the workspace form with
+`worktree_id`. The Web session Review panel's Changes tab and the PR chip's Review changes action
+read the same data. See `references/native-tools.md#session-changes` for inputs, caps, and error
+codes.

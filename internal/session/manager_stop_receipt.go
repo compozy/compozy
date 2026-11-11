@@ -52,14 +52,16 @@ func restoreStopReceiptClassification(meta *store.SessionMeta, receipt *recovere
 	return nil
 }
 
-func (s *Session) retainVerifiedStopOutcome(outcome StopOutcome) StopOutcome {
+// retainVerifiedStopOutcome binds exit proof to this session and its exact captured process.
+func (s *Session) retainVerifiedStopOutcome(proc *AgentProcess, outcome StopOutcome) StopOutcome {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.stopVerifiedOutcome.Verified {
+	if s.stopVerifiedOutcome.Verified && s.stopVerifiedProcess == proc {
 		return s.stopVerifiedOutcome
 	}
 	if outcome.Verified {
 		s.stopVerifiedOutcome = outcome
+		s.stopVerifiedProcess = proc
 	}
 	return outcome
 }
@@ -79,6 +81,7 @@ func (s *Session) stopReceiptOutcome(at time.Time) StopOutcome {
 		if !s.stopStartedAt.IsZero() {
 			outcome.Elapsed = max(0, at.Sub(s.stopStartedAt))
 		}
+		s.stopVerifiedProcess = s.process
 	}
 	outcome.FinalState, outcome.Cause = StateStopped, s.stopCause
 	s.stopVerifiedOutcome = outcome
@@ -121,4 +124,12 @@ func (m *Manager) replayActiveStopEvent(ctx context.Context, id string, row *sto
 	m.publishSessionEventByID(ctx, id, persisted)
 	m.notifyAgentEventFromInfo(ctx, sessionInfoFromMeta(&meta), event)
 	return nil
+}
+
+// hasVerifiedStopProcess never carries an old process's exit proof onto a replacement.
+func (s *Session) hasVerifiedStopProcess(proc *AgentProcess) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stopVerifiedOutcome.Verified &&
+		(s.stopVerifiedProcess == proc || (proc == nil && s.process == nil))
 }

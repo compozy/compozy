@@ -1,5 +1,9 @@
 import type * as React from "react";
 
+import { ContextMenuItem } from "@compozy/ui";
+import { FolderTree } from "@compozy/ui/icons";
+
+import { useOpenFilesApp } from "@/systems/os";
 import { WorkspaceProjectContextMenu, useWorkspaces } from "@/systems/workspace";
 
 import type { SessionListGroupSpec } from "../../lib/session-list-groups";
@@ -22,13 +26,34 @@ export function SessionListGroupProjectMenu({
   children: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 }) {
   const workspaces = useWorkspaces();
+  const openFiles = useOpenFilesApp();
   const { scope } = group;
   const workspace =
     group.kind === "project" && scope.kind === "project"
       ? workspaces.data?.find(candidate => candidate.id === scope.workspaceId)
       : undefined;
+  const openFilesItem =
+    workspace && openFiles ? (
+      <ContextMenuItem
+        data-testid={`session-list-group-open-files-${workspace.id}`}
+        onClick={() => openFiles(workspace.id)}
+      >
+        <FolderTree />
+        Open files
+      </ContextMenuItem>
+    ) : null;
   return (
-    <WorkspaceProjectContextMenu workspace={workspace} leadingItems={leadingItems}>
+    <WorkspaceProjectContextMenu
+      workspace={workspace}
+      leadingItems={
+        openFilesItem || leadingItems ? (
+          <>
+            {openFilesItem}
+            {leadingItems}
+          </>
+        ) : undefined
+      }
+    >
       {children}
     </WorkspaceProjectContextMenu>
   );

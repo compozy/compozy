@@ -23,7 +23,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 }
 
 func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
-	return withProviderAuth(cfg, &core.BaseHandlerConfig{
+	return withHandlerServices(cfg, &core.BaseHandlerConfig{
 		TransportName:                "udsapi",
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     cfg.sessions,
@@ -49,6 +49,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		ToolArtifacts:                cfg.toolArtifacts,
 		SessionAttachments:           cfg.sessionAttachments,
 		SessionFiles:                 cfg.sessionFiles,
+		FileTree:                     cfg.fileTree,
 		Toolsets:                     cfg.toolsets,
 		ToolApprovals:                cfg.toolApprovals,
 		ApprovalGrants:               cfg.approvalGrants,
@@ -104,8 +105,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 	})
 }
 
-// withProviderAuth wires live provider sign-in observation: verdicts and cache invalidation.
-func withProviderAuth(cfg *handlerConfig, base *core.BaseHandlerConfig) *core.BaseHandlerConfig {
+func withHandlerServices(cfg *handlerConfig, base *core.BaseHandlerConfig) *core.BaseHandlerConfig {
+	base.SessionChanges = cfg.sessionChanges
 	base.OnProviderAuthSuccess = cfg.onProviderAuthSuccess
 	base.ProviderAuthVerdicts = cfg.providerAuthVerdicts
 	return base

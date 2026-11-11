@@ -9,36 +9,105 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) publishAttentionCommit(
-	ctx context.Context,
-	sessionID string,
-	commit store.SessionAttentionCommit,
-) {
-	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
-		return
+// publishAttentionCommit keeps observer failures from failing an already committed mutation.
+func (m *Manager) publishAttentionCommit(ctx context.Context, sessionID string, commit store.SessionAttentionCommit) {
+	sessionID = strings.TrimSpace(sessionID)
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	unlock, err := m.lockAttentionCommit(readCtx, sessionID)
+	var wake func()
+	if err == nil {
+		if m.attentionStore != nil {
+			commit.After, err = m.attentionStore.GetSessionAttention(readCtx, sessionID)
+		}
+		if err == nil {
+			wake, err = m.emitAttentionCommit(readCtx, sessionID, commit, false)
+		}
+		unlock()
 	}
-	info, err := m.sessionInfoForAttentionEvent(ctx, sessionID)
+	if wake != nil {
+		wake()
+	}
 	if err != nil {
 		m.logger.WarnContext(
 			ctx,
 			"session: load attention event snapshot failed",
-			"session_id", sessionID,
-			"error", err,
+			"session_id",
+			sessionID,
+			"error",
+			err,
 		)
-		return
+		if m.attentionStore != nil {
+			pending := []store.SessionAttentionCommit{{
+				Before:      commit.Before,
+				Interaction: &store.PendingInteraction{SessionID: sessionID},
+			}}
+			if !m.PublishPendingInteractionCommits(pending, nil) {
+				// Closed worker admission must not discard an ordinary committed notification.
+				retryCtx, retryCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+				defer retryCancel()
+				m.reconcileAcknowledgedInteractions(retryCtx, pending, nil)
+			}
+		}
+	}
+}
+
+// emitAttentionCommit returns snapshot errors before any session event is published.
+func (m *Manager) emitAttentionCommit(
+	ctx context.Context,
+	sessionID string,
+	commit store.SessionAttentionCommit,
+	refreshCatalog bool,
+) (func(), error) {
+	sessionID = strings.TrimSpace(sessionID)
+	m.attentionCommitMu.Lock()
+	if m.attentionPublished == nil {
+		m.attentionPublished = make(map[string]store.SessionAttention)
+	}
+	previous, published := m.attentionPublished[sessionID]
+	switch {
+	case published:
+		commit.Before = previous
+	case sessionAttentionProjectionEqual(commit.Before, commit.After) && !refreshCatalog:
+		m.attentionCommitMu.Unlock()
+		return nil, nil
+	default:
+		// Reserve before capturing Info so removal can invalidate this publication's baseline.
+		m.attentionPublished[sessionID] = commit.Before
+	}
+	m.attentionCommitMu.Unlock()
+	unchanged := sessionAttentionProjectionEqual(commit.Before, commit.After)
+	if unchanged && !refreshCatalog {
+		return nil, nil
+	}
+	info, err := m.sessionInfoForAttentionEvent(ctx, sessionID)
+	if err != nil {
+		if !published {
+			m.attentionCommitMu.Lock()
+			delete(m.attentionPublished, sessionID)
+			m.attentionCommitMu.Unlock()
+		}
+		return nil, err
+	}
+	if unchanged {
+		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+		return nil, nil
 	}
 	before := *info
 	after := *info
 	applyAttentionToInfo(&before, commit.Before)
 	applyAttentionToInfo(&after, commit.After)
-	if to, changed := m.publishAttentionEdge(ctx, &before, &after); changed {
-		m.dispatchSpawnWake(ctx, &after, to)
+	to, changed := m.publishAttentionEdge(ctx, &before, &after)
+	if changed {
+		return func() { m.dispatchSpawnWake(ctx, &after, to) }, nil
 	}
+	return nil, nil
 }
 
 // publishAttentionEdge publishes the catalog row and, when the badge changed, the
 // canonical attention edge with its hooks. Creator wakes stay with the caller.
 func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after *Info) (Badge, bool) {
+	m.rememberPublishedAttention(after)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, after))
 	from, to := BadgeForInfo(before), BadgeForInfo(after)
 	if from == to {
@@ -66,6 +135,31 @@ func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after 
 	return to, true
 }
 
+// rememberPublishedAttention updates reserved baselines without reviving removed sessions.
+func (m *Manager) rememberPublishedAttention(after *Info) {
+	m.attentionCommitMu.Lock()
+	if _, registered := m.attentionPublished[after.ID]; !registered {
+		m.attentionCommitMu.Unlock()
+		return
+	}
+	m.attentionPublished[after.ID] = attentionProjectionFromInfo(after)
+	m.attentionCommitMu.Unlock()
+}
+
+func attentionProjectionFromInfo(after *Info) store.SessionAttention {
+	return store.SessionAttention{
+		PendingPermissionCount: after.PendingPermissionCount,
+		PendingClarifyCount:    after.PendingClarifyCount,
+		AttentionRevision:      after.AttentionRevision,
+		LastSettledRevision:    after.LastSettledRevision,
+		LastSeenRevision:       after.LastSeenRevision,
+		LastSeenAt:             cloneTimePointer(after.LastSeenAt),
+		AttentionChangedAt:     cloneTimePointer(after.AttentionChangedAt),
+		EndedEarlyTurnID:       after.EndedEarlyTurnID,
+		FailureSeenAt:          cloneTimePointer(after.FailureSeenAt),
+	}
+}
+
 func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {
 	return left.PendingPermissionCount == right.PendingPermissionCount &&
 		left.PendingClarifyCount == right.PendingClarifyCount &&
@@ -85,19 +179,16 @@ func timePointersEqual(left, right *time.Time) bool {
 	return left.Equal(*right)
 }
 
+// sessionInfoForAttentionEvent bounds snapshot reads within the caller's publication lifetime.
 func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID string) (*Info, error) {
 	if active, ok := m.Get(sessionID); ok {
 		return active.Info(), nil
 	}
 	if m.sessionCatalog == nil {
-		return nil, errorsForAttentionSnapshot(sessionID)
+		return nil, fmt.Errorf("session: attention event catalog unavailable for %q", sessionID)
 	}
-	queryCtx := ctx
-	if queryCtx == nil {
-		queryCtx = context.Background()
-	} else {
-		queryCtx = context.WithoutCancel(queryCtx)
-	}
+	queryCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
+	defer cancel()
 	rows, err := m.sessionCatalog.ListSessions(queryCtx, store.SessionListQuery{
 		ReadScope: store.ReadScope{AllProfiles: true},
 		ID:        strings.TrimSpace(sessionID),
@@ -132,7 +223,11 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 }
 
 func errorsForAttentionSnapshot(sessionID string) error {
-	return fmt.Errorf("session: attention event snapshot not found for %q", strings.TrimSpace(sessionID))
+	return fmt.Errorf(
+		"%w: attention event snapshot not found for %q",
+		store.ErrSessionNotFound,
+		strings.TrimSpace(sessionID),
+	)
 }
 
 func isInternalVerificationSession(info *Info) bool {

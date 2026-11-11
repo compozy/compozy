@@ -16,6 +16,7 @@ import (
 )
 
 type sessionStartSpec struct {
+	checkInToolsStatus        string
 	initiatorKind             string
 	initiatorID               string
 	instancePermissionCeiling *store.SessionPermissionPolicy
@@ -29,7 +30,12 @@ type sessionStartSpec struct {
 	sessionName               string
 	agentName                 string
 	provider                  string
-	commandFingerprint        string
+	// admission is why the runtime is resolved; the zero value is new work.
+	admission runtimeAdmission
+	// boundRoute is the accepted route a runtime plan's session is already bound to; empty for a
+	// session no bind has accepted yet. A different provider or model is a runtime change.
+	boundRoute         acceptedRoute
+	commandFingerprint string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
 	sessionEnv compozyconfig.SessionEnv

@@ -60,3 +60,11 @@ go run ./cmd/compozy extension validate ./catalog/packages/context7 --output jso
 
 Listing icons accept HTTPS PNG/SVG/WebP URLs or matching data URLs up to 64 KiB. Publication rejects
 invalid icons; runtime decoding drops an invalid optional icon and returns an entry diagnostic.
+
+## Curated plugin preset
+
+`marketplaces.json` enables `compozy-plugins` (`https://github.com/compozy/plugins`) by default.
+The source uses the ordinary preset override mechanism, preserving an existing disabled choice.
+Its generator, upstream attribution, pinned references and regeneration instructions live in that
+repository. The daemon projects up to 1,000 entries with four resolvers under the existing
+ten-minute source deadline; external publisher fetches remain subject to budget diagnostics.

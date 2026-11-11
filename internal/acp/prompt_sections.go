@@ -119,3 +119,34 @@ func (p *AgentProcess) forgetPromptSections(sections []PromptSection) {
 		delete(p.deliveredSections, section.Key)
 	}
 }
+
+// Only daemon-registered live context may replace its older startup snapshot.
+// The caller holds systemPromptMu. Keep preparation local: a failed send may
+// retry without situation augmentation and must still have startup guidance.
+func (p *AgentProcess) startupPromptForRequest(req PromptRequest) (string, StartupManifest) {
+	prompt, manifest := p.systemPrompt, CloneStartupManifest(p.startupManifest)
+	if p.systemPromptSent || manifest.HookModified ||
+		p.systemPromptDelivery == SystemPromptDeliveryNative {
+		return prompt, manifest
+	}
+	const open = "<compozy-situation-context>"
+	const closing = "</compozy-situation-context>"
+	live := slices.ContainsFunc(req.Sections, func(section PromptSection) bool {
+		return section.Key == "situation" && strings.Contains(section.Content, open) &&
+			strings.Contains(section.Content, closing) && strings.Count(req.Message, section.Content) == 1
+	})
+	start := strings.Index(prompt, open)
+	if start < 0 || !live {
+		return prompt, manifest
+	}
+	end := strings.Index(prompt[start:], closing)
+	if end < 0 {
+		return prompt, manifest
+	}
+	end += start + len(closing)
+	prompt = strings.TrimSpace(prompt[:start] + prompt[end:])
+	manifest.Spans = slices.DeleteFunc(manifest.Spans, func(span DeliveredSpan) bool {
+		return span.Key == "situation"
+	})
+	return prompt, manifest
+}

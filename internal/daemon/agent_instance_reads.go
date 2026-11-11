@@ -19,9 +19,11 @@ import (
 )
 
 type instanceAttentionReader interface {
+	HasLiveInteractions(context.Context, string) (bool, error)
 	NeedsAttention(context.Context, string) (bool, error)
 }
 
+// instancePayload derives dismissal eligibility from live requests in the instance lineage.
 func (r instanceDefinitions) instancePayload(
 	ctx context.Context,
 	instance agentinstance.Instance,
@@ -48,6 +50,13 @@ func (r instanceDefinitions) instancePayload(
 		return payload, err
 	}
 	payload.NeedsAttention = needsAttention
+	if needsAttention {
+		live, err := attention.HasLiveInteractions(ctx, instance.ID)
+		if err != nil {
+			return payload, err
+		}
+		payload.AttentionDismissible = !live
+	}
 	return payload, nil
 }
 
@@ -154,6 +163,7 @@ func (r instanceDefinitions) projectInstanceDefinition(
 		return err
 	}
 	r.projectInstanceSources(ctx, instance, agent, artifacts, &resolved, payload, reader)
+	projectInstanceAuthority(ctx, instance, agent, artifacts, &resolved, payload, reader)
 	payload.Label = agent.Label()
 	// An unsupported saved appearance resolves to the default face; the definition read
 	// carries the agent_appearance_invalid diagnostic, so the instance read never fails on it.

@@ -28,3 +28,29 @@ vi.mock("next/image", () => ({
     return createElement("img", { ...props, alt, src: resolvedSrc });
   },
 }));
+
+// jsdom has no media queries or intersection observer; the marketing motion helpers only need them to exist.
+if (typeof window !== "undefined") {
+  window.matchMedia ??= ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+}
+
+globalThis.IntersectionObserver ??= class {
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds = [];
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+} as unknown as typeof IntersectionObserver;

@@ -22,6 +22,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 	return ProviderConfig{
 		ReviewerMode:        src.ReviewerMode,
 		SessionEnv:          MergeSessionEnv(nil, src.SessionEnv),
+		AutoCompactWindow:   cloneAutoCompactWindow(src.AutoCompactWindow),
 		Command:             src.Command,
 		CommandIsBuiltin:    src.CommandIsBuiltin,
 		DisplayName:         src.DisplayName,
@@ -38,6 +39,7 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 		AuthLoginCmd:        src.AuthLoginCmd,
 		AuthACPMethod:       src.AuthACPMethod,
 		SessionMCP:          cloneBoolRef(src.SessionMCP),
+		Enabled:             cloneBoolRef(src.Enabled),
 		SessionMCPTransport: src.SessionMCPTransport,
 		CredentialSlots:     cloneProviderCredentialSlots(src.CredentialSlots),
 		MCPServers:          cloneMCPServers(src.MCPServers),
@@ -81,6 +83,7 @@ func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 
 func cloneMCPServer(src MCPServer) MCPServer {
 	return MCPServer{
+		InputValues:    maps.Clone(src.InputValues),
 		Name:           src.Name,
 		Reference:      src.Reference,
 		Owner:          src.Owner,
@@ -97,6 +100,7 @@ func cloneMCPServer(src MCPServer) MCPServer {
 		Auth:           cloneMCPAuthConfig(src.Auth),
 		CatalogEntry:   src.CatalogEntry,
 		CatalogVersion: src.CatalogVersion,
+		ReadOnlyTools:  append([]string(nil), src.ReadOnlyTools...),
 	}
 }
 

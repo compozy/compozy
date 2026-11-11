@@ -50,6 +50,10 @@
             "dependsOn": [],
             "outputs": []
         },
+        "@compozy/brand#build": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": [".output/**"]
+        },
         "@compozy/extension-react#typecheck": {
             "dependsOn": ["//#codegen-check", "^build"],
             "outputs": []
@@ -71,6 +75,8 @@
                 "scripts/generate-openapi.ts",
                 "lib/openapi.ts",
                 "lib/docs-navigation.ts",
+                "lib/api-reference-build.ts",
+                "lib/sdk-reference-build.ts",
                 "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
                 "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
                 "$TURBO_ROOT$/openapi/compozy.json",
@@ -79,7 +85,32 @@
             "outputs": [
                 "content/docs/api/*.mdx",
                 "!content/docs/api/index.mdx",
-                "content/docs/api/meta.json"
+                "content/docs/api/meta.json",
+                "lib/api-reference-data.json"
+            ]
+        },
+        "@compozy/site#generate:sdk": {
+            "cache": false,
+            "inputs": [
+                "scripts/generate-sdk-reference.ts",
+                "lib/sdk-reference-build.ts",
+                "lib/sdk-reference-model.ts",
+                "$TURBO_ROOT$/openapi/compozy.json",
+                "$TURBO_ROOT$/openapi/sdk-samples.json",
+                "$TURBO_ROOT$/sdk/client/src/generated/sdk/types.gen.ts",
+                "$TURBO_ROOT$/sdk/client/src/generated/sse/types.gen.ts",
+                "$TURBO_ROOT$/sdk/client/src/prompt.ts",
+                "$TURBO_ROOT$/sdk/go/client/*.go"
+            ],
+            "outputs": [
+                "content/docs/sdk/*.mdx",
+                "!content/docs/sdk/index.mdx",
+                "!content/docs/sdk/client.mdx",
+                "!content/docs/sdk/prompt.mdx",
+                "!content/docs/sdk/events.mdx",
+                "!content/docs/sdk/errors.mdx",
+                "content/docs/sdk/meta.json",
+                "lib/sdk-reference-data.json"
             ]
         },
         "@compozy/site#generate:install": {
@@ -90,16 +121,20 @@
             "outputs": ["lib/install/template-content.ts"]
         },
         "@compozy/site#generate:content": {
-            "dependsOn": ["generate:openapi", "generate:install"],
+            "dependsOn": ["generate:openapi", "generate:sdk", "generate:install"],
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "!content/docs/api/meta.json",
-                "!content/docs/api/support.mdx"
+                "!content/docs/api/support.mdx",
+                "!content/docs/sdk/meta.json",
+                "!lib/sdk-reference-data.json",
+                "!lib/api-reference-data.json"
             ],
             "outputs": [".source/**", ".velite/**"]
         },
         "@compozy/site#build": {
             "dependsOn": ["generate:content", "^build"],
+            "passThroughEnv": ["COMPOZY_SITE_GITHUB_TOKEN"],
             "inputs": [
                 "$TURBO_DEFAULT$",
                 "$TURBO_ROOT$/catalog/*.json",

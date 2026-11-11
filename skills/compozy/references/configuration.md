@@ -350,7 +350,7 @@ CLI automation creation supports the Agent-or-Loop target union. Use `automation
 Triggers additionally accept experimental `target_kind = "agent_instance"`, `agent`, `prompt`, and
 `target_instance_scope` equal to their own workspace or `global`. CLI creation uses `--target-instance`
 and `--workspace` (or `@user` for global). Scheduled jobs do not support this target. Delivery feeds
-the existing instance's read-only check and completes the run without prompting its main. Events
+the existing instance's check-in and completes the run without prompting its main. Events
 stay pending across pause and quiet windows: newest 200 retained, at most 20 and 8 KiB read per check,
 2 KiB per summary, and `events_omitted` counts retention loss. This collector ignores `context.include`.
 A failed/cancelled check retains its batch; successful completion consumes only admitted event IDs.
@@ -369,8 +369,11 @@ recovery, and `session continue|fork`. The replay never exceeds `max_replay_byte
 `max_message_bytes` is truncated. Validation rejects `max_message_bytes` outside 1024 through
 `max_replay_bytes`, so lowering `max_replay_bytes` below the default `max_message_bytes` (16384) requires
 lowering `max_message_bytes` too. Edit these keys in `config.toml`; `compozy config set` does not accept
-them. CompozyOS has no compaction settings: the agent owns its context window,
-and compaction is observed or requested through the experimental surfaces in
+them. Claude sessions accept `providers.claude.auto_compact_window` (100000–1000000 tokens),
+capped at the model window and always forwarded as a full token count,
+with `auto_compact_window` in an agent definition taking precedence. Omission preserves the provider
+default; the value is forwarded on new, load and resume. This is independent of retired
+`session.compaction` keys, which remain archived on load. Manual compaction is requested through the surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 
@@ -406,6 +409,21 @@ stderr tail of the current or last process. Isolated homes live under
 `$COMPOZY_HOME/cache/mcp/homes/` and are removed when the process ends or at the next daemon start;
 `npx` and `uvx` package caches persist in `$COMPOZY_HOME/cache/mcp/npm` and
 `$COMPOZY_HOME/cache/mcp/uv`.
+
+## Turn Off A Provider
+
+`providers.<id>.enabled = false` turns off a provider the operator doesn't use. It is global and
+profile config only (workspace layers are rejected), applies live, and defaults to `true`. Set it with
+`compozy config set providers.<id>.enabled false`, `compozy__config_set`, or
+`PATCH /api/settings/providers/{name}/enabled`.
+
+- Inventories (`compozy provider list`, `GET /api/providers`, Settings) keep the provider with
+  `enabled: false`; selection surfaces (pickers, model catalog, `compozy__provider_models_list`,
+  `compozy__subagent_capabilities`, usage) drop it.
+- New starts, stopped-session resumes, runtime changes and loop/goal runs on it fail with
+  `provider_disabled` (HTTP 409); running sessions continue. Fallback chains and roles skip it.
+- The default provider can't be turned off (`provider_default_disable_rejected`); change
+  `defaults.provider` first. Re-enabling removes the key and an emptied `[providers.<id>]` block.
 
 ## Provider Sign-In Recovery
 
@@ -470,7 +488,7 @@ in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoin
 `compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
 `# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
 file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
-finds nothing to archive. The archive is a v0.6.0 removal shim. It is non-fatal: if the rewrite is refused
+finds nothing to archive. The archive is a v0.6.1 removal shim. It is non-fatal: if the rewrite is refused
 because the file changed concurrently, or fails because the file or its directory is not writable, the
 loader logs the warning `config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired
 values inactive, leaves the file untouched, and retries on the next load. Treat that warning as work to
@@ -484,7 +502,7 @@ The same retirement is ignored, not rejected, in other places: `compaction_reaso
 owner and the file is not rewritten (other invalid fields still fail); an extension manifest entry for
 the removed memory surface, or an extension automation resource whose trigger `event` is
 `memory.consolidated`, is dropped or skipped with `extension.retired_entries_ignored` while the rest of
-the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.0.
+the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.1.
 
 ## Auto-Title Role
 
@@ -619,7 +637,7 @@ governs one daemon. Workspace overlays remain valid.
 ## Shell Session Preferences
 
 `shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
-`shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
+`shell.sessions.group_by` controls grouping: `none`, `project` (default), or `profile`. These user-wide
 values apply live as the default for session windows: each Web window keeps its own Sort by / Group by
 (shared by its List and Kanban views), follows these values until the operator chooses there, and never
 writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
@@ -635,14 +653,15 @@ sets one; `compozy config unset shell.appearance.mono_font` (or PATCH `""`) rest
 
 Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
 (`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
-globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
+globe. While grouping is unset, either scope value reads `group_by=project`; an explicit grouping wins.
 The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
 `revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
 Existing clients may continue writing the legacy key in v0.4.0. In v0.5.0 the loader materializes
 `group_by = "project"` from `scope = "all-workspaces"` when grouping is unset, drops the key with a
 logged notice, and the next apply deletes it from the overlay; it never fails as an unknown key.
 `group_by = "project"` takes effect only under All projects and `profile` only under All profiles;
-an inapplicable value renders as `none` without being rewritten. Unknown values fail with
+an inapplicable value renders as `none` without being rewritten, so one project's list stays flat
+under the default. An explicitly persisted `none` stays flat. Unknown values fail with
 `shell_config_invalid`. Breadth (All projects versus one project or User) is browser state owned by
 the topbar globe, not a config key.
 
@@ -746,3 +765,19 @@ env_allow = []
 ```
 
 `timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.
+
+### Check-in tool bounds
+
+`[agents.always_on]` accepts `check_in_tools = "enabled"` (`disabled` restores
+no hosted tools in triage), `check_in_max_tool_calls = 25` (1–100),
+`check_in_max_write_calls = 5` (0–50), and `check_in_audit_retention = "720h"`
+(24h–8760h). Attempts count toward the total cap; only allowed writes count toward
+the write cap. Listing never spends budget. Retention removes audit rows daily.
+Operator-authored MCP declarations support `read_only_tools` with raw tool names;
+extension/catalog declarations cannot override classification.
+
+`[agents.always_on].auto_accept_per_day` defaults to 20 and accepts 0–200.
+It limits auto-accepted proposals per instance over a rolling 24 hours. Zero
+disables auto picks. Queue capacity, approved authority, active lifecycle state,
+deduplication, fatigue and unattended limits still apply. A queue-cap miss leaves
+the proposal waiting and does not fail the completed check-in.

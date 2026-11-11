@@ -89,6 +89,7 @@ func (r *RuntimeRegistry) sessionProjection(
 	includeProvider func(Provider) bool,
 	includeEntry func(*registryEntry) bool,
 ) ([]ToolView, error) {
+	ctx = withPolicyResolutionCache(ctx)
 	index, err := r.buildIndexMatching(ctx, scope, includeProvider)
 	if err != nil {
 		return nil, err

@@ -53,10 +53,10 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		proc.emitPromptEvent(proc.promptErrorEvent(req, err, timeNowUTC()))
 		return
 	}
-	if _, included := promptRequest.Meta["system"]; included && !req.BypassesContext() {
-		proc.markSystemPromptSent()
-	}
 	if !req.BypassesContext() && ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
+		if _, included := promptRequest.Meta["system"]; included {
+			proc.markSystemPromptSent()
+		}
 		proc.markPromptSectionsDelivered(req)
 		sectionsDelivered = true
 	}
@@ -92,7 +92,7 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	if !req.BypassesContext() {
 		message, spans = proc.compactPromptSections(message, req.Sections)
 	}
-	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message, req.BypassesContext())
+	promptText, includedSystemPrompt, promptDelivery, startup := proc.nextPromptText(message, req)
 	mentionBlocks := mentionContentBlocks(req)
 	prompt := make([]acpsdk.ContentBlock, 0, 1+len(mentionBlocks)+len(attachmentBlocks))
 	if promptText != "" {
@@ -124,7 +124,7 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 		}
 		promptRequest.Meta = metaMap
 	}
-	manifest := proc.promptDeliveryManifest(req, spans, attachmentBlocks, includedSystemPrompt, promptDelivery)
+	manifest := promptDeliveryManifest(req, spans, attachmentBlocks, startup, promptDelivery)
 	return promptRequest, manifest, nil
 }
 

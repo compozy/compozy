@@ -3,15 +3,202 @@ package acp
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func TestPermissionDispatchOrdering(t *testing.T) {
+	t.Parallel()
+	// Invariant: public-channel backpressure must not block permission dispatch when ingestion has room.
+	// Owner: ACP connection dispatch; keep this coverage in the ordering suite, not the gate unit tests.
+	t.Run("Should start permission dispatch before draining a full public event channel", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			active := beginACPTestRun(t, proc, "turn-full-channel")
+			defer func() {
+				proc.cancelProcess()
+				proc.endPrompt(active)
+				for range active.events {
+				}
+			}()
+			handle := newFakeHandle(proc.Cwd)
+			defer func() {
+				if err := handle.finish(); err != nil {
+					t.Error(err)
+				}
+				if err := handle.stdoutReader.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			// Fill only the public buffer; the ingestion gate starts empty.
+			for range cap(active.events) {
+				active.events <- AgentEvent{Type: EventTypeToolCall, ToolCallID: "buffered"}
+			}
+			permission := make(chan bool, 1)
+			proc.permissionEventHandler = func(event AgentEvent, delivered bool) {
+				if event.Decision == "" {
+					permission <- delivered
+				}
+			}
+			New().configureAgentConnection(proc, handle, nil)
+			for _, message := range []string{
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Streaming response "}}}}`,
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"started. "}}}}`,
+				`{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess-direct","toolCall":{"toolCallId":"edit","kind":"edit","title":"Edit file"},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}}`,
+			} {
+				if _, err := io.WriteString(handle.stdoutWriter, message+"\n"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			synctest.Wait()
+			select {
+			case delivered := <-permission:
+				if !delivered {
+					t.Fatal("permission was not admitted to prompt ingestion")
+				}
+			default:
+				t.Fatal("full public channel blocked permission dispatch")
+			}
+			if len(active.events) != cap(active.events) {
+				t.Fatal("public event channel did not remain full before draining")
+			}
+			for range cap(active.events) {
+				if event := <-active.events; event.ToolCallID != "buffered" {
+					t.Fatalf("buffered event = %+v", event)
+				}
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			var prose strings.Builder
+			for {
+				select {
+				case event := <-active.events:
+					switch event.Type {
+					case EventTypeAgentMessage:
+						prose.WriteString(event.Text)
+					case EventTypePermission:
+						if prose.String() != "Streaming response started. " || event.ToolCallID != "edit" ||
+							event.Decision != "" {
+							t.Fatalf("permission = %+v, preceding prose = %q", event, prose.String())
+						}
+						return
+					default:
+						t.Fatalf("unexpected event = %+v", event)
+					}
+				case <-ctx.Done():
+					t.Fatal("permission was not delivered after draining")
+				}
+			}
+		})
+	})
+	t.Run("Should deliver preceding prose before permission without blocking later updates", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			active := beginACPTestRun(t, proc, "turn-order")
+			handle := newFakeHandle(proc.Cwd)
+			t.Cleanup(func() {
+				if err := handle.finish(); err != nil {
+					t.Error(err)
+				}
+				if err := handle.stdoutReader.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			// Block the first notification at diagnostic I/O so synctest can settle request dispatch.
+			logReader, logWriter := io.Pipe()
+			unblock := sync.OnceFunc(func() {
+				go func() {
+					if _, err := io.Copy(io.Discard, logReader); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+						t.Error(err)
+					}
+				}()
+			})
+			t.Cleanup(func() {
+				unblock()
+				if err := logWriter.Close(); err != nil {
+					t.Error(err)
+				}
+				if err := logReader.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			permission := make(chan struct{}, 1)
+			proc.permissionEventHandler = func(event AgentEvent, _ bool) {
+				if event.Decision == "" {
+					permission <- struct{}{}
+				}
+			}
+			New(WithLogger(slog.New(slog.NewTextHandler(logWriter, nil)))).configureAgentConnection(proc, handle, nil)
+			write := func(message string) {
+				t.Helper()
+				if _, err := io.WriteString(handle.stdoutWriter, message+"\n"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(
+				`{"jsonrpc":"2.0","method":"test/hold","params":{"sessionId":"sess-direct"}}`,
+			)
+			write(
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Streaming response "}}}}`,
+			)
+			write(
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"started. "}}}}`,
+			)
+			write(
+				`{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess-direct","toolCall":{"toolCallId":"edit","kind":"edit","title":"Edit file"},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}}`,
+			)
+			synctest.Wait()
+			select {
+			case <-permission:
+				t.Fatal("permission overtook a preceding notification still being delivered")
+			default:
+			}
+			unblock()
+			var prose strings.Builder
+			for {
+				select {
+				case event := <-active.events:
+					if event.Type == EventTypeAgentMessage {
+						prose.WriteString(event.Text)
+					}
+					if event.Type == EventTypePermission {
+						if prose.String() != "Streaming response started. " {
+							t.Fatalf("pre-permission prose = %q", prose.String())
+						}
+						write(
+							`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-direct","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"while pending"}}}}`,
+						)
+						select {
+						case later := <-active.events:
+							if later.Text != "while pending" {
+								t.Fatalf("later event = %+v", later)
+							}
+						case <-ctx.Done():
+							t.Fatal("unanswered permission blocked notifications")
+						}
+						return
+					}
+				case <-ctx.Done():
+					t.Fatal("permission was not delivered")
+				}
+			}
+		})
+	})
+}
 
 func TestPermissionPolicyModes(t *testing.T) {
 	t.Parallel()
@@ -544,4 +731,42 @@ func TestPermissionRuleDecisions(t *testing.T) {
 			}
 		},
 	)
+}
+
+func TestCheckInHostedPermission(t *testing.T) {
+	t.Run("Should allow structured hosted calls and reject title spoofing [UT-020]", func(t *testing.T) {
+		t.Parallel()
+		for _, hosted := range []bool{false, true} {
+			p := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			p.executionPolicy = ExecutionPolicyTriage
+			p.hostedIdentity = hostedToolIdentity{launched: true, codex: true}
+			raw := map[string]any{"server": "other", "tool": "compozy__notify", "arguments": map[string]any{}}
+			if hosted {
+				raw["server"] = "compozy-hosted-tools"
+			}
+			request := acpsdk.RequestPermissionRequest{
+				ToolCall: acpsdk.ToolCallUpdate{
+					ToolCallId: "check-in-call",
+					Title:      new("mcp.compozy-hosted-tools.compozy__notify"),
+					Kind:       new(acpsdk.ToolKindExecute),
+					RawInput:   raw,
+				},
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+					{OptionId: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+			}
+			response, err := p.triagePermission(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "reject"
+			if hosted {
+				want = "allow"
+			}
+			if response.Outcome.Selected == nil || string(response.Outcome.Selected.OptionId) != want {
+				t.Fatalf("hosted=%v outcome=%+v", hosted, response.Outcome)
+			}
+		}
+	})
 }

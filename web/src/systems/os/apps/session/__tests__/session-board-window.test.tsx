@@ -81,7 +81,7 @@ vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
     return {
       actions: {
         pendingAction: null,
-        pendingSessionId: null,
+        pendingSessionIds: [],
         onStop: vi.fn(),
         onRename: vi.fn(),
         onArchive: harness.onArchive,

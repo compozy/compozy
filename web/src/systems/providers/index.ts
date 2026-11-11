@@ -20,3 +20,4 @@ export {
 } from "./lib/query-options";
 export { useProvider, useProviders } from "./hooks/use-providers";
 export { providerReviewer, type ProviderReviewer } from "./lib/provider-reviewer";
+export { isProviderEnabled } from "./lib/provider-enabled";

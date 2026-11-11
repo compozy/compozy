@@ -68,6 +68,8 @@ type ResolvedRole struct {
 	ReasoningEffort string
 	runtime         *resolvedRoleRuntime
 	Fallbacks       []compozyconfig.RoleFallback
+	// PrimaryDisabled skips the primary route because its provider is disabled (BR-6).
+	PrimaryDisabled bool
 	Provenance      map[string]string
 	eventWriter     roleEventSummaryWriter
 }
@@ -164,6 +166,9 @@ func (r *roleResolver) resolveEffective(
 
 	if err := resolveRoleRuntime(effectiveConfig, common, &resolved); err != nil {
 		return ResolvedRole{}, nil, fmt.Errorf("daemon: resolve %s role runtime: %w", role, err)
+	}
+	if err := skipDisabledRoleRoutes(effectiveConfig, &resolved); err != nil {
+		return ResolvedRole{}, nil, err
 	}
 	return resolved, effectiveConfig, nil
 }
@@ -276,6 +281,14 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	}
 	if cfg == nil {
 		return errors.New("config is required")
+	}
+	if cfg.IsProviderDisabled(route.Provider) {
+		// A disabled primary never runs (BR-6), so its runtime must not fail resolution before
+		// skipDisabledRoleRoutes can fall back to an enabled route.
+		resolved.Provider = compozyconfig.CanonicalProviderName(route.Provider)
+		resolved.Model = strings.TrimSpace(route.Model)
+		resolved.ReasoningEffort = strings.TrimSpace(route.ReasoningEffort)
+		return nil
 	}
 	runtime, err := cfg.ResolveAgentDefinition(route)
 	if err != nil {

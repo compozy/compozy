@@ -48,7 +48,7 @@ func (c ProviderUsageConfig) Validate(providers map[string]ProviderConfig) error
 
 func providerUsageToolPath(path []string) bool {
 	return len(path) == 4 && path[0] == ProviderUsageConfigKey && path[1] == "providers" &&
-		path[3] == "enabled"
+		path[3] == RoleFieldEnabled
 }
 
 // ProviderUsageAPIKeySlot is the bound credential slot key-based usage collectors read.
@@ -94,4 +94,30 @@ func ProviderUsageFamily(id string, provider ProviderConfig, hasCollector func(s
 		return id
 	}
 	return runtime
+}
+
+// ProviderCostReporting describes the adapter's monetary counter, not token usage.
+type ProviderCostReporting string
+
+const (
+	// ProviderCostCumulative is the ACP Cost.amount contract and the default for unknown adapters.
+	ProviderCostCumulative ProviderCostReporting = "cumulative"
+	// ProviderCostPerTurn is reserved for adapters explicitly reporting one turn's cost.
+	ProviderCostPerTurn ProviderCostReporting = "per_turn"
+)
+
+// ProviderCostReportingFor returns the adapter's declared cost semantics. No
+// shipped adapter is known to override ACP's cumulative monetary counter.
+// Future exceptions belong here, alongside the adapter survey in the docs.
+func ProviderCostReportingFor(provider string) ProviderCostReporting {
+	// Both adapters publish session-total dollars. Other builtins either omit
+	// monetary usage or do not document an exception to the ACP contract.
+	declarations := map[string]ProviderCostReporting{
+		providerClaudeKey:   ProviderCostCumulative,
+		providerOpencodeKey: ProviderCostCumulative,
+	}
+	if semantics, ok := declarations[CanonicalProviderName(provider)]; ok {
+		return semantics
+	}
+	return ProviderCostCumulative
 }

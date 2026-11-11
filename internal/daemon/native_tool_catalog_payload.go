@@ -15,6 +15,7 @@ type nativeToolListDescriptor struct {
 	ID                  toolspkg.ToolID      `json:"id"`
 	InputSchemaDigest   string               `json:"input_schema_digest"`
 	OutputSchemaDigest  string               `json:"output_schema_digest,omitempty"`
+	HasResultViews      bool                 `json:"has_result_views,omitzero"`
 	Risk                toolspkg.RiskClass   `json:"risk"`
 	ReadOnly            bool                 `json:"read_only"`
 	Destructive         bool                 `json:"destructive"`
@@ -88,6 +89,7 @@ func nativeToolListPayloads(views []toolspkg.ToolView) []nativeToolListView {
 				ID:                  view.Descriptor.ID,
 				InputSchemaDigest:   view.Descriptor.InputSchemaDigest,
 				OutputSchemaDigest:  view.Descriptor.OutputSchemaDigest,
+				HasResultViews:      view.Descriptor.ResultViews() != nil,
 				Risk:                view.Descriptor.Risk,
 				ReadOnly:            view.Descriptor.ReadOnly,
 				Destructive:         view.Descriptor.Destructive,
@@ -106,7 +108,7 @@ func nativeToolListPayloads(views []toolspkg.ToolView) []nativeToolListView {
 
 func nativeToolListPageFromViews(views []toolspkg.ToolView, offset int, limit int) nativeToolListPage {
 	start := min(offset, len(views))
-	end := min(start+limit, len(views))
+	end := start + min(limit, len(views)-start)
 	hasMore := end < len(views)
 	nextOffset := 0
 	if hasMore {

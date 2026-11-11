@@ -60,7 +60,12 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 		h.respondHostedMCPPeerError(c, err)
 		return
 	}
-	response, err := h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
+	var response mcppkg.HostedProjectionResponse
+	if c.Query("stream_snapshot") == "true" {
+		response, err = h.HostedMCP.StreamSnapshot(c.Request.Context(), c.Query("bind_id"), peer)
+	} else {
+		response, err = h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
+	}
 	if err != nil {
 		respondHostedMCPError(c, err)
 		return
@@ -82,6 +87,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	}
 	bindID := strings.TrimSpace(c.Query("bind_id"))
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
+	notificationsOnly := c.Query("notifications_only") == "true"
 	changes := h.HostedMCP.ProjectionChanges()
 	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 	if err != nil {
@@ -102,11 +108,14 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	defer fallback.Stop()
 	for {
 		if response.Digest != "" && response.Digest != lastDigest {
-			if writeErr := core.WriteSSE(writer, core.SSEMessage{
-				ID:   response.Digest,
-				Name: "projection",
-				Data: response,
-			}); writeErr != nil {
+			message := core.SSEMessage{ID: response.Digest, Name: "projection", Data: response}
+			if notificationsOnly {
+				message.Name = "projection_changed"
+				message.Data = struct {
+					Digest string `json:"digest"`
+				}{response.Digest}
+			}
+			if writeErr := core.WriteSSE(writer, message); writeErr != nil {
 				if h.Logger != nil {
 					h.Logger.Warn("udsapi: failed to emit hosted MCP projection", "error", writeErr)
 				}
@@ -269,6 +278,7 @@ func hostedMCPSafeError() error {
 	return errHostedMCPBackend
 }
 
+// hostedMCPJSONError uses fixed public text so bind failures cannot disclose backend details.
 func hostedMCPJSONError(err error) error {
 	if isHostedMCPToolError(err) {
 		return errors.New("hosted_mcp_tool_error: hosted tool request failed")
@@ -277,6 +287,10 @@ func hostedMCPJSONError(err error) error {
 		return hostedMCPSafeError()
 	}
 	switch {
+	case errors.Is(err, mcppkg.ErrHostedRunRequired):
+		return errors.New(
+			"hosted_mcp_run_required: terminal tools require an active prompt turn; retry from an active prompt turn",
+		)
 	case errors.Is(err, mcppkg.ErrHostedSessionRequired):
 		return errors.New("hosted_mcp_session_required: session_id is required")
 	case errors.Is(err, mcppkg.ErrHostedNonceRequired):
@@ -298,6 +312,7 @@ func hostedMCPJSONError(err error) error {
 	}
 }
 
+// hostedMCPStatus keeps caller-correctable binding refusals out of the server-error range.
 func hostedMCPStatus(err error) int {
 	switch {
 	case err == nil:
@@ -317,7 +332,8 @@ func hostedMCPStatus(err error) int {
 		errors.Is(err, mcppkg.ErrHostedNonceRequired),
 		errors.Is(err, mcppkg.ErrHostedBindRequired):
 		return http.StatusBadRequest
-	case errors.Is(err, mcppkg.ErrHostedNonceInvalid),
+	case errors.Is(err, mcppkg.ErrHostedRunRequired),
+		errors.Is(err, mcppkg.ErrHostedNonceInvalid),
 		errors.Is(err, mcppkg.ErrHostedNonceExpired),
 		errors.Is(err, mcppkg.ErrHostedPeerInvalid),
 		errors.Is(err, mcppkg.ErrHostedBinaryInvalid),

@@ -10,7 +10,7 @@ import (
 	burnttoml "github.com/BurntSushi/toml"
 )
 
-// Persisted-file migration adapted from #1297 by @rodrigo123antunes. Removal: v0.6.0.
+// Persisted-file migration adapted from #1297 by @rodrigo123antunes. Removal: v0.6.1.
 const retiredAlwaysOnArchiveHeader = "\n# Archived [agents.stays_on]; values moved to [agents.always_on] " +
 	"unless already set; these values are inactive.\n"
 

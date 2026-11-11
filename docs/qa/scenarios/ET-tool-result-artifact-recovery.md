@@ -29,8 +29,8 @@ fabricated durable URI. Confirm the Web card preserves the preview through loadi
 retry states.
 
 Through hosted MCP, call an oversized native tool (for example `compozy__session_events` with
-`limit: 1000` on a session above the budget) from a real MCP client that validates output schemas
-(Claude Code). Require a successful call whose `structuredContent` is the continuation envelope
+`limit: 1000` on a session above the budget) from a real MCP client
+(Claude Code). Confirm hosted native tools omit `outputSchema` and preserve `structuredContent`. Require a successful call whose `structuredContent` is the continuation envelope
 (`truncated: true`, `truncated_from_bytes`, `preview`, `artifacts[].uri`, `read_tool`), then page
 the artifact with `compozy__tool_artifact_read` to `eof` and match the retained bytes to the URI
 digest. Confirm `compozy__session_events` and `compozy__session_history` without `limit` return
@@ -94,3 +94,10 @@ Profile deletion removes that profile's User artifacts through its recoverable l
 journal. A failed removal keeps the operation retryable; retry/recovery preserves other
 profiles' User artifacts and all workspace artifacts. The artifact store is initialized
 before boot replays profile operations.
+
+QA impact 2026-11-09 (User-session event summaries): after the User walk above, read
+`compozy logs --session <user-session-id> -o json`. The session's `tool_call`, `tool_result` and
+`usage` summaries must be present with an empty workspace id, and the daemon log must not report
+`observe: write event summary failed … event summary workspace_id is required`. A summary for a
+session the catalog does not know still requires a workspace. Focused coverage:
+`TestUserEventSummarySelection` (real SQLite) and `TestValidationHelpersAndPathUtilities`.

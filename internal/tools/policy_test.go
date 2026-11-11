@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"context"
+	"encoding/json"
 	"slices"
 	"testing"
 )
@@ -569,7 +571,7 @@ func TestTriageToolPolicy(t *testing.T) {
 		terminal.ID = "compozy__terminal_read"
 		external := mcpDescriptor("mcp__github__search", "github", "search")
 		inputs := DefaultPolicyInputs()
-		inputs.TriageReadOnly = true
+		inputs.CheckIn = &CheckInPolicy{Disabled: true}
 		inputs.SystemPermissionMode = PermissionModeApproveAll
 		inputs.ApprovalAvailable = true
 		evaluator, err := NewEffectivePolicyEvaluator(
@@ -688,4 +690,83 @@ func TestCoordinationPermissionLevels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckInPolicy(t *testing.T) {
+	t.Run("Should pass cancellation to unattended evaluation and fail closed without a main", func(t *testing.T) {
+		t.Parallel()
+		d := validDescriptor()
+		d.ID = ToolIDNotify
+		d.ReadOnly = false
+		d.Risk = RiskMutating
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		p := CheckInPolicy{
+			AllowWrites:    []string{string(d.ID)},
+			RunsUnattended: func(ctx context.Context, _ Descriptor, _ json.RawMessage) bool { return ctx.Err() == nil },
+		}
+		if reason := p.denial(ctx, d, nil); reason != ReasonCheckInWriteNeedsApproval {
+			t.Fatalf("canceled approval lookup: %s", reason)
+		}
+		p.NoMainSession = true
+		if reason := p.denial(t.Context(), validDescriptor(), nil); reason != ReasonCheckInNoMainSession {
+			t.Fatalf("missing main read: %s", reason)
+		}
+		p.NoMainSession = false
+		p.RunsUnattended = nil
+		d.ID = ToolIDSessionPrompt
+		if reason := p.denial(t.Context(), d, nil); reason != ReasonCheckInToolNotWritable {
+			t.Fatalf("writable set order: %s", reason)
+		}
+	})
+
+	t.Run("Should classify access and bound opt-in writes without approval [UT-001 UT-003 UT-004]", func(t *testing.T) {
+		t.Parallel()
+		read := validDescriptor()
+		if AccessOf(read) != AccessRead {
+			t.Fatal("read descriptor classified write")
+		}
+		for _, mutate := range []func(*Descriptor){func(d *Descriptor) { d.Destructive = true }, func(d *Descriptor) { d.OpenWorld = true }, func(d *Descriptor) { d.RequiresInteraction = true }, func(d *Descriptor) { d.Risk = RiskMutating }, func(d *Descriptor) { d.ReadOnly = false }} {
+			d := read
+			mutate(&d)
+			if AccessOf(d) != AccessWrite {
+				t.Fatalf("unsafe read: %+v", d)
+			}
+		}
+		write := mcpDescriptor("mcp__linear__comment", "linear", "comment")
+		write.ReadOnly = false
+		write.OpenWorld = true
+		write.Risk = RiskOpenWorld
+		native := read
+		native.ID = ToolIDSessionPrompt
+		native.ReadOnly = false
+		native.Risk = RiskMutating
+		for _, tc := range []struct {
+			name       string
+			d          Descriptor
+			selectors  []string
+			unattended bool
+			reason     ReasonCode
+		}{
+			{"Should allow a read", read, nil, false, ""},
+			{"Should deny clarify even classified read", func() Descriptor { d := read; d.ID = ToolIDClarify; return d }(), nil, true, ReasonCheckInToolNotWritable},
+			{"Should deny an unlisted write", write, nil, true, "check_in_write_not_allowed"},
+			{"Should allow an exact write", write, []string{string(write.ID)}, true, ""},
+			{"Should allow a server selector", write, []string{"mcp__linear__*"}, true, ""},
+			{"Should reject a different server", write, []string{"mcp__linear_extra__*"}, true, "check_in_write_not_allowed"},
+			{"Should refuse approvals", write, []string{string(write.ID)}, false, "check_in_write_needs_approval"},
+			{"Should deny native coordination", native, []string{string(native.ID)}, true, "check_in_tool_not_writable"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				p := CheckInPolicy{
+					AllowWrites:    tc.selectors,
+					RunsUnattended: func(context.Context, Descriptor, json.RawMessage) bool { return tc.unattended },
+				}
+				if reason := p.denial(t.Context(), tc.d, nil); reason != tc.reason {
+					t.Fatalf("reason=%s want=%s", reason, tc.reason)
+				}
+			})
+		}
+	})
 }

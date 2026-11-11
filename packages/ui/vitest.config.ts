@@ -1,8 +1,11 @@
-import viteReact from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [viteReact()],
+  // Consumers compile these sources with the React Compiler; tests run the same
+  // transform so memoized output that ignores changing inputs fails here too.
+  plugins: [viteReact(), babel({ presets: [reactCompilerPreset()] })],
   test: {
     name: "ui",
     environment: "jsdom",

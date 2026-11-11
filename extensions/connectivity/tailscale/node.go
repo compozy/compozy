@@ -45,6 +45,7 @@ func newTSNetNode(stateDir string, logger *slog.Logger) (tailscaleNode, error) {
 	if authKey == "" {
 		return nil, errAuthKeyBindingRequired
 	}
+	useHostRouting(logger)
 	server := &tsnet.Server{
 		Dir:      stateDir,
 		Hostname: "compozy-gateway",

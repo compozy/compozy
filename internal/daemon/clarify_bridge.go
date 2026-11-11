@@ -32,6 +32,12 @@ type clarifyOrphanResolver interface {
 	) (toolspkg.ClarifyAnswerResult, error)
 }
 
+// clarifyOperatorAskerSetter installs the broker that renders provider
+// elicitation through the operator question channel.
+type clarifyOperatorAskerSetter interface {
+	SetClarifyBroker(toolspkg.ClarifyBroker)
+}
+
 type clarifyBridge struct {
 	mu                sync.Mutex
 	pending           map[string]*clarifyHandle

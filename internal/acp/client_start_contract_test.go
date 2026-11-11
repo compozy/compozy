@@ -61,14 +61,20 @@ func TestStartInitializeContract(t *testing.T) {
 			)
 		}
 		var capabilities struct {
-			Meta     map[string]any `json:"_meta"`
-			Terminal bool           `json:"terminal"`
+			Meta        map[string]any `json:"_meta"`
+			Terminal    bool           `json:"terminal"`
+			Elicitation *struct {
+				Form json.RawMessage `json:"form"`
+			} `json:"elicitation"`
 		}
 		if err := json.Unmarshal(params["clientCapabilities"], &capabilities); err != nil {
 			t.Fatalf("decode initialize clientCapabilities: %v", err)
 		}
 		if !capabilities.Terminal {
 			t.Fatal("clientCapabilities.terminal = false, want true")
+		}
+		if capabilities.Elicitation == nil || len(capabilities.Elicitation.Form) == 0 {
+			t.Fatal("clientCapabilities.elicitation.form is absent, want form elicitation advertised")
 		}
 		if value, ok := capabilities.Meta["terminal_output"]; ok {
 			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want absent", value)
@@ -358,6 +364,106 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	}
 	if got, want := request.ModeID, "bypassPermissions"; got != want {
 		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
+func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, scenario, provider, value, wantError string
+		wantSelection                              bool
+	}{
+		{name: "Should start Claude without a mode option", scenario: "config_options", provider: "claude", value: "bypassPermissions"},
+		{name: "Should start Codex without a mode option", scenario: "config_options", provider: "codex", value: "agent-full-access"},
+		{name: "Should start agy without a mode option", scenario: "config_options", provider: "agy", value: "yolo"},
+		{name: "Should start without selecting an ambiguous mode option", scenario: "full_access_mode_duplicate", value: "bypassPermissions"},
+		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
+		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
+		{name: "Should reject a missing narrower mode option", scenario: "config_options", value: "plan", wantError: "not uniquely advertised"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "full-access-mode.jsonl")
+			proc, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:      "helper", ProviderName: tc.provider,
+				Command: helperCommand(t), Cwd: t.TempDir(),
+				Env:         helperEnvWithCapture(tc.scenario, "", captureFile),
+				Permissions: compozyconfig.PermissionModeApproveAll,
+				ACPOptions:  []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
+			})
+			if proc != nil {
+				defer stopProcess(t, driver, proc)
+			}
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("Start() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			if got := captureMethodExists(
+				t,
+				captureFile,
+				acpsdk.AgentMethodSessionSetConfigOption,
+			); got != tc.wantSelection {
+				t.Fatalf("set_config_option sent = %v, want %v", got, tc.wantSelection)
+			}
+			if tc.wantSelection {
+				assertConfigOption(
+					t,
+					proc.CapsSnapshot().ConfigOptions,
+					"mode",
+					tc.value,
+					"default",
+					"bypassPermissions",
+				)
+			} else {
+				runtime := RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
+				}
+				if tc.scenario == "config_options" {
+					runtime.Model, runtime.ReasoningEffort = "other-model", "high"
+				}
+				if err := driver.ConfigureRuntime(t.Context(), proc, runtime); err != nil {
+					t.Fatalf("ConfigureRuntime() error = %v", err)
+				}
+				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "full-access"}},
+				})
+				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
+					t.Fatalf("new live mode error = %v, want missing mode rejection", err)
+				}
+				if runtime.Model != "" {
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"model",
+						"other-model",
+						"new-model",
+						"loaded-model",
+						"other-model",
+					)
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"reasoning_effort",
+						"high",
+						"minimal",
+						"none",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+						"ultra",
+					)
+				}
+			}
+		})
 	}
 }
 
@@ -2427,11 +2533,15 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 			)
 		}
 		hooks := options.Settings.Hooks.PreToolUse
-		if len(hooks) != 1 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
+		if len(hooks) != 2 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
 			hooks[0].Hooks[0].Type != "command" ||
 			!strings.Contains(hooks[0].Hooks[0].Command, "run_in_background") ||
 			!strings.Contains(hooks[0].Hooks[0].Command, `"permissionDecision":"deny"`) {
-			t.Fatalf("%s PreToolUse hooks = %#v, want one shell run_in_background deny hook", method, hooks)
+			t.Fatalf("%s PreToolUse hooks = %#v, want shell background and subagent monitor guards", method, hooks)
+		}
+		if hooks[1].Matcher != "(^|.*__)compozy__monitor_create$" || len(hooks[1].Hooks) != 1 ||
+			!strings.Contains(hooks[1].Hooks[0].Command, "__internal shell-wait-hook") {
+			t.Fatalf("%s monitor guard = %#v", method, hooks[1])
 		}
 		// Only the four SDK task lifecycle messages are forwarded, never every raw SDK message.
 		wantFilters := []map[string]string{
@@ -2650,7 +2760,7 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 			},
 		})
 		defer stopProcess(t, driver, proc)
-		text, included, _ := proc.nextPromptText("hello", false)
+		text, included, _, _ := proc.nextPromptText("hello", PromptRequest{Message: "hello"})
 		if !included || strings.Contains(text, "unconfirmed tools") ||
 			!strings.Contains(text, "confirmed runtime guidance") {
 			t.Fatalf("first prompt = %q", text)
@@ -2850,4 +2960,145 @@ func TestPermissionLevelModeSelection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckInHostedStartup(t *testing.T) {
+	t.Run("Should retain only the daemon hosted server when enabled [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		for _, enabled := range []bool{false, true} {
+			opts := StartOpts{
+				ProviderName:     "codex",
+				CheckInTools:     enabled,
+				Command:          "npx -y @agentclientprotocol/codex-acp@latest",
+				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				MCPServers: []compozyconfig.MCPServer{
+					{Name: "raw", Command: "raw"},
+					{Name: "compozy-hosted-tools", Command: "compozy", Args: []string{"--bind-nonce", "nonce"}},
+				},
+			}
+			normalized, err := constrainTriageStart(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if enabled {
+				want = 1
+			}
+			if len(normalized.MCPServers) != want {
+				t.Fatalf("enabled=%v servers=%+v", enabled, normalized.MCPServers)
+			}
+			process := &AgentProcess{}
+			process.setHostedToolIdentity(normalized)
+			if process.hostedToolIdentitySnapshot().launched != enabled {
+				t.Fatalf("hosted identity enabled=%v", enabled)
+			}
+			if len(opts.MCPServers) != 2 || opts.MCPServers[0].Name != "raw" {
+				t.Fatal("start constraint mutated caller slice")
+			}
+		}
+	})
+}
+
+func TestClaudeAutoCompactWindow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, configured := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should preserve compact window configuration on %s configured %t", tc.name, configured),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+					}
+					if configured {
+						opts.ProviderConfig = &compozyconfig.ProviderConfig{AutoCompactWindow: new(200000)}
+					}
+					proc := startHelperProcess(t, New(), tc.scenario, "", opts)
+					defer stopProcess(t, New(), proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								Env map[string]string `json:"env"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got, present := meta.ClaudeCode.Options.Env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"]
+					if present != configured || configured && got != "200000" {
+						t.Fatalf("window = %q, present = %t", got, present)
+					}
+				},
+			)
+		}
+	}
+}
+
+func TestClaudeLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, scenario, method, resume string }{
+		{"new", "stream_updates", acpsdk.AgentMethodSessionNew, ""},
+		{"load", "load_session", acpsdk.AgentMethodSessionLoad, "sess-existing"},
+		{"resume", "resume_session", acpsdk.AgentMethodSessionResume, "sess-existing"},
+	} {
+		for _, enabled := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf(
+					"Should preserve repository instructions and managed tools on %s lean %t",
+					tc.name,
+					enabled,
+				),
+				func(t *testing.T) {
+					t.Parallel()
+					capture := filepath.Join(t.TempDir(), "request.jsonl")
+					opts := StartOpts{
+						Command:         helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest",
+						ResumeSessionID: tc.resume,
+						Env:             helperEnvWithCapture(tc.scenario, "", capture),
+						LeanEnvironment: enabled,
+					}
+					driver := New()
+					proc := startHelperProcess(t, driver, tc.scenario, "", opts)
+					defer stopProcess(t, driver, proc)
+					params := captureRequestParams(t, capture, tc.method)
+					var meta struct {
+						ClaudeCode struct {
+							Options struct {
+								StrictMCP bool              `json:"strictMcpConfig"`
+								Env       map[string]string `json:"env"`
+								Tools     *[]string         `json:"tools"`
+								Skills    *[]string         `json:"skills"`
+							} `json:"options"`
+						} `json:"claudeCode"`
+					}
+					if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+						t.Fatal(err)
+					}
+					got := meta.ClaudeCode.Options
+					if got.StrictMCP != enabled || (got.Env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1") != enabled ||
+						(got.Env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false") != enabled {
+						t.Fatalf("options = %+v", got)
+					}
+					if got.Env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] != "" || got.Tools != nil || got.Skills != nil {
+						t.Fatal("lean environment removed coding instructions or tools")
+					}
+				},
+			)
+		}
+	}
+	t.Run("Should leave other provider environments unchanged", func(t *testing.T) {
+		t.Parallel()
+		if claudeCodeSessionMeta(StartOpts{Command: "codex-acp", LeanEnvironment: true}) != nil {
+			t.Fatal("Claude options escaped to another provider")
+		}
+	})
 }

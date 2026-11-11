@@ -108,7 +108,7 @@ func (w *gitOutputWriter) Flush() {
 
 func (w *gitOutputWriter) emitPending(length int) {
 	w.onOutput(GitOutput{Stream: w.stream, Chunk: append([]byte(nil), w.pending[:length]...)})
-	w.pending = append(w.pending[:0], w.pending[length:]...)
+	w.pending = w.pending[length:]
 }
 
 func (w *gitOutputWriter) Bytes() []byte {

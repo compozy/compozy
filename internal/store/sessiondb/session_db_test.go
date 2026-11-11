@@ -115,6 +115,92 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 			t.Fatalf("owner after concurrent close: %v", err)
 		}
 	})
+	// Invariant: live WAL appends never invalidate an owner snapshot; a WAL restart does.
+	t.Run("Should keep an owner snapshot valid across appended WAL frames", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		source := openTestSessionDB(t, "sess-snapshot-append")
+		if _, err := source.db.ExecContext(ctx, "CREATE TABLE snapshot_fixture (value TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		insert := func() {
+			t.Helper()
+			if _, err := source.db.ExecContext(ctx, "INSERT INTO snapshot_fixture VALUES ('row')"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		insert()
+		snapshot := filepath.Join(t.TempDir(), "events.db")
+		copied, err := copyOwnerGuardFamilyFiles(ctx, source.path, snapshot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		insert()
+		if err := copied.requireCurrent(source.path); err != nil {
+			t.Fatalf("snapshot after appended WAL frame: %v", err)
+		}
+		db, err := sql.Open("sqlite", sessionSQLiteModeDSN(snapshot, "ro"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := verifySessionDBOwner(ctx, db, source.owner); err != nil {
+			t.Fatalf("owner in appended-WAL snapshot: %v", err)
+		}
+		var rows int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM snapshot_fixture").Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		if rows != 1 {
+			t.Fatalf("snapshot rows = %d, want the 1 row committed before copying", rows)
+		}
+
+		// After a full backfill the next write restarts the WAL in place with new
+		// salts, leaving the main file and the WAL size unchanged.
+		if _, err := source.db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
+			t.Fatal(err)
+		}
+		restarted := filepath.Join(t.TempDir(), "events.db")
+		copied, err = copyOwnerGuardFamilyFiles(ctx, source.path, restarted)
+		if err != nil {
+			t.Fatal(err)
+		}
+		insert()
+		if err := copied.requireCurrent(source.path); !errors.Is(err, errOwnerGuardSnapshotChanged) {
+			t.Fatalf("snapshot after WAL restart error = %v, want %v", err, errOwnerGuardSnapshotChanged)
+		}
+		// A restarted WAL that grows past the copied size must still be rejected.
+		for {
+			info, err := os.Stat(source.path + "-wal")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Size() > copied.wal.Size() {
+				break
+			}
+			if _, err := source.db.ExecContext(
+				ctx,
+				"INSERT INTO snapshot_fixture VALUES (?)",
+				strings.Repeat("grow", 1024),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		header, err := readOwnerGuardWALHeader(source.path+"-wal", copied.wal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Equal(header, copied.walHeader) {
+			t.Fatal("fixture did not restart the WAL header")
+		}
+		if err := copied.requireCurrent(source.path); !errors.Is(err, errOwnerGuardSnapshotChanged) {
+			t.Fatalf("snapshot after grown WAL restart error = %v, want %v", err, errOwnerGuardSnapshotChanged)
+		}
+	})
 	// Invariant: an owner-read corruption error is retried only after a successful SQLite integrity probe.
 	t.Run("Should retry an owner read only when integrity is verified", func(t *testing.T) {
 		t.Parallel()
@@ -599,6 +685,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			if blocked.closed.Load() {
 				t.Fatal("checkpoint connection closed while I/O was still active")
 			}
+			if db.CleanupComplete() {
+				t.Fatal("cleanup reported complete while checkpoint I/O was still active")
+			}
 			unblock()
 			if expire {
 				if err := db.Close(testutil.Context(t)); err != nil && !errors.Is(err, context.DeadlineExceeded) {
@@ -609,6 +698,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			}
 			if !blocked.closed.Load() {
 				t.Fatal("checkpoint connection remains open after cleanup joined")
+			}
+			if !db.CleanupComplete() {
+				t.Fatal("cleanup remained pending after its resources closed")
 			}
 		})
 	}
@@ -671,6 +763,133 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 
 	// Invariant: physical checkpoint writes serialize with guarded connection opens.
 	// Owner: SessionDB WAL coordination; canonical passive-checkpoint suite.
+	for _, expire := range []bool{false, true} {
+		name := "Should keep final close checkpoint behind a physical open"
+		if expire {
+			name = "Should retain close ownership while a physical open holds the family guard"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openTestSessionDB(t, "sess-close-family-guard")
+			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
+			reader, err := OpenSessionDBReadOnly(ctx, db.owner, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reader.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			lease, err := AcquireFamilyLease(ctx, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lease.Release()
+			const marker = "terminal-event-awaiting-final-backfill"
+			if err := db.Record(ctx, SessionEvent{
+				ID: "before-close", TurnID: "turn-close", Type: "session_stopped", AgentName: "coder",
+				Content: `{"text":"` + marker + `"}`,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Pin the latest frame: PASSIVE can backfill it, but last-connection
+			// cleanup cannot replace the explicit checkpoint while this reader lives.
+			snapshot, err := reader.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := snapshot.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+					t.Error(err)
+				}
+			})
+			var count int
+			if err := snapshot.QueryRowContext(ctx, "SELECT count(*) FROM events").
+				Scan(&count); err != nil ||
+				count != 1 {
+				t.Fatalf("retained reader = %d events, %v", count, err)
+			}
+			before, err := os.ReadFile(db.path)
+			if err != nil || bytes.Contains(before, []byte(marker)) {
+				t.Fatalf("fixture was already backfilled: %v", err)
+			}
+			closeCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			closed := make(chan error, 1)
+			go func() { closed <- db.Close(closeCtx) }()
+			for _, done := range []<-chan struct{}{db.writerDone, db.checkpointDone} {
+				select {
+				case <-done:
+				case <-ctx.Done():
+					t.Fatal("workers did not join before final cleanup")
+				}
+			}
+			// Only cleanup can now be waiting on this lease. Reach that boundary
+			// before comparing bytes, including while the non-expired context is live.
+			for {
+				sessionDBFamilyLeaseRegistry.Lock()
+				waiting := lease.entry.refs > 1
+				sessionDBFamilyLeaseRegistry.Unlock()
+				if waiting {
+					break
+				}
+				select {
+				case <-db.closeDone:
+					t.Fatal("cleanup finished without respecting the physical open")
+				case <-ctx.Done():
+					t.Fatal("cleanup did not reach the family guard")
+				case <-time.After(time.Millisecond):
+				}
+			}
+			after, err := os.ReadFile(db.path)
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatalf("close changed the main database during guarded open: %v", err)
+			}
+			if expire {
+				cancel()
+				if err := <-closed; !errors.Is(err, store.ErrDrainTimeout) ||
+					!errors.Is(err, context.Canceled) {
+					t.Fatalf("close during guarded open = %v, want drain cancellation", err)
+				}
+			} else if err := closeCtx.Err(); err != nil {
+				t.Fatalf("checkpoint context expired before the ordering check: %v", err)
+			}
+			lease.Release()
+			select {
+			case <-db.closeDone:
+			case <-ctx.Done():
+				t.Fatal("close did not finish after the physical open released its guard")
+			}
+			if !expire {
+				if err := <-closed; err != nil {
+					t.Fatal(err)
+				}
+			}
+			if db.closeErr != nil {
+				t.Fatalf("owned cleanup failed after the lease released: %v", db.closeErr)
+			}
+			after, err = os.ReadFile(db.path)
+			if err != nil || !bytes.Contains(after, []byte(marker)) {
+				t.Fatalf("final cleanup did not backfill with the independent reader retained: %v", err)
+			}
+			reopened, err := OpenSessionDB(t.Context(), db.owner, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reopened.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			events, err := reopened.Query(t.Context(), EventQuery{})
+			if err != nil || len(events) != 1 || events[0].ID != "before-close" {
+				t.Fatalf("durable event after guarded close = %#v, %v", events, err)
+			}
+		})
+	}
+
 	t.Run("Should wait for an in-flight family guard before checkpointing", func(t *testing.T) {
 		t.Parallel()
 		db := openTestSessionDB(t, "sess-checkpoint-guard")
@@ -1453,7 +1672,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 					t.Fatalf("migrated page = %#v, %v, want %#v", page, err, wantPage)
 				}
 				status, err := store.Status(ctx, opened.db, MigrationStream())
-				if err != nil || status.Version != 10 || status.AppliedCount != 10 ||
+				if err != nil || status.Version != 11 || status.AppliedCount != 11 ||
 					(attempt > 0 && status != previousStatus) {
 					t.Fatalf("upgraded status = %#v, %v, previous %#v", status, err, previousStatus)
 				}
@@ -1478,8 +1697,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 10 || firstStatus.AppliedCount != 10 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 10", firstStatus)
+		if firstStatus.Version != 11 || firstStatus.AppliedCount != 11 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 11", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -1627,8 +1846,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 10 || status.AppliedCount != 10 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 10", status)
+		if status.Version != 11 || status.AppliedCount != 11 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 11", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -4974,4 +5193,135 @@ func turnIDs(history []store.TurnHistory) []string {
 		ids = append(ids, turn.TurnID)
 	}
 	return ids
+}
+
+// Invariant: migration 11 preserves raw monetary evidence and all non-cost usage,
+// while canonical history and the per-turn ledger agree after upgrade and reopen.
+func TestSessionDBUsageCostMigration(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		missing        bool
+		amounts, costs []float64
+	}{
+		{name: "Should preserve raw reports while charging zero for a dropped counter", amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should resume increments from a lagging restored counter", amounts: []float64{10, 12, 11.5, 12.5}, costs: []float64{10, 2, 0, 1}},
+		{name: "Should derive costs from canonical history when a usage projection is missing", missing: true, amounts: []float64{1, 3, 4, 0.5, 2}, costs: []float64{1, 2, 1, 0, 1.5}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			owner := testSessionDBOwner("sess-cost-upgrade")
+			old, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+				return store.Apply(ctx, db, sessionMigrationPrefixBefore(t, "00011_schema.sql"))
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := old.ExecContext(
+				ctx,
+				`INSERT INTO session_db_owner(singleton, session_id, workspace_id) VALUES (1,?,?)`,
+				owner.SessionID,
+				owner.WorkspaceID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			amounts, costs := tc.amounts, tc.costs
+			for i, amount := range amounts {
+				turn := fmt.Sprintf("turn-cost-%d", i)
+				stamp := time.Date(2026, 7, 15, 12, i, 0, 0, time.UTC)
+				usage := acp.TokenUsage{
+					TurnID:       turn,
+					CostAmount:   new(amount),
+					CostCurrency: new("USD"),
+					TotalTokens:  new(int64(5)),
+					Timestamp:    stamp,
+				}
+				content, err := transcript.MarshalAgentEvent(
+					acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turn, Usage: &usage},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := old.ExecContext(
+					ctx,
+					`INSERT INTO events(id,sequence,turn_id,type,agent_name,content,timestamp) VALUES (?,?,?,'done','coder',?,?)`,
+					turn,
+					i+1,
+					turn,
+					content,
+					store.FormatTimestamp(stamp),
+				); err != nil {
+					t.Fatal(err)
+				}
+				if tc.missing && i == 1 {
+					continue
+				}
+				if _, err := old.ExecContext(
+					ctx,
+					`INSERT INTO token_usage(turn_id,total_tokens,cache_read_tokens,cost_amount,cost_currency,timestamp) VALUES (?,5,4,?,'USD',?)`,
+					turn,
+					amount,
+					store.FormatTimestamp(stamp),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := old.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				ledger, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows, err := ledger.ListTokenUsage(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantRows := len(costs)
+				if tc.missing {
+					wantRows--
+				}
+				if len(rows) != wantRows {
+					t.Fatalf("rows=%v", rows)
+				}
+				for i, row := range rows {
+					if tc.missing && i >= 1 {
+						i++
+					}
+					if row.CostAmount == nil || *row.CostAmount != costs[i] || row.ReportedCostAmount == nil ||
+						*row.ReportedCostAmount != amounts[i] ||
+						row.TotalTokens == nil ||
+						*row.TotalTokens != 5 ||
+						row.CacheReadTokens == nil ||
+						*row.CacheReadTokens != 4 {
+						t.Fatalf("usage %d=%+v", i, row)
+					}
+				}
+				events, err := ledger.Query(ctx, store.EventQuery{Type: acp.EventTypeDone})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(events) != len(costs) {
+					t.Fatalf("done events=%d, want %d", len(events), len(costs))
+				}
+				for i, row := range events {
+					event, err := transcript.UnmarshalAgentEvent(row.Content)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if event.Usage == nil || event.Usage.CostAmount == nil || *event.Usage.CostAmount != costs[i] ||
+						event.Usage.ReportedCostAmount == nil ||
+						*event.Usage.ReportedCostAmount != amounts[i] {
+						t.Fatalf("canonical usage=%+v", event.Usage)
+					}
+				}
+				if err := ledger.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
 }

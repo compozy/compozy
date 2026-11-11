@@ -18,6 +18,13 @@ overlaps:
 
 Introduced for issue #344. The display name is the only mutable datum; session id, transcript, runtime, archive state, lineage, and workspace ownership remain authoritative.
 
+Storage stress regression (#1369): the `SQLite real daemon thirty-session exercise`
+CI job verifies HTTP renames during concurrent transcript and catalog traffic,
+then checks CLI/UDS state after a clean restart. Core checkpoint maintenance owns
+WAL-header synchronization; queued writes can wait on storage before their
+transaction begins. The paired-load job separately rejects core callback/COMMIT
+holds of one second or more with unchanged throughput and integrity budgets.
+
 2026-08-11 retest: passed. Web, CLI, and HTTP renamed the same stopped user session; a daemon restart preserved the final name, session id, stopped state, and workspace id.
 
 2026-08-12 review round 1: qa_status reset to untested because a rejected Web rename now remains open and exposes a retryable inline error.

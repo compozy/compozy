@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,147 @@ import (
 
 func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
 	t.Parallel()
+	t.Run("Should omit exact native exposures while preserving the managed catalog", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		agentsRoot := filepath.Join(root, ".agents", "skills")
+		nativeRoot := filepath.Join(root, ".claude", "skills")
+		if err := os.MkdirAll(nativeRoot, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for i := range 100 {
+			name := fmt.Sprintf("skill-%03d", i)
+			dir := filepath.Join(agentsRoot, name)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			body := fmt.Sprintf(
+				"---\nname: %s\ndescription: Review implementation and verify observable behavior.\n---\nBody for %s.\n",
+				name,
+				name,
+			)
+			if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if i < 80 {
+				if err := os.Symlink(dir, filepath.Join(nativeRoot, name)); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{{
+			Dir: agentsRoot, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}}})
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		policy := newSkillInjectionPolicyResolver()
+		policy.homePaths = compozyconfig.HomePaths{OperatorHomeDir: root}
+		policy.lookupEnv = func(string) (string, bool) { return "", false }
+		filter := policy.resolve(HarnessSessionContext{SessionID: "exposures", Provider: "claude", Workspace: root})
+		provider := skillspkg.NewCatalogProvider(registry)
+		agent := compozyconfig.AgentDef{Name: "general"}
+		before, err := provider.PromptAgentSessionSection(t.Context(), "exposures", agent, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := provider.PromptAgentSessionFilteredSection(t.Context(), "exposures", agent, nil, filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("100-skill catalog before=%d after=%d characters", len(before), len(after))
+		if len(after)*2 >= len(before) || strings.Count(after, "<skill name=") != 20 {
+			t.Fatalf("catalog reduction failed: before=%d after=%d", len(before), len(after))
+		}
+		for i := range 100 {
+			name := fmt.Sprintf("skill-%03d", i)
+			winner, ok := registry.Get(name)
+			if !ok {
+				t.Fatalf("skill %s is no longer discoverable", name)
+			}
+			content, loadErr := registry.LoadContent(t.Context(), winner)
+			if loadErr != nil || !strings.Contains(content, "Body for "+name) {
+				t.Fatalf("skill %s is no longer loadable", name)
+			}
+		}
+		winner, _ := registry.Get("skill-000")
+		if err := os.Remove(filepath.Join(nativeRoot, "skill-000")); err != nil {
+			t.Fatal(err)
+		}
+		if !filter(winner) {
+			t.Fatal("removed exposure must restore the injected skill")
+		}
+		if err := os.Symlink(
+			filepath.Join(agentsRoot, "skill-001"),
+			filepath.Join(nativeRoot, "skill-000"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !filter(winner) {
+			t.Fatal("a different native homonym must not suppress the winning skill")
+		}
+		customFilter := policy.resolve(HarnessSessionContext{Provider: "custom", Workspace: root})
+		if !customFilter(winner) {
+			t.Fatal("providers without native skill discovery must retain the catalog")
+		}
+	})
+
+	t.Run("Should refresh native root symlinks before suppressing a skill", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		source := filepath.Join(root, "source", "review")
+		nativeRoot := filepath.Join(root, ".claude", "skills")
+		replacement := filepath.Join(root, "replacement")
+		for _, dir := range []string{source, filepath.Dir(nativeRoot), replacement} {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		path := filepath.Join(source, "SKILL.md")
+		if err := os.WriteFile(path, []byte("Review body"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Dir(source), nativeRoot); err != nil {
+			t.Fatal(err)
+		}
+		policy := newSkillInjectionPolicyResolver()
+		policy.lookupEnv = func(string) (string, bool) { return "", false }
+		filter := policy.resolve(HarnessSessionContext{SessionID: "root-refresh", Provider: "claude", Workspace: root})
+		winner := &skillspkg.Skill{
+			Meta:     skillspkg.SkillMeta{Name: "review"},
+			FilePath: path,
+			RootDir:  filepath.Dir(source),
+			Origin:   compozyconfig.SkillSourceAgents,
+		}
+		if filter(winner) {
+			t.Fatal("exact live native exposure was not suppressed")
+		}
+		if err := os.Remove(nativeRoot); err != nil {
+			t.Fatal(err)
+		}
+		if !filter(winner) {
+			t.Fatal("removed native root must restore injection")
+		}
+		if err := os.Symlink(replacement, nativeRoot); err != nil {
+			t.Fatal(err)
+		}
+		if !filter(winner) {
+			t.Fatal("repointed native root must restore injection")
+		}
+		if err := os.Symlink(source, filepath.Join(replacement, "review")); err != nil {
+			t.Fatal(err)
+		}
+		if filter(winner) {
+			t.Fatal("restored exact native exposure was not suppressed")
+		}
+		unsafeName := *winner
+		unsafeName.Meta.Name = "../skills/review"
+		if !filter(&unsafeName) {
+			t.Fatal("a path-like name must not be treated as a native skill exposure")
+		}
+	})
+
 	t.Run("Should suppress native skills only for their provider", func(t *testing.T) {
 		t.Parallel()
 

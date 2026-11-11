@@ -56,6 +56,7 @@ import {
   SessionCompactionItem,
   SessionReportPart,
   ThinkingBlock,
+  useFilePathLinks,
 } from "@/systems/session";
 
 // Rows inside a failed turn's open fold know their turn failed, so the failed
@@ -187,9 +188,11 @@ function SessionLiveToolRowContent({ row }: { row: SessionLiveToolRow }) {
 function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow }) {
   const store = useTimelineRowContext();
   const scrollStore = useOptionalThreadScrollStore();
+  const openChange = useFilePathLinks()?.openChange ?? null;
   return (
     <SessionChangedFilesRowView
       row={row}
+      {...(openChange ? { onOpenFile: openChange } : {})}
       onToggle={() => {
         notifyDisclosureToggled(scrollStore);
         toggleTimelineExpansion(store, "changed-files", row.id);

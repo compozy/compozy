@@ -138,7 +138,9 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	checkInToolsStatus           string
 	interactionLifecycleMu       sync.Mutex
+	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.
 	hostedMCPRequiresReload      bool
 	hostedMCPDigest              string
 	directMCPDigest              string
@@ -163,8 +165,9 @@ type Session struct {
 	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr     error
-	stopVerifiedOutcome     StopOutcome // Protected by mu.
-	stopStatePending        bool        // Protected by mu.
+	stopVerifiedOutcome     StopOutcome   // Protected by mu.
+	stopVerifiedProcess     *AgentProcess // Protected by mu.
+	stopStatePending        bool          // Protected by mu.
 	stopTerminalEvent       *acp.AgentEvent
 	stopTerminalRecorded    bool
 	stopTurnID              string // Protected by mu.
@@ -207,6 +210,7 @@ type Session struct {
 	RuntimeRecovery   *store.SessionRuntimeRecovery
 	// authRecoveryExhausted skips the provider sign-in wait after a turn exhausted it, until a
 	// turn completes or its provider changes, so queued turns fail immediately. Protected by mu.
+	currentPromptRecovery     *promptRecoveryState
 	authRecoveryExhausted     bool
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64

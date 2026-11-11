@@ -4,7 +4,7 @@ area: RT
 title: A turn that loses the provider sign-in waits for it and continues by itself
 persona: Rafa
 journey: J-15-operate-session-via-cli-api
-expected: When session/prompt fails with provider_auth_required (ACP -32000 or auth wording) the turn does not fail. The session stays active, reads runtime.status "recovering" with runtime.recovery.reason "provider_auth", and the web notice reads "Waiting for the provider sign-in…". Retries back off 15s, 30s, then every minute for session.auth_recovery.window (10m). Each retry starts a fresh provider process and reloads the session. Once the sign-in returns, an untouched turn is resent and a turn that already produced output or tool calls gets a continuation, with no duplicated user message or tool call. When the window ends, the turn fails with today's provider_error guidance (handoff on user sessions), and later turns fail without waiting until one completes. Rate-limit and other failures are unchanged.
+expected: When session/prompt fails with provider_auth_required (ACP -32000 or auth wording) the turn does not fail. The session stays active, reads runtime.status "recovering" with runtime.recovery.reason "provider_auth", and the web notice reads "Waiting for the provider sign-in…". Retries back off 15s, 30s, then every minute for session.auth_recovery.window (10m). Each retry starts a fresh provider process and reloads the session. Once the sign-in returns, an untouched turn is resent and a turn that already produced output or tool calls gets a continuation, with no duplicated user message or tool call. When the window ends, the session shows waiting-for-auth with login guidance. After credentials return, the next prompt replaces the stale process and reloads the conversation. A successful auth probe or Usage collection also recovers matching auth-failed sessions in the same profile, provider and account route; healthy sessions stay intact. Rate-limit and other failures are unchanged.
 entry_points: compozy session prompt <id> "…"; compozy session status <id> -o json; compozy session events <id> -o json; compozy config set session.auth_recovery.window <d>; web session window
 qa_status: pass
 bug_ids:
@@ -12,7 +12,7 @@ fix_status:
 retest_status: pass
 fix_commits:
 evidence: docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
-last_report: docs/qa/reports/2026-11-03-issue-1216-auth-recovery.md
+last_report: docs/qa/reports/2026-11-11-issue-1481-provider-reauth.md
 overlaps: RT-provider-error-handoff; RT-session-fallback-chain
 ---
 
@@ -62,3 +62,32 @@ boundary: no replacement may start at or after it.
 Follow-up verification: focused Go suites cover these invariants. The previous live lab evidence
 above predates this follow-up; a new scenario walk and broad gates are deferred under the host-load
 restriction.
+
+Environment isolation regression (#1368): use synthetic parent credentials only. Run
+`go test ./internal/session -run TestProviderEmptyEnvironmentLaunch -count=1`
+and `go test ./internal/acp ./internal/subprocess ./internal/procutil -run 'TestLocalLauncherEnvironmentInheritance|TestManagedCommandDropsInternalHandoffEnv|TestDaemonEnvironmentInheritance' -count=1`.
+Both filtered and isolated policies can yield a non-nil empty environment when their
+input contains only excluded variables. Removing the final optional `PATH` target also
+leaves a non-nil empty environment; the real child must report no parent credential.
+Ordinary session starts inject session/profile/workspace/agent identity entries, so filtering
+alone does not normally empty the final session environment. Reserved `COMPOZY_` targets cannot be declared, so optional credentials cannot remove
+those identity entries. The focused assembly test omits session identity deliberately;
+the lower-level launch boundary must remain safe for explicit empty callers.
+ACP executable discovery failure after internal-only filtering is covered with an injected
+executable lookup failure and a real child. Nil inherits ordinary parent variables;
+explicit empty and internal-only environments never restore them. Internal handoff variables
+remain absent in ordinary children. Terminal maps remain overlays on filtered inheritance.
+This focused subprocess evidence does not re-walk the OAuth recovery scenario above.
+
+Model-discovery follow-up: `go test ./internal/modelcatalog -run TestLiveDiscoveryEnvironmentInheritance -count=1` verifies explicit empty `BaseEnv` through source construction and filtering, plus direct executor launches, using real children. Only unspecified discovery input inherits the parent sentinel.
+
+Discovery coverage also checks direct nil-environment inheritance and a real ACP inspection with the canonical fixture driver. Windows retains Go's documented critical `SYSTEMROOT` addition; empty-environment isolation does not disable required OS startup variables.
+
+Recovery after expiry (#1481): revoke the synthetic credential, exhaust the bounded wait, and verify
+`waiting-for-auth` plus `next_action: login`. Restore it and explicitly retry in the same session;
+the provider generation increases and the prompt completes with the daemon PID unchanged. Repeat the
+failure and restore, then run the provider auth probe: the session reloads before another prompt.
+A verified successful Usage collection must signal the same recovery; a refused or stale publication
+must not. Keep a healthy session and a different provider/profile/account route as isolation controls.
+The owning `TestPromptProviderAuthRecovery` uses a provider that retains invalid credentials until
+process replacement, covering the failure that a file-presence-only mock cannot reproduce.

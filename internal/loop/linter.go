@@ -208,9 +208,12 @@ func (c *lintContext) lintActionNode(node dsl.Node) {
 		)
 		return
 	}
-	if _, ok := c.linter.tools.Snapshot(node.Kind); !ok {
+	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
+	if !ok {
 		c.add(node.ID, CodeUnknownActionKind, "action ToolID %q is not resolvable", node.Kind)
+		return
 	}
+	c.lintToolResultView(node, snapshot)
 }
 
 func (c *lintContext) lintControlNode(node dsl.Node) {
@@ -447,6 +450,9 @@ func (c *lintContext) hasTriggerStart() bool {
 
 func (c *lintContext) addRefsError(nodeID dsl.NodeID, err error) {
 	if refErr, ok := errors.AsType[*refs.Error](err); ok {
+		if c.addResultViewReferenceError(nodeID, refErr) {
+			return
+		}
 		c.errors = append(c.errors, LintError{
 			NodeID:   nodeID,
 			Code:     refErr.Code,

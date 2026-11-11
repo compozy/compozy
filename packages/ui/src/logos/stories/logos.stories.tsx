@@ -88,7 +88,7 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
   return (
     <div className="grid w-[min(960px,calc(100vw-2rem))] gap-8 rounded-lg border border-line bg-canvas p-6 text-fg">
       <div className="grid gap-2">
-        <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-brand">
+        <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-brand-strong">
           Logo registry
         </p>
         <h1 className="text-xl font-medium">Agent and integration logos</h1>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"time"
 )
 
@@ -32,6 +33,8 @@ const (
 )
 
 type ProcSpec struct {
+	Niceness         int
+	Logger           *slog.Logger
 	Argv             []string
 	Cwd              string
 	Env              map[string]string

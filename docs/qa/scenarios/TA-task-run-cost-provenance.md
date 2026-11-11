@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+evidence: unpublished-local-artifact/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---
@@ -28,3 +28,18 @@ remove one rate for a nonzero bucket and require the task aggregate to remain am
 Phase C planning 2026-07-19: companion to US-007 (task roll-up half). Forensic contract (SD-006):
 timestamped Web/CLI/HTTP/UDS task-run detail captures for one homogeneous-provenance run and one
 incompatible-provenance run failing closed to `unknown/none` with no amount.
+
+## Cumulative cost accounting (2026-11-09)
+
+Run three turns reporting cumulative USD amounts 1, 3 and 4. Confirm per-turn costs 1, 2 and 1
+in usage/turns, transcript usage parts and the live prompt stream, with session/task/daily total 4.
+Release and resume the runtime, then restart the daemon: a restored report 5 contributes 1;
+a lower report 0.5 contributes zero, and the next report 2 contributes 1.5. Also verify a lagging
+restore: `10, 12, 11.5, 12.5` produces `10, 2, 0, 1`, including across runtime restart.
+An explicitly per-turn adapter keeps its reported amounts.
+Upgrade a prior database with complete and missing session ledgers. Recomputed rows become actual;
+missing/partial histories become unknown with no amount. Token counts, turn counts and timestamps
+remain byte/value equivalent. Reopening must not repeat the repair.
+
+Focused SQLite migration and prompt-contract tests are recorded in the harness efficiency report.
+A fresh browser/HTTP/UDS scenario walk is not claimed by those tests.

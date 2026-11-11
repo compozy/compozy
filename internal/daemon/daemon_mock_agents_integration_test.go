@@ -1250,7 +1250,7 @@ matcher = {tool_id = "compozy__task_list"}
 			ctx,
 			client,
 			toolspkg.ToolIDProviderModelsList.String(),
-			map[string]any{"provider_id": "codex", "view": "all"},
+			map[string]any{"provider_id": "codex", "view": "all", "result_view": "full"},
 			&nativeAll,
 		)
 		solNative := requireProviderModelPayload(t, nativeAll.Models, "gpt-5.6-sol")
@@ -1281,7 +1281,7 @@ matcher = {tool_id = "compozy__task_list"}
 			ctx,
 			client,
 			toolspkg.ToolIDProviderModelsList.String(),
-			map[string]any{"provider_id": "codex"},
+			map[string]any{"provider_id": "codex", "result_view": "full"},
 			&nativeCurated,
 		)
 		solCuratedNative := requireProviderModelPayload(t, nativeCurated.Models, "gpt-5.6-sol")
@@ -2187,6 +2187,16 @@ func startHostedMCPClient(
 	}
 	command := exec.CommandContext(ctx, stdio.Command, stdio.Args...)
 	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
+	stderr, err := os.CreateTemp(t.ArtifactDir(), "hosted-mcp-proxy-*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := stderr.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	command.Stderr = stderr
 	opts := &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}}
 	if len(options) > 0 {
 		opts = options[0]

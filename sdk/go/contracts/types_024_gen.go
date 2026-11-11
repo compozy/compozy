@@ -7,6 +7,75 @@ import (
 	"time"
 )
 
+type TaskRunStartParams struct {
+	ID             string `json:"id"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type TaskRunStatus uint8
+
+type TaskRunSummaryPayload struct {
+	ID                   string                 `json:"id"`
+	TaskID               string                 `json:"task_id"`
+	Status               TaskRunStatus          `json:"status"`
+	Attempt              int                    `json:"attempt"`
+	RecoveryCount        int                    `json:"recovery_count"`
+	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
+	FailureKind          string                 `json:"failure_kind,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	WorktreeID           string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time             `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time             `json:"heartbeat_at,omitempty"`
+	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
+	Designation          *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt             time.Time              `json:"queued_at"`
+	ClaimedAt            *time.Time             `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time             `json:"started_at,omitempty"`
+	EndedAt              *time.Time             `json:"ended_at,omitempty"`
+	Error                string                 `json:"error,omitempty"`
+}
+
+type TaskRunTotal struct {
+	Status     TaskRunStatus `json:"status"`
+	OriginKind OriginKind    `json:"origin_kind"`
+	Count      int           `json:"count"`
+}
+
+type TaskRunsParams struct {
+	ID        string        `json:"id"`
+	Status    TaskRunStatus `json:"status,omitempty"`
+	SessionID string        `json:"session_id,omitempty"`
+	Limit     int           `json:"limit,omitempty"`
+}
+
+type TaskScope string
+
+type TaskStatusChangedPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	ParentTaskID   string    `json:"parent_task_id,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	WorkflowID     string    `json:"workflow_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	ActorKind      string    `json:"actor_kind,omitempty"`
+	ActorID        string    `json:"actor_id,omitempty"`
+	OriginKind     string    `json:"origin_kind,omitempty"`
+	OriginRef      string    `json:"origin_ref,omitempty"`
+	TaskStatus     string    `json:"task_status,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	ReleaseReason  string    `json:"release_reason,omitempty"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+	FromStatus     string    `json:"from_status"`
+	ToStatus       string    `json:"to_status"`
+}
+
 type TaskStatusTotal struct {
 	Scope  TaskScope `json:"scope"`
 	Status Status    `json:"status"`
@@ -233,109 +302,4 @@ type TerminalExit struct {
 	Cause  string  `json:"cause"`
 	Code   *int    `json:"code,omitempty"`
 	Signal *string `json:"signal,omitempty"`
-}
-
-type TerminalInputProvidedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RequestID   string    `json:"request_id"`
-	Redacted    bool      `json:"redacted"`
-	Length      int       `json:"length"`
-	Outcome     string    `json:"outcome"`
-}
-
-type TerminalInputRequestedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RequestID   string    `json:"request_id"`
-	Reason      string    `json:"reason"`
-	Redacted    bool      `json:"redacted"`
-}
-
-type TerminalLimitRejectedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	Limit       string    `json:"limit"`
-	Current     int       `json:"current"`
-	Max         int       `json:"max"`
-}
-
-type TerminalObservationPatch struct{}
-
-type TerminalOpenedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	Mode        string    `json:"mode"`
-	Cwd         string    `json:"cwd"`
-	Title       string    `json:"title,omitempty"`
-}
-
-type TerminalRecordingStartedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RecordingID string    `json:"recording_id"`
-}
-
-type TerminalRecordingStoppedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RecordingID string    `json:"recording_id"`
-	Digest      string    `json:"digest"`
-	Bytes       int64     `json:"bytes"`
-	Reason      string    `json:"reason"`
-	Truncated   bool      `json:"truncated"`
 }

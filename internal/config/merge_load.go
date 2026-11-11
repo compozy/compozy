@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"sync"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -14,6 +15,14 @@ import (
 const configBaseURLKey = "base_url"
 
 var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
+
+// providerFullAccessDeprecationWarning names the replacement for the retired opt-in. Accept the
+// key through v0.6.0; remove permissionsOverlay.ProviderFullAccess and this warning in v0.6.1.
+const providerFullAccessDeprecationWarning = "permissions.provider_full_access is deprecated and has no effect: " +
+	"permissions.mode = \"approve-all\" now selects the provider's unrestricted mode, and " +
+	"permissions.mode = \"auto\" selects its reviewer mode; remove the key before v0.6.1"
+
+var warnProviderFullAccessDeprecation = sync.OnceFunc(func() { slog.Warn(providerFullAccessDeprecationWarning) })
 
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
 func ApplyConfigOverlayFile(path string, dst *Config) error {
@@ -37,9 +46,8 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 		slog.Warn("config: [agents.heartbeat.sources] is daemon-wide; overlay ignored")
 		overlay.Agents.Heartbeat.Sources = heartbeatSourcesOverlay{}
 	}
-	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
-		*overlay.Permissions.ProviderFullAccess {
-		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
+	if err := rejectWorkspaceProviderEnabled(overlay, roleSource); err != nil {
+		return err
 	}
 	if err := overlay.Apply(dst); err != nil {
 		return err
@@ -318,6 +326,23 @@ func (o permissionsOverlay) Apply(dst *PermissionsConfig) {
 		dst.Mode = *o.Mode
 	}
 	if o.ProviderFullAccess != nil {
-		dst.ProviderFullAccess = *o.ProviderFullAccess
+		warnProviderFullAccessDeprecation()
 	}
+}
+
+// rejectWorkspaceProviderEnabled keeps providers.<id>.enabled in the global and profile layers
+// (BR-2): provider usage resolves per profile, so a workspace value could not apply consistently.
+func rejectWorkspaceProviderEnabled(overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceWorkspace && roleSource != RoleFieldSourceWorkspaceProfile {
+		return nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(overlay.Providers)) {
+		if overlay.Providers[name].Enabled != nil {
+			return ValidationError{
+				Path:    "providers." + name + ".enabled",
+				Message: "can only be set in the global or profile config",
+			}
+		}
+	}
+	return nil
 }

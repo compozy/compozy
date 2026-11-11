@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { CommandInstall, DownloadCatalog, DownloadHero } from "@/components/download";
+import { DownloadPage } from "@/components/download/download-page";
+import { formatDate } from "@/lib/changelog/timeline";
 import { getDesktopRelease } from "@/lib/release/desktop-downloads";
 import { createPageMetadata } from "@/lib/site-config";
 
@@ -13,13 +14,8 @@ export const metadata: Metadata = createPageMetadata({
   keywords: ["CompozyOS download", "CompozyOS desktop app", "macOS", "Linux", "AppImage", "DMG"],
 });
 
-export default async function DownloadPage() {
+export default async function Page() {
   const release = await getDesktopRelease();
-  return (
-    <>
-      <DownloadHero release={release} />
-      <DownloadCatalog release={release} />
-      <CommandInstall />
-    </>
-  );
+  const releaseDate = release.status === "ready" ? formatDate(release.publishedAt) : null;
+  return <DownloadPage release={release} releaseDate={releaseDate} />;
 }

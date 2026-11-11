@@ -9,6 +9,7 @@
 @import "tw-animate-css";
 @import "./tokens-runtime.css";
 @import "./terminal-tokens.css";
+@import "./styles/pierre-bridge.css";
 @import "./tokens-light.css";
 
 /* `data-theme` and `.dark` are toggled together on <html>; either matches. */
@@ -37,23 +38,24 @@
   --color-desk: #131313;
   --color-canvas: #131313;
   --color-canvas-soft: #1a1a1a;
-  --color-sunken: #0e0e0e;
+  --color-sunken: #0a0a0a;
   --color-surface-2: #232323;
   --color-selected: #262626;
   --color-code-bg: #1a1a1a;
   --color-sidebar: var(--color-sunken);
-  --color-elevated: #1c1c1c;
+  --color-elevated: #1b1b1b;
   --color-hover: var(--color-surface-2);
-  --color-disabled: #4d4d4d;
+  --color-disabled: #5e5e5e;
 
   /* Hairlines — opaque greys, one ladder per theme. `line` edges cards and
      popovers (via shadow-card / shadow-pop) and structural rules; line-soft
      is the quiet divider inside a card; line-focus is the input focus
      border. */
-  --color-line: #2a2a2a;
+  --color-line: #262626;
   --color-line-soft: #202020;
-  --color-line-strong: #3a3a3a;
-  --color-line-focus: #5c5c5c;
+  --color-line-strong: #383838;
+  /* Input focus border rides the cyan focus colour (brand v1.2). */
+  --color-line-focus: #3df2e0;
   /* Resting non-text indicator: a dot, ring or mark that alone carries state
      (inactive pager dot, queued ring). Clears 3:1 on every surface in the ramp;
      the hairlines above stay decorative boundaries. */
@@ -61,38 +63,56 @@
   /* Control knob (switch thumb): the lightest ink in either theme — the
      near-white fg on dark, pure white on light — so an off switch reads as a
      light knob on its line-strong track, never a heavy dark disc. */
-  --color-knob: #f5f5f5;
+  --color-knob: #ececec;
 
   /* Text. fg-2 = mix(muted-foreground 60%, fg) and fg-3 = mix(fg 70%, muted-foreground), the
      reference's own recipes, resolved to literals. muted-foreground / subtle / faint all
      carry text, so each clears WCAG AA 4.5:1 on canvas, canvas-soft,
      sunken, rail, surface-2, selected and elevated — a deliberate override
      of the reference's dimmer greys (brand-spec.md, "Rules observed" 6). */
-  --color-fg: #f5f5f5;
+  --color-fg: #ececec;
   --color-fg-strong: #ffffff;
-  --color-fg-2: #c4c4c4;
-  --color-fg-3: #dcdcdc;
-  --color-muted-foreground: #a3a3a3;
+  --color-fg-2: #bababa;
+  --color-fg-3: #d3d3d3;
+  --color-muted-foreground: #989898;
   --color-subtle: #8e8e8e;
   --color-faint: #8d8d8d;
 
   /* Primary — the single inverted action (near-white on dark, near-black on
-     light). Never the brand hue: highlights ride the brand below. */
+     light). Never the brand hue: actions stay inverted, highlights ride the
+     brand below. */
   --color-primary: #f5f5f5;
   --color-primary-hover: #ffffff;
   --color-primary-foreground: #0a0a0a;
 
-  /* Brand — the orange: highlight and needs-you (`attn`). The only
-     non-neutral hue; amber (`warning`) is reserved for real warnings. */
-  --color-brand: #e8572a;
-  --color-brand-hover: #d14e25;
-  --color-brand-strong: #f6874f;
-  --color-brand-ink: #17110f;
-  --color-brand-tint: rgba(232, 87, 42, 0.1);
-  --color-brand-tint-strong: rgba(232, 87, 42, 0.16);
-  --color-brand-dim: rgba(232, 87, 42, 0.24);
-  --color-brand-glow: rgba(232, 87, 42, 0.05);
-  --color-attn: var(--color-brand);
+  /* Brand — volt on paper, signal blue on ink (identity v1.2): highlight
+     fills, marks, selection and tints. On dark the brand is the signal blue
+     (sky, 5.59:1 on rail) because volt #2f5bff reads too dark on ink; light
+     keeps volt. Brand used AS TEXT takes `brand-strong` (AA on every surface,
+     the hover and selected plates included). `brand-ink` is the text on a
+     brand fill: dark ink here (white is 3.54:1 on sky), so hover steps the
+     fill LIGHTER to keep it. The palette swatch `brand-volt` stays volt. */
+  --color-brand: #1f87fc;
+  --color-brand-hover: #3d95ff;
+  --color-brand-strong: #4a9dff;
+  --color-brand-ink: #0a0a0a;
+  --color-brand-tint: rgba(31, 135, 252, 0.1);
+  --color-brand-tint-strong: rgba(31, 135, 252, 0.16);
+  --color-brand-dim: rgba(31, 135, 252, 0.24);
+  --color-brand-glow: rgba(31, 135, 252, 0.05);
+  /* Brand palette — the identity's raw hues, constant across themes. Brand
+     decoration and the manual only; product state keeps its semantic tokens.
+     Gradients (`--gradient-*` in :root) are always 45deg and never use deep. */
+  --color-brand-volt: #2f5bff;
+  --color-brand-sky: #1f87fc;
+  --color-brand-teal: #1df0d7;
+  --color-brand-cyan: #3df2e0;
+  --color-brand-glint: #b5faf6;
+  --color-brand-deep: #0b31f7;
+  /* Needs you — amber, its own value (never an alias of brand): the one loud
+     exception, one amber element per view region. */
+  --color-attn: #f5b14c;
+  --color-attn-tint: rgba(245, 177, 76, 0.1);
 
   /* Signal palette — mint success marks in-progress/done glyphs and identity
      wells; tints at 8–12% alpha. `well` = mix(success 14%, canvas). */
@@ -102,6 +122,8 @@
   --color-warning-tint: rgba(245, 177, 76, 0.1);
   --color-destructive: #f87171;
   --color-destructive-tint: rgba(248, 113, 113, 0.1);
+  /* Text on the destructive-solid fill (the previous brand ink). */
+  --color-destructive-ink: #17110f;
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
   --color-well: #1e342c;
@@ -124,6 +146,19 @@
   --color-viz-other: rgba(255, 255, 255, 0.26);
   --color-viz-grid: rgba(255, 255, 255, 0.045);
   --color-viz-cell: #ffffff;
+
+  /* QR code — a fixed dark-on-light pair in BOTH themes (never overridden in
+     tokens-light.css): phone scanners expect dark modules on a light quiet
+     zone, so the matrix ignores the surrounding surface and the theme. */
+  --color-qr-plate: #ffffff;
+  --color-qr-module: #0a0a0a;
+
+  /* Ink on bright fills — the brand and Live gradients and the bright signal
+     plates (sky, teal, cyan, glint, attn, success). Fixed dark in BOTH themes
+     (never overridden in tokens-light.css): white fails AA from the gradient's
+     sky stop to its glint end. On --gradient-live it is large-text only (its
+     volt stop holds 3:1, not 4.5:1). */
+  --color-on-gradient: #0a0a0a;
 
   /* Surface glaze ladder — translucent ink over the ramp (white-alpha on dark,
      black-alpha on light). */
@@ -172,7 +207,7 @@
   --color-destructive-foreground: var(--color-fg-strong);
   --color-border: var(--color-line);
   --color-input: var(--color-line);
-  --color-ring: var(--color-line-strong);
+  --color-ring: #3df2e0;
   --color-chart-1: var(--color-brand);
   --color-chart-2: var(--color-success);
   --color-chart-3: var(--color-info);
@@ -186,13 +221,13 @@
   --color-sidebar-border: var(--color-line);
   --color-sidebar-ring: var(--color-line-strong);
 
-  /* Font families — Inter Variable for UI (the 425 regular needs the wght
+  /* Font families — Figtree Variable for UI (the 450 regular needs the wght
      axis), Geist Mono Variable for code, paths and the terminal. Each stack
      leads with the operator's Appearance choice (`--user-font-*`, defaulted
      in :root below and overridden inline on <html>), so a missing face falls
      through to the built-in stack instead of the browser default. */
   --font-sans:
-    var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI",
+    var(--user-font-sans), "Figtree Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI",
     sans-serif;
   /* "Symbols Nerd Font Mono" backfills the Private Use Area icons terminals
      emit (see the @font-face in tokens-runtime.css); Geist Mono wins every
@@ -200,23 +235,25 @@
   --font-mono:
     var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono",
     ui-monospace, "SFMono-Regular", "Menlo", monospace;
-  /* Display alias reserved for explicit logo/wordmark surfaces only.
+  /* Display face — Instrument Sans Variable 400 at --tracking-display,
+     reserved for explicit logo/wordmark and site display surfaces only.
      Keep the `font-display` utility out of type-ramp callers under
-     `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
-     Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
-  --font-display: var(--font-sans);
+     `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule. */
+  --font-display:
+    "Instrument Sans Variable", "Instrument Sans", -apple-system, "BlinkMacSystemFont", "Segoe UI",
+    sans-serif;
   /* Keyboard-key stack — system-first (SF Pro on macOS, Segoe UI on Windows)
      so modifier glyphs (⌘ ⇧ ⌥ ⌃ ⏎ ⌫ ⇥ ⎋) and letters render from one face
      with native menu metrics. The bundled Geist/JetBrains subsets ship none
      of those code points, so mono-styled key caps fell through to per-glyph
      system fallback with mismatched size and baseline. */
-  --font-keys: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif;
+  --font-keys: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Figtree Variable", sans-serif;
 
-  /* Weight ladder — 425 / 500 / 600 (brand-spec). Regular is 425, a touch
-     above Inter's 400 so dark-on-light and light-on-dark read at the same
-     weight; requires Inter Variable (wght axis). Bold caps at semibold: the
-     system has no heavier weight. */
-  --font-weight-normal: 425;
+  /* Weight ladder — 450 / 500 / 600 (brand v1.2). UI regular is 450, a touch
+     above Figtree's 400 body weight so dark-on-light and light-on-dark read
+     at the same weight; requires Figtree Variable (wght axis). Bold caps at
+     semibold: the system has no heavier weight. */
+  --font-weight-normal: 450;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 600;
@@ -253,7 +290,7 @@
   --text-kbd: 0.75rem; /* 12px */
   --text-kbd--line-height: 1rem;
   /* Weight rides the token so every text-kbd caller inherits it. */
-  --text-kbd--font-weight: 425;
+  --text-kbd--font-weight: 450;
   /* Empty-desktop hero question only. */
   --text-display-2xl: 1.5rem; /* 24px */
   --text-display-2xl--line-height: 1.25;
@@ -355,16 +392,19 @@
   --tracking-prose-h1: -0.015em;
   --tracking-prose-h2: -0.015em;
   --tracking-prose-h3: -0.01em;
+  /* Display face tracking (Instrument Sans, logo/site display only). */
+  --tracking-display: -0.025em;
 
-  /* Radii — base + ladder: 3 / 6 / 7 / 8 / 8 / 12 / 18 / pill. Actions are
-     pills; cards and panels take lg (12); the identity well takes 7. */
-  --radius: 8px;
-  --radius-xxs: 3px;
+  /* Radii — base + ladder: 4 / 6 / 6 / 10 / 10 / 14 / 20 / pill (brand v1.2).
+     Actions are pills; cards and panels take lg (14); the identity well
+     takes 7. */
+  --radius: 10px;
+  --radius-xxs: 4px;
   --radius-xs: 6px;
-  --radius-sm: 7px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 18px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-pill: 9999px;
   --radius-chip: 7px;
   --radius-mono-badge: 4px;
@@ -391,8 +431,8 @@
      `:root` (dark) and tokens-light.css: Tailwind inlines a literal `--shadow-*`
      value into its `shadow-*` utility, so a per-theme override of the @theme
      name would never reach the utility. Focus indicator (`focus-ring` /
-     `focus-inset`) — EXCLUSIVE :focus-visible semantics: a 2 px, 50 %-white
-     ring (50 %-ink on light) clears ≥3:1 on every surface-ramp background;
+     `focus-inset`) — EXCLUSIVE :focus-visible semantics: a 2 px cyan ring
+     (cyan ink on light) clears ≥3:1 on every surface-ramp background;
      outset by default, `-inset` for full-bleed rows / triggers. */
   --shadow-card: var(--theme-shadow-card);
   --shadow-elevated: var(--theme-shadow-elevated);
@@ -657,7 +697,7 @@
      repeats each stack's first face so an unset choice is a no-op; web's
      font runtime (and the pre-paint boot script) override these inline on
      <html>, never the stacks themselves. */
-  --user-font-sans: "Inter Variable";
+  --user-font-sans: "Figtree Variable";
   --user-font-mono: "Geist Mono Variable";
 
   /* Dark theme-shadow literals behind the @theme `--shadow-*` adapters.
@@ -672,8 +712,13 @@
     0 1.5px 3px #0006;
   --theme-shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line);
   --theme-shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  --theme-shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
-  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+  --theme-shadow-focus-ring: 0 0 0 2px rgba(61, 242, 224, 1);
+  --theme-shadow-focus-inset: inset 0 0 0 2px rgba(61, 242, 224, 1);
+
+  /* Brand gradients — always 45deg, bottom-left → top-right; deep is never in
+     a gradient. Consumed via `bg-(image:--gradient-brand)`. */
+  --gradient-brand: linear-gradient(45deg, #1f87fc 0%, #1df0d7 60%, #b5faf6 100%);
+  --gradient-live: linear-gradient(45deg, #2f5bff, #3df2e0);
 
   /* Workspaces overview (Command-Tab switcher) strip edge fades — gradient
      geometry is not a utility scale, so the family stays out of @theme.

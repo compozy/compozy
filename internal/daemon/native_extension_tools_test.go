@@ -73,6 +73,14 @@ type nativeExtensionCatalog struct {
 	err     error
 }
 
+func (c nativeExtensionCatalog) BrowseFiltered(
+	ctx context.Context,
+	filter marketplacepkg.BrowseFilter,
+	offset, limit int,
+) (marketplacepkg.BrowseResult, error) {
+	return c.Browse(ctx, filter.Query, offset, limit)
+}
+
 func (nativeExtensionCatalog) Close(context.Context) error { return nil }
 
 func (c nativeExtensionCatalog) Browse(
@@ -475,6 +483,27 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should install and enable through the native contract", func(t *testing.T) {
+		t.Parallel()
+		deps, extensions, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		fixture := writeNativeLocalExtensionFixture(t, "native-add", "1.0.0")
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(
+				fmt.Sprintf(`{"source":"local_path","ref":%q,"enable":true,"allow_unverified":true}`, fixture),
+			),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"enabled":true`))
+		persisted, err := extensions.Get("native-add")
+		if err != nil || !persisted.Enabled {
+			t.Fatalf("persisted=%#v err=%v", persisted, err)
+		}
+	})
+
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {
 		t.Parallel()
 
@@ -835,7 +864,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext"}`),
+			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext","result_view":"full"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(curated extension install) error = %v", err)
@@ -1207,4 +1236,8 @@ requires = ["sessions/list"]
 		t.Fatalf("os.WriteFile(VERSION.txt) error = %v", err)
 	}
 	return dir
+}
+
+func (nativeExtensionCatalog) Sections(context.Context, string, int) (marketplacepkg.SectionsResult, error) {
+	return marketplacepkg.SectionsResult{}, errors.New("unexpected sections read")
 }

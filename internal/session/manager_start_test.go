@@ -31,7 +31,6 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 			t.Parallel()
 			h := newHarness(t)
 			h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
-			h.cfg.Permissions.ProviderFullAccess = true
 			workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 			if err != nil {
 				t.Fatalf("Resolve() error = %v", err)
@@ -465,6 +464,41 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 			t.Fatalf("COMPOZY_AGENT_NAME = %q, want coder", got)
 		}
 	})
+
+	t.Run("Should never pass internal daemon handoff variables to the agent", func(t *testing.T) {
+		t.Parallel()
+
+		for _, policy := range []compozyconfig.ProviderEnvPolicy{
+			compozyconfig.ProviderEnvPolicyFiltered,
+			compozyconfig.ProviderEnvPolicyIsolated,
+		} {
+			env := sessionStartEnvForProvider(
+				[]string{
+					"PATH=/usr/bin",
+					"COMPOZY_HOME=/tmp/compozy",
+					"COMPOZY_INTERNAL_RESTART_OPERATION_ID=restart-1",
+					"COMPOZY_INTERNAL_LOG_MIRROR_STDERR=false",
+				},
+				&Session{ID: "sess-1", AgentName: "coder"},
+				policy,
+				"",
+			)
+
+			for _, key := range []string{
+				"COMPOZY_INTERNAL_RESTART_OPERATION_ID",
+				"COMPOZY_INTERNAL_LOG_MIRROR_STDERR",
+			} {
+				for _, entry := range env {
+					if strings.HasPrefix(entry, key+"=") {
+						t.Fatalf("%s policy: %s present as %q, want absent", policy, key, entry)
+					}
+				}
+			}
+			if got := envValue(env, "COMPOZY_HOME"); got != "/tmp/compozy" {
+				t.Fatalf("%s policy: COMPOZY_HOME = %q, want /tmp/compozy", policy, got)
+			}
+		}
+	})
 }
 
 func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
@@ -727,6 +761,42 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should skip a disabled fallback route and log the skip", func(t *testing.T) {
+		t.Parallel()
+		logs := newCaptureLogHandler()
+		h, db := newLedgerHarness(t, WithLogger(slog.New(logs)))
+		setHarnessProviderEnabled(t, h, "codex", false)
+		codexCommand := h.cfg.Providers["codex"].Command
+		refuseStartCommands(h, map[string]error{
+			fallbackSeatZero: rateLimitRefusal(),
+			fallbackSeatOne:  rateLimitRefusal(),
+		})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
+		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 2 attempt(s)") {
+			t.Fatalf("Create() error = %v, want exhaustion over the two enabled routes", err)
+		}
+		if slices.Contains(startCommands(h), codexCommand) {
+			t.Fatalf("start commands = %v, want the disabled codex route never launched", startCommands(h))
+		}
+		if got := ledgerRows(t, db); got != 1 {
+			t.Fatalf("ledger rows = %d, want only the enabled fallback attempt", got)
+		}
+		var skipped []capturedLogRecord
+		for _, record := range logs.Records() {
+			if record.Message == "fallback.route_skipped" {
+				skipped = append(skipped, record)
+			}
+		}
+		if len(skipped) != 1 || skipped[0].Attrs["provider"] != "codex" ||
+			skipped[0].Attrs["reason"] != "provider_disabled" || skipped[0].Attrs["route_index"] != "2" ||
+			skipped[0].Attrs["owner"] != "agent_chain" {
+			t.Fatalf("fallback.route_skipped records = %#v, want one codex agent_chain skip at route 2", skipped)
+		}
+	})
+
 	// refuseWithProcess makes the fake driver return a live process together with a
 	// pre-acceptance refusal for the given commands; stopping such a process fails.
 	refuseWithProcess := func(h *harness, commands map[string]bool, stopErr error) {
@@ -977,4 +1047,66 @@ func TestInstanceRotationAdmissionGuard(t *testing.T) {
 			t.Fatalf("publication = %v, called %v", err, called)
 		}
 	})
+}
+
+func TestCheckInHostedLaunch(t *testing.T) {
+	for _, tc := range []struct {
+		name                                   string
+		disabled, providerOff, launcherMissing bool
+		status                                 string
+		servers                                int
+	}{
+		{name: "Should launch only hosted MCP", status: "enabled", servers: 1},
+		{name: "Should honor kill switch", disabled: true, status: "disabled"},
+		{name: "Should report provider MCP unavailable", providerOff: true, status: "unavailable"},
+		{name: "Should report missing launcher", launcherMissing: true, status: "unavailable"},
+	} {
+		t.Run(tc.name+" [UT-022]", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager.checkInToolsDisabled = tc.disabled
+			launcher := &recordingHostedMCPLauncher{
+				server: compozyconfig.MCPServer{
+					Name:    "compozy-hosted-tools",
+					Command: "compozy",
+					Args:    []string{"--bind-nonce", "fixture"},
+				},
+			}
+			if !tc.launcherMissing {
+				h.manager.hostedMCP = launcher
+			}
+			spec := &sessionStartSpec{sessionType: SessionTypeTriage, sessionID: "fixture-triage"}
+			servers, err := h.manager.sessionMCPServers(
+				t.Context(),
+				spec,
+				compozyconfig.ResolvedAgent{
+					Name:       "coder",
+					Provider:   "codex",
+					SessionMCP: !tc.providerOff,
+					MCPServers: []compozyconfig.MCPServer{{Name: "raw", Command: "raw"}},
+				},
+				compozyconfig.AgentDef{},
+			)
+			if err != nil || len(servers) != tc.servers || spec.checkInToolsStatus != tc.status {
+				t.Fatalf("servers=%+v status=%s err=%v", servers, spec.checkInToolsStatus, err)
+			}
+			if tc.servers == 1 && servers[0].Name != "compozy-hosted-tools" {
+				t.Fatal("raw MCP server escaped")
+			}
+		})
+	}
+}
+
+func TestSessionLeanEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []Type{SessionTypeSystem, SessionTypeTriage, SessionTypeUser, SessionTypeSpawned} {
+		t.Run("Should choose a lean default for role "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			automatic := kind == SessionTypeSystem || kind == SessionTypeTriage
+			if sessionLeanEnvironment(kind, nil) != automatic || !sessionLeanEnvironment(kind, new(true)) ||
+				sessionLeanEnvironment(kind, new(false)) != automatic {
+				t.Fatal("incorrect role or explicit setting")
+			}
+		})
+	}
 }

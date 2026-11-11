@@ -21,7 +21,8 @@ func (m *Manager) publishSubagentLifecycleEdge(ctx context.Context, before, afte
 	}
 	// Terminal transcript queries wait for recorder finalization; that edge is
 	// delivered by finalizeStoppedOwned after releasing its finalization receipt.
-	if after.State != StateStopped && after.Lineage != nil && after.Lineage.SpawnRole == store.SubagentSpawnRole {
+	if BadgeForInfo(before) != BadgeForInfo(after) && after.State != StateStopped &&
+		after.Lineage != nil && after.Lineage.SpawnRole == store.SubagentSpawnRole {
 		m.logSubagentError(service.OnChildSettled(ctx, after.ID))
 	}
 	if before != nil && before.Liveness != nil && before.Liveness.Activity != nil &&

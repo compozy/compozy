@@ -84,12 +84,18 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 	}
 }
 
+// shutdownAfterRunTrigger retains discovery withdrawal while retrying terminal teardown.
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
-	return d.Shutdown(context.WithoutCancel(ctx))
+	return d.shutdownWithOperation(context.WithoutCancel(ctx), true)
 }
 
 // Shutdown gracefully tears down the daemon in the required order.
 func (d *Daemon) Shutdown(ctx context.Context) error {
+	return d.shutdownWithOperation(ctx, false)
+}
+
+// shutdownWithOperation shares teardown while retaining terminal discovery withdrawal across retries.
+func (d *Daemon) shutdownWithOperation(ctx context.Context, withdrawDiscovery bool) error {
 	if d == nil {
 		return errors.New("daemon: shutdown requires a daemon")
 	}
@@ -97,7 +103,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 		return errors.New("daemon: shutdown context is required")
 	}
 
-	operation, started, targets, timeout, err := d.beginShutdownOperation(ctx)
+	operation, started, targets, timeout, err := d.beginShutdownOperation(ctx, withdrawDiscovery)
 	if err != nil {
 		return err
 	}

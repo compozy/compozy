@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/tools/builtin"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -22,7 +23,7 @@ import (
 func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve input schemas and widen output schemas with hosted result envelopes", func(t *testing.T) {
+	t.Run("Should preserve input schemas and omit declared output schemas", func(t *testing.T) {
 		t.Parallel()
 
 		inputSchema := json.RawMessage(
@@ -52,117 +53,8 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 		if !equalJSON(t, gotInput, inputSchema) {
 			t.Fatalf("InputSchema = %s, want schema-equivalent %s", gotInput, inputSchema)
 		}
-		advertised := compileHostedOutputSchema(t, tool)
-		for _, testCase := range []struct {
-			name    string
-			payload string
-			valid   bool
-		}{
-			{name: "accept a declared payload", payload: `{"grants":[{"id":"grant-1"}]}`, valid: true},
-			{name: "reject a payload violating a referenced definition", payload: `{"grants":[{"id":7}]}`},
-			{name: "reject a payload with an undeclared field", payload: `{"grants":[],"extra":true}`},
-			{
-				name: "accept the result continuation",
-				payload: `{"truncated":true,"truncated_from_bytes":530000,"preview":"{\"grants\":[",` +
-					`"artifacts":[{"uri":"compozy://tool-artifacts/art_1","bytes":530000}],` +
-					`"read_tool":"compozy__tool_artifact_read"}`,
-				valid: true,
-			},
-			{
-				name:    "accept a typed tool error",
-				payload: `{"error":{"code":"tool_denied","message":"denied"}}`,
-				valid:   true,
-			},
-			{name: "reject an untyped error object", payload: `{"error":{}}`},
-		} {
-			t.Run("Should "+testCase.name, func(t *testing.T) {
-				t.Parallel()
-
-				err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.payload))
-				if testCase.valid && err != nil {
-					t.Fatalf("advertised output schema rejected %s: %v", testCase.payload, err)
-				}
-				if !testCase.valid && err == nil {
-					t.Fatalf("advertised output schema accepted %s", testCase.payload)
-				}
-			})
-		}
-		declaration, err := json.Marshal(tool.OutputSchema)
-		if err != nil {
-			t.Fatalf("json.Marshal(OutputSchema) error = %v", err)
-		}
-		var root map[string]any
-		if err := json.Unmarshal(declaration, &root); err != nil {
-			t.Fatalf("json.Unmarshal(OutputSchema) error = %v", err)
-		}
-		if root["type"] != "object" {
-			t.Fatalf("OutputSchema root type = %#v, want object as MCP requires", root["type"])
-		}
-	})
-
-	t.Run("Should keep declared local references resolvable inside the widened output schema", func(t *testing.T) {
-		t.Parallel()
-
-		propertyRef := `"properties":{"value":{"type":"string"},"copy":{"$ref":"#/properties/value"}},` +
-			`"additionalProperties":false`
-		for _, testCase := range []struct {
-			name    string
-			schema  string
-			valid   string
-			invalid string
-		}{
-			{
-				name:    "a property pointer",
-				schema:  `{"type":"object",` + propertyRef + `}`,
-				valid:   `{"value":"a","copy":"b"}`,
-				invalid: `{"copy":7}`,
-			},
-			{
-				name: "a recursive root reference",
-				schema: `{"type":"object","required":["name"],"properties":{"name":{"type":"string"},` +
-					`"children":{"type":"array","items":{"$ref":"#"}}},"additionalProperties":false}`,
-				valid:   `{"name":"root","children":[{"name":"leaf","children":[]}]}`,
-				invalid: `{"name":"root","children":[{"children":[]}]}`,
-			},
-			{
-				name: "a nested embedded schema resource",
-				schema: `{"type":"object","required":["nested"],"properties":{"nested":` +
-					`{"$id":"https://compozy.test/nested.json","type":"object",` + propertyRef + `}}}`,
-				valid:   `{"nested":{"value":"a","copy":"b"}}`,
-				invalid: `{"nested":{"copy":7}}`,
-			},
-			{
-				name:    "an embedded schema resource",
-				schema:  `{"$id":"https://compozy.test/output.json","type":"object",` + propertyRef + `}`,
-				valid:   `{"value":"a","copy":"b"}`,
-				invalid: `{"copy":7}`,
-			},
-		} {
-			t.Run("Should resolve "+testCase.name, func(t *testing.T) {
-				t.Parallel()
-
-				view := hostedToolView("compozy__hosted_echo")
-				view.Descriptor.OutputSchema = json.RawMessage(testCase.schema)
-				tool := hostedMCPTool(view.Descriptor)
-				advertised := compileHostedOutputSchema(t, &tool)
-				if err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.valid)); err != nil {
-					t.Fatalf("advertised output schema rejected declared payload %s: %v", testCase.valid, err)
-				}
-				if err := validateHostedStructuredContent(
-					t,
-					advertised,
-					json.RawMessage(testCase.invalid),
-				); err == nil {
-					t.Fatalf("advertised output schema accepted invalid payload %s", testCase.invalid)
-				}
-				if err := validateHostedStructuredContent(
-					t,
-					advertised,
-					json.RawMessage(`{"truncated":true,"read_tool":"compozy__tool_artifact_read"}`),
-				); err != nil {
-					t.Fatalf("advertised output schema rejected the result continuation: %v", err)
-				}
-			})
+		if tool.OutputSchema != nil {
+			t.Fatalf("OutputSchema = %#v, want omitted", tool.OutputSchema)
 		}
 	})
 
@@ -277,6 +169,50 @@ func TestReconcileHostedTools(t *testing.T) {
 		}
 		if !reflect.DeepEqual(second, first) {
 			t.Fatalf("retained fingerprints = %#v, want %#v", second, first)
+		}
+	})
+	t.Run("Should preserve result envelopes across output contract registration changes", func(t *testing.T) {
+		t.Parallel()
+		view := hostedToolView("compozy__hosted_echo")
+		proxy := &hostedProxyClientStub{callResult: HostedCallResponse{Result: tools.ToolResult{
+			Content: []tools.ToolContent{{Type: "text", Text: "plain answer"}},
+		}}}
+		server := newHostedProxyTestServer()
+		client := connectHostedProxyClient(t, server)
+		for _, schema := range []json.RawMessage{nil, json.RawMessage(`{"type":"object"}`), nil} {
+			view.Descriptor.OutputSchema = schema
+			applyHostedTools(server, proxy, "bind-1", []tools.ToolView{view})
+			listed, err := client.ListTools(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(listed.Tools) != 1 || listed.Tools[0].OutputSchema != nil {
+				t.Fatalf("tools/list = %#v", listed)
+			}
+			result, err := client.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: view.Descriptor.ID.String()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.IsError || len(result.Content) != 1 {
+				t.Fatalf("result = %#v", result)
+			}
+			text, ok := result.Content[0].(*sdkmcp.TextContent)
+			if !ok || text.Text != "plain answer" {
+				t.Fatalf("content = %#v", result.Content)
+			}
+			if len(schema) == 0 {
+				if result.StructuredContent != nil {
+					t.Fatalf("schema-less result gained structured content: %#v", result.StructuredContent)
+				}
+			} else {
+				payload, err := json.Marshal(result.StructuredContent)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !equalJSON(t, payload, []byte(`{"truncated":false,"preview":"plain answer"}`)) {
+					t.Fatalf("structured envelope = %s", payload)
+				}
+			}
 		}
 	})
 }
@@ -756,15 +692,19 @@ func TestHostedProxyHelpers(t *testing.T) {
 		for _, want := range []string{
 			"Echo\n\nSend text back",
 			"Compozy canonical tool ID: compozy__hosted_echo",
-			"Compozy toolsets: compozy__bootstrap",
-			"Tags: catalog, echo",
-			"Search hints: send text back",
-			"Call the harness-returned tool reference.",
 		} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("hostedToolDescription() = %q, want substring %q", got, want)
 			}
 		}
+		// Discovery remains complete in the dedicated search metadata and registry.
+		hint := hostedToolMeta(view.Descriptor)["anthropic/searchHint"].(string)
+		for _, term := range []string{"compozy__bootstrap", "catalog", "echo", "send text back"} {
+			if !strings.Contains(hint, term) {
+				t.Fatalf("search metadata lost %q", term)
+			}
+		}
+
 		view.Descriptor.Description = ""
 		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "Echo") ||
 			!strings.Contains(got, "Compozy canonical tool ID: compozy__hosted_echo") {
@@ -775,6 +715,59 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "fallback") ||
 			!strings.Contains(got, "Compozy canonical tool ID: compozy__hosted_echo") {
 			t.Fatalf("hostedToolDescription(description only) = %q, want description and canonical ID", got)
+		}
+	})
+
+	t.Run("Should reduce hosted descriptions without changing schemas or identities", func(t *testing.T) {
+		t.Parallel()
+		var before, after, eagerBefore, eagerAfter int
+		for _, descriptor := range builtin.NativeDescriptors() {
+			tool := hostedMCPTool(descriptor)
+			if tool.Name != descriptor.ID.String() ||
+				!reflect.DeepEqual(tool.InputSchema, cloneRaw(descriptor.InputSchema)) {
+				t.Fatalf("tool %s changed its identity or input contract", descriptor.ID)
+			}
+			// The base renderer repeated discovery metadata and invocation boilerplate.
+			legacy := strings.TrimSpace(descriptor.Presentation().DisplayTitle)
+			if description := strings.TrimSpace(descriptor.Description); description != "" {
+				legacy = strings.TrimSpace(legacy + "\n\n" + description)
+			}
+			legacy = strings.TrimSpace(legacy + "\n\nCompozy canonical tool ID: " + descriptor.ID.String())
+			if len(descriptor.Toolsets) > 0 {
+				var names []string
+				for _, id := range descriptor.Toolsets {
+					names = append(names, id.String())
+				}
+				legacy += "\n\nCompozy toolsets: " + strings.Join(names, ", ")
+			}
+			if len(descriptor.Tags) > 0 {
+				legacy += "\n\nTags: " + strings.Join(cleanedValues(descriptor.Tags), ", ")
+			}
+			if len(descriptor.SearchHints) > 0 {
+				legacy += "\n\nSearch hints: " + strings.Join(cleanedValues(descriptor.SearchHints), ", ")
+			}
+			legacy += "\n\nCall the harness-returned tool reference."
+			for _, removed := range []string{"\n\nCompozy toolsets:", "\n\nTags:", "\n\nSearch hints:", "Call the harness-returned tool reference."} {
+				if strings.Contains(tool.Description, removed) {
+					t.Fatalf("tool %s repeated discovery metadata %q", descriptor.ID, removed)
+				}
+			}
+			before += len(legacy)
+			after += len(tool.Description)
+			if tool.Meta["anthropic/alwaysLoad"] == true {
+				eagerBefore += len(legacy)
+				eagerAfter += len(tool.Description)
+			}
+		}
+		t.Logf(
+			"native descriptions before=%d after=%d; eager before=%d after=%d bytes",
+			before,
+			after,
+			eagerBefore,
+			eagerAfter,
+		)
+		if after >= before || eagerAfter >= eagerBefore {
+			t.Fatal("hosted descriptions did not shrink")
 		}
 	})
 
@@ -1378,4 +1371,398 @@ func TestHostedRequestIdentity(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestHostedResultViews(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain the view selector without advertising output schemas", func(t *testing.T) {
+		t.Parallel()
+		descriptor := hostedResultViewDescriptor(t)
+		tool := hostedMCPTool(descriptor)
+		input, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !equalJSON(t, input, descriptor.InputSchema) || !strings.Contains(string(input), `"result_view"`) {
+			t.Fatalf("advertised input lost selector: %s", input)
+		}
+		if tool.OutputSchema != nil {
+			t.Fatalf("OutputSchema = %#v, want omitted", tool.OutputSchema)
+		}
+	})
+
+	for _, mode := range []string{"truncated", "typed error", "partial error"} {
+		t.Run("Should round trip "+mode+" through MCP and real dispatch", func(t *testing.T) {
+			t.Parallel()
+			descriptor := hostedResultViewDescriptor(t)
+			registry := hostedRuntimeRegistry(
+				t,
+				tools.PolicyInputs{SystemPermissionMode: tools.PermissionModeApproveAll},
+				nil,
+				tools.NativeTool{
+					Descriptor: descriptor,
+					Call: func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
+						if mode == "partial error" {
+							return tools.ToolResult{}, tools.NewToolError(tools.ErrorCodeResultPersistenceFailed, descriptor.ID,
+								"could not retain result", tools.ErrToolResultPersistence, tools.ReasonResultPersistenceFailed).
+								WithPartialResult(tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "bounded partial"}}})
+						}
+						if mode == "typed error" {
+							return tools.ToolResult{}, tools.NewToolError(
+								tools.ErrorCodeInvalidInput,
+								descriptor.ID,
+								"invalid query",
+								tools.ErrToolInvalidInput,
+								tools.ReasonSchemaInvalid,
+							)
+						}
+						return tools.ToolResult{
+							Truncated: true,
+							Preview:   "bounded preview",
+							Content:   []tools.ToolContent{{Type: "text", Text: "bounded preview"}},
+							Artifacts: []tools.ArtifactRef{{URI: "compozy://tool-artifacts/art_test", Bytes: 9000}},
+							Metadata:  map[string]json.RawMessage{"truncated_from_bytes": json.RawMessage(`9000`)},
+						}, nil
+					},
+				},
+			)
+			scope := tools.Scope{SessionID: "sess-views", WorkspaceID: "ws-views", AgentName: "general"}
+			views, err := registry.SessionProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proxy := &hostedProxyClientStub{block: func(req HostedCallRequest) (HostedCallResponse, error) {
+				result, err := registry.Call(
+					t.Context(),
+					scope,
+					tools.CallRequest{ToolID: tools.ToolID(req.ToolName), Input: req.Input},
+				)
+				return HostedCallResponse{Result: result}, err
+			}}
+			server := newHostedProxyTestServer()
+			applyHostedTools(server, proxy, "bind-views", views)
+			client := connectHostedProxyClient(t, server)
+			for _, view := range []string{"compact", "full"} {
+				result, err := client.CallTool(
+					t.Context(),
+					&sdkmcp.CallToolParams{
+						Name:      descriptor.ID.String(),
+						Arguments: map[string]any{"result_view": view},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				payload, err := json.Marshal(result.StructuredContent)
+				if err != nil {
+					t.Fatal(err)
+				}
+				switch mode {
+				case "partial error":
+					if !result.IsError || result.StructuredContent != nil || len(result.Content) != 2 {
+						t.Fatalf("partial result = %#v", result)
+					}
+					for i, want := range []string{"bounded partial", "result_persistence_failed: could not retain result"} {
+						text, ok := result.Content[i].(*sdkmcp.TextContent)
+						if !ok || text.Text != want {
+							t.Fatalf("partial content[%d] = %#v, want %s", i, result.Content[i], want)
+						}
+					}
+				case "typed error":
+					var typed contract.ToolErrorResponse
+					if err := json.Unmarshal(payload, &typed); err != nil {
+						t.Fatal(err)
+					}
+					if !result.IsError || typed.Error.Code != tools.ErrorCodeInvalidInput ||
+						typed.Error.Message != "invalid query" {
+						t.Fatalf("typed error = %s, isError=%t", payload, result.IsError)
+					}
+					if len(result.Content) == 0 {
+						t.Fatal("missing result text")
+					}
+					text, ok := result.Content[0].(*sdkmcp.TextContent)
+					if !ok || text.Text != "schema_invalid: invalid query" {
+						t.Fatalf("error text = %#v", result.Content)
+					}
+				case "truncated":
+					var envelope hostedResultEnvelope
+					if err := json.Unmarshal(payload, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					if result.IsError || !envelope.Truncated || envelope.Preview != "bounded preview" ||
+						envelope.ReadTool != tools.ToolIDToolArtifactRead ||
+						envelope.TruncatedFromBytes == nil ||
+						*envelope.TruncatedFromBytes != 9000 ||
+						len(
+							envelope.Artifacts,
+						) != 1 || envelope.Artifacts[0].URI != "compozy://tool-artifacts/art_test" || envelope.Artifacts[0].Bytes != 9000 {
+						t.Fatalf("continuation = %s", payload)
+					}
+					if len(result.Content) == 0 {
+						t.Fatal("missing result text")
+					}
+					text, ok := result.Content[0].(*sdkmcp.TextContent)
+					if !ok || text.Text != "bounded preview" || len(result.Content) != 2 {
+						t.Fatalf("continuation text = %#v", result.Content)
+					}
+					artifactText, ok := result.Content[1].(*sdkmcp.TextContent)
+					if !ok ||
+						!equalJSON(
+							t,
+							[]byte(artifactText.Text),
+							[]byte(
+								`{"artifacts":[{"uri":"compozy://tool-artifacts/art_test","bytes":9000}],"read_tool":"compozy__tool_artifact_read"}`,
+							),
+						) {
+						t.Fatalf("artifact text = %#v", result.Content[1])
+					}
+				}
+			}
+		})
+	}
+
+	t.Run("Should round trip both views through MCP and real dispatch", func(t *testing.T) {
+		t.Parallel()
+		descriptor := hostedResultViewDescriptor(t)
+		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
+			SystemPermissionMode: tools.PermissionModeApproveAll,
+		}, nil, tools.NativeTool{
+			Descriptor: descriptor,
+			Call: func(_ context.Context, _ tools.Scope, req tools.CallRequest) (tools.ToolResult, error) {
+				if string(req.Input) != "{}" {
+					t.Errorf("handler input retained selector: %s", req.Input)
+				}
+				payload := `{"record":{"id":"r1"}}`
+				if req.View == tools.ResultViewFull {
+					payload = `{"record":{"id":"r1","detail":"complete"}}`
+				}
+				return tools.ToolResult{Structured: json.RawMessage(payload)}, nil
+			},
+		})
+		scope := tools.Scope{SessionID: "sess-views", WorkspaceID: "ws-views", AgentName: "general"}
+		views, err := registry.SessionProjection(t.Context(), scope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proxy := &hostedProxyClientStub{block: func(req HostedCallRequest) (HostedCallResponse, error) {
+			result, err := registry.Call(t.Context(), scope, tools.CallRequest{
+				ToolID: tools.ToolID(req.ToolName), ToolCallID: req.ToolCallID, Input: req.Input,
+			})
+			return HostedCallResponse{Result: result}, err
+		}}
+		server := newHostedProxyTestServer()
+		applyHostedTools(server, proxy, "bind-views", views)
+		client := connectHostedProxyClient(t, server)
+		listed, err := client.ListTools(t.Context(), nil)
+		if err != nil || len(listed.Tools) != 1 {
+			t.Fatalf("ListTools=%#v, %v", listed, err)
+		}
+		if listed.Tools[0].OutputSchema != nil {
+			t.Fatal("tools/list advertised outputSchema")
+		}
+		for _, view := range []string{"", "compact", "full"} {
+			arguments := map[string]any{}
+			if view != "" {
+				arguments[tools.ResultViewInputKey] = view
+			}
+			result, err := client.CallTool(t.Context(), &sdkmcp.CallToolParams{
+				Name: descriptor.ID.String(), Arguments: arguments,
+			})
+			if err != nil || result.IsError {
+				t.Fatalf("CallTool(%q)=%#v, %v", view, result, err)
+			}
+			payload, err := json.Marshal(result.StructuredContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			want := `{"record":{"id":"r1"}}`
+			if view == "full" {
+				want = `{"record":{"id":"r1","detail":"complete"}}`
+			}
+			if len(result.Content) != 1 {
+				t.Fatalf("content = %#v", result.Content)
+			}
+			text, ok := result.Content[0].(*sdkmcp.TextContent)
+			if !ok || !equalJSON(t, []byte(text.Text), []byte(want)) {
+				t.Fatalf("text = %#v, want %s", result.Content, want)
+			}
+			if !equalJSON(t, payload, []byte(want)) {
+				t.Fatalf("%q result=%s, want %s", view, payload, want)
+			}
+		}
+	})
+}
+
+func hostedResultViewDescriptor(t *testing.T) tools.Descriptor {
+	t.Helper()
+	descriptor := hostedToolView("compozy__hosted_views").Descriptor
+	descriptor.Source = tools.BuiltinSource()
+	descriptor.InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,` +
+		`"properties":{"result_view":` + tools.ResultViewSelectorSchema + `}}`)
+	compact := json.RawMessage(`{"type":"object","required":["record"],"additionalProperties":false,` +
+		`"properties":{"record":{"$ref":"#/$defs/record"}},` +
+		`"$defs":{"record":{"type":"object","required":["id"],"additionalProperties":false,` +
+		`"properties":{"id":{"type":"string"}}}}}`)
+	full := json.RawMessage(`{"type":"object","required":["record"],"additionalProperties":false,` +
+		`"properties":{"record":{"$ref":"#/$defs/record"}},` +
+		`"$defs":{"record":{"type":"object","required":["id","detail"],"additionalProperties":false,` +
+		`"properties":{"id":{"type":"string"},"detail":{"type":"string"}}}}}`)
+	descriptor.OutputSchema = compact
+	descriptor.SetResultViews(&tools.ResultViews{
+		Compact: tools.ResultViewContract{Schema: compact}, Full: tools.ResultViewContract{Schema: full},
+	})
+	return descriptor
+}
+
+func TestHostedResultViewCatalogSize(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report the full-policy general session tools list size", func(t *testing.T) {
+		t.Parallel()
+		descriptors := builtin.NativeDescriptors()
+		nativeTools := make([]tools.NativeTool, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			nativeTools = append(nativeTools, tools.NativeTool{
+				Descriptor: descriptor,
+				Call: func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
+					return tools.ToolResult{}, nil
+				},
+			})
+		}
+		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
+			SystemPermissionMode: tools.PermissionModeApproveAll,
+		}, nil, nativeTools...)
+		views, err := registry.SessionProjection(t.Context(), tools.Scope{
+			SessionID: "sess-full-policy", WorkspaceID: "ws-full-policy", AgentName: "general",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(views) != len(descriptors) {
+			t.Fatalf("full policy projected %d of %d tools", len(views), len(descriptors))
+		}
+		server := newHostedProxyTestServer()
+		applyHostedTools(server, &hostedProxyClientStub{}, "bind-full-policy", views)
+		listed, err := connectHostedProxyClient(t, server).ListTools(t.Context(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := json.Marshal(listed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(after), `"outputSchema"`) {
+			t.Fatal("tools/list contains outputSchema")
+		}
+		if len(listed.Tools) != len(views) || listed.NextCursor != "" {
+			t.Fatalf(
+				"incomplete tools/list: %d of %d tools, cursor %q",
+				len(listed.Tools),
+				len(views),
+				listed.NextCursor,
+			)
+		}
+		expected := make(map[string]tools.Descriptor, len(views))
+		for _, view := range views {
+			expected[view.Descriptor.ID.String()] = view.Descriptor
+		}
+		const preFeatureBaseline = 744687
+		withViews := 0
+		modelTools := make([]map[string]any, 0, len(listed.Tools))
+		for _, tool := range listed.Tools {
+			if tool.OutputSchema != nil {
+				t.Fatalf("%s advertises outputSchema", tool.Name)
+			}
+			input, err := json.Marshal(tool.InputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			descriptor, found := expected[tool.Name]
+			if !found {
+				t.Fatalf("unexpected or duplicate tool %s", tool.Name)
+			}
+			delete(expected, tool.Name)
+			if !equalJSON(t, input, descriptor.InputSchema) {
+				t.Fatalf("%s input schema changed: %s", tool.Name, input)
+			}
+			if descriptor.ResultViews() != nil {
+				var schema struct {
+					Properties map[string]json.RawMessage `json:"properties"`
+				}
+				if err := json.Unmarshal(input, &schema); err != nil {
+					t.Fatal(err)
+				}
+				if !equalJSON(t, schema.Properties[tools.ResultViewInputKey], []byte(tools.ResultViewSelectorSchema)) {
+					t.Fatalf("%s lost its result_view selector: %s", tool.Name, input)
+				}
+				withViews++
+			}
+			modelTools = append(
+				modelTools,
+				map[string]any{"name": tool.Name, "description": tool.Description, "inputSchema": tool.InputSchema},
+			)
+		}
+		model, err := json.Marshal(modelTools)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("tools/list: tools=%d views=%d pre-feature=%d after=%d delta=%d model-facing=%d bytes",
+			len(listed.Tools), withViews, preFeatureBaseline, len(after), len(after)-preFeatureBaseline, len(model))
+		if len(after) > preFeatureBaseline {
+			t.Fatalf("tools/list grew beyond pre-feature baseline: %d > %d", len(after), preFeatureBaseline)
+		}
+	})
+}
+
+func TestHostedExternalOutputContracts(t *testing.T) {
+	t.Parallel()
+	for _, backend := range []tools.BackendKind{tools.BackendMCP, tools.BackendExtensionHost} {
+		t.Run("Should retain external output schemas for "+string(backend), func(t *testing.T) {
+			t.Parallel()
+			view := hostedToolView("compozy__external_echo")
+			view.Descriptor.Backend.Kind = backend
+			proxy := &hostedProxyClientStub{}
+			server := newHostedProxyTestServer()
+			client := connectHostedProxyClient(t, server)
+			for _, field := range []string{"first", "second"} {
+				schema := json.RawMessage(
+					`{"type":"object","required":["` + field + `"],"properties":{"` + field + `":{"$ref":"#/$defs/value"}},"additionalProperties":false,"$defs":{"value":{"type":"string"}}}`,
+				)
+				view.Descriptor.OutputSchema = schema
+				applyHostedTools(server, proxy, "bind-1", []tools.ToolView{view})
+				listed, err := client.ListTools(t.Context(), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(listed.Tools) != 1 || listed.Tools[0].OutputSchema == nil {
+					t.Fatalf("missing external schema: %#v", listed)
+				}
+				raw, err := json.Marshal(listed.Tools[0].OutputSchema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(raw), `"`+field+`"`) ||
+					!strings.Contains(string(raw), "#/anyOf/0/$defs/value") {
+					t.Fatalf("stale or unrebased schema: %s", raw)
+				}
+				for _, result := range []tools.ToolResult{
+					{Structured: json.RawMessage(`{"` + field + `":"ok"}`)},
+					{Content: []tools.ToolContent{{Type: "text", Text: "plain answer"}}},
+					{Truncated: true, Preview: "bounded"},
+				} {
+					proxy.callResult = HostedCallResponse{Result: result}
+					response, err := client.CallTool(
+						t.Context(),
+						&sdkmcp.CallToolParams{Name: view.Descriptor.ID.String()},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if response.IsError || response.StructuredContent == nil {
+						t.Fatalf("invalid external result: %#v", response)
+					}
+				}
+			}
+		})
+	}
 }

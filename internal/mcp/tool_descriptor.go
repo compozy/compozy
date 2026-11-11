@@ -3,6 +3,8 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -46,22 +48,41 @@ func (e *CallExecutor) descriptorFromTool(
 		WorkspaceID:     source.WorkspaceID,
 		Scope:           source.Scope,
 	}
+	readOnlyOverride := false
+	var overrideOrigin toolspkg.MCPReadOnlyOverrideOrigin
 	readOnly := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
+	destructive := tool.Annotations != nil && tool.Annotations.DestructiveHint != nil &&
+		*tool.Annotations.DestructiveHint
+	if len(server.ReadOnlyTools) > 0 {
+		if strings.HasPrefix(server.Owner, "extension:") || server.CatalogEntry != "" {
+			slog.Warn("mcp_read_only_override_untrusted", "server", server.Name)
+		} else if slices.Contains(server.ReadOnlyTools, tool.Name) {
+			if destructive {
+				slog.Warn("mcp_read_only_override_destructive", "server", server.Name, "tool", tool.Name)
+			} else {
+				readOnlyOverride = true
+				overrideOrigin = toolspkg.MCPReadOnlyOverrideAgentDefinition
+			}
+		}
+	}
 	friendlyVerb, preview, err := mcpToolPresentationMetadata(tool)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
 	}
 	descriptor := toolspkg.MCPToolDescriptor{
-		ID:           id,
-		RawName:      strings.TrimSpace(tool.Name),
-		Title:        mcpToolTitle(tool),
-		FriendlyVerb: friendlyVerb,
-		Preview:      preview,
-		Description:  strings.TrimSpace(tool.Description),
-		InputSchema:  inputSchema,
-		OutputSchema: outputSchema,
-		Source:       mcpSource,
-		ReadOnly:     readOnly,
+		ID:                     id,
+		RawName:                strings.TrimSpace(tool.Name),
+		Title:                  mcpToolTitle(tool),
+		FriendlyVerb:           friendlyVerb,
+		Preview:                preview,
+		Description:            strings.TrimSpace(tool.Description),
+		InputSchema:            inputSchema,
+		OutputSchema:           outputSchema,
+		Source:                 mcpSource,
+		ReadOnly:               readOnly,
+		ReadOnlyOverride:       readOnlyOverride,
+		ReadOnlyOverrideOrigin: overrideOrigin,
+		Destructive:            destructive,
 	}
 	return redactMCPToolDescriptor(descriptor)
 }

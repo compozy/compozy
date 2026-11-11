@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
+
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -16,8 +18,9 @@ import (
 const worktreeKey = "worktree"
 
 type nativeWorktreeListInput struct {
-	Workspace string `json:"workspace"`
-	Refresh   bool   `json:"refresh"`
+	Workspace      string `json:"workspace"`
+	IncludeRemoved bool   `json:"include_removed"`
+	Refresh        bool   `json:"refresh"`
 }
 
 type nativeWorktreeRefInput struct {
@@ -59,8 +62,11 @@ func (n *daemonNativeTools) worktreeList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
 	}
-	payload := core.WorktreesPayloadFromListing(listing)
-	return structuredResult(payload, fmt.Sprintf("%d worktrees", len(payload.Worktrees)))
+	payload := core.WorktreesPayloadFromListing(listing, input.IncludeRemoved)
+	return (resultViews[contract.WorktreesResponse]{
+		Compact: compactWorktrees,
+		Preview: func(contract.WorktreesResponse) string { return fmt.Sprintf("%d worktrees", len(payload.Worktrees)) },
+	}).result(req.View, payload)
 }
 
 func (n *daemonNativeTools) worktreeInspect(

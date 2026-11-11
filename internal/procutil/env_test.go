@@ -169,14 +169,33 @@ printf clean
 func TestLaunchSandboxFiltersFallbackEnvironment(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-launch-secret")
 	t.Setenv("COMPOZY_HOME", "/tmp/compozy")
+	t.Setenv("COMPOZY_INTERNAL_RESTART_OPERATION_ID", "inherited-restart")
 
-	t.Run("Should filter inherited daemon secrets", func(t *testing.T) {
+	t.Run("Should filter inherited daemon secrets and handoff variables", func(t *testing.T) {
 		env := launchSandbox(nil)
 		if hasEnvPrefix(env, "OPENAI_API_KEY=") {
 			t.Fatalf("launchSandbox(nil) leaked OPENAI_API_KEY in %#v", env)
 		}
+		if hasEnvPrefix(env, "COMPOZY_INTERNAL_RESTART_OPERATION_ID=") {
+			t.Fatalf("launchSandbox(nil) leaked inherited restart handoff in %#v", env)
+		}
 		if !hasEnvPrefix(env, "COMPOZY_HOME=/tmp/compozy") {
 			t.Fatalf("launchSandbox(nil) missing COMPOZY_HOME in %#v", env)
+		}
+	})
+
+	t.Run("Should keep explicit internal handoff variables only for detached launches", func(t *testing.T) {
+		const handoff = "COMPOZY_INTERNAL_RESTART_OPERATION_ID=restart-1"
+		base := []string{"PATH=/usr/bin", handoff}
+
+		if !containsEnvEntry(launchSandbox(base), handoff) {
+			t.Fatalf("launchSandbox() dropped explicit handoff %q", handoff)
+		}
+		if containsEnvEntry(FilteredDaemonEnv(base), handoff) {
+			t.Fatalf("FilteredDaemonEnv() leaked handoff %q", handoff)
+		}
+		if containsEnvEntry(WithoutInternalHandoffEnv(base), handoff) {
+			t.Fatalf("WithoutInternalHandoffEnv() kept handoff %q", handoff)
 		}
 	})
 }
@@ -417,4 +436,64 @@ func writeExecutableShell(t *testing.T, contents string) string {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
 	return path
+}
+
+func TestDaemonEnvironmentInheritance(t *testing.T) {
+	t.Setenv("COMPOZY_EMPTY_ENV_MARKER", "parent")
+	for name, filter := range map[string]func([]string) []string{
+		"filtered": FilteredDaemonEnv, "isolated": IsolatedDaemonEnv, "detached": launchSandbox,
+	} {
+		t.Run("Should preserve explicit empty environment for "+name, func(t *testing.T) {
+			got := filter([]string{})
+			if got == nil || len(got) != 0 {
+				t.Fatalf("explicit empty environment = %#v", got)
+			}
+		})
+	}
+	t.Run("Should retain filtered inheritance for unspecified environments", func(t *testing.T) {
+		if !containsEnvEntry(FilteredDaemonEnv(nil), "COMPOZY_EMPTY_ENV_MARKER=parent") {
+			t.Fatal("unspecified environment lost inheritance")
+		}
+	})
+}
+
+func TestDetachedEmptyEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell to report child environment")
+	}
+	t.Setenv("DETACHED_ENV_MARKER", "parent")
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "Should inherit filtered environment when unspecified", want: "parent"},
+		{name: "Should inherit nothing when explicitly empty", env: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logPath := filepath.Join(t.TempDir(), "child.log")
+			child, err := SpawnDetachedLoggedProcess(
+				t.Context(),
+				DetachedLaunchRequest{
+					Binary:  "/bin/sh",
+					Args:    []string{"-c", `printf %s "${DETACHED_ENV_MARKER:-}"`},
+					Sandbox: tc.env,
+					LogPath: logPath,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := child.Wait(); err != nil {
+				t.Fatal(err)
+			}
+			output, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(output) != tc.want {
+				t.Fatalf("child environment=%q,want %q", output, tc.want)
+			}
+		})
+	}
 }

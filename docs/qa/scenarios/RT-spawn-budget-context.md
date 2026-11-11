@@ -30,3 +30,13 @@ and that a forced spawn fails with cause `max_depth 1 reached` and the subagent 
 
 Call `compozy__session_spawn` with `model` but no `provider`. Confirm the refusal reads
 `provider is required when model is set` instead of the generic `invalid tool request`.
+
+## Prompt reuse
+
+Capture the first ordinary ACP prompt and a later turn for a session with a 330-tool
+permission policy. The first message contains one situation block. Later turns keep
+changed session names, states and timestamps, but reuse the unchanged top-level
+`lineage` prompt section; the block stays below 1000 characters. Change the policy,
+compact the provider, lower its observed context usage, and replace the ACP session:
+each invalidation delivers full lineage again. HTTP/UDS `/agent/context` retains
+its original nested `session.lineage` payload.

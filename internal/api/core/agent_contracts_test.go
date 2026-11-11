@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -198,8 +199,42 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 		alwaysOnPayload.EffectiveRuntime.Sources.Permissions != contract.AgentRuntimeValueSourceAlwaysOnDefault {
 		t.Fatalf("always-on effective permissions = %#v, want the always-on default", alwaysOnPayload.EffectiveRuntime)
 	}
+	unrestricted := compozyconfig.CloneAgentDef(agent)
+	unrestricted.SetACPOptions([]compozyconfig.ACPOptionSelection{
+		{ID: "thinking", BoolValue: &fast},
+		{ID: compozyconfig.CopilotAllowAllOptionID, ValueID: compozyconfig.CopilotAllowAllOn},
+	})
+	unrestrictedEntry := core.AgentCatalogEntry{Def: unrestricted, Origin: contract.AgentOriginGlobal}
+	restricted := core.AgentPayloadFromEntryWithConfig(&unrestrictedEntry, &codexConfig)
+	if got := restricted.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 1 ||
+		got[0].ID != compozyconfig.CopilotAllowAllOptionID || len(restricted.EffectiveRuntime.ACPOptions) != 2 {
+		t.Fatalf("restricted runtime options = %#v excluded %#v, want only allow_all excluded and both listed",
+			restricted.EffectiveRuntime.ACPOptions, got)
+	}
+	approved := core.AgentPayloadFromEntryWithConfig(&unrestrictedEntry, &approveAllConfig)
+	if got := approved.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 0 {
+		t.Fatalf("approve-all excluded options = %#v, want none", got)
+	}
+	unrestrictedAlwaysOn := compozyconfig.CloneAgentDef(unrestricted)
+	unrestrictedAlwaysOn.Kind = compozyconfig.AgentKindAlwaysOn
+	unrestrictedAlwaysOnEntry := core.AgentCatalogEntry{Def: unrestrictedAlwaysOn, Origin: contract.AgentOriginGlobal}
+	alwaysOnApproved := core.AgentPayloadFromEntryWithConfig(&unrestrictedAlwaysOnEntry, &approveAllConfig)
+	if got := alwaysOnApproved.EffectiveRuntime.PolicyExcludedACPOptions; len(got) != 0 ||
+		alwaysOnApproved.EffectiveRuntime.Permissions != string(compozyconfig.AlwaysOnDefaultPermissionMode) {
+		t.Fatalf("always-on under approve-all: permissions %q excluded %#v, want instance level and no exclusions",
+			alwaysOnApproved.EffectiveRuntime.Permissions, got)
+	}
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
+	}
+	// The approve-all override also projects Claude's unrestricted mode beside the authored options.
+	wantEffectiveOptions := map[string]int{"codex": 2, "claude": 3}
+	bypass := func(option contract.AgentACPOptionSelection) bool {
+		return option.ID == "mode" && option.ValueID == "bypassPermissions"
+	}
+	if !slices.ContainsFunc(claudePayload.EffectiveRuntime.ACPOptions, bypass) {
+		t.Fatalf("claude effective options = %#v, want approve-all bypassPermissions",
+			claudePayload.EffectiveRuntime.ACPOptions)
 	}
 	for name, payload := range map[string]*contract.AgentPayload{
 		"codex":  &codexPayload,
@@ -214,7 +249,7 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 			t.Fatalf("%s authored ACP options = %#v", name, payload.ACPOptions)
 		}
 		if payload.EffectiveRuntime == nil || payload.EffectiveRuntime.Speed != contract.SpeedFast ||
-			len(payload.EffectiveRuntime.ACPOptions) != 2 {
+			len(payload.EffectiveRuntime.ACPOptions) != wantEffectiveOptions[name] {
 			t.Fatalf("%s effective runtime defaults = %#v", name, payload.EffectiveRuntime)
 		}
 	}

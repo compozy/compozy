@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Remove this boundary filter in v0.6.0 after the retired-entry migration window.
+// Remove this boundary filter in v0.6.1 after the retired-entry migration window.
 func dropRetiredMemoryManifestEntries(manifest *Manifest) (dropped []string) {
 	filter := func(field string, entries []string) []string {
 		start := len(dropped)

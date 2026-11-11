@@ -825,7 +825,7 @@ async function openUsageCostForProvider(
     .toBe(opts.status);
 
   await expect(sessionWin).toBeVisible();
-  await sessionWin.getByTestId("session-inspector-toggle").click();
+  await sessionWin.getByTestId("composer-context-button").click();
   return sessionWin.getByTestId("session-inspector-usage-cost");
 }
 
@@ -1425,15 +1425,17 @@ test.describe("session context E2E-001", () => {
     await contextButton.click();
     const sidebar = appPage.getByRole("complementary", { name: "Context" });
     await expect(sidebar).toBeVisible();
-    await expect(sessionWin.getByTestId("session-inspector-toggle")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    await expect(contextButton).toHaveAttribute("aria-pressed", "true");
     await expect(sidebar.locator('[data-testid^="session-inspector-tab-"]')).toHaveCount(0);
     await expect(sidebar.getByTestId("session-inspector").locator(":scope > section")).toHaveCount(
       5
     );
-    await sessionWin.getByTestId("session-inspector-toggle").click();
+    // The same control closes the rail (#1487).
+    await contextButton.click();
+    await expect(sidebar).toHaveCount(0);
+    await expect(contextButton).toHaveAttribute("aria-pressed", "false");
+    // A click-dismissed tooltip needs a pointer leave before it can reopen.
+    await ui.composerTextarea.hover();
     await ui.composerTextarea.fill("warning");
     await ui.composerTextarea.press("Enter");
     await expect(contextButton).toHaveAccessibleName("Context 88% used");
@@ -1586,7 +1588,7 @@ test.describe("native compaction E2E-005 / E2E-006", () => {
     await expect(ui.chatView).toContainText("Native compaction observed.");
 
     // A compaction started through Compact now is a requested one; the rail's Turns fold lists it.
-    const inspectorToggle = sessionWin.getByTestId("session-inspector-toggle");
+    const inspectorToggle = sessionWin.getByTestId("composer-context-button");
     if ((await inspectorToggle.getAttribute("aria-pressed")) !== "true") {
       await inspectorToggle.click();
     }
@@ -1644,7 +1646,9 @@ test.describe("native compaction E2E-005 / E2E-006", () => {
       await expect(compactNow).toBeEnabled();
 
       await startBlockingTurn(ui, runtime, workspace.id, session.id, compactionHoldPrompt);
-      await contextButton.click();
+      // The control toggles the rail: reopen it only if the turn left it closed.
+      if ((await contextButton.getAttribute("aria-pressed")) !== "true")
+        await contextButton.click();
       await expect(compactNow).toBeVisible();
       await expect(compactNow).toBeDisabled();
 

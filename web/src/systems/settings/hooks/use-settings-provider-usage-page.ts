@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useProviderUsage } from "@/systems/provider-usage";
+import { isProviderEnabled } from "@/systems/providers";
 
 import { providerLogoKey } from "../lib/provider-logo-key";
 import {
@@ -23,11 +24,13 @@ export interface ProviderUsageSettingsProvider {
   name: string;
   /** Logo key: the provider's own brand, else its runtime family. */
   logo: string;
+  /** Turned off in Settings → Providers: the row shows that instead of its switch. */
+  disabled: boolean;
 }
 
 type ConfiguredProvider = {
   name: string;
-  settings?: ProviderUsageFamilySettings & { display_name?: string };
+  settings?: ProviderUsageFamilySettings & { display_name?: string; enabled?: boolean };
 };
 
 /**
@@ -48,6 +51,7 @@ function usageProviders(
     id,
     name: catalogNames.get(id) || settings.get(id)?.display_name?.trim() || id,
     logo: providerLogoKey({ name: id, settings: settings.get(id) }),
+    disabled: !isProviderEnabled(settings.get(id)),
   });
   const builtins = PROVIDER_USAGE_COLLECTOR_IDS.filter(id => settings.has(id) || named.has(id));
   const aliases: ProviderUsageSettingsProvider[] = [];

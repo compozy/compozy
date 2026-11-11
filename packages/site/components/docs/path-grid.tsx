@@ -1,6 +1,11 @@
-import { Eyebrow } from "@compozy/ui";
+/** The docs home's three paths in: one card per job, each led by the link that job reaches for first. */
+import { cn } from "@compozy/ui";
+import { ArrowRight } from "@compozy/ui/icons";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+
+import { FOCUS, LINE } from "@/components/docs/docs-classes";
 import { DOCS_ICONS } from "@/lib/docs-icons";
 
 interface PathCardProps {
@@ -18,39 +23,45 @@ interface PathLinkProps {
   cta?: boolean;
 }
 
-/**
- * The docs landing's audience router: one card per job from the spec's audience model, each opening
- * with the destination that audience reaches for first. Deliberately not the generic
- * icon-heading-text card grid — the value is the link set, so the links carry the card.
- */
 export function PathGrid({ children }: { children: ReactNode }) {
-  return <div className="not-prose my-8 grid gap-3 md:grid-cols-2">{children}</div>;
+  return <div className="docs-wide not-prose my-10 grid gap-5 lg:grid-cols-3">{children}</div>;
 }
 
 export function PathCard({ label, title, description, children }: PathCardProps) {
   return (
-    <section className="flex flex-col rounded-xl border border-line bg-canvas-soft px-5 pt-[18px] pb-4 transition-colors hover:border-line-strong">
-      <Eyebrow className="text-subtle">{label}</Eyebrow>
-      <h3 className="mt-2 text-compact-h1 font-semibold tracking-tight text-fg">{title}</h3>
-      <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{description}</p>
-      <div className="mt-3.5 flex flex-col border-t border-line pt-2.5">{children}</div>
+    <section className="flex flex-col rounded-[20px] border border-site-light-090 bg-site-light-025 p-6 md:p-7">
+      <p className="m-0 font-mono text-[12.5px] text-brand-strong">{label}</p>
+      <h3 className="mt-4 font-display text-[25px]/[1.15] font-normal tracking-[-0.02em] text-fg">
+        {title}
+      </h3>
+      <p className="mt-3 flex-1 text-[14.5px]/[1.6] text-muted-foreground">{description}</p>
+      <ul className={cn("not-prose mt-6 list-none border-t p-0 pt-2", LINE)}>{children}</ul>
     </section>
   );
 }
 
 export function PathLink({ href, icon, children, cta = false }: PathLinkProps) {
-  const Icon = DOCS_ICONS[icon];
+  const Icon = DOCS_ICONS[icon] ?? FileText;
   return (
-    <Link
-      href={href}
-      className={
-        cta
-          ? "flex h-[30px] items-center gap-2 text-small-body font-medium text-brand transition-colors hover:text-brand-hover"
-          : "flex h-[30px] items-center gap-2 text-small-body text-muted-foreground transition-colors hover:text-fg"
-      }
-    >
-      {Icon ? <Icon aria-hidden className="size-3 shrink-0 opacity-60" /> : null}
-      {children}
-    </Link>
+    <li className="my-0!">
+      <Link
+        href={href}
+        className={cn(
+          "group flex w-full items-center gap-3 rounded-[8px] py-2.5 text-left text-[14.5px] transition-colors hover:text-fg",
+          cta ? "text-fg" : "text-fg/70",
+          FOCUS
+        )}
+      >
+        <Icon
+          aria-hidden
+          className={cn("size-4 shrink-0", cta ? "text-brand-strong" : "text-subtle")}
+        />
+        {children}
+        <ArrowRight
+          className="ml-auto size-3.5 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg"
+          aria-hidden
+        />
+      </Link>
+    </li>
   );
 }

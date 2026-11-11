@@ -39,10 +39,7 @@ func (n *daemonNativeTools) toolList(
 		return toolspkg.ToolResult{}, err
 	}
 	page := nativeToolListPageFromViews(views, offset, limit)
-	return structuredResult(
-		page,
-		fmt.Sprintf("%d of %d tools", page.Count, page.Total),
-	)
+	return toolListViews.result(req.View, page)
 }
 
 func (n *daemonNativeTools) toolSearch(
@@ -54,18 +51,37 @@ func (n *daemonNativeTools) toolSearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.Limit == 0 {
+		input.Limit = 20
+	}
+	offset, limit, err := normalizeNativeToolListInput(
+		req.ToolID,
+		toolListInput{Offset: input.Offset, Limit: input.Limit},
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	registry, ok := n.registry().(nativeToolDiagnosticRegistry)
 	if !ok {
 		return toolspkg.ToolResult{}, unavailableToolDiagnosticRegistryError(req.ToolID)
 	}
 	views, err := registry.DiagnosticSearch(ctx, scope, toolspkg.SearchQuery{
 		Query: input.Query,
-		Limit: input.Limit,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"tools": views}, fmt.Sprintf("%d tools", len(views)))
+	start := min(offset, len(views))
+	end := start + min(limit, len(views)-start)
+	next := 0
+	if end < len(views) {
+		next = end
+	}
+	return toolSearchViews.result(req.View, nativeToolSearchPage{
+		Tools:  views[start:end],
+		Offset: offset, Count: end - start, Total: len(views),
+		NextOffset: next, HasMore: end < len(views),
+	})
 }
 
 func (n *daemonNativeTools) toolInfo(
@@ -103,10 +119,7 @@ func (n *daemonNativeTools) skillList(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SkillPayloadsFromSkills(limitSkills(skillList, input.Limit))
-	return structuredResult(
-		map[string]any{nativeToolsSkillsKey: payload},
-		fmt.Sprintf("%d skills", len(payload)),
-	)
+	return skillCatalogViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) skillSearch(
@@ -124,10 +137,7 @@ func (n *daemonNativeTools) skillSearch(
 	}
 	filtered := searchSkills(skillList, input.Query)
 	payload := core.SkillPayloadsFromSkills(limitSkills(filtered, input.Limit))
-	return structuredResult(
-		map[string]any{nativeToolsSkillsKey: payload},
-		fmt.Sprintf("%d skills", len(payload)),
-	)
+	return skillCatalogViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) skillView(
@@ -141,7 +151,7 @@ func (n *daemonNativeTools) skillView(
 	}
 	skill, err := n.resolveSkillViewTarget(ctx, scope, input)
 	if err != nil {
-		return toolspkg.ToolResult{}, skillViewBackendError(ctx, req.ToolID, "skill_catalog_resolve", err)
+		return toolspkg.ToolResult{}, skillViewCatalogError(ctx, req.ToolID, err)
 	}
 	file := strings.TrimSpace(input.File)
 	var content string
@@ -367,6 +377,33 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 		)
 	}
 	return candidate.Skill, nil
+}
+
+func skillViewCatalogError(ctx context.Context, id toolspkg.ToolID, err error) error {
+	if _, ok := errors.AsType[*toolspkg.ToolError](err); ok {
+		return err
+	}
+	switch {
+	case errors.Is(err, skillspkg.ErrAgentNotFound):
+		return toolspkg.NewOperatorToolError(toolspkg.ErrorCodeUnavailable, id,
+			"Skill catalog agent is unavailable in the selected scope.",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, err),
+			"The session agent could not be resolved for this skill catalog.",
+			"Restore the agent definition in the selected workspace/profile, then retry skill_view.",
+			toolspkg.ReasonDependencyMissing)
+	case errors.Is(err, skillspkg.ErrAgentLocalInvalid):
+		return toolspkg.NewOperatorToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"Skill catalog agent definition or local skill layer is invalid.",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			"The session agent definition or its local skills failed validation.",
+			"Repair the selected agent's AGENT.md or local skills using agent/skill diagnostics, then retry skill_view.",
+			toolspkg.ReasonSchemaInvalid,
+		)
+	default:
+		return skillViewBackendError(ctx, id, "skill_catalog_resolve", err)
+	}
 }
 
 func skillViewBackendError(ctx context.Context, id toolspkg.ToolID, phase string, err error) error {

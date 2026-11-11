@@ -636,23 +636,23 @@ func (q *Queries) LinkSubagentChild(ctx context.Context, arg LinkSubagentChildPa
 	return result.RowsAffected()
 }
 
-const listNativeMissingResultSubagents = `-- name: ListNativeMissingResultSubagents :many
+const listNativeReplayCandidatesSubagents = `-- name: ListNativeReplayCandidatesSubagents :many
 SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity, usage_total_tokens, usage_tool_uses FROM session_subagents
-WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
+WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled')
  AND settled_at >= ?1
  AND (?2 = '' OR (settled_at,id) < (?3,?2))
 ORDER BY settled_at DESC, id DESC LIMIT ?4
 `
 
-type ListNativeMissingResultSubagentsParams struct {
+type ListNativeReplayCandidatesSubagentsParams struct {
 	Since      sql.NullString `json:"since"`
 	CursorID   any            `json:"cursor_id"`
 	CursorTime sql.NullString `json:"cursor_time"`
 	RowLimit   int64          `json:"row_limit"`
 }
 
-func (q *Queries) ListNativeMissingResultSubagents(ctx context.Context, arg ListNativeMissingResultSubagentsParams) ([]SessionSubagent, error) {
-	rows, err := q.db.QueryContext(ctx, listNativeMissingResultSubagents,
+func (q *Queries) ListNativeReplayCandidatesSubagents(ctx context.Context, arg ListNativeReplayCandidatesSubagentsParams) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listNativeReplayCandidatesSubagents,
 		arg.Since,
 		arg.CursorID,
 		arg.CursorTime,
@@ -2029,6 +2029,29 @@ func (q *Queries) ReserveSubagent(ctx context.Context, arg ReserveSubagentParams
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resumeNativeSubagent = `-- name: ResumeNativeSubagent :execrows
+UPDATE session_subagents SET status = 'running', work_state = 'working',
+ parent_turn_id = ?1, result = NULL, error = NULL, result_truncated = 0,
+ progress = '', settled_at = NULL, updated_at = ?2
+WHERE id = ?3 AND origin = 'provider_native'
+ AND status IN ('completed','failed','canceled','interrupted')
+ AND settled_at < ?2
+`
+
+type ResumeNativeSubagentParams struct {
+	Turn string `json:"turn"`
+	Now  string `json:"now"`
+	ID   string `json:"id"`
+}
+
+func (q *Queries) ResumeNativeSubagent(ctx context.Context, arg ResumeNativeSubagentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resumeNativeSubagent, arg.Turn, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}

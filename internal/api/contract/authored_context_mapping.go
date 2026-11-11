@@ -101,6 +101,7 @@ func HeartbeatPolicyPayloadFromResolved(
 		return HeartbeatPolicyPayload{}, err
 	}
 	return HeartbeatPolicyPayload{
+		Actions:          policy.Frontmatter.Actions,
 		AgentName:        strings.TrimSpace(agentName),
 		Enabled:          policy.Enabled,
 		Present:          policy.Present,

@@ -54,7 +54,7 @@ func (c *daemonClient) MutateAgentInstance(
 	switch action {
 	case workspaceArchiveAction:
 		method = http.MethodDelete
-	case "show":
+	case configShowKey:
 		method = http.MethodGet
 	default:
 		path += "/" + action

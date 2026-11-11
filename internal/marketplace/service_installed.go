@@ -10,6 +10,7 @@ import (
 
 // InstalledPackage is the persisted acquisition metadata needed by source and cache management.
 type InstalledPackage struct {
+	EntryID      string
 	Name         string
 	SourceName   string
 	SourceRef    string

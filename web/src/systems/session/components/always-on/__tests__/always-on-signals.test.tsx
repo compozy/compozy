@@ -87,12 +87,13 @@ describe("always-on session lists", () => {
     });
   });
 
-  it("Should leave finished automation runs out of the active shelf only", () => {
-    expect(sessionListShelfFilters("active").exclude_finished_automation).toBe(true);
-    expect(sessionListShelfFilters("archive").exclude_finished_automation).toBeUndefined();
-    expect(sessionListShelfFilters("later").exclude_finished_automation).toBeUndefined();
-    expect(normalizeSessionListFilters({ exclude_finished_automation: true })).toMatchObject({
-      exclude_finished_automation: true,
+  it("Should leave automation runs out of the active shelf until the window shows them", () => {
+    expect(sessionListShelfFilters("active").exclude_automation).toBe(true);
+    expect(sessionListShelfFilters("active", true).exclude_automation).toBeUndefined();
+    expect(sessionListShelfFilters("archive").exclude_automation).toBeUndefined();
+    expect(sessionListShelfFilters("later").exclude_automation).toBeUndefined();
+    expect(normalizeSessionListFilters({ exclude_automation: true })).toMatchObject({
+      exclude_automation: true,
     });
   });
 

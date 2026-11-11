@@ -143,6 +143,20 @@ func (v *AuthVerdicts) Apply(
 	return verdict.Classification, verdict.CheckedAt
 }
 
+// AuthenticationRouteFingerprint fences recovery proofs to the configured launch and isolation route.
+// Callers must exclude per-session environment overrides, which a provider-level proof cannot verify.
+func AuthenticationRouteFingerprint(providerName string, provider compozyconfig.ProviderConfig) string {
+	provider.RuntimeProvider = provider.RuntimeProviderName(providerName)
+	provider.Command = strings.TrimSpace(provider.Command)
+	identity := authVerdictFingerprint(provider, nil)
+	return compozyconfig.CommandFingerprint(strings.Join([]string{
+		provider.Command,
+		string(identity[:]),
+		strings.TrimSpace(provider.Transport),
+		strings.TrimSpace(provider.BaseURL),
+	}, "\x00"))
+}
+
 // authVerdictHomeKeys are the environment variables that choose where a native CLI keeps its
 // sign-in state.
 var authVerdictHomeKeys = []string{

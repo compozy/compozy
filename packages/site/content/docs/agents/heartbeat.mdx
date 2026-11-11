@@ -328,7 +328,7 @@ an exhausted main blocked until the operator resolves them.
 ## Pause autonomous work
 
 Pausing an always-on instance holds autonomous input for its main session and descendants.
-A running work turn finishes. A running read-only check is cancelled without increasing
+A running work turn finishes. A running check-in is cancelled without increasing
 fatigue. Human prompts still run, including a child started from a human turn, and do
 not resume the instance. Pending proposals and their approval deadlines remain in place.
 
@@ -405,3 +405,167 @@ Polls run before model work. Empty or unchanged source digests skip the model ev
 Scripts run a private copy of approved bytes with the workspace as cwd. They receive `PATH`, `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and explicitly allowed daemon environment variables; they never receive `session_env`. Stdout, state, runtime and stderr are bounded. Upgrade every daemon reading a file before adding `context.sources`; older daemons reject the new key on downgrade.
 
 Healthy, unapproved and disabled sources are eligible on every check that passes the collection gates, including manual and event-pulled checks. `next_poll_at` is only a failing source’s retry backoff. A batch with `more: true` schedules the next timer check at `agents.heartbeat.min_interval` plus jitter, including when triage skips an unchanged digest. Other source-backed checks use the resolved agent cadence without quiet backoff. Reserved `COMPOZY_*` names are rejected in `env_allow`.
+
+## Check-in tools and authority
+
+A check-in that reaches the model can use native and MCP read tools through the
+hosted gateway. Provider built-in tools remain in their confirmed read-only mode.
+The instance's current main-session permissions and tool grants remain the ceiling.
+An empty or unchanged digest still starts no model turn.
+
+```yaml
+check_ins:
+  allow_writes: [compozy__notify]
+  max_tool_calls: 10
+  max_write_calls: 1
+```
+
+Reads need no write opt-in. Writes require a matching selector, approval of the
+exact authority digest, and a main session that could run the call without asking.
+The native writable set is `compozy__notify`. Other native mutations must be proposed
+for the main session. MCP selectors accept an exact canonical ID or `mcp__<server>__*`.
+
+Claude check-ins run in Claude's `plan` mode, and Claude currently declines approved
+write tools while in that mode. Reads and actions work on Claude; for approved check-in
+writes, run the agent on Codex, or declare an action so the main session performs the
+change.
+
+A check-in never asks anyone anything. A write the main session would need approval
+for is denied `check_in_write_needs_approval`, and no approval request is created.
+`compozy__clarify` and every other tool that opens an operator interaction are always
+denied (`check_in_tool_not_writable`), even when classified as reads. When the
+instance has no main session, every call, read or write, is denied
+`check_in_no_main_session`.
+
+The authority block is `allow_writes`, both caps, every action (`id`, `title`,
+`instructions`, `auto_accept`), and the `read_only_tools` overrides in the agent's
+MCP declarations. Changing any of them changes the digest. Review and approve the
+block with `compozy agent heartbeat authority show <agent>` and
+`compozy agent heartbeat authority approve <agent>`. For scripts, approve with
+`--sha256 <digest> --yes`. Revoke with `heartbeat authority revoke <agent>`.
+`heartbeat write` displays the block before asking for approval; noninteractive
+writes can use `--approve-authority --yes`. A save never approves implicitly.
+Agent credentials cannot approve authority.
+
+Until the operator approves a non-empty block, the whole block is ignored:
+check-ins get reads only with the daemon's default caps, actions are not offered
+to the check-in, `read_only_tools` overrides are not applied (those tools stay
+writes in check-ins and in the main session), and every proposal waits for a pick.
+The instance shows "Check-in changes need your approval" and one notification fires
+per digest.
+
+If HEARTBEAT.md cannot be read or validated, including caps above the daemon limits,
+its authority is treated as unapproved. Main-session tools remain available with
+MCP overrides withheld. Tool descriptors expose `check_in_writable` alongside
+`access`; the editor uses this value for its write-tool choices.
+
+Each tool attempt is audited with its access class, outcome and redacted arguments;
+results are not retained. `instance check-ins <agent> --occurrence <id> -o json`
+lists calls. Without JSON output, `instance check-ins` includes WHEN, OUTCOME,
+TOOLS and PROPOSALS columns; the proposal summary reads, for example,
+`1 auto-accepted, 1 waiting`. `instance reports` text includes each proposal's pick
+state and `auto_accept_status`, plus total tools, completed/uncertain writes and
+denials. An otherwise quiet check-in that wrote
+publishes an activity report, including calls that may have changed something.
+Cancellation still discards pending source state.
+
+Operator-authored MCP declarations may set `read_only_tools: [raw_tool_name]` for
+unannotated read tools. Extension and marketplace declarations cannot set this
+classification. `destructiveHint: true` always makes a tool a write, including in
+main sessions. Existing files gain reads only. Upgrade every daemon reading a file
+before adding the new keys; older daemons reject unknown frontmatter.
+
+Set `[agents.always_on].check_in_tools = "disabled"` to disable hosted tools in check-ins.
+Check-ins then launch with no MCP servers and no tools, and
+check-in records show `tools_status: disabled`. Each record shows `unavailable` when
+the provider's read-only mode refused hosted tools.
+
+### Let a check-in search Linear
+
+Give the agent the Linear MCP server in `AGENT.md`, as for any session:
+
+```yaml
+mcp_servers:
+  - name: linear
+    transport: http
+    url: https://mcp.linear.app/mcp
+```
+
+Then tell its check-ins what to look for in `HEARTBEAT.md`, and keep writes off:
+
+```markdown
+---
+version: 1
+check_ins:
+  allow_writes: []
+---
+
+Look for new Linear issues assigned to me that have no comment from me yet.
+Propose one item per issue that needs me.
+```
+
+When a check-in reaches the model, it calls `mcp__linear__search_issues` (a read)
+with the agent's own Linear credentials and proposes what it finds. The report
+shows "Check-in used N tools", and
+`compozy agent instance check-ins <agent> --occurrence <id> -o json` lists each call.
+If a Linear read tool has no `readOnlyHint`, it is a write and denied
+`check_in_write_not_allowed`; list its raw name under `read_only_tools` in the
+operator-authored declaration and approve the changed authority.
+
+## Actions and proposal picks
+
+Declare up to eight actions in `HEARTBEAT.md`. Each action has a unique lowercase
+hyphenated `id` (up to 40 characters), a `title` (up to 120 characters),
+`instructions` (up to 1,000 characters), and optional `auto_accept` (default false).
+
+```yaml
+actions:
+  - id: write-report
+    title: Write a report
+    instructions: Investigate the evidence and write a report. Preserve untrusted fences when relaying evidence.
+    auto_accept: true
+```
+
+A proposal may name an action. Picking it queues the action instructions followed
+by the proposal inside an untrusted fence in the instance's main session. A
+proposal without an action queues its title. While the authority is unapproved,
+actions are not offered to the check-in and a pick queues the title only. The main
+session keeps its own tool permissions; picking grants no additional access.
+
+Auto-accept requires approval of the exact authority digest. Editing any action
+(including its title or `auto_accept`) invalidates that approval. Only completed
+check-ins on active instances with a main session can auto-pick, after
+deduplication and unattended/fatigue checks. The rolling 24-hour limit is
+`[agents.always_on].auto_accept_per_day` (default 20, range 0–200). A full queue
+leaves the proposal waiting. Auto picks count toward the unattended turn limit.
+Pausing or archiving cancels queued auto picks.
+
+Each proposal with an auto-accept action reports `auto_accept_status`: `picked`
+when the daemon picked it, otherwise the reason it waited, recorded when the report
+was published and never recomputed: `limit` (daily limit reached), `queue_full`,
+`unapproved` (authority not approved), `no_main` (no main session), or
+`inactive` (the instance was paused, archived, or inactive). Proposals
+without an auto-accept action report `none`. An operator pick never shows as
+`picked`; its pick record has actor `operator`.
+
+Operators can pick from the CLI with a 1-based proposal number:
+
+```bash
+compozy agent instance pick log-triage <report-id> 1 -o json
+```
+
+HTTP and UDS use `POST /api/agent-instances/{id}/reports/{report_id}/pick` with
+`{"proposal":0}` (0-based). Agent credentials cannot pick. Repeating a pick fails
+with `proposal_already_picked`. Report reads expose recorded picks and their queue
+state (`queued`, `delivered`, `cancelled`, or `failed`).
+
+## Acknowledge attention
+
+Choose **Mark as seen** in an always-on avatar's hover card to acknowledge old failure attention.
+The avatar updates immediately after the server refreshes its state. Pending requests in live
+sessions keep the indicator until answered; pending or orphaned requests in stopped sessions
+are canceled. A new failure raises attention again.
+
+The local operator can use `compozy agent instance mark-seen <id>` or
+`POST /api/agent-instances/{id}/away` for the same acknowledgement. Reports remain in history
+and keep their provider delivery state: reading them does not send them to the agent.

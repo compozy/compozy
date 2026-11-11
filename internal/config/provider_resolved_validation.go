@@ -7,6 +7,12 @@ import (
 )
 
 func validateResolvedProvider(name string, provider ProviderConfig) error {
+	if err := ValidateAutoCompactWindow(
+		provider.AutoCompactWindow,
+		"providers."+name+".auto_compact_window",
+	); err != nil {
+		return err
+	}
 	if IsUnrestrictedACPMode(provider.RuntimeProviderName(name), strings.TrimSpace(provider.ReviewerMode)) {
 		return fmt.Errorf("providers.%s.reviewer_mode cannot select unrestricted mode %q", name, provider.ReviewerMode)
 	}

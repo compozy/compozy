@@ -101,10 +101,11 @@ export function statusTone(status: string): PillTone {
 const ATTENTION_TONE_ORDER: Readonly<Record<PillTone, number>> = {
   destructive: 0,
   warning: 1,
-  brand: 2,
-  info: 3,
-  neutral: 4,
-  success: 5,
+  attn: 2,
+  brand: 3,
+  info: 4,
+  neutral: 5,
+  success: 6,
 };
 
 /** Shared attention ordering for every non-session domain view. */

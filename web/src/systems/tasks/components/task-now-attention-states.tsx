@@ -37,8 +37,8 @@ function TaskApprovalState() {
       body="Approve or reject it above. It won't start until someone approves it."
       data-testid="tasks-detail-now-approval"
       title="Waiting for your approval"
-      // An approval waits on a person: the needs-you accent.
-      tone="brand"
+      // An approval waits on a person: the needs-you amber.
+      tone="attn"
     />
   );
 }
@@ -128,8 +128,8 @@ function TaskBlockingState({
       body={reason.reason || "A block is holding this task."}
       data-testid={`tasks-detail-now-block-${key}`}
       title={reason.kind === "needs_input" ? "Needs input to continue" : "Blocked"}
-      // A block waits on a person: the needs-you accent, never the warning amber.
-      tone="brand"
+      // A block waits on a person: the needs-you amber.
+      tone="attn"
     />
   );
 }

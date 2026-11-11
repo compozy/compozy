@@ -2,7 +2,10 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -32,6 +35,15 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if row.OccurrenceID != req.OccurrenceID {
 				return nil
 			}
+			if err := q.OrphanCheckInToolCalls(
+				ctx,
+				sqlcgen.OrphanCheckInToolCallsParams{
+					UpdatedAt:    store.FormatTimestamp(req.Now),
+					OccurrenceID: req.OccurrenceID,
+				},
+			); err != nil {
+				return err
+			}
 			instance, err := q.GetAgentInstance(ctx, req.InstanceID)
 			if err != nil {
 				return err
@@ -57,22 +69,17 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				return err
 			}
 
+			quiet, err = finalizeCheckInActivity(ctx, q, &req, quiet)
+			if err != nil {
+				return err
+			}
 			req.NextWakeAt = nextInstanceWake(&req, quiet, failures)
-			if err := insertInstanceWakeReport(ctx, q, &req); err != nil {
-				return err
-			}
-			if err := consumeFinishedInstanceEvents(ctx, q, req, completed); err != nil {
-				return err
-			}
-			if err := finishHeartbeatSources(ctx, q, req, completed); err != nil {
-				return err
-			}
-			if err := recordFinishedWakeEvent(ctx, q, &req); err != nil {
+			result.Changed, err = finishInstanceOccurrence(ctx, q, &req, completed, quiet, failures)
+			if err != nil {
 				return err
 			}
 
-			count, err := finishInstanceWakeState(ctx, q, &req, completed, quiet, failures)
-			result.Changed = count == 1
+			result.Picks, err = autoPickFinishedReport(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
@@ -148,6 +155,11 @@ func insertInstanceWakeReport(ctx context.Context, q *sqlcgen.Queries, req *hear
 		return nil
 	}
 	report := *req.Report
+	payload, err := preparePickReport(report.Payload)
+	if err != nil {
+		return err
+	}
+	report.Payload = payload
 	report.SourceKey = "occ:" + req.OccurrenceID
 	if err := report.Validate(); err != nil {
 		return err
@@ -190,6 +202,16 @@ func pauseFatiguedInstance(
 		} else if changed == 0 {
 			return nil
 		}
+		if err := q.CancelInstanceAutoPicks(
+			ctx,
+			sqlcgen.CancelInstanceAutoPicksParams{
+				CanceledAt: sql.NullString{String: store.FormatTimestamp(req.Now), Valid: true},
+				UpdatedAt:  store.FormatTimestamp(req.Now),
+				InstanceID: req.InstanceID,
+			},
+		); err != nil {
+			return err
+		}
 		req.Report = &agentinstance.ReportInput{
 			Kind: "failure",
 			Payload: []byte(
@@ -205,7 +227,7 @@ func finishedInstancePause(
 	q *sqlcgen.Queries,
 	before sqlcgen.AgentInstance,
 ) (*agentinstance.Instance, error) {
-	if before.State != "active" {
+	if before.State != instanceStateActive {
 		return nil, nil
 	}
 	after, err := q.GetAgentInstance(ctx, before.ID)
@@ -231,6 +253,7 @@ func recordFinishedWakeEvent(ctx context.Context, q *sqlcgen.Queries, req *heart
 		Result:       req.Result,
 		Reason:       req.Reason,
 		Detail:       req.Detail,
+		ToolsStatus:  req.ToolsStatus,
 		DeniedCalls:  req.DeniedCalls,
 		OccurrenceID: req.OccurrenceID,
 		CreatedAt:    store.FormatTimestamp(req.Now),
@@ -285,4 +308,67 @@ func holdForPendingEvents(req *heartbeat.FinishRequest) int64 {
 		return 0
 	}
 	return 1
+}
+
+func finalizeCheckInActivity(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *heartbeat.FinishRequest,
+	quiet int64,
+) (int64, error) {
+	summary, err := q.CheckInToolCallSummary(ctx, req.OccurrenceID)
+	if err != nil {
+		return quiet, err
+	}
+	if req.Report == nil && summary.WritesDone+summary.WritesMaybe > 0 {
+		payload, err := json.Marshal(
+			map[string]any{
+				"reason": "check_in_activity",
+				"detail": checkInActivityDetail(summary.WritesDone, summary.WritesMaybe),
+			},
+		)
+		if err != nil {
+			return quiet, err
+		}
+		req.Report = &agentinstance.ReportInput{Kind: "activity", Payload: payload}
+		if req.Result == instanceWakeQuietResult {
+			quiet = 0
+		}
+	}
+	return quiet, nil
+}
+
+func finishInstanceOccurrence(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *heartbeat.FinishRequest,
+	completed int,
+	quiet, failures int64,
+) (bool, error) {
+	if err := insertInstanceWakeReport(ctx, q, req); err != nil {
+		return false, err
+	}
+	if err := consumeFinishedInstanceEvents(ctx, q, *req, completed); err != nil {
+		return false, err
+	}
+	if err := finishHeartbeatSources(ctx, q, *req, completed); err != nil {
+		return false, err
+	}
+	if err := recordFinishedWakeEvent(ctx, q, req); err != nil {
+		return false, err
+	}
+	count, err := finishInstanceWakeState(ctx, q, req, completed, quiet, failures)
+	return count == 1, err
+}
+
+func checkInActivityDetail(done, maybe int64) string {
+	return fmt.Sprintf("Made %d %s; %d %s may have changed something.",
+		done, pluralWord(done, "change", "changes"), maybe, pluralWord(maybe, "call", "calls"))
+}
+
+func pluralWord(n int64, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }

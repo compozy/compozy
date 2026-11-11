@@ -65,7 +65,8 @@ export function SessionContinueFields({ model, runtimeOptions }: SessionContinue
             refreshing={runtimeOptions.refreshing}
             speed={model.runtimeSpeed}
             triggerTestId="session-continue-runtime-select"
-            value={model.runtimeValue}
+            value={model.runtimeSelectorValue}
+            retainUnavailableOptions
             {...(runtimeOptions.catalogError ? { catalogStatus: runtimeOptions.catalogError } : {})}
           />
         </Field>

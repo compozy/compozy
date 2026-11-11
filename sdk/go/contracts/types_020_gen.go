@@ -7,6 +7,134 @@ import (
 	"time"
 )
 
+type SpawnCreatePatch struct {
+	Deny             bool           `json:"deny,omitempty"`
+	DenyReason       string         `json:"deny_reason,omitempty"`
+	AgentName        *string        `json:"agent_name,omitempty"`
+	SpawnRole        *string        `json:"spawn_role,omitempty"`
+	TTLSeconds       *int64         `json:"ttl_seconds,omitempty"`
+	ChildPermissions *PermissionSet `json:"child_permissions,omitempty"`
+}
+
+type SpawnCreatedPayload struct {
+	Event             HookEvent      `json:"event"`
+	Timestamp         time.Time      `json:"timestamp"`
+	ProfileID         string         `json:"profile_id,omitempty"`
+	ParentSessionID   string         `json:"parent_session_id,omitempty"`
+	RootSessionID     string         `json:"root_session_id,omitempty"`
+	ChildSessionID    string         `json:"child_session_id,omitempty"`
+	WorkspaceID       string         `json:"workspace_id,omitempty"`
+	Workspace         string         `json:"workspace,omitempty"`
+	AgentName         string         `json:"agent_name,omitempty"`
+	SpawnRole         string         `json:"spawn_role,omitempty"`
+	SpawnDepth        int            `json:"spawn_depth,omitempty"`
+	TTLSeconds        int64          `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent  bool           `json:"auto_stop_on_parent,omitempty"`
+	TaskID            string         `json:"task_id,omitempty"`
+	RunID             string         `json:"run_id,omitempty"`
+	WorkflowID        string         `json:"workflow_id,omitempty"`
+	SoulSnapshotID    string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string         `json:"soul_digest,omitempty"`
+	ParentSoulDigest  string         `json:"parent_soul_digest,omitempty"`
+	ParentPermissions *PermissionSet `json:"parent_permissions,omitempty"`
+	ChildPermissions  *PermissionSet `json:"child_permissions,omitempty"`
+	StopReason        string         `json:"stop_reason,omitempty"`
+	ReapReason        string         `json:"reap_reason,omitempty"`
+	Error             string         `json:"error,omitempty"`
+}
+
+type SpawnLifecyclePayload struct {
+	Event             HookEvent      `json:"event"`
+	Timestamp         time.Time      `json:"timestamp"`
+	ProfileID         string         `json:"profile_id,omitempty"`
+	ParentSessionID   string         `json:"parent_session_id,omitempty"`
+	RootSessionID     string         `json:"root_session_id,omitempty"`
+	ChildSessionID    string         `json:"child_session_id,omitempty"`
+	WorkspaceID       string         `json:"workspace_id,omitempty"`
+	Workspace         string         `json:"workspace,omitempty"`
+	AgentName         string         `json:"agent_name,omitempty"`
+	SpawnRole         string         `json:"spawn_role,omitempty"`
+	SpawnDepth        int            `json:"spawn_depth,omitempty"`
+	TTLSeconds        int64          `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent  bool           `json:"auto_stop_on_parent,omitempty"`
+	TaskID            string         `json:"task_id,omitempty"`
+	RunID             string         `json:"run_id,omitempty"`
+	WorkflowID        string         `json:"workflow_id,omitempty"`
+	SoulSnapshotID    string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string         `json:"soul_digest,omitempty"`
+	ParentSoulDigest  string         `json:"parent_soul_digest,omitempty"`
+	ParentPermissions *PermissionSet `json:"parent_permissions,omitempty"`
+	ChildPermissions  *PermissionSet `json:"child_permissions,omitempty"`
+	StopReason        string         `json:"stop_reason,omitempty"`
+	ReapReason        string         `json:"reap_reason,omitempty"`
+	Error             string         `json:"error,omitempty"`
+}
+
+type SpawnObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type SpawnParentStoppedPayload struct {
+	Event             HookEvent      `json:"event"`
+	Timestamp         time.Time      `json:"timestamp"`
+	ProfileID         string         `json:"profile_id,omitempty"`
+	ParentSessionID   string         `json:"parent_session_id,omitempty"`
+	RootSessionID     string         `json:"root_session_id,omitempty"`
+	ChildSessionID    string         `json:"child_session_id,omitempty"`
+	WorkspaceID       string         `json:"workspace_id,omitempty"`
+	Workspace         string         `json:"workspace,omitempty"`
+	AgentName         string         `json:"agent_name,omitempty"`
+	SpawnRole         string         `json:"spawn_role,omitempty"`
+	SpawnDepth        int            `json:"spawn_depth,omitempty"`
+	TTLSeconds        int64          `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent  bool           `json:"auto_stop_on_parent,omitempty"`
+	TaskID            string         `json:"task_id,omitempty"`
+	RunID             string         `json:"run_id,omitempty"`
+	WorkflowID        string         `json:"workflow_id,omitempty"`
+	SoulSnapshotID    string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string         `json:"soul_digest,omitempty"`
+	ParentSoulDigest  string         `json:"parent_soul_digest,omitempty"`
+	ParentPermissions *PermissionSet `json:"parent_permissions,omitempty"`
+	ChildPermissions  *PermissionSet `json:"child_permissions,omitempty"`
+	StopReason        string         `json:"stop_reason,omitempty"`
+	ReapReason        string         `json:"reap_reason,omitempty"`
+	Error             string         `json:"error,omitempty"`
+}
+
+type SpawnPermissionPolicyPayload struct {
+	Tools          []string `json:"tools"`
+	Skills         []string `json:"skills"`
+	MCPServers     []string `json:"mcp_servers"`
+	WorkspacePaths []string `json:"workspace_paths"`
+}
+
+type SpawnPreCreatePayload struct {
+	Subagent          *SubagentSpawnPayload `json:"subagent,omitempty"`
+	Event             HookEvent             `json:"event"`
+	Timestamp         time.Time             `json:"timestamp"`
+	ProfileID         string                `json:"profile_id,omitempty"`
+	ParentSessionID   string                `json:"parent_session_id,omitempty"`
+	RootSessionID     string                `json:"root_session_id,omitempty"`
+	ChildSessionID    string                `json:"child_session_id,omitempty"`
+	WorkspaceID       string                `json:"workspace_id,omitempty"`
+	Workspace         string                `json:"workspace,omitempty"`
+	AgentName         string                `json:"agent_name,omitempty"`
+	SpawnRole         string                `json:"spawn_role,omitempty"`
+	SpawnDepth        int                   `json:"spawn_depth,omitempty"`
+	TTLSeconds        int64                 `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent  bool                  `json:"auto_stop_on_parent,omitempty"`
+	TaskID            string                `json:"task_id,omitempty"`
+	RunID             string                `json:"run_id,omitempty"`
+	WorkflowID        string                `json:"workflow_id,omitempty"`
+	SoulSnapshotID    string                `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string                `json:"soul_digest,omitempty"`
+	ParentSoulDigest  string                `json:"parent_soul_digest,omitempty"`
+	ParentPermissions *PermissionSet        `json:"parent_permissions"`
+	ChildPermissions  *PermissionSet        `json:"child_permissions"`
+	Denied            bool                  `json:"denied,omitempty"`
+	DenyReason        string                `json:"deny_reason,omitempty"`
+}
+
 type SpawnReapedPayload struct {
 	Event             HookEvent      `json:"event"`
 	Timestamp         time.Time      `json:"timestamp"`
@@ -210,103 +338,4 @@ type TaskBlockedPayload struct {
 	Details        json.RawMessage `json:"details,omitempty"`
 	ClearedAt      time.Time       `json:"cleared_at,omitzero"`
 	ClearNote      string          `json:"clear_note,omitempty"`
-}
-
-type TaskCancelParams struct {
-	ID       string          `json:"id"`
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-type TaskCatalogFacetsPayload struct {
-	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
-	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
-}
-
-type TaskCatalogItemPayload struct {
-	ID                   string                 `json:"id"`
-	ProfileID            string                 `json:"profile_id"`
-	ProfileName          string                 `json:"profile_name"`
-	ProfileColor         string                 `json:"profile_color,omitempty"`
-	ProfileIcon          string                 `json:"profile_icon,omitempty"`
-	Identifier           string                 `json:"identifier,omitempty"`
-	Scope                TaskScope              `json:"scope"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
-	Title                string                 `json:"title"`
-	Priority             Priority               `json:"priority,omitempty"`
-	MaxAttempts          int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Status               Status                 `json:"status"`
-	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState        ApprovalState          `json:"approval_state,omitempty"`
-	Draft                bool                   `json:"draft,omitempty"`
-	Owner                *Ownership             `json:"owner,omitempty"`
-	CurrentRunID         string                 `json:"current_run_id,omitempty"`
-	LatestEventSeq       int64                  `json:"latest_event_seq"`
-	NeedsAttention       bool                   `json:"needs_attention,omitempty"`
-	NeedsAttentionReason string                 `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt     *time.Time             `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy     *ActorIdentity         `json:"needs_attention_by,omitempty"`
-	WakeCreator          bool                   `json:"wake_creator"`
-	CreatedBy            ActorIdentity          `json:"created_by"`
-	Origin               Origin                 `json:"origin"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-	ClosedAt             *time.Time             `json:"closed_at,omitempty"`
-	ChildCount           int                    `json:"child_count,omitempty"`
-	DependencyCount      int                    `json:"dependency_count,omitempty"`
-	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
-	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
-	Loop                 *LoopProvenance        `json:"loop,omitempty"`
-}
-
-type TaskCatalogOwnerFacetPayload struct {
-	Owner Ownership `json:"owner"`
-	Count int       `json:"count"`
-}
-
-type TaskCatalogRunPayload struct {
-	ID                   string               `json:"id"`
-	TaskID               string               `json:"task_id"`
-	Status               TaskRunStatus        `json:"status"`
-	Attempt              int                  `json:"attempt"`
-	RecoveryCount        int                  `json:"recovery_count"`
-	PreviousRunID        string               `json:"previous_run_id,omitempty"`
-	FailureKind          string               `json:"failure_kind,omitempty"`
-	MaxAttempts          int                  `json:"max_attempts"`
-	SessionID            string               `json:"session_id,omitempty"`
-	WorktreeID           string               `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
-	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
-	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
-	QueuedAt             time.Time            `json:"queued_at"`
-	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
-	StartedAt            *time.Time           `json:"started_at,omitempty"`
-	EndedAt              *time.Time           `json:"ended_at,omitempty"`
-	Error                string               `json:"error,omitempty"`
-}
-
-type TaskCatalogStatusFacetPayload struct {
-	Status Status `json:"status"`
-	Count  int    `json:"count"`
-}
-
-type TaskContext struct {
-	ProfileID      string `json:"profile_id,omitempty"`
-	TaskID         string `json:"task_id,omitempty"`
-	ParentTaskID   string `json:"parent_task_id,omitempty"`
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	WorkflowID     string `json:"workflow_id,omitempty"`
-	AgentName      string `json:"agent_name,omitempty"`
-	ActorKind      string `json:"actor_kind,omitempty"`
-	ActorID        string `json:"actor_id,omitempty"`
-	OriginKind     string `json:"origin_kind,omitempty"`
-	OriginRef      string `json:"origin_ref,omitempty"`
-	TaskStatus     string `json:"task_status,omitempty"`
-	RunID          string `json:"run_id,omitempty"`
-	ReleaseReason  string `json:"release_reason,omitempty"`
-	ClaimTokenHash string `json:"claim_token_hash,omitempty"`
 }

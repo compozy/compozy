@@ -363,6 +363,35 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		name  string
 		check func(t *testing.T, doc *openapi3.T)
 	}{
+		{
+			name: "Should keep harness controls optional with their declared scalar types",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+				for _, name := range []string{
+					"AgentEffectiveRuntimePayload", "AgentPayload", "CreateAgentPayload", "DuplicateAgentOverrides",
+					"SettingsProviderSettingsPayload", "SettingsProviderWritePayload",
+				} {
+					schema := componentSchema(t, doc, name)
+					fields := map[string]string{"auto_compact_window": "integer"}
+					if !strings.HasPrefix(name, "SettingsProvider") {
+						fields["lean_environment"] = "boolean"
+					}
+					for field, kind := range fields {
+						value := propertySchema(t, schema, field)
+						if value.Type == nil || !value.Type.Is(kind) || slices.Contains(schema.Required, field) {
+							t.Fatalf(
+								"%s.%s must be optional %s: schema=%+v required=%v",
+								name,
+								field,
+								kind,
+								value,
+								schema.Required,
+							)
+						}
+					}
+				}
+			},
+		},
 
 		{
 			name: "Should describe the inactive-session native compaction refusal",
@@ -505,14 +534,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeLogProfileReadModes",
+			name: "ShouldDescribeLogAndWorkspaceProfileReadModes",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				for _, path := range []string{"/api/logs", "/api/logs/stream"} {
+				for _, path := range []string{"/api/logs", "/api/logs/stream", "/api/workspaces/{id}"} {
 					operation := operationFor(t, doc, path, http.MethodGet)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
 					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+				workspace := operationFor(t, doc, "/api/workspaces/{id}", http.MethodGet)
+				missing := jsonResponseSchema(t, workspace, http.StatusNotFound)
+				if len(missing.OneOf) != 2 {
+					t.Fatalf("workspace 404 variants = %d, want workspace and profile errors", len(missing.OneOf))
+				}
+				if !propertySchema(t, missing.OneOf[0].Value, "error").Type.Is("string") ||
+					!propertySchema(t, missing.OneOf[1].Value, "error").Type.Is("object") {
+					t.Fatal("workspace 404 lost its string or structured profile error")
 				}
 			},
 		},
@@ -2720,7 +2758,7 @@ func TestExtensionAuthoringComponentSchemas(t *testing.T) {
 		if severity == nil || severity.Value == nil {
 			t.Fatal("IssueSeverity component is missing")
 		}
-		if got, want := severity.Value.Enum, []any{"error", "warning", "warn"}; !reflect.DeepEqual(got, want) {
+		if got, want := severity.Value.Enum, []any{"error", "warning", "warn", "info"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("IssueSeverity enum = %v, want %v", got, want)
 		}
 		payload := document.Components.Schemas["ExtensionValidatePayload"]
@@ -3253,6 +3291,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addNativeReadPagingSchemas(t, baseline)
+		if addNativeResultViewSchemas(baseline) == 0 {
+			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		}
 		addSettingsMCPHeaderPresence(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
@@ -3282,6 +3324,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAgentEffectivePermissions(baseline) == 0 {
 			t.Fatal("approved effective_runtime permissions addition: no historical agent runtime schema found")
 		}
+		// #1424: agent effective runtime names the inherited ACP options permission policy excludes.
+		if addAgentPolicyExcludedACPOptions(baseline) == 0 {
+			t.Fatal("approved policy_excluded_acp_options addition: no historical agent runtime schema found")
+		}
 		// #1251: restart status reports a replacement daemon's data-migration progress.
 		addRestartProgressComponent(baseline)
 		if addRestartMigrationProgress(baseline) == 0 {
@@ -3290,6 +3336,18 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		// #1292: fallback steering exposes its boundary wait and after-turn queue decisions.
 		if addBoundarySteerDelivery(baseline) == 0 {
 			t.Fatal("approved boundary delivery addition: no historical steering schemas found")
+		}
+		// #1388: attention notification session rows carry the session's origin.
+		if addAttentionNotificationSessionOrigin(baseline) == 0 {
+			t.Fatal("approved notification session origin addition: no historical notification schema found")
+		}
+		// #1326: provider inventory and settings payloads report the always-present enabled state.
+		if addProviderEnabledFields(baseline) == 0 {
+			t.Fatal("approved provider enabled addition: no historical provider payload schemas found")
+		}
+		// #1326: launches on a disabled provider return their own tool error code.
+		if addToolErrorCode(baseline, string(tools.ErrorCodeProviderDisabled)) == 0 {
+			t.Fatal("approved provider_disabled tool error: no historical tool error enums found")
 		}
 		doc, err := Document()
 		if err != nil {
@@ -3304,8 +3362,69 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
-		assertAlwaysOnHardeningFields(t, current)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		addMarketplacePluginCatalogSchemas(baseline)
+		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
+			"type": "array",
+			"items": map[string]any{
+				"type": "object", "required": []any{"binding", "id", "prompt", "required", "type"},
+				"properties": map[string]any{
+					"binding": map[string]any{
+						"type":     "object",
+						"required": []any{"name", "type"},
+						"properties": map[string]any{
+							"name": map[string]any{"type": "string"},
+							"type": map[string]any{"type": "string"},
+						},
+					},
+					"default": map[string]any{}, "id": map[string]any{"type": "string"},
+					"prompt": map[string]any{"type": "string"}, "required": map[string]any{"type": "boolean"},
+					"type": map[string]any{"type": "string"},
+				},
+			},
+		}
+		// Only the installation response gains the optional enable outcome.
+		installProperties := baseline
+		for _, key := range []string{
+			"paths", "/api/extensions", "post", "responses", "201", "content", "application/json", "schema", "properties",
+		} {
+			installProperties = installProperties[key].(map[string]any)
+		}
+		installProperties["enable_error"] = map[string]any{
+			"type":     "object",
+			"nullable": true,
+			"properties": map[string]any{
+				"error": map[string]any{"type": "string"},
+				"code":  map[string]any{"type": "string"},
+			},
+			"required": []any{"code", "error"},
+		}
+
+		oldBrowse := baseline["paths"].(map[string]any)["/api/marketplace"].(map[string]any)["get"].(map[string]any)
+		newBrowse := current["paths"].(map[string]any)["/api/marketplace"].(map[string]any)["get"].(map[string]any)
+		for index, parameter := range newBrowse["parameters"].([]any) {
+			if parameter.(map[string]any)["name"] == "category" {
+				oldBrowse["parameters"] = slices.Insert(oldBrowse["parameters"].([]any), index, parameter)
+			}
+		}
+
+		browseSchema := oldBrowse
+		for _, key := range []string{"responses", "200", "content", "application/json", "schema"} {
+			browseSchema = browseSchema[key].(map[string]any)
+		}
+		browseSchema["properties"].(map[string]any)["categories"] = map[string]any{
+			"type": "array", "items": map[string]any{
+				"type": "object", "properties": map[string]any{
+					"count": map[string]any{"type": "integer"},
+					"id":    map[string]any{"type": "string"},
+					"label": map[string]any{"type": "string"},
+				}, "required": []any{"count", "id", "label"},
+			},
+		}
+		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
+
+		addCheckInToolSchemaFields(baseline)
+		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
 			compareSchemaContract(
@@ -3319,6 +3438,42 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			)
 		}
 	})
+}
+
+// Marketplace catalog metadata and discovery notices are approved additive contracts.
+func addMarketplacePluginCatalogSchemas(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addMarketplacePluginCatalogSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			addMarketplacePluginCatalogSchemas(child)
+		}
+		if reflect.DeepEqual(node["enum"], []any{"error", "warning", "warn"}) {
+			node["enum"] = []any{"error", "warning", "warn", "info"}
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["allow_unverified"] != nil && properties["ref"] != nil && properties["source"] != nil {
+			properties["enable"] = map[string]any{"type": "boolean", "default": false,
+				"description": "Enable after installation under the same operation lock. " +
+					"Activation failure returns 201 with enable_error and retains the installed package and inputs."}
+		}
+		if ok && properties["severity"] != nil && properties["message"] != nil && properties["path"] != nil {
+			properties["code"] = map[string]any{"type": "string"}
+		}
+		if !ok || properties["install_slug"] == nil || properties["entry_id"] == nil {
+			return
+		}
+		properties["category"] = map[string]any{"type": "string"}
+		properties["category_label"] = map[string]any{"type": "string"}
+		properties["featured"] = map[string]any{"type": "boolean"}
+		required, _ := node["required"].([]any)
+		required = append(required, "category", "category_label", "featured")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
 }
 
 func addBoundarySteerDelivery(value any) int {
@@ -3347,6 +3502,30 @@ func addBoundarySteerDelivery(value any) int {
 			}
 			count++
 		}
+	}
+	return count
+}
+
+func addAttentionNotificationSessionOrigin(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAttentionNotificationSessionOrigin(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAttentionNotificationSessionOrigin(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["source_id"] == nil || properties["request_kind"] == nil ||
+			properties["terminal_id"] == nil {
+			return count
+		}
+		// Optional fields; the required set stays unchanged.
+		properties["session_type"] = map[string]any{"type": "string"}
+		properties["instance_id"] = map[string]any{"type": "string"}
+		count++
 	}
 	return count
 }
@@ -3631,6 +3810,52 @@ func addSessionRouteProfileSelectors(t *testing.T, baseline map[string]any) {
 	}
 	if added == 0 {
 		t.Fatal("approved session profile selectors: no historical session routes without a selector")
+	}
+}
+
+// #1467: approved read controls and page metadata; existing row schemas stay unchanged.
+func addNativeReadPagingSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	parameter := func(name, kind string) map[string]any {
+		return map[string]any{"in": "query", "name": name, "schema": map[string]any{"type": kind}}
+	}
+	for _, path := range []string{"/api/automation/jobs/{id}/runs", "/api/automation/triggers/{id}/runs"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		index := slices.IndexFunc(parameters, func(value any) bool { return value.(map[string]any)["name"] == "limit" })
+		if index < 0 {
+			t.Fatalf("approved history cursor: no limit parameter at %s", path)
+		}
+		operation["parameters"] = slices.Insert(parameters, index, any(parameter("cursor", "string")))
+	}
+	worktrees := paths["/api/workspaces/{workspace_id}/worktrees"].(map[string]any)["get"].(map[string]any)
+	worktrees["parameters"] = append(worktrees["parameters"].([]any), parameter("include_removed", "boolean"))
+	workspace := paths["/api/workspaces/{id}"].(map[string]any)["get"].(map[string]any)
+	workspace["parameters"] = append(workspace["parameters"].([]any),
+		parameter("profile", "string"), parameter("all_profiles", "boolean"))
+	workspace404 := workspace["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	profile404 := paths["/api/profiles/{name}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	workspace404["schema"] = map[string]any{"oneOf": []any{workspace404["schema"], profile404["schema"]}}
+
+	for _, endpoint := range []struct{ path, method string }{
+		{"/api/tools", "get"}, {"/api/tools/search", "post"},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools", "get"},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search", "post"},
+	} {
+		operation := paths[endpoint.path].(map[string]any)[endpoint.method].(map[string]any)
+		response := operation["responses"].(map[string]any)["200"].(map[string]any)
+		body := response["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		properties := body["properties"].(map[string]any)
+		for _, field := range []string{"offset", "count", "total", "next_offset"} {
+			properties[field] = map[string]any{"type": "integer"}
+		}
+		properties["has_more"] = map[string]any{"type": "boolean"}
+		body["required"] = []any{"count", "has_more", "tools", "total"}
+		if endpoint.method == "post" {
+			request := operation["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+			request["properties"].(map[string]any)["offset"] = map[string]any{"type": "integer"}
+		}
 	}
 }
 
@@ -4036,6 +4261,17 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 				"schema":      map[string]any{"type": "string"},
 			},
 		)
+	}
+	for path, item := range paths {
+		if !strings.HasSuffix(path, "/heartbeat") {
+			continue
+		}
+		put, ok := item.(map[string]any)["put"].(map[string]any)
+		if !ok {
+			continue
+		}
+		body := put["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		body["properties"].(map[string]any)["approve_authority_sha256"] = map[string]any{"type": "string"}
 	}
 	addAlwaysOnAdditiveSchemas(baseline)
 }
@@ -5651,7 +5887,7 @@ func addAlwaysOnAdditiveSchemas(value any) {
 					values = insertReasonCode(values, event)
 				}
 			}
-			node["enum"] = values
+			node["enum"] = append(values, "agent.instance.proposal.picked")
 		}
 		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
 			node["enum"] = insertReasonCode(values, "held_permission")
@@ -5671,6 +5907,89 @@ func addAlwaysOnAdditiveSchemas(value any) {
 			)
 		}
 	}
+}
+
+func addCheckInToolSchemaFields(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addCheckInToolSchemaFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			addCheckInToolSchemaFields(child)
+		}
+		addCheckInToolSchemaProperties(node)
+	}
+}
+
+func addCheckInToolSchemaProperties(node map[string]any) {
+	props, ok := node["properties"].(map[string]any)
+	if !ok {
+		return
+	}
+	if props["name"] != nil && props["transport"] != nil && props["command"] != nil && props["auth"] != nil {
+		props["read_only_tools"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	}
+	if props["tool_id"] != nil && props["input_schema_digest"] != nil && props["risk"] != nil &&
+		props["access"] == nil {
+		props["access"] = map[string]any{"type": "string"}
+		props["check_in_writable"] = map[string]any{"type": "boolean"}
+		required := append(node["required"].([]any), "access", "check_in_writable")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+	if props["checks_enabled"] != nil && props["main_session_id"] != nil && props["pause_reason"] != nil &&
+		props["authority_status"] == nil {
+		props["authority_status"] = map[string]any{"type": "string"}
+		required := append(node["required"].([]any), "authority_status")
+		slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		node["required"] = required
+	}
+	policy := props["frontmatter"] != nil && props["config_provenance"] != nil && props["prompt"] != nil
+	frontmatter := props["version"] != nil && props["context"] != nil && props["preferences"] != nil
+	if (!policy && !frontmatter) || props["actions"] != nil {
+		return
+	}
+	actions := map[string]any{
+		"type": "array", "items": map[string]any{
+			"type": "object", "properties": map[string]any{
+				"auto_accept":  map[string]any{"type": "boolean"},
+				"id":           map[string]any{"type": "string"},
+				"instructions": map[string]any{"type": "string"},
+				"title":        map[string]any{"type": "string"},
+			}, "required": []any{"auto_accept", "id", "instructions", "title"},
+		},
+	}
+	checkIns := map[string]any{
+		"type": "object", "properties": map[string]any{
+			"allow_writes":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"max_tool_calls":  map[string]any{"type": "integer", "nullable": true},
+			"max_write_calls": map[string]any{"type": "integer", "nullable": true},
+		},
+	}
+	props["actions"] = actions
+	required := append(node["required"].([]any), "actions")
+	if frontmatter {
+		props["check_ins"] = checkIns
+		required = append(required, "check_ins")
+	} else {
+		props["authority"] = map[string]any{
+			"type": "object", "properties": map[string]any{
+				"actions": actions, "check_ins": checkIns,
+				"digest": map[string]any{"type": "string"},
+				"status": map[string]any{"type": "string"},
+				"read_only_tools": map[string]any{
+					"type": "object", "additionalProperties": map[string]any{
+						"type": "array", "items": map[string]any{"type": "string"},
+					},
+				},
+			}, "required": []any{"actions", "check_ins", "digest", "status"},
+		}
+		required = append(required, "authority")
+	}
+	slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+	node["required"] = required
 }
 
 func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
@@ -5725,6 +6044,41 @@ func addSettingsProviderLastProbeAt(value any) int {
 	return count
 }
 
+// addProviderEnabledFields adds the required enabled boolean to provider summary and settings
+// provider payloads.
+func addProviderEnabledFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addProviderEnabledFields(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addProviderEnabledFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["enabled"] != nil {
+			return count
+		}
+		summary := properties["reviewer_mode"] != nil && properties["runtime_strategy"] != nil &&
+			properties["auth_status"] != nil
+		settings := properties["command_inherited"] != nil && properties["credential_slots"] != nil
+		if !summary && !settings {
+			return count
+		}
+		properties["enabled"] = map[string]any{"type": "boolean"}
+		required, _ := node["required"].([]any)
+		required = append(slices.Clone(required), "enabled")
+		slices.SortFunc(required, func(left, right any) int {
+			return strings.Compare(left.(string), right.(string))
+		})
+		node["required"] = required
+		count++
+	}
+	return count
+}
+
 func addAgentEffectivePermissions(value any) int {
 	count := 0
 	switch node := value.(type) {
@@ -5747,6 +6101,31 @@ func addAgentEffectivePermissions(value any) int {
 			properties["permissions"] = map[string]any{"type": "string"}
 			count++
 		}
+	}
+	return count
+}
+
+func addAgentPolicyExcludedACPOptions(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentPolicyExcludedACPOptions(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentPolicyExcludedACPOptions(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["sources"] == nil || properties["session_env_status"] == nil {
+			return count
+		}
+		acpOptions, ok := properties["acp_options"].(map[string]any)
+		if !ok || properties["policy_excluded_acp_options"] != nil {
+			return count
+		}
+		properties["policy_excluded_acp_options"] = maps.Clone(acpOptions)
+		count++
 	}
 	return count
 }
@@ -5816,6 +6195,19 @@ func addRuntimeRecoveryReason(baseline map[string]any) {
 	walk(baseline)
 }
 
+func automationParameter() map[string]any {
+	return automationParameterWith(automationParamDescription)
+}
+
+func automationParameterWith(description string) map[string]any {
+	return map[string]any{
+		"name":        "exclude_automation",
+		"in":          "query",
+		"description": description,
+		"schema":      map[string]any{"type": "boolean"},
+	}
+}
+
 func finishedAutomationParameter() map[string]any {
 	return map[string]any{
 		"name":        "exclude_finished_automation",
@@ -5838,6 +6230,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"schema":      map[string]any{"type": "boolean"},
 			},
 			finishedAutomationParameter(),
+			automationParameterWith(automationFacetsParamDescription),
 		},
 		facets["parameters"].([]any)...)
 
@@ -5860,7 +6253,8 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"description": "Exclude always-on main sessions from the page and its total",
 				"schema":      map[string]any{"type": "boolean"},
 			}
-			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()))
+			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()),
+				any(automationParameter()))
 			break
 		}
 	}
@@ -6158,4 +6552,36 @@ func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	if count == 0 {
 		t.Fatal("no historical agent MCP schemas found")
 	}
+}
+
+func addNativeResultViewSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			view := map[string]any{
+				"type":       "object",
+				"required":   []any{"schema"},
+				"properties": map[string]any{"schema": map[string]any{}, "digest": map[string]any{"type": "string"}},
+			}
+			properties["output_views"] = map[string]any{"oneOf": []any{
+				map[string]any{
+					"type":       "object",
+					"required":   []any{"compact", "full"},
+					"properties": map[string]any{"compact": view, "full": view},
+				},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
+			count++
+		}
+	}
+	return count
 }

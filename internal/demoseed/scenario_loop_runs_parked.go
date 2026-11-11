@@ -86,7 +86,7 @@ func watchingLoopRun(clock timeline) loopRunStory {
 		Events: []loopEventStory{
 			{Kind: evtGenerationStarted, At: createdAt, Payload: map[string]any{keyGeneration: 1}},
 			{Kind: evtNodeWaitStarted, At: parkedAt, Payload: map[string]any{
-				keyGeneration: 1, keyNodeID: nodeSettlementBatch, keyWaitKind: "event",
+				keyGeneration: 1, keyNodeID: nodeSettlementBatch, keyWaitKind: keyEvent,
 				keyKind: "automation.run.completed",
 			}},
 			{Kind: evtStatusChanged, At: parkedAt.Add(time.Second), Payload: map[string]any{

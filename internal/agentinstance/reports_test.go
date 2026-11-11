@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -149,4 +150,38 @@ func TestReportInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProposalPickPrompt(t *testing.T) {
+	t.Run("Should fence untrusted proposal text and preserve instructions [UT-030]", func(t *testing.T) {
+		p := ProposalPayload{Title: "Investigate ```", Body: "Do something", ItemKeys: []string{"key"}}
+		action := &ActionSnapshot{Instructions: "Write a report only."}
+		text, err := PickPromptText(p, action)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(text, action.Instructions) ||
+			!strings.Contains(text, "Keep the fence when you relay it.") ||
+			strings.Count(text, "```") != 2 ||
+			!strings.Contains(text, `\u0060`) {
+			t.Fatalf("unsafe prompt: %s", text)
+		}
+		plain, err := PickPromptText(p, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plain != p.Title {
+			t.Fatal("plain pick changed title")
+		}
+	})
+	t.Run("Should reject a proposal that cannot be encoded", func(t *testing.T) {
+		t.Parallel()
+		text, err := PickPromptText(
+			ProposalPayload{Body: string([]byte{0xff})},
+			&ActionSnapshot{Instructions: "Write a report."},
+		)
+		if err == nil || text != "" {
+			t.Fatalf("text=%q err=%v", text, err)
+		}
+	})
 }

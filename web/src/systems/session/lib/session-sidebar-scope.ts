@@ -81,6 +81,11 @@ export interface SessionSidebarScopeState {
    * in the current view (#1085). Off by default: only projects with sessions show.
    */
   showEmptyProjects: boolean;
+  /**
+   * "Show automation runs" (#1355): sessions an automation job or trigger started stay out of
+   * this window's sessions until turned on. Window-only, like the board's filter.
+   */
+  showAutomation: boolean;
   /** Collapse all / Expand all, shared by this window's List and Kanban. */
   foldAll: SessionFoldAll;
 }
@@ -99,6 +104,7 @@ export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   sort: null,
   groupBy: null,
   showEmptyProjects: false,
+  showAutomation: false,
   foldAll: null,
 };
 
@@ -141,6 +147,8 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     groupBy: oneOf(SESSION_LIST_GROUP_BYS, value.groupBy),
     // Absent in blobs written before #1085: the default (off) holds.
     showEmptyProjects: value.showEmptyProjects === true,
+    // Absent in blobs written before #1355: the default (off) holds.
+    showAutomation: value.showAutomation === true,
     // Absent in blobs written before #1132: every fold keeps its own flag.
     foldAll: value.foldAll === "collapsed" || value.foldAll === "expanded" ? value.foldAll : null,
   };

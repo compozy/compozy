@@ -63,6 +63,7 @@ function provider(
   authState: NonNullable<ProviderAuthStatus>["state"]
 ): ProviderSummary {
   return {
+    enabled: true,
     auth_status: {
       env_policy: "inherit",
       home_policy: "operator",
@@ -417,6 +418,62 @@ describe("useSessionPromptRuntime", () => {
       reasoning_effort: "high",
       speed: "fast",
     });
+  });
+
+  it("Should mark profile-disabled providers and keep the session's own as the current value", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
+      ...workspaceDetailFixture,
+      providers: [
+        { display_name: "Codex", harness: "acp", name: "codex", runtime_provider: "codex" },
+        { display_name: "Gemini", harness: "acp", name: "gemini", runtime_provider: "gemini" },
+      ],
+    } satisfies WorkspaceDetailPayload);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [
+        provider("codex", "authenticated"),
+        { ...provider("claude", "authenticated"), display_name: "Claude", enabled: false },
+        { ...provider("gemini", "authenticated"), enabled: false },
+      ],
+    } satisfies ProviderListResponse);
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [model("codex", "gpt-6.1-sol"), model("claude", "claude-fable-5")],
+    } satisfies AllModelsListResponse);
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: "general",
+        canPrompt: true,
+        effectiveRuntime: { provider: "claude", model: "claude-fable-5" },
+        selectedRuntime: { provider: "claude", model: "claude-fable-5", speed: "normal" },
+        selectionRevision: 1,
+        sessionId: primarySessionFixture.id,
+        workspaceId,
+      })
+    );
+
+    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+
+    await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
+    expect(result.current.value).toMatchObject({ provider: "claude", model: "claude-fable-5" });
+    // The workspace list is not profile-scoped: gemini stays there but the inventory disables it.
+    expect(result.current.catalog.providers).toEqual([
+      expect.objectContaining({ id: "codex" }),
+      expect.objectContaining({ id: "gemini", disabled: true }),
+      expect.objectContaining({ id: "claude", name: "Claude", disabled: true }),
+    ]);
+    expect(result.current.catalog.providers[0]?.disabled).toBeUndefined();
+    expect(result.current.catalog.models.some(entry => entry.provider === "claude")).toBe(false);
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-6.1-sol",
+        reasoning_effort: "",
+      });
+    });
+    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "gemini"]);
   });
 
   // A continued or forked session is unbound with the runtime its dialog chose as its

@@ -242,9 +242,9 @@ func (s *daemonExtensionService) searchCuratedExtensions(
 	if s.marketplaceCatalog == nil {
 		return nil, errors.New("curated extension catalog is not configured")
 	}
-	result, err := s.marketplaceCatalog.Browse(
+	result, err := s.marketplaceCatalog.BrowseFiltered(
 		ctx,
-		query,
+		marketplacepkg.BrowseFilter{Query: query},
 		0,
 		extensionSearchSnapshotLimit,
 	)

@@ -77,6 +77,12 @@ apply.
 
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
 
+`compozy__tool_search` defaults to 20 results (maximum 100; zero uses the default).
+Continue with `offset: next_offset` and the same query. Both views include `count`, `total` and `has_more`; `offset` and `next_offset` are omitted when zero.
+Compact rows summarize descriptors; `result_view: "full"` retains complete descriptors.
+`tool_info` reads one complete descriptor.
+Operator and session HTTP/UDS search share these bounds; CLI uses `tool search --limit --offset`.
+
 ## Command Palette Tools
 
 Use `compozy__cmd_palette_list` to read the daemon-canonical command catalog for the bound workspace.
@@ -128,7 +134,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
-`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
+`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`, `compozy__session_changes`.
 
 Session reads are paged. `compozy__session_events` returns the newest 50 events and
 `compozy__session_history` the newest 10 turns when `limit` is omitted or 0; an explicit `limit` is
@@ -163,6 +169,10 @@ Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compo
 turn when it fires, which is the only way background work can resume you after your turn ends. Use one
 for every wait on external work, inside or outside your turn; `terminal.md` describes the shell-wait
 guard that refuses `gh run watch`, long `sleep`, and polling loops, and points `gh pr checks --watch` here.
+Claude provider-native subagents share the parent's MCP session identity and cannot receive their own
+monitor wakes. A provider PreToolUse hook refuses their registrations when `agent_id` is present.
+Return pending work and any terminal ID to the parent for monitoring and resumption, or use a separate
+CompozyOS child session. Parent-session monitors are unchanged.
 Provider-internal background shells, monitors, scheduled wakeups, and "I will report back" promises
 cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
@@ -234,7 +244,7 @@ and the owner is resumed only when restart auto-continue rules allow it. A shutd
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
 about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
-Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
+Operators see `monitor_summary.active` on full session payloads (`compozy__session_status` with `result_view: "full"`) and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
@@ -297,7 +307,7 @@ rather than deriving it from the session state.
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
 that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
-history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
+history or hold `session_wait` just to collect the answer. `compozy__session_status` with `result_view: "full"` lists outstanding
 `reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
 summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
@@ -334,9 +344,10 @@ removed. Use this instead of `workspace_paths`, which only records a narrowing a
 
 `prompt` sends the first prompt from the caller with `notify_on_complete` (message ID
 `spawn-prompt-<child_session_id>`), so the reply wake carries the child's final answer. The result
-returns the child ID, role, depth, TTL expiry, effective `permissions`, and optional `worktree` and
+returns the child ID, role, depth, TTL expiry, and optional `worktree` and
 `prompt` objects; a failed first prompt returns `prompt.status: "failed"` with `error`, and the
-child stays live for a `session_prompt` retry. Refusals are structured: `operator_cause` names the field, value, and rule
+child stays live for a `session_prompt` retry. Request `result_view: "full"` on
+`compozy__session_spawn` to inspect effective `permissions`. Refusals are structured: `operator_cause` names the field, value, and rule
 (`subset_of_parent`, `blank_atom`, `known_toolset`) and `operator_recovery` the next step. A
 live-child cap fails with reason `spawn_budget_exhausted` and names the cap and live count; stopped
 children and subagents hold no slot. A depth refusal uses the same reason with cause `max_depth`:
@@ -351,7 +362,7 @@ have an active turn and otherwise returns `parent_not_active`. Use them instead 
 `session_spawn` → `session_prompt` → `session_wait` → `session_history` when you want one task answered
 by another agent, provider, or model while you keep working:
 
-1. `compozy__subagent_capabilities {}` returns the caller's inherited runtime, permission mode, depth,
+1. `compozy__subagent_capabilities {"result_view":"full"}` returns the caller's inherited runtime, permission mode, depth,
    live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised
    models. Pick a target whose `can_delegate` is true. Only delegable providers include models,
    capped at 40 per provider with the caller's current model first, then the provider default.
@@ -485,8 +496,9 @@ Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
 mutating; remove is destructive and approval-gated, and its opt-in `delete_branch` input also deletes
 the local branch with the safety rules in `references/worktrees.md`. Remove takes `path` instead of
 `ref` for a discovered (not adopted) checkout, exactly as `worktree_list` reports it; that form keeps
-the branch and rejects `ref` and `delete_branch`. All carry an explicit or caller-resolved
-workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
+the branch and rejects `ref` and `delete_branch`. List excludes `removed` records by default; pass `include_removed: true` to read them. HTTP/UDS
+uses `include_removed=true`, including All projects; CLI uses `worktree list --include-removed`.
+All carry an explicit or caller-resolved workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
 CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
@@ -505,7 +517,8 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
 unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,
 independent of its spawn role. Page payloads include the derived `board_column`, direct-child
-`children` counts, and scoped `parent_title`; `waiting_on` explains the `waiting` badge. These
+`children` counts; `waiting_on` explains the `waiting` badge. Request `result_view: "full"`
+for scoped `parent_title`. These
 filters participate in the cursor fingerprint. PR facts are display-cache reads, without forge I/O.
 
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
@@ -573,7 +586,9 @@ session in a folder.
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 
 Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
-`compozy__agent_list`, `compozy__agent_create`. `compozy__agent_list` returns exact names from the
+`compozy__agent_list`, `compozy__agent_create`. `compozy__workspace_describe` returns sessions owned
+by the resolved workspace registration, even when its directory metadata has a different ID.
+`compozy__agent_list` returns exact names from the
 resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
 `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
 model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
@@ -837,8 +852,15 @@ Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automatio
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`
 (`agent`|`loop`|`task`|`agent_instance`; `task` matches no trigger; `agent_instance` is trigger-only), search, and event;
-run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
-unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
+run history stays uncounted and defaults to 50 records per page (maximum 200; zero uses 50).
+`automation_runs_list`, `automation_jobs_history`, and `automation_triggers_history` return
+`page.limit`, `page.has_more`, and `page.next_cursor`. Continue with `cursor` and unchanged filters
+and profile/workspace scope. HTTP/UDS shares the same page contract. CLI history and runs use
+`--last` for page size and `--cursor` for continuation. JSON preserves the `page` envelope;
+human, TOON and JSONL expose continuation too. For CLI history that spans pages, use absolute
+RFC3339 time filters from the first request. Relative durations move between calls and cannot
+be reused with `--cursor`. Changing filters or scope starts a new first page. Other
+`compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable. List and get items carry `last_run` (`id`, `status`,
 `started_at`, `ended_at`, `skip_reason` for a skipped fire stored as `canceled`), equal to the first
@@ -1001,16 +1023,42 @@ labels User items `"User"` (previously `"Global"`; a display string).
 ### Session pull-request projection
 
 When a registered project's folder is missing, `compozy__session_status` and
-`compozy__session_describe` retain the session payload and add a `workspace_root_missing`
+`compozy__session_describe`, both with `result_view: "full"`, retain the session payload and add a `workspace_root_missing`
 diagnostic. Stopping and archiving remain available; these controls do not need to load the
 project's agent files. Creating or executing new work still requires an available root.
 
 `compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
-nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
+and `board_column` by default. Request `result_view: "full"` to inspect nullable `pull_request_lookup`. The PR contains state, nullable draft, head SHA,
 complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
 branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
 remain visible during provider outages. Explicit refresh is available through
 `POST /api/sessions/{session_id}/pull-request/refresh` or `compozy session pr <id> --refresh`.
+
+### Session changes
+
+`compozy__session_changes` (sessions toolset, read risk) reads what a session changed in its
+project root, untracked files included: `session_id` (required), optional `workspace`, `scope`
+(`branch` diffs the working tree against its merge base with `base`; `uncommitted` diffs it
+against HEAD; omitted picks `branch` when HEAD is ahead of the base, else `uncommitted`), `base` (any Git-resolvable ref; omitted uses the
+worktree's base ref, then `origin/HEAD`, then `main` or `master`), `patch_paths` (at most 20 root-relative paths),
+and `reveal`. The root is the session's bound worktree, else its project root; it never follows the
+provider's resumed CWD. The result is the summary (`root`, `head`, `base`, `totals`, `files` with
+status, `old_path` for renames, `+/-` counts and `binary`/`generated`/`sensitive` flags,
+`truncated`, `revision`, and the cached `pull_request` when one exists) plus `patches` for the
+requested paths. Summaries list at most 3,000 files and keep the full totals; `totals.partial`
+marks lower bounds. Each patch is capped at 1 MiB and returns `too_large: true` without text past
+it. Sensitive files (`.env`, keys, credentials, and in-root symlinks to them) return
+`sensitive: true` and no patch text unless the call sets `reveal: true`; reveal only when the
+operator's task needs the content.
+
+Failures come back as a structured `error` with a `code`: `session_not_found` (also for sessions
+outside the caller's profile read scope), `root_unavailable` (User-scope sessions and removed
+worktrees), `not_a_git_repository`, `base_not_found`, `invalid_scope`, `too_many_paths`,
+`invalid_path`, `path_outside_root`, `path_denied` (`.git` and paths resolving into it),
+`file_not_found`, `not_a_file`, `changes_stale` (HEAD or base moved; call again), and
+`changes_unavailable`. There are no native tools or CLI verbs that list, read, or search project
+files; those routes are HTTP/UDS only (see `references/app-sdk.md`). CLI fallback:
+`compozy session changes <session-id>` (`references/runtime-operations.md`).
 
 ### In-place session worktree tools
 
@@ -1032,6 +1080,7 @@ Raw environments are never exposed. `trees` groups the rows into logical process
 `id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
 wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
 browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+Read `compozy__session_status` with `result_view: "full"` for this summary.
 The session's `process_summary.trees` counts Background and Terminal trees; `background` and
 `terminals` still count processes, with ports from that same population; foreground tools remain in
 the detailed list. Catalog changes invalidate it.
@@ -1125,10 +1174,10 @@ does not produce a lost-wake report; stopping the main session still reports its
   `more`, `duration_ms`, optional `error`) and source digest items keyed
   `source:<id>:<item key>`. A dry run polls without committing state or status. A real check
   while a source poll runs returns gate `source_poll_in_flight` and starts nothing.
-- `compozy__agent_instance_get` includes `sources`: per declared source `id`, `kind` or
+- `compozy__agent_instance_get` includes `sources` by default: per-source `id`, `kind` or
   `script`, `status` (`pending_first_poll`, `ok`, `failing`, `unavailable`, `disabled`,
-  `unapproved`), poll timestamps, `last_item_count`, `failure_streak`, optional `error`, and
-  `next_poll_at`.
+  `unapproved`), `failure_streak`, optional `error`, `next_poll_at`, and `awaiting_approval`.
+  Request `result_view: "full"` for poll timestamps and `last_item_count`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
 - `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
@@ -1168,7 +1217,7 @@ repository returns `session_link_fork_unsupported`; providers that omit head rep
 existing behavior. Status follows the branch: selecting another PR on an already linked branch
 replaces its stored number. Local repositories support branch links without a forge.
 Candidate page 1 may include one extra exact PR match; that match is omitted from later pages. Session reads carry
-an additive `linked_work` summary (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
+an additive `linked_work` summary (request `result_view: "full"` on native session tools) (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
 resource's `links` endpoint for the full list; child items carry `source_session_id`
 and `source_session_title` and are read-only on their parent.
 
@@ -1178,7 +1227,220 @@ members). These counts belong to the caller's profile and workspace, including i
 
 ### Check-in source catalog
 
-`compozy__agent_heartbeat_sources` is read-only. Pass `agent` and `workspace` to list
+`compozy__agent_heartbeat_sources` is read-only. Pass `agent`, `workspace`, and `result_view: "full"` to list
 scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
-status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
+status, `scripts_enabled`, and effective `limits`. The full view returns the same catalog JSON as
 `compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.
+
+### Check-in call audit
+
+`agent_instance_check_ins` includes `occurrence_id`, `tools_status`
+(`enabled`, `disabled`, `unavailable`) and `tool_calls`. `agent_instance_reports`
+projects `tool_calls` counts from the durable audit. Tool descriptors expose `access`
+(`read` or `write`) and `check_in_writable` (whether it belongs in the check-in
+write selector). Each attempt records decision, outcome, redacted argument
+preview and effect (`none`, `done`, `maybe`); tool results are never stored.
+CLI `instance reports` text prints per-proposal pick state and `auto_accept_status`
+plus the tool summary. `instance check-ins` text has WHEN, OUTCOME, TOOLS and
+PROPOSALS columns, with counts such as `1 auto-accepted, 1 waiting`.
+An otherwise silent check-in with completed or uncertain writes publishes an
+`activity` report. Cancellation retains its outcome and discards pending source state.
+Check-ins never create approval or clarify requests: `compozy__clarify` and other
+interaction tools are always denied (`check_in_tool_not_writable`). With no main
+session, every check-in call is denied `check_in_no_main_session`. Only the operator can approve standing
+check-in authority through the heartbeat authority CLI or HTTP/UDS routes; there is
+no authority-approve native tool.
+
+### Proposal picks
+
+Manual picks are operator-only: `compozy agent instance pick <agent-or-instance>
+<report-id> <n>` uses a 1-based index; HTTP/UDS
+`POST /api/agent-instances/{id}/reports/{report_id}/pick` uses `{"proposal":0}`.
+Agent credentials fail `proposal_pick_operator_only`. There is no native pick tool.
+Report reads include `picks`, proposal `action`, and `auto_accept_status`
+(`picked`, `limit`, `queue_full`, `unapproved`, `no_main`, `inactive`, `none`). `picked` means
+an auto-accept pick; skip values are the decision recorded at publication and are
+never recomputed; operator picks never project as `picked`. Each proposal is picked
+once; `proposal_already_picked` reports a repeat. The observe-only
+`agent.instance.proposal.picked` hook includes actor, action id and report id.
+
+### Instance attention acknowledgement
+
+The local operator can acknowledge an always-on instance with
+`compozy agent instance mark-seen <id>`, `POST /api/agent-instances/{id}/away`, or
+`compozy__agent_instance_mark_seen`. The avatar hover card offers **Mark as seen**.
+This advances the operator's seen watermark, acknowledges failure attention through that time,
+and cancels pending/orphaned interactions in stopped sessions in the instance's profile-scoped
+lineage. Live sessions' requests still need an answer. New failures raise attention again.
+Reports retain their provider delivery state and history; acknowledgement does not deliver them
+to the provider. The catalog stream updates open avatars without a reload.
+
+### Instance list capacity and missing targets
+
+Instance lists return authorized rows after agent, workspace, state and pagination filters.
+The native list defaults to the calling agent and workspace; use `peers: true` for reachable
+always-on agents. An empty list does not establish that the profile has no instances.
+`active_count` measures occupied capacity across all workspaces in the selected profiles,
+independent of row filters and pagination. `max_active_instances` is the cap for each profile,
+including when an all-profiles read sums counts. The CLI list uses the same capacity semantics
+but filters agent names only when `--agent` is provided. These capacity semantics apply only to
+ordinary lists: `peers: true` (CLI `--peers`) leaves both capacity fields at zero to mean
+unavailable, not unused capacity.
+
+Ensure-main requires an existing instance. A missing native target returns
+`agent_instance_not_found`, not a backend health error. Ensure-main does not support
+`dry_run`; the native tool rejects it before starting a main and the CLI offers no such flag.
+Use instance get (CLI `agent instance show`) to inspect without starting a session.
+
+## Result views
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+### Session record tools
+
+`compozy__session_status`, `compozy__session_create` and `compozy__session_archive` return the same
+compact session record shown above. Optional fields appear only when set:
+
+| Field                                   | When present                            |
+| --------------------------------------- | --------------------------------------- |
+| `attention`, `waiting_on`               | The session needs the operator or waits |
+| `pending_interactions[]`                | Always (empty list when none)           |
+| `stop_reason`, `stop_detail`, `failure` | The session stopped or failed           |
+| `runtime.failure`                       | The runtime binding failed              |
+| `worktree_id`, `branch`                 | A worktree or branch is associated      |
+| `pull_request`                          | Always; null when none is associated    |
+| `queue`, `children`, `subagent_summary` | The corresponding summary is available  |
+| `later`                                 | The session is set aside for later      |
+
+`transcript_epoch`, `runtime.generation` and `runtime.selection_revision` are the fences
+`compozy__session_rewind`, `compozy__session_fork`, `compozy__session_continue` and
+`compozy__session_runtime_set` take as input. `runtime.selection_revision` is always present.
+`transcript_epoch` and `runtime.generation` are omitted while they are 0, exactly as in the full
+record: `runtime.generation` until the session is first bound (one `compozy__session_create` just
+returned has none), `transcript_epoch` until the first clear or rewind. Pass 0 as the fence in that
+case. `lineage` carries `kind`, `parent_session_id`, `root_session_id`, `ttl_expires_at` and `spawn_budget` in the
+compact result; the permission policy is in the full result.
+
+Excerpt from a session waiting on a permission prompt:
+
+```json
+{
+  "session": {
+    "id": "sess-example",
+    "agent_name": "general",
+    "state": "active",
+    "badge": "waiting-for-auth",
+    "board_column": "needs_you",
+    "runtime": {
+      "status": "ready",
+      "effective": { "provider": "claude", "model": "claude-opus-5-5" }
+    },
+    "pending_interactions": [
+      {
+        "session_id": "sess-example",
+        "interaction_id": "int-52c1",
+        "kind": "permission",
+        "provider_request_id": "req-9",
+        "title": "Run make test",
+        "status": "pending",
+        "created_at": "2026-11-10T14:19:40Z"
+      }
+    ],
+    "archived_at": null,
+    "created_at": "2026-11-10T14:02:11Z",
+    "updated_at": "2026-11-10T14:19:47Z"
+  }
+}
+```
+
+`compozy__session_spawn` compact result — the spawn facts without the permission echo:
+
+```json
+// call
+{
+  "tool": "compozy__session_spawn",
+  "input": { "agent_name": "general", "ttl_seconds": 3600 }
+}
+
+// result excerpt (compact, default)
+{
+  "session_id": "sess-child",
+  "spawn_role": "worker",
+  "spawn_depth": 1,
+  "ttl_expires_at": "2026-11-10T15:20:02Z"
+}
+```
+
+`result_view: "full"` adds `permissions` (`tools`, `skills`, `mcp_servers`, `workspace_paths`), as
+before. When the call sends a first `prompt` or creates a worktree, both views carry the same `prompt`
+and `worktree` entries.
+
+### Discovering both contracts
+
+```json
+// call
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__session_status" } }
+
+// result (descriptor excerpt; inside tool.descriptor)
+{
+  "id": "compozy__session_status",
+  "description": "Read one session. Returns the compact result; pass result_view \"full\" for the complete record.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "session_id": { "type": "string" },
+      "result_view": {
+        "type": "string",
+        "enum": ["compact", "full"]
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": { "type": "object", "required": ["session"], "additionalProperties": false },
+  "output_schema_digest": "5d1c0e…",
+  "output_views": {
+    "compact": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "5d1c0e…" },
+    "full": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "a2c799…" }
+  }
+}
+```
+
+Hosted MCP omits `outputSchema` for every native tool. Input selectors and result
+`structuredContent` plus serialized JSON text are unchanged, including continuations and typed
+errors. Read contracts here through tool info or the HTTP/UDS descriptor routes (`output_views`).
+
+For a tool with views, `output_schema` and `output_schema_digest` describe the compact view. The schemas above are
+shortened. Full schemas can leave parts of a record open; inspect the live schema and result
+before referencing a field.
+
+A single-result tool has no `output_views` and no `result_view` input:
+
+```json
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__skill_view" } }
+// descriptor has "output_schema" only.
+```
+
+Compact session records also retain `stop_cause`, `permission_mode_degraded`,
+`attention_dismissible`, `lineage.ttl_expires_at` and `lineage.spawn_budget`.
+Compact `compozy__agent_heartbeat_status` retains the policy `snapshot_id`.

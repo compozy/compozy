@@ -61,6 +61,7 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
     },
   },
   settings: {
+    enabled: true,
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
     models: {
       default: "claude-sonnet-5",
@@ -78,6 +79,7 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   },
   fallback: {
     settings: {
+      enabled: true,
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
       models: { default: "claude-sonnet-5" },
     },
@@ -103,6 +105,7 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
     },
   },
   settings: {
+    enabled: true,
     command: "npx -y @agentclientprotocol/codex-acp@latest",
     models: {
       default: "gpt-5.6-sol",
@@ -181,6 +184,7 @@ describe("useSettingsProvidersPage", () => {
       installed: 1,
       binaryMissing: 0,
       needsSetup: 1,
+      disabled: 0,
     });
   });
 
@@ -397,6 +401,7 @@ describe("useSettingsProvidersPage", () => {
       ...claudeEntry,
       name: "openrouter",
       settings: {
+        enabled: true,
         command: "npx -y pi-acp@latest",
         models: {
           default: "openai/gpt-5.6-sol",

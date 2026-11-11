@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/agentinstance"
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -76,7 +75,7 @@ func (n *daemonNativeTools) createNativeInstance(
 		return toolspkg.ToolResult{}, err
 	}
 	payload.Created = created
-	return structuredResult(contract.AgentInstanceResponse{Instance: payload}, "Instance created")
+	return agentInstanceCreateViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) nativeInstanceQuery(
@@ -208,13 +207,14 @@ func nativeInstanceList(
 	api *core.AgentInstanceAPI,
 	actor workspaceaccess.ActorRef,
 	query agentinstance.ListQuery,
+	view toolspkg.ResultView,
 ) (toolspkg.ToolResult, error) {
 	result, err := api.ListPage(ctx, query, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 
-	return structuredResult(result, "Agent instances")
+	return agentInstanceListViews.result(view, result)
 }
 
 func nativeInstanceTarget(

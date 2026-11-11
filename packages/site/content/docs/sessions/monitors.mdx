@@ -207,7 +207,7 @@ curl http://127.0.0.1:2123/api/workspaces/<workspace>/sessions/<session>/monitor
 curl -X POST http://127.0.0.1:2123/api/workspaces/<workspace>/sessions/<session>/monitors/<monitor_id>/cancel
 ```
 
-Every session payload also carries `monitor_summary.active` while the session has active monitors.
+Full native session results (`result_view: "full"`) and HTTP/UDS session payloads carry `monitor_summary.active` while the session has active monitors.
 
 ## Managing monitors from the agent
 

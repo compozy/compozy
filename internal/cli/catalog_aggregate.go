@@ -48,6 +48,13 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 			rows = append(rows, []string{label(item.WorkspaceID), item.Title, string(item.State)})
 		}
 	case "worktrees":
+		includeRemoved, err := cmd.Flags().GetBool("include-removed")
+		if err != nil {
+			return err
+		}
+		if includeRemoved {
+			values.Set("include_removed", "true")
+		}
 		var response contract.WorktreesResponse
 		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/worktrees", values, &response); err != nil {
 			return err

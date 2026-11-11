@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/mcppolicy"
 )
 
 func cloneManifestMCPAuth(auth *MCPServerAuthConfig) *MCPServerAuthConfig {
@@ -55,7 +56,9 @@ func validateManifestMCPAuth(server MCPServerConfig, field string) error {
 	default:
 		return fmt.Errorf("method must be none or oauth")
 	}
-	return manifestMCPAuthConfig(auth).Validate(field)
+	config := manifestMCPAuthConfig(auth)
+	config.IssuerURL = mcppolicy.PlaceholderURL(config.IssuerURL)
+	return config.Validate(field)
 }
 
 func manifestMCPAuthConfig(auth *MCPServerAuthConfig) compozyconfig.MCPAuthConfig {

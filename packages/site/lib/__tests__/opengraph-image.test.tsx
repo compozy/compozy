@@ -80,7 +80,9 @@ function asMockImageResponse(value: unknown): MockedImageResponse {
   return value as MockedImageResponse;
 }
 
-const PALETTE_HEXES = ["#141312", "#1E1C1B", "#3C3A39", "#E5E5E7", "#8E8E93", "#E8572A"];
+const BEAM = "linear-gradient(90deg, #1df0d7, #1f87fc)";
+const PALETTE_VALUES = ["#0a0a0a", "#ececec", "#989898", "rgba(255, 255, 255, 0.08)", BEAM];
+const RETIRED_HEXES = ["#E8572A", "#141312", "#1b1b1b", "#383838"];
 
 describe("Landing OpenGraph image (root)", () => {
   it("publishes a static 1200x630 PNG response with embedded fonts", async () => {
@@ -94,40 +96,47 @@ describe("Landing OpenGraph image (root)", () => {
     expect((response.init as { fonts: unknown[] }).fonts.length).toBeGreaterThan(0);
   });
 
-  it("renders the locked hero pair and footer rail with the warm-dark palette", async () => {
+  it("renders the locked hero pair and footer rail with the ink palette", async () => {
     const { default: Image } = await import("@/app/opengraph-image");
     const response = asMockImageResponse(await Image());
     const copy = textContent(response.element);
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("The system around the agent, already built.");
+    expect(copy).toContain("The autonomous control plane for your agents.");
     expect(copy).toContain(
-      "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
+      "See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you."
     );
     expect(copy).toContain("COMPOZYOS");
     expect(copy).not.toMatch(/\bBETA\b/u);
     expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
-    expect(copy).toContain("CREATE · AUTOMATE · SUPERVISE");
+    expect(copy).toContain("KEEP EVERY AGENT RUNNING");
+    expect(copy).not.toContain("CREATE · AUTOMATE · SUPERVISE");
     expect(copy).toContain("compozy.com");
 
-    for (const hex of PALETTE_HEXES) {
-      expect(styleValues).toContain(hex);
+    for (const value of PALETTE_VALUES) {
+      expect(
+        styleValues.some(style => style.includes(value)),
+        value
+      ).toBe(true);
     }
-    expect(styleValues).not.toContain("#E8572B");
+    for (const hex of RETIRED_HEXES) {
+      expect(styleValues).not.toContain(hex);
+    }
 
     expect(types).toContain(LogoLockup);
     expect(types).toContain(SymbolGlyph);
 
-    const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
-    expect(usesPlayfair).toBe(true);
-    const usesMono = styleValues.some(value => value.includes("JetBrains Mono"));
-    expect(usesMono).toBe(true);
+    expect(styleValues).toContain("Instrument Sans");
+    expect(styleValues).toContain("Figtree");
+    expect(styleValues).toContain("Geist Mono");
+    expect(styleValues).not.toContain("Playfair Display");
+    expect(styleValues).not.toContain("JetBrains Mono");
   });
 });
 
 describe("Docs OpenGraph template", () => {
-  it("renders the docs eyebrow, technical path, and Geist title", async () => {
+  it("renders the docs eyebrow, technical path, and Instrument Sans title on the beam palette", async () => {
     const { renderDocsOG } = await import("@/lib/og/templates/docs");
     const response = asMockImageResponse(
       await renderDocsOG({
@@ -150,11 +159,10 @@ describe("Docs OpenGraph template", () => {
     expect(copy).toContain("compozy.com");
 
     expect(types).toContain(LogoLockup);
-    expect(styleValues).toContain("#E8572A");
-    expect(styleValues).toContain("#141312");
-
-    const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
-    expect(usesPlayfair).toBe(false);
+    expect(styleValues).toContain(BEAM);
+    expect(styleValues).toContain("#0a0a0a");
+    expect(styleValues).toContain("Figtree");
+    expect(styleValues).toContain("Instrument Sans");
   });
 });
 
@@ -182,9 +190,8 @@ describe("Blog OpenGraph template", () => {
     expect(copy).toContain("BY pnauck");
 
     expect(types).toContain(LogoLockup);
-    const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
-    expect(usesPlayfair).toBe(true);
-    expect(styleValues).toContain("#E8572A");
+    expect(styleValues).toContain("Instrument Sans");
+    expect(styleValues).toContain(BEAM);
   });
 
   it("hides date and author bits when not provided", async () => {

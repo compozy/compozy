@@ -9,6 +9,11 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// ProviderAuthRecoverer admits session-local recovery after verified native provider sign-in.
+type ProviderAuthRecoverer interface {
+	ProviderAuthenticationReady(profileID, provider, routeFingerprint string) bool
+}
+
 // SessionManager is the runtime session surface exposed by API transports.
 // List returns the current in-memory session snapshot without performing I/O.
 // ListAll may perform I/O to return the authoritative session set, so it accepts a context.

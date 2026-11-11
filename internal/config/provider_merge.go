@@ -8,6 +8,7 @@ import (
 
 func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
 	merged := cloneProvider(base)
+	mergeProviderCompactWindow(&merged, override.AutoCompactWindow)
 	if override.ReviewerMode != "" {
 		merged.ReviewerMode = override.ReviewerMode
 	}
@@ -58,9 +59,7 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	} else if merged.EffectiveHarness() != ProviderHarnessACP {
 		merged.AuthACPMethod = ""
 	}
-	if override.SessionMCP != nil {
-		merged.SessionMCP = new(*override.SessionMCP)
-	}
+	mergeProviderBoolRefs(&merged, override)
 	if override.SessionMCPTransport != "" {
 		merged.SessionMCPTransport = override.SessionMCPTransport
 	}
@@ -70,6 +69,16 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	merged.MCPServers = MergeMCPServers(merged.MCPServers, override.MCPServers)
 
 	return merged
+}
+
+// mergeProviderBoolRefs copies the optional boolean switches an override sets explicitly.
+func mergeProviderBoolRefs(merged *ProviderConfig, override ProviderConfig) {
+	if override.SessionMCP != nil {
+		merged.SessionMCP = new(*override.SessionMCP)
+	}
+	if override.Enabled != nil {
+		merged.Enabled = new(*override.Enabled)
+	}
 }
 
 func mergeProviderModels(base ProviderModelsConfig, override ProviderModelsConfig) ProviderModelsConfig {
@@ -195,4 +204,10 @@ func indexMCPServersByName(servers []MCPServer) map[string]int {
 		index[name] = i
 	}
 	return index
+}
+
+func mergeProviderCompactWindow(provider *ProviderConfig, value *int) {
+	if value != nil {
+		provider.AutoCompactWindow = new(*value)
+	}
 }

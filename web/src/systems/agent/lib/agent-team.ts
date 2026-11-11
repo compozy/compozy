@@ -61,7 +61,7 @@ export interface AgentTeamMember {
 
 export const AGENT_STATE_DOT: Partial<Record<AgentAvatarState, StatusDotTone>> = {
   working: "success",
-  "needs-you": "brand",
+  "needs-you": "attn",
   failed: "destructive",
   paused: "faint",
   idle: "faint",

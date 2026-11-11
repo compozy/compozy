@@ -82,6 +82,12 @@ export {
   useSessionInspectorState,
   type UseSessionInspectorStateResult,
 } from "./use-session-inspector-state";
+export { useFilePathLinks } from "./use-file-path-links";
+export {
+  requestSessionReviewChanges,
+  useSessionReviewPanelState,
+  type UseSessionReviewPanelStateResult,
+} from "./use-session-review-panel-state";
 export {
   pruneSessionSidebarScopes,
   useSessionSidebarState,
@@ -108,6 +114,7 @@ export {
   useDeleteSession,
   useSessionDeletedByOperator,
   useSessionDeletionPending,
+  useSessionArchivePending,
   useRepairSession,
   useRenameSession,
   useStopSession,

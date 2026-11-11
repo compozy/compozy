@@ -80,15 +80,16 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	PermissionPolicy       *StartPermissionPolicy
-	AgentName              string
-	CompozySessionID       string
-	WorkspaceID            string
-	ProfileID              string
-	RuntimeGeneration      int64
-	Command                string
-	Cwd                    string
-	AdditionalDirs         []string
+	PermissionPolicy  *StartPermissionPolicy
+	AgentName         string
+	CompozySessionID  string
+	WorkspaceID       string
+	ProfileID         string
+	RuntimeGeneration int64
+	Command           string
+	Cwd               string
+	AdditionalDirs    []string
+	// Env inherits when nil; explicit empty excludes parent entries except OS-required variables.
 	Env                    []string
 	MCPServers             []compozyconfig.MCPServer
 	Permissions            compozyconfig.PermissionMode
@@ -111,12 +112,15 @@ type StartOpts struct {
 	PermissionEventHandler func(AgentEvent, bool)
 	ActivateMCPServers     func(context.Context) error
 	FinalizeStartup        func(context.Context) (string, StartupManifest, error)
+	CheckInTools           bool
 	Inspection             bool
 	// InputOnly marks a daemon-owned child that only transforms its prompt. The
 	// Claude Agent Bridge then skips built-in tools, user MCP servers, plugins,
 	// skills, hooks, and instruction files; other providers ignore it. Tool and
 	// hosted-MCP denial come from the verdict-only runtime mode, not this flag.
 	InputOnly bool
+	// LeanEnvironment excludes unrelated Claude MCP servers, connectors and auto-memory.
+	LeanEnvironment bool
 	// ShellWaitGuard marks a session that can call compozy__terminal_exec and
 	// compozy__monitor_create, so a provider hook may refuse a foreground shell
 	// wait and redirect it. It stays false when policy withholds either tool.
@@ -347,8 +351,10 @@ type TokenUsage struct {
 	ContextUsed      *int64
 	ContextSize      *int64
 	CostAmount       *float64
-	CostCurrency     *string
-	Timestamp        time.Time
+	// ReportedCostAmount retains the adapter counter after CostAmount is normalized per turn.
+	ReportedCostAmount *float64 `json:",omitzero"`
+	CostCurrency       *string
+	Timestamp          time.Time
 }
 
 // RuntimeActivity is the structured activity payload attached to Compozy runtime
@@ -392,6 +398,7 @@ func (u TokenUsage) Merge(other TokenUsage) TokenUsage {
 	merged.ContextUsed = chooseInt64(other.ContextUsed, merged.ContextUsed)
 	merged.ContextSize = chooseInt64(other.ContextSize, merged.ContextSize)
 	merged.CostAmount = chooseFloat64(other.CostAmount, merged.CostAmount)
+	merged.ReportedCostAmount = chooseFloat64(other.ReportedCostAmount, merged.ReportedCostAmount)
 	merged.CostCurrency = chooseString(other.CostCurrency, merged.CostCurrency)
 	if !other.Timestamp.IsZero() {
 		merged.Timestamp = other.Timestamp
@@ -410,6 +417,7 @@ func (u TokenUsage) IsZero() bool {
 		u.ContextUsed == nil &&
 		u.ContextSize == nil &&
 		u.CostAmount == nil &&
+		u.ReportedCostAmount == nil &&
 		u.CostCurrency == nil
 }
 

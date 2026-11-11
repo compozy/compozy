@@ -1290,6 +1290,85 @@ func TestBootAgentInstances(t *testing.T) {
 			t.Fatalf("instance = %+v, %v", got, err)
 		}
 	})
+	t.Run("Should keep startup and pause available when an instance report cannot publish", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.RegisterSession(t.Context(), new(store.SessionInfo{
+			ProfileID: store.DefaultProfileID, ID: "sess-unloaded", AgentName: "coder",
+			State: string(session.StateActive), RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt: now, UpdatedAt: now,
+		})); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(),
+			"UPDATE agent_instances SET state='paused', pause_reason='manual', main_session_id='sess-unloaded' WHERE id=?",
+			instance.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{
+			SourceKey: "turn:unpublishable", Kind: "failure",
+			Payload: []byte(`{"reason":"fatigue","detail":"Checks paused"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profile.NewManager(profile.WithStore(db), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var logs bytes.Buffer
+		state := &bootState{
+			sessions:          manager,
+			registry:          db,
+			workspaceResolver: resolver,
+			profiles:          profiles,
+			cfg:               compozyconfig.DefaultWithHome(home),
+			logger:            slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		if err := (&Daemon{now: func() time.Time { return now }}).bootAgentInstances(t.Context(), state); err != nil {
+			t.Fatalf("bootAgentInstances() error = %v", err)
+		}
+		if !strings.Contains(logs.String(), "publish instance reports at startup") ||
+			!strings.Contains(logs.String(), report.ID) {
+			t.Fatalf("missing report publication diagnostic: %s", logs.String())
+		}
+		paused, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := state.agentInstances.Service.ApplyPause(t.Context(), paused); err != nil {
+			t.Fatalf("ApplyPause() error = %v", err)
+		}
+		if !strings.Contains(logs.String(), "publish instance reports after pause") {
+			t.Fatalf("missing pause publication diagnostic: %s", logs.String())
+		}
+		pending, err := db.InstanceReports().UnpublishedReports(t.Context(), "", 10)
+		if err != nil || len(pending) != 1 || pending[0].Report.ID != report.ID {
+			t.Fatalf("unpublished = %+v, %v", pending, err)
+		}
+	})
 }
 
 func TestInstanceMonitorReadModel(t *testing.T) {
@@ -1413,4 +1492,94 @@ type nativeInstanceProfileOwners []profile.Profile
 
 func (owners nativeInstanceProfileOwners) ListIdentities(context.Context) ([]profile.Profile, error) {
 	return owners, nil
+}
+
+func TestNativeInstanceEnsureMainDryRun(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		exists bool
+		byID   bool
+		code   toolspkg.ErrorCode
+	}{
+		{name: "Should classify a missing named target as not found", code: toolspkg.ErrorCodeAgentInstanceNotFound},
+		{name: "Should classify a missing explicit target as not found", byID: true, code: toolspkg.ErrorCodeAgentInstanceNotFound},
+		{name: "Should reject unsupported dry run without starting a main", exists: true, code: toolspkg.ErrorCodeInvalidInput},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openDaemonTestGlobalDB(t)
+			id := "ainst-missing"
+			if tc.exists {
+				instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+					ProfileID: store.DefaultProfileID, AgentName: "coder",
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				id = instance.ID
+			}
+			api := &core.AgentInstanceAPI{Store: db.Instances()}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				AgentInstances: func() *core.AgentInstanceAPI { return api },
+			}, nativeApproveAllPolicyInputs())
+			input := map[string]any{"agent": "coder", "dry_run": true}
+			if tc.byID || tc.exists {
+				input["id"] = id
+			}
+			raw, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(t.Context(), toolspkg.Scope{
+				Operator: true, ProfileID: store.DefaultProfileID,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceEnsureMain, Input: raw})
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != tc.code {
+				t.Fatalf("ensure main error = %v, want %s", err, tc.code)
+			}
+			if tc.exists {
+				instance, err := db.Instances().Get(t.Context(), id)
+				if err != nil || instance.MainSessionID != "" {
+					t.Fatalf("dry run changed instance: %+v, %v", instance, err)
+				}
+			} else if !errors.Is(err, agentinstance.ErrNotFound) {
+				t.Fatalf("missing target lost error identity: %v", err)
+			}
+		})
+	}
+}
+
+func TestNativeInstanceListCapacity(t *testing.T) {
+	t.Run("Should retain profile capacity when the caller agent has no visible instances", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		_, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		api := &core.AgentInstanceAPI{
+			Store: db.Instances(), CountActive: db.Instances().CountActive, MaxActiveInstances: 10,
+		}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			AgentInstances: func() *core.AgentInstanceAPI { return api },
+		}}
+		result, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{
+			ProfileID: store.DefaultProfileID, AgentName: "reviewer",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceList, Input: []byte("{}")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page contract.AgentInstanceListResponse
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Instances) != 0 || page.ActiveCount != 1 || page.MaxActiveInstances != 10 {
+			t.Fatalf("filtered list capacity = %+v", page)
+		}
+	})
 }

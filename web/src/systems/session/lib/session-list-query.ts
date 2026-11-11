@@ -30,6 +30,7 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   }
   if (filters.exclude_instance_main) normalized.exclude_instance_main = true;
   if (filters.exclude_finished_automation) normalized.exclude_finished_automation = true;
+  if (filters.exclude_automation) normalized.exclude_automation = true;
   if (filters.state !== undefined) normalized.state = filters.state;
   if (filters.type !== undefined) normalized.type = filters.type;
   if (agent) normalized.agent = agent;

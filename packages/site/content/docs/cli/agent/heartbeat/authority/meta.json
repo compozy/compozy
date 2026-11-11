@@ -1,0 +1,4 @@
+{
+    "title": "Authority",
+    "pages": ["index", "approve", "revoke", "show"]
+}

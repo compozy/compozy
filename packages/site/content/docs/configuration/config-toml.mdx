@@ -34,7 +34,7 @@ CompozyOS archives them on load instead of failing; see
 | `[daemon.load]`                      | Agent CPU priority and load-aware admission for background work.                       | niceness `10`, threshold `1.5`, max wait `2m`                                                         |
 | `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
-| `[desktop]`                          | Editor command the desktop app runs to open file paths from transcripts.               | `editor_command = ""` (the system text editor)                                                        |
+| `[desktop]`                          | Editor command behind the desktop app's Configured editor Open in target.              | `editor_command = ""` (the system text editor)                                                        |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
@@ -144,7 +144,7 @@ For each file that holds any of them, the loader:
 
 The archived values stay in the file as comments and no longer apply. The next load finds nothing to
 archive, leaves the file byte for byte unchanged, and logs nothing. The archive step is a
-compatibility shim that CompozyOS removes in v0.6.0.
+compatibility shim that CompozyOS removes in v0.6.1.
 
 Archiving these settings never stops the load. The rewrite is guarded against concurrent edits: just before it
 writes, the loader re-reads the file and requires the same file with the same bytes. If an editor,
@@ -201,7 +201,7 @@ update_check = true
 update_check_interval = "15m"
 
 [desktop]
-# Command the desktop app runs to open a file mentioned in a transcript.
+# Command behind the desktop app's "Configured editor" Open in target.
 # Placeholders: {path} (required), {line}, {col}; missing line/col become 1.
 # Split into arguments with single/double quotes grouping; never run through a shell.
 # Empty (default): the system text editor, without line support.
@@ -228,7 +228,7 @@ max_subscribers = 16
 # Session ordering: "created", "name", "last_activity", "attention", or "manual".
 sort = "created"
 # Session grouping: "none", "project" (under All projects), or "profile" (under All profiles).
-group_by = "none"
+group_by = "project"
 # Deprecated in v0.4.0, removed in v0.5.0: "workspace" or "all-workspaces".
 # scope = "all-workspaces"
 
@@ -409,10 +409,9 @@ session_health_stale_after = "2m"
 session_health_hook_min_interval = "1m"
 
 [permissions]
-# Valid values: deny-all, approve-reads, approve-all.
+# Valid values: deny-all, approve-reads, approve-edits, auto, approve-all.
+# approve-all runs Codex, Claude Code, Antigravity, and Copilot in their unrestricted ACP mode.
 mode = "approve-all"
-# Opt in to the provider's unrestricted ACP mode when available (Codex, Claude Code, Antigravity, Copilot).
-provider_full_access = true
 
 [worktrees]
 # Empty uses $COMPOZY_HOME/worktrees/<workspace>/<name> for new managed checkouts.
@@ -899,12 +898,13 @@ These fields keep many concurrent agents from saturating the host and starving t
 | `admission_threshold` | float    | `1.5`   | `0` to disable, or a positive number.                              | Normalized load (1-minute load average divided by logical CPUs) above which background work waits. |
 | `admission_max_wait`  | duration | `2m`    | `1s` through `30m` when the threshold is enabled; otherwise `0s`+. | Longest one background session start or prompt waits for load to drop before it proceeds anyway.   |
 
-CompozyOS starts each agent in its own process group and applies `agent_niceness` to that group right
-after launch, so every tool, test runner, linter, and build the agent starts inherits the lower
-priority. On an idle machine the agent still gets all available CPU; the niceness only matters when
-processes compete. Raising priority back requires root, so the value is fixed for the lifetime of the
-agent process. If the operating system refuses the change, the session still starts and the daemon logs
-one warning.
+CompozyOS starts each agent in its own process group. On Linux, it applies `agent_niceness` on a
+disposable launch thread before exec, so even children forked immediately at startup inherit the
+priority. The launch thread is discarded without changing the daemon's other threads. Agent-owned
+PTY and pipe terminals use the same launch policy. On macOS, priority is applied to the process
+group after startup; a fork in flight during that adjustment can retain the previous priority.
+Windows ignores this setting. Priority failures are logged and do not prevent launch. On an idle
+machine the agent still gets all available CPU; niceness matters when processes compete for CPU.
 
 When `admission_threshold` is above zero, the daemon samples the load average every five seconds.
 While normalized load exceeds the threshold, new sessions and prompts started by scheduled or
@@ -954,9 +954,14 @@ Settings for the desktop app. The section is machine-only: it is accepted only i
 `desktop settings are global-only`, and a profile overlay rejects it with
 `profile_config_key_denied`.
 
-| Field            | Type   | Default | Validation                                                                                                                                                                                       | Description                                                                                                                   |
-| ---------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `editor_command` | string | `""`    | Empty, or valid UTF-8 of at most 1024 bytes after trimming, with no control characters, balanced quotes, a `{path}` placeholder, and no placeholders other than `{path}`, `{line}`, and `{col}`. | Command the desktop app runs when you Cmd/Ctrl+click a file path in an assistant message. Empty opens the system text editor. |
+| Field            | Type   | Default | Validation                                                                                                                                                                                       | Description                                                                                                    |
+| ---------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `editor_command` | string | `""`    | Empty, or valid UTF-8 of at most 1024 bytes after trimming, with no control characters, balanced quotes, a `{path}` placeholder, and no placeholders other than `{path}`, `{line}`, and `{col}`. | Command the desktop app runs for the **Configured editor** Open in target. Empty opens the system text editor. |
+
+The desktop app lists this command as **Configured editor** in the file viewer's
+[Open in](/docs/files/open-in) menu, next to the editors it detects. It is also what a Cmd/Ctrl+click
+on a transcript path uses until you pick another Open in target; after that, the click opens the
+last target you used. A plain click opens the in-app viewer.
 
 The desktop app splits the template into arguments on whitespace. Single and double quotes group
 an argument, and there are no other escapes. It then replaces `{path}`, `{line}`, and `{col}`
@@ -1036,7 +1041,7 @@ never moves another. Operators and agents set them with
 | Field      | Type   | Default     | Valid values                                              | Description                                                                              |
 | ---------- | ------ | ----------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `sort`     | string | `created`   | `created`, `name`, `last_activity`, `attention`, `manual` | Newest created first, name A–Z, recent activity, attention urgency, or manual order.     |
-| `group_by` | string | `none`      | `none`, `project`, `profile`                              | Groups the session list by project (under All projects) or profile (under All profiles). |
+| `group_by` | string | `project`   | `none`, `project`, `profile`                              | Groups the session list by project (under All projects) or profile (under All profiles). |
 | `scope`    | string | `workspace` | `workspace`, `all-workspaces`                             | **Deprecated.** Legacy breadth intent; kept through v0.4.0, removed in v0.5.0.           |
 
 Created keeps parent and nested child rows still while agents work. Name orders the visible title
@@ -1050,7 +1055,9 @@ No user-state migration or rewrite is performed. `manual` applies only where the
 one project and profile; elsewhere it displays as Last activity and stays stored.
 
 `group_by = "project"` applies only under All projects and `profile` only under All profiles. An
-inapplicable value renders as `none` and is not rewritten. Unknown values fail with
+inapplicable value renders as `none` and is not rewritten, so one project's list stays flat under the
+default. An unset `group_by` reads `project`; an explicitly persisted `none` stays flat. No user-state
+migration or rewrite is performed. Unknown values fail with
 `shell_config_invalid`. Groups come from server facets, so a group appears even when none of its
 sessions are on the loaded page.
 
@@ -1059,7 +1066,7 @@ sessions are on the loaded page.
 Which projects you see is now decided by the topbar globe (**All projects**), not by a config key.
 Through v0.4.0, `scope` stays stored and is returned as written. Old clients and scripts may keep
 writing it; every write returns a deprecation warning naming `shell.sessions.group_by` and the
-globe. While `group_by` is unset, `scope = "all-workspaces"` derives `group_by = "project"`; an
+globe. While `group_by` is unset, either `scope` value reads `group_by = "project"`, the default; an
 explicit `group_by` always wins. `GET /api/settings/shell` reports `warnings` and
 `legacy_scope: { value, explicit, revision }`. The Web turns on All projects only for an explicit
 `all-workspaces` written after it last looked, never from the default.
@@ -1622,10 +1629,10 @@ digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 
-| Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                  |
-| ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                     |
-| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Request an unrestricted ACP mode for new `approve-all` sessions on supported providers; enable it only in the global config. |
+| Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                             |
+| ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                                |
+| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Deprecated, no effect: `approve-all` selects the provider's unrestricted mode. Loaded with a warning through v0.6.0; removed in v0.6.1. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never
@@ -1853,11 +1860,13 @@ here with their own `command` to keep using them. See
 | `auth_mode`             | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, CompozyOS secret binding, or no auth.                                                                                                                                                                            |
 | `none_security`         | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                                                                                                                                                                 |
 | `env_policy`            | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                                                                                                                                                       |
+| `auto_compact_window`   | integer                     | unset                                                                             | 100000–1000000                                             | Claude auto-compaction window in tokens. Agent definitions may override it with the same key. Unset keeps the provider default; retired `session.compaction` keys remain inactive.                                                                                  |
 | `home_policy`           | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or a CompozyOS provider home.                                                                                                                                                                        |
 | `auth_status_command`   | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `compozy provider auth status <provider>`.                                                                                                                                                                                             |
 | `auth_login_command`    | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Write-only login command executed locally by `compozy provider auth login <provider>`. Reads return only its safe login descriptor.                                                                                                                                 |
 | `session_mcp`           | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables CompozyOS session MCP injection for providers that support it.                                                                                                                                                                                              |
 | `session_mcp_transport` | string                      | empty (`stdio`); `http` for `copilot`.                                            | `stdio`, `http`.                                           | How per-session stdio MCP servers reach an ACP provider. `http` serves each on a loopback endpoint with a per-session bearer token; agents on MCP protocol versions before 2026-07-28 get no tool-list change notifications through it. Requires `harness = "acp"`. |
+| `enabled`               | boolean                     | `true`.                                                                           | `true`, `false`.                                           | Set `false` to turn the provider off. Global and profile config only; workspace layers are rejected. Applies live. See [Turn off a provider](#turn-off-a-provider).                                                                                                 |
 | `credential_slots`      | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                                                                                                                                                                |
 | `mcp_servers`           | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                                                                                                                                                           |
 
@@ -1869,6 +1878,30 @@ and UDS likewise never expose the command, its arguments, or its resolved path.
 Instead, they expose a safe `login` descriptor: `configured`, `source = "auth_login_command"`, an
 executable basename, `presence` (`present`, `missing`, or `unknown`), and a `recommended_action` when
 recovery is needed (`install_cli`, `login`, `bind_secret`, `retry`, `inspect`, or `no_retry`).
+
+### Turn off a provider
+
+Set `enabled = false` on a provider you don't use. CompozyOS keeps it in inventories (`compozy provider
+list`, `GET /api/providers`, Settings → Providers) with `enabled: false`, reported for the selected
+profile, and removes it from every selection surface: chat and runtime pickers, the model catalog, subagent capabilities and usage views.
+
+```toml
+[providers.gemini]
+enabled = false
+```
+
+- New starts, resumes of stopped sessions, runtime changes and loop or goal runs on a turned-off
+  provider fail with `provider_disabled` (HTTP 409). Sessions already running keep running.
+- Agent fallback chains and role fallbacks skip turned-off routes. A role whose provider is off uses
+  its first enabled fallback; with none left it reports `provider_disabled`.
+- The key belongs to the global and profile layers only. A workspace or workspace-profile overlay
+  that sets it is rejected.
+- The default provider (`defaults.provider`) can't be turned off
+  (`provider_default_disable_rejected`). Change `defaults.provider` first.
+- Turning a provider back on removes the key, and removes the `[providers.<id>]` block when
+  `enabled` was its only key. `provider_usage.providers.<id>.enabled` is never changed.
+- The change applies live: `compozy config set providers.gemini.enabled false`, the
+  `compozy__config_set` native tool, or `PATCH /api/settings/providers/{name}/enabled`.
 
 The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
 accepted. Config that still sets them is rejected with a deterministic hard-cut error citing the
@@ -2892,20 +2925,24 @@ in the release after v0.5.2. Errors identify the corresponding `agents.always_on
 [the migration guide](/docs/migration#always-on-vocabulary). Validation messages name
 `agents.always_on.*`.
 
-| Key                     | Default | Constraint                |
-| ----------------------- | ------- | ------------------------- |
-| `rotation_threshold`    | `0.8`   | Greater than 0, at most 1 |
-| `max_active_instances`  | `10`    | Positive                  |
-| `unattended_turn_limit` | `300`   | Nonnegative; `0` disables |
-| `approval_timeout`      | `"12h"` | 1m–72h                    |
-| `max_proposals`         | `2`     | 1–20                      |
-| `triage_timeout`        | `"10m"` | Positive duration         |
+| Key                        | Default     | Constraint                       |
+| -------------------------- | ----------- | -------------------------------- |
+| `rotation_threshold`       | `0.8`       | Greater than 0, at most 1        |
+| `max_active_instances`     | `10`        | Positive                         |
+| `unattended_turn_limit`    | `300`       | Nonnegative; `0` disables        |
+| `approval_timeout`         | `"12h"`     | 1m–72h                           |
+| `max_proposals`            | `2`         | 1–20                             |
+| `triage_timeout`           | `"10m"`     | Positive duration                |
+| `check_in_tools`           | `"enabled"` | `enabled` or `disabled`          |
+| `check_in_max_tool_calls`  | `25`        | 1–100 attempts per check-in      |
+| `check_in_max_write_calls` | `5`         | 0–50 allowed writes per check-in |
+| `check_in_audit_retention` | `"720h"`    | 24h–8760h                        |
 
 Checks use `[agents.heartbeat]` for `max_concurrent_triage` (default 2, positive) and
 `max_interval` (default `"24h"`, at least `quiet_backoff_cap`), alongside enablement,
 default interval, batch size, and wake event retention.
 Interrupted occurrences are finalized before the scheduler begins checking due instances.
-Pausing an instance cancels its running read-only check. That occurrence finishes as
+Pausing an instance cancels its running check-in. That occurrence finishes as
 `cancelled`, without adding fatigue or a failure report. A working turn already
 in progress finishes. Each reported or failed check counts once toward
 `unattended_turn_limit`; quiet and cancelled checks do not count. Replaying a
@@ -2956,3 +2993,10 @@ env_allow = []
 ```
 
 `timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.
+
+### Auto-accept limit
+
+`[agents.always_on].auto_accept_per_day` limits auto-accepted check-in proposals per
+instance over a rolling 24 hours. The default is `20`; valid values are `0`–`200`.
+Set it to `0` to disable auto picks. An action must still have operator-approved
+`auto_accept: true` authority; the limit grants no tool permissions.

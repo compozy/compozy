@@ -222,6 +222,33 @@ func (g *SessionRepo) ReturnDueLaterSessions(
 	return returned, nil
 }
 
+// ReturnLaterSession brings one parked session back at the given instant.
+func (g *SessionRepo) ReturnLaterSession(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	at time.Time,
+) error {
+	if err := g.checkReady(ctx, "return later session"); err != nil {
+		return err
+	}
+	stamp := sql.NullString{String: store.FormatTimestamp(at), Valid: true}
+	return g.withImmediateTransaction(ctx, "return later session", func(exec globalSQLExecutor) error {
+		affected, err := sqlcgen.New(exec).ReturnLaterSession(ctx, sqlcgen.ReturnLaterSessionParams{
+			Now: stamp, WorkspaceID: workspaceID, ID: sessionID,
+		})
+		if err != nil {
+			return fmt.Errorf("store: return later session %q: %w", sessionID, err)
+		}
+		if affected == 0 {
+			return fmt.Errorf(
+				"store: return later session %q: not in this workspace, not parked, or not yet due", sessionID,
+			)
+		}
+		return nil
+	})
+}
+
 // ClearLaterReturn clears the back-from-Later mark of one session.
 func (g *SessionRepo) ClearLaterReturn(ctx context.Context, sessionID string) (bool, error) {
 	if err := g.checkReady(ctx, "clear later return"); err != nil {

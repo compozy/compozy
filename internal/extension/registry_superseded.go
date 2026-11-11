@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
-// Remove this N-1 bundled-name translation in v0.6.0 after the v0.5 migration window.
+// Remove this N-1 bundled-name translation in v0.6.1 after the v0.5 migration window.
 var supersededBundledExtensions = map[string]string{"dev-cycle": "spec-cycle"}
 
 // SupersededBundledSuccessor identifies a released bundled package replacement.

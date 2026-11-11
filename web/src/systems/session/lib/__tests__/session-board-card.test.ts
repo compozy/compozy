@@ -65,7 +65,7 @@ describe("sessionBoardCardStatus (UT-068)", () => {
           returned_from_later_at: "2026-10-30T09:00:00Z",
         })
       )
-    ).toEqual({ label: "Back from Later", tone: "brand" });
+    ).toEqual({ label: "Back from Later", tone: "attn" });
   });
 
   it("Should let a live badge outrank Back from Later", () => {
@@ -79,7 +79,7 @@ describe("sessionBoardCardStatus (UT-068)", () => {
     });
     expect(sessionBoardCardStatus(session({ ...returned, badge: "waiting-for-auth" }))).toEqual({
       label: "Auth",
-      tone: "brand",
+      tone: "attn",
     });
   });
 
@@ -89,18 +89,18 @@ describe("sessionBoardCardStatus (UT-068)", () => {
       sessionBoardCardStatus(
         session({ badge: "waiting-for-auth", board_column: "needs_you", pull_request: failing })
       )
-    ).toEqual({ label: "Auth", tone: "brand" });
+    ).toEqual({ label: "Auth", tone: "attn" });
     expect(sessionBoardCardStatus(session({ badge: "failed", board_column: "needs_you" }))).toEqual(
       { label: "Failed", tone: "destructive" }
     );
     expect(
       sessionBoardCardStatus(session({ badge: "waiting-for-input", board_column: "needs_you" }))
-    ).toEqual({ label: "Input", tone: "brand" });
+    ).toEqual({ label: "Input", tone: "attn" });
     expect(
       sessionBoardCardStatus(
         session({ badge: "needs-attention", board_column: "needs_you", attention: "ended_early" })
       )
-    ).toEqual({ label: "Stopped early", tone: "brand" });
+    ).toEqual({ label: "Stopped early", tone: "attn" });
   });
 
   it("Should map the PR signal by precedence", () => {

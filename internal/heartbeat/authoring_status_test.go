@@ -1322,6 +1322,24 @@ func seedHeartbeatLeasedRunningTaskRun(
 func TestManagedHeartbeatStatusService(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should inspect policy using raised configured check-in caps", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		target := fixture.target
+		target.CheckInLimits = &heartbeat.CheckInLimits{MaxToolCalls: 50, MaxWriteCalls: 10}
+		written, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: target,
+			Body:   "---\ncheck_ins:\n  max_tool_calls: 30\n  max_write_calls: 7\n---\nCheck pending work.\n",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := fixture.status.Inspect(fixture.ctx, heartbeat.InspectRequest{Target: target})
+		if err != nil || !got.Policy.Valid || got.Policy.Digest != written.Policy.Digest {
+			t.Fatalf("inspect=%+v error=%v", got, err)
+		}
+	})
+
 	// Invariant: external policy resolution preserves profile-specific persisted snapshots.
 	// Owner: heartbeat status; canonical suite: TestManagedHeartbeatStatusService.
 	t.Run("Should resolve external policy snapshots within the requested profile", func(t *testing.T) {

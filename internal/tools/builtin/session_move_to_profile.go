@@ -5,7 +5,7 @@ import (
 )
 
 func sessionMoveToProfileDescriptor() toolspkg.Descriptor {
-	return nativeDescriptor(
+	return withResultViews(nativeDescriptor(
 		toolspkg.ToolIDSessionMoveToProfile,
 		"session_move_to_profile",
 		"Session Move To Profile",
@@ -27,7 +27,7 @@ func sessionMoveToProfileDescriptor() toolspkg.Descriptor {
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
 		[]string{sessionsSessionsKey, "profile", "move"},
 		[]string{"move session to another profile", "change session profile", "transfer session to profile"},
-	)
+	), sessionMoveToProfileCompactOutputSchema, `{"type":"object"}`)
 }
 
 const sessionMoveToProfileInputSchema = `{

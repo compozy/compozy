@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"fmt"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/procutil"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -112,7 +114,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.AdditionalDirs = append([]string(nil), normalized.AdditionalDirs...)
 	}
 	if normalized.Env != nil {
-		normalized.Env = append([]string(nil), normalized.Env...)
+		normalized.Env = slices.Clone(normalized.Env)
 	}
 	if normalized.MCPServers != nil {
 		normalized.MCPServers = append([]compozyconfig.MCPServer(nil), normalized.MCPServers...)
@@ -164,13 +166,19 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 }
 
 // DaemonMatchedEnv binds subprocess CLI discovery to the executable running the daemon.
+// Internal handoff variables never reach the subprocess, whatever layer assembled base.
 func DaemonMatchedEnv(base []string) []string {
-	env := append([]string(nil), base...)
-	if len(env) == 0 {
+	return daemonMatchedEnv(base, os.Executable)
+}
+
+func daemonMatchedEnv(base []string, executablePath func() (string, error)) []string {
+	env := slices.Clone(base)
+	if env == nil {
 		env = os.Environ()
 	}
+	env = procutil.WithoutInternalHandoffEnv(env)
 
-	executable, err := os.Executable()
+	executable, err := executablePath()
 	if err != nil {
 		return env
 	}

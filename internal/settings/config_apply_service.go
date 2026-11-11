@@ -140,6 +140,18 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 	}
 
 	configLifecycle := classifyReloadLifecycle(&state.config, &desiredConfig)
+	var warnings []string
+	if configLifecycle == lifecycle.RestartRequired {
+		if ids := changedProviderEnabledIDs(&state.config, &desiredConfig); len(ids) > 0 {
+			split, splitWarnings, applied, splitErr := s.reloadWithEnabledProjection(
+				ctx, &state, desiredHash, &desiredConfig, ids,
+			)
+			if splitErr != nil || applied {
+				return split, splitErr
+			}
+			warnings = splitWarnings
+		}
+	}
 	record, plan, err := s.persistRuntimeApply(
 		ctx,
 		&state,
@@ -160,6 +172,7 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 		NextAction:      lifecycle.NextActionForLifecycle(configLifecycle, plan.status),
 		RestartRequired: configLifecycle == lifecycle.RestartRequired,
 		RestartScope:    restartScopeForLifecycle(configLifecycle),
+		Warnings:        warnings,
 		PartialFailures: plan.partialFailures,
 	}, nil
 }

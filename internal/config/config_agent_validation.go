@@ -42,6 +42,9 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
+	if err := c.AlwaysOn.validateCheckInTools(); err != nil {
+		return err
+	}
 	if c.AlwaysOn.ApprovalTimeout < time.Minute || c.AlwaysOn.ApprovalTimeout > 72*time.Hour {
 		return fmt.Errorf("agents.always_on.approval_timeout must be between 1m and 72h")
 	}
@@ -411,6 +414,24 @@ func validateTriageModelNames(models map[string]string) error {
 			model != strings.TrimSpace(model) {
 			return fmt.Errorf("agents.heartbeat.triage_models requires nonempty trimmed provider and model names")
 		}
+	}
+	return nil
+}
+
+func (c AlwaysOnConfig) validateCheckInTools() error {
+	if c.AutoAcceptPerDay < 0 || c.AutoAcceptPerDay > 200 {
+		return fmt.Errorf("agents.always_on.auto_accept_per_day must be between 0 and 200")
+	}
+	if c.CheckInTools != checkInToolsEnabled && c.CheckInTools != "disabled" {
+		return fmt.Errorf("agents.always_on.check_in_tools must be enabled or disabled")
+	}
+	if c.CheckInMaxToolCalls < 1 || c.CheckInMaxToolCalls > 100 ||
+		c.CheckInMaxWriteCalls < 0 ||
+		c.CheckInMaxWriteCalls > 50 {
+		return fmt.Errorf("agents.always_on check-in tool caps out of range")
+	}
+	if c.CheckInAuditRetention < 24*time.Hour || c.CheckInAuditRetention > 8760*time.Hour {
+		return fmt.Errorf("agents.always_on.check_in_audit_retention must be between 24h and 8760h")
 	}
 	return nil
 }

@@ -42,7 +42,7 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationJobsCreate(
@@ -68,7 +68,7 @@ func (n *daemonNativeTools) automationJobsCreate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, created)
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationJobsUpdate(
@@ -117,7 +117,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, updated)
-	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
+	return jobRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) automationJobsDelete(

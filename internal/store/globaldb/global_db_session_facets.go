@@ -98,6 +98,7 @@ func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.
 	query.Later = store.SessionLaterOnly
 	// The Later shelf is an explicit view, so it counts what the shelf read returns.
 	query.ExcludeFinishedAutomation = false
+	query.ExcludeAutomation = false
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
 	if err != nil {
 		return 0, err
@@ -116,7 +117,7 @@ func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, coun
 	switch badge {
 	case "waiting-for-auth", "waiting-for-input", loopNodeOutputFailed, "needs-attention":
 		facets.NeedsYou += count
-	case "running":
+	case runtimeStatusRunning:
 		facets.Working += count
 	case "done":
 		facets.Finished += count

@@ -7,7 +7,7 @@ journey: J-load-skill-in-managed-session
 expected: A native skill_view failure distinguishes a missing resource from a malformed skill definition, preserves the operator-safe path and YAML location across hosted MCP, and gives the agent a specific recovery step while keeping the primary public message stable and safe
 entry_points: managed session prompt; compozy__skill_view; hosted MCP tools/call; POST /api/tools/invoke
 qa_status: pass
-bug_ids: [678]
+bug_ids: [678, 1440]
 fix_status: fixed
 retest_status: pass
 fix_commits:
@@ -63,3 +63,21 @@ QA result 2026-10-06: the owning managed-skill contention integration passed wit
 subprocess and SQLite under the race detector (5.869s). The unchanged tool-event contention
 suite passed 30 repetitions each on macOS and Linux; transaction cancellation regressions
 passed. Broader release delivery remains tracked in the dependency-upgrade report.
+
+Catalog resolution re-walk (issue #1440): use a fixture workspace/profile and a managed session
+whose authored agent is removed, then one whose AGENT.md is malformed. Reading a known skill
+must return `tool_unavailable` / `dependency_missing` for the missing agent and
+`tool_invalid_input` / `schema_invalid` for the invalid definition or agent-local skill layer.
+Both outcomes provide recovery guidance without exposing raw validation errors or host paths;
+neither is `backend_unhealthy`. Restore or repair the selected agent before retrying.
+An absent skill in an otherwise healthy catalog remains `tool_not_found`; a genuine backend
+failure retains its sanitized phase/category diagnostics. Inactive skills remain explicitly readable.
+The owning fixture coverage is `TestDaemonNativeTools/Should_classify_unavailable_agent_skill_catalogs_without_backend_failures`.
+
+For a concrete session agent without an authored catalog entry (for example an extension agent),
+request an unknown skill by name. The successful session projection must not be replaced by a
+second failing agent-name lookup while collecting definition diagnostics: the result remains
+`tool_not_found`. Definition diagnostics fall back to the selected workspace/profile catalog;
+other diagnostic failures remain visible. No exposure reconciliation or resource read runs for
+a missing target. This is covered by the real-registry native test
+`Should_keep_missing_skills_distinct_from_catalog_backend_failures`.

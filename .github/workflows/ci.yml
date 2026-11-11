@@ -77,6 +77,8 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       heavy: ${{ steps.filter.outputs.heavy }}
+      workspaces: ${{ steps.filter.outputs.workspaces }}
+      frontend_lanes: ${{ steps.filter.outputs.frontend_lanes }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -98,6 +100,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          workspaces='["*"]'
           zero_sha='0000000000000000000000000000000000000000'
           base_sha=""
           head_sha=""
@@ -106,14 +109,22 @@ jobs:
             push) base_sha="$PUSH_BEFORE_SHA"; head_sha="$CURRENT_SHA" ;;
           esac
 
-          if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
           elif [[ -n "$base_sha" && "$base_sha" != "$zero_sha" && -n "$head_sha" ]] &&
             git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"; then
-            areas=$(git diff --name-only "$base_sha" "$head_sha" | scripts/ci-changes.sh)
+            if git diff --name-only --no-renames -z "$base_sha" "$head_sha" > /tmp/ci-paths; then
+              areas=$(tr '\0' '\n' < /tmp/ci-paths | scripts/ci-changes.sh)
+              workspaces=$(python3 scripts/ci-workspaces.py < /tmp/ci-paths)
+              if [[ "$workspaces" != '[]' ]]; then
+                areas=$(sed 's/^web=false$/web=true/' <<<"$areas")
+              fi
+            else
+              areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
+            fi
           else
             echo "Base commit $base_sha is unavailable; treating every area as changed."
-            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
+            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=true'
           fi
 
           # Main pushes, nightly and manual runs select heavy lanes. PRs opt
@@ -123,14 +134,17 @@ jobs:
             heavy=false
             if grep -qx 'ci_infra=true' <<<"$areas"; then
               heavy=true
-            elif gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' | grep -qx 'ci:full'; then
-              heavy=true
+            else
+              labels=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name')
+              if grep -qx 'ci:full' <<<"$labels"; then heavy=true; fi
             fi
           fi
 
           {
             grep -E '^(backend|web|desktop)=' <<<"$areas"
             echo "heavy=$heavy"
+            echo "workspaces=$workspaces"
+            echo "frontend_lanes=$(python3 scripts/ci-workspaces.py --lanes <<<"$workspaces")"
           } | tee -a "$GITHUB_OUTPUT"
 
   preflight:
@@ -147,6 +161,7 @@ jobs:
           # must not block preflight when their indexes are inconsistent.
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --yes ripgrep
           rg --version
@@ -173,7 +188,11 @@ jobs:
         run: make product-language-check
 
   frontend:
-    name: Frontend (lint, typecheck, test, build)
+    name: Frontend (${{ matrix.lane }})
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: ${{ fromJSON(needs.changes.outputs.frontend_lanes) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
@@ -182,6 +201,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Go for scaffold tests
+        if: matrix.lane != 'lint'
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -195,10 +215,10 @@ jobs:
       - name: Restore Turbo cache
         uses: actions/cache/restore@v6
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
@@ -212,28 +232,29 @@ jobs:
       - name: Run frontend verification
         env:
           COMPOZY_CODEGEN_CHECKED: "1"
-        run: |
-          bun run lint
-          bunx turbo run typecheck test --filter='!@compozy/desktop' --log-order=stream
-          bunx turbo run build --filter=./web
-          bunx turbo run test:package --filter=@compozy/client
+          CI_WORKSPACES: ${{ needs.changes.outputs.workspaces }}
+        run: python3 scripts/ci-frontend.py '${{ matrix.lane }}'
 
-      - name: Verify app SDK documentation and package preparation
-        run: |
-          bunx turbo run build --filter=@compozy/site
-          scripts/publish-sdk-package.sh --dry-run sdk/typescript 0.0.0-beta.0 beta
-          scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta
+      - name: Report Turbo receipts and audit a cached test
+        if: matrix.lane != 'lint'
+        env:
+          COMPOZY_CODEGEN_CHECKED: "1"
+        run: python3 scripts/ci-turbo-report.py
 
-      - name: Verify bounded transcript retention
-        run: >-
-          bun scripts/bench-session-retention.mjs
-          web/src/systems/session/lib/session-thread-repository.ts 4000 1 16777216
+      - name: Upload Turbo timing receipts
+        if: always() && matrix.lane != 'lint'
+        uses: actions/upload-artifact@v7
+        with:
+          name: turbo-receipts-${{ matrix.lane }}
+          path: .turbo/runs/*.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload frontend artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-verify-artifacts
+          name: frontend-verify-artifacts-${{ matrix.lane }}
           path: web/dist
           if-no-files-found: ignore
           retention-days: 7
@@ -242,8 +263,8 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v6
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ github.run_id }}
 
   go-static:
     name: Go (format, lint)
@@ -344,6 +365,7 @@ jobs:
         run: |
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
           # Runner-provided completion directories can be group/world writable.
@@ -665,21 +687,13 @@ jobs:
       ]
     if: always()
     steps:
+      - uses: actions/checkout@v7
       - name: Require every fast lane the change needs
         env:
           RESULTS: ${{ toJSON(needs) }}
+          GATE_KIND: fast
         run: &require-lanes |
-          set -euo pipefail
-          # Detect changes and preflight always run. A lane may skip only
-          # because its area or the heavy lane was not selected; failed and
-          # cancelled lanes fail the gate.
-          jq -e '.changes.result == "success"' <<<"$RESULTS" >/dev/null || {
-            echo "Detect changes did not succeed"; exit 1; }
-          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<<"$RESULTS")
-          if [[ -n "$failed" ]]; then
-            echo "Lanes did not succeed:"; echo "$failed"; exit 1
-          fi
-          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$RESULTS"
+          scripts/ci-changes.sh --require-lanes "$GATE_KIND" <<<"$RESULTS"
 
   e2e-runtime:
     name: E2E runtime
@@ -871,6 +885,7 @@ jobs:
       - name: Allow the Chromium user namespace sandbox
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes openbox
 
@@ -918,9 +933,11 @@ jobs:
       [changes, preflight, go-integration, go-terminal-windows, e2e-runtime, e2e-web, e2e-desktop]
     if: always()
     steps:
+      - uses: actions/checkout@v7
       - name: Require every heavy lane the change needs
         env:
           RESULTS: ${{ toJSON(needs) }}
+          GATE_KIND: heavy
         run: *require-lanes
 
       - name: Note an unselected heavy lane

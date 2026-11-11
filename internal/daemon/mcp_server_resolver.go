@@ -107,7 +107,8 @@ func resolveDaemonMCPResource(
 			return mcppkg.ResolvedServer{}, err
 		}
 		return mcppkg.ResolvedServer{
-			Server: server, Target: target, HealthKey: extensionMCPHealthKey(ctx, state, record),
+			ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
+			Server:                 server, Target: target, HealthKey: extensionMCPHealthKey(ctx, state, record),
 		}, nil
 	}
 	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
@@ -194,8 +195,9 @@ func mcpExtensionBindingOwner(
 func userResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
-		Server: cloneDaemonMCPServer(server),
-		Target: (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name}).Normalize(),
+		ReadOnlyOverrideOrigin: new(toolspkg.MCPReadOnlyOverrideOperatorConfig),
+		Server:                 cloneDaemonMCPServer(server),
+		Target:                 (mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: name}).Normalize(),
 	}
 }
 

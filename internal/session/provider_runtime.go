@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerenv"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -146,6 +148,7 @@ func setProviderStartEnv(env []string, resolved compozyconfig.ResolvedAgent, pre
 	return setProviderModelEnv(env, resolved, preferredModel)
 }
 
+// providerProbeEnvForStart scopes startup probes to the launch environment and refreshes stale auth refusals.
 func providerProbeEnvForStart(
 	m *Manager,
 	session *Session,
@@ -159,8 +162,13 @@ func providerProbeEnvForStart(
 		PreStartScope: providerPreStartScopeForSession(session, env),
 		LookupEnv:     providerLookupEnv(env),
 		Vault:         providerSecretMetadataResolver{resolver: m.providerSecrets},
-		CommandEnv:    append([]string(nil), env...),
+		CommandEnv:    slices.Clone(env),
 		CommandDir:    cwd,
+	}
+	if session != nil {
+		info := session.Info()
+		probe.BypassCache = info.Failure != nil && info.Failure.Kind == store.FailureProviderAuth ||
+			info.RuntimeRecovery != nil && info.RuntimeRecovery.Reason == store.SessionRuntimeRecoveryProviderAuth
 	}
 	probe.LookPath = providerLookPath(probe.CommandEnv, probe.CommandDir)
 	probe.ResolveCommand = authproviders.DefaultProviderAuthCommandResolver

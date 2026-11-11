@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pass
 fix_commits: uncommitted (task_08 part B1)
 evidence: docs/qa/evidence/2026-09-28-session-continue-fork-b1/roles-show.txt; docs/qa/evidence/2026-09-28-session-continue-fork-b1/roles-show.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/role-fallback-logs.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/role-fallback-logs-http.json; docs/qa/evidence/2026-09-28-session-continue-fork-b1/role-fallback-accepted-logs.json
-last_report: docs/qa/reports/2026-09-28-session-continue-fork-exec-b1.md
+last_report: docs/qa/reports/2026-11-07-provider-enable-toggle.md
 overlaps: MS-background-role-routing; MS-inspect-background-role-routing
 ---
 
@@ -92,3 +92,8 @@ message. These incidental digits must not enable another auto-title route after
 acceptance. Re-walk the accepted-then-failed child alongside pre-acceptance
 fallback, account-command routing, exhaustion, and single-chain ownership using
 `TestAutoTitleRoleIntegration`; keep its zero-fallback assertion unchanged.
+
+QA impact 2026-11-07 (issue #1326, provider enable toggle): Agent fallback chains and role fallbacks skip turned-off providers before any attempt (`fallback.route_skipped`, `reason=provider_disabled`, no `role.fallback.used` for the skipped route). A role whose primary provider is off runs on its first enabled fallback; with none left, `compozy roles show <role>` reports a `provider_disabled` diagnostic and invocation fails with that code. Status reset to
+`untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
+
+QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.

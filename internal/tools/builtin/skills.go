@@ -62,6 +62,9 @@ var skillTools = []toolspkg.Descriptor{
 func skillDescriptors() []toolspkg.Descriptor {
 	descriptors := make([]toolspkg.Descriptor, 0, len(skillTools))
 	for _, descriptor := range skillTools {
+		if descriptor.ID == toolspkg.ToolIDSkillList || descriptor.ID == toolspkg.ToolIDSkillSearch {
+			descriptor = withResultViews(descriptor, skillCatalogCompactSchema, string(descriptor.OutputSchema))
+		}
 		descriptors = append(descriptors, cloneDescriptor(descriptor))
 	}
 	return descriptors

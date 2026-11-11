@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -39,7 +40,7 @@ func resolveProviderNativeCLI(
 }
 
 func resolveProviderNativeCLIPath(command string, opts acp.StartOpts) (string, error) {
-	return subprocess.ResolveExecutable(command, append([]string(nil), opts.Env...), opts.Cwd)
+	return subprocess.ResolveExecutable(command, slices.Clone(opts.Env), opts.Cwd)
 }
 
 func resolveOpenCodeFinalLaunch(

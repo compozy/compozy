@@ -71,7 +71,7 @@ export const RequiredIdentifier: Story = {
     const body = within(document.body);
     await userEvent.type(await body.findByLabelText("Project reference"), "acme-production");
     await userEvent.tab();
-    await expect(body.getByRole("button", { name: "Install" })).toBeEnabled();
+    await expect(body.getByRole("button", { name: "Add" })).toBeEnabled();
   },
 };
 
@@ -82,7 +82,7 @@ export const RequiredMissing: Story = {
     await userEvent.click(await body.findByLabelText("Project reference"));
     await userEvent.tab();
     await expect(body.getByTestId("extension-input-project_ref-error")).toBeVisible();
-    await expect(body.getByRole("button", { name: "Install" })).toBeDisabled();
+    await expect(body.getByRole("button", { name: "Add" })).toBeDisabled();
   },
 };
 
@@ -94,6 +94,6 @@ export const TooLong: Story = {
     await userEvent.paste("x".repeat(8193));
     await userEvent.tab();
     await expect(body.getByText("Too long (max 8 KB)")).toBeVisible();
-    await expect(body.getByRole("button", { name: "Install" })).toBeDisabled();
+    await expect(body.getByRole("button", { name: "Add" })).toBeDisabled();
   },
 };

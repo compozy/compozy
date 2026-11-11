@@ -64,6 +64,7 @@ not prove a live binding and is absent when no runtime identity has been recorde
 Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
 the session's effective model when present, ahead of the configured agent default. A pending
 next-prompt selection does not replace that identity before it is applied.
+For native session reads, pass `result_view: "full"` to inspect runtime catalogs and capabilities.
 `runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
 and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
@@ -104,8 +105,13 @@ minute for `session.auth_recovery.window` (10m), restarting the provider and rel
 time. A turn with no provider output yet is resent; a turn that already produced output or tool calls
 receives a continuation that asks the agent to verify state before repeating actions. Do not prompt,
 stop, or continue a session while it reports `provider_auth` recovery; wait or cancel the prompt. When the
-window ends, the turn fails with today's `provider_error` guidance, and later turns fail without waiting
-until one completes.
+window ends, the turn ends with `provider_error` login guidance and the session reads `waiting-for-auth`.
+After signing in, send another prompt to replace the stale provider process and reload the same conversation.
+A successful auth probe or Usage collection also reloads matching auth-failed sessions in that profile;
+while a turn is still recovering, that proof wakes its next retry. Other providers, account routes, and
+healthy sessions are left alone. A probe without a profile selector uses the default profile
+(or its calling managed session profile); Usage carries its selected profile. The exhausted automatic
+wait remains spent until a turn completes or the provider changes.
 
 Automatic replay can repeat an external side effect whose completion was not persisted before the
 disconnect. Inspect the retained tool results and external system before manually repeating the work.
@@ -116,7 +122,10 @@ After prompt admission, the daemon owns the turn lifetime. Closing a browser tab
 
 If an accepted prompt stream closes before a terminal result, its error frame carries
 `failure.reason_code=prompt_stream_incomplete`. Branch on that code, then inspect session status and
-events before deciding whether to submit another prompt.
+events before deciding whether to submit another prompt. If durable history remains unreadable after
+bounded delivery retries, the frame carries `failure.reason_code=prompt_delivery_read_failed` instead.
+Inspect session status and retry reading its events; do not assume the accepted turn failed or resend
+its input solely because that viewer could not read the transcript.
 
 Use `interrupt` with replacement text to cancel the expected active turn and submit that replacement
 as the next generation-fenced input. Use `steer` for the same fenced replacement semantics when the
@@ -588,7 +597,11 @@ The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_nam
 object, and is a new top-level session: `lineage.parent_session_id` names the source as provenance, not
 as a parent, so it is listed as its own row and is not the source's child. An explicit runtime or route
 is also its `runtime.selected` (revision 1), which a prompt without its own runtime binds; `session status` prints `Origin` and `Derivation` lines, and the daemon log records
-`session.derived` for it. Retries are deterministic: the same `idempotency_key` with the same request
+`session.derived` for it. A continuation with an explicit provider selection never walks the agent's
+fallback chain: a launch refusal remains visible in `runtime.failure` on the unbound child and no
+prompt runs on another provider. The Web Continue dialog submits the full displayed runtime,
+including unchanged defaults; omitted `acp_options` entries inherit from the agent, so its Provider
+default control submits the advertised default value. Retries are deterministic: the same `idempotency_key` with the same request
 returns the recorded outcome with `replayed: true` (and `child_deleted: true` if the new session was
 deleted since); a different request under the same key is `idempotency_conflict`. Fences are optional
 and must be sent all three or none (`session_fence_conflict` on mismatch). A chosen route is applied at
@@ -716,6 +729,12 @@ directly, that run did not fail, and every hierarchy member is plainly `stopped`
 prompt. Loop and Task sessions are never hidden. The rows are not archived. `q`, `type`, `parent`,
 `root`, `archive=only` and `later=only` reads ignore the flag, and facets keep the flag under search.
 `compozy session list` and `compozy__session_list` do not send it, so agents still see every run.
+
+`exclude_automation=true` on the same two routes hides every automation job or trigger run family in
+any state, starting, running, waiting, failed or finished, unless the operator prompted one of its
+members. The root is recognized from the moment it exists, before its run records the session link.
+The Web list, board and dock launcher send it unless the window turns on **Show automation runs**.
+The same reads ignore it, and Loop and Task sessions are never hidden.
 
 ### Waiting for session state
 
@@ -929,7 +948,7 @@ statistics. An absent count remains unreported; an explicit zero remains zero. H
 upgrade with unknown cache counts until an adapter reports them.
 
 The decoder still accepts `cacheReadTokens` and `cacheWriteTokens` in v0.4.0 and v0.5.0, with a
-once-per-session deprecation warning. Send the canonical names; the aliases are removed in v0.6.0.
+once-per-session deprecation warning. Send the canonical names; the aliases are removed in v0.6.1.
 Canonical names take precedence when both are present. Negative counters, negative context usage,
 and a context size of zero or less are discarded with one warning per session.
 
@@ -968,6 +987,15 @@ The session usage endpoint
 owns subscription billing; `unknown` has no amount because rates or aggregate provenance are
 incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
 Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
+ACP monetary reports are session counters. Per-turn `cost_amount` is the increment since the last
+recorded report. A lower report contributes zero; its raw value is retained as the next turn's baseline.
+The baseline survives runtime release and daemon restart. Adapter-declared per-turn amounts are
+exempt from subtraction. A drop omits that one turn's cost (at most one turn per drop). A counter
+restart whose first report equals or exceeds the previous total is indistinguishable from continuation
+and can also undercount. This is an accounting correction, not a billing invoice.
+The upgrade repairs historical session and daily costs from complete per-session ledgers. Missing,
+partial or ambiguous evidence becomes `unknown/none`; token counts and turn counts stay unchanged.
+
 Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
 estimates only; CompozyOS does not reprice stored token statistics after a catalog or config change. Every
 nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a
@@ -1126,7 +1154,7 @@ Resume session catalog/log streams with the exact prior event id in `last_event_
 `Last-Event-ID` header takes precedence. Preserve the original scope and filters, and mint a fresh
 stream ticket on every remote gateway reconnect. Worktree catalog wakes require refetch on reconnect.
 
-Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically. `continue`/`fork` sessions are top-level, not children: lists show them as their own rows and they never count as the source's active child, but `parent=`/`root=` still match their stored fields, so filter on `lineage.kind` to separate them.
+Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`; request `result_view: "full"` on native session reads for those origin fields). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically. `continue`/`fork` sessions are top-level, not children: lists show them as their own rows and they never count as the source's active child, but `parent=`/`root=` still match their stored fields, so filter on `lineage.kind` to separate them.
 
 Governed children without an explicit agent command inherit the creator's resolved command only
 for the same native CLI provider, operator-home policy, compatible environment/runtime policies,
@@ -1624,7 +1652,7 @@ process, and old events can omit this additive object. No retry-after seconds ar
 ## Silence supervision and scheduling pressure
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
-session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
+session resource/status or `compozy__session_describe` with `result_view: "full"`. Fresh agent progress, verified tools,
 active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
@@ -1807,7 +1835,23 @@ facts and schedule eligible stale observations in the background. A root session
 captured when its turn settled. A bound session uses its live pending/ready worktree branch; removed
 or unavailable worktrees never fall back to the root branch. Default branches and detached HEADs have
 no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
-`pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.
+`pull_request_lookup.stale` and `state` (request `result_view: "full"` on native session tools) before treating `ready_to_merge` as current.
+
+### Session changes
+
+Use `compozy session changes <session-id> [-o json]` to read what a session changed in its bound
+worktree, else its project root. `--scope branch` (default) compares the working tree, untracked files included,
+with its merge base against `--base <ref>` (omitted: the worktree's base ref, then `origin/HEAD`, then `main`/`master`);
+`--scope uncommitted` compares it with HEAD. Repeat
+`--patch <root-relative-path>` (at most 20) to add bounded patches; sensitive files print
+`(sensitive)` unless `--reveal` is set. Human output is a status/`+`/`−`/path table with totals;
+`-o json` returns the summary (`revision`, `totals`, `files`, `truncated`, optional `pull_request`)
+plus `patches`. Domain failures exit 1 and name their code, such as `root_unavailable` for User-scope
+sessions, `base_not_found`, `not_a_git_repository`, or `too_many_paths`. Agents inside a session use
+`compozy__session_changes` (`references/native-tools.md#session-changes`). The HTTP/UDS routes are
+`GET /api/workspaces/{ws}/sessions/{id}/changes`, `/changes/patches`, `/changes/contents`, and
+`/changes/bases`; detail reads require the summary `revision` and return `409 changes_stale` once HEAD
+or the base moves.
 
 ### Existing-session execution environment
 
@@ -1830,6 +1874,7 @@ Raw environments are never exposed. `trees` groups the rows into logical process
 `id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
 wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
 browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+Read `compozy__session_status` with `result_view: "full"` for this summary.
 The session's `process_summary.trees` counts Background and Terminal trees; `background` and
 `terminals` still count processes, with ports from that same population; foreground tools remain in
 the detailed list. Catalog changes invalidate it.
@@ -2045,3 +2090,7 @@ dispatch, hosted-MCP projection and HTTP/UDS handlers. Keys include `session_id`
 file contents, tool arguments, query strings or message text. Profiles contain runtime stack,
 allocation and binary metadata, so review them before sharing. `--file` writes a mode-0600
 artifact atomically; `-o json` reports its kind and path, not the binary payload.
+
+Child attention wakes reuse their durable event identity as the input message ID. Replaying an
+already admitted revision after restart does not start another turn; a new attention revision
+remains a new wake. Admission-read failures are reported instead of silently suppressing a wake.

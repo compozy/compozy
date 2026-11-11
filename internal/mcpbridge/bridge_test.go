@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -440,4 +441,38 @@ func processAlive(pid int) bool {
 		return false
 	}
 	return process.Signal(syscall.Signal(0)) == nil
+}
+
+func TestStdioChildEmptyEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses POSIX shell")
+	}
+	t.Setenv("MCP_PARENT_MARKER", "parent")
+	t.Run("Should retain explicitly empty environment in the real child", func(t *testing.T) {
+		child, err := startStdioChild(
+			t.Context(),
+			"empty-env",
+			Spec{
+				Command: "/bin/sh",
+				Args:    []string{"-c", `printf %s "${MCP_PARENT_MARKER:-absent}"`},
+				Env:     []string{},
+				Dir:     t.TempDir(),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := child.close(); err != nil {
+				t.Errorf("close child: %v", err)
+			}
+		})
+		output, err := io.ReadAll(child.stdout)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(output) != "absent" {
+			t.Fatalf("child marker=%q", output)
+		}
+	})
 }

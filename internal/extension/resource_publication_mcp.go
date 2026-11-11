@@ -81,7 +81,7 @@ func ResolveManifestMCPServerResources(
 			return nil, err
 		}
 		if err := server.Validate("extension.resources.mcp_servers[" + name + "]"); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrManifestInvalid, err)
 		}
 		servers = append(servers, ResolvedManifestMCPServer{MCPServer: server, DefaultScope: decl.DefaultScope})
 	}

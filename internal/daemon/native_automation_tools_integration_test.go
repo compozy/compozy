@@ -7,10 +7,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
@@ -28,11 +37,165 @@ import (
 func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should walk default native and HTTP history pages over real SQLite without gaps", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		manager, db := newNativeAutomationIntegrationManager(t, ctx)
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{Automation: manager},
+			nativeApproveAllPolicyInputs(),
+		)
+		create := func(id toolspkg.ToolID, input string, key string) string {
+			t.Helper()
+			result, err := registry.Call(
+				ctx,
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return nativeAutomationResultResourceID(t, result, key)
+		}
+		jobID := create(
+			toolspkg.ToolIDAutomationJobsCreate,
+			`{"scope":"global","name":"paged-job","agent_name":"codex","prompt":"review","enabled":false,"schedule":{"mode":"every","interval":"1h"}}`,
+			"job",
+		)
+		triggerID := create(
+			toolspkg.ToolIDAutomationTriggersCreate,
+			`{"scope":"global","name":"paged-trigger","agent_name":"codex","prompt":"review","enabled":false,"event":"session.stopped"}`,
+			"trigger",
+		)
+		for index := range 106 {
+			started := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(index/2) * time.Second)
+			run := automationpkg.Run{
+				ProfileID: store.DefaultProfileID,
+				ID:        fmt.Sprintf("paged-%03d", index),
+				Status:    automationpkg.RunCompleted,
+				Attempt:   1,
+				StartedAt: new(started),
+			}
+			if index%2 == 0 {
+				run.JobID = jobID
+			} else {
+				run.TriggerID = triggerID
+			}
+			if _, err := db.CreateRun(ctx, run); err != nil {
+				t.Fatal(err)
+			}
+		}
+		handlers := &core.BaseHandlers{Automation: manager}
+		router := gin.New()
+		router.GET("/runs", handlers.ListAutomationRuns)
+		router.GET("/jobs/:id/runs", handlers.AutomationJobRuns)
+		router.GET("/triggers/:id/runs", handlers.AutomationTriggerRuns)
+		for _, tc := range []struct {
+			name  string
+			id    toolspkg.ToolID
+			input map[string]any
+			path  string
+			total int
+		}{
+			{"Should page all history", toolspkg.ToolIDAutomationRunsList, map[string]any{}, "/runs", 106},
+			{"Should page job history", toolspkg.ToolIDAutomationJobsHistory, map[string]any{"job_id": jobID}, "/jobs/" + jobID + "/runs", 53},
+			{"Should page trigger history", toolspkg.ToolIDAutomationTriggersHistory, map[string]any{"trigger_id": triggerID}, "/triggers/" + triggerID + "/runs", 53},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				for _, transport := range []string{"native", "http"} {
+					seen := map[string]bool{}
+					cursor := ""
+					for {
+						var page contract.RunsResponse
+						if transport == "native" {
+							input := maps.Clone(tc.input)
+							input["cursor"] = cursor
+							data, err := json.Marshal(input)
+							if err != nil {
+								t.Fatal(err)
+							}
+							result, err := registry.Call(
+								ctx,
+								toolspkg.Scope{Operator: true},
+								toolspkg.CallRequest{ToolID: tc.id, Input: data},
+							)
+							if err != nil {
+								t.Fatal(err)
+							}
+							if err := json.Unmarshal(result.Structured, &page); err != nil {
+								t.Fatal(err)
+							}
+						} else {
+							request := httptest.NewRequestWithContext(
+								ctx,
+								http.MethodGet,
+								tc.path+"?cursor="+cursor,
+								nil,
+							)
+							response := httptest.NewRecorder()
+							router.ServeHTTP(response, request)
+							if response.Code != http.StatusOK {
+								t.Fatalf("HTTP %d: %s", response.Code, response.Body.String())
+							}
+							if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+								t.Fatal(err)
+							}
+						}
+						if page.Page == nil || page.Page.Limit != 50 || len(page.Runs) > 50 {
+							t.Fatalf("unbounded page: %#v", page.Page)
+						}
+						for _, run := range page.Runs {
+							if seen[run.ID] {
+								t.Fatalf("duplicate run %s", run.ID)
+							}
+							seen[run.ID] = true
+							if tc.id == toolspkg.ToolIDAutomationJobsHistory && run.JobID != jobID {
+								t.Fatal("foreign job run")
+							}
+							if tc.id == toolspkg.ToolIDAutomationTriggersHistory && run.TriggerID != triggerID {
+								t.Fatal("foreign trigger run")
+							}
+						}
+						if !page.Page.HasMore {
+							break
+						}
+						if page.Page.NextCursor == "" || page.Page.NextCursor == cursor {
+							t.Fatal("missing cursor progress")
+						}
+						cursor = page.Page.NextCursor
+						if transport == "native" {
+							changed := map[string]any{"cursor": page.Page.NextCursor, "status": "failed"}
+							maps.Copy(changed, tc.input)
+							data, err := json.Marshal(changed)
+							if err != nil {
+								t.Fatal(err)
+							}
+							_, err = registry.Call(
+								ctx,
+								toolspkg.Scope{Operator: true},
+								toolspkg.CallRequest{ToolID: tc.id, Input: data},
+							)
+							if !errors.Is(err, automationpkg.ErrListCursorInvalid) {
+								t.Fatalf("changed-filter cursor error=%v", err)
+							}
+						}
+
+					}
+					if len(seen) != tc.total {
+						t.Fatalf("%s returned %d runs, want %d", transport, len(seen), tc.total)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject lifecycle commands before managing valid automation resources", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		manager := newNativeAutomationIntegrationManager(t, ctx)
+		manager, _ := newNativeAutomationIntegrationManager(t, ctx)
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: manager,
 		}, nativeApproveAllPolicyInputs())
@@ -325,7 +488,10 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 	})
 }
 
-func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *automationpkg.Manager {
+func newNativeAutomationIntegrationManager(
+	t *testing.T,
+	ctx context.Context,
+) (*automationpkg.Manager, *globaldb.GlobalDB) {
 	t.Helper()
 
 	homePaths := testHomePaths(t)
@@ -381,7 +547,7 @@ func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *a
 			t.Fatalf("manager.Shutdown() error = %v", err)
 		}
 	})
-	return manager
+	return manager, db
 }
 
 func newNativeAutomationSessionManager() *apitest.StubSessionManager {
@@ -462,7 +628,7 @@ func TestNativeAutomationUserAliasesIntegration(t *testing.T) {
 		t.Run("Should persist canonical User jobs and triggers from "+alias, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			manager := newNativeAutomationIntegrationManager(t, ctx)
+			manager, _ := newNativeAutomationIntegrationManager(t, ctx)
 			registry := newDaemonNativeRegistry(
 				t,
 				&daemonNativeToolsDeps{Automation: manager},

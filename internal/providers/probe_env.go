@@ -38,6 +38,7 @@ func DefaultProviderAuthCommandResolver(
 
 // ProbeEnv supplies process, env, and vault access to provider auth probes.
 type ProbeEnv struct {
+	BypassCache    bool
 	ProviderName   string
 	HomePaths      compozyconfig.HomePaths
 	PreStartScope  PreStartScope
@@ -108,11 +109,11 @@ func (e *ProbeEnv) Normalize() ProbeEnv {
 		}
 	}
 	normalized := *e
-	normalized.CommandEnv = append([]string(nil), e.CommandEnv...)
+	normalized.CommandEnv = slices.Clone(e.CommandEnv)
 	normalized.authStatusCommandResolution = e.authStatusCommandResolution.clone()
 	normalized.launchExecutableResolution = cloneExecutableResolution(e.launchExecutableResolution)
 	if normalized.LookPath == nil {
-		environment := append([]string(nil), normalized.CommandEnv...)
+		environment := slices.Clone(normalized.CommandEnv)
 		dir := normalized.CommandDir
 		resolver := normalized.ResolveCommand
 		if resolver == nil {
@@ -137,7 +138,7 @@ func (e *ProbeEnv) WithLaunchExecutableResolution(
 	resolution subprocess.ExecutableResolution,
 ) ProbeEnv {
 	next := *e
-	next.CommandEnv = append([]string(nil), e.CommandEnv...)
+	next.CommandEnv = slices.Clone(e.CommandEnv)
 	next.launchExecutableResolution = cloneExecutableResolution(&resolution)
 	return next
 }
@@ -192,7 +193,7 @@ func PrepareAuthStatusCommand(
 	prepared, err := resolveProviderAuthCommandSpec(ProviderAuthCommandSpec{
 		Command: command,
 		Dir:     env.CommandDir,
-		Env:     append([]string(nil), env.CommandEnv...),
+		Env:     slices.Clone(env.CommandEnv),
 		Timeout: DefaultProviderAuthCommandTimeout,
 		NoTTY:   true,
 	}, resolveExecutable)
@@ -210,7 +211,7 @@ func newAuthStatusCommandResolution(
 	resolution := &authStatusCommandResolution{
 		command: command,
 		dir:     env.CommandDir,
-		env:     append([]string(nil), env.CommandEnv...),
+		env:     slices.Clone(env.CommandEnv),
 	}
 	if cause == nil {
 		resolution.state = authStatusCommandResolutionResolved
@@ -238,7 +239,7 @@ func (r *authStatusCommandResolution) consume(
 			"providers: auth status command resolution does not match provider config",
 		)
 	}
-	if r.dir != env.CommandDir || !slices.Equal(r.env, env.CommandEnv) {
+	if r.dir != env.CommandDir || (r.env == nil) != (env.CommandEnv == nil) || !slices.Equal(r.env, env.CommandEnv) {
 		return ProviderAuthCommandSpec{}, errors.New(
 			"providers: auth status command resolution does not match final provider runtime",
 		)
@@ -265,7 +266,7 @@ func (r *authStatusCommandResolution) clone() *authStatusCommandResolution {
 		return nil
 	}
 	clone := *r
-	clone.env = append([]string(nil), r.env...)
+	clone.env = slices.Clone(r.env)
 	clone.spec = cloneProviderAuthCommandSpec(r.spec)
 	return &clone
 }
@@ -273,7 +274,7 @@ func (r *authStatusCommandResolution) clone() *authStatusCommandResolution {
 func cloneProviderAuthCommandSpec(spec ProviderAuthCommandSpec) ProviderAuthCommandSpec {
 	clone := spec
 	clone.Args = append([]string(nil), spec.Args...)
-	clone.Env = append([]string(nil), spec.Env...)
+	clone.Env = slices.Clone(spec.Env)
 	return clone
 }
 

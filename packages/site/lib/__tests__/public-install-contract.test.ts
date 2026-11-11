@@ -36,7 +36,7 @@ const renderScriptPath = resolve(repoRoot, "scripts/render-install-script.sh");
 const installPagePath = resolve(siteRoot, "content/docs/getting-started/installation.mdx");
 const migrationPagePath = resolve(siteRoot, "content/docs/migration/index.mdx");
 const launchPostPath = resolve(siteRoot, "content/blog/posts/introducing-compozyos.mdx");
-const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
+const landingContentPath = resolve(siteRoot, "components/landing/content.ts");
 const readmePath = resolve(repoRoot, "README.md");
 const rootMigrationGuidePath = resolve(repoRoot, "MIGRATION_GUIDE.md");
 const homebrewNoticePath = resolve(repoRoot, "docs/release/homebrew-beta-notice.md");
@@ -567,6 +567,7 @@ describe("public install contract", () => {
     }
   });
 
+  // eslint-disable-next-line compozy-testing/deterministic-tests -- Real installer and cosign fixture subprocesses retain their existing bounded 20s lifecycle deadline under CI load.
   it.each([
     { label: "compatible v3", version: "v3.1.3", versionStatus: 0, bootstraps: false },
     { label: "incompatible v2", version: "v2.6.2", versionStatus: 0, bootstraps: true },
@@ -669,7 +670,7 @@ exit 23
       rootMigrationGuidePath,
       installPagePath,
       migrationPagePath,
-      landingInstallPath,
+      landingContentPath,
       homebrewNoticePath,
       releaseHeaderPath,
       releaseFooterPath,
@@ -685,10 +686,10 @@ exit 23
     const installPage = readSiteFile(installPagePath);
     const launchPost = readSiteFile(launchPostPath);
     const readme = readSiteFile(readmePath);
-    const landing = readSiteFile(landingInstallPath);
+    const landing = readSiteFile(landingContentPath);
 
     for (const command of [VERIFIED_INSTALLER_COMMAND, NPM_INSTALL_COMMAND]) {
-      const missingPrimaryCommand = [readmePath, landingInstallPath, installPagePath]
+      const missingPrimaryCommand = [readmePath, installPagePath]
         .filter(path => !readSiteFile(path).includes(command))
         .map(path => relative(repoRoot, path));
       expect(missingPrimaryCommand, command).toEqual([]);
@@ -721,6 +722,9 @@ exit 23
     expect(readme).toContain("go install github.com/compozy/compozy@");
     expect(readme).toContain(latestReleaseUrl);
     expect(readme).toContain(firstSessionCommand);
+    // The landing renders the shared install constants instead of copying them.
+    expect(landing).toContain('from "@/lib/release/install-commands"');
+    expect(landing).toContain('command: "compozy install"');
     expect(landing).toContain(firstSessionCommand);
     for (const guidePath of [rootMigrationGuidePath, migrationPagePath]) {
       expect(readSiteFile(guidePath)).toContain(latestReleaseUrl);

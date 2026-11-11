@@ -88,6 +88,9 @@ func bootClarifyBroker(
 	if state.clarify == nil {
 		t.Fatal("bootClarifyBridge() broker = nil, want a wired bridge")
 	}
+	if sessions.clarifyBroker != toolspkg.ClarifyBroker(state.clarify) {
+		t.Fatal("bootClarifyBridge() did not install the broker on the session manager")
+	}
 	t.Cleanup(func() {
 		if err := state.clarify.Close(testutil.Context(t)); err != nil {
 			t.Errorf("Close(booted broker) error = %v", err)

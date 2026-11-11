@@ -9,6 +9,7 @@ import type { SessionListTarget } from "../../types";
 import { sortSubagentsByUrgency } from "../subagents/subagent-format";
 import type { SubagentView } from "../subagents/types";
 import { BRANCH_NODE } from "./session-list-branch-rail";
+import { SessionListBranchMore } from "./session-list-branch-more";
 import { SessionSubagentRowsSkeleton } from "./session-list-skeleton";
 import { SessionListSubagentRow } from "./session-list-subagent-row";
 
@@ -88,20 +89,14 @@ export function SessionListSubagentBranch({
             Try again
           </Button>
         </div>
-      ) : branch.remaining > 0 && !branch.loading ? (
-        <div className={cn(BRANCH_NODE, "px-0.5 py-0.5")}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            disabled={branch.loadingMore}
-            onClick={branch.showMore}
-            data-testid={`${testIdPrefix}-subagents-more-${sessionId}`}
-          >
-            Show {Math.min(SUBAGENT_BRANCH_PAGE_SIZE, branch.remaining)} more
-          </Button>
-        </div>
-      ) : null}
+      ) : branch.loading ? null : (
+        <SessionListBranchMore
+          count={Math.min(SUBAGENT_BRANCH_PAGE_SIZE, branch.remaining)}
+          onShowMore={branch.showMore}
+          disabled={branch.loadingMore}
+          testId={`${testIdPrefix}-subagents-more-${sessionId}`}
+        />
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import (
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -702,6 +703,257 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 	}
 
+	t.Run("Should rebuild a stale authenticated process on the next prompt after exhaustion", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{0}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		var credentialsValid atomic.Bool
+		var stale *fakeProcess
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if !credentialsValid.Load() || proc == stale {
+				stale = proc
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		if got := BadgeForInfo(session.Info()); got != BadgeWaitingForAuth {
+			t.Errorf("badge = %s, want waiting-for-auth", got)
+		}
+		credentialsValid.Store(true)
+		stream, err = h.manager.Prompt(t.Context(), session.ID, "retry after signing in")
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivered := collectEvents(t, stream)
+		if countAgentEvents(delivered, acp.EventTypeError) != 0 || countAgentEvents(delivered, acp.EventTypeDone) != 1 {
+			t.Fatalf("events = %#v, want a completed turn on a fresh provider", delivered)
+		}
+		if got := BadgeForInfo(session.Info()); got == BadgeWaitingForAuth {
+			t.Fatal("successful retry retained auth attention")
+		}
+	})
+
+	t.Run("Should recover only auth failed sessions on the verified profile provider and account", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = nil
+		target := createSession(t, h)
+		healthy := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID); reportSessionStop(t, h, healthy.ID) })
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			stream <- authLostEvent(proc, req.TurnID)
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "needs sign in")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		before := target.runtimeBindingSnapshot()
+		info := target.Info()
+		for _, wrong := range []struct{ profile, provider, command string }{
+			{"another-profile", info.Provider, target.providerRoutingSnapshot().Command},
+			{info.ProfileID, "another-provider", target.providerRoutingSnapshot().Command},
+			{info.ProfileID, info.Provider, "another-account-cli"},
+		} {
+			cfg := providerConfigFromResolvedAgent(target.providerRoutingSnapshot())
+			cfg.Command = wrong.command
+			if err := h.manager.RecoverProviderAuthentication(
+				t.Context(),
+				wrong.profile,
+				wrong.provider,
+				authproviders.AuthenticationRouteFingerprint(info.Provider, cfg),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if target.processHandle() != before.process {
+				t.Fatal("unrelated authentication proof replaced the runtime")
+			}
+		}
+		// A provider-level proof cannot authorize a workspace's different launch isolation.
+		route := target.providerRoutingSnapshot()
+		isolatedHome, isolatedEnv := route, route
+		isolatedHome.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
+		isolatedEnv.EnvPolicy = compozyconfig.ProviderEnvPolicyIsolated
+		for _, isolated := range []compozyconfig.ResolvedAgent{isolatedHome, isolatedEnv} {
+			target.setProviderRouting(isolated)
+			if err := h.manager.RecoverProviderAuthentication(
+				t.Context(),
+				info.ProfileID,
+				info.Provider,
+				authproviders.AuthenticationRouteFingerprint(
+					info.Provider,
+					providerConfigFromResolvedAgent(route),
+				),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if target.processHandle() != before.process {
+				t.Fatal("authentication proof crossed the session isolation policy")
+			}
+		}
+		target.setProviderRouting(route)
+		// Model a provider that needs six seconds of its normal startup budget, without sleeping.
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 6*time.Second {
+				return nil, context.DeadlineExceeded
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "normal-startup-budget"), nil
+		}
+		verifiedConfig := providerConfigFromResolvedAgent(route)
+		verifiedConfig.RuntimeProvider = "" // configured native defaults become explicit in the launch route.
+		healthyProcess := healthy.processHandle()
+		if !h.manager.ProviderAuthenticationReady(
+			info.ProfileID,
+			info.Provider,
+			authproviders.AuthenticationRouteFingerprint(info.Provider, verifiedConfig),
+		) {
+			t.Fatal("recovery admission refused")
+		}
+		waitForCondition(t, "verified auth recovery", func() bool {
+			return target.processHandle() != nil && target.Info().RuntimeGeneration > before.generation &&
+				target.Info().Failure == nil
+		})
+		if target.processHandle() == before.process || BadgeForInfo(target.Info()) == BadgeWaitingForAuth {
+			t.Fatal("valid authentication proof did not rebuild the failed session")
+		}
+		if healthy.processHandle() != healthyProcess {
+			t.Fatal("authentication recovery replaced a healthy session")
+		}
+	})
+
+	t.Run("Should wake an active sign in wait when credentials are verified", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{time.Hour}
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) == 1 {
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "resume when signed in")
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "auth recovery", func() bool { return target.Info().RuntimeRecovery != nil })
+		info := target.Info()
+		if got := BadgeForInfo(info); got != BadgeWaitingForAuth {
+			t.Fatalf("badge = %s, want waiting-for-auth", got)
+		}
+		if !h.manager.ProviderAuthenticationReady(
+			info.ProfileID,
+			info.Provider,
+			authproviders.AuthenticationRouteFingerprint(
+				info.Provider, providerConfigFromResolvedAgent(target.providerRoutingSnapshot()),
+			),
+		) {
+			t.Fatal("recovery admission refused")
+		}
+		delivered := collectEvents(t, stream)
+		if countAgentEvents(delivered, acp.EventTypeDone) != 1 || countAgentEvents(delivered, acp.EventTypeError) != 0 {
+			t.Fatalf("events = %#v, want immediate recovery on verified sign-in", delivered)
+		}
+	})
+
+	t.Run("Should dispatch a prompt queued during a background authentication reload", func(t *testing.T) {
+		t.Parallel()
+		db := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(db))
+		h.manager.authRecoveryDelays = nil
+		registerManagerInputQueueWorkspace(t, db, h)
+		target := createSession(t, h)
+		registerManagerInputQueueSession(t, db, h, target)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		var calls atomic.Int64
+		dispatched := make(chan struct{}, 1)
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) == 1 {
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				dispatched <- struct{}{}
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "needs login")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		entered, release := make(chan struct{}), make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(entered)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "reauth-queued"), nil
+		}
+		info := target.Info()
+		if !h.manager.ProviderAuthenticationReady(
+			info.ProfileID,
+			info.Provider,
+			authproviders.AuthenticationRouteFingerprint(
+				info.Provider, providerConfigFromResolvedAgent(target.providerRoutingSnapshot()),
+			),
+		) {
+			t.Fatal("recovery admission refused")
+		}
+		select {
+		case <-entered:
+		case <-t.Context().Done():
+			t.Fatal("reload did not start")
+		}
+		result, err := h.manager.SendPrompt(
+			t.Context(),
+			target.ID,
+			SendPromptOpts{
+				Message:        "continue after login",
+				Mode:           BusyInputModeQueue,
+				MessageID:      "queued-auth",
+				IdempotencyKey: "queued-auth",
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.QueueEntryID == "" {
+			t.Fatalf("result = %#v, want queued input", result)
+		}
+		releaseOnce()
+		select {
+		case <-dispatched:
+		case <-time.After(3 * time.Second):
+			t.Fatal("queued prompt was not dispatched after authentication reload")
+		}
+	})
+
 	for _, action := range []acp.ProviderFailureAction{acp.ProviderFailureActionBindSecret, acp.ProviderFailureActionInspect} {
 		t.Run("Should show actionable provider guidance for "+string(action), func(t *testing.T) {
 			t.Parallel()
@@ -1040,8 +1292,8 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		last := delivered[len(delivered)-1]
 		if last.Type != acp.EventTypeError || last.ProviderError == nil ||
 			last.ProviderError.Code != acp.ProviderErrorAuthRequired ||
-			last.ProviderError.NextAction != acp.ProviderFailureActionHandoff {
-			t.Fatalf("terminal event = %#v, want the provider sign-in failure with handoff guidance", last)
+			last.ProviderError.NextAction != acp.ProviderFailureActionLogin {
+			t.Fatalf("terminal event = %#v, want the provider sign-in failure with login guidance", last)
 		}
 		info := session.Info()
 		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {

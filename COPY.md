@@ -37,37 +37,45 @@ Runtime truth beats copy preference. Generated API/CLI references beat paraphras
 
 ### Canonical One-Liner
 
-CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain.
+CompozyOS is the autonomous control plane for your agents: it keeps every agent session visible and steerable and lets always-on agents check in on their own, without anyone watching each terminal.
 
 ### Short Pitch
 
-Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, Codex, and Cursor) and ships the operating layer around them already built: durable sessions, Loops, triggers, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools.
+The bottleneck stopped being the model. It became managing the sessions. Someone running Claude Code, Codex, and Cursor in parallel ends up with five terminals, a prompt typed into the wrong one, and no clear view of which agent is waiting on them. CompozyOS gives those agents one control plane: sessions side by side, always-on agents that check in on their own, handoffs between sessions, and approvals in the desktop app, with the same state available through CLI, HTTP/SSE, UDS, and tools. Loops, triggers, permissions, and automation come built in, so there is no stack to assemble around it.
 
 ### Product Category
 
-Use `operating system for AI agents` (or `agent operating system`) as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The category is a supporting label, never the headline claim: the promise is the system around the agent delivered already built, and the category explains what kind of product delivers it. The OS claim rests on the assembled, integrated system, not on a desktop metaphor or a feature count.
+Use `operating system for AI agents` (or `agent operating system`) as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The category is a supporting label, never the headline claim: the promise is the control plane (every agent session visible and steerable), and the category explains what kind of product delivers it. The OS claim rests on the assembled, integrated system, not on a desktop metaphor or a feature count.
 
 ### Hero Lock
 
-> **The system around the agent, already built.**
+> **The autonomous control plane for your agents.**
 >
-> One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.
+> See and steer every Claude Code, Codex, and Cursor session. Always-on agents check in on their own, and you step in only when one needs you.
 
-Use the headline and subhead together, verbatim, on the landing hero, with `An operating system for AI agents` as a small category label near them. The retired hero ("The only true OS for AI agents" and its OS-test definition) must not reappear on any evergreen surface: it led with architecture and category purity, which are mechanisms, never the promise. Dated launch posts that already shipped it stay as history.
+Use the headline and subhead together, verbatim, on the landing hero, with `An operating system for AI agents` as a small category label near them. The product UI is the hero image. A terminal appears only as the "before" picture or on docs surfaces.
+
+Two retired heroes must not reappear on any evergreen surface:
+
+- "The system around the agent, already built." It sold the absence of assembly work, while the problem people feel is keeping track of many sessions at once. "Already built" stays available in prose as proof that nothing needs assembling; it is never the headline.
+- "The only true OS for AI agents" and its OS-test definition. It led with architecture and category purity, which are mechanisms, never the promise.
+
+Dated launch posts that already shipped either line stay as history.
 
 ### Primary Promise
 
-People get advanced, continuous agent work (loops, scheduled automation, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
+People see and steer every agent session they run, and get advanced, continuous agent work (loops, scheduled automation, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
 
 ### Differentiator Ladder
 
-Lead with compression, then prove it through the connected parts:
+Lead with the control plane, then prove it through the connected parts:
 
-1. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
-2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, Codex, and Cursor) plug in as drivers. CompozyOS is not another boxed agent competing with them.
-3. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
-4. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
-5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
+1. **A control plane for every session:** sessions from different agent CLIs, always-on agents, handoffs, and approvals share the product UI, so the person knows which agent needs them without checking each terminal.
+2. **Already built:** loops, triggers, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
+3. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, Codex, and Cursor) plug in as drivers. CompozyOS is not another boxed agent competing with them.
+4. **One runtime, one state model:** execution, tasks, loops, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
+5. **Built to be built on:** extensions, hooks, skills, capabilities, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
+6. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
 
 ### What CompozyOS Is Not
 
@@ -83,9 +91,9 @@ Use the glossary as the authority. In public copy, keep these boundaries clear:
 
 ### Primary Narrative
 
-The system around the agent, already built.
+The autonomous control plane for your agents.
 
-Anyone can prompt an agent; making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
+The bottleneck stopped being the model. It became managing the sessions. CompozyOS keeps every agent session visible, lets always-on agents check in without being asked, and calls the person only when a decision is theirs. Underneath that view, making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
 
 The enemy in public copy is the DIY agent stack (agent CLI + loops + triggers + cron and webhooks + permissions + approvals + observability + glue scripts), never a named rival. Architecture ("one runtime, one state model") explains why the system holds; it never leads.
 
@@ -110,7 +118,7 @@ Every major copy surface should draw from one or more proof pillars.
 
 ### Feature Priority by Surface
 
-- **Homepage:** the compression promise first (advanced agent work, no stack to assemble), built-in capability proof second (create, automate, supervise), agent neutrality and extensibility third. Architecture appears only as a why-it-holds caption.
+- **Homepage:** the control plane promise first (every agent session visible and steerable, shown through the product UI), built-in capability proof second (create, automate, supervise, nothing to assemble), agent neutrality and extensibility third. Architecture appears only as a why-it-holds caption.
 - **Runtime docs:** the reader's problem first, architecture second.
 - **Web UI:** truthful state and the person's next action first, marketing language last.
 - **CLI help:** exact verb behavior first, product narrative only when it clarifies intent.
@@ -277,7 +285,7 @@ A subagent is a child agent session that another session's turn delegates one ta
 - Child divider: "Subagent of {parent title}" with the action "Open parent"; "Subagent of a deleted session" when the parent is gone.
 - Waiting banner: "Waiting on subagent {title}" or "Waiting on {N} subagents", "and {N} more", the action "Stop" ("Stopping…" while pending), and the toast "Could not stop subagents."
 - Tool rows: Check / Checking / Checked "subagent capabilities"; Delegate / Delegating / Delegated "a subagent"; Read / Reading / Read "subagent status"; Cancel / Canceling / Canceled "a subagent"; repeats add "… {N} times"; a failed call reads "Tried to check subagent capabilities".
-- Session list branch: the subagent indicator's aria reads "{live} of {total} subagents running", "{total} subagents, {failed} failed", or "{total} subagents" once all settled; the child-session indicator reads "{N} child sessions" ("Toggle {N} child sessions" when it is the row's only toggle); with both kinds the group is "Child sessions and subagents" and the chevron "Toggle child sessions and subagents". An open subagent list rows read "Open {title}", end with "Show {N} more", and a failed read says "Couldn't load subagents." with "Try again".
+- Session list branch: the subagent indicator's aria reads "{live} of {total} subagents running", "{total} subagents, {failed} failed", or "{total} subagents" once all settled; the child-session indicator reads "{N} child sessions" ("Toggle {N} child sessions" when it is the row's only toggle); with both kinds the group is "Child sessions and subagents" and the chevron "Toggle child sessions and subagents". An open subagent list rows read "Open {title}", end with "Show {N} more", and a failed read says "Couldn't load subagents." with "Try again". An open child-session list shows six children (open, selected, and needs-you children past six stay shown), then the same "Show {N} more", and "Show less" once it shows more than that.
 - Inspector: section "Subagents", "Subagents · {N} running", "Previous subagents ({N})", "Show {N} more", the action "Stop subagent", and the toast "Could not stop subagent".
 - Composer control: aria "Subagents, none yet", "Subagents, none running", "Subagents, couldn't load" (a failed read with nothing running), or "Subagents, {N} running" (plus ", {n} needs you"); the popover reuses the inspector's title and rows, and with no subagents reads "Nothing delegated yet." with "When the agent hands work to a subagent, it shows up here."; a failed read says "Couldn't load subagents." with "Try again".
 - Isolated subagents (own worktree): the card and inspector row show the branch, middle-truncated, and a PR link "#{n}" with aria "Pull request #{n}, {open|draft|merged|closed}". Hover labels: Worktree · Branch · Base · Commits · PR · Observed. Values: "{n} ahead", "clean" or "{n} changed", "#{n} {state}", "No pull request" when the forge answered there is none, "PR status unknown" when CompozyOS could not check (never "No PR"), and "{relative} ago". Facts not yet observed are absent, never zero.
@@ -338,7 +346,7 @@ A session's profile never changes; **Move to profile** copies it into another pr
 
 **Mark as seen** clears one occurrence of Needs you the operator has looked at: a turn that ended early, a return from Later, or a stopped session's failure. It never mutes the session; the next occurrence raises Needs you again. Never "dismiss", "snooze", "ignore", or "acknowledge" in UI copy.
 
-- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). It shows only while the daemon reports `attention_dismissible`; a pending answer, sign-in, or stop keeps its own control and never gets this verb.
+- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). Single-session controls show only while the daemon reports `attention_dismissible`; selection menus show it with an eligible-session count and disable it at zero. A pending answer, sign-in, or stop keeps its own control and never gets this verb.
 - Toast fallback: "Couldn't mark the session as seen."; a newer occurrence reads "session: attention changed before it was marked as seen: {id}"; daemon refusals read "session {id} needs you to answer its permission request / answer its question / sign in to its provider / stop its agent process / resolve the work signal it cannot check before it can be marked as seen".
 
 ### Model List Issue Terms
@@ -429,6 +437,19 @@ Use those words only when discussing external systems or historical migration co
 - Agent kind: "Always-on" (`always_on`) and "On-demand" (`on_demand`), hyphenated as labels and before nouns ("an always-on agent"), in sentence case. The v0.5.0 word "Stays on" (`stays_on`) is retired; the input alias is removed in the release after v0.5.2. The glossary entry **Always-on agent / On-demand agent** is authoritative.
 - The skill-source "always on" flag (Settings → Skill sources) is a different concept, "always loaded", and keeps its wording. No agent copy reuses it.
 
+### Check-in Tools and Picks Terms
+
+- MCP authority overrides: "Treated as read-only"; "These tools can run in check-ins without being listed under What it can change." List each server and raw tool name in the approval notice and save confirmation. With overrides and no listed writes: "No tools listed; read-only overrides apply below". Never say "Nothing, reads only" when overrides exist.
+
+Terms: **check-in action**, **auto-accept**, **pick**, **check-in authority** (glossary). The UI calls one check-in "a heartbeat"; reports and notifications may say "check-in".
+
+- Notifications: activity report "Your agent made 1 change" / "Your agent made {N} changes" (only uncertain writes: "Your agent may have changed something"); a report whose every proposal was auto-accepted "Your agent acted on a check-in"; unapproved authority "Check-in changes need your approval", once per digest.
+- Report: tool line "Check-in used {N} tools · {M} changes · {K} blocked", hidden at zero tools; activity report "The check-in made {N} change(s)"; effect `maybe` reads "May have changed". In the While you were away card an activity report is worth knowing: "A check-in made {N} change(s)" (only uncertain writes: "A check-in may have changed something"), described "It used the tools you approved for check-ins." or "{N} call(s) may have changed something."
+- Proposals: chip "Auto-accepted" with the action title and no Pick button; waiting reasons "Daily auto-accept limit reached", "The agent is busy; pick it when ready", "Waiting for your approval of check-in changes", "The agent was paused" (`inactive`), "The agent has no main session" (`no_main`), each with Pick.
+- Blocked reasons: "Not allowed in check-ins" (`check_in_write_not_allowed`), "Would need your approval" (`check_in_write_needs_approval`), "Not available in check-ins" (`check_in_tool_not_writable`), "Tool limit reached" (`check_in_tool_budget_exhausted`), "Blocked" for other codes.
+- Editor: section "What it can change" (empty: "Nothing, reads only"; helper "Check-ins run unattended. Only these tools can change things, and only if the agent could run them without asking."); section "Actions" with the toggle "Do it without asking me" (helper "Runs in the agent's main session with its own permissions.").
+- Never "auto-approve" for auto-accept, and never "read-only check-in" for a check-in that has tools.
+
 ### OS Shell Terms
 
 The web UI presents as a desktop environment. These terms are runtime-true — each names a real surface or projection, never an aspirational one. A `workspace` remains the project/runtime scope; each workspace owns one or more persistent visual `desktops`.
@@ -445,6 +466,17 @@ The web UI presents as a desktop environment. These terms are runtime-true — e
 - `fonts`: Settings › Appearance › **Fonts** has two rows, **Interface** (help: "Menus, lists, and conversations.") and **Code** (help: "Code blocks, diffs, paths, and the terminal."), under the line "Fonts apply to every app connected to this CompozyOS." Each picker lists **Default · Inter** / **Default · Geist Mono**, the catalog (**JetBrains Mono**, **System**), and an **Installed** group where the device allows it; search reads "Search fonts…" and the reset link reads **Use default**. Name fonts by their family, never "typeface" or "font family".
 - Empty desktop: the question "What should we work on?" above the session composer (placeholder "Describe a task or ask a question"; outside a project "Pick a project to start a session" with **Pick a project**), plus the quiet line "Press ⌘K to open anything." Sending starts a session on that desktop. No card, never a modal and never a blocking wall.
 - Window arrangements (Window › Arrange): **Main and stack**, **Columns**, **Grid**, **Balance sizes**; **Move window to** sends the focused window to another desktop by name. Use "desktop", never "space" or "workspace", for these destinations.
+
+### Marketplace Terms
+
+Browse is grouped by **category**, never by source. Category labels are owned by the daemon label table in `internal/marketplace/category.go`; this list reviews them. The web renders the labels the daemon returns and never hardcodes them. Change a label here and in that table together.
+
+- Categories, in display order: **Productivity**, **Communication**, **Design**, **Development**, **Data & Analytics**, **Cloud & Infrastructure**, **Finance & Payments**, **Sales & Marketing**, **Research & Learning**, **Security**, **AI & Agents**, **More**. **Featured** precedes them only when a CompozyOS-curated source features entries. Never color a category; tone lives only in the row action.
+- Section and page: the section heading is the category label; its link reads **View all · N** (accessible name "View all {Category}"), where N is the daemon's full count. The category page title is the label; its search reads "Search {Category}" (placeholder "Search {Category}…"); the end of a page reads **Load more**. An empty scoped search reads `No results for "{q}" in {Category}`; an empty category reads "Nothing in {Category} yet". An unknown id reads "This category doesn't exist" with **Back to Marketplace**.
+- Entry detail attribution: "From {source}", using the source's display name.
+- Row action (one per row, accessible name includes the entry name, e.g. "Add Notion"): **Add** → **Adding…** while it runs, then the toast "{name} added". After adding, the row reads **Set up** (a required value is missing or a server waits for sign-in), **Ready** (quiet check, no button), or **Turn on** (installed but off). When an installed server reports a failure, the row reads **Unavailable** with the daemon's reason as its description. When turning on fails after install, the row reads **Couldn't turn on** with **Retry** (accessible name "Retry turning on {name}") and the toast reads "Added {name} but couldn't turn it on". Use "Add" and "turn on", never "Install and enable" or "Activate", in this flow; the install review dialog's primary button also reads **Add**.
+- Live region (polite, one announcement per transition): "Adding {name}…" while Add runs; "{name} added · Ready", or "{name} added · Set up to finish" when a server waits for sign-in; "Added {name} but couldn't turn it on: {cause}" when the enable fails after install; "{name} turned on" after a Retry or Turn on succeeds. A failed Retry announces the daemon's message, which also becomes the Retry button's description ("Added but couldn't turn on: {cause}").
+- Catalog failure (nothing to show, with **Retry**): when the daemon reports its sources unreachable, "The marketplace is unreachable" / "No sources responded. Retry, or come back in a moment."; when the read itself fails (a daemon error), "Couldn't load the marketplace" / "Something went wrong while loading the catalog. Retry, or come back in a moment." Never call a daemon error unreachable.
 
 ### Burned-Out Marketing Phrases
 
@@ -662,7 +694,7 @@ CompozyOS is <the promise as a noun phrase>: <what it keeps doing for the person
 Approved:
 
 ```text
-CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain.
+CompozyOS is the autonomous control plane for your agents: it keeps every agent session visible and steerable and lets always-on agents check in on their own, without anyone watching each terminal.
 ```
 
 ### Hero
@@ -872,7 +904,7 @@ Before shipping copy or product-facing text, verify:
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, Codex, and Cursor) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
-- The promise leads: the system around the agent, already built. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.
+- The promise leads: the autonomous control plane for your agents. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.
 - No `wedge`, no `full-feature`, and no `simple`/`easy` claims without a metric behind them.
 - No centralization promise (`one workspace`, `all your agents in one place`).
 - Register and audience are checked separately: every end-user surface reads plainly today, and present-tense audience claims stay within developers and technical operators — people who don't write code stay future-framed.
@@ -920,3 +952,13 @@ The List toolbar and the Kanban header share one sliders button named "View opti
 "Hide child sessions" (Kanban only, because the List has no such filter), and one
 action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
 shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."
+
+### Batch session actions
+
+Selection menus use the same action vocabulary as single-session menus. **Mark as seen** and
+**Make top-level** include eligible-session counts and remain disabled when no selected session
+qualifies. Mark as seen acts only on `attention_dismissible` sessions; answers, sign-ins and work
+signals still require their own action. **Copy titles** copies display titles in selection order,
+one per line, and confirms with **Titles copied**. Rename, Fork and Continue with another agent
+remain single-session actions. Batch failures name the affected sessions and retain the daemon's
+error; ineligible selections are explained by reason.

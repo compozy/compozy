@@ -117,6 +117,30 @@ export function minutesAgo(session: SessionPayload, minutes: number): SessionPay
   return { ...session, updated_at: new Date(Date.now() - minutes * 60_000).toISOString() };
 }
 
+/**
+ * Who started each session (#1388): an automation run and an always-on main name their origin,
+ * while an operator's untitled session reads "New session" even when its name is the agent's.
+ */
+export const ORIGIN_SESSIONS: SessionPayload[] = [
+  minutesAgo(
+    {
+      ...sidebarSession("sess-triage-run", "issue-triage", "issue-triage", "failed"),
+      type: "system",
+    },
+    3
+  ),
+  minutesAgo(
+    {
+      ...sidebarSession("sess-log-triage", "", "log-triage", "done"),
+      name: undefined,
+      instance_id: "ainst-log-triage",
+    },
+    18
+  ),
+  minutesAgo(sidebarSession("sess-operator-untitled", "webgen", "webgen", "running"), 42),
+  minutesAgo(sidebarSession("sess-operator-titled", "Ship checkout v2", "webgen", "done"), 125),
+];
+
 export const SUBAGENT_PARENTS: SessionPayload[] = [
   minutesAgo(
     withSubagents(

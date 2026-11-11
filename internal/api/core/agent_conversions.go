@@ -43,22 +43,7 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 			Path:  shadow.Path,
 		})
 	}
-	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
-	for _, server := range agent.MCPServers {
-		redacted := compozyconfig.RedactedMCPServer(server)
-		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:          redacted.Name,
-			Reference:     redacted.Reference,
-			SecretHeaders: redacted.SecretHeaders,
-			Transport:     string(redacted.Transport),
-			Command:       redacted.Command,
-			Args:          append([]string(nil), redacted.Args...),
-			Env:           redacted.Env,
-			SecretEnv:     redacted.SecretEnv,
-			URL:           redacted.URL,
-			Auth:          agentMCPAuthPayload(redacted.Auth),
-		})
-	}
+	mcpServers := agentMCPServersToPayload(agent.MCPServers)
 	digest, digestErr := compozyconfig.AgentDefinitionDigest(agent)
 	diagnostics := make([]contract.AgentDiagnosticPayload, 0, 1)
 	if digestErr != nil {
@@ -91,6 +76,8 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 		Provider:           agent.Provider,
 		Command:            agent.Command,
 		SessionEnv:         SessionEnvToPayload(agent.SessionEnv),
+		AutoCompactWindow:  agent.AutoCompactWindow,
+		LeanEnvironment:    agent.LeanEnvironmentValue(),
 		Model:              agent.Model,
 		ReasoningEffort:    contract.ReasoningEffort(agent.ReasoningEffort),
 		Speed:              agent.SpeedValue(),
@@ -144,13 +131,18 @@ func AgentPayloadFromEntryWithConfig(
 	}
 	permissions, permissionsSource := effectivePermissions(entry.Def, &resolved)
 	payload.EffectiveRuntime = &contract.AgentEffectiveRuntimePayload{
-		SessionEnv:      SessionEnvToPayload(resolved.SessionEnv),
-		Provider:        resolved.Provider,
-		Model:           resolved.Model,
-		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
-		Speed:           resolved.SpeedValue(),
-		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptionsValue()),
-		Permissions:     permissions,
+		SessionEnv:        SessionEnvToPayload(resolved.SessionEnv),
+		AutoCompactWindow: resolved.AutoCompactWindowValue(),
+		LeanEnvironment:   resolved.LeanEnvironmentValue(),
+		Provider:          resolved.Provider,
+		Model:             resolved.Model,
+		ReasoningEffort:   contract.ReasoningEffort(resolved.ReasoningEffort),
+		Speed:             resolved.SpeedValue(),
+		ACPOptions:        agentACPOptionsToContract(resolved.ACPOptionsValue()),
+		Permissions:       permissions,
+		PolicyExcludedACPOptions: agentACPOptionsToContract(
+			policyExcludedACPOptions(entry.Def, &resolved),
+		),
 		Sources: contract.AgentEffectiveRuntimeSources{
 			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider.String()),
 			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model.String()),
@@ -160,6 +152,27 @@ func AgentPayloadFromEntryWithConfig(
 		},
 	}
 	return payload
+}
+
+// policyExcludedACPOptions names inherited options a new session start removes, so reads
+// report the daemon's permission restriction instead of each client re-deriving it. It uses
+// the resolved level because the always-on default applies only to an agent's main instance.
+func policyExcludedACPOptions(
+	agent compozyconfig.AgentDef,
+	resolved *compozyconfig.ResolvedAgent,
+) []compozyconfig.ACPOptionSelection {
+	if !compozyconfig.ExcludesInheritedUnrestrictedACPOptions(
+		resolved.Provider, compozyconfig.PermissionMode(resolved.Permissions), agent.ACPOptionsValue(), false,
+	) {
+		return nil
+	}
+	var excluded []compozyconfig.ACPOptionSelection
+	for _, option := range resolved.ACPOptionsValue() {
+		if compozyconfig.IsUnrestrictedACPOption(resolved.Provider, option.ID, option.ValueID) {
+			excluded = append(excluded, option)
+		}
+	}
+	return excluded
 }
 
 func agentACPOptionsToContract(

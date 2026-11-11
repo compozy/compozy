@@ -1,5 +1,316 @@
 # Compozy Change Impact
 
+## Native Tool Result Views — issue #1432 — 2026-11-10
+
+Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure and M1 integration. ADR-002 records the
+operator-approved hard cut for public default results (SD-013 regime 2). ADR-004
+approves removal of hosted native output schemas in the same breaking release.
+
+- **Native tools / CLI / HTTP / UDS:** 99 native tools adopt compact/full; 189 retain a
+  single result. Tool descriptors expose both contracts and digests. Invocation takes
+  `result_view` inside input; HTTP/UDS session DTOs and `compozy session` stay unchanged.
+- **Hooks / extensibility:** tool references add `has_result_views` and, when pinned,
+  `pinned_result_view`; `tool.post_call` adds `result_view`. Pre-call input patches can
+  select a view but cannot override Loop pins. Extension/MCP-backed tools keep their
+  own inputs. Per ADR-004 (S12), managed-session MCP advertises no native output schemas;
+  external MCP and extension output contracts remain unchanged;
+  input selectors, structured results, text, continuations and typed errors are unchanged.
+  Contracts remain discoverable through tool info and HTTP/UDS descriptors;
+  `compozy mcp serve` keeps its separate Host API projection.
+- **M1 bounded reads:** search keeps continuation metadata in compact/full, worktree
+  filtering and workspace registration/profile ownership apply before projection. History
+  tools stay single-result pages. Current-main pre-selector input digests translate to full;
+  pre-bounds pins retain the `action_contract_stale` behavior approved in
+  `docs/release/native-read-defaults.md`. No new superseded-digest exception is introduced.
+- **Config / automation:** no new key or default override. Job/Trigger/LoopTarget
+  definitions start sessions, Tasks or Loops; mappings consume event inputs, not native
+  result fields. No automation storage migration is needed.
+- **User state / workspace isolation:** no SQLite or config shape changes. Existing
+  scope authorization and artifact ownership apply to both views. Pre-view Loop pins
+  translate to full for one release; #1462 removes translation next release. Definitions
+  reading moved fields require a literal full selector before Start.
+- **Official skill / bundled consumers:** native-tools, tools-and-skills and loops
+  references explain selection and migration. Consumer audit evidence is in the S10 QA
+  report and PR inventory. Requested content tools remain whole.
+- **Web / Docs:** generic transcript rendering and required parser fields remain;
+  no new UI. Site tools, hooks, Loop grammar/DSL and migration pages co-ship. QA:
+  ET-native-result-views, ET-cli-tool-invoke-structural-handles, RT-session-spawn-wake.
+
+## Provider interactive tools through ACP elicitation — 2026-11-10
+
+Owner: small-work PR `feat/interactive-tools-support`. Regimes (SD-013): the touched
+packages (`internal/acp`, `internal/session`, `internal/daemon`) are internal code and change
+together; no user state, config key, CLI verb/flag, route, or DTO shape moves. The new
+`clientCapabilities.elicitation.form` is an ACP client capability sent to providers, not a
+Compozy public surface.
+
+- **Native tools.** Unaffected. `compozy__clarify` keeps its descriptor, toolset, digest, and
+  answer surface; provider elicitation reuses its broker.
+- **CLI/HTTP/UDS.** Unaffected. Questions reach the operator through the existing
+  `/clarifications` and `/pending-interactions` routes and `compozy session clarify` verbs.
+- **Extensibility and hooks.** Unaffected. No hook, manifest, extension SDK, skill, or MCP
+  sidecar change. Elicitation does not dispatch a permission hook, before or after.
+- **Config.** Unaffected. `permissions.mode` still governs `session/request_permission` only;
+  `tools.clarify.timeout` still owns the broker wait, while the ACP wait is the session's
+  operator wait (5 minutes by default).
+- **Persisted user state.** Unaffected shape. Provider questions become ordinary
+  `clarify` pending interactions that already exist; no migration.
+- **Workspace isolation.** Preserved. The asker scopes each question with the session's
+  workspace, profile, session id, and agent name, so the existing ownership checks apply.
+- **Official skill.** `skills/compozy/` needs no edit: it documents the clarification channel
+  the provider path now reuses.
+- **Web / Docs.** No Web change; the existing clarification dock renders provider questions.
+  New research note `docs/research/interactive-tools.md`.
+- **QA.** `docs/qa/scenarios/RT-session-clarification-roundtrip.md` records the provider
+  elicitation path; the live cross-provider walk stays outstanding, automated coverage is
+  cited there.
+
+## compozy.com redesign on the v1.2 brand — landing, download, marketplace, changelog, blog, docs shell and SDK Reference — 2026-11-10
+
+
+Owner: spec `.compozy/tasks/site-redesign/` (integration branch `feat/brand-identity-v1-2`, slices
+S1–S10). Site-only change in `packages/site`: no Go, wire, config or SQLite change. Regimes
+(SD-013): the site's components, styles, tokens and `DESIGN.md` are internal code (replaced
+together, deleted without aliases); public site routes keep their paths, and `/docs/sdk/**` is
+additive.
+
+- **Native tools.** Unaffected. No `compozy__*` tool, descriptor, catalog or digest changes.
+- **CLI/HTTP/UDS.** Unaffected. No verb, flag, route or DTO changes. The CLI and API reference
+  pages are still generated from the Cobra sources and `openapi/compozy.json`; only their page
+  template changed.
+- **Extensibility and hooks.** Unaffected. No hook, manifest, extension SDK, skill or MCP
+  surface changes. The public marketplace reads the checked-in plugin snapshot
+  (`packages/site/lib/marketplace-plugins.snapshot.json`, refreshed by hand with
+  `bun run generate:marketplace-plugins` from the preset marketplaces in
+  `catalog/v3/marketplaces.json`) plus the v3 extension feed; builds stay offline.
+- **Config.** Unaffected. No `config.toml` key changes.
+- **Persisted user state.** Unaffected. The SDK language choice is a compozy.com visitor
+  preference kept in the browser; nothing is written for the daemon or the desktop app.
+- **Workspace isolation.** Not applicable. Static site pages; no data path, scope or
+  authorization change.
+- **Official skill.** `skills/compozy/` is not affected: the docs URLs it links keep their paths.
+- **Web / Docs.**
+  - New pages from the approved drafts in `web/src/drafts/`: landing on live star, release and
+    provider counts; `/download` on the latest release; `/marketplace` browse and detail;
+    `/changelog` timeline and release pages (feeds unchanged); `/blog` front page and posts with
+    new covers; shared floating header, one-line footer, 404 and OG images (the home image's
+    footer rail now reads "KEEP EVERY AGENT RUNNING").
+  - New docs shell replaces the Fumadocs notebook chrome: section tabs, per-section sidebar,
+    masthead and page actions, "On this page", pager, ⌘K search palette and mobile drawer.
+    Fumadocs still loads the source, MDX, search index, OpenAPI and `llms` output.
+  - New `/docs/sdk` section generated by `generate:sdk` from `openapi/compozy.json`,
+    `openapi/sdk-samples.json` and the client sources, with a TypeScript/Go switch; it is in
+    the sidebar, search, `llms.txt` and per-page Markdown.
+  - Old-design components, images, CSS rules and unused site tokens were deleted;
+    `DESIGN.md` and `packages/ui/src/lib/font-size-classes.generated.ts` regenerated.
+  - Affected QA scenarios: new `ET-site-landing`, `ET-site-download`, `ET-site-changelog`,
+    `ET-site-blog`, `ET-site-docs-shell`, `ET-site-docs-reference-pages`,
+    `ET-site-docs-sdk-reference`, `ET-site-404-og-feeds-llms`; updated
+    `ET-site-marketplace-catalog`, `ET-site-docs-api-reference-ui`,
+    `ET-site-docs-sidebar-opendesign`, `ET-site-docs-masthead-opendesign`,
+    `ET-site-docs-typography-opendesign`, `ET-site-docs-search-context`, `REL-os-landing-proof`.
+
+## Brand identity v1.2 — tokens, fonts, logo, icons and `packages/brand` — 2026-11-08
+
+Owner: spec `.compozy/tasks/brand-site/` (integration branch `feat/brand-identity-v1-2`, slices
+S1–S8). Presentation-only change: no Go, wire, config or SQLite change. Regimes (SD-013): tokens,
+`DESIGN.md`, `@compozy/ui`, `web/` and `packages/brand` are internal code (consumers renamed
+together, no aliases); user state and public surfaces are unchanged.
+
+- **Native tools.** Unaffected. No `compozy__*` tool, descriptor, catalog or digest changes; the
+  change lives in CSS tokens, fonts and static assets.
+- **CLI/HTTP/UDS.** Unaffected. No verb, flag, route or DTO changes.
+- **Extensibility and hooks.** Unaffected. Extension views that read `--color-brand` keep the
+  variable name and now get volt instead of orange; no hook, manifest, skill or MCP surface
+  changes.
+- **Config.** No `config.toml` key changes. An explicit Appearance font choice (for example
+  `JetBrains Mono Variable`, System) keeps winning; only the built-in default becomes Figtree. A
+  hand-written `ui_font = "Inter"` keeps working only where Inter is installed locally (business
+  rule 7, accepted).
+- **Persisted user state.** Unchanged and lossless: Appearance font choice, workspace/profile
+  colours and the identity palette are not touched.
+- **Workspace isolation.** Not applicable. Build-time styling and static assets only; no data
+  path, scope or authorization change.
+- **Official skill.** `skills/compozy/` is not affected: it names no colour, font or logo.
+- **Web / Docs.**
+  - Re-skin through `@compozy/ui` tokens only (business rule 9): brand is volt `#2F5BFF`
+    (light `#2448E6`), text on brand uses `brand-strong`, needs-you is amber `--color-attn`
+    (no longer an alias of brand), blacks are neutral, sans default is Figtree, display is
+    Instrument Sans, mono is Geist Mono.
+  - `DESIGN.md` regenerated by `scripts/sync-design-md.mjs` (`make codegen`).
+  - New Logo lettering/symbol in `@compozy/ui`; new favicons, PWA icons and manifests in `web/public`
+    and `packages/site/public`; desktop icon and tray templates in `desktop/build`; site OG
+    templates, fonts and tokens; launch-video brand constants; README lockup.
+  - New workspace `packages/brand` (TanStack Start brand manual, port 4620) with its own turbo
+    build task and `scripts/ci-changes.sh` lane. Hi-res and export assets stay outside git in
+    `~/Dev/compozy/_rebranding`.
+  - `COPY.md` positioning moves to "The autonomous control plane for your agents"; the
+    `packages/site` landing copy still carries the retired headline until the site redesign.
+  - Retired built-in identity is guarded by the retired-identity scan (`_tests.md` UT-012).
+  - Affected QA scenarios: `APP-brand-channel-visibility`, `APP-theme-native-no-flash`,
+    `ET-compozy-public-brand-navigation`, `ET-web-light-theme-readability`,
+    `ET-web-theme-system-follows-os`, `ET-web-theme-toggle-persists`.
+
+## Check-in tools and auto-accepted actions — 2026-11-08
+
+Owner: spec `.compozy/tasks/always-on-check-in-tools/` (GitHub #1357), integration branch
+`feat/always-on-check-in-tools` (S1 tools/audit/authority, S2 actions/picks, S3 Web, F1 review
+fixes, S4 docs/QA). Additive on every public surface and user state (SD-013). Internal hard cut:
+`TriageReadOnly`, the triage MCP stripping and the read-only triage prompt sentence are deleted.
+Supersedes the read-only triage clause of always-on ADR-004.
+
+- **Native tools.** Check-in sessions reach the agent's native tools and MCP servers through the
+  hosted gateway, bounded by the instance's current main session: reads always; writes only from
+  the approved `check_ins.allow_writes`, only if the main session would not ask, and for native
+  tools only from the closed writable set `{compozy__notify}`. `compozy__clarify` and every
+  interaction tool are always denied; with no main session every call is denied
+  `check_in_no_main_session`. `compozy__agent_instance_check_ins` gains `occurrence_id`,
+  `tools_status`, `tool_calls`; `compozy__agent_instance_reports` gains `picks`, `tool_calls`
+  counts, `occurrence_id`, proposal `action` and `auto_accept_status`
+  (`picked|limit|queue_full|unapproved|no_main|none`); `compozy__agent_instance_get` gains
+  `authority_status`; `compozy__tool_info`/`tool_list` gain `access`. No native pick or
+  authority-approve tool.
+- **CLI/HTTP/UDS.** New `compozy agent instance pick` (1-based), `POST
+  /api/agent-instances/{id}/reports/{report_id}/pick` (0-based), UDS `agent.instance.report.pick`
+  (operator-only, `proposal_pick_operator_only`). New `compozy agent heartbeat authority
+  show|approve|revoke`, `POST|DELETE /api/agents/:name/heartbeat/authority/approve`, UDS
+  `agent.heartbeat.authority.approve|revoke` (operator-only). `PUT …/heartbeat` accepts
+  `approve_authority_sha256`; `heartbeat write` shows the block and asks
+  (`--approve-authority --yes`). `instance check-ins --occurrence`, `instance reports` (pick state,
+  auto-accept status, tool summary) and `heartbeat validate` gain fields and diagnostics.
+- **Extensibility and hooks.** New observe-only hook `agent.instance.proposal.picked`.
+  `tool.pre_call`/`tool.post_call` fire for check-in calls; policy re-evaluates after `pre_call`.
+  Extension-shipped agents may declare `check_ins`/`actions` (authority starts unapproved); their
+  MCP `read_only_tools` is ignored (`mcp_read_only_override_untrusted`). Provide surfaces and SDK
+  helpers unchanged; generated TS/Go clients regenerated.
+- **Config.** `[agents.always_on]` `check_in_tools` (`enabled|disabled`), `check_in_max_tool_calls`
+  (25, 1–100), `check_in_max_write_calls` (5, 0–50), `auto_accept_per_day` (20, 0–200),
+  `check_in_audit_retention` (`720h`). MCP server declarations gain `read_only_tools`.
+- **Workspace data isolation.** The check-in ceiling is the instance's main-session ceiling
+  (workspace reach, MCP source grants, permission policy). Audit and pick rows are per instance;
+  picks go only to the main session fixed at insert. Authority approvals are per
+  (profile, definition directory).
+- **User state.** `HEARTBEAT.md` `check_ins` and `actions` (additive; absent = reads only, no
+  writes, no auto-accept; older daemons reject them on downgrade). Authority digest covers
+  `allow_writes`, caps, every action (`id`, `title`, `instructions`, `auto_accept`) and the MCP
+  `read_only_tools` overrides; unapproved = ignored whole. Migration `00198`: tables
+  `agent_instance_check_tool_calls`, `agent_instance_proposal_picks`,
+  `heartbeat_authority_approvals`; `agent_instance_reports` rebuilt losslessly for kind
+  `activity`. Report payloads store `picks_tracked` and per-proposal `auto_accept_skip`, recorded
+  at publication. Picks reuse `session_input_queue`. No file rewritten on upgrade.
+- **Runtime behavior.** Every check-in that reaches the model may call read tools; empty or
+  unchanged digests still make no model call. `destructiveHint: true` MCP tools become writes in
+  every session (release note). A check-in that wrote always reports (`activity`). Auto picks are
+  synthetic turns; pause/archive cancels queued auto picks.
+- **Web.** Server pick, auto-accepted chip and waiting reasons, tool-call line and list, activity
+  report, check-ins history tools badge, editor "What it can change" and "Actions", authority
+  notice, Approve and save-confirm. No new page.
+- **Docs and official skill.** `agents/heartbeat.mdx` (tools, authority, Linear snippet, actions,
+  picks), `configuration/config-toml.mdx`, generated CLI reference;
+  `skills/compozy/references/{agent-definitions,configuration,native-tools}.md`; glossary
+  "check-in", "check-in authority", "check-in action", "auto-accept", "pick"; `COPY.md` check-in
+  tools and picks terms.
+- **QA.** `MS-always-on-check-in-sources.md` §8 (tools and actions), `MS-web-stays-on-reports.md`
+  (picks, tool calls, activity). Both pending the integrated walk.
+
+## Marketplace plugin catalog — category browse, one-step Add, plugin compatibility
+
+Owner: spec `.compozy/tasks/marketplace-plugin-catalog/` (slices S1–S9), integration branch
+`feat/marketplace-plugin-catalog`. Slices link here; S8 wrote this entry.
+
+- **Native tools.** New read-only `compozy__marketplace_categories` (marketplace toolset, same app
+  access as search). Additive optional args: `compozy__marketplace_search {category}`,
+  `compozy__extensions_install {enable}`; install output gains optional `enable_error`. Setup state
+  stays on `compozy__extensions_info` and `compozy__mcp_auth_status`.
+- **CLI/HTTP/UDS.** Additive: `compozy marketplace categories`, `marketplace search --category`
+  (unknown id exits 2, `marketplace_category_unknown`), `extension install --enable`;
+  `GET /api/marketplace?category=`, new `GET /api/marketplace/sections`, `POST /api/extensions`
+  `enable` (enable failure → `201` with `enable_error`, install kept). Listing DTOs gain `category`,
+  `category_label`, `featured`; list gains `categories` counts. OpenAPI, TS and Go clients
+  regenerated. No public delete targets (SD-013: additive, no shim).
+- **Extensibility/hooks/config.** `marketplace.json` accepts `url` and `git-subdir` sources and the
+  Codex index `.agents/plugins/marketplace.json`; `x-compozy {category, featured, supersedes}` is
+  honored only for curated sources. Client plugins load root `mcp.json`/`.mcp.json`, vendor
+  placeholder aliases, tolerant server fields (`client_field_ignored`), `${NAME}` derived inputs
+  (`client_placeholder_invalid`) and `auth` → OAuth. Unreadable source shapes keep the existing
+  `unsupported_source` code (the spec's `marketplace_plugin_source_unsupported` was not introduced);
+  missing required values keep `extension_inputs_required`. No hooks added; plugin hooks/commands
+  stay ignored. No new config keys; the `compozy-plugins` preset (default on) is preset data and an
+  existing disabled state is preserved.
+- **User state.** No SQLite migration: category/featured/supersedes live in the refreshable catalog
+  payload; old rows resolve their category on read.
+- **Workspace data isolation.** Sections and category reads use the existing list scope, workspace
+  and profile resolution; install-with-enable uses the existing scoped install and per-extension
+  operation lock. Derived secrets go to the scoped vault, never to catalog payloads or logs.
+- **Web.** Browse home by category (Featured + sections with View all), new
+  `/marketplace/categories/<id>` route and window location, one-step Add with Set up / Ready /
+  Turn on / Couldn't turn on + Retry, detail "From {source}" and `?setup=1`. Source-grouped sections
+  deleted (internal hard cut).
+- **Docs and official skill.** `packages/site/content/docs/marketplace/{index,sources}.mdx`;
+  `skills/compozy/references/extensions.md` (Marketplace categories and Add, client compatibility);
+  `COPY.md` Marketplace Terms; glossary "Marketplace category".
+- **QA.** `docs/qa/scenarios/ET-web-marketplace-landing-browse.md`,
+  `ET-web-marketplace-search-fanout.md`, `ET-cli-marketplace-search.md`,
+  `ET-agent-plugin-marketplace-install.md`, `ET-agent-plugin-source-install.md`; integrated walk
+  E2E-004 in S8.
+
+## Project file explorer, file viewer, and session Changes — 2026-11-07
+
+Owner: spec `.compozy/tasks/file-explorer/` (integration branch `feat/file-explorer`). Additive across
+every public surface (SD-013); no delete targets in the public or user-state regimes. Slice evidence:
+`docs/qa/reports/2026-11-07-file-explorer-s1.md`…`-s9.md`; integrated walk
+`docs/qa/reports/2026-11-07-file-explorer-integration.md`.
+
+- **HTTP / UDS / SDK:** twelve new `GET` operations, all `AppAccessAllowed` with profile read scope:
+  files `listFileEntries`, `readFileContent`, `listSessionFileEntries`, `readSessionFileContent`;
+  search `findFiles`, `findSessionFiles`, `searchFileContents`, `searchSessionFileContents`; changes
+  `getSessionChanges`, `getSessionChangePatches`, `getSessionChangeContents`,
+  `listSessionChangeBases`. Workspace forms take optional `worktree_id`; session forms resolve the
+  bound worktree, else the project root, never the resumed CWD. OpenAPI and the TS/Go SDKs
+  regenerated; the existing `searchSessionFiles` (composer) is unchanged. Every response `root`
+  carries the public registry `workspace_id` (`ws_…`), never the project's internal identity
+  (fixed during the integrated walk, BUG-20261107-files-root-internal-workspace-id).
+- **Native tools / CLI:** new `compozy__session_changes` (toolset `compozy__sessions`, `RiskRead`;
+  `session_id`, `workspace`, `scope`, `base`, `patch_paths` ≤ 20, `reveal`) and
+  `compozy session changes <session-id>` (`--scope`, `--base`, repeatable `--patch`, `--reveal`;
+  domain failures exit 1 with their code). No file list/read/search tools or file CLI verbs (Q6, Q12).
+- **Extensibility / hooks / config:** no hook, manifest, extension protocol, or `config.toml` key
+  change. `[desktop] editor_command` keeps its meaning and is the "Configured editor" Open in target.
+  The desktop product bridge gains `files.listOpenTargets` and `files.openWith` (fixed built-in
+  catalog: VS Code, Cursor, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, Xcode, plus
+  Finder/File manager reveal via `showItemInFolder`; login-shell PATH detection; `shell:false`;
+  main-frame only). The native confirmation now also covers in-root credential files.
+- **User state / workspace isolation:** no SQLite or migration. Reads are confined to registered
+  project and worktree roots (realpath plus open-time containment); responses carry no absolute
+  paths and `.git` is never served. Every git call runs through one read-only policy (fsmonitor,
+  hooks, filter drivers, textconv, external diff neutralized; subtree-confined for repository
+  subdirectories). Sensitive basenames and in-root symlinks to them need explicit `reveal=true`;
+  app tokens get `403 reveal_forbidden` (Q13). User-scope sessions have no root
+  (`409 root_unavailable`); out-of-scope profiles see `404`. Client-only keys:
+  `compozy:session:review-panel:v1`, `compozy:files:v1:<workspace_id>`, `compozy:files:search:v1`,
+  and `compozy.open-target` (remembered Open in target, default `configured`).
+- **Web:** session Review panel (Changes · Files) beside the Inspector; `files` OS app (dock after
+  Agents, palette "Open project files", project context menu "Open files"); transcript paths open
+  the viewer on a plain click on every client, the hover "Open in editor" button is retired, and
+  desktop Cmd/Ctrl-click opens the remembered target. Turn "Changed files" rows link to Changes; the
+  PR chip gains "Review changes". The explorer gains Go to file (Cmd/Ctrl+P), a Search pane
+  (Cmd/Ctrl+Shift+F, `git grep` with a walk fallback), and Find in file (Cmd/Ctrl+F), all scoped to
+  the explorer with no window-manager chord changes. New `@compozy/ui` primitives `FileTree`,
+  `CodeViewer`, `DiffViewer` (Pierre, exact pins). New Go deps: `github.com/junegunn/fzf`
+  (`src/algo`, `src/util` only), `github.com/charlievieth/fastwalk`, `github.com/bluekeyes/go-gitdiff`.
+- **Window manager / palette (internal):** the `files` app ID joins the daemon app inventory
+  (`internal/cmdpalette/corecmds`, palette `app.open.files`); `internal/windowmanager` removes a
+  project's Files window when the project is unregistered.
+- **Official skill / Docs / QA:** `skills/compozy/references/native-tools.md` (Session changes),
+  `runtime-operations.md` (`session changes` CLI), `desktop.md` (viewer-first links, Open in targets,
+  remembered modifier-click target), `worktrees.md` (reviewing a worktree's changes), and
+  `app-sdk.md` (file/changes routes, `reveal_forbidden`). Site: new `files/` category ("Files and
+  changes": `index`, `tutorial`, `review-panel`, `file-viewer`, `search`, `files-app`, `open-in`),
+  `use-cases/review-a-change.mdx`, `sessions/index.mdx`, and
+  `configuration/config-toml.mdx`; generated CLI page `cli/session/changes.mdx`. QA: updated
+  `APP-open-transcript-paths-in-editor`; new `ET-session-review-files`, `ET-session-review-changes`,
+  `ET-files-app`, `APP-open-in-targets`, `ET-files-search`.
+
 ## Oversized invoked skills deferred to `compozy__skill_view`
 
 Owner: `fix/oversized-skill-deferred-delivery`. QA:
@@ -16,6 +327,38 @@ Owner: `fix/oversized-skill-deferred-delivery`. QA:
   through the existing session-bound, source-fenced `command_id` path.
 - Official skill `skills/compozy/`: `references/tools-and-skills.md` documents deferred delivery.
   Web/Docs: no change; the site never documented the limit.
+
+## Disable providers you don't use — issue #1326
+
+Owner: `feat/disable-providers` (spec `.compozy/tasks/provider-enable-toggle/`). QA: new
+`docs/qa/scenarios/RT-provider-enable-toggle.md` plus the provider settings, runtime selector and
+usage scenarios updated by the spec's QA task.
+
+- Config (SD-013 additive, no migration): optional `providers.<id>.enabled` (default `true`),
+  global and profile layers only; workspace and workspace-profile overlays are rejected at load and
+  write. Disabling the effective `defaults.provider` is rejected
+  (`provider_default_disable_rejected`). Lifecycle `providers.*.enabled` is Live.
+- New diagnostic codes `provider_disabled` and `provider_default_disable_rejected`
+  (CategoryProvider). Starts, resumes, runtime changes, spawns and loop/goal runs on a disabled
+  provider fail with `provider_disabled` (409); running sessions continue.
+- Fallbacks and roles: agent fallback chains and role fallbacks skip disabled routes
+  (`fallback.route_skipped`, `reason=provider_disabled`); a role with a disabled primary uses its
+  first enabled fallback, and a role with no enabled route reports `provider_disabled` (resolution
+  error and role status diagnostic).
+- Native tools: `compozy__config_set`/`compozy__config_get` accept the bool path; selection tools
+  (`compozy__provider_models_list`, `compozy__subagent_capabilities`) omit disabled providers;
+  session create/spawn and loop/goal starts return `provider_disabled`. No tool ID changes.
+- HTTP/UDS (additive): `enabled` on provider inventory (reported for the selected profile) and
+  settings payloads; new
+  `PATCH /api/settings/providers/{name}/enabled`; workspace provider options and model catalog
+  routes omit disabled providers. CLI `provider list` gains an `ENABLED` column / `enabled` field;
+  `config set` output gains additive `warnings`.
+- Hooks, extension SDKs and manifests: unchanged; extension model catalog sources are filtered at
+  read time. Gateway providers are a separate concept and untouched. Workspace data isolation:
+  unaffected (the key is not workspace-scoped).
+- Web: Settings → Providers switch, Disabled group and filter; pickers and usage surfaces drop
+  disabled providers. Docs: config reference and provider docs; official skill `skills/compozy/`
+  `references/configuration.md` documents the key.
 
 ## Usage backoff, one collection per account, sign-in after restart — issue #1302
 
@@ -5487,3 +5830,26 @@ Updates the Session linked work audit above. Native link/unlink metadata and ris
 - **Docs and official skill.** `skills/compozy/references/` runtime, agent-definitions, loops, tools-and-skills (corrects line 260), new skill-authoring reference; site tutorials; glossary.
 - **QA.** `docs/qa/scenarios/` for pause and brake, held wakes, approvals, permission rules, skill review, events, compaction; extend `MS-web-stays-on-reports.md` and `RT-session-monitor-wake.md`.
 - **Final review corrections.** Daemon-originated tool approvals skip `permission_rules`; deny path rules match regardless of letter case; `approve-edits` and `auto` ask for edits without a contained location and for requests of kind `other` or no kind. `reviewer_mode` is always present on provider summaries (empty means no reviewer); mixed-case reviewer declarations cannot select a full-access mode. Automation event digests always admit the oldest event, and receipts report `policy_disabled` when effective heartbeat policy disables checks. Copilot declares no reviewer, so its `auto` falls back to `approve-edits`.
+
+## Tailscale embedded node host routing — 2026-11-10
+
+Fix for the bundled `tailscale` connectivity provider failing to establish on hosts whose internet
+path is policy-routed away from the main-table default device (Cloudflare WARP, split-tunnel VPN).
+
+- **Native tools.** Not applicable; no tool descriptor changes.
+- **CLI/HTTP/UDS.** No verb, route, or DTO change. On affected hosts the provider now reaches the
+  control plane instead of returning `503 gateway_provider_degraded`.
+- **Extensibility and hooks.** Not applicable; no hook, SDK, or extension-definition change. The
+  provider subprocess calls `netns.SetEnabled(false)` before creating its tsnet node, so the
+  embedded node's control/DERP dials follow the host routing table instead of `SO_BINDTODEVICE`
+  pinned to the main-table default device.
+- **Config.** Not applicable; no new key. Silent device pinning is removed unless `ALL_PROXY` is
+  configured, where the proxy keeps precedence and a warning is logged; tsnet exposes no dialer
+  hook that could offer an opt-in `bind_interface`.
+- **Workspace data isolation.** Not applicable.
+- **User state.** Not applicable; no schema, migration, or file shape changes.
+- **Web.** Not applicable.
+- **Official skill.** Not applicable; `skills/compozy/` behavior is unchanged.
+- **QA.** `docs/qa/scenarios/RT-connectivity-provider-route.md` records the policy-routed egress
+  evidence and the verified private-tier walk: provider up/healthy, live advertised address, and
+  a TLS `401 gateway_device_unauthenticated` at the pairing gate.

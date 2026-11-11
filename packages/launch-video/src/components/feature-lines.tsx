@@ -6,7 +6,7 @@ import { color, weight } from "@/brand/tokens";
 import { MaskRevealUp } from "@/components/remocn/mask-reveal-up";
 import { FEATURE_LINE_HEIGHT } from "@/compositions/release-announce/layout";
 
-/** MaskRevealUp resolves its type through this custom property; point it at the loaded Geist. */
+/** MaskRevealUp resolves its type through this custom property; point it at the loaded brand sans (Figtree). */
 const FONT_VAR = { "--font-geist-sans": FONT_SANS } as CSSProperties;
 
 interface FeatureLinesProps {

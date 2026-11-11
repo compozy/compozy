@@ -115,7 +115,7 @@ func (n *daemonNativeTools) workspaceInfo(
 
 func (n *daemonNativeTools) workspaceDescribe(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input workspaceRefInput
@@ -130,6 +130,10 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	sessions, err := n.deps.Sessions.ListAll(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -138,17 +142,20 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := nativeResolvedWorkspaceID(&resolved)
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{
-		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
-		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID),
-		nativeToolsAgentsKey:    core.AgentPayloadsFromEntries(agents, &resolved.Config),
-		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
-		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
-	}, workspaceID)
+	return (resultViews[workspaceDescribeResult]{
+		Compact: compactWorkspaceDescribe,
+		Preview: func(workspaceDescribeResult) string { return workspaceID },
+	}).result(req.View, workspaceDescribeResult{
+		Workspace: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
+		Sessions:  core.SessionPayloadsForWorkspace(sessions, workspaceID, readScope),
+		Agents:    core.AgentPayloadsFromEntries(agents, &resolved.Config),
+		Skills:    core.WorkspaceSkillPayloads(resolved.Skills),
+		Providers: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+	})
 }
 
 func (n *daemonNativeTools) listLogs(
@@ -208,9 +215,14 @@ func (n *daemonNativeTools) observeMetrics(
 				return toolspkg.ToolResult{}, err
 			}
 			result["agent_instances"] = metrics
+			result["heartbeat_check_in_tool_calls_total"] = metrics.CheckInToolCalls
+			result["agent_instance_picks_total"] = metrics.Picks
 		}
 	}
-	return structuredResult(result, payload.Status)
+	return (resultViews[map[string]any]{
+		Compact: compactObserveMetrics,
+		Preview: func(map[string]any) string { return payload.Status },
+	}).result(req.View, result)
 }
 
 func (n *daemonNativeTools) observeSearch(

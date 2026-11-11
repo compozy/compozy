@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/compozy/compozy/internal/subprocess"
@@ -70,7 +71,7 @@ func (l *localLauncher) Launch(
 		Executable:       prepared.ResolvedExecutable,
 		Args:             append([]string(nil), prepared.Args...),
 		Dir:              prepared.Cwd,
-		Env:              append([]string(nil), prepared.Env...),
+		Env:              slices.Clone(prepared.Env),
 		Logger:           l.logger,
 		StderrSink:       l.stderrSink,
 		DisableTransport: true,

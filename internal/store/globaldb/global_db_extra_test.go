@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -630,6 +631,50 @@ func TestUserEventSummarySelection(t *testing.T) {
 		)
 		if err != nil || len(rows) != 2 {
 			t.Fatalf("unfiltered events = %#v, %v", rows, err)
+		}
+	})
+
+	t.Run("Should retain session events of a User-scope session without a workspace", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		at := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+		if err := db.RegisterSession(ctx, new(SessionInfo{
+			ID:            "sess-user-events",
+			ProfileID:     store.DefaultProfileID,
+			Name:          "User",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			SessionType:   defaultSessionType,
+			State:         "active",
+			CreatedAt:     at,
+			UpdatedAt:     at,
+		})); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		for _, eventType := range []string{"tool_call", "tool_result", "usage"} {
+			if err := db.WriteEventSummary(ctx, EventSummary{
+				ID: "user-" + eventType, ProfileID: store.DefaultProfileID, SessionID: "sess-user-events",
+				Type: eventType, AgentName: "coder", Timestamp: at,
+			}); err != nil {
+				t.Fatalf("WriteEventSummary(%s) error = %v", eventType, err)
+			}
+		}
+		rows, err := db.ListEventSummaries(ctx, EventSummaryQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceaccess.UserSelector,
+			SessionID:   "sess-user-events",
+		})
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("User session events = %#v, %v; want 3", rows, err)
+		}
+		err = db.WriteEventSummary(ctx, EventSummary{
+			ProfileID: store.DefaultProfileID, SessionID: "sess-unregistered",
+			Type: "tool_call", AgentName: "coder", Timestamp: at,
+		})
+		if err == nil || !strings.Contains(err.Error(), "event summary workspace_id is required") {
+			t.Fatalf("unregistered session without workspace error = %v, want workspace_id required", err)
 		}
 	})
 }
@@ -1274,6 +1319,121 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 // Invariant: core contention cannot stall telemetry; committed lifecycle events
 // survive failed delivery and replay once. Owner: global observation store.
 func TestGlobalDBTelemetryDelivery(t *testing.T) {
+	// Invariant: durable ingestion reclaims burst WAL allocation after an observer releases its snapshot.
+	// Owner: telemetry store lifecycle. Canonical suite: TestGlobalDBTelemetryDelivery.
+	t.Run("Should reclaim telemetry WAL bursts and preserve acknowledged events on reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		path := telemetrydb.Path(db.Path())
+		readDB, err := store.OpenSQLiteReadPool(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := readDB.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		reader, err := readDB.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM event_summaries").Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		initial := count
+		payload := []byte(`"` + strings.Repeat("x", 1<<20) + `"`)
+		for i := range 20 {
+			summary := store.EventSummary{
+				ID:        fmt.Sprintf("wal-burst-%d", i),
+				ProfileID: store.DefaultProfileID,
+				Type:      "settings.changed",
+			}
+			summary.SetContent(payload)
+			if err := db.telemetry.Write(
+				ctx,
+				[]store.EventSummary{summary},
+				func(context.Context) error { return nil },
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		before, err := os.Stat(path + "-wal")
+		if err != nil || before.Size() <= 16<<20 {
+			t.Fatalf("burst WAL = %v, error=%v", before, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			info, err := os.Stat(path + "-wal")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Size() <= 16<<20 {
+				t.Logf("telemetry WAL reclaimed: %d -> %d bytes", before.Size(), info.Size())
+				break
+			}
+			select {
+			case <-waitCtx.Done():
+				t.Fatal("telemetry maintenance did not reclaim burst allocation", waitCtx.Err())
+			case <-ticker.C:
+			}
+		}
+		var synchronous int
+		if err := db.telemetry.DB().
+			QueryRowContext(ctx, "PRAGMA synchronous").
+			Scan(&synchronous); err != nil ||
+			synchronous != 2 {
+			t.Fatalf("synchronous=%d, error=%v, want FULL", synchronous, err)
+		}
+		if err := readDB.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := telemetrydb.Open(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var bytes int
+		if err := reopened.DB().
+			QueryRowContext(ctx, "SELECT count(*), sum(length(content_json)) FROM event_summaries WHERE id LIKE 'wal-burst-%'").
+			Scan(&count, &bytes); err != nil || count != 20 ||
+			bytes != 20*len(payload) {
+			t.Fatalf("reopened events=%d, bytes=%d, error=%v", count, bytes, err)
+		}
+		if err := reopened.DB().
+			QueryRowContext(ctx, "SELECT count(*) FROM event_summaries").
+			Scan(&count); err != nil ||
+			count != initial+20 {
+			t.Fatalf("reopened rows=%d, error=%v", count, err)
+		}
+		var integrity string
+		if err := reopened.DB().
+			QueryRowContext(ctx, "PRAGMA integrity_check").
+			Scan(&integrity); err != nil ||
+			integrity != "ok" {
+			t.Fatalf("integrity=%q, error=%v", integrity, err)
+		}
+	})
 	t.Run("Should wait only for publication attempts visible to the reader scope", func(t *testing.T) {
 		db := openTestGlobalDB(t)
 		workspaceA := registerWorkspaceForGlobalTests(t, db, "publication-a", t.TempDir())

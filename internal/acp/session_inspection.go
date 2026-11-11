@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -107,7 +108,7 @@ func inspectSession(
 		AgentName:  strings.TrimSpace(req.AgentName),
 		Command:    strings.TrimSpace(req.Command),
 		Cwd:        strings.TrimSpace(req.Cwd),
-		Env:        append([]string(nil), req.Env...),
+		Env:        slices.Clone(req.Env),
 		Inspection: true,
 	})
 	if err != nil {

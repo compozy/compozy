@@ -62,6 +62,10 @@ func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaces.POST("", handlers.CreateWorkspace)
 	workspaces.GET("", handlers.ListWorkspaces)
 	workspaces.GET("/:workspace_id", handlers.GetWorkspace)
+	workspaces.GET("/:workspace_id/files/entries", handlers.ListFileEntries)
+	workspaces.GET("/:workspace_id/files/find", handlers.FindFiles)
+	workspaces.GET("/:workspace_id/files/search", handlers.SearchFileContents)
+	workspaces.GET("/:workspace_id/files/content", handlers.ReadFileContent)
 	workspaces.PATCH("/:workspace_id", handlers.UpdateWorkspace)
 	workspaces.DELETE("/:workspace_id", handlers.DeleteWorkspace)
 	workspaces.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)
@@ -260,6 +264,7 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace := api.Group("/marketplace")
 	marketplace.GET("", handlers.ListMarketplace)
+	marketplace.GET("/sections", handlers.ListMarketplaceSections)
 	marketplace.GET("/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
 	marketplace.POST("/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceCatalog)
 	marketplace.GET("/sources", handlers.ListMarketplaceSources)
@@ -343,6 +348,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/providers/:name", handlers.GetSettingsProvider)
 	settings.PUT("/providers/:name", privileged, handlers.PutSettingsProvider)
 	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
+	settings.PATCH("/providers/:name/enabled", privileged, handlers.SetSettingsProviderEnabled)
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.GET("/mcp-servers/:name", handlers.GetSettingsMCPServer)

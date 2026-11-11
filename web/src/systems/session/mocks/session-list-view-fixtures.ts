@@ -23,6 +23,8 @@ export function sessionListViewFixture(
     setGroupBy: noop,
     showEmptyProjects: false,
     setShowEmptyProjects: noop,
+    showAutomation: false,
+    setShowAutomation: noop,
     setShelf: noop,
     groups: [],
     groupsLoading: false,

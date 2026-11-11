@@ -142,6 +142,7 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	checkInToolsDisabled       bool
 	instanceCeiling            InstanceCeilingReader
 	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex
@@ -164,6 +165,7 @@ type Manager struct {
 	worktreeDeliveryFences     map[string]bool
 	worktreeBindingUses        map[string]int
 	worktreeBindingNotifiers   []WorktreeBindingNotifier
+	providerAuthRecovery       providerAuthRecoveryLifecycle
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization
@@ -196,7 +198,10 @@ type Manager struct {
 	streamEvents            *sessionEventBroadcaster
 	catalogEventsMu         sync.Mutex
 	catalogEvents           *sessionCatalogBroadcaster
+	attentionPublished      map[string]store.SessionAttention
 	attentionCommitMu       sync.Mutex
+	attentionCommitLocks    map[string]*attentionCommitLock
+	attentionReconciliation attentionReconciliationLifecycle
 	presenceMu              sync.Mutex
 	presenceLeases          map[sessionPresenceKey]sessionPresenceLease
 	notifyMu                sync.Mutex
@@ -204,6 +209,8 @@ type Manager struct {
 	attentionWorkspaceMutes AttentionWorkspaceMuteReader
 	notifyLastBySession     map[string]time.Time
 	waitRegistry            *sessionWaitRegistry
+	clarifyMu               sync.RWMutex
+	clarify                 toolspkg.ClarifyBroker
 	spawnWakeMu             sync.Mutex
 	spawnWakeEventIDs       map[string]struct{}
 	spawnWakeEventOrder     []string

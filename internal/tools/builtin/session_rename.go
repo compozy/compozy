@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -21,8 +19,7 @@ func sessionRenameDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "rename"},
 		[]string{"rename session", "change session name"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
 }
 
 const sessionRenameInputSchema = `{

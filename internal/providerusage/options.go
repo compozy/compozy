@@ -1,6 +1,7 @@
 package providerusage
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -20,6 +21,7 @@ type Options struct {
 	RefreshInterval time.Duration
 	Logger          *slog.Logger
 	Metrics         Metrics
+	OnAuthenticated func(context.Context, Target)
 	// Disabled defaults to false; Start owns scheduling for the supplied profiles.
 	Disabled bool
 }

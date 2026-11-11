@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
 import { extensionEntries, marketplaceEntryPath } from "@/lib/marketplace-catalog";
 import { bundledExtensions } from "@/lib/marketplace-bundled";
+import { marketplacePluginPath, marketplacePlugins } from "@/lib/marketplace-plugins";
 import { docsSource } from "@/lib/source";
 import { absoluteUrl, canonicalPath } from "@/lib/site-config";
 import { loadChangelogReleases } from "@/lib/changelog/github-client";
@@ -36,6 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/marketplace",
     ...bundledExtensions.map(extension => extension.path),
     ...extensionEntries.map(marketplaceEntryPath),
+    ...marketplacePlugins.map(marketplacePluginPath),
   ];
   const paths = Array.from(
     new Set([

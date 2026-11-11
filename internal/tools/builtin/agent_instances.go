@@ -43,11 +43,20 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		if required != "" {
 			schema = strings.TrimSuffix(schema, "}") + `,"required":["` + required + `"]}`
 		}
-		result = append(result, nativeDescriptor(
+		description := "Manage the caller's always-on agent instance: " + operation.name
+		switch operation.name {
+		case "list":
+			description += ". Defaults to the caller agent and workspace; only authorized instances are returned. " +
+				"Ordinary active_count spans all workspaces in selected profiles, ignoring filters and pagination; " +
+				"max_active_instances is per profile. Use peers for reachable agents: both capacity fields are zero (unavailable)."
+		case "ensure_main":
+			description += ". Requires an existing instance; dry_run is not supported. Use agent_instance_get to inspect it."
+		}
+		result = append(result, withAgentInstanceResultViews(nativeDescriptor(
 			operation.id,
 			"agent_instance_"+operation.name,
 			"Agent Instance "+operation.name,
-			"Manage the caller's always-on agent instance: "+operation.name,
+			description,
 			schema,
 			risk,
 			operation.read,
@@ -58,7 +67,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 			},
 			[]string{descriptorKeywordAgents, "instances"},
 			[]string{"always-on instance", operation.name},
-		))
+		)))
 	}
 	result = append(
 		result,
@@ -86,3 +95,23 @@ const agentInstanceInputSchema = `{"type":"object","properties":{
 "peers":{"type":"boolean"},"all_workspaces":{"type":"boolean"},"state":{"type":"string"},"cursor":{"type":"string"},
 "days":{"type":"integer","minimum":1,"maximum":365},
 "limit":{"type":"integer","minimum":1,"maximum":100}},"additionalProperties":false}`
+
+func withAgentInstanceResultViews(descriptor toolspkg.Descriptor) toolspkg.Descriptor {
+	switch descriptor.ID {
+	case toolspkg.ToolIDAgentInstanceList:
+		descriptor = withResultViews(
+			descriptor,
+			agentInstanceListCompactOutputSchema,
+			string(descriptor.OutputSchema),
+		)
+	case toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceCreate,
+		toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume,
+		toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceGet:
+		descriptor = withResultViews(
+			descriptor,
+			agentInstanceRecordCompactOutputSchema,
+			string(descriptor.OutputSchema),
+		)
+	}
+	return descriptor
+}

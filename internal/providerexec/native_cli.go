@@ -3,6 +3,7 @@ package providerexec
 import (
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -71,7 +72,7 @@ func ResolveNativeCLI(strategy Strategy, env []string, cwd string) (string, erro
 	}
 	executable, err := subprocess.ResolveExecutable(
 		strategy.NativeCLI.Command,
-		append([]string(nil), env...),
+		slices.Clone(env),
 		cwd,
 	)
 	if err != nil {

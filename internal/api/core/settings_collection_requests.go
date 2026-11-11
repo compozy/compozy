@@ -51,14 +51,15 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
 	server := compozyconfig.MCPServer{
-		Name:      name,
-		Transport: compozyconfig.MCPServerTransport(strings.TrimSpace(body.Server.Transport)),
-		Command:   strings.TrimSpace(body.Server.Command),
-		Args:      cloneStrings(body.Server.Args),
-		Env:       cloneStringMap(body.Server.Env),
-		Headers:   cloneStringMap(body.Server.Headers),
-		SecretEnv: cloneStringMap(body.Server.SecretEnv),
-		URL:       strings.TrimSpace(body.Server.URL),
+		Name:          name,
+		ReadOnlyTools: cloneStrings(body.Server.ReadOnlyTools),
+		Transport:     compozyconfig.MCPServerTransport(strings.TrimSpace(body.Server.Transport)),
+		Command:       strings.TrimSpace(body.Server.Command),
+		Args:          cloneStrings(body.Server.Args),
+		Env:           cloneStringMap(body.Server.Env),
+		Headers:       cloneStringMap(body.Server.Headers),
+		SecretEnv:     cloneStringMap(body.Server.SecretEnv),
+		URL:           strings.TrimSpace(body.Server.URL),
 	}
 	if body.Server.Auth != nil {
 		server.Auth = compozyconfig.MCPAuthConfig{

@@ -363,15 +363,5 @@ func (h *BaseHandlers) AutomationJobRuns(c *gin.Context) {
 	query.TriggerID = ""
 	query.ReadScope = readScope
 
-	runs, err := manager.ListRuns(c.Request.Context(), query)
-	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-	runPayloads := RunPayloadsFromRuns(runs)
-	if err := h.decorateAutomationRunOwners(c.Request.Context(), runPayloads); err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads})
+	h.respondAutomationRuns(c, query)
 }

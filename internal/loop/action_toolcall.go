@@ -17,6 +17,8 @@ type ToolCallActionExecutor struct {
 	eventReader           ActionEventRangeReader
 	workspaceRootResolver ActionToolWorkspaceRootResolver
 	maxResultBytes        int64
+	hasResultViews        bool
+	pinnedView            tools.ResultView
 }
 
 // Execute calls RuntimeRegistry.Call with rendered action params.
@@ -42,6 +44,13 @@ func (e *ToolCallActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, err
 	}
+	view := e.pinnedView
+	if e.hasResultViews {
+		if view == "" {
+			view = nodeResultView(node)
+		}
+		params[tools.ResultViewInputKey] = string(view)
+	}
 	input, err := json.Marshal(params)
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("marshal action params for %q: %w", node.ID, err)
@@ -63,6 +72,7 @@ func (e *ToolCallActionExecutor) Execute(
 		ActorKind:            scope.ActorKind,
 		CorrelationID:        in.CorrelationID,
 		Input:                input,
+		PinnedView:           view,
 		TrustedWorkspaceRoot: trustedWorkspaceRoot,
 	})
 	if err != nil {

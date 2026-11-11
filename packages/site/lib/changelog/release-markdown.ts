@@ -1,15 +1,4 @@
-import type { ChangelogCategory, ChangelogHeading, ChangelogChannel } from "./types";
-
-interface MarkdownNode {
-  type: string;
-  value?: string;
-  depth?: number;
-  url?: string;
-  data?: {
-    hProperties?: Record<string, string>;
-  };
-  children?: MarkdownNode[];
-}
+import type { ChangelogHeading, ChangelogChannel } from "./types";
 
 interface ParsedSemver {
   major: number;
@@ -180,25 +169,6 @@ export function extractReleaseHeadings(body: string): ChangelogHeading[] {
   return headings;
 }
 
-export function extractReleaseCategories(body: string): ChangelogCategory[] {
-  const categories: ChangelogCategory[] = [];
-  let current: ChangelogCategory | null = null;
-
-  for (const line of stripLeadingReleaseHeading(body).split("\n")) {
-    const heading = /^###\s+(.+?)\s*$/.exec(line.trim());
-    if (heading) {
-      const label = headingLabel(heading[1] ?? "");
-      if (/^release notes$/i.test(label)) break;
-      current = { id: slugifyHeading(label), label, itemCount: 0 };
-      categories.push(current);
-      continue;
-    }
-    if (current && /^[-*+]\s+/.test(line.trim())) current.itemCount += 1;
-  }
-
-  return categories;
-}
-
 export function extractPullRequestNumbers(body: string): number[] {
   const numbers: number[] = [];
   const seen = new Set<number>();
@@ -223,69 +193,4 @@ export function extractPullRequestNumbers(body: string): number[] {
   }
 
   return numbers;
-}
-
-function textFromNode(node: MarkdownNode): string {
-  if (node.type === "text" || node.type === "inlineCode") return node.value ?? "";
-  return node.children?.map(textFromNode).join("") ?? "";
-}
-
-function linkTextNode(node: MarkdownNode, linkedNumbers: Set<number>): MarkdownNode[] {
-  if (node.type !== "text" || !node.value) return [node];
-
-  const nodes: MarkdownNode[] = [];
-  let cursor = 0;
-  for (const match of node.value.matchAll(PULL_REQUEST_PATTERN)) {
-    const number = Number(match[1]);
-    const index = match.index ?? 0;
-    if (!linkedNumbers.has(number)) continue;
-    if (index > cursor) nodes.push({ type: "text", value: node.value.slice(cursor, index) });
-    nodes.push({
-      type: "link",
-      url: `https://github.com/compozy/compozy/pull/${number}`,
-      children: [{ type: "text", value: `#${number}` }],
-    });
-    cursor = index + match[0].length;
-  }
-  if (cursor === 0) return [node];
-  if (cursor < node.value.length) nodes.push({ type: "text", value: node.value.slice(cursor) });
-  return nodes;
-}
-
-function transformMarkdownNode(node: MarkdownNode, linkedNumbers: Set<number>): void {
-  if (
-    !node.children ||
-    node.type === "link" ||
-    node.type === "code" ||
-    node.type === "inlineCode"
-  ) {
-    return;
-  }
-
-  node.children = node.children.flatMap(child => {
-    if (child.type === "text") return linkTextNode(child, linkedNumbers);
-    transformMarkdownNode(child, linkedNumbers);
-    return [child];
-  });
-}
-
-export function remarkReleaseStructure(options?: { pullRequestNumbers?: number[] }) {
-  const linkedNumbers = new Set(options?.pullRequestNumbers ?? []);
-
-  return (tree: MarkdownNode) => {
-    const occurrences = new Map<string, number>();
-    const visit = (node: MarkdownNode) => {
-      if (node.type === "heading") {
-        const id = uniqueHeadingId(textFromNode(node), occurrences);
-        node.data = {
-          ...node.data,
-          hProperties: { ...node.data?.hProperties, id },
-        };
-      }
-      node.children?.forEach(visit);
-    };
-
-    visit(tree);
-    transformMarkdownNode(tree, linkedNumbers);
-  };
 }

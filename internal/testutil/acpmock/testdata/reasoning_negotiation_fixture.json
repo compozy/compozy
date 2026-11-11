@@ -10,6 +10,12 @@
             "prompt": "Exercise Claude reasoning negotiation.",
             "config_options": [
                 {
+                    "id": "mode",
+                    "name": "Mode",
+                    "current": "bypassPermissions",
+                    "values": [{ "value": "bypassPermissions", "label": "Full access" }]
+                },
+                {
                     "id": "model",
                     "name": "Model",
                     "current": "sonnet",
@@ -43,6 +49,12 @@
             "permissions": "approve-all",
             "prompt": "Exercise Codex max reasoning negotiation.",
             "config_options": [
+                {
+                    "id": "mode",
+                    "name": "Mode",
+                    "current": "agent-full-access",
+                    "values": [{ "value": "agent-full-access", "label": "Full access" }]
+                },
                 {
                     "id": "model",
                     "name": "Model",
@@ -79,6 +91,12 @@
             "prompt": "Exercise Codex explicit none reasoning negotiation.",
             "config_options": [
                 {
+                    "id": "mode",
+                    "name": "Mode",
+                    "current": "agent-full-access",
+                    "values": [{ "value": "agent-full-access", "label": "Full access" }]
+                },
+                {
                     "id": "model",
                     "name": "Model",
                     "current": "gpt-5.6-sol",
@@ -113,6 +131,12 @@
             "permissions": "approve-all",
             "prompt": "Exercise missing Codex reasoning option negotiation.",
             "config_options": [
+                {
+                    "id": "mode",
+                    "name": "Mode",
+                    "current": "agent-full-access",
+                    "values": [{ "value": "agent-full-access", "label": "Full access" }]
+                },
                 {
                     "id": "model",
                     "name": "Model",

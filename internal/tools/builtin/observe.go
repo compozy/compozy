@@ -26,7 +26,7 @@ var observeTools = []toolspkg.Descriptor{
 		[]string{"logs", listLogsKey},
 		[]string{"runtime logs", "log events"},
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDObserveMetrics,
 		"observe_metrics",
 		"Observe Metrics",
@@ -39,7 +39,7 @@ var observeTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDObserve},
 		[]string{observeObserveKey, "metrics", observeHealthKey},
 		[]string{"observe health", "runtime metrics"},
-	),
+	), observeMetricsCompactOutputSchema, `{"type":"object"}`),
 	nativeDescriptor(
 		toolspkg.ToolIDObserveSearch,
 		"observe_search",

@@ -3279,6 +3279,38 @@ func TestProviderUsageAuthAdmission(t *testing.T) {
 }
 
 func TestProviderUsageResolver(t *testing.T) {
+	t.Run(
+		"Should recover only a native account from verified usage without holding config reconciliation",
+		func(t *testing.T) {
+			t.Parallel()
+			runtime := &providerUsageRuntime{}
+			var calls int
+			runtime.recoverAuth = func(profile, provider, fingerprint string) bool {
+				calls++
+				if profile != store.DefaultProfileID || provider != "claude" || fingerprint != "sha256:verified" {
+					t.Errorf("wrong recovered route")
+				}
+				return true
+			}
+			runtime.mu.Lock()
+			defer runtime.mu.Unlock()
+			runtime.onAuthenticated(
+				t.Context(),
+				providerusage.Target{ProfileID: store.DefaultProfileID, ProviderID: "openrouter"},
+			)
+			runtime.onAuthenticated(
+				t.Context(),
+				providerusage.Target{
+					ProfileID:            store.DefaultProfileID,
+					ProviderID:           "claude",
+					AuthRouteFingerprint: "sha256:verified",
+				},
+			)
+			if calls != 1 {
+				t.Fatalf("recoveries = %d, want only the native account proof", calls)
+			}
+		},
+	)
 	t.Run("Should resolve the route and bound secret", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)
@@ -4116,4 +4148,36 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 			},
 		)
 	}
+}
+
+func TestProviderUsageResolverDisabledProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve disabled providers to the disabled usage status per alias", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		cfg.Providers["gemini"] = compozyconfig.ProviderConfig{Enabled: new(false)}
+		cfg.Providers["claude-mm2"] = compozyconfig.ProviderConfig{
+			Command: "claude-agent-acp", RuntimeProvider: "claude", Enabled: new(false),
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatalf("Targets() error = %v", err)
+		}
+		statuses := make(map[string]providerusage.Status, len(targets))
+		for _, target := range targets {
+			statuses[target.ProviderID] = target.Status
+		}
+		for _, id := range []string{"gemini", "claude-mm2"} {
+			if statuses[id] != providerusage.StatusDisabled {
+				t.Fatalf("target %s status = %q, want disabled", id, statuses[id])
+			}
+		}
+		if statuses["claude"] == providerusage.StatusDisabled {
+			t.Fatal("target claude disabled, want aliases independent")
+		}
+	})
 }

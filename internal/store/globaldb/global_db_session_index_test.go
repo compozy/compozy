@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
@@ -297,6 +298,181 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		if facets.Later != 1 {
 			t.Fatalf("later = %d, want the shelf's parked run", facets.Later)
+		}
+	})
+
+	t.Run("Should hide every unprompted automation run family from pages, counts and live rows", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			db,
+			"automation-hidden",
+			filepath.Join(t.TempDir(), "workspace"),
+		)
+		for _, statement := range []string{
+			`INSERT INTO automation_jobs (id, profile_id, scope, name, agent_name, prompt, retry, fire_limit,
+ created_at, updated_at) VALUES ('job-1', ?, 'global', 'triage', 'coder', 'run', '{}', '{}',
+ '2026-11-07T00:00:00Z', '2026-11-07T00:00:00Z')`,
+			`INSERT INTO automation_triggers (id, profile_id, scope, name, agent_name, prompt, event, retry,
+ fire_limit, created_at, updated_at) VALUES ('trg-1', ?, 'global', 'review', 'coder', 'run', 'session.stopped',
+ '{}', '{}', '2026-11-07T00:00:00Z', '2026-11-07T00:00:00Z')`,
+		} {
+			if _, err := db.db.ExecContext(ctx, statement, store.DefaultProfileID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		base := time.Date(2026, 11, 7, 16, 0, 0, 0, time.UTC)
+		seed := func(id, initiator, root, lineage, state, failure string) {
+			t.Helper()
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, state, base)
+			info.SessionType = "system"
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET initiator_kind = 'automation', initiator_id = ?,
+ root_session_id = NULLIF(?, ''), parent_session_id = NULLIF(?, ''), lineage_kind = ?,
+ origin_agent_name = CASE WHEN ? = 'fork' THEN 'coder' ELSE '' END,
+ spawn_depth = CASE WHEN ? = '' THEN 0 ELSE 1 END, failure_kind = NULLIF(?, '') WHERE id = ?`,
+				initiator,
+				root,
+				root,
+				lineage,
+				lineage,
+				root,
+				failure,
+				id,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run := func(sessionID, status string) {
+			t.Helper()
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO automation_runs (id, job_id, session_id, status)
+ VALUES (?, 'job-gone', ?, ?)`, "run-"+sessionID, sessionID, status); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The dispatcher records the run's session link only after the session row exists.
+		seed("hidden-starting", "job-1", "", "", globalDBSessionStateActive, "")
+		seed("hidden-child", "job-1", "hidden-starting", "spawn", globalDBSessionStateActive, "")
+		seed("hidden-trigger", "trg-1", "", "", globalDBSessionStateActive, "")
+		seed("hidden-failed", "job-1", "", "", globalDBSessionStateStopped, "prompt_failure")
+		seed("hidden-waiting", "job-1", "", "", globalDBSessionStateActive, "")
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET pending_clarify_count = 1 WHERE id = 'hidden-waiting'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		seed("hidden-deleted-job", "job-gone", "", "", globalDBSessionStateStopped, "")
+		run("hidden-deleted-job", "completed")
+		prompt := func(sessionID string) {
+			t.Helper()
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO session_prompt_admissions (id, workspace_id, session_id,
+ message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, turn_id, event_id,
+ created_at, updated_at, human_ingress)
+ VALUES (?, ?, ?, 'message', ?, 'prompt', 'v1', 'fingerprint', 'completed',
+ 'turn', 'event', '2026-11-07T16:00:00Z', '2026-11-07T16:00:00Z', 1)`,
+				"admission-"+sessionID, workspaceID, sessionID, "key-"+sessionID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seed("visible-prompted", "job-1", "", "", globalDBSessionStateStopped, "")
+		prompt("visible-prompted")
+		// A prompt on a child makes the whole family the operator's work.
+		seed("visible-prompted-family", "job-1", "", "", globalDBSessionStateActive, "")
+		seed("visible-prompted-child", "job-1", "visible-prompted-family", "spawn", globalDBSessionStateStopped, "")
+		prompt("visible-prompted-child")
+		// A prompt on a fork keeps the fork's source family hidden.
+		seed("hidden-fork-source", "job-1", "", "", globalDBSessionStateStopped, "")
+		seed("visible-prompted-fork", "job-1", "hidden-fork-source", "fork", globalDBSessionStateStopped, "")
+		prompt("visible-prompted-fork")
+		seed("visible-fork", "job-1", "hidden-starting", "fork", globalDBSessionStateStopped, "")
+		seed("visible-task", "task-1", "", "", globalDBSessionStateActive, "")
+		seed("visible-loop", "looprun-1", "", "", globalDBSessionStateActive, "")
+		user := sessionInfoForWorkspaceStateIndexTest("visible-user", workspaceID, globalDBSessionStateActive, base)
+		if err := db.RegisterSession(ctx, &(user)); err != nil {
+			t.Fatal(err)
+		}
+		const visible, hidden = 8, 7
+
+		query := store.SessionCatalogPageQuery{
+			ReadScope:         store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:       workspaceID,
+			Limit:             20,
+			Sort:              "recent",
+			ExcludeAutomation: true,
+		}
+		page, err := db.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := sessionIDsFromInfos(page.Sessions)
+		if page.Total != visible || len(listed) != visible {
+			t.Fatalf("total = %d listed = %v, want %d visible sessions", page.Total, listed, visible)
+		}
+		for _, id := range listed {
+			if !strings.HasPrefix(id, "visible-") {
+				t.Fatalf("%s leaked into the default page: %v", id, listed)
+			}
+		}
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != visible || facets.Facets.Idle != 4 || facets.Facets.NeedsYou != 0 ||
+			facets.ByWorkspace[0].Facets.All != visible || facets.ByProfile[0].Facets.All != visible {
+			t.Fatalf("facets = %+v", facets.Facets)
+		}
+		aggregate := query
+		aggregate.WorkspaceID = ""
+		if page, err = db.PageSessions(ctx, aggregate); err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != visible {
+			t.Fatalf("All projects total = %d, want %d", page.Total, visible)
+		}
+		complete := query
+		complete.ExcludeAutomation = false
+		if page, err = db.PageSessions(ctx, complete); err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != visible+hidden {
+			t.Fatalf("complete total = %d, want every session", page.Total)
+		}
+
+		// A start registers its live session before the catalog saves the row.
+		candidates := []store.SessionAutomationRunCandidate{
+			{ID: "hidden-starting", InitiatorID: "job-1"},
+			{ID: "hidden-child", InitiatorID: "job-1"},
+			{ID: "visible-prompted", InitiatorID: "job-1"},
+			{ID: "visible-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
+			{ID: "visible-prompted-family", InitiatorID: "job-1"},
+			{ID: "visible-prompted-fork", InitiatorID: "job-1"},
+			{ID: "hidden-fork-source", InitiatorID: "job-1"},
+			{ID: "visible-task", InitiatorID: "task-1"},
+			{ID: "unsaved-job-run", InitiatorID: "job-1"},
+			{ID: "unsaved-trigger-run", InitiatorID: "trg-1"},
+			{ID: "unsaved-task-session", InitiatorID: "task-1"},
+			{ID: "unsaved-unknown"},
+			{ID: "unsaved-hidden-child", InitiatorID: "job-1", FamilyRootID: "hidden-starting"},
+			{ID: "unsaved-prompted-child", InitiatorID: "job-1", FamilyRootID: "visible-prompted-family"},
+		}
+		live, err := db.AutomationRunSessionIDs(ctx, candidates)
+		if err != nil {
+			t.Fatal(err)
+		}
+		slices.Sort(live)
+		want := []string{
+			"hidden-child", "hidden-fork-source", "hidden-starting",
+			"unsaved-hidden-child", "unsaved-job-run", "unsaved-trigger-run",
+		}
+		if !slices.Equal(live, want) {
+			t.Fatalf("live automation rows = %v, want %v", live, want)
 		}
 	})
 
@@ -792,6 +968,9 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if later, _, err := globalDB.SessionLaterState(ctx, workspaceID, parked.ID); err != nil ||
 			later == nil || later.PendingMessages != 0 {
 			t.Fatalf("SessionLaterState(after clear) = %#v, %v, want no pending messages", later, err)
+		}
+		if err := globalDB.ReturnLaterSession(ctx, workspaceID, parked.ID, baseAt.Add(30*time.Minute)); err == nil {
+			t.Fatal("ReturnLaterSession(before due) error = nil, want a refusal")
 		}
 		returned, err := globalDB.ReturnDueLaterSessions(ctx, baseAt.Add(30*time.Minute), 10)
 		if err != nil || len(returned) != 0 {
@@ -3991,6 +4170,36 @@ func TestPendingInteractionDescendants(t *testing.T) {
 // Owner: SQLite catalog; canonical session catalog suite, on a fresh migrated database without ANALYZE.
 func TestSessionLinkedWorkCatalogReview(t *testing.T) {
 	t.Parallel()
+	// Invariant: family traversal seeks parents without statistics and preserves each requested root.
+	t.Run("Should seek parent edges without SQLite statistics", func(t *testing.T) {
+		t.Parallel()
+		db, ids := sessionWorkFamilyFixture(t)
+		recorder := &sessionFamilyQueryRecorder{DB: db.readDB}
+		rows, err := sqlcgen.New(recorder).ReadSessionWorkFamily(t.Context(), ids)
+		if err != nil || len(rows) != 840 {
+			t.Fatalf("family rows = %d, error = %v, want 840", len(rows), err)
+		}
+		counts := make(map[string]int)
+		for _, row := range rows {
+			counts[row.RootID]++
+			if row.WorkspaceID != "ws-family" || row.ProfileID != store.DefaultProfileID {
+				t.Fatalf("family crossed scope: %+v", row)
+			}
+		}
+		if len(counts) != 120 {
+			t.Fatalf("roots = %d, want 120", len(counts))
+		}
+		for root, count := range counts {
+			if count != 7 {
+				t.Fatalf("root %s has %d members, want 7", root, count)
+			}
+		}
+		plan := explainQueryPlan(t, db.readDB, recorder.query, ids)
+		t.Log(plan)
+		if !strings.Contains(plan, "SEARCH s USING INDEX idx_sessions_parent (parent_session_id=?)") {
+			t.Fatalf("family recursion does not seek the parent index: %s", plan)
+		}
+	})
 	t.Run("Should fence stale facts and use the session index", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -4107,4 +4316,80 @@ func TestSessionLinkedWorkCatalogReview(t *testing.T) {
 			t.Fatal("linked board lookup did not select the session index")
 		}
 	})
+}
+
+type sessionFamilyQueryRecorder struct {
+	*sql.DB
+	query string
+}
+
+func (r *sessionFamilyQueryRecorder) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	r.query = query
+	return r.DB.QueryContext(ctx, query, args...)
+}
+
+// sessionWorkFamilyFixture seeds 120 seven-member trees without statistics and with upgraded index order.
+func sessionWorkFamilyFixture(tb testing.TB) (*GlobalDB, string) {
+	tb.Helper()
+	ctx := tb.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(tb.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			tb.Error(err)
+		}
+	})
+	if err := db.checkpoint.Close(ctx); err != nil {
+		tb.Fatal(err)
+	}
+	if _, err := db.db.ExecContext(ctx, `
+INSERT INTO workspaces(id,root_dir,name,created_at,updated_at)
+VALUES ('ws-family','/fixture-family','Family','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z');
+WITH RECURSIVE fixture(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM fixture WHERE i < 839)
+INSERT INTO sessions(id,profile_id,workspace_id,agent_name,provider,state,parent_session_id,lineage_kind,name,created_at,updated_at)
+SELECT printf('family-%04d',i), '00000000000000000000000000', 'ws-family', 'coder', 'codex', 'active',
+ CASE WHEN i%7=0 THEN NULL ELSE printf('family-%04d',i-i%7+(i%7-1)/2) END,
+ CASE WHEN i%7=0 THEN '' ELSE 'spawn' END, printf('Family member %d',i),
+ '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z' FROM fixture;
+DROP TABLE IF EXISTS sqlite_stat1;`); err != nil {
+		tb.Fatal(err)
+	}
+	// Upgrades can recreate catalog indexes after the parent index, unlike a fresh schema.
+	var indexDDL string
+	if err := db.db.QueryRowContext(ctx, "SELECT sql FROM sqlite_schema WHERE name='idx_sessions_profile_catalog_recent'").
+		Scan(&indexDDL); err != nil {
+		tb.Fatal(err)
+	}
+	if _, err := db.db.ExecContext(ctx, "DROP INDEX idx_sessions_profile_catalog_recent;"+indexDDL); err != nil {
+		tb.Fatal(err)
+	}
+	// Reload planner state after removing statistics, including connections opened by the fixture seed.
+	db.readDB.SetMaxIdleConns(0)
+	db.readDB.SetMaxIdleConns(8)
+	var count int
+	if err := db.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_schema WHERE name='sqlite_stat1'").
+		Scan(&count); err != nil ||
+		count != 0 {
+		tb.Fatalf("statistics tables = %d, error = %v, want none", count, err)
+	}
+	var ids string
+	if err := db.db.QueryRowContext(ctx, "SELECT json_group_array(id) FROM sessions WHERE parent_session_id IS NULL").
+		Scan(&ids); err != nil {
+		tb.Fatal(err)
+	}
+	return db, ids
+}
+
+// BenchmarkSessionWorkFamily measures a complete batched family read without planner statistics.
+func BenchmarkSessionWorkFamily(b *testing.B) {
+	db, ids := sessionWorkFamilyFixture(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		rows, err := db.SessionRepo.readQueries.ReadSessionWorkFamily(b.Context(), ids)
+		if err != nil || len(rows) != 840 {
+			b.Fatalf("family rows = %d, error = %v, want 840", len(rows), err)
+		}
+	}
 }

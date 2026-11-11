@@ -11,7 +11,7 @@ bug_ids: BUG-20260727-runtime-legacy-identity;BUG-20260910-idle-session-high-cpu
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634;ed2f523b8c5e85b54f0be70accf81ff011255ff3;4368ae4a6078fe16f50a528a687a70726fba9a61;0308fe9617f08ce8c6de8ace9ffca4659ee00b6f;b75ab2c2bb54ba7a7ce5b6c6cafe73a6b0b337a4;e016417aac4fbef9f79a025743b54d98b57b55dd;3b5a22ee3287316afd213bad3afc7dd6e0a2f852;66100544f88d6ce9b0c2b5a8affec78a2a2fb9c9
-evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-info-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/logs/final-policy-go1264-clean-state-canary-canary.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/logs/final-policy-go1264-clean-state-representative-metrics.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/qa-audit-report.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-review-20260910-181815-323329-lab/qa-artifacts/qa/logs/watcher-final-clean-state-canary-canary.json;/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-review-20260910-181815-323329-lab/qa-artifacts/qa/logs/watcher-final-clean-state-representative-metrics.json
+evidence: unpublished-local-artifact/qa/skill-sources/tool-info-skill-list.json;unpublished-local-artifact/qa/skill-sources/tool-skill-list.json;unpublished-local-artifact/qa/skill-sources/tool-skill-view.json;unpublished-local-artifact/qa/logs/final-policy-go1264-clean-state-canary-canary.json;unpublished-local-artifact/qa/logs/final-policy-go1264-clean-state-representative-metrics.json;unpublished-local-artifact/qa/qa-audit-report.json;unpublished-local-artifact/qa/teardown.json;unpublished-local-artifact/qa/logs/watcher-final-clean-state-canary-canary.json;unpublished-local-artifact/qa/logs/watcher-final-clean-state-representative-metrics.json
 last_report: docs/qa/reports/2026-09-10-beta24-daemon-cpu.md
 overlaps: ET-native-tool-approval-grants; ET-workspace-host-api-mcp
 ---
@@ -112,3 +112,15 @@ records canonical before/after CPU and allocation measurements, plus descriptor
 ownership and approval boundary checks. Focused race verification passed for the canonical descriptor and approval
 suites; real terminal/transport execution and current-head CI remain root-owned
 pending work. This impact note preserves all historical scenario verdicts.
+
+QA impact 2026-11-09 (harness token efficiency): hosted descriptions keep the tool's authored
+instructions and canonical ID, with search tags, hints and toolset names in search metadata and
+`tool_info`. Existing MCP names, schemas, approvals, hook identities and routing remain unchanged.
+Verify search by an alias/tag still finds the tool and invoking it has the same result.
+
+QA scope for bounded reads: seed more than 50 automation runs for a job and trigger. Walk native
+and HTTP/UDS histories using `page.next_cursor`; assert every matching ID appears once, page sizes
+stay bounded, and changing filters/profile/workspace rejects a cursor from another population.
+Search a tool catalog larger than 100 entries; follow `next_offset` under the same query and
+confirm every diagnostic descriptor appears once. Check zero, negative and oversized page inputs.
+Verify CLI JSON retains history/search continuation metadata and its continuation flags round-trip.

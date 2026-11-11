@@ -74,7 +74,7 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extension: marshal development ingest diagnostics for %q: %w", name, err)
 	}
-	_, err = r.db.ExecContext(registryContext(), `
+	_, err = r.execWrite(registryContext(), "link development extension", `
 		INSERT INTO extension_dev_links (
 			extension_name, workspace_id, origin_path, bundle_generation, linked_at,
 			format, ingest_diagnostics_json,
@@ -114,8 +114,9 @@ func (r *Registry) UnlinkDev(name, workspaceID string) error {
 	if err != nil {
 		return err
 	}
-	result, err := r.db.ExecContext(
+	result, err := r.execWrite(
 		registryContext(),
+		"unlink development extension",
 		`DELETE FROM extension_dev_links WHERE extension_name = ? AND workspace_id = ?`,
 		key.Name,
 		key.WorkspaceID,

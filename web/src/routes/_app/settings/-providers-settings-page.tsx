@@ -8,6 +8,7 @@ import {
   type ProviderLastAction,
 } from "@/systems/settings/hooks/use-settings-providers-page";
 import {
+  DisabledProvidersGroup,
   ProviderCard,
   ProviderCardGrid,
   ProviderDetailDialog,
@@ -78,6 +79,17 @@ export function ProvidersSettingsPage() {
 type ProvidersPage = ReturnType<typeof useSettingsProvidersPage>;
 
 function providerCountMeta(counts: ProvidersPage["counts"]) {
+  const disabled =
+    counts.disabled > 0
+      ? [
+          {
+            key: "disabled",
+            content: (
+              <span data-testid="settings-page-providers-disabled">{counts.disabled} disabled</span>
+            ),
+          },
+        ]
+      : [];
   return [
     {
       key: "ready",
@@ -99,6 +111,7 @@ function providerCountMeta(counts: ProvidersPage["counts"]) {
         </span>
       ),
     },
+    ...disabled,
   ];
 }
 
@@ -121,7 +134,7 @@ function ProvidersCatalog({ page }: { page: ProvidersPage }) {
         onStatusChange={page.setStatusFilter}
         statusFilter={page.filters.statusFilter}
       />
-      {page.filteredProviders.length === 0 ? (
+      {page.filteredProviders.length === 0 && page.disabledProviders.length === 0 ? (
         <Empty
           action={
             <Button
@@ -143,11 +156,16 @@ function ProvidersCatalog({ page }: { page: ProvidersPage }) {
           title="No providers match"
         />
       ) : (
-        <ProviderCardGrid data-testid="settings-page-providers-list">
-          {page.filteredProviders.map(provider => (
-            <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
-          ))}
-        </ProviderCardGrid>
+        <>
+          {page.filteredProviders.length > 0 ? (
+            <ProviderCardGrid data-testid="settings-page-providers-list">
+              {page.filteredProviders.map(provider => (
+                <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
+              ))}
+            </ProviderCardGrid>
+          ) : null}
+          <DisabledProvidersGroup onOpen={page.openInspect} providers={page.disabledProviders} />
+        </>
       )}
     </>
   );
@@ -165,6 +183,7 @@ function ProvidersInspector({ page }: { page: ProvidersPage }) {
       open={inspector.mode !== "closed"}
       mode={inspector.mode === "closed" ? "inspect" : inspector.mode}
       entry={inspectorEntry}
+      liveEntry={page.providers.find(provider => provider.name === inspectorEntry?.name) ?? null}
       draft={inspectorDraft}
       error={page.inspectorError}
       warnings={page.inspectorWarnings}

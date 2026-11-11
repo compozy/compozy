@@ -56,6 +56,45 @@ func TestSessionEnvRedaction(t *testing.T) {
 func TestPreStarter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bypass a cached auth refusal during credential recovery", func(t *testing.T) {
+		t.Parallel()
+		starter := NewPreStarter()
+		provider := compozyconfig.ProviderConfig{
+			Command:       "provider acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "provider auth status",
+		}
+		valid, calls := false, 0
+		env := &ProbeEnv{
+			ProviderName:  "provider-a",
+			PreStartScope: preStartTestScope("one"),
+			CommandEnv:    []string{"PATH=/provider/bin"},
+			LookPath:      func(string) (string, error) { return "/provider/bin/provider", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				calls++
+				if valid {
+					return ProviderAuthCommandResult{Stdout: "authenticated"}, nil
+				}
+				return ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+			},
+		}
+		for range 2 {
+			if report := starter.PreStart(t.Context(), provider, env); report.Item == nil {
+				t.Fatal("expected sign-in refusal")
+			}
+		}
+		if calls != 1 {
+			t.Fatalf("calls = %d, want cached refusal", calls)
+		}
+		valid, env.BypassCache = true, true
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		env.BypassCache = false
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		if calls != 2 {
+			t.Fatalf("calls = %d, want a fresh auth proof", calls)
+		}
+	})
+
 	t.Run("Should return nil item when auth mode is none", func(t *testing.T) {
 		t.Parallel()
 
@@ -676,6 +715,22 @@ func TestPreStarterCachesOnlyMatchingFinalScope(t *testing.T) {
 
 func TestPreStarterCachesOnlyMatchingFinalProbeIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should distinguish inherited and explicitly empty environments", func(t *testing.T) {
+		t.Parallel()
+		var key preStartCacheHMACKey
+		inherited, ok := preStartSemanticFingerprint(key, compozyconfig.ProviderConfig{}, &ProbeEnv{})
+		if !ok {
+			t.Fatal("inherited fingerprint failed")
+		}
+		empty, ok := preStartSemanticFingerprint(key, compozyconfig.ProviderConfig{}, &ProbeEnv{CommandEnv: []string{}})
+		if !ok {
+			t.Fatal("empty fingerprint failed")
+		}
+		if inherited == empty {
+			t.Fatal("environment presence missing from cache identity")
+		}
+	})
 
 	t.Run("Should distinguish final command environment and auth configuration", func(t *testing.T) {
 		t.Parallel()

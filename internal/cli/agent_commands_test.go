@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -1178,6 +1179,7 @@ func TestAgentInstanceCommands(t *testing.T) {
 	}{
 		{"create", []string{"create", "triage"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
 		{"adopt", []string{"adopt", "triage", "--session", "sess-main"}, "Triage Lead is always-on in Global\nMain session: sess-main\n"},
+		{"pick", []string{"pick", "ainst-test", "report-test", "1", "--global"}, "Picked proposal 1 (queued)\n"},
 		{"pause", []string{"pause", "ainst-test"}, "Triage Lead paused in Global\n"},
 		{"resume", []string{"resume", "ainst-test"}, "Triage Lead resumed in Global\n"},
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
@@ -1217,6 +1219,14 @@ func TestAgentInstanceCommands(t *testing.T) {
 					body = `{"occurrence_id":"occ-test"}`
 				case "/api/agent-instances/ainst-test/occurrences/occ-test":
 					body = `{"state":"finished","result":"reported","reason":"reported","report_id":"report-test"}`
+				case "/api/agent-instances/ainst-test/reports/report-test/pick":
+					var request contract.AgentInstancePickRequest
+					if err := json.NewDecoder(r.Body).
+						Decode(&request); err != nil || request.Proposal == nil || *request.Proposal != 0 ||
+						r.Method != "POST" {
+						t.Errorf("pick request=%+v method=%s err=%v", request, r.Method, err)
+					}
+					body = `{"pick":{"report_id":"report-test","proposal_index":0,"actor":"operator","state":"queued"}}`
 				case "/api/agent-instances/ainst-test/reports":
 					body = `{"reports":[{"id":"report-test","kind":"proposal","state":"delivered","proposals":[{"title":"Review","body":"Review work"}]}]}`
 				default:
@@ -1248,6 +1258,29 @@ func TestAgentInstanceCommands(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should refuse a pick from an agent session before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, nil)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			t.Error("agent pick reached the daemon client")
+			return nil, errors.New("unexpected client")
+		}
+		deps.getenv = func(key string) string {
+			if key == agentidentity.EnvSessionID {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent", "instance", "pick", "ainst-test", "report-test", "1", "--global",
+		)
+		if err == nil || !strings.Contains(err.Error(), "proposal_pick_operator_only") {
+			t.Fatalf("agent pick err=%v", err)
+		}
+	})
 
 	for _, command := range []string{"check", "occurrence"} {
 		t.Run("Should read the completed occurrence through "+command, func(t *testing.T) {
@@ -1353,6 +1386,43 @@ func TestAgentInstanceCommands(t *testing.T) {
 }
 
 func TestAgentReadCommands(t *testing.T) {
+	t.Run("Should render proposal state and tool summaries in CLI text", func(t *testing.T) {
+		t.Parallel()
+		reports := instanceReportsText(
+			contract.AgentInstanceReportsResponse{
+				Reports: []contract.AgentInstanceReportPayload{
+					{
+						ID:    "report",
+						Kind:  "proposal",
+						State: "published",
+						Proposals: []contract.AgentInstanceProposal{
+							{Title: "Review", AutoAcceptStatus: contract.AutoAcceptPicked},
+						},
+						Picks:     []agentinstance.Pick{{ProposalIndex: 0, Actor: "auto_accept", State: "queued"}},
+						ToolCalls: agentinstance.CheckInToolSummary{Total: 3, WritesDone: 1, WritesMaybe: 1, Denied: 1},
+					},
+				},
+			},
+		)
+		for _, want := range []string{"1 Review [queued; auto_accept_status=picked]", "tools: 3 (1 writes done, 1 writes maybe, 1 denied)"} {
+			if !strings.Contains(reports, want) {
+				t.Fatalf("missing %q in %s", want, reports)
+			}
+		}
+		checks := instanceCheckInsText(
+			contract.AgentInstanceCheckInsResponse{
+				CheckIns: []contract.AgentInstanceCheckInPayload{
+					{Result: "reported", Proposals: agentinstance.CheckInProposalSummary{AutoAccepted: 1, Waiting: 1}},
+				},
+			},
+		)
+		for _, want := range []string{"WHEN\tOUTCOME\tTOOLS\tPROPOSALS", "1 auto-accepted, 1 waiting"} {
+			if !strings.Contains(checks, want) {
+				t.Fatalf("missing %q in %s", want, checks)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name, method, path, body string
 		args                     []string

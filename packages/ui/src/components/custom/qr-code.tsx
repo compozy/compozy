@@ -30,11 +30,11 @@ const SIZE_CLASSNAME: Record<QrCodeSize, string> = {
 /**
  * Renders `value` as a scannable QR matrix.
  *
- * The plate is painted `--color-viz-cell` and the modules `--color-brand-ink`
- * rather than inheriting the warm-dark ramp: phone scanners expect dark modules
- * on a light quiet zone, and an inverted code on `--color-canvas` fails to
- * decode on a large share of devices. Scannability is a functional contract, so
- * these two tokens are fixed regardless of surrounding surface.
+ * The plate is painted `--color-qr-plate` and the modules `--color-qr-module`
+ * rather than inheriting the theme ramp: phone scanners expect dark modules on
+ * a light quiet zone, and an inverted code on `--color-canvas` fails to decode
+ * on a large share of devices. Scannability is a functional contract, so these
+ * two tokens are fixed in both themes regardless of surrounding surface.
  *
  * Every surface that shows a QR code must also offer the same payload as
  * copyable text: cameras are optional, the artifact is not.
@@ -61,8 +61,8 @@ function QrCode({
       shapeRendering="crispEdges"
       className={cn("shrink-0 rounded-sm", SIZE_CLASSNAME[size], className)}
     >
-      <rect width={matrix.size} height={matrix.size} className="fill-viz-cell" />
-      <path d={path} className="fill-brand-ink" />
+      <rect width={matrix.size} height={matrix.size} className="fill-qr-plate" />
+      <path d={path} className="fill-qr-module" />
     </svg>
   );
 }

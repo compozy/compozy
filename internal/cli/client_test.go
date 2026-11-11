@@ -2099,6 +2099,66 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should fetch a complete large catalog after a projection notification", func(t *testing.T) {
+		t.Parallel()
+		projection := mcppkg.HostedProjectionResponse{
+			Digest: "current",
+			Tools: []toolspkg.ToolView{{Descriptor: toolspkg.Descriptor{
+				ID: "mcp__large__echo", Description: strings.Repeat("x", 2*1024*1024),
+			}}},
+		}
+		payload, err := json.Marshal(projection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.Path {
+				case "/api/internal/hosted-mcp/projection/stream":
+					if req.URL.Query().Get("notifications_only") != "true" ||
+						req.URL.Query().Get("bind_id") != "bind-large" {
+						t.Fatalf("stream query = %s", req.URL.RawQuery)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						"event: projection_changed\ndata: {\"digest\":\"older\"}\n\n",
+					), nil
+				case "/api/internal/hosted-mcp/projection":
+					if req.URL.Query().Get("bind_id") != "bind-large" ||
+						req.URL.Query().Get("stream_snapshot") != "true" {
+						t.Fatalf("projection query = %s", req.URL.RawQuery)
+					}
+					return newHTTPResponse(http.StatusOK, string(payload)), nil
+				default:
+					t.Fatalf("unexpected path: %s", req.URL.Path)
+					return nil, nil
+				}
+			}),
+		}}
+		var received []mcppkg.HostedProjectionResponse
+		if err := client.StreamHostedMCPProjection(
+			t.Context(),
+			"bind-large",
+			"before",
+			func(snapshot mcppkg.HostedProjectionResponse) error {
+				received = append(received, snapshot)
+				return nil
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(received) != 1 {
+			t.Fatal("projection notification did not deliver the complete current catalog")
+		}
+		encoded, err := json.Marshal(received[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(encoded, payload) {
+			t.Fatalf("catalog changed in transit: received %d bytes, want %d", len(encoded), len(payload))
+		}
+	})
+
 	t.Run("Should exercise hosted MCP client methods", func(t *testing.T) {
 		t.Parallel()
 
@@ -4173,7 +4233,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Until:  startedAt.Add(time.Hour),
 			Limit:  2,
 		})
-		if err != nil || len(jobRuns) != 1 || jobRuns[0].JobID != "job-created" {
+		if err != nil || len(jobRuns.Runs) != 1 || jobRuns.Runs[0].JobID != "job-created" {
 			t.Fatalf("AutomationJobRuns() = %#v, %v", jobRuns, err)
 		}
 	})
@@ -4241,7 +4301,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Status: automationpkg.RunCompleted,
 			Limit:  1,
 		})
-		if err != nil || len(triggerRuns) != 1 || triggerRuns[0].TriggerID != "trg-created" {
+		if err != nil || len(triggerRuns.Runs) != 1 || triggerRuns.Runs[0].TriggerID != "trg-created" {
 			t.Fatalf("AutomationTriggerRuns() = %#v, %v", triggerRuns, err)
 		}
 	})
@@ -4261,7 +4321,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Until:     startedAt.Add(time.Hour),
 			Limit:     5,
 		})
-		if err != nil || len(runs) != 1 || runs[0].ID != "run-shared" {
+		if err != nil || len(runs.Runs) != 1 || runs.Runs[0].ID != "run-shared" {
 			t.Fatalf("ListAutomationRuns() = %#v, %v", runs, err)
 		}
 	})

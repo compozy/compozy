@@ -85,6 +85,7 @@ type ToolPostCallPayload struct {
 	Title      string          `json:"title,omitempty"`
 	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
 	ToolResult json.RawMessage `json:"tool_result,omitempty"`
+	ResultView string          `json:"result_view,omitempty"`
 }
 
 // ToolPostErrorPayload is delivered after a tool fails.

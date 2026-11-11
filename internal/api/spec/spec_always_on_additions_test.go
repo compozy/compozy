@@ -17,9 +17,18 @@ var alwaysOnHardeningAdditions = []struct {
 	pathPrefix string
 	keys       []string
 }{
+	// Managed harness controls are optional additions to these exact public contracts.
+	{"#/components/schemas/AgentEffectiveRuntimePayload", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/AgentPayload", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/CreateAgentPayload", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/DuplicateAgentOverrides", []string{"auto_compact_window", "lean_environment"}},
+	{"#/components/schemas/SettingsProviderSettingsPayload", []string{"auto_compact_window"}},
+	{"#/components/schemas/SettingsProviderWritePayload", []string{"auto_compact_window"}},
 	// Check-in sources add only these reviewed fields to the named wire components.
 	{"#/components/schemas/HeartbeatContextProjectionPayload", []string{"sources"}},
 	{"#/components/schemas/AgentInstancePayload", []string{"sources"}},
+	// #1393: only instances expose whether operator acknowledgement can clear attention.
+	{"#/components/schemas/AgentInstancePayload", []string{"attention_dismissible"}},
 	{"#/components/schemas/AgentInstanceCheckResponse", []string{"sources"}},
 	{"#/components/schemas/AgentInstanceCheckDigest", []string{"source"}},
 	{"#/components/schemas/AgentInstanceProposalSource", []string{"source_id", "source_ref", "item_key", "url"}},

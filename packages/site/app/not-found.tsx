@@ -1,33 +1,26 @@
-import Link from "next/link";
-import { Eyebrow } from "@compozy/ui";
+import { SiteShell } from "@/components/site/site-shell";
+import { CONTAINER } from "@/components/site/layout";
+import { H1, Lead, PrimaryCta, SecondaryCta, Small } from "@/components/site/primitives";
+import { cn } from "@compozy/ui";
 
 export default function NotFound() {
   return (
-    <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
-      <section className="mx-auto w-full max-w-190 rounded-diagram border border-line bg-canvas-soft p-8 md:p-10">
-        <Eyebrow className="text-brand">Not found</Eyebrow>
-        <h1 className="mt-5 max-w-[12ch] text-site-error-title leading-none font-normal tracking-tight text-fg">
-          This route is not in the runtime.
-        </h1>
-        <p className="mt-5 max-w-[58ch] text-base leading-7 text-muted-foreground">
-          The requested page is not part of the published CompozyOS site. Use the runtime docs or
-          the sessions reference to re-enter the catalog.
-        </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link
-            href="/docs/"
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-brand px-5 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-hover active:translate-y-px"
-          >
-            Runtime docs
-          </Link>
-          <Link
-            href="/docs/sessions/"
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-5 text-sm font-medium text-fg transition-colors hover:border-brand hover:text-brand active:translate-y-px"
-          >
-            Sessions
-          </Link>
+    <SiteShell>
+      <section
+        className={cn(CONTAINER, "flex flex-1 flex-col justify-center pt-40 pb-32 md:pt-48")}
+      >
+        <Small className="font-mono text-brand-strong">404</Small>
+        <div className="mt-5 max-w-[760px]">
+          <H1>This page is not here.</H1>
+          <Lead className="max-w-[560px]">
+            The link may be old, or the page moved. Start again from the home page or the docs.
+          </Lead>
+        </div>
+        <div className="mt-10 flex flex-wrap gap-3">
+          <PrimaryCta href="/">Back to home</PrimaryCta>
+          <SecondaryCta href="/docs">Read the docs</SecondaryCta>
         </div>
       </section>
-    </main>
+    </SiteShell>
   );
 }

@@ -185,6 +185,8 @@ func newProviderListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, providerListBundle(record))
 		},
 	}
+	// The daemon reports enabled for the selected profile's effective config (BR-2).
+	configureSingleProfileCommand(cmd, deps)
 	return cmd
 }
 

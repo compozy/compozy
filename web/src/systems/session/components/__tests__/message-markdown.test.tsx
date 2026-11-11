@@ -16,9 +16,12 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
+import { filesAppPlace, filesAppRequestTarget } from "@/systems/files";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { CompozyShellBridge, OpenInEditorResult } from "@/systems/os/lib/desktop-shell-bridge";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 
+import { sessionReviewPanelStore } from "../../hooks/use-session-review-panel-state";
 import { sessionKeys } from "../../lib/query-keys";
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import type { SessionPayload } from "../../types";
@@ -163,12 +166,14 @@ describe("MessageMarkdown", () => {
   });
 });
 
-// Suite: transcript file paths (spec #1167 S5; UT-040..UT-046, UT-048).
-// Invariant: on the desktop app only, this session's assistant markdown turns path inline code
-// and path links into Cmd/Ctrl+click and button affordances that call the shell bridge with the
-// click-time resolved path and inside roots; every other client renders exactly as before.
-// Owning layer: MessageMarkdown and the session open-in-editor hook. Boundary: `window.compozyShell`
-// (stubbed) and `fetch` (stubbed for the detail reread).
+// Suite: transcript file paths (spec #1167 S5; UT-040..UT-046, UT-048; file-explorer US-005).
+// Invariant: this session's assistant markdown turns path inline code and path links into links:
+// a plain click opens the file in the project's Files window (as a tab of the focused window) on
+// every client with a session root, and on the desktop app Cmd/Ctrl+click calls the shell bridge
+// with the click-time resolved path and inside roots. Without either action (user scope on the
+// web, other sessions' prose) paths render as before. Owning layer: MessageMarkdown and the
+// session path-link hooks. Boundary: `window.compozyShell` (stubbed), the window manager's open
+// (`coordinator.userOpen`, stubbed) and `fetch` (stubbed for the detail reread).
 const WS = "ws_paths";
 const SID = "sess-paths";
 
@@ -189,16 +194,32 @@ function seededClient(
   return client;
 }
 
-function renderTranscript(ui: ReactNode, client = seededClient({ working_dir: "/repo" })) {
+const userOpen = vi.fn(async () => undefined);
+const shellHandle = {
+  coordinator: { userOpen },
+} as unknown as OsShellHandle;
+
+function renderTranscript(
+  ui: ReactNode,
+  client = seededClient({ working_dir: "/repo" }),
+  workspaceId = WS
+) {
   return render(
     <QueryClientProvider client={client}>
       <UIProvider>
-        <SessionRuntimeRenderProvider sessionId={SID} workspaceId={WS}>
-          {ui}
-        </SessionRuntimeRenderProvider>
+        <OsShellContext value={shellHandle}>
+          <SessionRuntimeRenderProvider sessionId={SID} workspaceId={workspaceId}>
+            {ui}
+          </SessionRuntimeRenderProvider>
+        </OsShellContext>
       </UIProvider>
     </QueryClientProvider>
   );
+}
+
+/** What the last plain click asked the project's Files window to show. */
+function viewerTarget() {
+  return filesAppRequestTarget(WS);
 }
 
 function blockedSpans(container: HTMLElement) {
@@ -212,14 +233,49 @@ describe("MessageMarkdown file paths", () => {
   afterEach(() => {
     delete window.compozyShell;
     navigate.mockReset();
+    userOpen.mockClear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("Should Cmd-click directly into the last-used target without opening the Files window", async () => {
+    stubShell("darwin");
+    const openWith = vi.fn(async () => ({ status: "opened" as const }));
+    window.compozyShell!.files!.openWith = openWith;
+    localStorage.setItem("compozy.open-target", "cursor");
+    renderTranscript(<MessageMarkdown openPaths content="See `src/a.ts:12:3`." />);
+    const previous = viewerTarget();
+    fireEvent.click(screen.getByText("src/a.ts:12:3"), { metaKey: true });
+    await waitFor(() =>
+      expect(openWith).toHaveBeenCalledWith({
+        target: "cursor",
+        path: "/repo/src/a.ts",
+        line: 12,
+        column: 3,
+        roots: ["/repo"],
+      })
+    );
+    expect(viewerTarget()).toEqual(previous);
+    localStorage.removeItem("compozy.open-target");
+  });
+
+  // US-005.AC-5: the tooltip names the target the modifier click opens in.
+  it("Should name the last-used Open in target in the path tooltip", async () => {
+    stubShell("darwin");
+    window.compozyShell!.files!.listOpenTargets = async () => [
+      { id: "cursor", label: "Cursor", kind: "editor", supportsLine: true },
+    ];
+    localStorage.setItem("compozy.open-target", "cursor");
+    renderTranscript(<MessageMarkdown openPaths content="See `src/a.ts:12:3`." />);
+    fireEvent.focus(screen.getByRole("button", { name: "Open a.ts in Files" }));
+    expect(await screen.findByText(/opens in Cursor/)).toBeInTheDocument();
+    localStorage.removeItem("compozy.open-target");
   });
 
   it("Should open an inline path on Cmd+click with the resolved path and roots (UT-040)", async () => {
     const openInEditor = stubShell("darwin");
     renderTranscript(<MessageMarkdown openPaths content="Changed `internal/a.go:42` here." />);
-    expect(screen.getByRole("button", { name: "Open a.go in editor" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open a.go in Files" })).toBeInTheDocument();
     expect(openInEditor).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText("internal/a.go:42"), { ctrlKey: true });
@@ -255,46 +311,113 @@ describe("MessageMarkdown file paths", () => {
         roots: ["/wt", "/repo"],
       })
     );
+
+    // A plain click opens the Files window on the bound worktree, not the checkout.
+    fireEvent.click(screen.getByText("internal/a.go"));
+    await waitFor(() =>
+      expect(filesAppPlace(WS)).toEqual({ worktreeId: "wt-1", path: "web/internal/a.go" })
+    );
   });
 
-  it("Should keep a plain click on the path inert (UT-042)", () => {
+  // Invariant: a session bound to a worktree opens the Files window on that worktree even when the
+  // worktree listing can't name its path; it never silently falls back to the project checkout.
+  it("Should keep the bound worktree when its listing entry is missing", async () => {
+    stubShell();
+    renderTranscript(
+      <MessageMarkdown openPaths content="See `internal/a.go:3`." />,
+      seededClient({ working_dir: "/repo", worktree_id: "wt-gone" })
+    );
+    fireEvent.click(screen.getByText("internal/a.go:3"));
+    await waitFor(() => expect(userOpen).toHaveBeenCalled());
+    expect(filesAppPlace(WS).worktreeId).toBe("wt-gone");
+  });
+
+  // US-005.AC-1/AC-2 (file-explorer). A plain click opens the Files window on every client, including
+  // the browser without a desktop bridge.
+  it("Should open the Files window at the path and line on a plain click (UT-042)", async () => {
     const openInEditor = stubShell();
     renderTranscript(<MessageMarkdown openPaths content="See `internal/a.go:42`." />);
+    const before = viewerTarget()?.nonce;
     fireEvent.click(screen.getByText("internal/a.go:42"));
+    await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(before));
+    expect(viewerTarget()).toMatchObject({ kind: "file", path: "internal/a.go", line: 42 });
+    // The project's Files window opens on the session root; the Review panel stays as it was.
+    expect(filesAppPlace(WS)).toEqual({ worktreeId: null, path: "internal/a.go" });
+    expect(userOpen).toHaveBeenLastCalledWith({
+      app: "files",
+      instanceKey: WS,
+      route: { pathname: `/files/${WS}`, search: {} },
+    });
+    expect(sessionReviewPanelStore.getSnapshot().context.bySession[SID]?.open).not.toBe(true);
     expect(openInEditor).not.toHaveBeenCalled();
+
+    delete window.compozyShell;
+    renderTranscript(<MessageMarkdown openPaths content="See `/tmp/report.md`." />);
+    fireEvent.click(screen.getByRole("button", { name: "Open report.md in Files" }));
+    await waitFor(() =>
+      expect(viewerTarget()).toMatchObject({ kind: "outside", path: "/tmp/report.md" })
+    );
+    for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
+      const previous = viewerTarget()?.nonce;
+      fireEvent.click(screen.getByRole("button", { name: "Open report.md in Files" }), modifier);
+      await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(previous));
+      expect(viewerTarget()).toMatchObject({ kind: "outside", path: "/tmp/report.md" });
+    }
   });
 
-  it("Should reach the open button by keyboard and open on Enter and Space (UT-043)", async () => {
-    const openInEditor = stubShell();
+  it("Should reach the path link by keyboard and open on Enter and Space (UT-043)", async () => {
+    stubShell();
     const user = userEvent.setup();
     renderTranscript(<MessageMarkdown openPaths content="See `internal/a.go:42`." />);
-    const button = screen.getByRole("button", { name: "Open a.go in editor" });
+    const link = screen.getByRole("button", { name: "Open a.go in Files" });
     await user.tab();
-    expect(button).toHaveFocus();
+    expect(link).toHaveFocus();
+    const before = viewerTarget()?.nonce;
     await user.keyboard("{Enter}");
-    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(button).toBeEnabled());
+    await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(before));
+    expect(viewerTarget()).toMatchObject({ path: "internal/a.go", line: 42 });
+    const first = viewerTarget()?.nonce;
     await user.keyboard(" ");
-    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(viewerTarget()?.nonce).not.toBe(first));
   });
 
-  it("Should render exactly as today without the desktop bridge or outside assistant prose (UT-044)", () => {
+  // UT-054 (file-explorer). Invariant: a user-scope session has no root, so on the web its
+  // transcript paths stay plain code; on desktop only the modifier click remains.
+  it("Should render plain code outside assistant prose and for a user-scope session (UT-044, UT-054)", async () => {
     const content = "See `internal/a.go:42` and [x](internal/a.go).";
-    const browser = render(<MessageMarkdown content={content} />);
-    const browserHtml = browser.container.innerHTML;
-    browser.unmount();
+    const plain = render(<MessageMarkdown content={content} />);
+    const plainHtml = plain.container.innerHTML;
+    plain.unmount();
 
-    const remote = renderTranscript(<MessageMarkdown openPaths content={content} />);
-    expect(remote.container.querySelector("[data-slot='stream-markdown']")?.outerHTML).toBe(
-      new DOMParser().parseFromString(browserHtml, "text/html").body.firstElementChild?.outerHTML
+    const userScope = renderTranscript(
+      <MessageMarkdown openPaths content={content} />,
+      seededClient({ working_dir: "/home/d" }),
+      ""
+    );
+    expect(userScope.container.querySelector("[data-slot='stream-markdown']")?.outerHTML).toBe(
+      new DOMParser().parseFromString(plainHtml, "text/html").body.firstElementChild?.outerHTML
     );
     expect(screen.queryByRole("button")).toBeNull();
-    expect(remote.container).toHaveTextContent("x [blocked]");
-    remote.unmount();
+    expect(userScope.container).toHaveTextContent("x [blocked]");
+    userScope.unmount();
 
-    stubShell();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({}, { status: 404 }))
+    );
+    const openInEditor = stubShell();
+    const desktopUserScope = renderTranscript(
+      <MessageMarkdown openPaths content="See `/tmp/a.md`." />,
+      seededClient({ working_dir: "/home/d" }),
+      ""
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByText("/tmp/a.md"), { metaKey: true });
+    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
+    desktopUserScope.unmount();
+
     const userTurn = renderTranscript(<MessageMarkdown authored content={content} />);
-    expect(screen.queryByRole("button", { name: /in editor/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /in Files/ })).toBeNull();
     expect(userTurn.container).toHaveTextContent("x [blocked]");
   });
 
@@ -308,8 +431,8 @@ describe("MessageMarkdown file paths", () => {
 
     const openInEditor = stubShell();
     const { container } = renderTranscript(<MessageMarkdown openPaths content={content} />);
-    expect(screen.getByRole("button", { name: "Open a.go in editor" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open a.md in editor" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open a.go in Files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open a.md in Files" })).toBeInTheDocument();
     expect(container.querySelector("a[href='https://a.dev/']")?.outerHTML).toBe(browserAnchor);
     expect(blockedSpans(container)).toEqual(browserBlocked.slice(-2));
     expect(container.querySelector("a[href^='/tmp']")).toBeNull();
@@ -352,9 +475,9 @@ describe("MessageMarkdown file paths", () => {
       error.mockClear();
       stubShell("darwin", result);
       const view = renderTranscript(<MessageMarkdown openPaths content="See `a.go:1`." />);
-      fireEvent.click(screen.getByRole("button", { name: "Open a.go in editor" }));
+      fireEvent.click(screen.getByText("a.go:1"), { metaKey: true });
       await waitFor(() => expect(window.compozyShell?.files?.openInEditor).toHaveBeenCalled());
-      await waitFor(() => expect(screen.getByRole("button", { name: /in editor/ })).toBeEnabled());
+      await waitFor(() => (message === null ? undefined : expect(error).toHaveBeenCalled()));
       if (message === null) {
         expect(error).not.toHaveBeenCalled();
       } else if (withAction) {
@@ -439,7 +562,7 @@ describe("MessageMarkdown file paths", () => {
     expect(openInEditor).not.toHaveBeenCalled();
 
     const local = renderTranscript(<MessageMarkdown openPaths content="[`a.ts:3`](a.ts:3)" />);
-    expect(within(local.container).getAllByRole("button", { name: /in editor/ })).toHaveLength(1);
+    expect(within(local.container).getAllByRole("button", { name: /in Files/ })).toHaveLength(1);
     expect(local.container.querySelectorAll("[data-file-path]")).toHaveLength(1);
     fireEvent.click(within(local.container).getByText("a.ts:3"), { metaKey: true });
     await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
@@ -457,7 +580,7 @@ describe("MessageMarkdown file paths", () => {
     stubShell("win32");
     const win = renderTranscript(<MessageMarkdown openPaths content={content} />);
     expect(
-      within(win.container).getAllByRole("button", { name: "Open b.txt in editor" })
+      within(win.container).getAllByRole("button", { name: "Open b.txt in Files" })
     ).toHaveLength(2);
   });
 

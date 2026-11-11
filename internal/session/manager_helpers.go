@@ -53,10 +53,17 @@ func (m *Manager) activateAndWatch(
 		return err
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
+		// Accepted starts own process cleanup and arbitration with concurrent Stop.
+		if m.sessionStartRun(session.ID) != nil {
+			return err
+		}
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
 	}
 
+	if err := m.commitSessionStartActivation(ctx, session); err != nil {
+		return err
+	}
 	m.dispatchAgentSpawned(ctx, session, proc, resolved)
 	switch postEvent {
 	case hookspkg.HookSessionPostCreate:
@@ -64,9 +71,7 @@ func (m *Manager) activateAndWatch(
 	case hookspkg.HookSessionPostResume:
 		m.dispatchSessionPostResume(ctx, session)
 	}
-	if m.notifier != nil {
-		m.notifier.OnSessionCreated(ctx, session)
-	}
+	m.notifyActivatedSession(ctx, session)
 	if _, err := m.persistSessionPresence(ctx, session, now); err != nil {
 		m.sessionLogger(session).Warn("session: persist health presence failed", "error", err)
 	}
@@ -82,16 +87,20 @@ func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now t
 		return nil
 	}
 
+	var cleanupErr error
+	if proc != nil {
+		stopCtx, cancel := m.lifecycleCleanupContext()
+		defer cancel()
+		stopErr := m.driver.Stop(stopCtx, proc)
+		verified, verifyErr := m.verifyStopPhase(stopCtx, proc)
+		if !verified {
+			return errors.Join(ErrStopVerificationFailed, stopErr, verifyErr)
+		}
+		cleanupErr = errors.Join(stopErr, verifyErr)
+	}
 	m.remove(session.ID)
 	session.rollbackActivation(now)
-
-	if proc == nil {
-		return nil
-	}
-
-	stopCtx, cancel := m.lifecycleCleanupContext()
-	defer cancel()
-	return m.driver.Stop(stopCtx, proc)
+	return cleanupErr
 }
 
 // sessionLogger identifies the bound route, which can differ from an attempted replacement route.

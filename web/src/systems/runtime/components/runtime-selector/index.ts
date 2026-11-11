@@ -2,7 +2,9 @@ export { RuntimeSelector, type RuntimeSelectorProps } from "./runtime-selector";
 export { runtimeModelKey } from "./model-key";
 export {
   normalizeRuntimeACPSelections,
+  normalizeRuntimeSelectorValue,
   runtimeACPSelectionsEqual,
+  sanitizeRuntimeACPSelections,
 } from "./runtime-advanced-options-model";
 export {
   REASONING_EFFORT_ORDER,

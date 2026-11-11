@@ -20,7 +20,7 @@ var goalControlDescriptor = func() toolspkg.Descriptor {
 		[]string{"set goal", "replace goal", "pause goal", "resume goal", "stop goal", "clear goal"},
 	)
 	descriptor.OutputSchema = json.RawMessage(goalControlOutputSchema)
-	return descriptor
+	return withGoalResultViews(descriptor)
 }()
 
 const goalControlInputSchema = `{

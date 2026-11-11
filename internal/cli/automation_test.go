@@ -781,8 +781,11 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 		getAutomationTriggerFn: func(context.Context, string) (TriggerRecord, error) {
 			return sampleAutomationTriggerRecord(), nil
 		},
-		listAutomationRunsFn: func(context.Context, AutomationRunQuery) ([]RunRecord, error) {
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+		listAutomationRunsFn: func(context.Context, AutomationRunQuery) (AutomationRunListRecord, error) {
+			return AutomationRunListRecord{
+				Runs: []RunRecord{sampleAutomationRunRecord()},
+				Page: &contract.CursorPagePayload{Limit: 50, HasMore: true, NextCursor: "next-runs"},
+			}, nil
 		},
 	})
 
@@ -817,6 +820,49 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 		"automation_runs[1]{id,profile_name,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
 	) || !strings.Contains(runsToon, "default") {
 		t.Fatalf("runs toon output = %q, want automation_runs TOON array", runsToon)
+	}
+	for _, format := range []string{"human", "toon", "jsonl"} {
+		t.Run("Should print the continuation page in "+format+" output", func(t *testing.T) {
+			output, _, err := executeRootCommand(t, deps, "automation", "runs", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if format == "jsonl" {
+				lines := strings.Split(strings.TrimSpace(output), "\n")
+				var footer struct {
+					Type string                     `json:"type"`
+					Page contract.CursorPagePayload `json:"page"`
+				}
+				if err := json.Unmarshal([]byte(lines[len(lines)-1]), &footer); err != nil {
+					t.Fatalf("decode JSONL page footer from %q: %v", output, err)
+				}
+				if footer.Type != "page" || footer.Page.NextCursor != "next-runs" || !footer.Page.HasMore ||
+					footer.Page.Limit != 50 {
+					t.Fatalf("run page = %#v", footer)
+				}
+				return
+			}
+			if format == "toon" {
+				_, page, found := strings.Cut(output, "page{returned,limit,has_more,next_cursor}:\n")
+				if !found || strings.TrimSpace(page) != "1,50,true,next-runs" {
+					t.Fatalf("missing or incorrect TOON continuation page: %s", output)
+				}
+				return
+			}
+			_, page, found := strings.Cut(output, "Page\n")
+			if !found {
+				t.Fatalf("missing continuation page: %s", output)
+			}
+			normalizedPage := "\n"
+			for line := range strings.SplitSeq(page, "\n") {
+				normalizedPage += strings.Join(strings.Fields(line), " ") + "\n"
+			}
+			for _, line := range []string{"Limit: 50", "Has More: true", "Next Cursor: next-runs"} {
+				if !strings.Contains(normalizedPage, "\n"+line+"\n") {
+					t.Fatalf("continuation page missing %q: %s", line, page)
+				}
+			}
+		})
 	}
 }
 
@@ -863,9 +909,9 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		triggerAutomationJobFn: func(context.Context, string) (RunRecord, error) {
 			return sampleAutomationRunRecord(), nil
 		},
-		automationJobRunsFn: func(_ context.Context, _ string, query AutomationRunQuery) ([]RunRecord, error) {
+		automationJobRunsFn: func(_ context.Context, _ string, query AutomationRunQuery) (AutomationRunListRecord, error) {
 			jobHistoryQuery = query
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+			return AutomationRunListRecord{Runs: []RunRecord{sampleAutomationRunRecord()}}, nil
 		},
 		getAutomationTriggerFn: func(context.Context, string) (TriggerRecord, error) {
 			return sampleAutomationTriggerRecord(), nil
@@ -880,12 +926,12 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		deleteAutomationTriggerFn: func(context.Context, string) error {
 			return nil
 		},
-		automationTriggerRunsFn: func(context.Context, string, AutomationRunQuery) ([]RunRecord, error) {
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+		automationTriggerRunsFn: func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error) {
+			return AutomationRunListRecord{Runs: []RunRecord{sampleAutomationRunRecord()}}, nil
 		},
-		listAutomationRunsFn: func(_ context.Context, query AutomationRunQuery) ([]RunRecord, error) {
+		listAutomationRunsFn: func(_ context.Context, query AutomationRunQuery) (AutomationRunListRecord, error) {
 			runsQuery = query
-			return []RunRecord{sampleAutomationRunRecord()}, nil
+			return AutomationRunListRecord{Runs: []RunRecord{sampleAutomationRunRecord()}}, nil
 		},
 		getAutomationRunFn: func(context.Context, string) (RunRecord, error) {
 			return sampleAutomationRunRecord(), nil
@@ -1112,6 +1158,28 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 
 func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	t.Parallel()
+
+	for _, filter := range []struct{ name, since, until string }{
+		{name: "since", since: "1h"}, {name: "until", until: "1h"},
+	} {
+		t.Run("Should reject relative "+filter.name+" during continuation", func(t *testing.T) {
+			_, err := parseAutomationRunListQuery(
+				"",
+				filter.since,
+				filter.until,
+				50,
+				"next-page",
+				func() time.Time { return fixedTestNow },
+			)
+			if err == nil || !strings.Contains(err.Error(), "RFC3339") {
+				t.Fatalf("relative continuation error = %v", err)
+			}
+		})
+	}
+
+	if _, err := parseAutomationRunListQuery("", "2026-04-15T15:00:00Z", "", 50, "next-page", nil); err != nil {
+		t.Fatal(err)
+	}
 
 	normalized, err := normalizeAutomationAtTime("2026-04-15T15:00")
 	if err != nil {

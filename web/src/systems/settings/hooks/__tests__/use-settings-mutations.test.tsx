@@ -1,5 +1,6 @@
 import { useMCPOverrideEditor } from "../use-mcp-override-editor";
 import type { SettingsMCPServerEntry } from "../../types";
+import { toast } from "@compozy/ui";
 import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -13,6 +14,7 @@ vi.mock("../../adapters/settings-api", () => ({
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
   reloadSettings: vi.fn(),
+  setSettingsProviderEnabled: vi.fn(),
   updateSettingsAutomation: vi.fn(),
   updateSettingsAttention: vi.fn(),
   updateSettingsGeneral: vi.fn(),
@@ -34,6 +36,7 @@ import {
   deleteSettingsProvider,
   putSettingsMCPServer,
   reloadSettings,
+  setSettingsProviderEnabled,
   updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsGeneral,
@@ -49,6 +52,11 @@ import {
 } from "../../adapters/settings-mcp-auth-api";
 import { extensionKeys } from "@/systems/extensions";
 import { marketplaceKeys } from "@/systems/marketplace";
+import { modelCatalogKeys } from "@/systems/model-catalog";
+import { providerKeys } from "@/systems/providers";
+import { providerUsageKeys } from "@/systems/provider-usage";
+import { workspaceKeys } from "@/systems/workspace";
+import { settingsProviderFixtures } from "../../mocks/fixtures";
 import { settingsKeys } from "../../lib/query-keys";
 import {
   settingsAttentionSectionFixture,
@@ -69,6 +77,7 @@ import {
   useLogoutMCPAuth,
   usePutSettingsMCPServer,
   useReloadSettings,
+  useSetProviderEnabled,
   useUpdateSettingsAttention,
   useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
@@ -441,6 +450,77 @@ describe("provider mutations", () => {
         queryKey: settingsKeys.providerDetail("openai"),
       });
     });
+  });
+});
+
+describe("useSetProviderEnabled", () => {
+  // UT-040: every reader that lists or launches providers rereads after a toggle, and the
+  // confirmed entry replaces the cached one at once.
+  it("Should refresh every provider reader and replace the list entry on success (UT-040)", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const [first, ...rest] = settingsProviderFixtures;
+    const target = rest[0]!;
+    const disabled = { ...target, settings: { ...target.settings, enabled: false } };
+    queryClient.setQueryData(settingsKeys.providersList(), { providers: [first, target] });
+    vi.mocked(setSettingsProviderEnabled).mockResolvedValue({
+      provider: disabled,
+      apply: { ...generalMutation, section: "providers" as const },
+    });
+
+    const { result } = renderHook(() => useSetProviderEnabled(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ name: target.name, enabled: false });
+    });
+
+    expect(setSettingsProviderEnabled).toHaveBeenCalledWith(target.name, false);
+    expect(queryClient.getQueryData(settingsKeys.providersList())).toEqual({
+      providers: [first, disabled],
+    });
+    await waitFor(() => {
+      for (const queryKey of [
+        settingsKeys.providersRoot(),
+        workspaceKeys.details(),
+        providerKeys.all,
+        modelCatalogKeys.all,
+        providerUsageKeys.all,
+      ]) {
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey });
+      }
+    });
+  });
+
+  it("Should warn with a retry instead of confirming a disable whose live apply failed", async () => {
+    const { wrapper } = createWrapper();
+    const successSpy = vi.spyOn(toast, "success");
+    const warningSpy = vi.spyOn(toast, "warning");
+    const target = settingsProviderFixtures[1]!;
+    vi.mocked(setSettingsProviderEnabled).mockResolvedValue({
+      provider: { ...target, settings: { ...target.settings, enabled: false } },
+      apply: {
+        ...generalMutation,
+        section: "providers" as const,
+        applied: false,
+        lifecycle: "live" as const,
+        next_action: "retry" as const,
+        restart_required: false,
+      },
+    });
+
+    const { result } = renderHook(() => useSetProviderEnabled(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ name: target.name, enabled: false });
+    });
+
+    expect(successSpy).not.toHaveBeenCalled();
+    expect(warningSpy).toHaveBeenCalledTimes(1);
+    const options = warningSpy.mock.calls[0]?.[1] as
+      | { action?: { label: string; onClick: () => void } }
+      | undefined;
+    expect(options?.action?.label).toBe("Retry");
+    act(() => options?.action?.onClick());
+    await waitFor(() => expect(setSettingsProviderEnabled).toHaveBeenCalledTimes(2));
+    expect(setSettingsProviderEnabled).toHaveBeenLastCalledWith(target.name, false);
   });
 });
 

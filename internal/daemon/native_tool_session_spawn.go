@@ -83,7 +83,7 @@ func (n *daemonNativeTools) sessionSpawn(
 			payload["prompt"] = core.SpawnPromptPayloadFromResult(result)
 		}
 	}
-	return structuredResult(payload, info.ID)
+	return sessionSpawnViews.result(req.View, payload)
 }
 
 // resolveNativeSpawnPlacement picks the child workspace and, for a worktree-bound spawn,

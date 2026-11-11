@@ -39,6 +39,7 @@ export {
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
+  setSettingsProviderEnabled,
 } from "./settings-resources-api";
 export {
   OBSERVABILITY_LOG_TAIL_PATH,

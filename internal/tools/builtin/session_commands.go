@@ -3,7 +3,7 @@ package builtin
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func commandListDescriptor() toolspkg.Descriptor {
-	return nativeDescriptor(
+	descriptor := nativeDescriptor(
 		toolspkg.ToolIDCommandList,
 		"command_list",
 		"Command List",
@@ -17,4 +17,5 @@ func commandListDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, sessionsCommandsKey, sessionsListKey},
 		[]string{"session commands", "slash commands", "available skills"},
 	)
+	return withResultViews(descriptor, commandListCompactSchema, string(descriptor.OutputSchema))
 }

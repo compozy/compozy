@@ -65,3 +65,19 @@ piped PTY fixture, preserving the default Fish shell and all human journal asser
 The original fixture failed ten of ten local runs; the repaired fixture passed three
 focused runs. This verifies the CLI golden-path slice only; final official-shard
 and CI evidence are tracked in `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+
+QA impact 2026-11-10 (#1441): hosted terminal calls without an active prompt run now return
+HTTP 403 with `hosted_mcp_run_required` and guidance to retry from an active prompt turn,
+instead of HTTP 500 and `hosted-mcp backend error`. In an isolated hosted fixture, release the
+bound run, call both `compozy__terminal_read` and `compozy__terminal_exec`, and confirm that
+refusal. Bind a new run and confirm registry dispatch resumes; release it and repeat. Never
+bypass the active-run requirement or change a worktree binding to retry an inactive run.
+
+Focused verification: `TestHostedMCPJSONRouteErrors` exercises that lifecycle through the real
+hosted service and UDS route handler. Existing `TestManagerAdmissionAndScope` bound-cwd cases,
+`TestManagerCwdAndShell`, and `TestSessionTailReadContract` verify accepted bound worktree roots,
+relative children, tail output, and rejected root/sibling/symlink escapes. The real
+`TestUDSTerminalWebSocketLifecycle` integration walk passes with a temporary home, database,
+socket, and shell. These checks do not establish the cause of the original unrecorded worktree
+refusal or reproduce a live provider/dev-server failure; they preserve the existing confinement.

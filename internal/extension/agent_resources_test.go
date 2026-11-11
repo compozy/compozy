@@ -39,6 +39,8 @@ func TestLoadAgentResources(t *testing.T) {
 
 		rootDir := t.TempDir()
 		writeStaticAgentFixture(t, rootDir, "writer", true)
+		body := "---\ncheck_ins:\n  max_tool_calls: 30\n  max_write_calls: 7\n---\nCheck the queue.\n"
+		writeFile(t, filepath.Join(rootDir, "agents", "writer", "HEARTBEAT.md"), body)
 		agents, err := LoadAgentResources(rootDir, []string{"agents"})
 		if err != nil {
 			t.Fatalf("LoadAgentResources() error = %v", err)
@@ -51,7 +53,7 @@ func TestLoadAgentResources(t *testing.T) {
 			t.Fatalf("Soul = %#v, want parsed source and body", agents[0].Soul)
 		}
 		if agents[0].Heartbeat == nil || agents[0].Heartbeat.SourcePath != "agents/writer/HEARTBEAT.md" ||
-			agents[0].Heartbeat.Body != "Check the queue.\n" {
+			agents[0].Heartbeat.Body != body {
 			t.Fatalf("Heartbeat = %#v, want parsed source and body", agents[0].Heartbeat)
 		}
 	})

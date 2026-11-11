@@ -12,6 +12,7 @@
     ],
     "categories": {},
     "rules": {
+        "compozy-testing/deterministic-tests": "error",
         "no-unassigned-vars": "warn",
         "for-direction": "warn",
         "no-async-promise-executor": "warn",
@@ -113,6 +114,12 @@
         "compozy-data-boundaries/no-inline-query-key": "error"
     },
     "overrides": [
+        {
+            "files": ["web/**/*.test.{ts,tsx}"],
+            "rules": {
+                "compozy-testing/deterministic-tests": ["error", { "defaultTimeout": 20000 }]
+            }
+        },
         {
             "files": [
                 "web/src/**/*.tsx",
@@ -315,7 +322,8 @@
         {
             "files": [
                 "web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts",
-                "web/src/systems/os/hooks/use-palette-grid-virtualizer.ts"
+                "web/src/systems/os/hooks/use-palette-grid-virtualizer.ts",
+                "web/src/systems/files/hooks/use-files-search-results.ts"
             ],
             "rules": {
                 "react/incompatible-library": "off"
@@ -380,6 +388,7 @@
         "web/dist/**",
         "web/dist-proto/**",
         "**/routeTree.gen.ts",
+        "**/.output/**",
         ".compozy/tasks/**",
         "docs/design/**"
     ]

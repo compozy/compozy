@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,6 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	}
 	runtimeConfig := spec.workspace.Config
 	if spec.sessionType == SessionTypeTriage {
-		runtimeConfig.Permissions.ProviderFullAccess = false
 		runtimeConfig.Permissions.Mode = compozyconfig.PermissionModeApproveReads
 		spec.permissions = compozyconfig.PermissionModeApproveReads
 		agentDef = compozyconfig.CloneAgentDef(agentDef)
@@ -50,21 +50,16 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
-	if spec.sessionType == SessionTypeTriage {
-		provider := resolved.Provider
-		if model := runtimeConfig.Agents.Heartbeat.TriageModels[provider]; model != "" {
-			spec.model, spec.provider = model, resolved.Provider
-			resolved, err = runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
-				Provider:   spec.provider,
-				Model:      spec.model,
-				Reasoning:  spec.reasoningEffort,
-				Command:    spec.command,
-				SessionEnv: spec.sessionEnv,
-			})
-			if err != nil {
-				return sessionStartRuntime{}, fmt.Errorf("session: resolve triage model: %w", err)
-			}
-		}
+	if resolved, err = resolveTriageModel(&runtimeConfig, spec, agentDef, resolved); err != nil {
+		return sessionStartRuntime{}, err
+	}
+	if err := requireEnabledRuntimeProvider(
+		&runtimeConfig,
+		resolved.Provider,
+		specAdmission(spec, acceptedRoute{provider: resolved.Provider, model: resolved.Model}),
+		m.logger,
+	); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
 	resolved, err = m.resolveSpawnProviderCommand(ctx, spec, agentDef, resolved, map[string]bool{spec.sessionID: true})
 	if err != nil {
@@ -77,6 +72,7 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
+	requestedOptions := slices.Clone(spec.acpOptions)
 	if err := spec.applyResolvedRuntimeDefaults(
 		resolved,
 		m.startPermissions(startSpecPermissions(spec, resolved.Permissions)),
@@ -94,6 +90,14 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	if err := m.applyInstanceCeiling(ctx, spec, &resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
+	// An instance ceiling can lower the level after the agent layer was merged.
+	spec.excludeInheritedUnrestrictedOptions(
+		resolved.Provider,
+		m.startPermissions(startSpecPermissions(spec, resolved.Permissions)),
+		agentDef.ACPOptionsValue(),
+		requestedOptions,
+		dropInheritedUnrestricted,
+	)
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
 		nativeToolsUnavailable: resolved.Harness == compozyconfig.ProviderHarnessPiACP,
@@ -268,4 +272,32 @@ func (m *Manager) populateStartupInstanceIdentity(ctx context.Context, startupCt
 		}
 	}
 	return nil
+}
+
+// resolveTriageModel re-resolves a triage session on its provider's configured triage model.
+func resolveTriageModel(
+	runtimeConfig *compozyconfig.Config,
+	spec *sessionStartSpec,
+	agentDef compozyconfig.AgentDef,
+	resolved compozyconfig.ResolvedAgent,
+) (compozyconfig.ResolvedAgent, error) {
+	if spec.sessionType != SessionTypeTriage {
+		return resolved, nil
+	}
+	model := runtimeConfig.Agents.Heartbeat.TriageModels[resolved.Provider]
+	if model == "" {
+		return resolved, nil
+	}
+	spec.model, spec.provider = model, resolved.Provider
+	triage, err := runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
+		Provider:   spec.provider,
+		Model:      spec.model,
+		Reasoning:  spec.reasoningEffort,
+		Command:    spec.command,
+		SessionEnv: spec.sessionEnv,
+	})
+	if err != nil {
+		return resolved, fmt.Errorf("session: resolve triage model: %w", err)
+	}
+	return triage, nil
 }

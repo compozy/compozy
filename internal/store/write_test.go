@@ -216,6 +216,75 @@ func TestBackgroundWrites(t *testing.T) {
 		}
 	})
 
+	// Invariant: overdue maintenance receives the next writer slot and cancellation
+	// releases its reservation. Owner: local writer admission; suite: TestBackgroundWrites.
+	for _, cancelMaintenance := range []bool{false, true} {
+		name := "Should admit overdue maintenance ahead of queued interactive writes"
+		if cancelMaintenance {
+			name = "Should release canceled maintenance admission for queued writers"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "maintenance-priority.db"))
+			admission, unregister := registerWriteAdmission(db)
+			defer unregister()
+			release, err := admission.acquire(ctx, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			release = sync.OnceFunc(release)
+			defer release()
+			order := make(chan string, 2)
+			interactiveDone := make(chan error, 1)
+			go func() {
+				interactiveDone <- ExecuteWrite(ctx, db, func(context.Context, *WriteTx) error {
+					order <- "interactive"
+					return nil
+				})
+			}()
+			waitForWriteCondition(t, admission.interactiveWaiting)
+			maintenanceCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			maintenanceDone := make(chan error, 1)
+			go func() {
+				end, err := admission.acquireMaintenance(maintenanceCtx)
+				if err == nil {
+					order <- "maintenance"
+					end()
+				}
+				maintenanceDone <- err
+			}()
+			waitForWriteCondition(t, func() bool {
+				admission.mu.Lock()
+				defer admission.mu.Unlock()
+				return admission.maintenance > 0
+			})
+			if cancelMaintenance {
+				cancel()
+				if err := <-maintenanceDone; !errors.Is(err, context.Canceled) {
+					t.Fatalf("canceled maintenance = %v", err)
+				}
+			}
+			release()
+			if !cancelMaintenance {
+				if err := <-maintenanceDone; err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := <-interactiveDone; err != nil {
+				t.Fatal(err)
+			}
+			want := "maintenance"
+			if cancelMaintenance {
+				want = "interactive"
+			}
+			if first := <-order; first != want {
+				t.Fatalf("first admitted operation = %q, want %q", first, want)
+			}
+		})
+	}
+
 	t.Run("Should prioritize interactive writes over queued background writes", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -1345,10 +1414,11 @@ func BenchmarkExecuteWrite(b *testing.B) {
 }
 
 type writeCleanupFailureConnector struct {
-	dsn       string
-	statement string
-	failure   error
-	failed    atomic.Bool
+	queryCancel context.CancelFunc
+	dsn         string
+	statement   string
+	failure     error
+	failed      atomic.Bool
 }
 
 func (c *writeCleanupFailureConnector) Connect(context.Context) (driver.Conn, error) {
@@ -1375,4 +1445,16 @@ func (c *writeCleanupFailureConn) ExecContext(
 		return nil, c.connector.failure
 	}
 	return c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
+}
+
+// QueryContext can reproduce a driver reporting cancellation after checkpoint I/O.
+func (c *writeCleanupFailureConn) QueryContext(
+	ctx context.Context, query string, args []driver.NamedValue,
+) (driver.Rows, error) {
+	if query == c.connector.statement && c.connector.queryCancel != nil &&
+		c.connector.failed.CompareAndSwap(false, true) {
+		c.connector.queryCancel()
+		return nil, ctx.Err()
+	}
+	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
 }

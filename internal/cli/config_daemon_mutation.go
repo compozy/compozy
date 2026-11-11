@@ -314,6 +314,7 @@ func maybeReloadConfigAfterLocalWrite(
 	}
 	record.RestartRequired = result.RestartRequired
 	record.RestartScope = result.RestartScope
+	record.Warnings = append([]string(nil), result.Warnings...)
 	return &record, nil
 }
 

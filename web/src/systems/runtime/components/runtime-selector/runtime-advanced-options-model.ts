@@ -1,4 +1,10 @@
-import type { RuntimeACPOption, RuntimeACPOptionSelection } from "./types";
+import {
+  modelSupportsReasoningEffort,
+  type RuntimeACPOption,
+  type RuntimeACPOptionSelection,
+  type RuntimeModelOption,
+  type RuntimeSelectorValue,
+} from "./types";
 
 const DEDICATED_OPTION_IDS = new Set([
   "model",
@@ -112,14 +118,31 @@ export function sanitizeRuntimeACPSelections(
   return valid.length > 0 ? sortByID(valid) : undefined;
 }
 
+/** Replace one option's selection; a null `next` returns it to the provider default. */
 export function setRuntimeACPSelection(
   selections: readonly RuntimeACPOptionSelection[] | undefined,
+  optionID: string,
   next: RuntimeACPOptionSelection | null,
   options: readonly RuntimeACPOption[] | undefined
 ): RuntimeACPOptionSelection[] | undefined {
-  const current = selections ? [...selections] : [];
-  const nextID = next?.id.trim() ?? "";
-  const withoutNext = current.filter(selection => selection.id !== nextID);
-  if (next && nextID.length > 0) withoutNext.push({ ...next, id: nextID });
-  return sanitizeRuntimeACPSelections(withoutNext, options);
+  const id = optionID.trim();
+  const remaining = (selections ?? []).filter(selection => selection.id !== id);
+  return sanitizeRuntimeACPSelections(next ? [...remaining, { ...next, id }] : remaining, options);
+}
+
+/** Keep displayed and submitted selections on the same model capability projection. */
+export function normalizeRuntimeSelectorValue(
+  value: RuntimeSelectorValue,
+  model: RuntimeModelOption | undefined,
+  options = model?.acp_options
+): RuntimeSelectorValue {
+  const selections = sanitizeRuntimeACPSelections(value.acp_options, options);
+  return {
+    ...value,
+    reasoning_effort:
+      value.reasoning_effort !== "" && !modelSupportsReasoningEffort(model, value.reasoning_effort)
+        ? ""
+        : value.reasoning_effort,
+    ...(options ? { acp_options: selections } : {}),
+  };
 }

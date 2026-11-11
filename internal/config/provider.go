@@ -130,25 +130,28 @@ type ModelsDevSourceConfig struct {
 
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
-	ReviewerMode     string               `toml:"reviewer_mode,omitempty"`
-	SessionEnv       SessionEnv           `toml:"session_env,omitempty"`
-	Command          string               `toml:"command"`
-	CommandIsBuiltin bool                 `toml:"-"                             json:"-" yaml:"-"`
-	SteerCapability  SteerCapability      `toml:"steer_capability,omitempty"`
-	DisplayName      string               `toml:"display_name,omitempty"`
-	Models           ProviderModelsConfig `toml:"models,omitempty"`
-	Harness          ProviderHarness      `toml:"harness,omitempty"`
-	RuntimeProvider  string               `toml:"runtime_provider,omitempty"`
-	Transport        string               `toml:"transport,omitempty"`
-	BaseURL          string               `toml:"base_url,omitempty"`
-	AuthMode         ProviderAuthMode     `toml:"auth_mode,omitempty"`
-	EnvPolicy        ProviderEnvPolicy    `toml:"env_policy,omitempty"`
-	HomePolicy       ProviderHomePolicy   `toml:"home_policy,omitempty"`
-	NoneSecurity     ProviderNoneSecurity `toml:"none_security,omitempty"`
-	AuthStatusCmd    string               `toml:"auth_status_command,omitempty"`
-	AuthLoginCmd     string               `toml:"auth_login_command,omitempty"`
-	AuthACPMethod    string               `toml:"auth_acp_method,omitempty"`
-	SessionMCP       *bool                `toml:"session_mcp,omitempty"`
+	ReviewerMode      string               `toml:"reviewer_mode,omitempty"`
+	SessionEnv        SessionEnv           `toml:"session_env,omitempty"`
+	AutoCompactWindow *int                 `toml:"auto_compact_window,omitempty"`
+	Command           string               `toml:"command"`
+	CommandIsBuiltin  bool                 `toml:"-"                             json:"-" yaml:"-"`
+	SteerCapability   SteerCapability      `toml:"steer_capability,omitempty"`
+	DisplayName       string               `toml:"display_name,omitempty"`
+	Models            ProviderModelsConfig `toml:"models,omitempty"`
+	Harness           ProviderHarness      `toml:"harness,omitempty"`
+	RuntimeProvider   string               `toml:"runtime_provider,omitempty"`
+	Transport         string               `toml:"transport,omitempty"`
+	BaseURL           string               `toml:"base_url,omitempty"`
+	AuthMode          ProviderAuthMode     `toml:"auth_mode,omitempty"`
+	EnvPolicy         ProviderEnvPolicy    `toml:"env_policy,omitempty"`
+	HomePolicy        ProviderHomePolicy   `toml:"home_policy,omitempty"`
+	NoneSecurity      ProviderNoneSecurity `toml:"none_security,omitempty"`
+	AuthStatusCmd     string               `toml:"auth_status_command,omitempty"`
+	AuthLoginCmd      string               `toml:"auth_login_command,omitempty"`
+	AuthACPMethod     string               `toml:"auth_acp_method,omitempty"`
+	SessionMCP        *bool                `toml:"session_mcp,omitempty"`
+	// Enabled gates selection and new launches; nil means enabled (see EffectiveEnabled).
+	Enabled *bool `toml:"enabled,omitempty"`
 	// SessionMCPTransport chooses how per-session stdio MCP servers reach the
 	// agent. "http" serves them through a loopback HTTP bridge for agents that
 	// accept only remote MCP servers over ACP; empty or "stdio" passes them as-is.

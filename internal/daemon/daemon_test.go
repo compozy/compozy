@@ -609,6 +609,9 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 				t.Fatalf("boot() error = %v", err)
 			}
 		case <-time.After(5 * time.Second):
+			stacks := make([]byte, 1<<20)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			t.Logf("boot timeout goroutines:\n%s", stacks)
 			t.Fatal("daemon boot did not finish after Loop neutralization was released")
 		}
 		t.Cleanup(func() {
@@ -1031,7 +1034,7 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		reconcileStarted := make(chan struct{})
 		releaseReconcile := make(chan struct{})
 		release := sync.OnceFunc(func() { close(releaseReconcile) })
-		t.Cleanup(release)
+		defer release()
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 			return &fakeObserver{
 				err: lateFailure,
@@ -1047,15 +1050,19 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return httpServer, nil }
 		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return udsServer, nil }
 
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
 		bootResult := make(chan error, 1)
 		go func() {
-			bootResult <- d.boot(testutil.Context(t))
+			bootResult <- d.boot(ctx)
 		}()
 
 		select {
 		case <-reconcileStarted:
-		case <-time.After(5 * time.Second):
-			t.Fatal("boot() did not reach late reconciliation")
+		case bootErr := <-bootResult:
+			t.Fatalf("boot() returned before late reconciliation: %v", bootErr)
+		case <-ctx.Done():
+			t.Fatalf("boot() did not reach late reconciliation: %v", ctx.Err())
 		}
 
 		_, infoErr := os.Stat(homePaths.DaemonInfo)
@@ -1065,8 +1072,8 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 			if !errors.Is(bootErr, lateFailure) {
 				t.Fatalf("boot() error = %v, want late reconciliation failure", bootErr)
 			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("boot() did not return after late reconciliation failed")
+		case <-ctx.Done():
+			t.Fatalf("boot() did not return after late reconciliation failed: %v", ctx.Err())
 		}
 
 		if !errors.Is(infoErr, os.ErrNotExist) {
@@ -1621,6 +1628,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	}
 }
 
+// TestDaemonShutdownOperation verifies shared teardown, retry ownership and replacement discovery.
 func TestDaemonShutdownOperation(t *testing.T) {
 	t.Run("Should retain one operation while callers wait with independent contexts", func(t *testing.T) {
 		t.Parallel()
@@ -1755,6 +1763,234 @@ func TestDaemonShutdownOperation(t *testing.T) {
 			t.Fatalf("server Shutdown() calls after retry = %d, want 2", got)
 		}
 	})
+
+	// Invariant: failed session shutdown retains singleton and persistence ownership
+	// until a retry joins cleanup. Owner: daemon teardown; canonical shutdown suite.
+	t.Run("Should retain the daemon lock and database until session cleanup joins", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		db := openDaemonTestGlobalDB(t)
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.lock, d.registry, d.sessions = lock, db, manager
+		if err := d.Shutdown(testutil.Context(t)); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("incomplete session shutdown = %v, want deadline", err)
+		}
+		if _, err := ReadInfo(home.DaemonInfo); err != nil {
+			t.Fatalf("failed shutdown removed discovery info: %v", err)
+		}
+		competitor, acquireErr := AcquireLock(home.DaemonLock, os.Getpid())
+		if competitor != nil {
+			if err := competitor.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+		if !errors.Is(acquireErr, ErrAlreadyRunning) {
+			t.Fatalf("replacement acquired singleton before cleanup joined: %v", acquireErr)
+		}
+		if err := db.DB().PingContext(t.Context()); err != nil {
+			t.Fatalf("pending cleanup lost its database: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("joined retry: %v", err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("joined shutdown left discovery info: %v", err)
+		}
+		if err := db.DB().
+			PingContext(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "sql: database is closed") {
+			t.Fatalf("database after joined cleanup = %v, want closed", err)
+		}
+		replacement, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatalf("replacement after joined cleanup: %v", err)
+		}
+		if err := replacement.Release(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: terminal discovery withdrawal survives replacement of a failed shutdown attempt.
+	t.Run("Should withdraw discovery on every incomplete terminal shutdown retry", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.lock = lock
+
+		d.sessions = &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		first, _, _, _, err := d.beginShutdownOperation(t.Context(), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first.sessionShutdownIncomplete = true
+		d.completeShutdownOperation(first, context.DeadlineExceeded)
+		if err := WriteInfo(
+			home.DaemonInfo,
+			Info{PID: os.Getpid(), StartedAt: time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC)},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("retry retained stopped daemon discovery: %v", err)
+		}
+	})
+
+	// Invariant: Run's terminal path withdraws discovery even if session cleanup
+	// prevents successful shutdown. Owner: daemon lifecycle; canonical shutdown suite.
+	t.Run("Should withdraw daemon info when Run ends after incomplete shutdown", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.lock = lock
+
+		if err := WriteInfo(home.DaemonInfo, Info{PID: os.Getpid(), StartedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		d.sessions = manager
+		if err := d.shutdownAfterRunTrigger(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Run shutdown = %v", err)
+		}
+		if _, err := os.Stat(home.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Run exit retained discovery record: %v", err)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Invariant: the old Run must not delete discovery written after singleton
+	// release. Owner: daemon process replacement; canonical shutdown suite.
+	for _, loggerFailure := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should preserve replacement discovery after lock release with logger failure %t",
+				loggerFailure,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				d, err := New(WithHomePaths(home), WithLogger(discardLogger()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				lock, err := AcquireLock(home.DaemonLock, os.Getpid())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := lock.Release(); err != nil {
+						t.Error(err)
+					}
+				}()
+				d.lock = lock
+				manager := &fakeSessionManager{}
+				d.sessions = manager
+
+				var replacementLock *Lock
+				defer func() {
+					if replacementLock != nil {
+						if err := replacementLock.Release(); err != nil {
+							t.Error(err)
+						}
+					}
+				}()
+				replacement := Info{PID: os.Getpid(), StartedAt: time.Now().UTC().Add(time.Second)}
+				loggerErr := errors.New("logger close unavailable")
+				d.closeLogger = func() error {
+					var err error
+					replacementLock, err = AcquireLock(home.DaemonLock, os.Getpid())
+					if err != nil {
+						return err
+					}
+					if err := WriteInfo(home.DaemonInfo, replacement); err != nil {
+						return err
+					}
+					if loggerFailure {
+						return loggerErr
+					}
+					return nil
+				}
+				err = d.shutdownAfterRunTrigger(t.Context())
+				if loggerFailure && !errors.Is(err, loggerErr) || !loggerFailure && err != nil {
+					t.Fatalf("Run shutdown = %v", err)
+				}
+				if loggerFailure {
+					d.closeLogger = func() error { return nil }
+					manager.mu.Lock()
+					manager.shutdownErr = context.DeadlineExceeded
+					manager.mu.Unlock()
+					if err := d.Shutdown(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatal(err)
+					}
+					info, err := ReadInfo(home.DaemonInfo)
+					if err != nil || info != replacement {
+						t.Fatalf("incomplete retry removed replacement: %+v, %v", info, err)
+					}
+					manager.mu.Lock()
+					manager.shutdownErr = nil
+					manager.mu.Unlock()
+					if err := d.Shutdown(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				info, err := ReadInfo(home.DaemonInfo)
+				if err != nil || info != replacement {
+					t.Fatalf("replacement discovery = %+v, %v, want %+v", info, err, replacement)
+				}
+			},
+		)
+	}
 
 	t.Run("Should reject invalid ownership contexts", func(t *testing.T) {
 		t.Parallel()
@@ -3295,6 +3531,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 			"extension_name": "service-ext",
 			"source_kind":    "local_path",
 			"digest_matched": false,
+			"enabled":        true,
 		}
 		if !reflect.DeepEqual(installFields, wantInstallFields) {
 			t.Fatalf("install event content = %#v, want %#v", installFields, wantInstallFields)
@@ -3303,6 +3540,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if err := json.Unmarshal(failedInstallContent, &failedInstallFields); err != nil {
 			t.Fatalf("json.Unmarshal(failed install event) error = %v", err)
 		}
+		wantInstallFields["enabled"] = false
 		if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
 			t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
 		}
@@ -3660,11 +3898,15 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 }
 
 type daemonExtensionEventStoreStub struct {
+	failType   string
 	writeErr   error
 	writeCalls int
 }
 
-func (s *daemonExtensionEventStoreStub) WriteEventSummary(context.Context, store.EventSummary) error {
+func (s *daemonExtensionEventStoreStub) WriteEventSummary(_ context.Context, event store.EventSummary) error {
+	if s.failType != "" && event.Type != s.failType {
+		return nil
+	}
 	s.writeCalls++
 	return s.writeErr
 }
@@ -6619,12 +6861,20 @@ type fakeSessionManager struct {
 	workspaceAccessPolicy    workspaceaccess.Policy
 	turnEndNotifier          session.TurnEndNotifier
 	agentExtensionCalls      []fakeAgentExtensionCall
+	clarifyBroker            toolspkg.ClarifyBroker
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
+var _ clarifyOperatorAskerSetter = (*fakeSessionManager)(nil)
 var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
+
+func (f *fakeSessionManager) SetClarifyBroker(broker toolspkg.ClarifyBroker) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.clarifyBroker = broker
+}
 
 func (f *fakeSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
 	f.mu.Lock()

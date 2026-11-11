@@ -112,6 +112,8 @@ github.com/aymanbagabas/go-udiff v0.4.1/go.mod h1:0L9PGwj20lrtmEMeyw4WKJ/TMyDtvA
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/immutable v0.4.3 h1:GYHcksoJ9K6HyAUpGxwZURrbTkXA0Dh4otXGqbhdrjA=
 github.com/benbjohnson/immutable v0.4.3/go.mod h1:qJIKKSmdqz1tVzNtst1DZzvaqOU1onk1rc03IeM3Owk=
+github.com/bluekeyes/go-gitdiff v0.9.0 h1:w+O6lkRBOqfGcwF0Lf6FFHQrhmxM0hCJW5+rbilGuSs=
+github.com/bluekeyes/go-gitdiff v0.9.0/go.mod h1:WWAk1Mc6EgWarCrPFO+xeYlujPu98VuLW3Tu+B/85AE=
 github.com/bmatcuk/doublestar v1.3.4 h1:gPypJ5xD31uhX6Tf54sDPUOBXTqKH4c9aPY66CyQrS0=
 github.com/bmatcuk/doublestar v1.3.4/go.mod h1:wiQtGV+rzVYxB7WIlirSN++5HPtPlXEo9MEoZQC/PmE=
 github.com/bradfitz/reco v0.0.0-20260929154613-b883fbd17e3f h1:jdXGSp5Ge5/kzikuxGOw9+6HSStUjkNBJZjGNtpItek=
@@ -129,6 +131,8 @@ github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1x
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+github.com/charlievieth/fastwalk v1.0.14 h1:3Eh5uaFGwHZd8EGwTjJnSpBkfwfsak9h6ICgnWlhAyg=
+github.com/charlievieth/fastwalk v1.0.14/go.mod h1:diVcUreiU1aQ4/Wu3NbxxH4/KYdKpLDojrQ1Bb2KgNY=
 github.com/charmbracelet/colorprofile v0.4.3 h1:QPa1IWkYI+AOB+fE+mg/5/4HRMZcaXex9t5KX76i20Q=
 github.com/charmbracelet/colorprofile v0.4.3/go.mod h1:/zT4BhpD5aGFpqQQqw7a+VtHCzu+zrQtt1zhMt9mR4Q=
 github.com/charmbracelet/ultraviolet v0.0.0-20261023060817-a45b7c86333f h1:D2JpB65eehsnkEwEG401dMBSNYtTDgvKXZZSl7ZCxWI=
@@ -165,10 +169,10 @@ github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUo
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/compozy/acp-go-sdk v0.13.6-0.20261008041747-ebd00ee4ba87 h1:P14jTFTiweppxOTvHmmwa4nAHXGnNFOWjhERBIyxtJk=
-github.com/compozy/acp-go-sdk v0.13.6-0.20261008041747-ebd00ee4ba87/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
-github.com/compozy/compozy-web-assets v0.0.598 h1:zVCtsYY9knmJPsGhzqr86bki/mkS+akAXmyfTxg/xkk=
-github.com/compozy/compozy-web-assets v0.0.598/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
+github.com/compozy/acp-go-sdk v0.13.6-0.20261108202101-365be815fac8 h1:NllS03zDHvXkCD9xvqE7Y5tK0fkKeykrDkrfqxX5No0=
+github.com/compozy/acp-go-sdk v0.13.6-0.20261108202101-365be815fac8/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
+github.com/compozy/compozy-web-assets v0.0.669 h1:vgzAMWvKJT5fKGIQ61xlWJluoLl/s0VImktPghB4BLI=
+github.com/compozy/compozy-web-assets v0.0.669/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
 github.com/coreos/go-iptables v0.8.0 h1:MPc2P89IhuVpLI7ETL/2tx3XZ61VeICZjYqDEgNsPRc=
 github.com/coreos/go-iptables v0.8.0/go.mod h1:Qe8Bv2Xik5FyTXwgIbLAnv2sWSBmvWdFETJConOQ//Q=
 github.com/coreos/go-oidc/v3 v3.21.0 h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=
@@ -431,6 +435,10 @@ github.com/jsimonetti/rtnetlink v1.4.2 h1:Df9w9TZ3npHTyDn0Ev9e1uzmN2odmXd0QX+J5G
 github.com/jsimonetti/rtnetlink v1.4.2/go.mod h1:92s6LJdE+1iOrw+F2/RO7LYI2Qd8pPpFNNUYW06gcoM=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
+github.com/junegunn/fzf v0.74.5 h1:mpJlCdgGuddKerHrdjvV3cnezEBgyjZAVn8KCo/4OMc=
+github.com/junegunn/fzf v0.74.5/go.mod h1:TBRY54j3mGjAm4JcpDyiUIuDq38QlHvAzrB3GLKxQXM=
+github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 h1:7dYDtfMDfKzjT+DVfIS4iqknSEKtZpEcXtu6vuaasHs=
+github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741/go.mod h1:6EILKtGpo5t+KLb85LNZLAF6P9LKp78hJI80PXMcn3c=
 github.com/kamstrup/intmap v0.5.2 h1:qnwBm1mh4XAnW9W9Ue9tZtTff8pS6+s6iKF6JRIV2Dk=
 github.com/kamstrup/intmap v0.5.2/go.mod h1:gWUVWHKzWj8xpJVFf5GC0O26bWmv3GqdnIX/LMT6Aq4=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=

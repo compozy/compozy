@@ -7,6 +7,70 @@ import (
 	"time"
 )
 
+type MessageStartPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
+}
+
+type MetaField struct {
+	Label    string            `json:"label"`
+	Value    string            `json:"value"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+type ModelCatalogCostPayload struct {
+	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
+	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
+	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
+	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
+	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
+}
+
+type ModelCatalogSourceRefPayload struct {
+	SourceID    string `json:"source_id"`
+	SourceKind  string `json:"source_kind"`
+	Priority    int    `json:"priority"`
+	RefreshedAt string `json:"refreshed_at,omitempty"`
+	Stale       bool   `json:"stale"`
+	LastError   string `json:"last_error,omitempty"`
+}
+
+type ModelCatalogSourceStatusPayload struct {
+	FailureReason string `json:"failure_reason,omitempty"`
+	SourceID      string `json:"source_id"`
+	SourceKind    string `json:"source_kind"`
+	ProviderID    string `json:"provider_id"`
+	Priority      int    `json:"priority"`
+	LastRefresh   string `json:"last_refresh,omitempty"`
+	NextRefresh   string `json:"next_refresh,omitempty"`
+	LastSuccess   string `json:"last_success,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	RefreshState  string `json:"refresh_state"`
+	RowCount      int    `json:"row_count"`
+	Stale         bool   `json:"stale"`
+}
+
 type ModelSourceListParams struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	Refresh      bool   `json:"refresh,omitempty"`
@@ -145,61 +209,4 @@ type Ownership struct {
 type Pagination struct {
 	HasMore  bool `json:"has_more"`
 	PageSize int  `json:"page_size,omitempty"`
-}
-
-type PatchOp struct {
-	Op    string          `json:"op"`
-	Path  string          `json:"path"`
-	Value json.RawMessage `json:"value,omitempty"`
-}
-
-type PayloadBase struct {
-	Event     HookEvent `json:"event"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type PendingInteractionPayload struct {
-	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
-	SessionID         string     `json:"session_id"`
-	InteractionID     string     `json:"interaction_id"`
-	Kind              string     `json:"kind"`
-	ProviderRequestID string     `json:"provider_request_id"`
-	TurnID            string     `json:"turn_id,omitempty"`
-	Title             string     `json:"title,omitempty"`
-	Choices           []string   `json:"choices,omitempty"`
-	Decisions         []string   `json:"decisions,omitempty"`
-	ToolID            string     `json:"tool_id,omitempty"`
-	Status            string     `json:"status"`
-	CreatedAt         time.Time  `json:"created_at"`
-	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
-	Resolution        string     `json:"resolution,omitempty"`
-	ResolvedBy        string     `json:"resolved_by,omitempty"`
-}
-
-type PermissionDeniedPatch struct{}
-
-type PermissionDeniedPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	ProfileID      string             `json:"profile_id,omitempty"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
 }

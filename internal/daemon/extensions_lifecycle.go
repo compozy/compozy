@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -48,7 +47,13 @@ func (s *daemonExtensionService) Install(
 	mutation := func() error {
 		if prepared.published != nil {
 			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
-				return s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item)
+				if err := s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item); err != nil {
+					return err
+				}
+				if req.Enable {
+					return s.enableInstalledExtension(ctx, prepared, req, actor, &item)
+				}
+				return nil
 			} else if !errors.Is(readErr, extensionpkg.ErrExtensionNotFound) {
 				return readErr
 			}
@@ -85,9 +90,15 @@ func (s *daemonExtensionService) commitPreparedInstall(
 	event extensionpkg.LifecycleEvent,
 	item *contract.ExtensionPayload,
 	inputs *extensionInputPlan,
+	deferCompletion bool,
 ) error {
 	if err := prepared.commit(); err != nil {
 		return err
+	}
+	if deferCompletion {
+		if err := s.registry.SetEnabledForProfile(prepared.name, prepared.target.profile.ID, false); err != nil {
+			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
+		}
 	}
 	if _, err := (extensionInputBinder{service: s}).Commit(ctx, inputs); err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
@@ -127,10 +138,14 @@ func (s *daemonExtensionService) commitPreparedInstall(
 	if err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
+	if deferCompletion {
+		return nil
+	}
 	completedEvent := event
 	completedEvent.Type = eventspkg.ExtensionInstallCompleted
 	completedEvent.ExtensionName = item.Name
 	completedEvent.DigestMatched = item.DigestMatched
+	completedEvent.Enabled = item.Enabled
 	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
@@ -399,54 +414,9 @@ func (s *daemonExtensionService) Enable(
 	}
 	var result contract.ExtensionEnableResult
 	err := s.lifecycle.withName(ctx, name, func() error {
-		info, getErr := s.registry.Get(name)
-		if getErr != nil {
-			return getErr
-		}
-		snapshot := snapshotGlobalExtensionLifecycle(info)
-		preview, previewErr := s.previewExtension(ctx, name)
-		if previewErr != nil {
-			return previewErr
-		}
-		if len(preview.MissingInputs) > 0 || len(preview.MissingEnv) > 0 {
-			return &extensionpkg.InputsRequiredError{
-				MissingInputs: slices.Clone(preview.MissingInputs), MissingEnv: slices.Clone(preview.MissingEnv),
-			}
-		}
-		if len(preview.AgentConflicts) > 0 {
-			return &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}
-		}
-		confirmation, confirmErr := s.confirmGatewayForEnable(
-			extensionpkg.GlobalInstanceKey(name),
-			preview.GatewayRequirementDigest,
-			strings.TrimSpace(req.ConfirmGatewayDigest),
-			actor,
-		)
-		if confirmErr != nil {
-			return confirmErr
-		}
-		if enableErr := s.registry.Enable(name); enableErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
-		}
-		if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
-		}
-		item, statusErr := s.Status(ctx, name)
-		if statusErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, statusErr)
-		}
-		automationStarted := slices.Clone(preview.AutomationStarting)
-		result = contract.ExtensionEnableResult{Extension: item, AutomationStarted: automationStarted}
-		if eventErr := s.recordExtensionEnableEvents(
-			ctx,
-			actor,
-			extensionpkg.GlobalInstanceKey(name),
-			confirmation,
-			&result,
-		); eventErr != nil {
-			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)
-		}
-		return nil
+		var err error
+		result, err = s.enableUnlocked(ctx, name, req, actor)
+		return err
 	})
 	return result, err
 }

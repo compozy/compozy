@@ -250,3 +250,19 @@ and retained queued rows without dispatch tokens. The HTTP/ACP child journey
 verified held attention, manual takeover, idle release, definition removal and
 queued wake/message delivery without resuming the creator. Browser and live-provider
 walks are not claimed.
+
+15. **Claude provider-native subagent refusal (#1439).** In an isolated lab using the candidate binary,
+    ask a Claude background Agent subagent to register both a terminal monitor on its pending command
+    and a timer monitor. Each call must be denied before MCP dispatch, explaining that monitors wake
+    the parent, and advising return of pending work and terminal ID to the parent or a separate
+    CompozyOS child session. The parent monitor list must contain neither refused registration and
+    receive no wake from either. A foreground shell wait in the subagent must give the same handback
+    guidance, and the background-shell refusal must explain the subagent exception. Have the parent
+    register the terminal monitor and a timer itself: both register normally and wake the parent;
+    the parent can then resume its subagent. Repeat after session load/resume. Keep background Agent
+    execution enabled. On Windows, repeat through PowerShell with COMPOZY_BIN pointing to the candidate.
+
+    Candidate verification (2026-11-10): the built CLI and POSIX PreToolUse wrapper refused terminal
+    and timer calls carrying a child `agent_id` and emitted no decision for the same parent calls.
+    The ACP start/load/resume contract and owning-session wake suite passed. A live-model background
+    Agent walk and the Windows runtime walk remain unrun; CI owns E2E under this assignment.

@@ -18,6 +18,10 @@ import {
 } from "../stores/active-workspace-store";
 import { useUserHomeDir } from "./use-user-home-dir";
 
+/**
+ * The active destination resolved against the workspace catalog, plus the
+ * catalog's load state and the actions that move the destination.
+ */
 export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   const selectedWorkspaceId = useSelectedWorkspaceId();
   const requestedBreadthMode = useBreadthMode();
@@ -34,7 +38,12 @@ export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   });
 
   return {
-    ...query,
+    // Named reads only: spreading the query would read every field, so each
+    // unchanged catalog poll would re-render every caller across the shell.
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
     ...resolution,
     workspaces: resolution.projectWorkspaces,
     hasWorkspaces: resolution.projectWorkspaces.length > 0,

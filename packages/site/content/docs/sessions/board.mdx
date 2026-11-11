@@ -78,7 +78,7 @@ you can do in **List** you can do here, while the board stays visible beside it.
 1. Click a card in **Working**.
 
    **Expected:** the drawer opens with that session. Its header shows the session state, the title,
-   the pull request and status chips, **Stop** while it runs, and the context sidebar toggle. On the
+   the pull request and status chips, **Stop** while it runs, and **Changes**. On the
    right are **Previous session**, **Next session**, **Open full session**, the session's **…** menu,
    and **Close**.
 
@@ -197,7 +197,7 @@ hidden`). Archived cards can be selected while the **Archive** bar is open; clos
 Open **View options** (the sliders icon) in the board header. Use **Group by** to split the board into one swimlane per project (under
 **All projects**) or per profile (under **All profiles**). Each swimlane keeps the four columns, with
 counts for that project or profile only. **Group by** shows only where a grouping applies, and starts
-at **None**. The **Archive** bar stays a single bar.
+at **Project** under **All projects**; a board that shows one project stays ungrouped. The **Archive** bar stays a single bar.
 
 Use **Sort by** to order the cards inside every column: **Created**, **Name**, **Last activity**, or
 **Attention first**. The list's **Manual** order belongs to its folders, so the board reads it as
@@ -277,11 +277,11 @@ A fold applies to that column in every swimlane when the board is grouped, so th
 aligned. Each session window remembers its folds across reloads; a new window opens with every column
 expanded. Selected cards in a folded column stay selected and count as hidden.
 
-## Finished automation runs
+## Automation runs
 
-An automation job or trigger session shows on the list and the board while it runs or needs you. When it finishes cleanly, it leaves both, and the counts follow. Nothing is archived or deleted: open it from the Automations run view, or find it with search.
+Sessions an automation job or trigger starts stay off the list and the board, whether they are starting, working, waiting or finished, and the counts leave them out. A new run never appears in the list or takes the selection. Nothing is archived or deleted: open a run from the Automations run view, or find it with search. A run that needs you still reaches you through the attention toasts and notifications.
 
-A run stays visible when it failed, when it or one of its child sessions is waiting on you or still working, or when you prompted it yourself. Opening a run does not keep it on the list. A failed run stays until you archive it. A child session always moves with its parent. Loop and Task sessions keep their place on the list.
+To see them in a window, turn on **Show automation runs** in **View options**. Each window remembers the choice; a new window starts with it off. A run you prompted yourself becomes your work and stays on the list. A child session always moves with its parent. Loop and Task sessions keep their place on the list.
 
 ## Scope and freshness
 

@@ -32,7 +32,7 @@ type automationClientAPI interface {
 	UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error)
 	DeleteAutomationJob(ctx context.Context, id string) error
 	TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error)
-	AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
+	AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) (AutomationRunListRecord, error)
 	ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error)
 	GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error)
@@ -42,8 +42,8 @@ type automationClientAPI interface {
 		request AutomationTriggerUpdateRequest,
 	) (TriggerRecord, error)
 	DeleteAutomationTrigger(ctx context.Context, id string) error
-	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
-	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error)
+	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) (AutomationRunListRecord, error)
+	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) (AutomationRunListRecord, error)
 	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
 }
 
@@ -110,3 +110,6 @@ func automationSuggestionActionPath(workspaceID string, suggestionID string, act
 	return automationSuggestionsPath(workspaceID) + "/" +
 		url.PathEscape(strings.TrimSpace(suggestionID)) + "/" + action
 }
+
+// AutomationRunListRecord preserves run history continuation metadata.
+type AutomationRunListRecord = contract.RunsResponse

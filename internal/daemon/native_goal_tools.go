@@ -104,7 +104,7 @@ func (n *daemonNativeTools) goalControl(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
 	}
-	return structuredResult(payload, fmt.Sprintf("Goal %s", payload.Outcome))
+	return goalControlViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) goalControlAvailability(
@@ -161,9 +161,14 @@ func (n *daemonNativeTools) goalGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
 	}
-	return structuredResult(
+	return (resultViews[contract.SessionGoalResponse]{
+		Compact: viewGoalGet,
+		Preview: func(contract.SessionGoalResponse) string {
+			return fmt.Sprintf("Goal %s is %s", snapshot.RunID, snapshot.Status)
+		},
+	}).result(
+		req.View,
 		contract.SessionGoalResponse{Goal: payload},
-		fmt.Sprintf("Goal %s is %s", snapshot.RunID, snapshot.Status),
 	)
 }
 

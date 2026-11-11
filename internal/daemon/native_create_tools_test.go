@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -307,7 +308,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
-				`{"scope":"global","name":"reviewer","provider":"claude","prompt":"Review.",` +
+				`{"result_view":"full","scope":"global","name":"reviewer","provider":"claude","prompt":"Review.",` +
 					`"fallback_chain":[{"provider":"claude","model":"opus-4-8","command":"` + command + `"},` +
 					`{"provider":"codex","model":"gpt-5.6-terra","reasoning_effort":"high"}]}`,
 			),
@@ -456,7 +457,7 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 						ID:          workspaceID,
 						RootDir:     t.TempDir(),
 						Name:        "native",
-						WorkspaceID: workspaceID,
+						WorkspaceID: "metadata-native",
 						Agents: []compozyconfig.AgentDef{
 							{Name: compozyconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},
 							{Name: "onboarding", Provider: "codex", Prompt: "Onboarding."},
@@ -464,7 +465,28 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 					}, nil
 				},
 			},
-			Sessions: nativeTestSessionManager(workspaceID),
+			Sessions: &apitest.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{
+					{
+						ID:          "registered-session",
+						ProfileID:   store.DefaultProfileID,
+						WorkspaceID: workspaceID,
+						State:       session.StateStopped,
+					},
+					{
+						ID:          "foreign-session",
+						ProfileID:   store.DefaultProfileID,
+						WorkspaceID: "other-workspace",
+						State:       session.StateStopped,
+					},
+					{
+						ID:          "foreign-profile-session",
+						ProfileID:   "foreign-profile",
+						WorkspaceID: workspaceID,
+						State:       session.StateStopped,
+					},
+				}, nil
+			}},
 			AgentCatalog: nativeAgentCatalogStub{agents: []compozyconfig.AgentDef{
 				{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
 				{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
@@ -480,6 +502,9 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(workspace_describe) error = %v", err)
 		}
+		requireNativeStructuredContains(t, result, []byte(`"registered-session"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"foreign-session"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"foreign-profile-session"`))
 		requireNativeStructuredContains(t, result, []byte("\"general\""))
 		requireNativeStructuredContains(t, result, []byte("\"catalog-visible\""))
 		requireNativeStructuredContains(t, result, []byte("\"dev-linked\""))

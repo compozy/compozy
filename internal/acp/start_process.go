@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -36,7 +37,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		Args:               append([]string(nil), identity.spec.Args...),
 		Cwd:                normalized.Cwd,
 		AdditionalDirs:     append([]string(nil), normalized.AdditionalDirs...),
-		Env:                append([]string(nil), normalized.Env...),
+		Env:                slices.Clone(normalized.Env),
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -118,7 +119,10 @@ func (d *Driver) configureAgentConnection(process *AgentProcess, handle Handle, 
 		process.handleInbound,
 		handle.Stdin(),
 		&connectionStartupReader{reader: handle.Stdout(), ready: ready},
-		acpsdk.ConnectionOptions{NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock},
+		acpsdk.ConnectionOptions{
+			NotificationQueueOverflow:          acpsdk.NotificationQueueOverflowBlock,
+			WaitForNotificationsBeforeRequests: true,
+		},
 	)
 	process.conn.SetLogger(d.logger)
 	close(ready)
@@ -186,6 +190,7 @@ func (d *Driver) newAgentProcess(
 		permissionTimeout:      d.permissionWait,
 		permissionWaitResolver: d.permissionWaitResolver,
 		permissionEventHandler: normalized.PermissionEventHandler,
+		elicitationAsker:       startElicitationAsker(normalized),
 		compozySessionID:       normalized.CompozySessionID,
 		controlTimeout:         d.controlTimeout,
 		systemPrompt:           normalized.SystemPrompt,
@@ -194,6 +199,15 @@ func (d *Driver) newAgentProcess(
 		promptCacheControl:     promptCacheControlForStartOpts(normalized),
 		executionPolicy:        normalized.ExecutionPolicyValue(),
 	}
+}
+
+// startElicitationAsker reads the session-owned operator question channel that
+// rides with the approval policy bound to this launch.
+func startElicitationAsker(opts StartOpts) ElicitationAsker {
+	if opts.PermissionPolicy == nil {
+		return nil
+	}
+	return opts.PermissionPolicy.ElicitationAsker
 }
 
 func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess) error {
@@ -244,6 +258,11 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 				WriteTextFile: true,
 			},
 			Terminal: true,
+			// Form elicitation is the only operator question channel this client
+			// renders; URL elicitation stays unadvertised.
+			Elicitation: &acpsdk.ElicitationCapabilities{
+				Form: &acpsdk.ElicitationFormCapabilities{},
+			},
 			Session: &acpsdk.ClientSessionCapabilities{
 				Compaction: &acpsdk.CompactionCapabilities{},
 			},

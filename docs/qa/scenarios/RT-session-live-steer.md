@@ -67,3 +67,21 @@ guidance as delivered. Exact retry retains the original acceptance receipt. Guid
 confirmed as `injected` remains delivered once.
 An `after_turn` steer follows queue ordering behind earlier operator messages; a newer steer may
 replace that undelivered guidance. A boundary steer retains replacement priority on natural turn end.
+
+Delayed native refusal with no tool events must retain `after_turn` delivery without canceling the
+active prompt. Race its `prompt_steered` marker with natural turn completion: the prompt stream must
+replay any publication gap from durable history, preserve message order and deliver the persisted
+terminal once, without synthesizing `prompt_stream_incomplete`. The queued guidance runs next.
+On a later prompt in the same session, contiguous live events must retain live delivery rather than
+entering periodic catch-up queries merely because earlier turns have larger session sequences.
+If a catch-up read fails after persistence completes, retain the cursor and retry the read; a
+transient read failure must not be reported as a missing terminal in the durable transcript.
+Stopping the session closes its recorder and must end catch-up immediately, without a recurring
+read-error warning or a stream held open until manager shutdown.
+Persistent read failures after persistence completes must end after bounded retries with
+`prompt_delivery_read_failed`, rather than leaving the stream open or claiming a verified missing
+terminal. The response contains no raw storage error details.
+An unpublished same-session hook event may create a sequence gap: recover through the observed
+watermark once, then resume live delivery. A following contiguous event must not trigger polling.
+Warnings persisted for the current turn during runtime setup, including Pi native-tool fallback
+guidance, must appear before its response and terminal. Prior-turn warnings must not be replayed.

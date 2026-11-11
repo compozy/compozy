@@ -1,3 +1,6 @@
+import { use, useSyncExternalStore } from "react";
+
+import { OsShellContext } from "../contexts/os-shell-context";
 import { matchSessionInstance } from "../lib/app-catalog";
 import type { OsDesktopRuntimeStore } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
@@ -28,4 +31,25 @@ export function selectFocusedSessionId(state: OsDesktopRuntimeStore): string | n
 
 export function useFocusedSessionId(): string | null {
   return useDesktop(selectFocusedSessionId);
+}
+
+const noSubscription = () => () => undefined;
+const noSession = () => null;
+
+/**
+ * `useFocusedSessionId` for surfaces that may also render outside the OS shell (a standalone
+ * route, a test): there it is always null.
+ */
+export function useShellFocusedSessionId(): string | null {
+  const projection = use(OsShellContext)?.projection;
+  return useSyncExternalStore(
+    projection
+      ? onChange => {
+          const subscription = projection.subscribe(onChange);
+          return () => subscription.unsubscribe();
+        }
+      : noSubscription,
+    projection ? () => selectFocusedSessionId(projection.get()) : noSession,
+    noSession
+  );
 }

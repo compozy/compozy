@@ -260,6 +260,16 @@ describe("AgentTeamPage", () => {
     expect(screen.getByTestId("agent-row-general")).toBeVisible();
   });
 
+  it("Should paint a needs-you place chip in the attention tone, never brand", () => {
+    renderPage();
+    const chips = Array.from(
+      document.querySelectorAll('[data-slot="status-dot"][data-tone="attn"]'),
+      dot => dot.closest('[data-slot="pill"]')
+    ).filter(chip => chip !== null);
+    expect(chips.length).toBeGreaterThan(0);
+    expect(chips.map(chip => chip.getAttribute("data-tone"))).toEqual(chips.map(() => "attn"));
+  });
+
   it("Should open the profile from a card", async () => {
     const { onOpen } = renderPage();
     await userEvent.click(screen.getByTestId("agent-fleet-row-link-reviewer"));

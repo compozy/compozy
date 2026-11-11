@@ -92,6 +92,8 @@ type configSetRecord struct {
 	RestartScope     string `json:"restart_scope,omitempty"`
 	Status           string `json:"status,omitempty"`
 	WinningLayer     string `json:"winning_layer,omitempty"`
+	// Warnings carries daemon reload warnings, such as an enabled change kept pending.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type configUnsetRecord struct {

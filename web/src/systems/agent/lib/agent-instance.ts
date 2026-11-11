@@ -37,6 +37,11 @@ export function agentUnattendedSteps({
   return limit || turns || 0;
 }
 
+/** Standing check-in consent that waits for the operator; empty once approved or not needed. */
+export function agentAuthorityCopy(instance: { authority_status?: string }) {
+  return instance.authority_status === "unapproved" ? "Check-in changes need your approval" : "";
+}
+
 /** Why it's paused, with the limit the daemon applied. Empty when it isn't paused. */
 export function agentPauseCopy(instance: AgentPauseFacts) {
   const reason = instance.pause_reason;

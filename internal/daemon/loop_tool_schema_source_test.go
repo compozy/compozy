@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -13,6 +14,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	looppkgdsl "github.com/compozy/compozy/internal/loop/dsl"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/tools/builtin"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -488,4 +490,100 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 		t.Fatalf("DescriptorWithSchemaDigests() error = %v", err)
 	}
 	return withDigests
+}
+
+// Invariant: the daemon publishes isolated view schemas and real native schema diagnostics to Loops.
+func TestLoopToolSchemaSourceResultViews(t *testing.T) {
+	t.Parallel()
+	t.Run("Should carry both view digests and preserve real session reference diagnostics", func(t *testing.T) {
+		t.Parallel()
+		var descriptor toolspkg.Descriptor
+		for _, candidate := range builtin.NativeDescriptors() {
+			if candidate.ID == "compozy__session_status" {
+				descriptor = candidate
+				break
+			}
+		}
+		var err error
+		descriptor, err = toolspkg.DescriptorWithSchemaDigests(descriptor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := newLoopToolSchemaSource(
+			t.Context(),
+			loopToolSchemaRegistry{
+				views: map[toolspkg.ToolID]toolspkg.ToolView{descriptor.ID: {Descriptor: descriptor}},
+			},
+		)
+		snapshot, ok := source.Snapshot(descriptor.ID.String())
+		if !ok {
+			t.Fatal("missing session snapshot")
+		}
+		views := descriptor.ResultViews()
+		if snapshot.FullOutputSchemaDigest != views.Full.Digest ||
+			snapshot.PreViewInputSchemaDigest != views.PreViewInputSchemaDigest ||
+			string(snapshot.FullOutputSchema) != string(views.Full.Schema) {
+			t.Fatalf("snapshot = %#v", snapshot)
+		}
+		snapshot.FullOutputSchema[0] = '['
+		snapshot, ok = source.Snapshot(descriptor.ID.String())
+		if !ok || snapshot.FullOutputSchema[0] != '{' {
+			t.Fatal("mutated cached schema")
+		}
+		encoded, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(encoded), snapshot.PreViewInputSchemaDigest) {
+			t.Fatal("pre-view input digest leaked into persisted snapshot")
+		}
+		for _, view := range []string{"compact", "full"} {
+			for _, produces := range []bool{false, true} {
+				node := looppkgdsl.Node{
+					ID:     "inspect",
+					Class:  looppkgdsl.NodeClassAction,
+					Kind:   descriptor.ID.String(),
+					Params: looppkgdsl.NodeParams{"session_id": "sess-fixture", "result_view": view},
+				}
+				def := looppkgdsl.Definition{Graph: looppkgdsl.Graph{Nodes: []looppkgdsl.Node{node}}}
+				const path = "nodes.inspect.output.session.lineage.permission_policy.tools"
+				if produces {
+					def.Graph.Nodes[0].Produces = looppkgdsl.Schema{
+						"session": map[string]any{
+							"lineage": map[string]any{"permission_policy": map[string]any{"tools": "array"}},
+						},
+					}
+				} else {
+					def.Graph.Nodes = append(
+						def.Graph.Nodes,
+						looppkgdsl.Node{
+							ID:     "report",
+							Class:  looppkgdsl.NodeClassAction,
+							Kind:   "run-agent",
+							Params: looppkgdsl.NodeParams{"agent": "codex", "prompt": "Read {{ ." + path + " }}"},
+						},
+					)
+					def.Graph.Edges = []looppkgdsl.Edge{{From: "inspect", To: "report"}}
+				}
+				diagnostics := newLoopLinterWithSchemaSource(source).Lint(def)
+				errorsCount, warnings := 0, 0
+				for _, diagnostic := range diagnostics {
+					if diagnostic.Severity == looppkg.SeverityWarning {
+						if strings.Contains(diagnostic.Message, "cannot be proven") {
+							warnings++
+						}
+						continue
+					}
+					errorsCount++
+					if view == "compact" &&
+						(diagnostic.Code != looppkg.CodeResultViewFieldRequiresFull || diagnostic.Path != path || !strings.Contains(diagnostic.Message, descriptor.ID.String())) {
+						t.Fatalf("diagnostic = %#v", diagnostic)
+					}
+				}
+				if view == "compact" && errorsCount != 1 || view == "full" && (errorsCount != 0 || warnings == 0) {
+					t.Fatalf("view=%s produces=%v diagnostics=%#v", view, produces, diagnostics)
+				}
+			}
+		}
+	})
 }

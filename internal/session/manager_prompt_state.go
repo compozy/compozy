@@ -23,13 +23,15 @@ type promptTurnDispatchState struct {
 	messageSeq       int
 	turnEnded        bool
 	// stopReason is the provider stop reason of the turn's terminal done event.
-	stopReason  acp.PromptStopReason
-	openMessage *promptMessageDispatchState
-	managed     *managedInputExecution
-	recovery    *promptRecoveryState
+	stopReason    acp.PromptStopReason
+	openMessage   *promptMessageDispatchState
+	managed       *managedInputExecution
+	recovery      *promptRecoveryState
+	costBaselines map[string]float64
 }
 
 type promptRecoveryState struct {
+	authReady       chan struct{}
 	executionCtx    context.Context
 	request         acp.PromptRequest
 	originalMessage string
@@ -91,6 +93,7 @@ func clearPromptState(session *Session, turnID string) {
 		session.currentPromptCancelTurn = ""
 	}
 	session.currentTurnID = ""
+	session.currentPromptRecovery = nil
 	session.openToolCalls = nil
 	session.hasBoundarySteer = false
 	session.currentTurnSource = ""

@@ -131,7 +131,12 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 	if blocker := AttentionBlockerForInfo(before); blocker != AttentionBlockerNone {
 		return nil, &AttentionRequiresActionError{SessionID: target, Blocker: blocker}
 	}
-	commit, err := m.commitAttention(target, func() (store.SessionAttentionCommit, error) {
+	unlock, err := m.lockAttentionCommit(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	commit, err := m.commitAttentionLocked(target, func() (store.SessionAttentionCommit, error) {
 		return m.attentionStore.DismissSessionAttention(ctx, target, observed.Fence(), m.now().UTC())
 	})
 	if errors.Is(err, store.ErrSessionAttentionChanged) {
@@ -140,14 +145,34 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 	if err != nil {
 		return nil, fmt.Errorf("session: mark %q attention seen: %w", target, err)
 	}
-	after, err := m.Status(ctx, target)
-	if err != nil {
-		return nil, err
+	if commit.Outcome != "unchanged" {
+		m.attentionCommitMu.Lock()
+		if m.attentionPublished == nil {
+			m.attentionPublished = make(map[string]store.SessionAttention)
+		}
+		if previous, published := m.attentionPublished[target]; published {
+			applyAttentionToInfo(before, previous)
+		} else {
+			// Reserve before the final snapshot so removal can invalidate the baseline.
+			m.attentionPublished[target] = commit.Before
+		}
+		m.attentionCommitMu.Unlock()
+	}
+	after, statusErr := m.Status(ctx, target)
+	if statusErr != nil {
+		// A response read failure must not discard an already committed clearing edge.
+		after = new(*before)
+		applyAttentionToInfo(after, commit.After)
+		after.LaterReturnedAt = cloneTimePointer(commit.After.LaterReturnedAt)
 	}
 	if commit.Outcome != "unchanged" {
+		// Captured snapshots preserve Later's origin without another fallible read or a creator wake.
 		m.publishAttentionEdge(ctx, before, after)
 		m.sessionLogger(nil).InfoContext(ctx, "session.attention.seen", "session_id", target,
 			"from", BadgeForInfo(before), "to", BadgeForInfo(after))
+	}
+	if statusErr != nil {
+		return nil, statusErr
 	}
 	return after, nil
 }

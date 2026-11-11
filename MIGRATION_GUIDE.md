@@ -27,8 +27,8 @@ Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Ca
 win conflicts; original values and source text are retained as inactive comments. Persisted
 AGENT.md files migrate when loaded from any discovery root, including extension roots.
 Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
-still decode as `always_on` and log guidance to update the source before v0.6.0.
-This single persisted-file shim generation is scheduled for removal in v0.6.0.
+still decode as `always_on` and log guidance to update the source before v0.6.1.
+This single persisted-file shim generation is scheduled for removal in v0.6.1.
 CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
 update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
 
@@ -287,8 +287,8 @@ they simply match nothing. The leftovers are tolerated for now but not forever.
 
 The config archive, the `memory_policy` ignore rule, the retired tool-ID filter, the extension
 manifest and automation-resource filters, and the `AGENT.md` and `SKILL.md` hook-matcher filters are
-one shim generation. They are removed in v0.6.0. Run at least one release that
-contains them before upgrading to v0.6.0, and clean the leftovers listed above so nothing depends on
+one shim generation. They are removed in v0.6.1. Run at least one release that
+contains them before upgrading to v0.6.1, and clean the leftovers listed above so nothing depends on
 them.
 
 <a id="networks-bridges-and-sandbox-removal"></a>
@@ -727,3 +727,27 @@ Runtime names are allocated automatically. Extension inputs use their own creden
 namespace; manual MCP Vault references cannot be imported into extension inputs.
 See the Unreleased migration block in [release notes](https://github.com/compozy/compozy/blob/main/RELEASE_NOTES.md) for the
 append-only database upgrades and preserved state.
+
+## Native tool result views
+
+The default result of native tools changed. To keep receiving the complete record:
+
+| You have                          | Do this                                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An agent prompt or AGENT.md       | Tell the agent to pass `result_view: "full"` on the calls that need it                                                                                                  |
+| A Loop node                       | Add `result_view: full` to the node's `params`                                                                                                                          |
+| A `tool.post_call` hook           | Patch `tool_input` with `result_view: "full"` in `tool.pre_call`, except on calls that carry `pinned_result_view` (Loop nodes); the agent then gets the full record too |
+| An MCP client                     | Send `"result_view": "full"` in the call `arguments`                                                                                                                    |
+| A script on `compozy tool invoke` | Add `"result_view":"full"` to `--input`                                                                                                                                 |
+
+Hosted MCP clients no longer receive `outputSchema` for any native tool. Read contracts
+with `compozy__tool_info`, `compozy tool info` or HTTP/UDS descriptors (`output_views`).
+`structuredContent` and serialized JSON text remain unchanged, including continuation
+and typed-error payloads.
+
+The release note lists every tool whose default changed and the fields that moved to the full view.
+HTTP/UDS session responses did not change. Native tool invocation responses use the selected view.
+
+Existing definitions are not rewritten. Runs already in flight use the full result through
+one-release snapshot translation; it is removed in the next release (#1462). See
+[Result Views](/docs/tools/result-views) for Loop errors, hooks and MCP boundaries.

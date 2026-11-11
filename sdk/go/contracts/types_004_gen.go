@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type AutomationJobsResult struct {
+	Jobs []Job                    `json:"jobs"`
+	Page CountedCursorPagePayload `json:"page"`
+}
+
 type AutomationLastRunPayload struct {
 	ID         string              `json:"id"`
 	Status     RunStatus           `json:"status"`
@@ -187,5 +192,3 @@ type BlockedReason struct {
 }
 
 type BlockedSource string
-
-type CatalogScope string

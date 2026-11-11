@@ -71,7 +71,7 @@ func (n *daemonNativeTools) cmdPaletteList(
 		}
 		commands = filtered
 	}
-	return structuredResult(map[string]any{"commands": commands}, fmt.Sprintf("%d commands", len(commands)))
+	return paletteListViews.result(req.View, commands)
 }
 
 func (n *daemonNativeTools) cmdPaletteInvoke(

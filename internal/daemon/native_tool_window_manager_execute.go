@@ -100,5 +100,5 @@ func (n *daemonNativeTools) previewWindowManagerCommand(
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
 	payload := newWindowManagerPreviewResult(command.CommandID(), preview)
-	return structuredResult(payload, fmt.Sprintf("previewed %s at revision %d", command.CommandID(), payload.Revision))
+	return layoutPreviewViews.result(req.View, payload)
 }

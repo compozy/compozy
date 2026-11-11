@@ -36,12 +36,23 @@ func (m *Manager) AwaitStopped(ctx context.Context, id string) (StopOutcome, err
 	}
 	m.mu.RLock()
 	run := m.stopRuns[strings.TrimSpace(id)]
-	active := m.sessions[strings.TrimSpace(id)]
 	m.mu.RUnlock()
-	if run == nil || (active != nil && run.session != active) {
+	if run == nil {
 		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
 	}
-	return waitSessionStopRun(ctx, run)
+	select {
+	case <-run.ready:
+	case <-ctx.Done():
+		return StopOutcome{}, ctx.Err()
+	}
+	m.mu.RLock()
+	active := m.sessions[strings.TrimSpace(id)]
+	matches := active == nil || run.session == active
+	m.mu.RUnlock()
+	if !matches {
+		return StopOutcome{}, fmt.Errorf("session: no stop requested for %q", id)
+	}
+	return m.waitSessionStopRun(ctx, strings.TrimSpace(id), run)
 }
 
 func waitSessionStopRun(ctx context.Context, run *sessionStopRun) (StopOutcome, error) {
@@ -121,11 +132,14 @@ func (m *Manager) claimSessionStopRun(id string) (*sessionStopRun, bool) {
 		(!signalClosed(previous.ready) || active == nil || previous.session == active) {
 		select {
 		case <-previous.done:
+			start := m.sessionStartRun(id)
+			pendingStart := start != nil && !start.activationCommitted.Load()
 			if previous.outcome.Verified && previous.outcome.FinalState == StateStopped &&
-				previous.recoveredSettlement == nil && !errors.Is(previous.err, ErrRecoveryPersistence) {
+				(!pendingStart || active == nil) && previous.recoveredSettlement == nil &&
+				!errors.Is(previous.err, ErrRecoveryPersistence) {
 				return previous, false
 			}
-			if previous.outcome.Verified {
+			if previous.outcome.Verified && !pendingStart {
 				verifiedOutcome = previous.outcome
 			}
 			settlement = previous.recoveredSettlement
@@ -188,14 +202,29 @@ func (r *sessionStopRun) notifyCommitted() {
 	notify()
 }
 
+// prepareSessionStopRun admits Stop through the current startup gate before shared termination.
 func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun, cause StopCause, detail string) {
-	session, proc, stopped, requested, _, err := m.prepareStopWithCauseMode(
-		ctx, run.session.ID, cause, detail, stopPreparationDefault, run,
-	)
+	var session *Session
+	var proc *AgentProcess
+	var stopped, requested bool
+	var err error
+	for {
+		session, proc, stopped, requested, _, err = m.prepareStopWithCauseMode(
+			ctx, run.session.ID, cause, detail, stopPreparationDefault, run,
+		)
+		if !errors.Is(err, errStopNeedsStartGate) {
+			break
+		}
+		if m.prepareStartingStopRun(ctx, run, cause, detail) {
+			return
+		}
+	}
 	if err != nil {
 		m.failStopPreparation(run, err)
 		return
 	}
+	m.bindSessionStopRun(run, session, proc)
+
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
 	}
@@ -213,23 +242,15 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 	promptDone := session.currentPromptCompletion()
 	m.startTrackedPromptTask(func() {
 		defer close(run.done)
+		stopProc := proc
+		if stopProc == nil {
+			stopProc = session.releasedProcessForStop()
+			m.bindSessionStopRun(run, session, stopProc)
+		}
 		result := terminationResult{StopOutcome: run.outcome}
 		var ladderErr error
 		if !result.Verified {
-			stopProc := proc
-			if stopProc == nil {
-				stopProc = session.releasedProcessForStop()
-			}
-			target := terminationTarget{
-				promptDone: promptDone,
-				beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
-					return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
-				},
-			}
-			if (cause == CauseCompleted || cause == CauseOwnerReleased) &&
-				(promptDone == nil || signalClosed(promptDone)) {
-				target.cooperative = m.driver.Stop
-			}
+			target := m.sessionStopTerminationTarget(session, promptDone, cause)
 			result, ladderErr = m.runTerminationLadder(ctx, stopProc, target)
 		}
 		outcome := result.StopOutcome
@@ -247,7 +268,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 			run.err = errors.Join(run.err, waitErr)
 			return
 		}
-		run.outcome = session.retainVerifiedStopOutcome(run.outcome)
+		run.outcome = session.retainVerifiedStopOutcome(stopProc, run.outcome)
 		var waitErr error
 		if proc != nil && isProcessDone(proc) {
 			waitErr = proc.Wait()
@@ -260,4 +281,32 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 		}
 		run.outcome.Cause, _ = session.stopCauseDetail()
 	})
+}
+
+// sessionStopTerminationTarget preserves prompt completion and escalation observations for normal stops.
+func (m *Manager) sessionStopTerminationTarget(
+	session *Session, promptDone <-chan struct{}, cause StopCause,
+) terminationTarget {
+	target := terminationTarget{
+		promptDone: promptDone,
+		beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
+			return m.recordSessionStopEscalation(ctx, session, phase, elapsed, cause)
+		},
+	}
+	if (cause == CauseCompleted || cause == CauseOwnerReleased) &&
+		(promptDone == nil || signalClosed(promptDone)) {
+		target.cooperative = m.driver.Stop
+	}
+	return target
+}
+
+// bindSessionStopRun invalidates cached exit proof when either captured target identity changes.
+func (m *Manager) bindSessionStopRun(run *sessionStopRun, session *Session, proc *AgentProcess) {
+	m.mu.Lock()
+	sameSession := run.session == session
+	run.session = session
+	m.mu.Unlock()
+	if run.outcome.Verified && (!sameSession || session == nil || !session.hasVerifiedStopProcess(proc)) {
+		run.outcome = StopOutcome{}
+	}
 }

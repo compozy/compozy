@@ -21,6 +21,7 @@ func (s *service) buildMCPServerItems(
 	workspaceID string,
 	profileName string,
 	resolved *workspacepkg.ResolvedWorkspace,
+	skipRuntimeStatus bool,
 ) ([]MCPServerItem, error) {
 	root := ""
 	if resolved != nil {
@@ -54,7 +55,7 @@ func (s *service) buildMCPServerItems(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateMCPCollectionStatuses(ctx, items); err != nil {
+	if err := s.populateMCPCollectionStatuses(ctx, items, skipRuntimeStatus); err != nil {
 		return nil, err
 	}
 	markInheritedMCPAuthStatuses(items, MCPAuthTargetRequest{
@@ -74,6 +75,9 @@ func (s *service) putProvider(
 	modelCuration *ProviderModelCurationRequest,
 	secrets []ProviderSecretWrite,
 ) (MutationResult, error) {
+	// A newly supported window-only request edits one value, not the provider's
+	// authored launch policy. Keep full provider PUT replacement semantics intact.
+	windowOnly := settings.AutoCompactWindow != nil && !settings.ModelsSet && len(providerSettingsMap(settings)) == 1
 	reconciledSettings, err := s.reconcileProviderCuratedWrite(ctx, name, settings, modelCuration)
 	if err != nil {
 		return MutationResult{}, err
@@ -94,11 +98,11 @@ func (s *service) putProvider(
 	var target compozyconfig.WriteTarget
 	classification := providerWriteClassification{}
 	if len(values) != 0 {
-		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
+		target, err = s.providerTableWriteTarget(ctx, name, values)
 		if err != nil {
 			return MutationResult{}, err
 		}
-		classification, err = s.classifyProviderWrite(ctx, name, settings)
+		classification, err = s.classifyProviderWrite(ctx, name, settings, windowOnly)
 		if err != nil {
 			return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 		}
@@ -122,6 +126,9 @@ func (s *service) putProvider(
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			path := []string{string(CollectionProviders), name}
+			if windowOnly {
+				return editor.SetValue(append(path, "auto_compact_window"), *settings.AutoCompactWindow)
+			}
 			if err := editor.Delete(path); err != nil {
 				return err
 			}
@@ -137,6 +144,19 @@ func (s *service) putProvider(
 	), nil
 }
 
+// providerTableWriteTarget resolves the global write target of a provider table rebuild and
+// carries the authored providers.<name>.enabled into values, so a full edit never flips it (BR-11).
+func (s *service) providerTableWriteTarget(
+	ctx context.Context,
+	name string,
+	values map[string]any,
+) (compozyconfig.WriteTarget, error) {
+	if err := s.preserveAuthoredProviderEnabled(ctx, name, values); err != nil {
+		return compozyconfig.WriteTarget{}, err
+	}
+	return compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
+}
+
 func (s *service) preserveProviderOptionalFields(
 	ctx context.Context,
 	name string,
@@ -144,7 +164,7 @@ func (s *service) preserveProviderOptionalFields(
 ) (ProviderSettings, error) {
 	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
 		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
-		settings.SteerCapability != "" && settings.SessionEnv != nil {
+		settings.SteerCapability != "" && settings.SessionEnv != nil && settings.AutoCompactWindow != nil {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -163,6 +183,9 @@ func (s *service) preserveProviderOptionalFields(
 	}
 	if settings.SteerCapability == "" {
 		settings.SteerCapability = provider.SteerCapability
+	}
+	if settings.AutoCompactWindow == nil {
+		settings.AutoCompactWindow = provider.AutoCompactWindow
 	}
 	if settings.SessionEnv == nil {
 		settings.SessionEnv = compozyconfig.MergeSessionEnv(nil, provider.SessionEnv)
@@ -224,22 +247,23 @@ func (s *service) prepareProviderSecretWrites(
 
 func providerConfigFromSettings(settings ProviderSettings) compozyconfig.ProviderConfig {
 	return compozyconfig.ProviderConfig{
-		Command:         strings.TrimSpace(settings.Command),
-		SteerCapability: settings.SteerCapability,
-		DisplayName:     strings.TrimSpace(settings.DisplayName),
-		Models:          providerModelsConfigFromSettings(settings.Models),
-		Harness:         settings.Harness,
-		RuntimeProvider: strings.TrimSpace(settings.RuntimeProvider),
-		Transport:       strings.TrimSpace(settings.Transport),
-		BaseURL:         strings.TrimSpace(settings.BaseURL),
-		AuthMode:        settings.AuthMode,
-		EnvPolicy:       settings.EnvPolicy,
-		HomePolicy:      settings.HomePolicy,
-		AuthStatusCmd:   strings.TrimSpace(settings.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(settings.AuthLoginCmd),
-		AuthACPMethod:   strings.TrimSpace(settings.AuthACPMethod),
-		CredentialSlots: providerCredentialSlotsFromSettings(settings.CredentialSlots),
-		SessionEnv:      compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
+		Command:           strings.TrimSpace(settings.Command),
+		SteerCapability:   settings.SteerCapability,
+		DisplayName:       strings.TrimSpace(settings.DisplayName),
+		Models:            providerModelsConfigFromSettings(settings.Models),
+		Harness:           settings.Harness,
+		RuntimeProvider:   strings.TrimSpace(settings.RuntimeProvider),
+		Transport:         strings.TrimSpace(settings.Transport),
+		BaseURL:           strings.TrimSpace(settings.BaseURL),
+		AuthMode:          settings.AuthMode,
+		EnvPolicy:         settings.EnvPolicy,
+		HomePolicy:        settings.HomePolicy,
+		AuthStatusCmd:     strings.TrimSpace(settings.AuthStatusCmd),
+		AuthLoginCmd:      strings.TrimSpace(settings.AuthLoginCmd),
+		AuthACPMethod:     strings.TrimSpace(settings.AuthACPMethod),
+		CredentialSlots:   providerCredentialSlotsFromSettings(settings.CredentialSlots),
+		SessionEnv:        compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
+		AutoCompactWindow: settings.AutoCompactWindow,
 	}
 }
 
