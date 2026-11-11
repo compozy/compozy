@@ -66,9 +66,8 @@ large result without shell access. Hosted MCP returns the same page envelope as 
 
 ## Hosted MCP clients
 
-MCP clients reject a successful call that omits `structuredContent` when the tool advertises an
-output schema. A truncated hosted result therefore still returns `structuredContent`, carrying a
-continuation envelope instead of the declared payload:
+A truncated hosted result returns `structuredContent`, carrying a continuation envelope
+instead of the declared payload:
 
 ```json
 {
@@ -80,7 +79,7 @@ continuation envelope instead of the declared payload:
 }
 ```
 
-Each hosted tool's advertised output schema accepts its declared payload, this envelope, and the typed
+Hosted native tools advertise no `outputSchema`. Results retain this envelope and the typed
 `{"error": {...}}` payload of a failed call. Check `truncated` first, then page the artifact with
 `read_tool` as described above. The retained artifact holds the complete canonical result, including
 the original structured payload. A harness that caps tool output size, such as Claude Code's MCP

@@ -3,7 +3,8 @@
 ## Native Tool Result Views — issue #1432 — 2026-11-10
 
 Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure. ADR-002 records the
-operator-approved hard cut for public default results (SD-013 regime 2).
+operator-approved hard cut for public default results (SD-013 regime 2). ADR-004
+approves removal of hosted native output schemas in the same breaking release.
 
 - **Native tools / CLI / HTTP / UDS:** 99 native tools adopt compact/full; 189 retain a
   single result. Tool descriptors expose both contracts and digests. Invocation takes
@@ -11,7 +12,9 @@ operator-approved hard cut for public default results (SD-013 regime 2).
 - **Hooks / extensibility:** tool references add `has_result_views` and, when pinned,
   `pinned_result_view`; `tool.post_call` adds `result_view`. Pre-call input patches can
   select a view but cannot override Loop pins. Extension/MCP-backed tools keep their
-  own inputs. Managed-session MCP advertises both result schemas plus envelope/error;
+  own inputs. Per ADR-004 (S12), managed-session MCP advertises no output schemas;
+  input selectors, structured results, text, continuations and typed errors are unchanged.
+  Contracts remain discoverable through tool info and HTTP/UDS descriptors;
   `compozy mcp serve` keeps its separate Host API projection.
 - **Config / automation:** no new key or default override. Job/Trigger/LoopTarget
   definitions start sessions, Tasks or Loops; mappings consume event inputs, not native

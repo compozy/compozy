@@ -21,4 +21,7 @@ is recorded without a threshold. Reuse compact IDs through the session API. Insp
 output_views via tool info, reject summary/non-string and a selector on skill_view.
 Validate a reference to session.lineage.permission_policy.tools: compact must fail
 with result_view_field_requires_full naming inspect, full must validate and complete.
-Verify hook pin refusals and MCP both-view schemas through their owning focused suites.
+Verify hook pin refusals through the owning focused suites. Hosted MCP tools/list must omit
+outputSchema for every tool while retaining result_view inputs. Through real MCP and dispatch,
+verify compact/full structuredContent and JSON text, truncated continuations and typed errors.
+Read both contracts from tool info; compare catalog bytes against the pre-feature baseline.

@@ -23,7 +23,7 @@ import (
 func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve input schemas and widen output schemas with hosted result envelopes", func(t *testing.T) {
+	t.Run("Should preserve input schemas and omit declared output schemas", func(t *testing.T) {
 		t.Parallel()
 
 		inputSchema := json.RawMessage(
@@ -53,120 +53,8 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 		if !equalJSON(t, gotInput, inputSchema) {
 			t.Fatalf("InputSchema = %s, want schema-equivalent %s", gotInput, inputSchema)
 		}
-		advertised := compileHostedOutputSchema(t, tool)
-		for _, testCase := range []struct {
-			name    string
-			payload string
-			valid   bool
-		}{
-			{name: "accept a declared payload", payload: `{"grants":[{"id":"grant-1"}]}`, valid: true},
-			{name: "reject a payload violating a referenced definition", payload: `{"grants":[{"id":7}]}`},
-			{name: "reject a payload with an undeclared field", payload: `{"grants":[],"extra":true}`},
-			{
-				name: "accept the result continuation",
-				payload: `{"truncated":true,"truncated_from_bytes":530000,"preview":"{\"grants\":[",` +
-					`"artifacts":[{"uri":"compozy://tool-artifacts/art_1","bytes":530000}],` +
-					`"read_tool":"compozy__tool_artifact_read"}`,
-				valid: true,
-			},
-			{
-				name:    "accept a typed tool error",
-				payload: `{"error":{"code":"tool_denied","message":"denied"}}`,
-				valid:   true,
-			},
-			{name: "reject an untyped error object", payload: `{"error":{}}`},
-		} {
-			t.Run("Should "+testCase.name, func(t *testing.T) {
-				t.Parallel()
-
-				err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.payload))
-				if testCase.valid && err != nil {
-					t.Fatalf("advertised output schema rejected %s: %v", testCase.payload, err)
-				}
-				if !testCase.valid && err == nil {
-					t.Fatalf("advertised output schema accepted %s", testCase.payload)
-				}
-			})
-		}
-		declaration, err := json.Marshal(tool.OutputSchema)
-		if err != nil {
-			t.Fatalf("json.Marshal(OutputSchema) error = %v", err)
-		}
-		var root map[string]any
-		if err := json.Unmarshal(declaration, &root); err != nil {
-			t.Fatalf("json.Unmarshal(OutputSchema) error = %v", err)
-		}
-		if branches, ok := root["anyOf"].([]any); !ok || len(branches) != 3 {
-			t.Fatalf("single-result anyOf = %#v, want declared, continuation, error", root["anyOf"])
-		}
-		if root["type"] != "object" {
-			t.Fatalf("OutputSchema root type = %#v, want object as MCP requires", root["type"])
-		}
-	})
-
-	t.Run("Should keep declared local references resolvable inside the widened output schema", func(t *testing.T) {
-		t.Parallel()
-
-		propertyRef := `"properties":{"value":{"type":"string"},"copy":{"$ref":"#/properties/value"}},` +
-			`"additionalProperties":false`
-		for _, testCase := range []struct {
-			name    string
-			schema  string
-			valid   string
-			invalid string
-		}{
-			{
-				name:    "a property pointer",
-				schema:  `{"type":"object",` + propertyRef + `}`,
-				valid:   `{"value":"a","copy":"b"}`,
-				invalid: `{"copy":7}`,
-			},
-			{
-				name: "a recursive root reference",
-				schema: `{"type":"object","required":["name"],"properties":{"name":{"type":"string"},` +
-					`"children":{"type":"array","items":{"$ref":"#"}}},"additionalProperties":false}`,
-				valid:   `{"name":"root","children":[{"name":"leaf","children":[]}]}`,
-				invalid: `{"name":"root","children":[{"children":[]}]}`,
-			},
-			{
-				name: "a nested embedded schema resource",
-				schema: `{"type":"object","required":["nested"],"properties":{"nested":` +
-					`{"$id":"https://compozy.test/nested.json","type":"object",` + propertyRef + `}}}`,
-				valid:   `{"nested":{"value":"a","copy":"b"}}`,
-				invalid: `{"nested":{"copy":7}}`,
-			},
-			{
-				name:    "an embedded schema resource",
-				schema:  `{"$id":"https://compozy.test/output.json","type":"object",` + propertyRef + `}`,
-				valid:   `{"value":"a","copy":"b"}`,
-				invalid: `{"copy":7}`,
-			},
-		} {
-			t.Run("Should resolve "+testCase.name, func(t *testing.T) {
-				t.Parallel()
-
-				view := hostedToolView("compozy__hosted_echo")
-				view.Descriptor.OutputSchema = json.RawMessage(testCase.schema)
-				tool := hostedMCPTool(view.Descriptor)
-				advertised := compileHostedOutputSchema(t, &tool)
-				if err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.valid)); err != nil {
-					t.Fatalf("advertised output schema rejected declared payload %s: %v", testCase.valid, err)
-				}
-				if err := validateHostedStructuredContent(
-					t,
-					advertised,
-					json.RawMessage(testCase.invalid),
-				); err == nil {
-					t.Fatalf("advertised output schema accepted invalid payload %s", testCase.invalid)
-				}
-				if err := validateHostedStructuredContent(
-					t,
-					advertised,
-					json.RawMessage(`{"truncated":true,"read_tool":"compozy__tool_artifact_read"}`),
-				); err != nil {
-					t.Fatalf("advertised output schema rejected the result continuation: %v", err)
-				}
-			})
+		if tool.OutputSchema != nil {
+			t.Fatalf("OutputSchema = %#v, want omitted", tool.OutputSchema)
 		}
 	})
 
@@ -281,6 +169,19 @@ func TestReconcileHostedTools(t *testing.T) {
 		}
 		if !reflect.DeepEqual(second, first) {
 			t.Fatalf("retained fingerprints = %#v, want %#v", second, first)
+		}
+	})
+	t.Run("Should re-register when the internal structured result requirement changes", func(t *testing.T) {
+		t.Parallel()
+		view := hostedToolView("compozy__hosted_echo")
+		view.Descriptor.OutputSchema = nil
+		registry := &countingHostedToolRegistry{}
+		client := &hostedProxyClientStub{}
+		previous := reconcileHostedTools(registry, client, "bind-1", nil, []tools.ToolView{view})
+		view.Descriptor.OutputSchema = json.RawMessage(`{"type":"object"}`)
+		reconcileHostedTools(registry, client, "bind-1", previous, []tools.ToolView{view})
+		if registry.addCalls != 2 {
+			t.Fatalf("AddTool calls = %d, want 2", registry.addCalls)
 		}
 	})
 }
@@ -1443,11 +1344,10 @@ func TestHostedRequestIdentity(t *testing.T) {
 
 func TestHostedResultViews(t *testing.T) {
 	t.Parallel()
-	t.Run("Should advertise both views with independent local references", func(t *testing.T) {
+	t.Run("Should retain the view selector without advertising output schemas", func(t *testing.T) {
 		t.Parallel()
 		descriptor := hostedResultViewDescriptor(t)
 		tool := hostedMCPTool(descriptor)
-		advertised := compileHostedOutputSchema(t, &tool)
 		input, err := json.Marshal(tool.InputSchema)
 		if err != nil {
 			t.Fatal(err)
@@ -1455,39 +1355,105 @@ func TestHostedResultViews(t *testing.T) {
 		if !equalJSON(t, input, descriptor.InputSchema) || !strings.Contains(string(input), `"result_view"`) {
 			t.Fatalf("advertised input lost selector: %s", input)
 		}
-		root, ok := tool.OutputSchema.(map[string]any)
-		if !ok {
-			t.Fatalf("output schema = %T, want object", tool.OutputSchema)
-		}
-		branches, ok := root["anyOf"].([]any)
-		if !ok || len(branches) != 4 {
-			t.Fatalf("anyOf = %#v, want compact, full, continuation, error", root["anyOf"])
-		}
-		for _, tc := range []struct {
-			name    string
-			payload string
-			valid   bool
-		}{
-			{"Should accept compact", `{"record":{"id":"r1"}}`, true},
-			{"Should accept full", `{"record":{"id":"r1","detail":"complete"}}`, true},
-			{"Should reject an invalid compact reference", `{"record":{"id":7}}`, false},
-			{"Should reject an invalid full reference", `{"record":{"id":"r1","detail":7}}`, false},
-			{"Should reject undeclared fields", `{"record":{"id":"r1","extra":true}}`, false},
-			{"Should accept continuation", `{"truncated":true}`, true},
-			{"Should accept typed error", `{"error":{"code":"tool_denied","message":"denied"}}`, true},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				if err := validateHostedStructuredContent(
-					t,
-					advertised,
-					json.RawMessage(tc.payload),
-				); (err == nil) != tc.valid {
-					t.Fatalf("validation=%v, want valid=%t: %s", err, tc.valid, tc.payload)
-				}
-			})
+		if tool.OutputSchema != nil {
+			t.Fatalf("OutputSchema = %#v, want omitted", tool.OutputSchema)
 		}
 	})
+
+	for _, mode := range []string{"truncated", "typed error"} {
+		t.Run("Should round trip "+mode+" through MCP and real dispatch", func(t *testing.T) {
+			t.Parallel()
+			descriptor := hostedResultViewDescriptor(t)
+			registry := hostedRuntimeRegistry(
+				t,
+				tools.PolicyInputs{SystemPermissionMode: tools.PermissionModeApproveAll},
+				nil,
+				tools.NativeTool{
+					Descriptor: descriptor,
+					Call: func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
+						if mode == "typed error" {
+							return tools.ToolResult{}, tools.NewToolError(
+								tools.ErrorCodeInvalidInput,
+								descriptor.ID,
+								"invalid query",
+								tools.ErrToolInvalidInput,
+								tools.ReasonSchemaInvalid,
+							)
+						}
+						return tools.ToolResult{
+							Truncated: true,
+							Preview:   "bounded preview",
+							Content:   []tools.ToolContent{{Type: "text", Text: "bounded preview"}},
+							Artifacts: []tools.ArtifactRef{{URI: "compozy://tool-artifacts/art_test", Bytes: 9000}},
+							Metadata:  map[string]json.RawMessage{"truncated_from_bytes": json.RawMessage(`9000`)},
+						}, nil
+					},
+				},
+			)
+			scope := tools.Scope{SessionID: "sess-views", WorkspaceID: "ws-views", AgentName: "general"}
+			views, err := registry.SessionProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proxy := &hostedProxyClientStub{block: func(req HostedCallRequest) (HostedCallResponse, error) {
+				result, err := registry.Call(
+					t.Context(),
+					scope,
+					tools.CallRequest{ToolID: tools.ToolID(req.ToolName), Input: req.Input},
+				)
+				return HostedCallResponse{Result: result}, err
+			}}
+			server := newHostedProxyTestServer()
+			applyHostedTools(server, proxy, "bind-views", views)
+			client := connectHostedProxyClient(t, server)
+			for _, view := range []string{"compact", "full"} {
+				result, err := client.CallTool(
+					t.Context(),
+					&sdkmcp.CallToolParams{
+						Name:      descriptor.ID.String(),
+						Arguments: map[string]any{"result_view": view},
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				payload, err := json.Marshal(result.StructuredContent)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if mode == "typed error" {
+					var typed contract.ToolErrorResponse
+					if err := json.Unmarshal(payload, &typed); err != nil {
+						t.Fatal(err)
+					}
+					if !result.IsError || typed.Error.Code != tools.ErrorCodeInvalidInput ||
+						typed.Error.Message != "invalid query" {
+						t.Fatalf("typed error = %s, isError=%t", payload, result.IsError)
+					}
+					text, ok := result.Content[0].(*sdkmcp.TextContent)
+					if !ok || text.Text != "schema_invalid: invalid query" {
+						t.Fatalf("error text = %#v", result.Content)
+					}
+				} else {
+					var envelope hostedResultEnvelope
+					if err := json.Unmarshal(payload, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					if result.IsError || !envelope.Truncated || envelope.Preview != "bounded preview" ||
+						envelope.ReadTool != tools.ToolIDToolArtifactRead ||
+						envelope.TruncatedFromBytes == nil ||
+						*envelope.TruncatedFromBytes != 9000 ||
+						len(envelope.Artifacts) != 1 {
+						t.Fatalf("continuation = %s", payload)
+					}
+					text, ok := result.Content[0].(*sdkmcp.TextContent)
+					if !ok || text.Text != "bounded preview" || len(result.Content) != 2 {
+						t.Fatalf("continuation text = %#v", result.Content)
+					}
+				}
+			}
+		})
+	}
 
 	t.Run("Should round trip both views through MCP and real dispatch", func(t *testing.T) {
 		t.Parallel()
@@ -1525,7 +1491,9 @@ func TestHostedResultViews(t *testing.T) {
 		if err != nil || len(listed.Tools) != 1 {
 			t.Fatalf("ListTools=%#v, %v", listed, err)
 		}
-		advertised := compileHostedOutputSchema(t, listed.Tools[0])
+		if listed.Tools[0].OutputSchema != nil {
+			t.Fatal("tools/list advertised outputSchema")
+		}
 		for _, view := range []string{"", "compact", "full"} {
 			arguments := map[string]any{}
 			if view != "" {
@@ -1541,12 +1509,17 @@ func TestHostedResultViews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateHostedStructuredContent(t, advertised, payload); err != nil {
-				t.Fatalf("%q result rejected: %s: %v", view, payload, err)
-			}
+
 			want := `{"record":{"id":"r1"}}`
 			if view == "full" {
 				want = `{"record":{"id":"r1","detail":"complete"}}`
+			}
+			if len(result.Content) != 1 {
+				t.Fatalf("content = %#v", result.Content)
+			}
+			text, ok := result.Content[0].(*sdkmcp.TextContent)
+			if !ok || !equalJSON(t, []byte(text.Text), []byte(want)) {
+				t.Fatalf("text = %#v, want %s", result.Content, want)
 			}
 			if !equalJSON(t, payload, []byte(want)) {
 				t.Fatalf("%q result=%s, want %s", view, payload, want)
@@ -1612,21 +1585,36 @@ func TestHostedResultViewCatalogSize(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		before := &sdkmcp.ListToolsResult{Tools: make([]*sdkmcp.Tool, 0, len(views))}
+		if strings.Contains(string(after), `"outputSchema"`) {
+			t.Fatal("tools/list contains outputSchema")
+		}
+		const preFeatureBaseline = 744687
 		withViews := 0
-		for _, view := range views {
-			if view.Descriptor.ResultViews() != nil {
+		modelTools := make([]map[string]any, 0, len(listed.Tools))
+		for _, tool := range listed.Tools {
+			if tool.OutputSchema != nil {
+				t.Fatalf("%s advertises outputSchema", tool.Name)
+			}
+			input, err := json.Marshal(tool.InputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(input), `"result_view"`) {
 				withViews++
 			}
-			view.Descriptor.SetResultViews(nil)
-			tool := hostedMCPTool(view.Descriptor)
-			before.Tools = append(before.Tools, &tool)
+			modelTools = append(
+				modelTools,
+				map[string]any{"name": tool.Name, "description": tool.Description, "inputSchema": tool.InputSchema},
+			)
 		}
-		baseline, err := json.Marshal(before)
+		model, err := json.Marshal(modelTools)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("S3 tools/list JSON result: tools=%d views=%d before=%d after=%d delta=%d bytes",
-			len(views), withViews, len(baseline), len(after), len(after)-len(baseline))
+		t.Logf("tools/list: tools=%d views=%d pre-feature=%d after=%d delta=%d model-facing=%d bytes",
+			len(listed.Tools), withViews, preFeatureBaseline, len(after), len(after)-preFeatureBaseline, len(model))
+		if len(after) > preFeatureBaseline {
+			t.Fatalf("tools/list grew beyond pre-feature baseline: %d > %d", len(after), preFeatureBaseline)
+		}
 	})
 }

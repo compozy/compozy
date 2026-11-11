@@ -1407,6 +1407,10 @@ and `worktree` entries.
 }
 ```
 
+Hosted MCP omits `outputSchema` for every native tool. Input selectors and result
+`structuredContent` plus serialized JSON text are unchanged, including continuations and typed
+errors. Read contracts here through tool info or the HTTP/UDS descriptor routes (`output_views`).
+
 For a tool with views, `output_schema` and `output_schema_digest` describe the compact view. The schemas above are
 shortened. Full schemas can leave parts of a record open; inspect the live schema and result
 before referencing a field.

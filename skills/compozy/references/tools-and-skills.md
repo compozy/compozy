@@ -86,10 +86,10 @@ tool reference. Pass the artifact URI unchanged; continue from `next_offset` unt
 Over hosted MCP, a truncated result still returns `structuredContent`: instead of the declared payload
 it carries the continuation envelope `{"truncated":true,"truncated_from_bytes":N,"preview":"...",
 "artifacts":[{"uri":"compozy://tool-artifacts/..."}],"read_tool":"compozy__tool_artifact_read"}`.
-Every hosted tool's advertised output schema accepts that envelope and the typed `{"error":{...}}`
-payload alongside its declared shape. Check `truncated` before reading declared fields. When your
-harness caps tool output size (Claude Code saves MCP results above its token cap to a file), request
-smaller artifact pages, for example `limit: 32768`, so each base64 page stays inline.
+Hosted native tools advertise no `outputSchema`. Structured continuations and typed
+`{"error":{...}}` payloads remain unchanged. Read result contracts through `compozy__tool_info`.
+Check `truncated` first and page retained results through `read_tool`; use smaller pages
+(for example `limit: 32768`) when the harness caps inline output.
 
 Workspace artifacts retain workspace-only ownership. User artifacts belong to User scope of the
 producing profile. Missing, expired, and foreign-scope references share the same not-found result,
@@ -464,9 +464,10 @@ keep matching. The approval prompt shows the input as sent, including the select
 one-shot approval token from an input digest instead of an input, compute the digest on the input
 without `result_view`.
 
-For native tools with views, managed-session MCP advertises an `outputSchema` with
-compact, full, continuation-envelope and typed-error branches. `compozy mcp serve`
-uses a separate `compozy_host__*` Host API projection without views or output schemas.
+Managed-session MCP advertises no `outputSchema` for native tools. Input schemas retain
+`result_view` where supported; results keep `structuredContent` plus serialized JSON text.
+Read both contracts through `compozy__tool_info`, CLI tool info, or HTTP/UDS descriptors (`output_views`).
+`compozy mcp serve` uses a separate `compozy_host__*` Host API projection without views or output schemas.
 Hooks see `has_result_views` on pre-call, post-call and post-error tool references;
 post-call adds `result_view`. A pre-call `tool_input` patch selects the returned view
 for the agent too. Leave calls with `pinned_result_view` unchanged; select the view

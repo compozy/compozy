@@ -248,3 +248,38 @@ Corrective verification:
 The corrective run's structured full/compact byte samples were status 16,841/1,203,
 create 2,131/955, spawn 11,692/160 and archive 15,095/1,358. The projected hosted text
 adds the 21-character preview to each result. These are single-run samples, not averages.
+
+### S12 — ADR-004 hosted schema removal
+
+The discovery cost finding above is superseded by accepted ADR-004. The hosted proxy
+now omits outputSchema for every native tool. Measured on the S12 checkout: 288 tools,
+99 view adopters; tools/list before 1,088,135 B, after 347,863 B (740,272 B removed),
+versus the historical pre-feature baseline 744,687 B. Model-facing name + description +
+inputSchema is 207,320 B and unchanged; these are JSON bytes, not model tokens.
+The earlier 1,087,936 B observation belongs to its earlier head.
+
+Server.AddTool in MCP Go SDK v1.8.0 preserves handler Content and StructuredContent
+without requiring OutputSchema. Real MCP + registry dispatch cases in TestHostedResultViews
+cover both views, typed errors and truncation. TestHostedToolResultContract also retains
+all-native-tool truncation/artifact recovery coverage. No external provider run is claimed.
+
+Advertising audit: internal/session/pi_native_tools.js registers the same hosted MCP
+server through Pi registerMcpServer; provider_runtime_pi_bridge.go passes connection
+configuration, not schemas. internal/acp/session_mcp.go also passes MCP servers;
+internal/mcpbridge/bridge.go forwards the upstream tools unchanged, so hosted native
+schemas are absent there too. internal/mcp/serve_projection.go exposes separate
+compozy_host__ Host API tools with input schemas only. External MCP descriptors in
+internal/mcp/tool_descriptor.go and extension SDK descriptors retain their own output
+schemas; these are outside ADR-004. CLI/HTTP/UDS descriptor contracts stay available.
+
+S12 verification (local, scoped):
+
+- `go test ./internal/mcp -count=1`: pass (6.470s).
+- `go test ./internal/mcp -run 'TestHostedResultViews|TestHostedResultViewCatalogSize|TestReconcileHostedTools|TestHostedToolResultContract' -count=1 -v`: pass, including real MCP/registry round trips and catalog measurement.
+- `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allow-parallel-runners --timeout 5m ./internal/mcp/...`: 0 issues. The installed binary was built with Go 1.26; running the pinned version with Go 1.27.3 resolves that toolchain mismatch.
+- `python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/mcp/hosted_proxy_test.go` and the same command for `hosted_proxy_result_test.go`: pass.
+- `bunx turbo run generate:openapi generate:sdk generate:install --filter=./packages/site --only` and `bunx turbo run generate:content --filter=./packages/site --only`: pass; generated runtime assets remain untracked/ignored.
+- `bunx turbo run lint test typecheck --filter=./packages/site --only`: pass, 54 test files / 397 tests, all three tasks successful. The first run lacked generated local assets and exposed a console-language fence in the touched result-views page; generators and a bash fence with commented sample output repaired those failures without changing tests.
+- `git diff --check`: pass.
+
+No repository-wide gates, race suite, E2E or external provider walk ran, as required by the slice brief. The canonical catalog was not regenerated. Integration/CI and release publication remain conductor-owned.

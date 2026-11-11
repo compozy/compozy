@@ -201,17 +201,17 @@ A single-result tool has no `output_views` and no `result_view` input:
 
 `compozy tool invoke` passes the input through, so the selector works with no new flag.
 
-```console
-$ compozy tool invoke compozy__session_status \
+```bash
+compozy tool invoke compozy__session_status \
     --input '{"session_id":"sess-example"}' -o json | jq '.result.structured'
-{"session":{"id":"sess-example","agent_name":"general","state":"active", ...}}
+# {"session":{"id":"sess-example","agent_name":"general","state":"active", ...}}
 
-$ compozy tool invoke compozy__session_status \
+compozy tool invoke compozy__session_status \
     --input '{"session_id":"sess-example","result_view":"full"}' -o json | jq '.result.structured'
-{"session":{"id":"sess-example", ..., "lineage":{...},"supervision":{...}}}
+# {"session":{"id":"sess-example", ..., "lineage":{...},"supervision":{...}}}
 
-$ compozy tool info compozy__session_status -o json | jq '.tool.descriptor.output_views | keys'
-["compact","full"]
+compozy tool info compozy__session_status -o json | jq '.tool.descriptor.output_views | keys'
+# ["compact","full"]
 ```
 
 Exit codes are unchanged: `0` on success, non-zero with the structured tool error on failure.
@@ -329,30 +329,11 @@ Three consequences of that patch:
 
 ## Managed-session MCP clients
 
-For a tool with views, the input schema advertised over MCP lists `result_view` and the advertised
-`outputSchema` accepts either view:
-
-```json
-{
-  "name": "compozy__session_status",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "session_id": { "type": "string" },
-      "result_view": { "type": "string", "enum": ["compact", "full"] }
-    }
-  },
-  "outputSchema": {
-    "type": "object",
-    "anyOf": [
-      { "...": "compact schema" },
-      { "...": "full schema" },
-      { "...": "truncated-result envelope" },
-      { "...": "typed tool error" }
-    ]
-  }
-}
-```
+For a tool with views, the MCP input schema lists `result_view`. The hosted proxy advertises
+no `outputSchema` for any native tool. Read compact and full contracts on demand through
+`compozy__tool_info`, `compozy tool info`, or the HTTP/UDS descriptor routes (`output_views`).
+Results still include `structuredContent` and the serialized JSON text block; truncation
+continuations and typed errors keep their existing shapes.
 
 ```json
 // tools/call
@@ -363,16 +344,19 @@ For a tool with views, the input schema advertised over MCP lists `result_view` 
 // structuredContent: the full record
 ```
 
-The hosted proxy includes the widened `outputSchema` in `tools/list` sent to the managed
-provider's MCP client. The measured full-policy catalog with 288 tools and 99 view adopters
-is 1,087,936 bytes, compared with 744,687 bytes before result views: 343,249 additional
-bytes (46.1%). This measures discovery traffic, not model tokens; whether a provider
-forwards output schemas into model context depends on its MCP adapter.
+The measured full-policy catalog with 288 tools and 99 view adopters is 347,863 bytes,
+compared with 1,088,135 bytes before removing output schemas and the 744,687-byte
+pre-feature baseline. The model-facing projection (name, description, input schema) is
+207,320 bytes and is unchanged by this removal. These are serialized discovery bytes,
+not model-token counts.
 
 `compozy mcp serve` is separate: it exposes `compozy_host__*` Host API tools without
 native result views or advertised output schemas.
 
 ## Migration
+
+MCP clients no longer receive `outputSchema`; use tool info to read contracts.
+`structuredContent` is unchanged.
 
 The default result of native tools changed. To keep receiving the complete record:
 

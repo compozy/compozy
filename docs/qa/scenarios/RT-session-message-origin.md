@@ -115,7 +115,7 @@ Busy-target policy regression (#760)
 5. From an always-on main, message a fresh idle child it created (`--parent`), with `runtime` set. The
    receipt reports `delivery: queued` and `target_session_id`, and the caller's MCP client accepts it:
    no "does not match the tool's output schema" error and no "Could not send" card (#1186). Validate
-   the `structuredContent` against the advertised output schema for direct, queued and held receipts.
+   the `structuredContent` against the descriptor contract obtained through tool info for direct, queued and held receipts.
 
 Automated backend owners: `TestAgentInstancePeers`, `TestGlobalDBSessionPromptAdmission`,
 `TestInstanceContextExhaustionIntegration` and `TestInstancePausedRuntimeIntegration`.

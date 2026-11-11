@@ -23,7 +23,9 @@ HTTP/UDS session responses and `compozy session` output keep their shape.
   full too. Overriding a Loop pin fails with `tool_denied` / `result_view_pinned`.
   `tool.post_call.result_view` reports the returned view.
 - Managed-session MCP client: send `"result_view":"full"` in call `arguments`.
-  Advertised `outputSchema` accepts compact, full, continuation envelope and typed error.
+  MCP clients no longer receive `outputSchema` for any native tool. Read contracts with
+  `compozy__tool_info`, CLI tool info or HTTP/UDS descriptors (`output_views`).
+  `structuredContent`, serialized text, continuation envelopes and typed errors are unchanged.
   `compozy mcp serve` has a separate `compozy_host__*` Host API projection without views.
 - CLI script: put `"result_view":"full"` in `compozy tool invoke --input`.
 
@@ -484,9 +486,8 @@ are removed in the next release after this one (#1462). Existing YAML is not rew
 Automation job/trigger schemas do not reference native tool result fields.
 
 The PR inventory records every tool, classification reason and fixture sizes. Those
-examples are not production averages. Hosted tools/list with 99 tools with views is
-1,087,936 bytes (the earlier four-view measurement was 755,769 bytes; pre-adoption was
-744,687 bytes): 343,249 additional bytes, or 46.1%. The hosted proxy sends both output
-schemas in `tools/list` to the managed provider’s MCP client. This is discovery traffic,
-not a measured model-token count; model exposure depends on the provider adapter.
+examples are not production averages. Hosted tools/list with 288 tools and 99 view adopters
+shrinks from 1,088,135 to 347,863 bytes after removing output schemas, below the 744,687-byte
+pre-feature baseline. The model-facing name, description and inputSchema projection stays
+207,320 bytes. These are discovery bytes, not measured model tokens.
 The separate Host API projection is unchanged.

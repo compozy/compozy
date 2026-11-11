@@ -740,6 +740,11 @@ The default result of native tools changed. To keep receiving the complete recor
 | An MCP client                     | Send `"result_view": "full"` in the call `arguments`                                                                                                                    |
 | A script on `compozy tool invoke` | Add `"result_view":"full"` to `--input`                                                                                                                                 |
 
+Hosted MCP clients no longer receive `outputSchema` for any native tool. Read contracts
+with `compozy__tool_info`, `compozy tool info` or HTTP/UDS descriptors (`output_views`).
+`structuredContent` and serialized JSON text remain unchanged, including continuation
+and typed-error payloads.
+
 The release note lists every tool whose default changed and the fields that moved to the full view.
 HTTP/UDS session responses did not change. Native tool invocation responses use the selected view.
 
