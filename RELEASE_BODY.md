@@ -1,48 +1,64 @@
-## 0.5.5 - 2026-11-09
+## 0.5.6 - 2026-11-11
 
 ### Bug Fixes
 
-- Keep SQLite statement journals in memory during write transactions (#1367)
-- Hide automation-run sessions from the session list (#1366)
-- Make TestSetProcessGroupNiceness deterministic and document the setpriority fork race (#1373)
-- Keep session owner snapshots valid while the writer appends WAL frames (#1371)
-- Let triage cleanup wait for the full stop ladder before archiving (#1365)
-- Keep internal daemon handoff variables out of session and terminal environments (#1364)
-- Prevent source executable contention and isolate cooldown fixtures (#1375)
-- Keep the Files identity in its window head and route transcript paths to Files tabs (#1378)
-- Return main CI to green after the 2026-11-08 merges (#1380)
-- Apply Linux launch niceness before exec (#1386)
-- Preserve prompt completion across concurrent steering events (#1376)
-- Move core WAL restart synchronization to maintenance (#1377)
-- Settle automation fires after agent startup failures (#1389)
-- Preserve explicitly empty environments through process launch (#1390)
-- Wait for archive responses before retiring session windows (#1392)
-- Name automation and always-on sessions by origin and keep relative times live (#1391)
-- Clear acknowledged always-on agent attention (#1395)
-- Retain lifecycle ownership across startup and shutdown races (#1394)
-- Recover acknowledged attention without blocking live sessions (#1396)
-- Retain startup recovery through process and storage failures (#1398)
-- Preserve attention publication ordering and lifetimes (#1401)
-- Preserve failed startup event sequences and cleanup ownership (#1404)
-- Bind approvals to run identity and explain terminal denials (#1412)
+- Publish User-scope instance reports, notifications and event summaries (#1410)
+- Preserve pre-permission assistant prose ordering (#1397)
+- Honor the runtime confirmed when continuing a session (#1417)
+- Order lifecycle attention baselines with permission publication (#1426)
+- Align continuation preflight and advanced default semantics (#1430)
+- Keep a reload from restoring All profiles after leaving it (#1443)
+- Retain canonical attention baselines through dismissal and shutdown (#1429)
+- Stop re-sending static prompt context and count provider costs per turn (#1437)
+- Publish committed dismissal when status lookup fails (#1446)
+- Refuse monitors that cannot resume Claude native subagents (#1450)
+- Settle native parent turns independently of attention badges (#1449)
+- Explain hosted terminal calls without an active run (#1452)
+- Clarify instance list capacity and missing target errors (#1454)
+- Preserve actionable skill catalog resolution failures (#1453)
+- Preserve newer native tracking during turn cancellation (#1458)
+- Stop pinning the embedded tailscale node to the default-route device (#1459)
+- Align batch session actions and bound parallel execution (#1469)
+- Cap open child-session lists at six with Show more (#1476)
+- Run providers unrestricted under Full access (#1477)
+- Bound session family traversal and refresh SQLite statistics (#1466)
+- Recover provider sessions after signing in again (#1483)
+- Keep file tree and diff path names readable on deep paths (#1482)
+- Bound native history and catalog reads (#1484)
+- Lead the session head with the list toggle and make the composer context control a toggle (#1490)
+- Retain persisted turn identity in native call tracking (#1496)
+- Show resumed Claude subagents as running (#1499)
+- Share one session batch lock and show progress on every running target (#1498)
+- List profile-only providers and mark a session's disabled provider (#1503)
 
 ### Features
 
-- Browse the CompozyOS marketplace by category with one-step Add and a curated plugin catalog (#1360)
-- Let always-on check-ins call the agent's tools and auto-accept declared proposals (#1385)
+- Seed a realistic always-on team in the demo seed (#1415)
+- Let operators disable providers they don't use (#1372)
+- Adopt the v1.2 brand identity, add the brand manual and redesign compozy.com (#1408)
+- Answer provider interactive questions through ACP elicitation (#1478)
+- Group the session list by project by default (#1488)
+
+### Performance Improvements
+
+- Stop unchanged workspace-catalog polls from re-rendering the shell (#1457)
 
 ### Testing
 
-- Repair check-in proposal pick runtime fixtures (#1406)
+- Isolate migration-tail timeout from fixture admission (#1423)
+- Cover permission dispatch with a full event channel (#1427)
+- Assert pending permission blocker on dismissal retry (#1455)
+- Serve every agent-editors request so MSW never opens a real socket (#1456)
+- Strengthen routing, file reveal and automation page coverage (#1495)
 
 ### Release Notes
 
 #### Fixes
 
-##### Automation runs stay out of the session list
+##### Full access runs the provider unrestricted
 
-Sessions started by an automation job or trigger no longer show up in the session list, the board or their counts, and a new run no longer takes the selection. Before, a scheduled run appeared at the top of the list as "New session" with a working spinner while it ran. Each run stays reachable from the Automations run view and through search, and a run that needs you still reaches you through attention toasts and notifications.
+**Full access** (`approve-all`) now runs the provider at its unrestricted level, the level you picked. New Codex sessions start in `agent-full-access`, Claude Code in `bypassPermissions`, Google Antigravity in `yolo`, and GitHub Copilot CLI with `allow_all = on`. Before, Codex under Full access still started in its own Auto review mode unless `permissions.provider_full_access = true` was also set, a key the Settings app never showed. Codex then stopped work such as `git push` or `gh issue create` and asked you to approve each one.
 
-To see them, turn on **Show automation runs** in the list's or board's **View options**. Each window remembers the choice. A run you prompted yourself stays on the list. Loop and Task sessions are unchanged. The dock's Sessions launcher now opens your newest own session, never an automation run.
+**Auto-review** (`auto`) is unchanged and still selects the provider's reviewer mode. An agent that chooses its own narrower provider mode keeps it, and a session started at a narrower level never inherits the unrestricted mode.
 
-Migration notes: no action needed; existing runs follow the same rule after upgrading. `compozy session list` and `compozy__session_list` keep returning every session. The API does too, unless a client passes the new `exclude_automation=true` query parameter on `GET /api/sessions` or `GET /api/sessions/facets`. `exclude_finished_automation=true` keeps its meaning.
+Migration notes: this widens what Codex and Copilot sessions can do when they run at Full access, which is the default level. Unrestricted provider commands run with your user's access inside the CompozyOS workspace and operating-system boundaries. To keep the provider's reviewer, set **Settings → General → Permissions** to **Auto-review**, or set `permissions.mode = "auto"` or an agent's `permissions: auto`. The new mode applies when a session starts or resumes. `permissions.provider_full_access` is deprecated and has no effect: CompozyOS still loads it in v0.5.6 and logs a warning naming `permissions.mode`. Remove it from `config.toml`; v0.5.7 deletes the key and rejects it as unknown.
