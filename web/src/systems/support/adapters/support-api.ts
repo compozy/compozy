@@ -4,7 +4,7 @@ import {
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
-  runtimeFetch,
+  daemonFetch,
 } from "@/lib/api-client";
 
 import type { CreateSupportBundleRequest, SupportBundleOperation } from "../types";
@@ -57,7 +57,7 @@ export async function downloadSupportBundle(
   operationId: string,
   signal?: AbortSignal
 ): Promise<Blob> {
-  const response = await runtimeFetch(
+  const response = await daemonFetch(
     `${apiBaseUrl}/api/support/bundles/${encodeURIComponent(operationId)}/download`,
     { signal }
   );

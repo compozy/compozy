@@ -8,7 +8,6 @@ import {
   daemonFetch,
   defaultApiErrorMessage,
   requireResponseData,
-  runtimeFetch,
   startTraceAction,
 } from "@/lib/api-client";
 
@@ -70,29 +69,6 @@ describe("api client", () => {
     expect(clientID).toMatch(/^web-[a-zA-Z0-9_-]{1,76}$/);
     expect(result.response.ok).toBe(true);
     expect(result.data?.daemon.pid).toBe(42);
-  });
-
-  it("delegates runtimeFetch to the latest global fetch implementation", async () => {
-    const response = new Response("ok", { status: 200 });
-    const fetchMock = vi.fn().mockResolvedValue(response);
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await runtimeFetch("http://example.test/api", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ok: true }),
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith("http://example.test/api", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ok: true }),
-    });
-    expect(result).toBe(response);
   });
 
   it("loads and sends a stable client identifier when randomUUID is unavailable", async () => {

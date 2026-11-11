@@ -7,15 +7,6 @@ import { reportGatewayResponse } from "./gateway-access-signal";
 export const apiBaseUrl =
   typeof window === "undefined" ? "http://localhost" : window.location.origin;
 
-// openapi-fetch captures the fetch implementation at client creation time.
-// Delegate through globalThis.fetch so tests can stub it after module import.
-export const runtimeFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
-
-export const apiClient = createClient<compozyPaths>({
-  baseUrl: apiBaseUrl,
-  fetch: runtimeFetch,
-});
-
 export const clientID = `web-${createClientId()}`;
 
 // Trace ids are correlation values, not secrets: without browser crypto (some embedded or
@@ -57,8 +48,10 @@ function applyTraceparent(url: string, headers: Headers): void {
 }
 
 /**
- * `fetch` for daemon requests that bypass `apiClient` (prompt streaming, raw `Request`s): it
- * applies the same traceparent rule and keeps the caller's `(input, init)` shape.
+ * The web client's only `fetch` for daemon requests: `apiClient`, adapters that call the daemon
+ * directly, prompt streaming, and raw `Request`s. It applies the traceparent rule, keeps the
+ * caller's `(input, init)` shape, and delegates through `globalThis.fetch` at call time so tests
+ * can stub it after module import (openapi-fetch captures its fetch at client creation).
  */
 export const daemonFetch: typeof globalThis.fetch = (input, init) => {
   if (input instanceof Request && init === undefined) {
@@ -72,6 +65,11 @@ export const daemonFetch: typeof globalThis.fetch = (input, init) => {
   applyTraceparent(url, headers);
   return globalThis.fetch(input, { ...init, headers });
 };
+
+export const apiClient = createClient<compozyPaths>({
+  baseUrl: apiBaseUrl,
+  fetch: daemonFetch,
+});
 
 /**
  * Single chokepoint for "this device's access ended". Only an explicit daemon
@@ -88,7 +86,6 @@ export const daemonFetch: typeof globalThis.fetch = (input, init) => {
 apiClient.use({
   onRequest({ request }) {
     request.headers.set("X-Compozy-Client-ID", clientID);
-    applyTraceparent(request.url, request.headers);
     return request;
   },
   async onResponse({ response }) {
