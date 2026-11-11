@@ -313,6 +313,44 @@ func TestPromptTurnTrace(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should end a turn whose delivery fails after the prompt started only once the prompt drains",
+		func(t *testing.T) {
+			collector := exportTurnTraces(t)
+			h := newHarness(t)
+			session := createTraceSession(t, h)
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				return source, nil
+			}
+
+			_, err := h.manager.PromptWithOpts(testutil.Context(t), session.ID, PromptOpts{
+				Message: "hello",
+				PrepareDelivery: func(context.Context, PromptDeliveryInfo) error {
+					return errors.New("delivery stream closed")
+				},
+			})
+			if err == nil {
+				t.Fatal("PromptWithOpts() error = nil, want the delivery failure")
+			}
+			// The provider has not stopped yet, so its prompt span is still open and the turn must stay open around it.
+			if spans := turnSpans(collector.Flush(t), session.ID); len(spans) != 0 {
+				t.Fatalf("session.turn spans while the prompt drains = %d, want none ended", len(spans))
+			}
+
+			close(source)
+			if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+				t.Fatalf("WaitForPromptDrains() error = %v", err)
+			}
+			assertTurnAttributes(
+				t,
+				onlyTurnSpan(t, collector.Flush(t), session.ID),
+				session,
+				telemetry.OutcomeSetupFailed,
+			)
+		},
+	)
+
 	// UT-037
 	t.Run("Should ignore a second end of the turn span", func(t *testing.T) {
 		collector := exportTurnTraces(t)

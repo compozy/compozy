@@ -25,6 +25,8 @@ type promptTurnTrace struct {
 	start   time.Time
 	account *store.TurnWriteAccount
 	ended   atomic.Bool
+	// drainEnds marks a failed setup whose started prompt is still draining; the drain ends the span, not failSetup.
+	drainEnds atomic.Bool
 }
 
 // startPromptTurnTrace starts session.turn under ctx's span, or, for a queued prompt, as a root linked to the spans
@@ -99,8 +101,15 @@ func (t *promptTurnTrace) end(session *Session, outcome string, err error) {
 // failSetup ends the span as setup_failed when the submit path returns *err: the turn started once it owned the prompt
 // slot, before runtime preparation, and the pump that would end it never started.
 func (t *promptTurnTrace) failSetup(session *Session, err *error) {
-	if *err != nil {
+	if *err != nil && (t == nil || !t.drainEnds.Load()) {
 		t.end(session, telemetry.OutcomeSetupFailed, *err)
+	}
+}
+
+// handOffSetupFailure leaves ending a failed setup's span to the task draining its started prompt.
+func (t *promptTurnTrace) handOffSetupFailure() {
+	if t != nil {
+		t.drainEnds.Store(true)
 	}
 }
 

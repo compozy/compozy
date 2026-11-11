@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
+	"github.com/compozy/compozy/internal/telemetry"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -268,11 +269,13 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.clearActivePromptRunForState(session, turnState)
 			m.releaseHostedPromptRun(session, turnState)
 			delivery.cancel()
-			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
+			m.abortPromptBeforePump(cancelPromptExecution, activity, source, session, turnState.turnTrace, err)
 			return nil, err
 		}
 	}
-	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+	if err := m.preparePromptDelivery(
+		ctx, session, req, cancelPromptExecution, activity, source, turnState.turnTrace,
+	); err != nil {
 		m.clearActivePromptRunForState(session, turnState)
 		m.releaseHostedPromptRun(session, turnState)
 		delivery.cancel()
@@ -348,27 +351,36 @@ func (m *Manager) preparePromptDelivery(
 	cancelPromptExecution context.CancelFunc,
 	activity *promptActivitySupervisor,
 	source <-chan acp.AgentEvent,
+	turnTrace *promptTurnTrace,
 ) error {
 	if req.prepareDelivery == nil {
 		return nil
 	}
 	if err := req.prepareDelivery(ctx, PromptDeliveryInfo{SessionID: session.ID, TurnID: req.turnID}); err != nil {
-		m.abortPromptBeforePump(cancelPromptExecution, activity, source)
-		return fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+		err = fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+		m.abortPromptBeforePump(cancelPromptExecution, activity, source, session, turnTrace, err)
+		return err
 	}
 	return nil
 }
 
+// abortPromptBeforePump cancels a started prompt whose setup failed. The drain task ends session.turn once the source
+// closes, so the ACP prompt span, which ends only when the provider stops, stays inside the turn.
 func (m *Manager) abortPromptBeforePump(
 	cancelPromptExecution context.CancelFunc,
 	activity *promptActivitySupervisor,
 	source <-chan acp.AgentEvent,
+	session *Session,
+	turnTrace *promptTurnTrace,
+	err error,
 ) {
 	cancelPromptExecution()
 	activity.stop()
 	activity.finish(m.now())
+	turnTrace.handOffSetupFailure()
 	m.startTrackedPromptTask(func() {
 		drainPromptSource(source)
+		turnTrace.end(session, telemetry.OutcomeSetupFailed, err)
 	})
 }
 
