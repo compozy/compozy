@@ -2752,6 +2752,7 @@ func mustJSON(t *testing.T, value map[string]any) json.RawMessage {
 // Invariant: references and produces are checked against each node's literal view.
 func TestLinterResultViewReferences(t *testing.T) {
 	t.Parallel()
+	t.Run("Should compose tool declarations with result views", testToolProducesReferences)
 	const compact = `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`
 	const full = `{"type":"object","properties":{"id":{"type":"string"},"details":{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false},"scalar":{"type":"string"}},"additionalProperties":false}`
 	for _, tc := range []struct {
@@ -2773,17 +2774,17 @@ func TestLinterResultViewReferences(t *testing.T) {
 		{name: "Should reject metadata with a schema reference", view: "full", full: `{"type":"string","$ref":"#/$defs/value","$defs":{"value":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata with pattern properties", view: "full", full: `{"type":"object","additionalProperties":false,"patternProperties":{"^x":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata with conditional schemas", view: "full", full: `{"type":"string","else":{}}`, path: "type", want: refs.CodeUnresolvablePath},
-		{name: "Should require full despite an open tool declaration from current", prefix: "", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject undeclared paths despite an open tool declaration from current", prefix: "", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata despite a closed tool declaration from current", prefix: "", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata despite an open tool declaration from current", prefix: "", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
 		{name: "Should preserve a narrowing tool declaration from current", prefix: "", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
 		{name: "Should accept declared compact fields with a tool declaration from current", prefix: "", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
-		{name: "Should require full despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject undeclared paths despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata despite a closed tool declaration from previous.", prefix: "previous.", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
 		{name: "Should preserve a narrowing tool declaration from previous.", prefix: "previous.", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
 		{name: "Should accept declared compact fields with a tool declaration from previous.", prefix: "previous.", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
-		{name: "Should require full despite an open tool declaration from best.", prefix: "best.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject undeclared paths despite an open tool declaration from best.", prefix: "best.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata despite a closed tool declaration from best.", prefix: "best.", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata despite an open tool declaration from best.", prefix: "best.", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
 		{name: "Should preserve a narrowing tool declaration from best.", prefix: "best.", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
@@ -3040,7 +3041,7 @@ func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 					t.Fatalf("baseline field %s: %v", key, err)
 				}
 			}
-			for _, source := range []string{"produces", "output_schema", "expect"} {
+			for _, source := range []string{"produces", "output_schema", "expect", "tool-single", "tool-compact", "tool-full"} {
 				producer := dsl.Node{
 					ID:     "origin",
 					Class:  dsl.NodeClassAction,
@@ -3056,6 +3057,29 @@ func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 					producer.Class = dsl.NodeClassControl
 					producer.Kind = "ask"
 					producer.Params = dsl.NodeParams{"prompt": "Return", "expect": map[string]any(schema)}
+				default:
+					producer.Kind = "ext__fixture"
+					producer.Params = dsl.NodeParams{}
+					producer.Produces = schema
+				}
+				snapshot := loop.ToolSchemaSnapshot{
+					ToolID:       "ext__fixture",
+					OutputSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`),
+				}
+				if source == "tool-compact" || source == "tool-full" {
+					properties := map[string]any{}
+					for _, key := range keys {
+						properties[key] = map[string]any{"type": "string"}
+					}
+					snapshot.OutputSchema = mustJSON(
+						t,
+						map[string]any{"type": "object", "properties": properties, "additionalProperties": false},
+					)
+					snapshot.FullOutputSchema = json.RawMessage(`{"type":"object"}`)
+					snapshot.FullOutputSchemaDigest = "full"
+					if source == "tool-full" {
+						producer.Params["result_view"] = "full"
+					}
 				}
 				def := singleNodeDefinition(producer)
 				def.Graph.Nodes = append(
@@ -3068,7 +3092,7 @@ func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 					},
 				)
 				def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
-				for _, diagnostic := range loop.NewLinter().Lint(def) {
+				for _, diagnostic := range loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).Lint(def) {
 					if diagnostic.Severity == loop.SeverityError {
 						t.Fatalf("source=%s schema=%#v lost baseline acceptance: %#v", source, schema, diagnostic)
 					}
@@ -3361,6 +3385,114 @@ func testInferredNonToolReferences(t *testing.T) {
 				}
 				if kind == "detach-loop" && warned {
 					t.Errorf("proven handle warned: %#v", diagnostics)
+				}
+			}
+		})
+	}
+}
+
+func testToolProducesReferences(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	const closed = `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`
+	const lists = `{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}},"issues":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"}},"additionalProperties":false}},"type":{"type":"string"},"properties":{"type":"string"},"id":{"type":"string"},"extra":{"type":"string"}},"additionalProperties":false}`
+	for _, tc := range []struct {
+		name, toolID, compact, full, path, want string
+		produces                                dsl.Schema
+		warning, fullView, rawReject            bool
+	}{
+		{name: "Should accept single-result list declarations", compact: closed, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept single-result keyword lists", compact: closed, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items", warning: true},
+		{name: "Should traverse single-result keyword lists", compact: closed, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items.id", warning: true},
+		{name: "Should accept single-result keyword fields", compact: closed, produces: dsl.Schema{"type": "string", "properties": "string", "id": "string"}, path: "type"},
+		{name: "Should replace a closed single-result descriptor", compact: closed, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should replace a closed MCP descriptor", toolID: "mcp__fixture", compact: closed, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should replace a closed native single-result descriptor", toolID: "compozy__fixture", compact: closed, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should accept a declared extra field in compact", compact: lists, full: lists, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra"},
+		{name: "Should require full for a declared extra field", compact: closed, full: lists, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject extra fields in a pinned closed full view", compact: closed, full: closed, fullView: true, produces: dsl.Schema{"id": "string", "extra": "string"}, path: "extra", want: refs.CodeUnresolvablePath},
+		{name: "Should accept declarations without a descriptor schema", produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept declarations over an open single-result descriptor", compact: `{"type":"object"}`, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept pinned compact list fields", compact: lists, full: lists, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", warning: true},
+		{name: "Should accept pinned compact keyword lists", compact: lists, full: lists, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items", warning: true},
+		{name: "Should traverse pinned compact keyword lists", compact: lists, full: lists, produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}}, path: "items.id", warning: true},
+		{name: "Should require full for declared list fields", compact: closed, full: lists, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject list fields absent from closed full", compact: closed, full: closed, produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}}, path: "issues.title", want: refs.CodeUnresolvablePath},
+		{name: "Should warn for descriptor-open keyword fields", fullView: true, compact: closed, full: `{"type":"object"}`, produces: dsl.Schema{"type": "string", "id": "string"}, path: "type", warning: true},
+		{name: "Should reject paths absent from the raw declaration", rawReject: true, compact: closed, full: lists, produces: dsl.Schema{"type": "object"}, path: "issues.title", want: refs.CodeUnresolvablePath},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, prefix := range []string{"", "previous.", "best."} {
+				for _, form := range []string{"template", "from", "range"} {
+					base, leaf, nested := strings.Cut(tc.path, ".")
+					if form == "range" && !nested {
+						continue
+					}
+					toolID := tc.toolID
+					if toolID == "" {
+						toolID = "ext__fixture"
+					}
+					snapshot := loop.ToolSchemaSnapshot{
+						ToolID:           toolID,
+						OutputSchema:     json.RawMessage(tc.compact),
+						FullOutputSchema: json.RawMessage(tc.full),
+					}
+					if tc.full != "" {
+						snapshot.FullOutputSchemaDigest = "full"
+					}
+					producer := dsl.Node{
+						ID:       "inspect",
+						Class:    dsl.NodeClassAction,
+						Kind:     snapshot.ToolID,
+						Produces: tc.produces,
+						Params:   dsl.NodeParams{},
+					}
+					if tc.fullView {
+						producer.Params["result_view"] = "full"
+					}
+					path := prefix + "nodes.inspect.output." + tc.path
+					baseline := refs.Namespace{
+						Nodes: map[string]refs.NodeSchema{
+							"inspect": {Output: refs.Schema(tc.produces), HasOutput: true},
+						},
+					}
+					if err := baseline.ValidatePath(strings.Split(path, ".")); (err != nil) != tc.rawReject {
+						t.Fatalf("baseline declaration %s: %v", path, err)
+					}
+					consumer := dsl.Node{
+						ID:     "report",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-agent",
+						Params: dsl.NodeParams{"agent": "codex", "prompt": "{{ ." + path + " }}"},
+					}
+					if form == "from" {
+						consumer.Kind = "transform"
+						consumer.Params = dsl.NodeParams{"map": map[string]any{"value": map[string]any{"from": path}}}
+					}
+					if form == "range" {
+						consumer.Params["prompt"] = "{{ range ." + prefix + "nodes.inspect.output." + base + " }}{{ ." + leaf + " }}{{ end }}"
+					}
+					def := singleNodeDefinition(producer)
+					def.Graph.Nodes = append(def.Graph.Nodes, consumer)
+					def.Graph.Edges = []dsl.Edge{{From: "inspect", To: "report"}}
+					diagnostics := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).
+						Lint(def)
+					consumerError, warned := false, false
+					for _, diagnostic := range diagnostics {
+						if diagnostic.Severity == loop.SeverityError {
+							if tc.want == "" || diagnostic.Code != tc.want {
+								t.Fatalf("%s %s: %#v", path, form, diagnostics)
+							}
+							consumerError = consumerError || diagnostic.NodeID == "report"
+						}
+						warned = warned ||
+							diagnostic.NodeID == "report" && diagnostic.Severity == loop.SeverityWarning &&
+								strings.Contains(diagnostic.Message, "cannot be proven")
+					}
+					if consumerError != (tc.want != "") || tc.want == "" && warned != tc.warning {
+						t.Fatalf("%s %s: %#v", path, form, diagnostics)
+					}
 				}
 			}
 		})

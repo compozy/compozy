@@ -41,7 +41,7 @@ historically accepted authored scalar/metadata references validate with cannot-b
 Annotated tool schemas keep strict declared-property
 resolution, including `$comment`, `$ref`, `patternProperties`, `else`, and extension annotations.
 
-R2 regression checks: tool nodes with any `produces` declaration remain bounded by their
+R2/R3 regression checks: tools with result views and any `produces` declaration remain bounded by their
 pinned descriptor view for current, previous and best references; declarations can only narrow
 the contract. Non-tool inferred input/source/sub-loop references retain baseline acceptance,
 using cannot-be-proven warnings when only the legacy field-map lookup accepts a path.
@@ -50,3 +50,10 @@ the baseline field-map acceptance rule. List/range warnings name the complete re
 `TestGenerationHistoryProjection` pins exact first-generation previous/best defaults across
 node sources, including legacy shorthand quirks, null transform fields, template rendering,
 and CEL null guards. Schema normalization for lint must never change these runtime defaults.
+
+R3 declaration checks: tool `produces` retains baseline raw field-map/list acceptance and its
+own scope. Tools without result views (extensions, MCP, and native single-result tools) do not
+add a descriptor bound. Tools with views intersect that declaration with the selected descriptor;
+full-open acceptance must warn even when the declaration proves the field. The result-view suite
+covers templates, transform `from`, ranges, and current/previous/best paths; the generated
+compatibility comparison includes single-result, compact and full tool producers.

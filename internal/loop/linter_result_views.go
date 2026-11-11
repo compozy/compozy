@@ -40,115 +40,46 @@ func (c *lintContext) lintToolResultView(node dsl.Node, snapshot ToolSchemaSnaps
 	if snapshot.FullOutputSchemaDigest == "" || len(node.Produces) == 0 {
 		return
 	}
-	raw, _ := snapshot.OutputSchemaFor(nodeResultView(node))
-	schema, err := schemaFromJSON(raw)
-	if err != nil {
-		return
-	}
-	namespace := refs.Namespace{Nodes: map[string]refs.NodeSchema{
-		string(node.ID): {
-			Output:    schema,
-			HasOutput: true, OutputJSONSchema: true,
-			AllowOpenOutput: nodeResultView(node) == tools.ResultViewFull,
-		},
-	}}
 	for _, path := range declaredOutputPaths(convertSchema(node.Produces)) {
 		path = append([]string{namespaceNodesKey, string(node.ID), namespaceOutputKey}, path...)
-		if err := namespace.ValidatePath(path); err != nil {
-			if !c.addToolResultViewReferenceError(node.ID, node, err) {
-				c.addRefsError(node.ID, err)
-			}
-		} else {
-			c.checkReferenceContracts(
+		unproven, err := c.checkToolViewPath(node, path)
+		if err != nil {
+			c.addToolViewError(node.ID, node, err)
+		} else if unproven {
+			c.warn(
 				node.ID,
-				[]refs.Reference{{Raw: strings.Join(path, "."), Path: path}},
-				namespace,
+				refs.CodeUnresolvablePath,
+				"node %q output path %q cannot be proven",
+				node.ID,
+				strings.Join(path, "."),
 			)
 		}
 	}
 }
 
-func (c *lintContext) allowsOpenOutput(node dsl.Node) bool {
-	if isToolAction(node) {
-		if len(node.Produces) > 0 || c.linter.tools == nil {
-			return false
-		}
-		snapshot, ok := c.linter.tools.Snapshot(node.Kind)
-		return ok && snapshot.FullOutputSchemaDigest != "" && nodeResultView(node) == tools.ResultViewFull
-	}
-	if node.Class == dsl.NodeClassSource {
-		return false
-	}
-	if authored := authoredOutputSchema(node); authored != nil {
-		return isFullJSONSchema(map[string]any(authored))
-	}
-
-	return false
-}
-
 func (c *lintContext) addResultViewReferenceError(consumer dsl.NodeID, refErr *refs.Error) bool {
 	path := nodeOutputReferencePath(refErr.ReferencePath)
-	if len(path) < 4 {
+	if refErr.Code != refs.CodeUnresolvablePath || len(path) < 4 {
 		return false
 	}
 	node, ok := c.nodeByID[dsl.NodeID(path[1])]
-	if !ok {
+	if !ok || len(node.Produces) > 0 {
 		return false
 	}
-
-	if len(node.Produces) > 0 {
-		declared, valid := normalizedReferenceSchema(node.Produces)
-		declaration := refs.Namespace{
-			Nodes: map[string]refs.NodeSchema{
-				path[1]: {
-					Output:           declared,
-					HasOutput:        valid,
-					OutputJSONSchema: true,
-					AllowOpenOutput:  isFullJSONSchema(map[string]any(convertSchema(node.Produces))),
-				},
-			},
-		}
-		if !valid || declaration.ValidatePath(path) != nil {
-			return false
-		}
+	_, err := c.checkToolViewPath(node, refErr.ReferencePath)
+	if err == nil || err.Code != CodeResultViewFieldRequiresFull {
+		return false
 	}
-	return c.addToolResultViewReferenceError(consumer, node, refErr)
+	c.addToolViewError(consumer, node, err)
+	return true
 }
 
-func (c *lintContext) addToolResultViewReferenceError(
-	consumer dsl.NodeID, node dsl.Node, refErr *refs.Error,
-) bool {
+func (c *lintContext) addToolViewError(consumer dsl.NodeID, node dsl.Node, refErr *refs.Error) {
+	if refErr.Code != CodeResultViewFieldRequiresFull {
+		c.addRefsError(consumer, refErr)
+		return
+	}
 	path := nodeOutputReferencePath(refErr.ReferencePath)
-	if refErr.Code != refs.CodeUnresolvablePath || len(path) < 4 || c.linter.tools == nil ||
-		!isToolAction(node) || nodeResultView(node) == tools.ResultViewFull {
-		return false
-	}
-	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
-	if !ok || snapshot.FullOutputSchemaDigest == "" {
-		return false
-	}
-
-	compactRaw, _ := snapshot.OutputSchemaFor(tools.ResultViewCompact)
-	compact, compactErr := schemaFromJSON(compactRaw)
-	if compactErr == nil {
-		compactNamespace := refs.Namespace{
-			Nodes: map[string]refs.NodeSchema{path[1]: {Output: compact, HasOutput: true, OutputJSONSchema: true}},
-		}
-		if compactNamespace.ValidatePath(path) == nil {
-			return false
-		}
-	}
-	raw, _ := snapshot.OutputSchemaFor(tools.ResultViewFull)
-	full, err := schemaFromJSON(raw)
-	if err != nil {
-		return false
-	}
-	namespace := refs.Namespace{Nodes: map[string]refs.NodeSchema{
-		path[1]: {Output: full, HasOutput: true, OutputJSONSchema: true, AllowOpenOutput: true},
-	}}
-	if namespace.ValidatePath(path) != nil {
-		return false
-	}
 	c.errors = append(c.errors, LintError{
 		NodeID:   consumer,
 		Path:     strings.Join(refErr.ReferencePath, "."),
@@ -162,7 +93,6 @@ func (c *lintContext) addToolResultViewReferenceError(
 			node.ID,
 		),
 	})
-	return true
 }
 
 func declaredOutputPaths(value any) [][]string {
@@ -222,11 +152,17 @@ func (c *lintContext) checkReferenceContracts(
 		if len(path) < 3 {
 			continue
 		}
-		if producer, ok := c.nodeByID[dsl.NodeID(path[1])]; ok && c.rejectToolReference(nodeID, producer, reference) {
-			continue
+		unproven := false
+		if producer, ok := c.nodeByID[dsl.NodeID(path[1])]; ok {
+			var err *refs.Error
+			unproven, err = c.checkToolViewPath(producer, reference.Path)
+			if err != nil {
+				c.addToolViewError(nodeID, producer, err)
+				continue
+			}
 		}
 		node, ok := namespace.Nodes[path[1]]
-		if !ok || (node.HasOutput && !node.OutputPathUnproven(path[3:])) {
+		if !ok || (node.HasOutput && !unproven && !node.OutputPathUnproven(path[3:])) {
 			continue
 		}
 		c.warn(
@@ -249,30 +185,38 @@ func nodeOutputReferencePath(path []string) []string {
 	return path
 }
 
-func (c *lintContext) rejectToolReference(consumer dsl.NodeID, node dsl.Node, reference refs.Reference) bool {
-	if !isToolAction(node) || c.linter.tools == nil {
-		return false
+// checkToolViewPath returns unproven acceptance or a rejection; single-result tools have no view bound.
+func (c *lintContext) checkToolViewPath(node dsl.Node, original []string) (bool, *refs.Error) {
+	path := nodeOutputReferencePath(original)
+	if !isToolAction(node) || c.linter.tools == nil || len(path) < 4 {
+		return false, nil
 	}
-	schema, ok := c.toolOutputSchema(node)
-	if !ok {
-		return false
+	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
+	if !ok || snapshot.FullOutputSchemaDigest == "" {
+		return false, nil
 	}
-	snapshot, _ := c.linter.tools.Snapshot(node.Kind)
-	namespace := refs.Namespace{
-		Nodes: map[string]refs.NodeSchema{
-			string(node.ID): {
-				Output:           schema,
-				HasOutput:        true,
-				OutputJSONSchema: true,
-				AllowOpenOutput:  nodeResultView(node) == tools.ResultViewFull || snapshot.FullOutputSchemaDigest == "",
-			},
-		},
+	raw, _ := snapshot.OutputSchemaFor(nodeResultView(node))
+	schema, err := schemaFromJSON(raw)
+	if err != nil {
+		return false, nil
 	}
-	if err := namespace.ValidatePath(reference.Path); err != nil {
-		if !c.addToolResultViewReferenceError(consumer, node, err) {
-			c.addRefsError(consumer, err)
+	selected := refs.NodeSchema{
+		Output:           schema,
+		HasOutput:        true,
+		OutputJSONSchema: true,
+		AllowOpenOutput:  nodeResultView(node) == tools.ResultViewFull,
+	}
+	unproven, refErr := selected.CheckOutputPath(path[3:], original)
+	if refErr == nil || nodeResultView(node) == tools.ResultViewFull {
+		return unproven, refErr
+	}
+	full, err := schemaFromJSON(snapshot.FullOutputSchema)
+	if err == nil {
+		selected.Output = full
+		selected.AllowOpenOutput = true
+		if _, fullErr := selected.CheckOutputPath(path[3:], original); fullErr == nil {
+			refErr.Code = CodeResultViewFieldRequiresFull
 		}
-		return true
 	}
-	return false
+	return false, refErr
 }

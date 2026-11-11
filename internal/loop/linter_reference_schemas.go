@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 const schemaAnyType = "any"
@@ -46,24 +47,20 @@ func inputSchema(input dsl.Input) refs.Schema {
 	}
 }
 
-func (c *lintContext) referenceOutputSchema(node dsl.Node) (refs.Schema, bool) {
+func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 	if len(node.Produces) > 0 {
-		// Source declarations describe incoming fields without output-schema validation.
-		if node.Class == dsl.NodeClassSource {
-			return convertSchema(node.Produces), true
-		}
-		return normalizedReferenceSchema(node.Produces)
+		return convertSchema(node.Produces), true
 	}
 	switch node.Class {
 	case dsl.NodeClassSource:
 		return c.sourceOutputSchema(node)
 	case dsl.NodeClassAction:
-		return c.referenceActionOutputSchema(node)
+		return c.actionOutputSchema(node)
 	case dsl.NodeClassControl:
 		if dsl.ControlKind(node.Kind) == dsl.ControlAsk {
 			var params dsl.AskParams
 			if err := node.Params.Decode(&params); err == nil && len(params.Expect) > 0 {
-				return normalizedReferenceSchema(params.Expect)
+				return convertSchema(params.Expect), true
 			}
 		}
 		return nil, false
@@ -87,7 +84,7 @@ func (c *lintContext) sourceOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	}
 }
 
-func (c *lintContext) referenceActionOutputSchema(node dsl.Node) (refs.Schema, bool) {
+func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if !dsl.IsReservedActionKind(node.Kind) {
 		return c.toolOutputSchema(node)
 	}
@@ -98,28 +95,28 @@ func (c *lintContext) referenceActionOutputSchema(node dsl.Node) (refs.Schema, b
 		if err != nil || params.OutputSchema == nil {
 			return nil, false
 		}
-		return normalizedReferenceSchema(*params.OutputSchema)
+		return convertSchema(*params.OutputSchema), true
 	case dsl.ActionRunAgent:
 		params, err := decodeRunAgentNodeParams(node.Params)
 		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
 		if err != nil || len(params.OutputSchema) == 0 {
 			return nil, false
 		}
-		return normalizedReferenceSchema(params.OutputSchema)
+		return convertSchema(params.OutputSchema), true
 	case dsl.ActionRunLoop:
 		if c.legacyRunLoopOutputSchema {
-			return referenceFieldSchema(refs.Schema{
+			return refs.Schema{
 				reasonMetaStatus:     jsonSchemaStringType,
 				"outputs":            map[string]any{},
 				metadataLoopRunIDKey: jsonSchemaStringType,
-			}), true
+			}, true
 		}
 		var params dsl.RunLoopParams
 		if err := node.Params.Decode(&params); err != nil {
 			return nil, false
 		}
 		if params.Mode == dsl.RunLoopDetach {
-			return referenceFieldSchema(refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}), true
+			return refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}, true
 		}
 		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}, true
 	case dsl.ActionTransform:
@@ -132,7 +129,7 @@ func (c *lintContext) referenceActionOutputSchema(node dsl.Node) (refs.Schema, b
 		for key := range params.Map {
 			schema[key] = schemaAnyType
 		}
-		return referenceFieldSchema(schema), true
+		return schema, true
 	default:
 		return nil, false
 	}
@@ -224,104 +221,42 @@ func outputIsJSONSchema(node dsl.Node) bool {
 		(len(node.Produces) == 0 && dsl.SourceKind(node.Kind) == dsl.SourceInput)
 }
 
-func authoredOutputSchema(node dsl.Node) refs.Schema {
-	if len(node.Produces) > 0 {
-		return convertSchema(node.Produces)
-	}
-	if node.Class == dsl.NodeClassAction {
-		switch dsl.ActionKind(node.Kind) {
-		case dsl.ActionRunAgent:
-			params, err := decodeRunAgentNodeParams(node.Params)
-			if err == nil && len(params.OutputSchema) > 0 {
-				return convertSchema(params.OutputSchema)
-			}
-		case dsl.ActionGoal:
-			params, err := decodeGoalNodeParams(node.Params)
-			if err == nil && params.OutputSchema != nil {
-				return convertSchema(*params.OutputSchema)
-			}
-		}
-	}
-	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlAsk {
-		var params dsl.AskParams
-		if node.Params.Decode(&params) == nil && len(params.Expect) > 0 {
-			return convertSchema(params.Expect)
-		}
-	}
-	return nil
+func isActionKind(node dsl.Node, kind dsl.ActionKind) bool {
+	return node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == kind
 }
 
 func isToolAction(node dsl.Node) bool {
 	return node.Class == dsl.NodeClassAction && !dsl.IsReservedActionKind(node.Kind)
 }
 
-func (c *lintContext) nonToolOutputShape(node dsl.Node) refs.Schema {
-	if isToolAction(node) {
-		return nil
-	}
-	if authored := authoredOutputSchema(node); authored != nil {
-		return authored
-	}
-	if node.Class == dsl.NodeClassSource {
-		schema, _ := c.sourceOutputSchema(node)
-		return schema
-	}
-	if node.Class != dsl.NodeClassAction {
-		return nil
-	}
-	switch dsl.ActionKind(node.Kind) {
-	case dsl.ActionRunLoop:
-		if c.legacyRunLoopOutputSchema {
-			return refs.Schema{
-				reasonMetaStatus:     jsonSchemaStringType,
-				"outputs":            map[string]any{},
-				metadataLoopRunIDKey: jsonSchemaStringType,
-			}
-		}
-		var params dsl.RunLoopParams
-		if node.Params.Decode(&params) != nil {
-			return nil
-		}
-		if params.Mode == dsl.RunLoopDetach {
-			return refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}
-		}
-		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}
-	case dsl.ActionTransform:
-		var params dsl.TransformParams
-		if node.Params.Decode(&params) != nil || len(params.Map) == 0 {
-			return nil
-		}
-		schema := refs.Schema{}
-		for key := range params.Map {
-			schema[key] = schemaAnyType
-		}
-		return schema
-	default:
-		return nil
-	}
-}
-
 func (c *lintContext) referenceNodeSchema(node dsl.Node) refs.NodeSchema {
-	schema, ok := c.referenceOutputSchema(node)
-	fallback := c.nonToolOutputShape(node)
-	return refs.NodeSchema{
-		Output:           schema,
-		FallbackOutput:   fallback,
-		HasOutput:        ok || fallback != nil,
+	raw, ok := c.outputSchema(node)
+	result := refs.NodeSchema{
+		Output:           raw,
+		FallbackOutput:   raw,
+		HasOutput:        ok,
 		OutputJSONSchema: outputIsJSONSchema(node),
 		HasProgress:      isControlKind(node, dsl.ControlFanOut),
-		AllowOpenOutput:  c.allowsOpenOutput(node),
 	}
-}
-
-// outputSchema preserves raw runtime history shapes; reference schemas are lint-only.
-func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
-	if authored := authoredOutputSchema(node); authored != nil {
-		return authored, true
+	if isToolAction(node) && len(node.Produces) == 0 {
+		result.FallbackOutput = nil
+		if c.linter.tools != nil {
+			snapshot, found := c.linter.tools.Snapshot(node.Kind)
+			result.AllowOpenOutput = found && snapshot.FullOutputSchemaDigest != "" &&
+				nodeResultView(node) == tools.ResultViewFull
+		}
+		return result
 	}
-	if isToolAction(node) {
-		return c.toolOutputSchema(node)
+	if !ok || node.Class == dsl.NodeClassSource {
+		return result
 	}
-	schema := c.nonToolOutputShape(node)
-	return schema, schema != nil
+	if len(node.Produces) > 0 || isActionKind(node, dsl.ActionRunAgent) || isActionKind(node, dsl.ActionGoal) ||
+		isControlKind(node, dsl.ControlAsk) {
+		result.Output, _ = normalizedReferenceSchema(dsl.Schema(raw))
+		result.AllowOpenOutput = !isToolAction(node) && isFullJSONSchema(map[string]any(raw))
+	} else if isActionKind(node, dsl.ActionTransform) ||
+		(isActionKind(node, dsl.ActionRunLoop) && raw[jsonSchemaTypeKey] == nil) {
+		result.Output = referenceFieldSchema(raw)
+	}
+	return result
 }

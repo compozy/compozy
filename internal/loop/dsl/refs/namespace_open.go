@@ -18,6 +18,14 @@ func (n NodeSchema) OutputPathUnproven(path []string) bool {
 	return n.AllowOpenOutput && validateSchemaPath(n.Output, path, path, true, n.OutputJSONSchema) == nil
 }
 
+// CheckOutputPath distinguishes proven paths, unproven acceptance, and rejected paths.
+func (n NodeSchema) CheckOutputPath(path, original []string) (bool, *Error) {
+	if err := n.validateOutputPath(path, original); err != nil {
+		return false, err
+	}
+	return n.OutputPathUnproven(path), nil
+}
+
 func (n NodeSchema) validateOutputPath(path, original []string) *Error {
 	err := validateSchemaPath(n.Output, path, original, n.AllowOpenOutput, n.OutputJSONSchema)
 	if err != nil && n.fallbackPathAccepted(path, original) {

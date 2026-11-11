@@ -628,6 +628,9 @@ session's Git restriction; commit-message validation uses the same repository co
 
 ## R2 — Tool bounds, inferred compatibility, and unchanged history values
 
+The tool-with-produces claims in this historical section are superseded by R3 below, following
+the clarified spec decision. Runtime restoration and non-tool compatibility remain applicable.
+
 Base: `87ae6d8b051e310622e25eb523b9bde5d5eeb4d0`. Read the complete Round 2 sections from both
 reviewers. The history/resolver files at this base are byte-identical to integration `66194fd73`,
 verified with a focused Git comparison. Main compatibility remains pinned to `766345807`; a later
@@ -813,3 +816,98 @@ Git stash and repository-wide Go formatting; its scoped formatting equivalents a
 and the hook is disabled for this commit, honoring the Git restriction and tightened local scope.
 No acceptance item remains open; the only full Loop run's incidental fixture failure was repaired
 and its owning test passed by name, without a prohibited second complete run. No push or PR.
+
+## R3 — Compose raw declarations with selected result views
+
+Base: `60c4cf6b97bcc3c6dc9adc90a063bab9850cffcc`, integrated as `31adc168f`. A focused Git comparison
+confirmed that the reviewed schema/view/test files are byte-identical between those commits.
+Read every Round 3 section from both completed reviews. The conductor clarified the contract:
+raw tool declarations retain baseline acceptance; only view-bearing tools add the pinned
+view's descriptor bound. This supersedes R2's blanket exclusion of tool-declaration fallback.
+
+### Per-rule disposition and evidence
+
+| Rule / finding | Final behavior | Owning coverage |
+| --- | --- | --- |
+| 1 — raw declaration acceptance; Fable R3-B1 | Tool produces retains baseline field-map lookup, keyword keys, and list-first-item traversal. Normalization supplies proof; raw fallback preserves acceptance and the same warnings as non-tool declarations. A path outside the declaration remains an error. | `TestLinterResultViewReferences` checks lists, items, type/properties, missing declaration paths and explicit consumer diagnostics for current/previous/best, templates, transform from, and ranges. Each matrix path also checks the preserved baseline field-map mode. |
+| 2 — single-result tools; Fable R3-B1 | Produces replaces the descriptor. No descriptor bound applies to extensions, MCP tools or native tools without result views, including closed/missing/open descriptor schemas. | Closed-descriptor extra-field cases explicitly cover extension, MCP and native IDs; list and keyword declarations cover absent/open/closed descriptor schemas. |
+| 3 — view table; Fable R3-B1 / Astra R3-N1 | A path accepted by the declaration is checked against the selected descriptor. Compact rejection plus full acceptance gives result_view_field_requires_full; closed full rejection gives unresolvable_path; full-open acceptance warns even if the declaration proves the field. | Compact lists/keyword lists/extra fields, moved fields, closed full negatives, and full generic descriptor plus produces `{type:string,id:string}` reading type. Reader diagnostics are asserted independently of producer diagnostics. |
+| A — unchanged runtime | The single raw constructor again has the baseline outputSchema/actionOutputSchema dispatch. Runtime data consumers never use normalized lint schemas. | Existing exact history/template/CEL assertions passed in the one full Loop run. The three history/topology/namespace files remain byte-identical to `766345807`. |
+| C — non-tool compatibility | Same raw constructor, normalized proof, fallback and open-object policy as before this round. | Existing authored/inferred/source/Goal/transform/history cases and full Loop suites passed. No assertion or fixture outside tool-with-produces expectations was edited. |
+
+The three Round 2 open-declaration consumer cases remain errors. Their expected code changes from
+`result_view_field_requires_full` to `unresolvable_path`: `{type:object}` does not declare
+`details.name` under the baseline raw lookup, so changing the view cannot fix that declaration.
+This is the explicit rule-1 correction, not a weakened rejection. Declared moved paths still
+require full. Narrowing declarations and all no-produces view checks remain intact.
+
+The generated comparison now covers all 31 nonempty combinations of type/title/properties/items/id
+through six producer contexts: produces, output_schema, expect, single-result tool produces,
+compact tool produces and full tool produces (186 definitions). Compact descriptors explicitly
+prove the generated fields; single-result descriptors deliberately omit them; generic full
+descriptors accept them openly. The baseline field-map oracle must accept each generated field,
+and no accepted definition may acquire an error. This remains a bounded structural comparison,
+not an exhaustive differential over every possible user schema or dynamic runtime value.
+
+### Consolidation
+
+- Restored one raw source dispatcher, `outputSchema` / its baseline `actionOutputSchema` branch.
+  Removed `referenceOutputSchema`, `referenceActionOutputSchema`, `nonToolOutputShape`,
+  `authoredOutputSchema`, and their repeated transform/run-loop/agent/Goal/ask decoding.
+- `referenceNodeSchema` derives the lint schema and raw fallback from that one result. Descriptor-only
+  tool outputs retain strict JSON Schema mode and no fallback. Tool declarations do not gain
+  open-object acceptance beyond their raw scope.
+- Removed all five temporary one-node namespaces from result-view checking. One
+  `checkToolViewPath` checks the selected descriptor and, on a compact miss, the full descriptor.
+  Its `(unproven, error)` result distinguishes proven acceptance, unproven acceptance and rejection.
+- The only new exported Go seam is `refs.NodeSchema.CheckOutputPath`, needed for that direct check.
+  It composes the existing resolver and proof-status checks; no schema traversal rule changed.
+  The existing declaration-path enumeration and runtime normalizer/classifier were not changed.
+
+Production file sizes after formatting: reference_schemas 262, result_views 222, namespace_open 77
+lines (all below 500).
+No new registry, abstraction hierarchy, dependency, public wire field or generated source.
+
+### Red-to-green and diagnostic boundary
+
+Before production edits, the named tests failed on the reviewed base (0.186s): single-result
+lists/keyword fields and declared extra fields became errors; compact list consumers failed before
+the selected-view check; the full-open keyword declaration emitted no warning; the generated
+comparison stopped at single-result produces `{type:string}`. The three newly corrected raw-scope
+negative controls also demonstrated the old requires-full misclassification. The initial matrix
+had 14 shape groups; later controls added explicit MCP/native IDs and extra-field view cases.
+The final focused invocation passed (0.113s before formatting), including all 19 shape groups and
+186 generated definitions. The one final full Loop invocation passed after formatting.
+
+No diagnostic change outside rules 1–3 was found. Non-tool construction derives the same shapes
+and allowances, no-produces tools retain strict descriptor mode, and the existing canonical tests
+pass unchanged. Runtime equivalence remains for the same selected tool-schema snapshot, preserving
+the feature's accepted compact/full selection. The main comparison is frozen at `766345807`, not
+the moving origin/main ref. No additional exhaustive or slow out-of-tree probe was run.
+
+### Verification
+
+```sh
+# Red before production edits, then green after repair and added controls.
+go test ./internal/loop -run '^Test(LinterResultViewReferences|LinterOutputShapeRuntimeAgreement)$'
+# One complete Loop run, after final scoped formatting: all six packages passed.
+go test ./internal/loop/...
+# Once: real persisted Loop/dispatch/session integration, passed (2.297s).
+go test -tags=integration ./internal/daemon -run '^Test(NativeResultViewsIntegration|LoopResultViewsIntegration)$'
+# Changed packages only: 0 issues.
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allow-serial-runners --timeout=5m ./internal/loop ./internal/loop/dsl/refs
+git diff --check
+```
+
+Scoped Golangci formatting preceded the final checks. The Markdown Oxfmt invocation skipped
+the ignored QA paths (zero matching files); no ignore rule was bypassed. The default hook's
+stash/repository-wide Go formatter is replaced by the scoped formatter; commitlint passed
+with the repository's commit convention. The lint tool's existing macOS linker deprecation is unchanged.
+No Turbo, site checks, global gates, repeated complete runs, race or E2E. Integration and lint
+completion were supervised by Compozy terminal monitors; both exited zero.
+
+Impact follows the existing Native Tool Result Views audit: only Loop declaration/reference lint
+changes, affecting native tools with views and preserving extension/MCP/single-result declarations.
+No wire IDs/DTOs, hooks/config, persisted data, runtime isolation or evaluators change. Official skill
+and site instructions need no new edit for these clarified rules; the owning QA scenario is updated.
+No repair item remains open. No push or PR; integrated review and CI remain the conductor's scope.
