@@ -41,3 +41,6 @@ type = 'backend'
 provider = 'codex'
 model = 'gpt-5.6-sol'
 reasoning = 'max'
+
+[agents.heartbeat.triage_models]
+claude = "claude-haiku-5-5"
