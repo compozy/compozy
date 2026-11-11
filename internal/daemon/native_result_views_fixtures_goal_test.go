@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -13,7 +12,7 @@ func nativeResultViewFixturesGoal(t *testing.T) []nativeResultViewFixture {
 	var rows []nativeResultViewFixture
 	{
 		var payload contract.GoalCommandResult
-		if err := json.Unmarshal(
+		if err := decodeLoopGoalTaskResultViewFixture(
 			[]byte(
 				`{"outcome":"error","reason_code":"turn_limit","snapshot":{"run_id":"lr-a","node_id":"work","objective":"Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective ","origin_session_id":"sess-a","bound_session_id":"sess-a","status":"blocked","run_status":"blocked","cause":"turn_limit","turns_used":4,"turn_limit":4,"live":false,"pause_requested":true,"contract_summary":"Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria ","last_verdict":{"outcome":"blocked","blocking_issues":[{"id":"test","note":"verification failed"}],"evidence_ref":"artifact:a","evaluated_at":"2026-11-10T00:00:00Z"},"context":{"state":"unknown","diagnostic":"context unavailable","used":null,"size":null,"ratio":null,"nudge_ratio":0.8,"reported_at":null}},"replaced_run_id":"lr-old"}`,
 			),
@@ -42,7 +41,7 @@ func nativeResultViewFixturesGoal(t *testing.T) []nativeResultViewFixture {
 	}
 	{
 		var payload contract.GoalCommandResult
-		if err := json.Unmarshal(
+		if err := decodeLoopGoalTaskResultViewFixture(
 			[]byte(`{"outcome":"error","reason_code":"goal_budget_fenced","snapshot":null,"replaced_run_id":null}`),
 			&payload,
 		); err != nil {
@@ -62,7 +61,7 @@ func nativeResultViewFixturesGoal(t *testing.T) []nativeResultViewFixture {
 	}
 	{
 		var payload contract.SessionGoalResponse
-		if err := json.Unmarshal(
+		if err := decodeLoopGoalTaskResultViewFixture(
 			[]byte(
 				`{"goal":{"run_id":"lr-a","node_id":"work","objective":"Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective Authored objective ","origin_session_id":"sess-a","bound_session_id":"sess-a","status":"blocked","run_status":"blocked","cause":"turn_limit","turns_used":4,"turn_limit":4,"live":false,"pause_requested":true,"contract_summary":"Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria Authored criteria ","last_verdict":{"outcome":"blocked","blocking_issues":[{"id":"test","note":"verification failed"}],"evidence_ref":"artifact:a","evaluated_at":"2026-11-10T00:00:00Z"},"context":{"state":"unknown","diagnostic":"context unavailable","used":null,"size":null,"ratio":null,"nudge_ratio":0.8,"reported_at":null}}}`,
 			),

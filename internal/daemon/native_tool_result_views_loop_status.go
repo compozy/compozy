@@ -112,6 +112,7 @@ func projectCompactLoopVerdict(p *contract.LoopGateVerdictPayload) *compactLoopV
 			result.Criteria[i] = compactLoopCriterion{
 				ID:             c.ID,
 				Type:           c.Type,
+				Prompt:         c.Prompt,
 				Outcome:        c.Outcome,
 				Passed:         c.Passed,
 				Broken:         c.Broken,
@@ -130,6 +131,7 @@ func projectCompactLoopVerdict(p *contract.LoopGateVerdictPayload) *compactLoopV
 type compactLoopCriterion struct {
 	ID             string                                  `json:"id"`
 	Type           string                                  `json:"type"`
+	Prompt         string                                  `json:"prompt,omitempty"`
 	Outcome        contract.LoopGateVerdictOutcome         `json:"outcome"`
 	Passed         bool                                    `json:"passed"`
 	Broken         bool                                    `json:"broken,omitzero"`

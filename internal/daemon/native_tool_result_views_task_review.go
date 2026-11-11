@@ -19,6 +19,7 @@ type compactTaskReview struct {
 	Outcome           taskpkg.RunReviewOutcome `json:"outcome,omitempty"`
 	Confidence        *float64                 `json:"confidence,omitzero"`
 	Reason            string                   `json:"reason,omitempty"`
+	DeliveryID        string                   `json:"delivery_id,omitempty"`
 	MissingWork       json.RawMessage          `json:"missing_work,omitempty"`
 	NextRoundGuidance string                   `json:"next_round_guidance,omitempty"`
 	ReviewerSessionID string                   `json:"reviewer_session_id,omitempty"`
@@ -44,6 +45,7 @@ func projectCompactTaskReview(p *taskpkg.RunReview) *compactTaskReview {
 		Outcome:           p.Outcome,
 		Confidence:        p.Confidence,
 		Reason:            p.Reason,
+		DeliveryID:        p.DeliveryID,
 		MissingWork:       p.MissingWork,
 		NextRoundGuidance: p.NextRoundGuidance,
 		ReviewerSessionID: p.ReviewerSessionID,
