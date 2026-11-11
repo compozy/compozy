@@ -35,7 +35,7 @@ selector on a single-result native tool, fail with `tool_invalid_input` (or the 
 existing `invalid_request`) / `schema_invalid`, before execution. Extension and MCP
 sidecar tools retain their own input semantics.
 
-### Defaults that changed
+#### Defaults that changed
 
 The following inventory names every tool with a changed default and the fields moved to full.
 The full result preserves the previous complete record.
@@ -468,7 +468,7 @@ task review records retain `delivery_id`; Loop status retains gate criterion pro
 Skill list/search omit diagnostics only when every entry is valid and verification passed,
 with no warnings, failure or activation reasons; otherwise the entire diagnostic list stays.
 
-### Schema corrections and existing runs
+#### Schema corrections and existing runs
 
 Eight declared schemas now accept fields already returned: `loop_runs`
 (`aggregates.historical`); `loop_status` (`generations[].outputs[].session_id`,
