@@ -94,6 +94,12 @@ interface UseSessionTopbarSlotInput {
   /** The connection chip (S4): mounts in the status slot's reserved trailing position, before the actions. */
   transportChip?: React.ReactNode;
   onInspectorToggle: () => void;
+  /**
+   * The composer carries the context control that opens and closes the inspector (#1487). A window
+   * without it (a read-only superseded session) keeps the inspector toggle in the head instead.
+   * Defaults to true.
+   */
+  composerContextControl?: boolean;
   onSidebarToggle: () => void;
   onStop: (processes?: SessionProcessPolicy) => void;
   onUnarchive: () => void;
@@ -174,7 +180,10 @@ function ownChipActions({
   };
 }
 
-/** An ordinary session's head: linked work entry, run verbs, then the Changes toggle. */
+/**
+ * An ordinary session's head: linked work entry, run verbs, then the Changes toggle. The composer's
+ * context control opens and closes the inspector; a window without one keeps the head toggle.
+ */
 function sessionActions(
   input: UseSessionTopbarSlotInput,
   actions: ReturnType<typeof sessionTopbarActions>,
@@ -197,14 +206,22 @@ function sessionActions(
         open={input.reviewOpen}
         onToggle={input.onReviewToggle}
       />
+      {input.composerContextControl === false ? (
+        <SessionPanelToggle
+          panel="inspector"
+          open={input.inspectorOpen}
+          onToggle={input.onInspectorToggle}
+        />
+      ) : null}
     </>
   );
 }
 
 /**
  * An always-on agent's main (#1303): the Always-on label and the agent's `…` menu, which owns its
- * lifecycle, read as one group with the status, without linked work, Stop or the Changes toggle.
- * Its composer has no context control, so a panel that is still open (a kept preference, or the
+ * lifecycle, without linked work, Stop or the Changes toggle. These actions publish with
+ * `actionsDivider: false`, so they sit right after the status with no hairline between them. Its
+ * composer has no context control, so a panel that is still open (a kept preference, or the
  * inspector a subagent link opened) keeps its toggle as the way to close it.
  */
 function alwaysOnMainActions(input: UseSessionTopbarSlotInput, instance: AgentInstancePayload) {
@@ -317,8 +334,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         ) : null}
       </span>
     ),
-    // The run verbs lead; the Changes toggle trails as a quiet icon. The composer's context
-    // control opens and closes the inspector (#1487).
+    // The run verbs lead; the Changes toggle trails as a quiet icon.
     actions: instance
       ? alwaysOnMainActions(input, instance)
       : sessionActions(input, actions, linkedList),

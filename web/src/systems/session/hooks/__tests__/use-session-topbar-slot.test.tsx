@@ -6,9 +6,10 @@
 // toggle leads every head, before the project, open or closed (#1487); the composer's context
 // control, not the head, opens and closes the inspector. Shown in the board drawer (#1052) the
 // head drops the rail toggle and the view toggle: the board is the list there, and the drawer
-// carries its own controls. An always-on agent's main session (#1303) names the agent, groups the
-// Always-on label with its `…` menu without a divider, and drops the linked chip, Stop and the
-// Changes toggle; a panel left open keeps its toggle as its close control.
+// carries its own controls. A window whose composer has no context control (a read-only
+// superseded session) keeps the head's context toggle. An always-on agent's main session (#1303)
+// names the agent, groups the Always-on label with its `…` menu without a divider, and drops the
+// linked chip, Stop and the Changes toggle; a panel left open keeps its toggle as its close control.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
@@ -72,6 +73,7 @@ function SessionPublisher({
   onReviewToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
+  composerContextControl,
   transportChip,
   onSendPrompt,
   onRefresh,
@@ -92,6 +94,7 @@ function SessionPublisher({
   onReviewToggle?: () => void;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
+  composerContextControl?: boolean;
   transportChip?: ReactNode;
 }) {
   useSessionTopbarSlot({
@@ -109,6 +112,7 @@ function SessionPublisher({
     sidebarOpen,
     onInspectorToggle,
     onSidebarToggle,
+    composerContextControl,
     onStop,
     onUnarchive: vi.fn(),
     onSendPrompt,
@@ -431,6 +435,31 @@ describe("useSessionTopbarSlot", () => {
       expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
       expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
+    }
+  );
+
+  // A superseded session's window is read-only, with no composer: the head keeps the context
+  // toggle, so its usage stays reachable and an open inline rail stays closable.
+  it.each([
+    { inspectorOpen: false, label: "Open context sidebar" },
+    { inspectorOpen: true, label: "Close context sidebar" },
+  ])(
+    "Should keep the context toggle in the head when the composer has no context control ($label)",
+    ({ inspectorOpen, label }) => {
+      const onInspectorToggle = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          composerContextControl={false}
+          inspectorOpen={inspectorOpen}
+          onInspectorToggle={onInspectorToggle}
+          onStop={vi.fn()}
+        />
+      );
+      const toggle = screen.getByTestId("session-inspector-toggle");
+      expect(toggle).toHaveAccessibleName(label);
+      expect(document.querySelector('[data-slot="topbar-actions"]')?.lastElementChild).toBe(toggle);
+      fireEvent.click(toggle);
+      expect(onInspectorToggle).toHaveBeenCalledTimes(1);
     }
   );
 

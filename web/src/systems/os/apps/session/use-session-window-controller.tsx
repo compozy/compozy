@@ -131,6 +131,7 @@ export function useSessionWindowController(input: {
   });
 
   const instances = useAgentInstances();
+  const successorId = sessionSuccessorId(session, instances);
   const linkedWork = useSessionLinkedWork({ session, workspaceId, enabled: liveDataEnabled });
 
   useSessionTopbarSlot({
@@ -171,6 +172,8 @@ export function useSessionWindowController(input: {
     transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,
     hasLiveGoal: goal.hasLiveGoal,
     onInspectorToggle: inspector.toggle,
+    // A superseded session's window is read-only: no composer, so no composer context control.
+    composerContextControl: successorId === null,
     onStop: controls.handleStop,
     onUnarchive: controls.handleUnarchive,
     origin,
@@ -193,7 +196,7 @@ export function useSessionWindowController(input: {
     },
     worktreeBinding,
     onSendPrompt: pullRequest.onSendPrompt,
-    successorId: sessionSuccessorId(session, instances),
+    successorId,
     /** An always-on agent's current main: its window drops the message trail and context meter. */
     alwaysOnMain: alwaysOnMainInstance(instances, session.id) !== undefined,
     /** Dialogs and progress of an exit action started from the PR chip. */
