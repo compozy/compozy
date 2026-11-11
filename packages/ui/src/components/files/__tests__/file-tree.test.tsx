@@ -239,14 +239,22 @@ describe("FileTree", () => {
   // #1480: rows show truncated names, so hovering one puts its full path in the tooltip.
   it("Should title the tree with the hovered row's full path", async () => {
     const path = "packages/frontend/proto/review/admin-billing-customer-detail.proto.tsx";
+    const onMouseMove = vi.fn();
     const { container } = render(
-      <FileTree aria-label="Changed files" paths={[path, "README.md"]} initialExpansion="open" />
+      <FileTree
+        aria-label="Changed files"
+        paths={[path, "README.md"]}
+        initialExpansion="open"
+        onMouseMove={onMouseMove}
+      />
     );
     await waitFor(() => row(container, path));
     const tree = container.querySelector('[data-slot="file-tree"]');
 
     fireEvent.mouseMove(row(container, path));
     expect(tree).toHaveAttribute("title", path);
+    // A consumer's handler still runs beside the tooltip tracking.
+    expect(onMouseMove).toHaveBeenCalledTimes(1);
     fireEvent.mouseMove(row(container, "packages/frontend/proto/review/"));
     expect(tree).toHaveAttribute("title", "packages/frontend/proto/review");
     fireEvent.mouseLeave(tree as Element);
@@ -277,6 +285,11 @@ describe("FileTree", () => {
         ["cmd/", "cmd/compozy/", "web/", "web/src/", "web/package.json", "top/"]
       )
     ).toEqual(["cmd/compozy/"]);
+    // Parents first, so opening `a/b/` happens before `a/b/c/` checks it.
+    expect(soleChildDirectories(["a/b/c/", "a/b/"], ["a/", "a/b/", "a/b/c/"])).toEqual([
+      "a/b/",
+      "a/b/c/",
+    ]);
   });
 
   // US-001.AC-4: an unloaded changed directory gets Pierre's own dot through one placeholder.

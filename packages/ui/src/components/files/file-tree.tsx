@@ -99,6 +99,8 @@ function FileTree({
   resetKey,
   surface = "canvas",
   className,
+  onMouseMove,
+  onMouseLeave,
   ...props
 }: FileTreeProps) {
   const { filterMatches, handleClickCapture, handleHover, hoverTitle, model } = useFileTreeModel({
@@ -122,8 +124,14 @@ function FileTree({
       data-surface={surface}
       className={cn("relative flex h-full min-h-0 flex-col", className)}
       onClickCapture={handleClickCapture}
-      onMouseMove={handleHover}
-      onMouseLeave={handleHover}
+      onMouseMove={event => {
+        handleHover(event);
+        onMouseMove?.(event);
+      }}
+      onMouseLeave={event => {
+        handleHover(event);
+        onMouseLeave?.(event);
+      }}
       title={hoverTitle}
       {...props}
     >
