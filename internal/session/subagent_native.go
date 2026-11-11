@@ -71,10 +71,10 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err := s.updateNativeRuntime(ctx, &row, &ev); err != nil {
 		return false, err
 	}
-	call := s.rememberNativeCall(parent, ev)
 	if store.IsSubagentStatusTerminal(row.Status) {
 		return created, nil
 	}
+	call := s.rememberNativeCall(parent, row.ParentTurnID, ev)
 	changed, err := s.finalizeNativeToolResult(ctx, row, ev, call.background)
 	if err != nil || !changed {
 		return created, err
@@ -128,7 +128,7 @@ type nativeCall struct {
 	background bool
 }
 
-func (s *subagentService) rememberNativeCall(parent string, ev NativeSubagentEvent) nativeCall {
+func (s *subagentService) rememberNativeCall(parent, turn string, ev NativeSubagentEvent) nativeCall {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.nativeKnown == nil {
@@ -138,7 +138,7 @@ func (s *subagentService) rememberNativeCall(parent string, ev NativeSubagentEve
 		s.nativeKnown[parent] = make(map[string]nativeCall)
 	}
 	call := s.nativeKnown[parent][ev.ProviderToolCallID]
-	call.turnID = ev.ParentTurnID
+	call.turnID = turn
 	call.background = call.background || ev.Background
 	s.nativeKnown[parent][ev.ProviderToolCallID] = call
 	return call

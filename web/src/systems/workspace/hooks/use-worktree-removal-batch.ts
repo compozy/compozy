@@ -205,7 +205,8 @@ const BRANCH_UNCONFIRMED =
   "Worktree cleaned up, but the branch result is unconfirmed. Retry repeats only the branch step.";
 
 /**
- * Executes one confirmed batch through the singular lifecycle APIs in repository-queue order.
+ * Executes one confirmed batch through the singular lifecycle APIs with at most three browser requests
+ * in flight. The daemon serializes Git mutations by canonical common directory.
  * Reconciles lost responses, preserves successful receipts, and retries only unresolved
  * targets with force only after explicit confirmation. Scope and cache cleanup follow the confirmed workspace and ID.
  */
