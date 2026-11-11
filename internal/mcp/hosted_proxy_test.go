@@ -171,17 +171,48 @@ func TestReconcileHostedTools(t *testing.T) {
 			t.Fatalf("retained fingerprints = %#v, want %#v", second, first)
 		}
 	})
-	t.Run("Should re-register when the internal structured result requirement changes", func(t *testing.T) {
+	t.Run("Should preserve result envelopes across output contract registration changes", func(t *testing.T) {
 		t.Parallel()
 		view := hostedToolView("compozy__hosted_echo")
-		view.Descriptor.OutputSchema = nil
-		registry := &countingHostedToolRegistry{}
-		client := &hostedProxyClientStub{}
-		previous := reconcileHostedTools(registry, client, "bind-1", nil, []tools.ToolView{view})
-		view.Descriptor.OutputSchema = json.RawMessage(`{"type":"object"}`)
-		reconcileHostedTools(registry, client, "bind-1", previous, []tools.ToolView{view})
-		if registry.addCalls != 2 {
-			t.Fatalf("AddTool calls = %d, want 2", registry.addCalls)
+		proxy := &hostedProxyClientStub{callResult: HostedCallResponse{Result: tools.ToolResult{
+			Content: []tools.ToolContent{{Type: "text", Text: "plain answer"}},
+		}}}
+		server := newHostedProxyTestServer()
+		client := connectHostedProxyClient(t, server)
+		for _, schema := range []json.RawMessage{nil, json.RawMessage(`{"type":"object"}`), nil} {
+			view.Descriptor.OutputSchema = schema
+			applyHostedTools(server, proxy, "bind-1", []tools.ToolView{view})
+			listed, err := client.ListTools(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(listed.Tools) != 1 || listed.Tools[0].OutputSchema != nil {
+				t.Fatalf("tools/list = %#v", listed)
+			}
+			result, err := client.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: view.Descriptor.ID.String()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.IsError || len(result.Content) != 1 {
+				t.Fatalf("result = %#v", result)
+			}
+			text, ok := result.Content[0].(*sdkmcp.TextContent)
+			if !ok || text.Text != "plain answer" {
+				t.Fatalf("content = %#v", result.Content)
+			}
+			if len(schema) == 0 {
+				if result.StructuredContent != nil {
+					t.Fatalf("schema-less result gained structured content: %#v", result.StructuredContent)
+				}
+			} else {
+				payload, err := json.Marshal(result.StructuredContent)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !equalJSON(t, payload, []byte(`{"truncated":false,"preview":"plain answer"}`)) {
+					t.Fatalf("structured envelope = %s", payload)
+				}
+			}
 		}
 	})
 }
@@ -1360,7 +1391,7 @@ func TestHostedResultViews(t *testing.T) {
 		}
 	})
 
-	for _, mode := range []string{"truncated", "typed error"} {
+	for _, mode := range []string{"truncated", "typed error", "partial error"} {
 		t.Run("Should round trip "+mode+" through MCP and real dispatch", func(t *testing.T) {
 			t.Parallel()
 			descriptor := hostedResultViewDescriptor(t)
@@ -1371,6 +1402,11 @@ func TestHostedResultViews(t *testing.T) {
 				tools.NativeTool{
 					Descriptor: descriptor,
 					Call: func(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error) {
+						if mode == "partial error" {
+							return tools.ToolResult{}, tools.NewToolError(tools.ErrorCodeResultPersistenceFailed, descriptor.ID,
+								"could not retain result", tools.ErrToolResultPersistence, tools.ReasonResultPersistenceFailed).
+								WithPartialResult(tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "bounded partial"}}})
+						}
 						if mode == "typed error" {
 							return tools.ToolResult{}, tools.NewToolError(
 								tools.ErrorCodeInvalidInput,
@@ -1421,7 +1457,18 @@ func TestHostedResultViews(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if mode == "typed error" {
+				switch mode {
+				case "partial error":
+					if !result.IsError || result.StructuredContent != nil || len(result.Content) != 2 {
+						t.Fatalf("partial result = %#v", result)
+					}
+					for i, want := range []string{"bounded partial", "result_persistence_failed: could not retain result"} {
+						text, ok := result.Content[i].(*sdkmcp.TextContent)
+						if !ok || text.Text != want {
+							t.Fatalf("partial content[%d] = %#v, want %s", i, result.Content[i], want)
+						}
+					}
+				case "typed error":
 					var typed contract.ToolErrorResponse
 					if err := json.Unmarshal(payload, &typed); err != nil {
 						t.Fatal(err)
@@ -1430,11 +1477,14 @@ func TestHostedResultViews(t *testing.T) {
 						typed.Error.Message != "invalid query" {
 						t.Fatalf("typed error = %s, isError=%t", payload, result.IsError)
 					}
+					if len(result.Content) == 0 {
+						t.Fatal("missing result text")
+					}
 					text, ok := result.Content[0].(*sdkmcp.TextContent)
 					if !ok || text.Text != "schema_invalid: invalid query" {
 						t.Fatalf("error text = %#v", result.Content)
 					}
-				} else {
+				case "truncated":
 					var envelope hostedResultEnvelope
 					if err := json.Unmarshal(payload, &envelope); err != nil {
 						t.Fatal(err)
@@ -1443,12 +1493,28 @@ func TestHostedResultViews(t *testing.T) {
 						envelope.ReadTool != tools.ToolIDToolArtifactRead ||
 						envelope.TruncatedFromBytes == nil ||
 						*envelope.TruncatedFromBytes != 9000 ||
-						len(envelope.Artifacts) != 1 {
+						len(
+							envelope.Artifacts,
+						) != 1 || envelope.Artifacts[0].URI != "compozy://tool-artifacts/art_test" || envelope.Artifacts[0].Bytes != 9000 {
 						t.Fatalf("continuation = %s", payload)
+					}
+					if len(result.Content) == 0 {
+						t.Fatal("missing result text")
 					}
 					text, ok := result.Content[0].(*sdkmcp.TextContent)
 					if !ok || text.Text != "bounded preview" || len(result.Content) != 2 {
 						t.Fatalf("continuation text = %#v", result.Content)
+					}
+					artifactText, ok := result.Content[1].(*sdkmcp.TextContent)
+					if !ok ||
+						!equalJSON(
+							t,
+							[]byte(artifactText.Text),
+							[]byte(
+								`{"artifacts":[{"uri":"compozy://tool-artifacts/art_test","bytes":9000}],"read_tool":"compozy__tool_artifact_read"}`,
+							),
+						) {
+						t.Fatalf("artifact text = %#v", result.Content[1])
 					}
 				}
 			}
@@ -1588,6 +1654,18 @@ func TestHostedResultViewCatalogSize(t *testing.T) {
 		if strings.Contains(string(after), `"outputSchema"`) {
 			t.Fatal("tools/list contains outputSchema")
 		}
+		if len(listed.Tools) != len(views) || listed.NextCursor != "" {
+			t.Fatalf(
+				"incomplete tools/list: %d of %d tools, cursor %q",
+				len(listed.Tools),
+				len(views),
+				listed.NextCursor,
+			)
+		}
+		expected := make(map[string]tools.Descriptor, len(views))
+		for _, view := range views {
+			expected[view.Descriptor.ID.String()] = view.Descriptor
+		}
 		const preFeatureBaseline = 744687
 		withViews := 0
 		modelTools := make([]map[string]any, 0, len(listed.Tools))
@@ -1599,7 +1677,24 @@ func TestHostedResultViewCatalogSize(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(string(input), `"result_view"`) {
+			descriptor, found := expected[tool.Name]
+			if !found {
+				t.Fatalf("unexpected or duplicate tool %s", tool.Name)
+			}
+			delete(expected, tool.Name)
+			if !equalJSON(t, input, descriptor.InputSchema) {
+				t.Fatalf("%s input schema changed: %s", tool.Name, input)
+			}
+			if descriptor.ResultViews() != nil {
+				var schema struct {
+					Properties map[string]json.RawMessage `json:"properties"`
+				}
+				if err := json.Unmarshal(input, &schema); err != nil {
+					t.Fatal(err)
+				}
+				if !equalJSON(t, schema.Properties[tools.ResultViewInputKey], []byte(tools.ResultViewSelectorSchema)) {
+					t.Fatalf("%s lost its result_view selector: %s", tool.Name, input)
+				}
 				withViews++
 			}
 			modelTools = append(

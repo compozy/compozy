@@ -46,8 +46,7 @@ func hostedEnvelopePreview(result tools.ToolResult) string {
 	return strings.Join(parts, "\n")
 }
 
-// hostedStructuredObject reports whether structured content is a JSON object, the only shape
-// MCP accepts for CallToolResult.structuredContent.
+// Non-object payloads retain their established hosted text/envelope representation.
 func hostedStructuredObject(value any) bool {
 	_, ok := value.(map[string]any)
 	return ok

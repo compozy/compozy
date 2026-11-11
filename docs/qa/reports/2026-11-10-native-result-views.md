@@ -283,3 +283,47 @@ S12 verification (local, scoped):
 - `git diff --check`: pass.
 
 No repository-wide gates, race suite, E2E or external provider walk ran, as required by the slice brief. The canonical catalog was not regenerated. Integration/CI and release publication remain conductor-owned.
+
+### S12 self-review follow-up
+
+Reviewed `762f8c808..010b9c828` against ADR-004 and S12. No production result-path
+regression was found. The former schema builder returned nil exactly when the selected
+internal contract was empty; `requiresStructured` preserves that decision. Without a
+contract, plain text stays unstructured, object results still carry structured content,
+and truncation still creates a continuation. Typed and partial errors return before
+this flag is consulted. Fingerprints include the flag so registration changes cannot
+retain a handler with the wrong fallback behavior.
+
+Findings repaired in the existing hosted proxy suite:
+
+- P2 coverage gap: catalog size and omission assertions could pass with missing tools,
+  duplicate identities or lost result selectors. Assert complete listing membership,
+  no continuation cursor, exact descriptor input schemas and each view selector.
+- P2 coverage gap: the re-registration test counted registrations without observing
+  returned content; truncation did not assert artifact text/identity, and partial
+  errors only had helper-level coverage. Verify nil/declared/nil contract transitions
+  through real MCP, exact artifact continuation text, and partial errors through MCP
+  plus dispatch in both views.
+- P3 inaccurate comment: SDK v1.8.0 permits non-object structured content. The moved
+  helper comment now describes Compozy's preserved projection, not an MCP restriction.
+
+The only hosted registration path constructs schema-free tools. SDK `Server.callTool`
+and `ClientSession.CallTool` do not condition structured result delivery on an output
+schema. Stdio/HTTP serializers, protocol middleware and the ACP HTTP bridge do not
+remove structured content. Pi registers that same MCP server; `mcp serve` builds the
+separate input-only Host API tool definitions. No external provider walk is claimed.
+
+The artifact-recovery scenario and result-artifacts page were correctly changed because
+truncation recovery must continue without an advertised schema. The session-message
+scenario now obtains its validation contract through tool info; its dated pre-S12
+verification remains historical evidence. The earlier 1 MB catalog measurements in this
+report are explicitly superseded by the S12 section, not current-size claims. Removed
+schema validation cases tested the deleted widening/rebasing; artifact byte recovery,
+result values, error flags and partial-result assertions remain covered.
+
+Follow-up checks: `go test ./internal/mcp -count=1` passed (6.166s); the focused
+`TestReconcileHostedTools|TestHostedResultViews|TestHostedResultViewCatalogSize` run
+passed with 288 tools, 99 selectors and the same 347,863 / 207,320 byte measurements.
+The pinned Go 1.27.3 `golangci-lint@v2.15.0` command above reports 0 issues; the test-shape
+checker and `git diff --check` pass. Site source did not change in this follow-up, so
+its prior scoped Turbo receipts remain applicable.
