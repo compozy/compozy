@@ -1959,6 +1959,52 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	// Invariant: later tool updates retain the persisted turn's background completion and interruption scope.
+	for _, tc := range []struct {
+		name, rowTurn, eventTurn string
+	}{
+		{"Should retain the persisted turn after a different-turn update", "turn", "other-turn"},
+		{"Should retain the persisted turn after an empty-turn update", "turn", ""},
+		{"Should retain an empty persisted turn after a named-turn update", "", "other-turn"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, r := newSubagentTestService(t)
+				launch := NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: tc.rowTurn, ProviderToolCallID: "native",
+					ToolName: "Agent", Status: "in_progress", Background: true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				update := launch
+				update.ParentTurnID, update.Status, update.Background = tc.eventTurn, "completed", false
+				if err := s.OnNativeToolEvent(t.Context(), "parent", update); err != nil {
+					t.Fatal(err)
+				}
+				for range 2 {
+					if err := s.OnParentTurnInterrupted(t.Context(), "parent", "other-turn"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if row := db.rows[subagentID("parent", "native")]; row.ParentTurnID != tc.rowTurn ||
+					row.Status != store.SubagentStatusRunning {
+					t.Fatalf("unrelated interruption changed native work: %#v", row)
+				}
+				for range 2 {
+					if err := s.OnNativeTurnDone(t.Context(), "parent", tc.rowTurn, time.Time{}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				row := db.rows[subagentID("parent", "native")]
+				if row.Status != store.SubagentStatusCompleted || row.ParentTurnID != tc.rowTurn ||
+					row.Delivery != store.SubagentDeliveryNone || row.Result != nil || len(r.queues) != 0 {
+					t.Fatalf("persisted turn lost background completion: %#v, wakes: %#v", row, r.queues)
+				}
+			})
+		})
+	}
 	// Invariant: a delayed cancellation only retires its own turn's native tracking; owner: native lifecycle.
 	t.Run("Should preserve newer native tracking after delayed interruption", func(t *testing.T) {
 		t.Parallel()

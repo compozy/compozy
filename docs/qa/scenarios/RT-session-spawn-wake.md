@@ -204,3 +204,12 @@ N+1 retains task-result stitching and completes on its own terminal evidence or 
 fallback. Repeating N's interruption must not affect N+1 or emit a completed wake for N.
 The existing native service, native ACP daemon integration, and canceled-turn spawn-wake
 suites own these checks; CI owns the full public-surface journey.
+
+QA impact 2026-11-11 (native call turn identity): launch a background Agent call in turn A,
+then deliver a non-task update for the same call with turn B or no turn. Interrupt B twice,
+then finish A twice. The row must retain A, complete once through the background fallback,
+and produce no delegated-child wake. Repeat with an empty persisted turn and a named update;
+the empty identity remains authoritative. `TestSubagentNativeRecoveryEdges` owns this
+deterministic service regression. The existing native daemon integration exercises real ACP
+subprocesses and SQLite; CI owns the full transport journey. ET-042's hook contract and
+attention lock ordering are unchanged; its native-settlement coverage remains applicable.
