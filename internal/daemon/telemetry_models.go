@@ -14,7 +14,10 @@ import (
 const (
 	// telemetryModelSnapshotTTL bounds how long a catalog change takes to reach exported model names.
 	telemetryModelSnapshotTTL = 5 * time.Minute
-	telemetryModelListTimeout = 10 * time.Second
+	// telemetryModelMissRebuildAfter rebuilds sooner when a lookup misses, so a model the catalog learns after boot
+	// (the first refresh usually lands after telemetry starts) exports its name within seconds, not minutes.
+	telemetryModelMissRebuildAfter = 30 * time.Second
+	telemetryModelListTimeout      = 10 * time.Second
 )
 
 // telemetryModelCatalog is the part of the model catalog runtime the classifier reads.
@@ -59,13 +62,16 @@ func newTelemetryModelClasses(runtime *modelCatalogRuntime, logger *slog.Logger)
 // Classify implements telemetry.Registries.Models.
 func (c *telemetryModelClasses) Classify(provider, model string) telemetry.ModelClass {
 	snapshot := c.snapshot.Load()
-	if snapshot == nil || c.now().Sub(snapshot.builtAt) >= telemetryModelSnapshotTTL {
-		c.refreshAsync()
-	}
 	if snapshot == nil {
+		c.refreshAsync()
 		return telemetry.ModelUnknown
 	}
-	return snapshot.classes[telemetryModelKey(provider, model)]
+	class, known := snapshot.classes[telemetryModelKey(provider, model)]
+	age := c.now().Sub(snapshot.builtAt)
+	if age >= telemetryModelSnapshotTTL || (!known && age >= telemetryModelMissRebuildAfter) {
+		c.refreshAsync()
+	}
+	return class
 }
 
 // refreshAsync rebuilds the snapshot once at a time on a worker joined at catalog shutdown.

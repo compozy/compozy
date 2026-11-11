@@ -394,6 +394,43 @@ func TestTelemetryModelClassesFollowTheCatalog(t *testing.T) {
 		}
 	})
 
+	t.Run("Should rebuild soon after a lookup misses, before the snapshot expires", func(t *testing.T) {
+		t.Parallel()
+
+		var now atomic.Pointer[time.Time]
+		start := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+		now.Store(&start)
+		catalog := &telemetryModelCatalogStub{listed: make(chan struct{}, 4)}
+		classes := newTestTelemetryModelClasses(catalog, func() time.Time { return *now.Load() })
+		if err := classes.rebuild(t.Context()); err != nil {
+			t.Fatalf("rebuild() error = %v", err)
+		}
+		<-catalog.listed
+		catalog.set([]modelcatalog.Model{row("claude", "claude-opus-5-5", modelcatalog.SourceKindModelsDev)})
+
+		classes.Classify("claude", "claude-opus-5-5")
+		select {
+		case <-catalog.listed:
+			t.Fatal("a miss on a fresh snapshot rebuilt it; want rebuilds bounded by telemetryModelMissRebuildAfter")
+		default:
+		}
+		later := start.Add(telemetryModelMissRebuildAfter)
+		now.Store(&later)
+		classes.Classify("claude", "claude-opus-5-5")
+		select {
+		case <-catalog.listed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("a miss on a snapshot older than the miss window did not rebuild")
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for classes.Classify("claude", "claude-opus-5-5") != telemetry.ModelCatalog {
+			if time.Now().After(deadline) {
+				t.Fatal("Classify() never saw the catalog row after the miss rebuild")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	})
+
 	t.Run("Should pick up a new catalog row once the snapshot expires", func(t *testing.T) {
 		t.Parallel()
 
@@ -415,7 +452,7 @@ func TestTelemetryModelClassesFollowTheCatalog(t *testing.T) {
 		classes.Classify("claude", "claude-opus-5")
 		select {
 		case <-catalog.listed:
-		case <-t.Context().Done():
+		case <-time.After(5 * time.Second):
 			t.Fatal("expired snapshot did not rebuild")
 		}
 		deadline := time.Now().Add(5 * time.Second)
