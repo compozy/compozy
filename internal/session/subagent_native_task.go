@@ -65,9 +65,9 @@ func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev
 	if resumed {
 		call = s.rememberNativeCall(
 			parent,
+			row.ParentTurnID,
 			NativeSubagentEvent{
 				ProviderToolCallID: ev.ProviderToolCallID,
-				ParentTurnID:       ev.ParentTurnID,
 				Background:         true,
 			},
 		)
