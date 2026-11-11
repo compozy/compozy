@@ -1959,6 +1959,50 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	t.Run("Should keep settled native tracking retired after a late update", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			counted := &countingNativeSubagentStore{SubagentStore: db}
+			s.store = counted
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "native",
+				ToolName: "Agent", Status: "in_progress", Background: true,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnParentTurnSettled(t.Context(), "parent", "turn"); err != nil {
+				t.Fatal(err)
+			}
+			late := launch
+			late.ParentTurnID, late.Status, late.Title = "other-turn", "completed", "Late title"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", late); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnParentTurnSettled(t.Context(), "parent", "other-turn"); err != nil {
+				t.Fatal(err)
+			}
+			before := counted.lookups
+			if err := s.OnNativeToolEvent(t.Context(), "parent", NativeSubagentEvent{
+				WorkspaceID: "ws", ProviderToolCallID: "native", Progress: "late heartbeat",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			if counted.lookups != before {
+				t.Fatalf("retired native heartbeat read storage: %d additional reads", counted.lookups-before)
+			}
+			if row := db.rows[subagentID("parent", "native")]; row.Status != store.SubagentStatusCompleted ||
+				row.ParentTurnID != "turn" || row.Title != "Late title" {
+				t.Fatalf("late metadata update changed terminal ownership: %#v", row)
+			}
+		})
+	})
 	// Invariant: later tool updates retain the persisted turn's background completion and interruption scope.
 	for _, tc := range []struct {
 		name, rowTurn, eventTurn string

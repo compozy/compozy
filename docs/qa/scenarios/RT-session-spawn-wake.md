@@ -213,3 +213,5 @@ the empty identity remains authoritative. `TestSubagentNativeRecoveryEdges` owns
 deterministic service regression. The existing native daemon integration exercises real ACP
 subprocesses and SQLite; CI owns the full transport journey. ET-042's hook contract and
 attention lock ordering are unchanged; its native-settlement coverage remains applicable.
+After A completes and its tracking is retired, send a late Agent update in B and settle B.
+Metadata may refresh, but a later nested heartbeat must not recreate tracking or read storage.

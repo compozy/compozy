@@ -71,10 +71,10 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err := s.updateNativeRuntime(ctx, &row, &ev); err != nil {
 		return false, err
 	}
-	call := s.rememberNativeCall(parent, row.ParentTurnID, ev)
 	if store.IsSubagentStatusTerminal(row.Status) {
 		return created, nil
 	}
+	call := s.rememberNativeCall(parent, row.ParentTurnID, ev)
 	changed, err := s.finalizeNativeToolResult(ctx, row, ev, call.background)
 	if err != nil || !changed {
 		return created, err
