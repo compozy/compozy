@@ -26,6 +26,12 @@ outputSchema for every native tool while retaining result_view inputs. Through r
 verify compact/full structuredContent and JSON text, truncated continuations and typed errors.
 Read both contracts from tool info; compare catalog bytes against the pre-feature baseline.
 
+Use `result_view: "full"` when comparing complete native records with HTTP/CLI or persisted records.
+These checks cover extension skill provenance, provider model metadata, approval grant display metadata
+across transports and restart, subagent session profile names, and Loop generation runtime provenance.
+Keep complete-record assertions in the existing daemon integration suites; the result-view suites
+continue to cover the default compact projection.
+
 Regression checks: shorthand Loop schemas such as `produces: {type: string, id: string}`,
 nested `type` field maps, and transform maps resolve their declared fields. Real JSON Schema
 keywords remain non-addressable. Run `TestNamespaceSchemaNamedFields` in the refs suite.

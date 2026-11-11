@@ -380,8 +380,8 @@ agent = "designer"
 				id    toolspkg.ToolID
 				input string
 			}{
-				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q}`, parent.ID)},
-				{toolspkg.ToolIDSessionList, `{}`},
+				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q,"result_view":"full"}`, parent.ID)},
+				{toolspkg.ToolIDSessionList, `{"result_view":"full"}`},
 			} {
 				result, err := d.toolRegistry.Call(
 					t.Context(),

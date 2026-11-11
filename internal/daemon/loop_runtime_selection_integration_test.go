@@ -988,7 +988,7 @@ func invokeLoopRuntimeNativeStatus(
 	runID string,
 ) contract.LoopRunResponse {
 	t.Helper()
-	input, err := json.Marshal(map[string]string{"run_id": runID})
+	input, err := json.Marshal(map[string]string{"run_id": runID, "result_view": "full"})
 	if err != nil {
 		t.Fatalf("json.Marshal(native loop status input) error = %v", err)
 	}

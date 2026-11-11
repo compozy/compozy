@@ -195,7 +195,14 @@ func assertExtensionHostedMCPTools(
 	var listed struct {
 		Skills []compozycontract.SkillPayload `json:"skills"`
 	}
-	callHostedMCPToolJSON(t, ctx, client, toolspkg.ToolIDSkillList.String(), map[string]any{}, &listed)
+	callHostedMCPToolJSON(
+		t,
+		ctx,
+		client,
+		toolspkg.ToolIDSkillList.String(),
+		map[string]any{"result_view": "full"},
+		&listed,
+	)
 	assertHostedSkillCatalog(t, "extension hosted skill_list", listed.Skills)
 
 	var searched struct {
@@ -206,7 +213,7 @@ func assertExtensionHostedMCPTools(
 		ctx,
 		client,
 		toolspkg.ToolIDSkillSearch.String(),
-		map[string]any{"query": ""},
+		map[string]any{"query": "", "result_view": "full"},
 		&searched,
 	)
 	assertHostedSkillCatalog(t, "extension hosted skill_search", searched.Skills)

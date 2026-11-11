@@ -177,10 +177,11 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		toolspkg.ToolIDToolApprovalsSet,
 		"approval-native-set",
 		map[string]any{
-			"tool_id":    toolspkg.ToolIDSessionList,
-			"decision":   toolspkg.ApprovalGrantReject,
-			"scope":      toolspkg.ApprovalGrantScopeAgent,
-			"agent_name": mockSpec.AgentName,
+			"tool_id":     toolspkg.ToolIDSessionList,
+			"decision":    toolspkg.ApprovalGrantReject,
+			"scope":       toolspkg.ApprovalGrantScopeAgent,
+			"agent_name":  mockSpec.AgentName,
+			"result_view": "full",
 		},
 		"allow-once",
 	)
@@ -606,7 +607,7 @@ func listApprovalGrantsNative(
 ) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
-	arguments := map[string]any{}
+	arguments := map[string]any{"result_view": "full"}
 	if workspaceID != "" {
 		arguments["workspace"] = workspaceID
 	}
