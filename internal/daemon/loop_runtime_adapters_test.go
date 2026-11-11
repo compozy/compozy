@@ -2042,6 +2042,38 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	})
 }
 func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
+	t.Run("Should filter unconfirmed options without adding inherited selections", func(t *testing.T) {
+		t.Parallel()
+		binder := &loopActionSessionBinder{sessions: &loopActionBinderSessionManager{
+			statusInfo: &session.Info{
+				ACPCapsKnown: true,
+				ACPOptions: []acp.SessionConfigOptionSelection{
+					{ID: "mode", ValueID: "bypassPermissions"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
+				ACPCaps: acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+					{ID: "mode", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "bypassPermissions"},
+					{ID: "thinking", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(true)},
+				}},
+			},
+		}}
+		binding, err := binder.projectActionBindingSpeed(t.Context(), looppkg.ActionSessionBinding{
+			SessionID: "session", AppliedRuntime: looppkg.RuntimeSpec{
+				ACPOptions: []looppkg.ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(true)},
+					{ID: "context", ValueID: "large"},
+				},
+			},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		options := binding.AppliedRuntime.ACPOptions
+		if len(options) != 1 || options[0].ID != "thinking" || options[0].BoolValue == nil || !*options[0].BoolValue {
+			t.Fatalf("applied options = %#v, want only confirmed requested thinking", options)
+		}
+	})
+
 	t.Run("Should not report requested Fast when provider support is absent", func(t *testing.T) {
 		t.Parallel()
 		resolution := &speedpkg.Resolution{

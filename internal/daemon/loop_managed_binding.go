@@ -121,7 +121,7 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	requestedRuntime := appliedRuntime
 	if info.ACPCapsKnown {
 		appliedRuntime.ACPOptions = loopACPOptionsFromSession(acp.ConfirmedSessionConfigOptionSelections(
-			info.ACPOptions, info.ACPCaps.ConfigOptions,
+			loopACPOptionsForSession(appliedRuntime.ACPOptions), info.ACPCaps.ConfigOptions,
 		))
 	}
 	if info.Speed != "" || info.SpeedResolution != nil {

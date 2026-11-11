@@ -14,7 +14,9 @@ including Loop roles: `agent-full-access` for Codex, `bypassPermissions` for Cla
 Google Antigravity, and the `allow_all = on` option for GitHub Copilot CLI. Copilot's Autopilot mode
 also approves everything, so it counts as an unrestricted mode. Other providers keep their own
 `approve-all` mode negotiation. If the provider does not uniquely advertise a `mode` config option,
-startup and live runtime changes skip the unrestricted-mode selection and keep the provider's negotiated mode. A uniquely
+startup skips the unrestricted-mode selection and keeps the provider's negotiated mode. Later model
+or reasoning changes can retain that skipped intent; a new live mode selection still requires a unique
+advertisement. A uniquely
 advertised option still requires a supported value and provider confirmation. `auto` (**Auto-review**)
 selects the provider's reviewer mode instead.
 An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS permissions

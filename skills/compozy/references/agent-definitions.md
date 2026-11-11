@@ -392,8 +392,9 @@ On-demand children resolve their own definition or settings level.
 `mode` or `allow_all` selection wins, and a narrower session level drops it. The deprecated
 `permissions.provider_full_access` key has no effect and is removed in v0.5.7.
 If a provider does not uniquely advertise a `mode` config option, Full access skips the unrestricted
-selection during startup and live runtime changes. Other options and narrower mode selections still
-require unique advertisements; advertised options still require supported values and confirmation.
+startup selection. Later runtime changes may retain that same skipped intent without applying it;
+new mode selections still require a unique advertisement. Advertised options require supported
+values and confirmation.
 
 Reviewer declarations use `[providers.<id>].reviewer_mode` in global or profile
 configuration. Workspace declarations are ignored with a diagnostic. Unrestricted

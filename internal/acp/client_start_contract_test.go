@@ -431,6 +431,12 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 				if err := driver.ConfigureRuntime(t.Context(), proc, runtime); err != nil {
 					t.Fatalf("ConfigureRuntime() error = %v", err)
 				}
+				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "full-access"}},
+				})
+				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
+					t.Fatalf("new live mode error = %v, want missing mode rejection", err)
+				}
 				if runtime.Model != "" {
 					assertConfigOption(
 						t,

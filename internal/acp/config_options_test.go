@@ -114,6 +114,7 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 }
 
 func TestConfigOptionMatching(t *testing.T) {
+	t.Parallel()
 	t.Run("Should project only uniquely confirmed selections without changing intent", func(t *testing.T) {
 		t.Parallel()
 		selections := []SessionConfigOptionSelection{
@@ -136,8 +137,6 @@ func TestConfigOptionMatching(t *testing.T) {
 			t.Fatalf("requested selections changed: %#v", selections)
 		}
 	})
-
-	t.Parallel()
 
 	options := []SessionConfigOption{
 		{ID: "verbose", Kind: SessionConfigOptionKindBoolean, CurrentBool: new(true)},

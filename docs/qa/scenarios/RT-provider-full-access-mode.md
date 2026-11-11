@@ -52,8 +52,8 @@ Under `approve-all`, start providers that omit `mode` or advertise it more than 
 skip the unrestricted-mode config selection and preserve the negotiated mode; model and reasoning
 negotiation and the first prompt must still complete. A unique `mode` option must still select and
 confirm the unrestricted value, and an unsupported value must fail. Change the model and reasoning
-on the same live process: the unadvertised unrestricted mode must not prevent the change. Other
-options and narrower modes still require unique advertisements. Loop applied runtime and provenance
+on the same live process: the unchanged skipped mode must not prevent the change. A new explicit
+live mode, other options, and narrower modes still require unique advertisements. Loop applied runtime and provenance
 must omit skipped options while the session retains requested intent. Triage must refuse ambiguous
 mode options when no independently advertised read-only session mode is available.
 
