@@ -162,16 +162,25 @@ func (q *queuedTurnLinks) remember(ctx context.Context, entryID string) {
 	q.links[entryID] = span.SpanContext()
 }
 
-// take returns and forgets the links of an input dispatched with its batch.
-func (q *queuedTurnLinks) take(entry queuedInput) []trace.Link {
+// linksFor returns the links of an input dispatched with its batch. They stay remembered until forget, so an input
+// that returns to the queue after a failed submission still links its later turn.
+func (q *queuedTurnLinks) linksFor(entry queuedInput) []trace.Link {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	var links []trace.Link
 	for _, input := range append([]queuedInput{entry}, entry.batch...) {
 		if sc, ok := q.links[input.id]; ok {
 			links = append(links, trace.Link{SpanContext: sc})
-			delete(q.links, input.id)
 		}
 	}
 	return links
+}
+
+// forget drops the links of an input and the batch its turn accepted.
+func (q *queuedTurnLinks) forget(entry queuedInput) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, input := range append([]queuedInput{entry}, entry.batch...) {
+		delete(q.links, input.id)
+	}
 }

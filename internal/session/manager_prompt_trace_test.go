@@ -220,6 +220,28 @@ func TestPromptTurnTrace(t *testing.T) {
 		})
 	}
 
+	t.Run("Should keep a queued input's link until a turn accepts the input", func(t *testing.T) {
+		exportTurnTraces(t)
+		ctx, request := startRequestSpan(t)
+		defer request.End()
+		var links queuedTurnLinks
+		links.remember(ctx, "input-head")
+		links.remember(ctx, "input-batched")
+		entry := queuedInput{id: "input-head", batch: []queuedInput{{id: "input-batched"}}}
+
+		// A failed submission reads the links and returns the input to the queue.
+		if got := links.linksFor(entry); len(got) != 2 {
+			t.Fatalf("linksFor() before a failed submission = %d links, want 2", len(got))
+		}
+		if got := links.linksFor(entry); len(got) != 2 {
+			t.Fatalf("linksFor() on the retry = %d links, want the 2 links kept after the failed submission", len(got))
+		}
+		links.forget(entry)
+		if got := links.linksFor(entry); len(got) != 0 {
+			t.Fatalf("linksFor() after forget = %d links, want none", len(got))
+		}
+	})
+
 	// IT-017
 	t.Run("Should end the turn normally when the client stops reading the stream", func(t *testing.T) {
 		collector := exportTurnTraces(t)

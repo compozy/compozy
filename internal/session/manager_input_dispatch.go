@@ -218,13 +218,14 @@ func (m *Manager) dispatchQueuedInput(
 	unlock()
 	dropped := map[string]struct{}{}
 	req.batchDropped = func(entryID string) { dropped[entryID] = struct{}{} }
-	req.queuedLinks = m.queuedTurnLinks.take(entry)
+	req.queuedLinks = m.queuedTurnLinks.linksFor(entry)
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	entry.batch = withoutDroppedQueuedInputs(entry.batch, dropped)
 	if err != nil {
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
 	}
+	m.queuedTurnLinks.forget(entry)
 	m.acceptQueuedInputDispatch(session, target, entry, req)
 	m.startTrackedPromptTask(func() {
 		canceled, failed := m.drainSubagentInputEvents(events)

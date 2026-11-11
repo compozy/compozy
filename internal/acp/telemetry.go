@@ -16,6 +16,7 @@ import (
 func TracedMethods() []string {
 	return []string{
 		acpsdk.AgentMethodInitialize, acpsdk.AgentMethodSessionNew, acpsdk.AgentMethodSessionLoad,
+		acpsdk.AgentMethodSessionResume,
 		acpsdk.AgentMethodSessionFork, acpsdk.AgentMethodSessionSetMode, acpsdk.AgentMethodSessionSetConfigOption,
 		acpsdk.AgentMethodSessionPrompt, steerExtensionMethod,
 	}
