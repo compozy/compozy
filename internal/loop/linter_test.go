@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func TestLinterShouldRejectDeletedNoProgressParameters(t *testing.T) {
@@ -3496,5 +3498,70 @@ func testToolProducesReferences(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLinterBuiltinComposedResultViews(t *testing.T) {
+	t.Parallel()
+	for _, descriptor := range builtin.NativeDescriptors() {
+		path := ""
+		var produces dsl.Schema
+		switch descriptor.ID.String() {
+		case "compozy__goal_get":
+			path = "goal.run_id"
+			produces = dsl.Schema{"goal": map[string]any{"run_id": "string"}}
+		case "compozy__agent_list":
+			path = "agents.name"
+			produces = dsl.Schema{"agents": []any{map[string]any{"name": "string"}}}
+		default:
+			continue
+		}
+		views := descriptor.ResultViews()
+		for _, view := range []string{"compact", "full"} {
+			for _, declared := range []bool{false, true} {
+				for _, prefix := range []string{"", "previous.", "best."} {
+					t.Run(
+						fmt.Sprintf("Should accept %s %s produces %v %s", descriptor.ID, view, declared, prefix),
+						func(t *testing.T) {
+							t.Parallel()
+							snapshot := loop.ToolSchemaSnapshot{
+								ToolID:                 descriptor.ID.String(),
+								OutputSchema:           views.Compact.Schema,
+								FullOutputSchema:       views.Full.Schema,
+								FullOutputSchemaDigest: "full",
+							}
+							node := dsl.Node{
+								ID:     "inspect",
+								Class:  dsl.NodeClassAction,
+								Kind:   snapshot.ToolID,
+								Params: dsl.NodeParams{"result_view": view},
+							}
+							if declared {
+								node.Produces = produces
+							}
+							def := singleNodeDefinition(node)
+							def.Graph.Nodes = append(
+								def.Graph.Nodes,
+								dsl.Node{
+									ID:    "report",
+									Class: dsl.NodeClassAction,
+									Kind:  "run-agent",
+									Params: dsl.NodeParams{
+										"agent":  "codex",
+										"prompt": "{{ ." + prefix + "nodes.inspect.output." + path + " }}",
+									},
+								},
+							)
+							def.Graph.Edges = []dsl.Edge{{From: "inspect", To: "report"}}
+							for _, d := range loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{snapshot.ToolID: snapshot})).Lint(def) {
+								if d.Severity == loop.SeverityError {
+									t.Error(d)
+								}
+							}
+						},
+					)
+				}
+			}
+		}
 	}
 }

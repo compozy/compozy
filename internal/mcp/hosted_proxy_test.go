@@ -1713,3 +1713,56 @@ func TestHostedResultViewCatalogSize(t *testing.T) {
 		}
 	})
 }
+
+func TestHostedExternalOutputContracts(t *testing.T) {
+	t.Parallel()
+	for _, backend := range []tools.BackendKind{tools.BackendMCP, tools.BackendExtensionHost} {
+		t.Run("Should retain external output schemas for "+string(backend), func(t *testing.T) {
+			t.Parallel()
+			view := hostedToolView("compozy__external_echo")
+			view.Descriptor.Backend.Kind = backend
+			proxy := &hostedProxyClientStub{}
+			server := newHostedProxyTestServer()
+			client := connectHostedProxyClient(t, server)
+			for _, field := range []string{"first", "second"} {
+				schema := json.RawMessage(
+					`{"type":"object","required":["` + field + `"],"properties":{"` + field + `":{"$ref":"#/$defs/value"}},"additionalProperties":false,"$defs":{"value":{"type":"string"}}}`,
+				)
+				view.Descriptor.OutputSchema = schema
+				applyHostedTools(server, proxy, "bind-1", []tools.ToolView{view})
+				listed, err := client.ListTools(t.Context(), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(listed.Tools) != 1 || listed.Tools[0].OutputSchema == nil {
+					t.Fatalf("missing external schema: %#v", listed)
+				}
+				raw, err := json.Marshal(listed.Tools[0].OutputSchema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(raw), `"`+field+`"`) ||
+					!strings.Contains(string(raw), "#/anyOf/0/$defs/value") {
+					t.Fatalf("stale or unrebased schema: %s", raw)
+				}
+				for _, result := range []tools.ToolResult{
+					{Structured: json.RawMessage(`{"` + field + `":"ok"}`)},
+					{Content: []tools.ToolContent{{Type: "text", Text: "plain answer"}}},
+					{Truncated: true, Preview: "bounded"},
+				} {
+					proxy.callResult = HostedCallResponse{Result: result}
+					response, err := client.CallTool(
+						t.Context(),
+						&sdkmcp.CallToolParams{Name: view.Descriptor.ID.String()},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if response.IsError || response.StructuredContent == nil {
+						t.Fatalf("invalid external result: %#v", response)
+					}
+				}
+			}
+		})
+	}
+}

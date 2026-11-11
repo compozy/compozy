@@ -9,13 +9,13 @@ const (
 
 // OutputPathUnproven reports a path accepted without proof from its output contract.
 func (n NodeSchema) OutputPathUnproven(path []string) bool {
-	if validateSchemaPath(n.Output, path, path, false, n.OutputJSONSchema) == nil {
+	if n.validateSelectedSchemaPath(path, path, false) == nil {
 		return false
 	}
 	if n.fallbackPathAccepted(path, path) {
 		return true
 	}
-	return n.AllowOpenOutput && validateSchemaPath(n.Output, path, path, true, n.OutputJSONSchema) == nil
+	return n.AllowOpenOutput && n.validateSelectedSchemaPath(path, path, true) == nil
 }
 
 // CheckOutputPath distinguishes proven paths, unproven acceptance, and rejected paths.
@@ -27,7 +27,7 @@ func (n NodeSchema) CheckOutputPath(path, original []string) (bool, *Error) {
 }
 
 func (n NodeSchema) validateOutputPath(path, original []string) *Error {
-	err := validateSchemaPath(n.Output, path, original, n.AllowOpenOutput, n.OutputJSONSchema)
+	err := n.validateSelectedSchemaPath(path, original, n.AllowOpenOutput)
 	if err != nil && n.fallbackPathAccepted(path, original) {
 		return nil
 	}
@@ -74,4 +74,11 @@ func (n Namespace) InputPathUnproven(path []string) bool {
 	schema, ok := n.Inputs[path[1]]
 	return ok && validateSchemaPath(schema, path[2:], path, false, true) != nil &&
 		validateSchemaPath(schema, path[2:], path, false, false) == nil
+}
+
+func (n NodeSchema) validateSelectedSchemaPath(path, original []string, allowOpen bool) *Error {
+	if n.ResultViewOutput {
+		return validateJSONSchemaPath(n.Output, path, original, allowOpen)
+	}
+	return validateSchemaPath(n.Output, path, original, allowOpen, n.OutputJSONSchema)
 }

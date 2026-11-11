@@ -22,7 +22,7 @@ output_views via tool info, reject summary/non-string and a selector on skill_vi
 Validate a reference to session.lineage.permission_policy.tools: compact must fail
 with result_view_field_requires_full naming inspect, full must validate and complete.
 Verify hook pin refusals through the owning focused suites. Hosted MCP tools/list must omit
-outputSchema for every tool while retaining result_view inputs. Through real MCP and dispatch,
+outputSchema for every native tool while retaining result_view inputs. Through real MCP and dispatch,
 verify compact/full structuredContent and JSON text, truncated continuations and typed errors.
 Read both contracts from tool info; compare catalog bytes against the pre-feature baseline.
 
@@ -64,3 +64,11 @@ M1 integration with bounded native reads: tool search retains `offset`, `count`,
 `tool_search` and `worktree_list`. Pins predating the bounded-read input changes remain stale,
 as documented in `docs/release/native-read-defaults.md`; result-view translation does not
 waive an unrelated input-contract change. Automation histories remain single-result pages.
+
+P1 regression checks: external MCP and extension tools retain their advertised output schemas,
+including continuation and error envelopes. Schema updates must re-register the tool through
+`TestHostedExternalOutputContracts` over real MCP transport. Compact and full Loop references
+follow declared union, nullable-array, and local-reference paths for current, previous, and best
+with or without `produces` (`TestLinterBuiltinComposedResultViews`).
+`TestBuiltinResultViewSchemaPaths` proves every declared catalog path to bounded depth;
+`TestNamespaceComposedSchemaProof` checks branch proof and closed-object rejection.

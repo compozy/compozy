@@ -60,6 +60,7 @@ type NodeSchema struct {
 	FallbackOutput Schema
 	// OutputJSONSchema distinguishes normalized/descriptor schemas from field maps.
 	OutputJSONSchema bool
+	ResultViewOutput bool
 	HasOutput        bool
 	HasProgress      bool
 	AllowOpenOutput  bool

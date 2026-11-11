@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
@@ -1118,6 +1119,139 @@ func TestNamespaceSchemaNamedFields(t *testing.T) {
 				if err == nil || err.Code != refs.CodeUnresolvablePath {
 					t.Fatalf("%s: %v", field, err)
 				}
+			}
+		})
+	}
+}
+
+func TestBuiltinResultViewSchemaPaths(t *testing.T) {
+	t.Parallel()
+	forms := map[string]int{}
+	count, paths := 0, 0
+	for _, descriptor := range builtin.NativeDescriptors() {
+		views := descriptor.ResultViews()
+		if views == nil {
+			continue
+		}
+		count++
+		for view, raw := range map[string]json.RawMessage{"compact": views.Compact.Schema, "full": views.Full.Schema} {
+			var root map[string]any
+			if err := json.Unmarshal(raw, &root); err != nil {
+				t.Fatal(err)
+			}
+			var walk func(map[string]any, []string, int)
+			walk = func(schema map[string]any, path []string, depth int) {
+				if depth > 8 {
+					return
+				}
+				for key := range schema {
+					forms[key]++
+				}
+				if _, ok := schema["type"].([]any); ok {
+					forms["type array"]++
+				}
+				if ref, ok := schema["$ref"].(string); ok {
+					var target any = root
+					for segment := range strings.SplitSeq(strings.TrimPrefix(ref, "#/"), "/") {
+						object, ok := target.(map[string]any)
+						if !ok {
+							t.Fatalf("invalid catalog ref %s", ref)
+						}
+						target = object[strings.ReplaceAll(strings.ReplaceAll(segment, "~1", "/"), "~0", "~")]
+					}
+					child, ok := target.(map[string]any)
+					if !ok {
+						t.Fatalf("unresolved catalog ref %s", ref)
+					}
+					walk(child, path, depth+1)
+				}
+				if props, ok := schema["properties"].(map[string]any); ok {
+					for key, value := range props {
+						next := append(append([]string{}, path...), key)
+						node := refs.NodeSchema{
+							Output:           refs.Schema(root),
+							ResultViewOutput: true,
+							OutputJSONSchema: true,
+							HasOutput:        true,
+							AllowOpenOutput:  view == "full",
+						}
+						unproven, err := node.CheckOutputPath(next, next)
+						paths++
+						if err != nil || unproven {
+							t.Errorf(
+								"%s/%s %s: unproven=%v err=%v",
+								descriptor.ID,
+								view,
+								strings.Join(next, "."),
+								unproven,
+								err,
+							)
+						}
+						if child, ok := value.(map[string]any); ok {
+							walk(child, next, depth+1)
+						}
+					}
+				}
+				for _, key := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
+					if members, ok := schema[key].([]any); ok {
+						for _, member := range members {
+							if child, ok := member.(map[string]any); ok {
+								walk(child, path, depth+1)
+							}
+						}
+					}
+				}
+				if child, ok := schema["items"].(map[string]any); ok {
+					walk(child, path, depth+1)
+				}
+				if child, ok := schema["additionalProperties"].(map[string]any); ok {
+					forms["schema additionalProperties"]++
+					walk(child, append(append([]string{}, path...), "entry"), depth+1)
+				}
+			}
+			walk(root, nil, 0)
+		}
+	}
+	if count != 99 {
+		t.Fatalf("view-bearing tools = %d", count)
+	}
+	t.Logf("tools=%d paths=%d forms=%v", count, paths, forms)
+}
+
+func TestNamespaceComposedSchemaProof(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, schema, path string
+		unproven, rejected bool
+		legacy             bool
+	}{
+		{name: "Should prove a declared union path over an open branch", schema: `{"anyOf":[{"type":"object"},{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}]}`, path: "id"},
+		{name: "Should accept an open union branch as unproven", schema: `{"oneOf":[{"type":"object"},{"type":"object","additionalProperties":false}]}`, path: "id", unproven: true},
+		{name: "Should reject a union when all branches reject", schema: `{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false}]}`, path: "id", rejected: true},
+		{name: "Should prove an allOf declaration", schema: `{"allOf":[{"type":"object"},{"properties":{"id":{"type":"string"}}}]}`, path: "id"},
+		{name: "Should honor a closed allOf rejection", schema: `{"allOf":[{"additionalProperties":false},{"properties":{"id":{"type":"string"}}}]}`, path: "id", rejected: true},
+		{name: "Should follow schema additional properties", schema: `{"type":"object","additionalProperties":{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}}`, path: "entry.id"},
+		{name: "Should reject scalar children in schema additional properties", schema: `{"type":"object","additionalProperties":{"type":"string"}}`, path: "entry.id", rejected: true},
+		{name: "Should preserve non-view schema rules", schema: `{"anyOf":[{"type":"object","properties":{"id":{"type":"string"}}}]}`, path: "id", rejected: true, legacy: true},
+		{name: "Should bound recursive references", schema: `{"$ref":"#"}`, path: "id", rejected: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var schema refs.Schema
+			if err := json.Unmarshal([]byte(tc.schema), &schema); err != nil {
+				t.Fatal(err)
+			}
+			node := refs.NodeSchema{
+				Output:           schema,
+				OutputJSONSchema: true,
+				HasOutput:        true,
+				AllowOpenOutput:  !tc.legacy,
+				ResultViewOutput: !tc.legacy,
+			}
+			path := strings.Split(tc.path, ".")
+			unproven, err := node.CheckOutputPath(path, path)
+			if (err != nil) != tc.rejected || unproven != tc.unproven {
+				t.Fatalf("unproven=%v err=%v", unproven, err)
 			}
 		})
 	}

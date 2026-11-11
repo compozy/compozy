@@ -242,7 +242,8 @@ func (c *lintContext) referenceNodeSchema(node dsl.Node) refs.NodeSchema {
 		result.FallbackOutput = nil
 		if c.linter.tools != nil {
 			snapshot, found := c.linter.tools.Snapshot(node.Kind)
-			result.AllowOpenOutput = found && snapshot.FullOutputSchemaDigest != "" &&
+			result.ResultViewOutput = found && snapshot.FullOutputSchemaDigest != ""
+			result.AllowOpenOutput = result.ResultViewOutput &&
 				nodeResultView(node) == tools.ResultViewFull
 		}
 		return result

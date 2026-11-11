@@ -232,11 +232,16 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 	readOnly := descriptor.ReadOnly
 	destructive := descriptor.Destructive
 	openWorld := descriptor.OpenWorld
+	var outputSchema any
+	if descriptor.Backend.Kind != tools.BackendNativeGo {
+		outputSchema = hostedOutputSchema(descriptor.OutputSchema)
+	}
 	return sdkmcp.Tool{
-		Name:        name,
-		Title:       descriptor.Presentation().DisplayTitle,
-		Description: hostedToolDescription(descriptor),
-		InputSchema: cloneRaw(descriptor.InputSchema),
+		OutputSchema: outputSchema,
+		Name:         name,
+		Title:        descriptor.Presentation().DisplayTitle,
+		Description:  hostedToolDescription(descriptor),
+		InputSchema:  cloneRaw(descriptor.InputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,

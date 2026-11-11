@@ -1,0 +1,122 @@
+package mcp
+
+import (
+	"encoding/json"
+	"strings"
+)
+
+// hostedDeclaredSchemaPointer locates the declared schema inside the widened advertised schema.
+const hostedDeclaredSchemaPointer = "#/anyOf/0"
+
+// hostedResultEnvelopeSchema accepts the structured continuation emitted when the canonical
+// payload is unavailable, most commonly because the result exceeded the tool result budget.
+const hostedResultEnvelopeSchema = `{
+	"type":"object",
+	"description":"Returned instead of the declared payload when the full structured result is unavailable. ` +
+	`When truncated is true, read the complete result by calling read_tool with an artifacts[].uri.",
+	"required":["truncated"],
+	"properties":{
+		"truncated":{"type":"boolean"},
+		"truncated_from_bytes":{"type":"integer","minimum":0},
+		"preview":{"type":"string"},
+		"artifacts":{
+			"type":"array",
+			"items":{
+				"type":"object",
+				"required":["uri"],
+				"properties":{
+					"uri":{"type":"string"},
+					"name":{"type":"string"},
+					"mime_type":{"type":"string"},
+					"bytes":{"type":"integer","minimum":0},
+					"sha256":{"type":"string"}
+				}
+			}
+		},
+		"read_tool":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+// hostedErrorEnvelopeSchema accepts the typed `{"error":{...}}` payload carried by hosted tool errors.
+const hostedErrorEnvelopeSchema = `{
+	"type":"object",
+	"required":["error"],
+	"properties":{
+		"error":{
+			"type":"object",
+			"required":["code","message"],
+			"properties":{"code":{"type":"string"},"message":{"type":"string"}}
+		}
+	}
+}`
+
+// hostedOutputSchema widens a descriptor output schema so every hosted result shape validates:
+// the declared payload, the structured result continuation, or a typed tool error. MCP clients
+// validate structuredContent against the advertised schema, including on error results.
+func hostedOutputSchema(schema json.RawMessage) any {
+	if len(schema) == 0 {
+		return nil
+	}
+	decoded, err := decodeHostedJSON(schema)
+	if err != nil {
+		return cloneRaw(schema)
+	}
+	declared, ok := decoded.(map[string]any)
+	if !ok {
+		return cloneRaw(schema)
+	}
+	wrapped := map[string]any{"type": "object"}
+	if dialect, present := declared["$schema"]; present {
+		wrapped["$schema"] = dialect
+		delete(declared, "$schema")
+	}
+	if _, embedded := declared["$id"]; !embedded {
+		// Without its own $id the declared schema shares the advertised document, so every local
+		// JSON pointer it uses must now start at its new location.
+		rebaseHostedSchemaRefs(declared)
+	}
+	wrapped["anyOf"] = []any{
+		declared,
+		json.RawMessage(hostedResultEnvelopeSchema),
+		json.RawMessage(hostedErrorEnvelopeSchema),
+	}
+	return wrapped
+}
+
+// rebaseHostedSchemaRefs rewrites local "#" and "#/..." references of one schema object in place.
+// Plain-name anchors ("#name") are location-independent and stay unchanged.
+func rebaseHostedSchemaRefs(schema map[string]any) {
+	if _, embedded := schema["$id"]; embedded {
+		return
+	}
+	for keyword, value := range schema {
+		switch keyword {
+		case "$ref", "$dynamicRef":
+			if ref, ok := value.(string); ok && (ref == "#" || strings.HasPrefix(ref, "#/")) {
+				schema[keyword] = hostedDeclaredSchemaPointer + strings.TrimPrefix(ref, "#")
+			}
+		case "const", "enum", "default", "examples":
+			// Instance values, not subschemas.
+		case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas":
+			if children, ok := value.(map[string]any); ok {
+				for _, child := range children {
+					rebaseHostedSchemaValue(child)
+				}
+			}
+		default:
+			rebaseHostedSchemaValue(value)
+		}
+	}
+}
+
+func rebaseHostedSchemaValue(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		rebaseHostedSchemaRefs(typed)
+	case []any:
+		for _, item := range typed {
+			rebaseHostedSchemaValue(item)
+		}
+	}
+}

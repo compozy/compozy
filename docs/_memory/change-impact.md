@@ -12,7 +12,8 @@ approves removal of hosted native output schemas in the same breaking release.
 - **Hooks / extensibility:** tool references add `has_result_views` and, when pinned,
   `pinned_result_view`; `tool.post_call` adds `result_view`. Pre-call input patches can
   select a view but cannot override Loop pins. Extension/MCP-backed tools keep their
-  own inputs. Per ADR-004 (S12), managed-session MCP advertises no output schemas;
+  own inputs. Per ADR-004 (S12), managed-session MCP advertises no native output schemas;
+  external MCP and extension output contracts remain unchanged;
   input selectors, structured results, text, continuations and typed errors are unchanged.
   Contracts remain discoverable through tool info and HTTP/UDS descriptors;
   `compozy mcp serve` keeps its separate Host API projection.

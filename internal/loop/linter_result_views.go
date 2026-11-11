@@ -204,6 +204,7 @@ func (c *lintContext) checkToolViewPath(node dsl.Node, original []string) (bool,
 		Output:           schema,
 		HasOutput:        true,
 		OutputJSONSchema: true,
+		ResultViewOutput: true,
 		AllowOpenOutput:  nodeResultView(node) == tools.ResultViewFull,
 	}
 	unproven, refErr := selected.CheckOutputPath(path[3:], original)
