@@ -28,7 +28,8 @@ Read both contracts from tool info; compare catalog bytes against the pre-featur
 
 Full-record parity checks must explicitly select `result_view: "full"`: extension skill list/search
 provenance, provider model catalogs compared with HTTP/CLI, and approval grant set/list records
-compared across transports and daemon restart. Keep the complete-record assertions in the existing
+compared across transports and daemon restart, and session profile display metadata used by subagent
+profile-ownership checks. Keep the complete-record assertions in the existing
 daemon integration suites; the default compact projection remains covered by the result-view suites.
 
 Regression checks: shorthand Loop schemas such as `produces: {type: string, id: string}`,
