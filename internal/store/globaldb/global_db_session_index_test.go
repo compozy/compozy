@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
@@ -4169,6 +4170,36 @@ func TestPendingInteractionDescendants(t *testing.T) {
 // Owner: SQLite catalog; canonical session catalog suite, on a fresh migrated database without ANALYZE.
 func TestSessionLinkedWorkCatalogReview(t *testing.T) {
 	t.Parallel()
+	// Invariant: family traversal seeks parents without statistics and preserves each requested root.
+	t.Run("Should seek parent edges without SQLite statistics", func(t *testing.T) {
+		t.Parallel()
+		db, ids := sessionWorkFamilyFixture(t)
+		recorder := &sessionFamilyQueryRecorder{DB: db.readDB}
+		rows, err := sqlcgen.New(recorder).ReadSessionWorkFamily(t.Context(), ids)
+		if err != nil || len(rows) != 840 {
+			t.Fatalf("family rows = %d, error = %v, want 840", len(rows), err)
+		}
+		counts := make(map[string]int)
+		for _, row := range rows {
+			counts[row.RootID]++
+			if row.WorkspaceID != "ws-family" || row.ProfileID != store.DefaultProfileID {
+				t.Fatalf("family crossed scope: %+v", row)
+			}
+		}
+		if len(counts) != 120 {
+			t.Fatalf("roots = %d, want 120", len(counts))
+		}
+		for root, count := range counts {
+			if count != 7 {
+				t.Fatalf("root %s has %d members, want 7", root, count)
+			}
+		}
+		plan := explainQueryPlan(t, db.readDB, recorder.query, ids)
+		t.Log(plan)
+		if !strings.Contains(plan, "SEARCH s USING INDEX idx_sessions_parent (parent_session_id=?)") {
+			t.Fatalf("family recursion does not seek the parent index: %s", plan)
+		}
+	})
 	t.Run("Should fence stale facts and use the session index", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -4285,4 +4316,80 @@ func TestSessionLinkedWorkCatalogReview(t *testing.T) {
 			t.Fatal("linked board lookup did not select the session index")
 		}
 	})
+}
+
+type sessionFamilyQueryRecorder struct {
+	*sql.DB
+	query string
+}
+
+func (r *sessionFamilyQueryRecorder) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	r.query = query
+	return r.DB.QueryContext(ctx, query, args...)
+}
+
+// sessionWorkFamilyFixture seeds 120 seven-member trees without statistics and with upgraded index order.
+func sessionWorkFamilyFixture(tb testing.TB) (*GlobalDB, string) {
+	tb.Helper()
+	ctx := tb.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(tb.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			tb.Error(err)
+		}
+	})
+	if err := db.checkpoint.Close(ctx); err != nil {
+		tb.Fatal(err)
+	}
+	if _, err := db.db.ExecContext(ctx, `
+INSERT INTO workspaces(id,root_dir,name,created_at,updated_at)
+VALUES ('ws-family','/fixture-family','Family','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z');
+WITH RECURSIVE fixture(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM fixture WHERE i < 839)
+INSERT INTO sessions(id,profile_id,workspace_id,agent_name,provider,state,parent_session_id,lineage_kind,name,created_at,updated_at)
+SELECT printf('family-%04d',i), '00000000000000000000000000', 'ws-family', 'coder', 'codex', 'active',
+ CASE WHEN i%7=0 THEN NULL ELSE printf('family-%04d',i-i%7+(i%7-1)/2) END,
+ CASE WHEN i%7=0 THEN '' ELSE 'spawn' END, printf('Family member %d',i),
+ '2026-11-01T00:00:00Z','2026-11-01T00:00:00Z' FROM fixture;
+DROP TABLE IF EXISTS sqlite_stat1;`); err != nil {
+		tb.Fatal(err)
+	}
+	// Upgrades can recreate catalog indexes after the parent index, unlike a fresh schema.
+	var indexDDL string
+	if err := db.db.QueryRowContext(ctx, "SELECT sql FROM sqlite_schema WHERE name='idx_sessions_profile_catalog_recent'").
+		Scan(&indexDDL); err != nil {
+		tb.Fatal(err)
+	}
+	if _, err := db.db.ExecContext(ctx, "DROP INDEX idx_sessions_profile_catalog_recent;"+indexDDL); err != nil {
+		tb.Fatal(err)
+	}
+	// Reload planner state after removing statistics, including connections opened by the fixture seed.
+	db.readDB.SetMaxIdleConns(0)
+	db.readDB.SetMaxIdleConns(8)
+	var count int
+	if err := db.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_schema WHERE name='sqlite_stat1'").
+		Scan(&count); err != nil ||
+		count != 0 {
+		tb.Fatalf("statistics tables = %d, error = %v, want none", count, err)
+	}
+	var ids string
+	if err := db.db.QueryRowContext(ctx, "SELECT json_group_array(id) FROM sessions WHERE parent_session_id IS NULL").
+		Scan(&ids); err != nil {
+		tb.Fatal(err)
+	}
+	return db, ids
+}
+
+// BenchmarkSessionWorkFamily measures a complete batched family read without planner statistics.
+func BenchmarkSessionWorkFamily(b *testing.B) {
+	db, ids := sessionWorkFamilyFixture(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		rows, err := db.SessionRepo.readQueries.ReadSessionWorkFamily(b.Context(), ids)
+		if err != nil || len(rows) != 840 {
+			b.Fatalf("family rows = %d, error = %v, want 840", len(rows), err)
+		}
+	}
 }

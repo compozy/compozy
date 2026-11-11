@@ -5484,6 +5484,10 @@ func TestSessionLinkedWorkProjection(t *testing.T) {
 				branches.calls,
 			)
 		}
+		if branches.familyCalls != 1 ||
+			!slices.Equal(branches.familyIDs, []string{"root", "other", "third", "fourth"}) {
+			t.Fatalf("family calls=%d ids=%v, want one batch with all roots", branches.familyCalls, branches.familyIDs)
+		}
 	})
 
 	t.Run("Should sort fresh decisions before ready work and unknown lookups", func(t *testing.T) {
@@ -5650,11 +5654,15 @@ func TestSessionLinkedWorkProjection(t *testing.T) {
 
 type linkedWorkQueryStore struct {
 	pullRequestQueryBranches
-	links   map[string][]store.SessionWorkLink
-	members []store.SessionWorkMember
+	links       map[string][]store.SessionWorkLink
+	members     []store.SessionWorkMember
+	familyCalls int
+	familyIDs   []string
 }
 
-func (s *linkedWorkQueryStore) SessionWorkFamily(context.Context, []string) ([]store.SessionWorkMember, error) {
+func (s *linkedWorkQueryStore) SessionWorkFamily(_ context.Context, ids []string) ([]store.SessionWorkMember, error) {
+	s.familyCalls++
+	s.familyIDs = slices.Clone(ids)
 	if s.members != nil {
 		return s.members, nil
 	}
