@@ -644,12 +644,20 @@ writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATC
 PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
 `shell.appearance.ui_font` and `shell.appearance.mono_font` hold the Interface and Code font family
-names shown in Settings › Appearance › Fonts (empty = the built-in Inter / Geist Mono). They are
+names shown in Settings › Appearance › Text (empty = the built-in Figtree / Geist Mono). They are
 daemon-wide, so every connected Web and desktop client repaints with them; a family missing on one
 device falls back to the built-in stack there. Each value is one family name of letters, digits,
 spaces, `-`, `_`, `.`, or `'` (at most 128 characters); anything else fails with
-`shell_config_invalid`. `compozy config set shell.appearance.mono_font "JetBrains Mono Variable"`
-sets one; `compozy config unset shell.appearance.mono_font` (or PATCH `""`) restores the default.
+`shell_config_invalid`. `Geist Variable`, `Inter Variable`, `Instrument Sans Variable` and
+`JetBrains Mono Variable` ship with the app and download only once chosen.
+`compozy config set shell.appearance.mono_font "JetBrains Mono Variable"` sets one;
+`compozy config unset shell.appearance.mono_font` (or PATCH `""`) restores the default.
+
+`shell.appearance.text_size` (`small`, `default`, `large`, `larger`) scales every text size of the
+Web and desktop apps together, and `shell.appearance.letter_spacing` (`tight`, `default`,
+`relaxed`, `wide`) sets the interface text tracking; the terminal keeps its own size. Both are
+daemon-wide and live. Unset reads as `default`, and PATCH `"default"` or `compozy config unset`
+removes the key. Any other value fails with `shell_config_invalid`.
 
 Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
 (`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar

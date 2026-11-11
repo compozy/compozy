@@ -9355,7 +9355,9 @@ export type SettingsRolesResponse = {
 };
 
 export type SettingsShellAppearancePayload = {
+  letter_spacing?: "tight" | "default" | "relaxed" | "wide";
   mono_font?: string | null;
+  text_size?: "small" | "default" | "large" | "larger";
   ui_font?: string | null;
 };
 

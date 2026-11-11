@@ -18,3 +18,21 @@ func settingsShellSessionScopeValues() []string {
 		string(contract.SettingsShellSessionScopeAllWorkspaces),
 	}
 }
+
+func settingsShellTextSizeValues() []string {
+	return []string{
+		string(contract.SettingsShellTextSizeSmall),
+		string(contract.SettingsShellTextSizeDefault),
+		string(contract.SettingsShellTextSizeLarge),
+		string(contract.SettingsShellTextSizeLarger),
+	}
+}
+
+func settingsShellLetterSpacingValues() []string {
+	return []string{
+		string(contract.SettingsShellLetterSpacingTight),
+		string(contract.SettingsShellLetterSpacingDefault),
+		string(contract.SettingsShellLetterSpacingRelaxed),
+		string(contract.SettingsShellLetterSpacingWide),
+	}
+}

@@ -102,6 +102,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SettingsShellSessionSort]():       settingsShellSessionSortValues(),
 		reflect.TypeFor[contract.SettingsShellSessionGroupBy]():    {specNoneKey, "project", "profile"},
 		reflect.TypeFor[contract.SettingsShellSessionScope]():      settingsShellSessionScopeValues(),
+		reflect.TypeFor[contract.SettingsShellTextSize]():          settingsShellTextSizeValues(),
+		reflect.TypeFor[contract.SettingsShellLetterSpacing]():     settingsShellLetterSpacingValues(),
 		reflect.TypeFor[automationpkg.Scope]():                     automationScopeValues(),
 		reflect.TypeFor[automationpkg.JobSource]():                 automationSourceValues(),
 		reflect.TypeFor[automationpkg.ScheduleMode]():              automationScheduleModeValues(),

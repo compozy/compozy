@@ -30,13 +30,20 @@ func settingsShellSectionResponse(envelope settingspkg.SectionEnvelope) (any, er
 func settingsShellPayload(cfg compozyconfig.ShellConfig) contract.SettingsShellPayload {
 	uiFont := cfg.Appearance.UIFont
 	monoFont := cfg.Appearance.MonoFont
+	textSize := contract.SettingsShellTextSize(cfg.Appearance.TextSize.Normalized())
+	letterSpacing := contract.SettingsShellLetterSpacing(cfg.Appearance.LetterSpacing.Normalized())
 	return contract.SettingsShellPayload{
 		Sessions: contract.SettingsShellSessionsPayload{
 			GroupBy: contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy),
 			Sort:    contract.SettingsShellSessionSort(cfg.Sessions.Sort),
 			Scope:   contract.SettingsShellSessionScope(cfg.Sessions.Scope),
 		},
-		Appearance: &contract.SettingsShellAppearancePayload{UIFont: &uiFont, MonoFont: &monoFont},
+		Appearance: &contract.SettingsShellAppearancePayload{
+			UIFont:        &uiFont,
+			MonoFont:      &monoFont,
+			TextSize:      &textSize,
+			LetterSpacing: &letterSpacing,
+		},
 	}
 }
 
@@ -56,6 +63,14 @@ func shellConfigFromPayload(payload contract.SettingsShellPayload) (compozyconfi
 		if appearance.MonoFont != nil {
 			value.Appearance.MonoFont = *appearance.MonoFont
 			value.Appearance.MonoFontExplicit = true
+		}
+		if appearance.TextSize != nil {
+			value.Appearance.TextSize = shellTextSizeFromPayload(*appearance.TextSize)
+			value.Appearance.TextSizeExplicit = true
+		}
+		if appearance.LetterSpacing != nil {
+			value.Appearance.LetterSpacing = shellLetterSpacingFromPayload(*appearance.LetterSpacing)
+			value.Appearance.LetterSpacingExplicit = true
 		}
 	}
 	validation := value
@@ -94,4 +109,20 @@ func (h *BaseHandlers) updateSettingsShellSection(c *gin.Context, req settingspk
 			Revision: envelope.Shell.ScopeRevision,
 		},
 	})
+}
+
+// shellTextSizeFromPayload stores "default" as unset, so a reset deletes the key.
+func shellTextSizeFromPayload(size contract.SettingsShellTextSize) compozyconfig.ShellTextSize {
+	if size == contract.SettingsShellTextSizeDefault {
+		return ""
+	}
+	return compozyconfig.ShellTextSize(size)
+}
+
+// shellLetterSpacingFromPayload stores "default" as unset, so a reset deletes the key.
+func shellLetterSpacingFromPayload(spacing contract.SettingsShellLetterSpacing) compozyconfig.ShellLetterSpacing {
+	if spacing == contract.SettingsShellLetterSpacingDefault {
+		return ""
+	}
+	return compozyconfig.ShellLetterSpacing(spacing)
 }

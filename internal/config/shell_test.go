@@ -132,6 +132,79 @@ func TestShellConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("Should overlay text size and letter spacing as explicit values", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultShellConfig()
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, "[shell.appearance]\ntext_size = \"large\"\nletter_spacing = \"relaxed\"\n")
+		wrapper := Config{Shell: cfg}
+		if err := ApplyConfigOverlayFile(overlayPath, &wrapper); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		want := ShellAppearanceConfig{
+			TextSize:              ShellTextSizeLarge,
+			TextSizeExplicit:      true,
+			LetterSpacing:         ShellLetterSpacingRelaxed,
+			LetterSpacingExplicit: true,
+		}
+		if wrapper.Shell.Appearance != want {
+			t.Fatalf("appearance after overlay = %#v, want %#v", wrapper.Shell.Appearance, want)
+		}
+		if err := wrapper.Shell.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+	})
+
+	t.Run("Should accept only named text size and letter spacing steps", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name   string
+			path   string
+			mutate func(*ShellAppearanceConfig)
+			valid  bool
+		}{
+			{
+				name:   "unset size",
+				path:   shellAppearanceTextSizePath,
+				mutate: func(*ShellAppearanceConfig) {},
+				valid:  true,
+			},
+			{name: "default size", path: shellAppearanceTextSizePath, valid: true,
+				mutate: func(c *ShellAppearanceConfig) { c.TextSize = ShellTextSizeDefault }},
+			{name: "larger size", path: shellAppearanceTextSizePath, valid: true,
+				mutate: func(c *ShellAppearanceConfig) { c.TextSize = ShellTextSizeLarger }},
+			{name: "numeric size", path: shellAppearanceTextSizePath,
+				mutate: func(c *ShellAppearanceConfig) { c.TextSize = "14px" }},
+			{name: "tight spacing", path: shellAppearanceLetterSpacingPath, valid: true,
+				mutate: func(c *ShellAppearanceConfig) { c.LetterSpacing = ShellLetterSpacingTight }},
+			{name: "wide spacing", path: shellAppearanceLetterSpacingPath, valid: true,
+				mutate: func(c *ShellAppearanceConfig) { c.LetterSpacing = ShellLetterSpacingWide }},
+			{name: "em spacing", path: shellAppearanceLetterSpacingPath,
+				mutate: func(c *ShellAppearanceConfig) { c.LetterSpacing = "0.01em" }},
+		}
+		for _, testCase := range cases {
+			t.Run("Should handle "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := DefaultShellConfig()
+				testCase.mutate(&cfg.Appearance)
+				err := cfg.Validate()
+				if testCase.valid {
+					if err != nil {
+						t.Fatalf("Validate() error = %v", err)
+					}
+					return
+				}
+				validationErr, ok := errors.AsType[ValidationError](err)
+				if !ok || validationErr.Code != shellConfigInvalidCode || validationErr.Path != testCase.path {
+					t.Fatalf("Validate() error = %v, want %s validation error", err, testCase.path)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject unknown keys under shell appearance", func(t *testing.T) {
 		t.Parallel()
 

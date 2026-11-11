@@ -38,4 +38,18 @@
   } catch {
     // Storage unavailable or corrupt: keep the built-in stacks.
   }
+
+  // Appearance text size and letter spacing: the last applied
+  // `--user-text-scale` / `--user-tracking-body`, cached by
+  // web/src/systems/theme/lib/type-appearance.ts (TYPE_STORAGE_KEY,
+  // TEXT_SCALE_VARIABLE, TRACKING_VARIABLE) — change together. Painting them
+  // before first paint keeps a chosen size from jumping once the daemon answers.
+  try {
+    var type = JSON.parse(window.localStorage.getItem("compozy.type") || "{}");
+    ["--user-text-scale", "--user-tracking-body"].forEach(function (name) {
+      if (typeof type[name] === "string") root.style.setProperty(name, type[name]);
+    });
+  } catch {
+    // Storage unavailable or corrupt: keep the built-in type scale.
+  }
 })();

@@ -11,17 +11,21 @@ import {
   CommandSelectTrigger,
 } from "@compozy/ui";
 
+// Leaf modules, not the `@/systems/theme` barrel: it re-exports the daemon-bound
+// font hook, and this picker renders in prototypes from fixtures.
 import {
   FONT_CATALOG,
   fontLabel,
   isStorableFontFamily,
   preloadCatalogFonts,
   previewFontFamily,
+  type FontRole,
+} from "@/systems/theme/lib/font-appearance";
+import {
   queryInstalledFonts,
   supportsInstalledFonts,
-  type FontRole,
   type InstalledFonts,
-} from "@/systems/theme";
+} from "@/systems/theme/lib/installed-fonts";
 
 interface FontPickerProps {
   role: FontRole;
@@ -29,6 +33,8 @@ interface FontPickerProps {
   value: string;
   label: string;
   onChange: (family: string) => void;
+  /** Opens the list on mount (prototype states that review the open picker). */
+  defaultOpen?: boolean;
   "data-testid"?: string;
 }
 
@@ -43,9 +49,10 @@ export function FontPicker({
   value,
   label,
   onChange,
+  defaultOpen = false,
   "data-testid": testId,
 }: FontPickerProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [search, setSearch] = useState("");
   const [installed, setInstalled] = useState<InstalledFonts | null>(null);
 

@@ -5225,7 +5225,9 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	if err := json.Unmarshal([]byte(`{"oneOf":[
 		{"type":"object","additionalProperties":false,"properties":{
 			"ui_font":{"type":"string","nullable":true,"maxLength":128},
-			"mono_font":{"type":"string","nullable":true,"maxLength":128}
+			"mono_font":{"type":"string","nullable":true,"maxLength":128},
+			"text_size":{"type":"string","nullable":true,"enum":["small","default","large","larger"]},
+			"letter_spacing":{"type":"string","nullable":true,"enum":["tight","default","relaxed","wide"]}
 		}},
 		{"enum":[null],"nullable":true}
 	]}`), &appearance); err != nil {

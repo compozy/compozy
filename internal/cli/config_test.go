@@ -1254,7 +1254,7 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		}
 	})
 
-	t.Run("Should send only the selected shell font through the daemon", func(t *testing.T) {
+	t.Run("Should send only the selected shell appearance value through the daemon", func(t *testing.T) {
 		t.Parallel()
 
 		calls := 0
@@ -1299,6 +1299,26 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		}
 		if calls != 1 {
 			t.Fatalf("UpdateSettingsShell calls = %d, want unsafe font rejected before the daemon", calls)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "set", "shell.appearance.text_size", "large", "-o", "json",
+		); err != nil {
+			t.Fatalf("config set shell.appearance.text_size error = %v", err)
+		}
+		appearance = captured.Config.Appearance
+		if appearance == nil || appearance.MonoFont != nil || appearance.LetterSpacing != nil ||
+			appearance.TextSize == nil || *appearance.TextSize != contract.SettingsShellTextSizeLarge {
+			t.Fatalf("daemon shell payload = %#v, want only text_size=large", captured.Config)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "set", "shell.appearance.letter_spacing", "loose", "-o", "json",
+		); err == nil || !strings.Contains(err.Error(), "shell.appearance.letter_spacing") {
+			t.Fatalf("config set unknown letter_spacing error = %v, want shell.appearance.letter_spacing error", err)
+		}
+		if calls != 2 {
+			t.Fatalf("UpdateSettingsShell calls = %d, want unknown spacing rejected before the daemon", calls)
 		}
 	})
 
