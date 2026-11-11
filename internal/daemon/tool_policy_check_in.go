@@ -154,15 +154,7 @@ func (r *nativeToolPolicyResolver) bindMainCheckInCeiling(
 		if !decision.ApprovalRequired {
 			return true
 		}
-		if r.approvalGrants == nil {
-			return false
-		}
-		key, err := toolApprovalGrantKey(mainScope, toolspkg.CallRequest{Input: input}, d.ID)
-		if err != nil {
-			return false
-		}
-		grant, found, err := r.approvalGrants.LookupApprovalGrant(callCtx, key)
-		return err == nil && found && grant.Decision == toolspkg.ApprovalGrantAllow
+		return r.checkInApprovalAllows(callCtx, mainScope, d, input)
 	}
 	policy.Ceiling = func(d toolspkg.Descriptor, input json.RawMessage) bool { return evaluate(ctx, d, input, true) }
 	policy.RunsUnattended = func(callCtx context.Context, d toolspkg.Descriptor, input json.RawMessage) bool {
@@ -233,4 +225,20 @@ func (r *nativeToolPolicyResolver) applyResolvedMCPReadAuthority(
 		}
 	}
 	return nil
+}
+
+func (r *nativeToolPolicyResolver) checkInApprovalAllows(
+	ctx context.Context, scope toolspkg.Scope, descriptor toolspkg.Descriptor, input json.RawMessage,
+) bool {
+	if r.approvalGrants == nil {
+		return false
+	}
+	key, err := toolApprovalGrantKey(scope, toolspkg.CallRequest{
+		Input: toolspkg.ApprovalOperationInput(descriptor, input),
+	}, descriptor.ID)
+	if err != nil {
+		return false
+	}
+	grant, found, err := r.approvalGrants.LookupApprovalGrant(ctx, key)
+	return err == nil && found && grant.Decision == toolspkg.ApprovalGrantAllow
 }

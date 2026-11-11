@@ -65,8 +65,11 @@ func declaredNodeOutputSchema(resolved *ResolvedDefinition, node dsl.Node) (json
 		}
 	default:
 		if resolved != nil {
-			if snapshot, ok := resolved.ToolSchemas[node.Kind]; ok && len(snapshot.OutputSchema) > 0 {
-				return cloneRawMessage(snapshot.OutputSchema), nil
+			if snapshot, ok := resolved.ToolSchemas[node.Kind]; ok {
+				raw, _ := snapshot.OutputSchemaFor(nodeResultView(node))
+				if len(raw) > 0 {
+					return cloneRawMessage(raw), nil
+				}
 			}
 		}
 	}

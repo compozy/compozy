@@ -308,7 +308,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
-				`{"scope":"global","name":"reviewer","provider":"claude","prompt":"Review.",` +
+				`{"result_view":"full","scope":"global","name":"reviewer","provider":"claude","prompt":"Review.",` +
 					`"fallback_chain":[{"provider":"claude","model":"opus-4-8","command":"` + command + `"},` +
 					`{"provider":"codex","model":"gpt-5.6-terra","reasoning_effort":"high"}]}`,
 			),

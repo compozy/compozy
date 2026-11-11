@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// RunReviewRequest is a daemon API value.
+type RunReviewRequest struct {
+	TaskID         string       `json:"task_id"`
+	RunID          string       `json:"run_id"`
+	ReviewRound    int          `json:"review_round,omitzero"`
+	Attempt        int          `json:"attempt,omitzero"`
+	Policy         ReviewPolicy `json:"policy,omitempty"`
+	ParentReviewID string       `json:"parent_review_id,omitempty"`
+	Reason         string       `json:"reason,omitempty"`
+	DeadlineAt     time.Time    `json:"deadline_at"`
+}
+
+// RunReviewStatus is a daemon API value.
+type RunReviewStatus string
+
 // RunReviewSummary is a daemon API value.
 type RunReviewSummary struct {
 	ReviewID      string `json:"review_id"`
@@ -427,23 +442,4 @@ type SessionAttentionSummaryPayload struct {
 	NeedsYou          int                                `json:"needs_you"`
 	Finished          int                                `json:"finished"`
 	ByWorkspace       []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
-}
-
-// SessionBoardCountsPayload is a daemon API value.
-type SessionBoardCountsPayload struct {
-	NeedsYou int `json:"needs_you"`
-	Working  int `json:"working"`
-	Waiting  int `json:"waiting"`
-	InReview int `json:"in_review"`
-	Done     int `json:"done"`
-}
-
-// SessionCatalogEventPayload is a daemon API value.
-type SessionCatalogEventPayload struct {
-	ExecutionLocationChanged bool   `json:"execution_location_changed,omitempty"`
-	Kind                     string `json:"kind"`
-	ProfileID                string `json:"profile_id"`
-	ProfileName              string `json:"profile_name"`
-	WorkspaceID              string `json:"workspace_id"`
-	SessionID                string `json:"session_id"`
 }

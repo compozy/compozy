@@ -146,13 +146,16 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{
-		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
-		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID, readScope),
-		nativeToolsAgentsKey:    core.AgentPayloadsFromEntries(agents, &resolved.Config),
-		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
-		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
-	}, workspaceID)
+	return (resultViews[workspaceDescribeResult]{
+		Compact: compactWorkspaceDescribe,
+		Preview: func(workspaceDescribeResult) string { return workspaceID },
+	}).result(req.View, workspaceDescribeResult{
+		Workspace: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
+		Sessions:  core.SessionPayloadsForWorkspace(sessions, workspaceID, readScope),
+		Agents:    core.AgentPayloadsFromEntries(agents, &resolved.Config),
+		Skills:    core.WorkspaceSkillPayloads(resolved.Skills),
+		Providers: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+	})
 }
 
 func (n *daemonNativeTools) listLogs(
@@ -216,7 +219,10 @@ func (n *daemonNativeTools) observeMetrics(
 			result["agent_instance_picks_total"] = metrics.Picks
 		}
 	}
-	return structuredResult(result, payload.Status)
+	return (resultViews[map[string]any]{
+		Compact: compactObserveMetrics,
+		Preview: func(map[string]any) string { return payload.Status },
+	}).result(req.View, result)
 }
 
 func (n *daemonNativeTools) observeSearch(

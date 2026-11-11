@@ -123,7 +123,10 @@ func (n *daemonNativeTools) providerModelsList(
 	if disabledErr := cfg.RequireEnabledProvider(providerID); disabledErr != nil {
 		summary += "; " + disabledErr.Error() + " (provider_disabled)"
 	}
-	return structuredResult(payload, summary)
+	return (resultViews[contract.ProviderModelListResponse]{
+		Compact: compactProviderModels,
+		Preview: func(contract.ProviderModelListResponse) string { return summary },
+	}).result(req.View, payload)
 }
 
 // selectionConfig resolves the caller's effective config for selection filtering: the scope's
@@ -222,7 +225,12 @@ func (n *daemonNativeTools) providerModelsCurate(
 		Apply:        core.SettingsApplyResponseFromResult(result.Apply),
 		DefaultSpeed: result.DefaultSpeed,
 	}
-	return structuredResult(payload, fmt.Sprintf("curated provider model %s/%s", providerID, result.Model.ModelID))
+	return (resultViews[*contract.ProviderModelCurationResponse]{
+		Compact: compactProviderCuration,
+		Preview: func(*contract.ProviderModelCurationResponse) string {
+			return fmt.Sprintf("curated provider model %s/%s", providerID, result.Model.ModelID)
+		},
+	}).result(req.View, &payload)
 }
 
 func (n *daemonNativeTools) settingsService() core.SettingsService {

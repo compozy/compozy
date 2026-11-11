@@ -206,7 +206,7 @@ If the sender was stopped anyway (a daemon restart or an agent crash), the reply
 and delivers the wake once. A sender you stopped yourself stays stopped and receives the wake when you
 resume it.
 
-`compozy__session_status`, the session status HTTP response, and `compozy session status <id> -o json`
+`compozy__session_status` with `result_view: "full"`, the session status HTTP response, and `compozy session status <id> -o json`
 include `reply_watches` while they are `armed` or `fired`. Each item identifies the watch, target
 session, message, state, and creation time. The human CLI shows a **Waiting for replies** section.
 Delivered and abandoned watches disappear from this list.

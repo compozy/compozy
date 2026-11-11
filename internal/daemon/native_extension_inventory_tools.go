@@ -80,10 +80,11 @@ func (n *daemonNativeTools) extensionList(
 		}
 		items = selected
 	}
-	return structuredResult(
-		map[string]any{nativeExtensionToolsExtensionsKey: items},
-		fmt.Sprintf("%d installed extensions", len(items)),
-	)
+	return (resultViews[[]contract.ExtensionPayload]{
+		Compact: compactExtensionList,
+		Full:    func(p []contract.ExtensionPayload) any { return map[string]any{"extensions": p} },
+		Preview: func(p []contract.ExtensionPayload) string { return fmt.Sprintf("%d installed extensions", len(p)) },
+	}).result(req.View, items)
 }
 
 func (n *daemonNativeTools) extensionInfo(
@@ -112,7 +113,10 @@ func (n *daemonNativeTools) extensionInfo(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
+	return (resultViews[*contract.InstallExtensionResponse]{
+		Compact: compactExtensionRecord,
+		Preview: func(*contract.InstallExtensionResponse) string { return item.Name },
+	}).result(req.View, &contract.InstallExtensionResponse{Extension: item})
 }
 
 func nativeExtensionDefaultRead(actor taskpkg.ActorContext) bool {

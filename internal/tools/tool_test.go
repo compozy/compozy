@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"unsafe"
@@ -344,7 +346,32 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 			if unsafe.Sizeof(Tool{}) >= 512 {
 				t.Fatal("Tool exceeds the by-value copy budget")
 			}
-			for _, metadata := range []*ToolExecutionMetadata{nil, NewToolExecutionMetadata(true, ErrorCodeInvalidRequest, 4096)} {
+			views := &ResultViews{
+				Compact: ResultViewContract{
+					Schema: json.RawMessage(`{"type":"object","additionalProperties":false}`),
+				},
+				Full:                     ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
+				PreViewInputSchemaDigest: "private-translation-digest",
+			}
+			d := validDescriptor()
+			d.SetResultViews(views)
+			views.Full.Schema[0] = '!'
+			if d.ResultViews().Full.Schema[0] != '{' {
+				t.Fatal("setter leaked mutable views")
+			}
+			if (Descriptor{}).ResultViews() != nil || (Tool{}).ResultViews() != nil {
+				t.Fatal("zero metadata has views")
+			}
+			encoded, err := json.Marshal(d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(encoded, []byte("private-translation-digest")) ||
+				bytes.Contains(encoded, []byte("PreViewInputSchemaDigest")) {
+				t.Fatal("internal translation digest leaked onto the wire")
+			}
+			for _, metadata := range []*ToolExecutionMetadata{nil, NewToolExecutionMetadata(true, ErrorCodeInvalidRequest, 4096),
+				NewToolExecutionMetadata(false, "", 0, &ResultViews{Compact: ResultViewContract{Schema: json.RawMessage(`{"type":"object","additionalProperties":false}`)}, Full: ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)}})} {
 				descriptor := validDescriptor()
 				descriptor.ToolExecutionMetadata = metadata
 				want := descriptor.ExecutionMetadata()
@@ -352,28 +379,54 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				var object map[string]json.RawMessage
+				if err := json.Unmarshal(wire, &object); err != nil {
+					t.Fatal(err)
+				}
+				_, hasViews := object["output_views"]
+				if hasViews != (want.OutputViews != nil) {
+					t.Fatalf("top-level views presence: %s", wire)
+				}
+				if _, nested := object["ToolExecutionMetadata"]; nested {
+					t.Fatal("metadata must remain flat")
+				}
 				var cold Tool
 				if err := json.Unmarshal(wire, &cold); err != nil {
 					t.Fatal(err)
 				}
-				if cold.ExecutionMetadata() != want {
+				if !reflect.DeepEqual(cold.ExecutionMetadata(), want) {
 					t.Fatalf("flat wire metadata lost: %s", wire)
 				}
 				var decoded Descriptor
 				if err := json.Unmarshal(wire, &decoded); err != nil {
 					t.Fatal(err)
 				}
-				if decoded.ExecutionMetadata() != want {
+				if !reflect.DeepEqual(decoded.ExecutionMetadata(), want) {
 					t.Fatal(decoded.ExecutionMetadata())
 				}
+				safe := descriptor.ExecutionMetadata()
+				safeViews := descriptor.ResultViews()
+				coldViews := cold.ResultViews()
+				if safe.OutputViews != nil {
+					safe.OutputViews.Full.Schema[0] = '!'
+					safeViews.Full.Schema[0] = '!'
+					coldViews.Full.Schema[0] = '!'
+					if !reflect.DeepEqual(descriptor.ExecutionMetadata(), want) ||
+						!reflect.DeepEqual(cold.ExecutionMetadata(), want) {
+						t.Fatal("accessor leaked mutable views")
+					}
+				}
 				for _, copied := range []Descriptor{cloneDescriptor(descriptor), descriptor.Tool().Descriptor(), cold.Descriptor()} {
-					if copied.ExecutionMetadata() != want {
+					if !reflect.DeepEqual(copied.ExecutionMetadata(), want) {
 						t.Fatal(copied.ExecutionMetadata())
 					}
 					if copied.ToolExecutionMetadata != nil {
 						copied.InputErrorCode = "changed"
 						copied.Idempotent = false
-						if descriptor.ExecutionMetadata() != want {
+						if copied.OutputViews != nil {
+							copied.OutputViews.Full.Schema[0] = '!'
+						}
+						if !reflect.DeepEqual(descriptor.ExecutionMetadata(), want) {
 							t.Fatal("execution metadata shared across copies")
 						}
 					}
@@ -845,4 +898,110 @@ func TestSourceKindJSON(t *testing.T) {
 func fmtErrorFromCanonicalSegment(raw string) error {
 	_, err := CanonicalIDSegment(raw)
 	return err
+}
+
+func TestResultViewDescriptorContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should round trip and isolate both view schemas and digests", func(t *testing.T) {
+		t.Parallel()
+		d := resultViewDispatchDescriptor()
+		normalized, err := DescriptorWithSchemaDigests(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fullDigest, err := SchemaDigest(d.OutputViews.Full.Schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if normalized.OutputViews.Full.Digest != fullDigest ||
+			normalized.OutputViews.Compact.Digest != normalized.OutputSchemaDigest {
+			t.Fatalf("digests=%#v", normalized.OutputViews)
+		}
+		round := normalized.Tool().Descriptor()
+		if !reflect.DeepEqual(round.OutputViews, normalized.OutputViews) {
+			t.Fatalf("round trip=%#v", round.OutputViews)
+		}
+		cloned := cloneDescriptor(round)
+		cloned.OutputViews.Full.Schema[0] = '!'
+		if normalized.OutputViews.Full.Schema[0] != '{' || round.OutputViews.Full.Schema[0] != '{' {
+			t.Fatal("schema aliases clone")
+		}
+		for _, view := range []*ResultViewContract{&round.OutputViews.Compact, &round.OutputViews.Full} {
+			original := view.Digest
+			view.Digest = "wrong"
+			if _, err := DescriptorWithSchemaDigests(round); err == nil {
+				t.Fatal("mismatched digest accepted")
+			}
+			view.Digest = original
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Descriptor)
+	}{
+		{"Should reject an open compact root", func(d *Descriptor) {
+			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object"}`)
+			d.OutputSchema = d.OutputViews.Compact.Schema
+		}},
+		{"Should reject an open nested compact object", func(d *Descriptor) {
+			d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","properties":{"nested":{"type":"object"}},"additionalProperties":false}`)
+			d.OutputSchema = d.OutputViews.Compact.Schema
+		}},
+		{"Should reject a mismatched default schema", func(d *Descriptor) { d.OutputSchema = json.RawMessage(`{"type":"object"}`) }},
+		{"Should reject views on a non-native backend", func(d *Descriptor) {
+			other := extensionDenyAllDescriptor()
+			d.ID = other.ID
+			d.Backend = other.Backend
+			d.Source = other.Source
+		}},
+		{"Should reject views without the selector", func(d *Descriptor) { d.InputSchema = validDispatchDescriptor().InputSchema }},
+		{"Should reject a selector without views", func(d *Descriptor) { d.OutputViews = nil }},
+		{"Should reject a required selector", func(d *Descriptor) {
+			d.InputSchema = json.RawMessage(`{"type":"object","required":["result_view"],"properties":{"result_view":` + ResultViewSelectorSchema + `}}`)
+		}},
+		{"Should reject an annotated selector", func(d *Descriptor) {
+			d.InputSchema = json.RawMessage(`{"type":"object","properties":{"result_view":{"type":"string","enum":["compact","full"],"description":"extra"}}}`)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := resultViewDispatchDescriptor()
+			tc.mutate(&d)
+			if err := d.Validate(); err == nil {
+				t.Fatal("invalid descriptor accepted")
+			}
+		})
+	}
+	t.Run("Should allow explicitly free-form content maps", func(t *testing.T) {
+		t.Parallel()
+		d := resultViewDispatchDescriptor()
+		d.OutputViews.Compact.Schema = json.RawMessage(`{"type":"object","x-compozy-free-form":true}`)
+		d.OutputSchema = d.OutputViews.Compact.Schema
+		if err := d.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestApprovalOperationInput(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{
+		`{"result_view":"full","z":1e2,"a":{"result_view":"keep"}}`,
+		`{"z":1e2,"result_view":"compact","a":{"result_view":"keep"}}`,
+		`{"z":1e2,"a":{"result_view":"keep"},"result_view":"full"}`,
+		`{"z":1e2,"result_view":"full","a":{"result_view":"keep"},"result_view":"compact"}`,
+	} {
+		t.Run("Should preserve operation bytes for "+input, func(t *testing.T) {
+			t.Parallel()
+			d := resultViewDispatchDescriptor()
+			want := `{"z":1e2,"a":{"result_view":"keep"}}`
+			if got := ApprovalOperationInput(d, json.RawMessage(input)); string(got) != want {
+				t.Fatalf("got=%s want=%s", got, want)
+			}
+			d.Backend.Kind = BackendMCP
+			if got := ApprovalOperationInput(d, json.RawMessage(input)); string(got) != input {
+				t.Fatalf("non-native input=%s", got)
+			}
+		})
+	}
 }

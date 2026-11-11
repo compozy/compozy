@@ -70,14 +70,10 @@ func (n *daemonNativeTools) sessionMoveToProfile(
 		return toolspkg.ToolResult{}, nativeProfileMoveError(req.ToolID, err)
 	}
 	copyPayload := core.SessionPayloadFromInfo(result.Copy)
-	payload := map[string]any{
-		nativeToolsSessionKey: copyPayload,
-		"original":            core.SessionPayloadFromInfo(result.Original),
-	}
-	if result.WorktreeID != "" {
-		payload["worktree_id"], payload["branch"] = result.WorktreeID, result.Branch
-	}
-	return structuredResult(payload, copyPayload.ID)
+	return sessionMoveToProfileViews.result(req.View, sessionMoveToProfileResult{
+		Session: copyPayload, Original: core.SessionPayloadFromInfo(result.Original),
+		WorktreeID: result.WorktreeID, Branch: result.Branch,
+	})
 }
 
 // authorizeNativeProfileMove admits an agent's write to the target profile through the

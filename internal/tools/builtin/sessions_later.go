@@ -1,8 +1,6 @@
 package builtin
 
 import (
-	"encoding/json"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -24,8 +22,7 @@ func sessionLaterDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "later"},
 		[]string{"move session to later", "park session", "snooze session", "remind me later"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
 }
 
 func sessionResumeLaterDescriptor() toolspkg.Descriptor {
@@ -44,8 +41,7 @@ func sessionResumeLaterDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, "later"},
 		[]string{"back from later", "unpark session", "resume later session"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
 }
 
 const sessionLaterInputSchema = `{

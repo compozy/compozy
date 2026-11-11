@@ -1,0 +1,36 @@
+package builtin
+
+import toolspkg "github.com/compozy/compozy/internal/tools"
+
+var singleResultSession = map[toolspkg.ToolID]SingleResultReason{
+	toolspkg.ToolIDSessionApprove:             SingleResultMinimal,
+	toolspkg.ToolIDSessionChanges:             SingleResultContent,
+	toolspkg.ToolIDSessionClarifyAnswer:       SingleResultMinimal,
+	toolspkg.ToolIDSessionCompact:             SingleResultMinimal,
+	toolspkg.ToolIDSessionEvents:              SingleResultContent,
+	toolspkg.ToolIDSessionFolderCreate:        SingleResultMinimal,
+	toolspkg.ToolIDSessionFolderDelete:        SingleResultMinimal,
+	toolspkg.ToolIDSessionFolderList:          SingleResultMinimal,
+	toolspkg.ToolIDSessionFolderRename:        SingleResultMinimal,
+	toolspkg.ToolIDSessionFolderReorder:       SingleResultMinimal,
+	toolspkg.ToolIDSessionHealth:              SingleResultMinimal,
+	toolspkg.ToolIDSessionHistory:             SingleResultContent,
+	toolspkg.ToolIDSessionInputCancel:         SingleResultMinimal,
+	toolspkg.ToolIDSessionInputPromote:        SingleResultMinimal,
+	toolspkg.ToolIDSessionInputReplace:        SingleResultMinimal,
+	toolspkg.ToolIDSessionInputsClear:         SingleResultMinimal,
+	toolspkg.ToolIDSessionInputsList:          SingleResultContent,
+	toolspkg.ToolIDSessionLink:                SingleResultMinimal,
+	toolspkg.ToolIDSessionMove:                SingleResultMinimal,
+	toolspkg.ToolIDSessionOutline:             SingleResultContent,
+	toolspkg.ToolIDSessionPendingInteractions: SingleResultMinimal,
+	toolspkg.ToolIDSessionProcessesList:       SingleResultContent,
+	toolspkg.ToolIDSessionProcessesTerminate:  SingleResultMinimal,
+	toolspkg.ToolIDSessionPrompt:              SingleResultMinimal,
+	toolspkg.ToolIDSessionPromptCancel:        SingleResultMinimal,
+	toolspkg.ToolIDSessionReorder:             SingleResultMinimal,
+	toolspkg.ToolIDSessionSearch:              SingleResultContent,
+	toolspkg.ToolIDSessionStop:                SingleResultMinimal,
+	toolspkg.ToolIDSessionUnlink:              SingleResultMinimal,
+	toolspkg.ToolIDSessionWait:                SingleResultMinimal,
+}

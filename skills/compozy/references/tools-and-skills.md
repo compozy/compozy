@@ -73,7 +73,9 @@ Prefer `tool approve --input <json>` with the same input you will invoke. Approv
 native workspace names, paths, and inherited operator workspace selection to the same canonical
 input as dispatch. The returned `input_digest` describes that bound input. If supplying both input
 and `--input-digest`, the supplied digest must match the submitted JSON before binding. Digest-only
-approval requires the digest of the already-bound input. A pre-call hook that changes the final
+approval requires the digest of the already-bound input. Approval digests exclude `result_view`:
+compute a supplied digest on the input without the selector, or pass `--input` and let the daemon
+compute it. A pre-call hook that changes the final
 input still requires a matching approval; tokens remain single-use.
 
 ## Oversized Tool Results
@@ -86,10 +88,10 @@ tool reference. Pass the artifact URI unchanged; continue from `next_offset` unt
 Over hosted MCP, a truncated result still returns `structuredContent`: instead of the declared payload
 it carries the continuation envelope `{"truncated":true,"truncated_from_bytes":N,"preview":"...",
 "artifacts":[{"uri":"compozy://tool-artifacts/..."}],"read_tool":"compozy__tool_artifact_read"}`.
-Every hosted tool's advertised output schema accepts that envelope and the typed `{"error":{...}}`
-payload alongside its declared shape. Check `truncated` before reading declared fields. When your
-harness caps tool output size (Claude Code saves MCP results above its token cap to a file), request
-smaller artifact pages, for example `limit: 32768`, so each base64 page stays inline.
+Hosted native tools advertise no `outputSchema`. Structured continuations and typed
+`{"error":{...}}` payloads remain unchanged. Read result contracts through `compozy__tool_info`.
+Check `truncated` first and page retained results through `read_tool`; use smaller pages
+(for example `limit: 32768`) when the harness caps inline output.
 
 Workspace artifacts retain workspace-only ownership. User artifacts belong to User scope of the
 producing profile. Missing, expired, and foreign-scope references share the same not-found result,
@@ -358,7 +360,7 @@ Bundled `spec-cycle` globally publishes exactly `cy-create-spec` and `git-rebase
 
 ## Skill Provenance And Shadows
 
-Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for CompozyOS-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
+Full skill list/search results (`result_view: "full"`) and skill detail payloads include resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for CompozyOS-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
 
 Except for the reserved `compozy` runtime skill, multiple declarations use normal precedence and
 record losing declarations as shadows. Use these surfaces before assuming which skill body is active:
@@ -402,3 +404,73 @@ Read-only inspection tools may exist for these domains. Do not invent a mutating
 Hosted MCP descriptions include the authored instructions and canonical ID. Discovery tags, search
 hints and toolset membership remain available through tool descriptors and provider search metadata,
 without repeating them in every loaded tool description. Provider-visible server names are unchanged.
+
+## Result views and discovery
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+`compozy__tool_list` compact rows keep descriptor `id`, `risk` and `has_result_views`,
+availability, callable/approval decisions and reason codes; page fields stay unchanged.
+List rows have no description in either view. `compozy__tool_search` compact rows keep
+`description` and the two `output_views` digests instead of `has_result_views`.
+Pass `result_view: "full"` for the complete discovery records. `compozy__tool_info`
+stays whole and exposes both view schemas and digests.
+
+## Errors
+
+| Condition                                             | Code                 | Reason                            | Dispatch message                                                                       |
+| ----------------------------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
+| Unknown `result_view` value                           | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` is not a string                         | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` sent to a single-result tool            | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__skill_view" returns a single result and does not accept "result_view"` |
+| Loop node `result_view` is a template                 | lint                 | `result_view_not_literal`         | `node "inspect" params.result_view must be a literal "compact" or "full"`              |
+| Loop reference reads a field outside the compact view | lint                 | `result_view_field_requires_full` | `result_view_field_requires_full`, naming the source node and path                     |
+| A hook changed `result_view` on a Loop node's call    | `tool_denied`        | `result_view_pinned`              | `tool "compozy__session_status" result view is pinned to "full" by the caller`         |
+
+Tools that report input errors as `invalid_request` keep that code for the first three rows. In every
+case the tool does not run. The first three rows apply to native tools only: an extension or MCP tool
+that has its own input named `result_view` is not inspected and behaves as before.
+
+A path that neither view accepts keeps the existing Loop error `unresolvable_path`.
+
+CLI and HTTP/UDS errors retain the code and reason but redact the dispatch message to
+`invalid tool request` for input errors or `tool invocation denied` for denials. The table
+shows dispatch diagnostics, not a guaranteed verbatim CLI message.
+
+## Approvals
+
+`result_view` does not change which approval applies. An approval you remembered for a call matches
+the same call with `result_view: "full"` or `"compact"`, and approvals remembered before the upgrade
+keep matching. The approval prompt shows the input as sent, including the selector. If you mint a
+one-shot approval token from an input digest instead of an input, compute the digest on the input
+without `result_view`.
+
+Managed-session MCP advertises no `outputSchema` for native tools. Input schemas retain
+`result_view` where supported; results keep `structuredContent` plus serialized JSON text.
+Read both contracts through `compozy__tool_info`, CLI tool info, or HTTP/UDS descriptors (`output_views`).
+`compozy mcp serve` uses a separate `compozy_host__*` Host API projection without views or output schemas.
+Hooks see `has_result_views` on pre-call, post-call and post-error tool references;
+post-call adds `result_view`. A pre-call `tool_input` patch selects the returned view
+for the agent too. Leave calls with `pinned_result_view` unchanged; select the view
+in the Loop node instead.

@@ -227,7 +227,8 @@ root.
 
 ## Provenance And Shadow Audit
 
-Every skill list/detail payload includes `provenance.precedence_tier`, which is the resolver tier
+Full native skill list/search results (`result_view: "full"`), skill detail payloads, and
+HTTP/UDS skill list/detail payloads include `provenance.precedence_tier`, which is the resolver tier
 that won for that skill: `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`,
 `workspace_profile`, or `agent_local`. The separate `origin` field names the folder convention or
 custom directory it came from. Marketplace metadata remains in `slug`, `registry`, `version`, and

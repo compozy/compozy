@@ -658,3 +658,11 @@ then an independent check of the registered worktree's repository, branch, HEAD,
 and index. A mutable task slug or path is insufficient. Absent or stale proof preserves normal
 review execution; recovery never replaces the reviewed fingerprint with a newly calculated one.
 The proof permits 1–4096 exact selected file paths and rejects unknown object fields.
+
+## Native tool result views
+
+A native action node selects `compact` (default) or `full` through a literal
+`params.result_view`. Templates fail with `result_view_not_literal`. The selected view
+controls reference lint, output amendments, review response schemas and the contract pin;
+review edits cannot change it. A hook changing it fails with `tool_denied`, reason
+`result_view_pinned`. See [Result Views](/docs/tools/result-views#loops).

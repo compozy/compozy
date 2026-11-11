@@ -456,7 +456,7 @@ wake is waiting to be delivered, until the watch expires after `session.messagin
 Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
 Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`
-with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe`.
+with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe` with `result_view: "full"`.
 Signals are rebuilt from their owners after restart. They are not persisted as keep-alive flags.
 Expired evidence stops counting as work. A stale tool, stopping child, or Loop raises attention;
 a source inspection error is `unknown`, raises attention, and prevents an automatic inactivity stop

@@ -20,7 +20,7 @@ func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 			continue
 		}
 		if template != nil {
-			c.warnUnknownOutputReferences("", template.References, narrativeNamespace)
+			c.checkReferenceContracts("", template.References, narrativeNamespace)
 		}
 	}
 	if strings.TrimSpace(c.def.Contract.StopWhen.Expr) != "" {
@@ -28,7 +28,7 @@ func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 		if err != nil {
 			c.addRefsError("", err)
 		} else if condition != nil {
-			c.warnUnknownOutputReferences("", condition.References, namespace)
+			c.checkReferenceContracts("", condition.References, namespace)
 		}
 	}
 	for idx, criterion := range c.def.Contract.Verification {
@@ -40,7 +40,7 @@ func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 				continue
 			}
 			if template != nil {
-				c.warnUnknownOutputReferences("", template.References, namespace)
+				c.checkReferenceContracts("", template.References, namespace)
 			}
 		}
 	}
@@ -83,7 +83,7 @@ func (c *lintContext) lintNodeReferences(node dsl.Node, namespace refs.Namespace
 			continue
 		}
 		if template != nil {
-			c.warnUnknownOutputReferences(node.ID, template.References, namespace)
+			c.checkReferenceContracts(node.ID, template.References, namespace)
 		}
 		if isFanOutCollection(node, item.name) && template != nil && len(template.References) == 0 {
 			c.add(
@@ -101,7 +101,7 @@ func (c *lintContext) lintNodeReferences(node dsl.Node, namespace refs.Namespace
 			continue
 		}
 		if condition != nil {
-			c.warnUnknownOutputReferences(node.ID, condition.References, conditionNamespace)
+			c.checkReferenceContracts(node.ID, condition.References, conditionNamespace)
 		}
 	}
 	c.lintWatchEventsFilterReferences(node, namespace)
@@ -125,7 +125,7 @@ func (c *lintContext) lintTransformReferences(node dsl.Node, namespace refs.Name
 			c.addRefsError(node.ID, fmt.Errorf("params.map.%s.from: %w", key, err))
 			continue
 		}
-		c.warnUnknownOutputReferences(
+		c.checkReferenceContracts(
 			node.ID,
 			[]refs.Reference{{Raw: from, Path: append([]string(nil), path...)}},
 			namespace,
@@ -413,11 +413,7 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	nodes := map[string]refs.NodeSchema{}
 	gates := map[string]struct{}{}
 	for _, node := range c.def.Graph.Nodes {
-		schema, ok := c.outputSchema(node)
-		nodes[string(node.ID)] = refs.NodeSchema{
-			Output: schema, HasOutput: ok,
-			HasProgress: isControlKind(node, dsl.ControlFanOut),
-		}
+		nodes[string(node.ID)] = c.referenceNodeSchema(node)
 		if isControlKind(node, dsl.ControlGate) {
 			gates[string(node.ID)] = struct{}{}
 		}
@@ -458,28 +454,4 @@ func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {
 
 func isCollectNode(node dsl.Node) bool {
 	return node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlCollect
-}
-
-func (c *lintContext) warnUnknownOutputReferences(
-	nodeID dsl.NodeID,
-	references []refs.Reference,
-	namespace refs.Namespace,
-) {
-	for _, reference := range references {
-		if len(reference.Path) < 3 || reference.Path[0] != namespaceNodesKey ||
-			reference.Path[2] != namespaceOutputKey {
-			continue
-		}
-		node, ok := namespace.Nodes[reference.Path[1]]
-		if !ok || node.HasOutput {
-			continue
-		}
-		c.warn(
-			nodeID,
-			refs.CodeUnresolvablePath,
-			"node %q has no declared output schema; path %q cannot be proven",
-			reference.Path[1],
-			reference.Raw,
-		)
-	}
 }

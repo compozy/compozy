@@ -36,6 +36,8 @@ const loopRequestPayloadSchema = `{
 		"context","decisions","agents","opened_at"
 	],
 	"properties":{
+		"profile_id":{"type":"string"},
+		"workspace_id":{"type":"string"},
 		"loop_run_id":{"type":"string","minLength":1},
 		"loop_name":{"type":"string"},
 		"generation":{"type":"integer","minimum":1},

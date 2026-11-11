@@ -11,7 +11,7 @@ const (
 )
 
 var providerModelTools = []toolspkg.Descriptor{
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDProviderModelsList,
 		"provider_models_list",
 		"Provider Models List",
@@ -24,7 +24,7 @@ var providerModelTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
 		[]string{providerModelsProvidersKey, providerModelsModelsKey, descriptorKeywordCatalog},
 		[]string{"provider models", "model catalog", "list models"},
-	),
+	), providerListCompactOutputSchema, `{"type":"object"}`),
 	nativeDescriptor(
 		toolspkg.ToolIDProviderModelsRefresh,
 		"provider_models_refresh",
@@ -59,7 +59,7 @@ var providerModelTools = []toolspkg.Descriptor{
 		[]string{"provider model status", "model catalog status"},
 	),
 	withRequiredCapabilities(
-		nativeDescriptor(
+		withResultViews(nativeDescriptor(
 			toolspkg.ToolIDProviderModelsCurate,
 			"provider_models_curate",
 			"Provider Models Curate",
@@ -72,7 +72,7 @@ var providerModelTools = []toolspkg.Descriptor{
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
 			[]string{providerModelsProvidersKey, providerModelsModelsKey, descriptorKeywordCatalog, "curate"},
 			[]string{"curate provider model", "hide model", "feature model", "set model reasoning default"},
-		),
+		), providerCurateCompactOutputSchema, `{"type":"object"}`),
 		"providers.models.write",
 	),
 }

@@ -29,8 +29,8 @@ fabricated durable URI. Confirm the Web card preserves the preview through loadi
 retry states.
 
 Through hosted MCP, call an oversized native tool (for example `compozy__session_events` with
-`limit: 1000` on a session above the budget) from a real MCP client that validates output schemas
-(Claude Code). Require a successful call whose `structuredContent` is the continuation envelope
+`limit: 1000` on a session above the budget) from a real MCP client
+(Claude Code). Confirm hosted native tools omit `outputSchema` and preserve `structuredContent`. Require a successful call whose `structuredContent` is the continuation envelope
 (`truncated: true`, `truncated_from_bytes`, `preview`, `artifacts[].uri`, `read_tool`), then page
 the artifact with `compozy__tool_artifact_read` to `eof` and match the retained bytes to the URI
 digest. Confirm `compozy__session_events` and `compozy__session_history` without `limit` return

@@ -57,12 +57,13 @@ type WorkspaceSeedOptions struct {
 }
 
 type configSeedFile struct {
-	Daemon      *configSeedDaemonSection      `toml:"daemon,omitempty"`
-	HTTP        *configSeedHTTPSection        `toml:"http,omitempty"`
-	Defaults    *configSeedDefaultsSection    `toml:"defaults,omitempty"`
-	Permissions *configSeedPermissionsSection `toml:"permissions,omitempty"`
-	Session     *compozyconfig.SessionConfig  `toml:"session,omitempty"`
-	Roles       *compozyconfig.RolesConfig    `toml:"roles,omitempty"`
+	Daemon        *configSeedDaemonSection           `toml:"daemon,omitempty"`
+	HTTP          *configSeedHTTPSection             `toml:"http,omitempty"`
+	Defaults      *configSeedDefaultsSection         `toml:"defaults,omitempty"`
+	Permissions   *configSeedPermissionsSection      `toml:"permissions,omitempty"`
+	Session       *compozyconfig.SessionConfig       `toml:"session,omitempty"`
+	Roles         *compozyconfig.RolesConfig         `toml:"roles,omitempty"`
+	ProviderUsage *compozyconfig.ProviderUsageConfig `toml:"provider_usage,omitempty"`
 
 	Tools       *compozyconfig.ToolsConfig              `toml:"tools,omitempty"`
 	Marketplace *compozyconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
@@ -167,8 +168,9 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 			Agent:    cfg.Defaults.Agent,
 			Provider: cfg.Defaults.Provider,
 		},
-		Session: cloneSessionConfig(cfg.Session),
-		Roles:   cloneRolesConfig(&cfg.Roles),
+		Session:       cloneSessionConfig(cfg.Session),
+		Roles:         cloneRolesConfig(&cfg.Roles),
+		ProviderUsage: &cfg.ProviderUsage,
 
 		Tools:       cloneToolsConfig(&cfg.Tools),
 		Marketplace: &cfg.Marketplace,

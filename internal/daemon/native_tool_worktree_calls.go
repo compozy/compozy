@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
+
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -61,7 +63,10 @@ func (n *daemonNativeTools) worktreeList(
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
 	}
 	payload := core.WorktreesPayloadFromListing(listing, input.IncludeRemoved)
-	return structuredResult(payload, fmt.Sprintf("%d worktrees", len(payload.Worktrees)))
+	return (resultViews[contract.WorktreesResponse]{
+		Compact: compactWorktrees,
+		Preview: func(contract.WorktreesResponse) string { return fmt.Sprintf("%d worktrees", len(payload.Worktrees)) },
+	}).result(req.View, payload)
 }
 
 func (n *daemonNativeTools) worktreeInspect(

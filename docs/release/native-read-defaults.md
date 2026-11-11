@@ -15,7 +15,7 @@ checkouts retain their visibility.
 
 Tool search defaults to 20 matches and caps a page at 100. Set `offset` to `next_offset` while
 `has_more` is true, keeping the same query. CLI uses `--limit` and `--offset`. Complete descriptors
-remain available on every returned row and through tool info.
+remain available in the full native result view, HTTP/UDS search rows, and through tool info.
 
 These are regime-2 public default changes, shipped directly under the scoped operator-approved
 exception for these three read families, with this migration block. Other public surfaces retain

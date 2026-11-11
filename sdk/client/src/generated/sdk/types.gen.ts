@@ -6604,6 +6604,16 @@ export type RestartProgress = {
   updated_at: string;
 };
 
+export type ResultViewContract = {
+  digest?: string;
+  schema: unknown;
+};
+
+export type ResultViews = {
+  compact: ResultViewContract;
+  full: ResultViewContract;
+};
+
 export type ResumeSessionFromLaterRequest = {
   with_children?: boolean;
 };
@@ -12111,6 +12121,7 @@ export type ToolDescriptorPayload = {
   open_world: boolean;
   output_schema?: unknown;
   output_schema_digest?: string;
+  output_views?: ResultViews | null;
   preview?: string;
   read_only: boolean;
   requires_interaction: boolean;

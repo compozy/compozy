@@ -115,6 +115,8 @@ func approvalBridgeError(id ToolID, message string, err error, reasons ...Reason
 }
 
 func mergeHookCallRequest(original CallRequest, patched CallRequest) CallRequest {
+	patched.PinnedView = original.PinnedView
+	patched.View = ""
 	if patched.ToolID == "" {
 		patched.ToolID = original.ToolID
 	}

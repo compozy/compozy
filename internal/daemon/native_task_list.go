@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -56,7 +57,12 @@ func (n *daemonNativeTools) taskList(
 		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
 	}
 	response := core.TaskCatalogResponseFromPage(page)
-	return structuredResult(response, fmt.Sprintf("%d of %d tasks", len(response.Tasks), response.Page.Total))
+	return (resultViews[contract.TasksResponse]{
+		Compact: viewTaskList,
+		Preview: func(contract.TasksResponse) string {
+			return fmt.Sprintf("%d of %d tasks", len(response.Tasks), response.Page.Total)
+		},
+	}).result(req.View, response)
 }
 
 func (i taskListInput) query() taskpkg.CatalogQuery {

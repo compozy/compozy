@@ -434,3 +434,23 @@ func TestShortSocketPathUsesTempDirAndAllowsEarlyRemoval(t *testing.T) {
 		t.Fatalf("os.Remove(%q) error = %v", path, err)
 	}
 }
+
+func TestSeedConfigPersistsProviderUsageOverlay(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep provider usage disabled in a provider-free lab", func(t *testing.T) {
+		t.Parallel()
+		home := NewHomePaths(t)
+		SeedConfig(
+			t,
+			home,
+			ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) { cfg.ProviderUsage.Enabled = false }},
+		)
+		loaded, err := compozyconfig.LoadForHome(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if loaded.ProviderUsage.Enabled {
+			t.Fatal("provider usage enabled despite the lab configuration")
+		}
+	})
+}

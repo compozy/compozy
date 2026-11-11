@@ -35,7 +35,7 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{extensionsExtensionsKey, extensionsAuthoringKey, "init"},
 		[]string{"create extension project", "scaffold extension"},
 	),
-	nativeInteractiveExtensionDescriptor(
+	withResultViews(nativeInteractiveExtensionDescriptor(
 		toolspkg.ToolIDExtensionsBuild,
 		"extensions_build",
 		"Extensions Build",
@@ -46,7 +46,7 @@ var extensionTools = []toolspkg.Descriptor{
 		false,
 		[]string{extensionsExtensionsKey, extensionsAuthoringKey, "build"},
 		[]string{"build extension", "compile extension"},
-	),
+	), extensionsBuildCompactOutputSchema, `{"type":"object"}`),
 	nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsValidate,
 		"extensions_validate",
@@ -59,7 +59,7 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{extensionsExtensionsKey, extensionsAuthoringKey, descriptorKeywordValidate},
 		[]string{"validate extension", "check extension bundle"},
 	),
-	nativeInteractiveExtensionDescriptor(
+	withResultViews(nativeInteractiveExtensionDescriptor(
 		toolspkg.ToolIDExtensionsDev,
 		"extensions_dev",
 		"Extensions Dev",
@@ -70,8 +70,8 @@ var extensionTools = []toolspkg.Descriptor{
 		false,
 		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, extensionsMutationKey},
 		[]string{"link development extension", "dev extension"},
-	),
-	nativeInteractiveExtensionDescriptor(
+	), extensionsSingleCompactOutputSchema, `{"type":"object"}`),
+	withResultViews(nativeInteractiveExtensionDescriptor(
 		toolspkg.ToolIDExtensionsReload,
 		"extensions_reload",
 		"Extensions Reload",
@@ -82,7 +82,7 @@ var extensionTools = []toolspkg.Descriptor{
 		false,
 		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, "reload"},
 		[]string{"reload extension", "restart dev extension"},
-	),
+	), extensionsSingleCompactOutputSchema, `{"type":"object"}`),
 	nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsLogs,
 		"extensions_logs",
@@ -95,7 +95,7 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, "logs"},
 		[]string{"extension logs", "extension stderr"},
 	),
-	nativeExtensionDescriptorWithOutput(
+	withResultViews(nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsList,
 		"extensions_list",
 		"Extensions List",
@@ -106,8 +106,8 @@ var extensionTools = []toolspkg.Descriptor{
 		true,
 		[]string{extensionsExtensionsKey, "installed", extensionsCatalogKey},
 		[]string{"installed extensions", "extension status"},
-	),
-	nativeExtensionDescriptorWithOutput(
+	), extensionsListCompactOutputSchema, extensionListOutputSchema),
+	withResultViews(nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsInfo,
 		"extensions_info",
 		"Extensions Info",
@@ -118,7 +118,7 @@ var extensionTools = []toolspkg.Descriptor{
 		true,
 		[]string{extensionsExtensionsKey, extensionsStatusKey},
 		[]string{"extension info", "extension status"},
-	),
+	), extensionsSingleCompactOutputSchema, extensionSingleOutputSchema),
 	nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsInventory,
 		"extensions_inventory",
@@ -131,7 +131,7 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{extensionsExtensionsKey, extensionsStatusKey, "inventory", "resources"},
 		[]string{"extension inventory", "extension resources"},
 	),
-	nativeExtensionDescriptorWithOutput(
+	withResultViews(nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsInstall,
 		"extensions_install",
 		"Extensions Install",
@@ -142,7 +142,7 @@ var extensionTools = []toolspkg.Descriptor{
 		false,
 		[]string{extensionsExtensionsKey, "install", extensionsMarketplaceKey, extensionsMutationKey},
 		[]string{"install extension", "add extension"},
-	),
+	), extensionsSingleCompactOutputSchema, extensionSingleOutputSchema),
 	nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsUpdate,
 		"extensions_update",

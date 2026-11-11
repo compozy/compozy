@@ -12,7 +12,7 @@ const (
 )
 
 var authoredContextTools = []toolspkg.Descriptor{
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentHeartbeatSources,
 		"agent_heartbeat_sources",
 		"Agent Heartbeat Sources",
@@ -25,7 +25,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
 		[]string{descriptorKeywordAgents, authoredContextHeartbeatKey, "sources"},
 		[]string{"check-in sources"},
-	),
+	), agentHeartbeatSourcesCompactOutputSchema, `{"type":"object"}`),
 	nativeDescriptor(
 		toolspkg.ToolIDSessionHealth,
 		"session_health",
@@ -40,7 +40,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		[]string{sessionsSessionsKey, authoredContextHealthKey, authoredContextHeartbeatKey},
 		[]string{"session health", "wake eligibility", "session liveness"},
 	),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDAgentHeartbeatStatus,
 		"agent_heartbeat_status",
 		"Agent Heartbeat Status",
@@ -54,7 +54,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
 		[]string{descriptorKeywordAgents, authoredContextHeartbeatKey, authoredContextStatusKey, wakeKeyword},
 		[]string{"heartbeat status", "wake audit", "agent heartbeat policy"},
-	),
+	), agentHeartbeatStatusCompactOutputSchema, `{"type":"object"}`),
 	nativeDescriptor(
 		toolspkg.ToolIDAgentHeartbeatWake,
 		"agent_heartbeat_wake",

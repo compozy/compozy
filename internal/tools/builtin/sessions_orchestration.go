@@ -17,7 +17,7 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 				"one or more sessions settle, use compozy__monitor_create with kind=session.",
 			sessionWaitInputSchema, sessionWaitOutputSchema, toolspkg.RiskRead, true, false,
 		),
-		orchestrationDescriptor(
+		withResultViews(orchestrationDescriptor(
 			toolspkg.ToolIDSessionSpawn,
 			"session_spawn",
 			"Session Spawn",
@@ -28,7 +28,7 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 			toolspkg.RiskMutating,
 			false,
 			false,
-		),
+		), sessionSpawnCompactOutputSchema, sessionSpawnOutputSchema),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionStop, "session_stop", "Session Stop",
 			"Stop one same-workspace session other than the caller.",

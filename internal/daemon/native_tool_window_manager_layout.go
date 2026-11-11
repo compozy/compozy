@@ -26,7 +26,7 @@ func (n *daemonNativeTools) layoutGet(
 		Revision:    snapshot.Revision,
 		Snapshot:    snapshot,
 	}
-	return structuredResult(payload, fmt.Sprintf("read layout at revision %d", snapshot.Revision))
+	return layoutGetViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) layoutPreview(

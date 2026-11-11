@@ -564,3 +564,10 @@ An action flag (`auto_accept: true`; UI "Do it without asking me"). The daemon p
 ### Pick
 
 The recorded choice of one proposal, by the operator or by auto-accept, which queues one prompt to the instance's main session. Each proposal is picked at most once. Operator picks are operator-only (CLI index is 1-based, wire index 0-based); there is no native pick tool. UI: "Pick", "You picked", "Auto-accepted".
+
+## Result view
+
+A native tool result contract selected by `result_view`: `compact` is the default projection
+and `full` is the complete record. Single-result tools do not accept the selector.
+This differs from registry `ToolView`, which combines a descriptor with availability and
+policy diagnostics; it is not a returned-record selection.

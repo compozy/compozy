@@ -196,19 +196,22 @@ func reconcileHostedTools(
 		view := views[i]
 		name := view.Descriptor.ID.String()
 		tool := hostedMCPTool(view.Descriptor)
-		fingerprint := hostedToolFingerprint(&tool)
+		requiresStructured := len(view.Descriptor.OutputSchema) > 0
+		if contracts := view.Descriptor.ResultViews(); contracts != nil {
+			requiresStructured = len(contracts.Compact.Schema) > 0
+		}
+		fingerprint := hostedToolFingerprint(&tool, requiresStructured)
 		next[name] = fingerprint
 		if fingerprint != "" && previous[name] == fingerprint {
 			continue
 		}
-		declaresOutput := tool.OutputSchema != nil
 		registry.AddTool(
 			&tool,
 			func(
 				ctx context.Context,
 				req *sdkmcp.CallToolRequest,
 			) (*sdkmcp.CallToolResult, error) {
-				return callHostedTool(ctx, client, bindID, declaresOutput, req)
+				return callHostedTool(ctx, client, bindID, requiresStructured, req)
 			},
 		)
 	}
@@ -229,12 +232,16 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 	readOnly := descriptor.ReadOnly
 	destructive := descriptor.Destructive
 	openWorld := descriptor.OpenWorld
+	var outputSchema any
+	if descriptor.Backend.Kind != tools.BackendNativeGo {
+		outputSchema = hostedOutputSchema(descriptor.OutputSchema)
+	}
 	return sdkmcp.Tool{
+		OutputSchema: outputSchema,
 		Name:         name,
 		Title:        descriptor.Presentation().DisplayTitle,
 		Description:  hostedToolDescription(descriptor),
 		InputSchema:  cloneRaw(descriptor.InputSchema),
-		OutputSchema: hostedOutputSchema(descriptor.OutputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,
@@ -246,8 +253,11 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 	}
 }
 
-func hostedToolFingerprint(tool *sdkmcp.Tool) string {
-	payload, err := json.Marshal(tool)
+func hostedToolFingerprint(tool *sdkmcp.Tool, requiresStructured bool) string {
+	payload, err := json.Marshal(struct {
+		Tool               *sdkmcp.Tool
+		RequiresStructured bool
+	}{tool, requiresStructured})
 	if err != nil {
 		// Invalid raw schema JSON cannot be fingerprinted safely. An empty
 		// fingerprint conservatively re-registers the tool on the next projection.
@@ -261,7 +271,7 @@ func callHostedTool(
 	ctx context.Context,
 	client HostedProxyClient,
 	bindID string,
-	declaresOutput bool,
+	requiresStructured bool,
 	req *sdkmcp.CallToolRequest,
 ) (*sdkmcp.CallToolResult, error) {
 	rawInput, err := rawArguments(req.Params.Arguments)
@@ -300,7 +310,7 @@ func callHostedTool(
 			IsError:           true,
 		}, nil
 	}
-	if declaresOutput {
+	if requiresStructured {
 		return hostedDeclaredToolResult(response.Result)
 	}
 	return hostedToolResult(response.Result)

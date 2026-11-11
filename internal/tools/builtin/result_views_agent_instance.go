@@ -1,0 +1,118 @@
+package builtin
+
+const agentInstanceRecordCompactOutputSchema = `{
+ "type":"object",
+ "required":["instance"],
+ "properties":{
+  "instance":` + agentInstanceCompactRecordSchema + `
+ },
+ "additionalProperties":false
+}`
+
+const agentInstanceListCompactOutputSchema = `{
+ "type":"object",
+ "required":["instances","max_active_instances","active_count","next_cursor"],
+ "properties":{
+  "instances":{"type":["array","null"],"items":` + agentInstanceCompactRecordSchema + `},
+  "peers":{"type":["array","null"],"items":{
+    "type":"object",
+    "required":["name","description","scope","state"],
+    "properties":{
+     "name":{"type":"string"},
+     "description":{"type":"string"},
+     "scope":{"type":"string"},
+     "state":{"type":"string"}
+    },
+    "additionalProperties":false
+  }},
+  "max_active_instances":{"type":"integer"},
+  "active_count":{"type":"integer"},
+  "next_cursor":{"type":"string"}
+ },
+ "additionalProperties":false
+}`
+
+const agentInstanceCompactRecordSchema = `{
+ "type":"object",
+ "required":[
+  "id",
+  "agent_name",
+  "label",
+  "workspace_id",
+  "scope",
+  "profile_id",
+  "profile_name",
+  "main_session_id",
+  "state",
+  "pause_reason",
+  "activity",
+  "needs_attention",
+  "attention_dismissible",
+  "authority_status",
+  "checks_enabled",
+  "created",
+  "held_wakes",
+  "failure_streak",
+  "unattended_turns",
+  "unattended_turn_limit",
+  "fatigue_limit",
+  "sources"
+ ],
+ "properties":{
+  "id":{"type":"string"},
+  "agent_name":{"type":"string"},
+  "label":{"type":"string"},
+  "workspace_id":{"type":"string"},
+  "scope":{"type":"string"},
+  "profile_id":{"type":"string"},
+  "profile_name":{"type":"string"},
+  "main_session_id":{"type":"string"},
+  "state":{"type":"string"},
+  "pause_reason":{"type":"string"},
+  "activity":{"type":"string"},
+  "needs_attention":{"type":"boolean"},
+  "attention_dismissible":{"type":"boolean"},
+  "authority_status":{"type":"string"},
+  "checks_enabled":{"type":"boolean"},
+  "created":{"type":"boolean"},
+  "next_wake":{
+   "type":"object",
+   "required":["kind","description"],
+   "properties":{
+    "kind":{"type":"string"},
+    "at":{"type":"string"},
+    "description":{"type":"string"}
+   },
+   "additionalProperties":false
+  },
+  "held_wakes":{"type":"integer"},
+  "failure_streak":{"type":"integer"},
+  "unattended_turns":{"type":"integer"},
+  "unattended_turn_limit":{"type":"integer"},
+  "fatigue_limit":{"type":"integer"},
+  "sources":{"type":["array","null"],"items":{
+    "type":"object",
+    "required":["id","status","failure_streak"],
+    "properties":{
+     "id":{"type":"string"},
+     "kind":{"type":"string"},
+     "script":{"type":"string"},
+     "status":{"type":"string"},
+     "failure_streak":{"type":"integer"},
+     "error":{
+      "type":"object",
+      "required":["code","detail"],
+      "properties":{
+       "code":{"type":"string"},
+       "detail":{"type":"string"}
+      },
+      "additionalProperties":false
+     },
+     "awaiting_approval":{"type":"boolean"},
+     "next_poll_at":{"type":"string"}
+    },
+    "additionalProperties":false
+  }}
+ },
+ "additionalProperties":false
+}`

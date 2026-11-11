@@ -23451,6 +23451,33 @@
         ],
         "type": "object"
       },
+      "ResultViewContract": {
+        "properties": {
+          "digest": {
+            "type": "string"
+          },
+          "schema": {}
+        },
+        "required": [
+          "schema"
+        ],
+        "type": "object"
+      },
+      "ResultViews": {
+        "properties": {
+          "compact": {
+            "$ref": "#/components/schemas/ResultViewContract"
+          },
+          "full": {
+            "$ref": "#/components/schemas/ResultViewContract"
+          }
+        },
+        "required": [
+          "compact",
+          "full"
+        ],
+        "type": "object"
+      },
       "ResumeSessionFromLaterRequest": {
         "properties": {
           "with_children": {
@@ -42788,6 +42815,19 @@
           "output_schema": {},
           "output_schema_digest": {
             "type": "string"
+          },
+          "output_views": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResultViews"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "preview": {
             "type": "string"

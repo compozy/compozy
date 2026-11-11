@@ -107,7 +107,7 @@ func (n *daemonNativeTools) changeSessionLater(
 		return toolspkg.ToolResult{}, nativeLaterToolError(req.ToolID, err)
 	}
 	payload := core.SessionPayloadFromInfo(info)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 // nativeCallerWithinHierarchy reports whether a tree operation on target would

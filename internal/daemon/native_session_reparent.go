@@ -61,7 +61,7 @@ func (n *daemonNativeTools) sessionReparent(
 			return toolspkg.ToolResult{}, nativeReparentError(req.ToolID, err)
 		}
 		payload := core.SessionPayloadFromInfo(info)
-		return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+		return sessionRecordViews.result(req.View, payload)
 	}
 	if _, err := n.nativeReparentTarget(ctx, scope, req.ToolID, workspaceID, parentID); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -71,7 +71,7 @@ func (n *daemonNativeTools) sessionReparent(
 		return toolspkg.ToolResult{}, nativeReparentError(req.ToolID, err)
 	}
 	payload := core.SessionPayloadFromInfo(info)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) nativeReparentTarget(

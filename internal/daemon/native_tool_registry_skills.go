@@ -39,10 +39,7 @@ func (n *daemonNativeTools) toolList(
 		return toolspkg.ToolResult{}, err
 	}
 	page := nativeToolListPageFromViews(views, offset, limit)
-	return structuredResult(
-		page,
-		fmt.Sprintf("%d of %d tools", page.Count, page.Total),
-	)
+	return toolListViews.result(req.View, page)
 }
 
 func (n *daemonNativeTools) toolSearch(
@@ -80,18 +77,11 @@ func (n *daemonNativeTools) toolSearch(
 	if end < len(views) {
 		next = end
 	}
-	page := struct {
-		Tools      []toolspkg.ToolView `json:"tools"`
-		Offset     int                 `json:"offset,omitzero"`
-		Count      int                 `json:"count"`
-		Total      int                 `json:"total"`
-		NextOffset int                 `json:"next_offset,omitzero"`
-		HasMore    bool                `json:"has_more"`
-	}{
-		Tools: views[start:end], Offset: offset, Count: end - start,
-		Total: len(views), NextOffset: next, HasMore: end < len(views),
-	}
-	return structuredResult(page, fmt.Sprintf("%d of %d tools", end-start, len(views)))
+	return toolSearchViews.result(req.View, nativeToolSearchPage{
+		Tools:  views[start:end],
+		Offset: offset, Count: end - start, Total: len(views),
+		NextOffset: next, HasMore: end < len(views),
+	})
 }
 
 func (n *daemonNativeTools) toolInfo(
@@ -129,10 +119,7 @@ func (n *daemonNativeTools) skillList(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SkillPayloadsFromSkills(limitSkills(skillList, input.Limit))
-	return structuredResult(
-		map[string]any{nativeToolsSkillsKey: payload},
-		fmt.Sprintf("%d skills", len(payload)),
-	)
+	return skillCatalogViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) skillSearch(
@@ -150,10 +137,7 @@ func (n *daemonNativeTools) skillSearch(
 	}
 	filtered := searchSkills(skillList, input.Query)
 	payload := core.SkillPayloadsFromSkills(limitSkills(filtered, input.Limit))
-	return structuredResult(
-		map[string]any{nativeToolsSkillsKey: payload},
-		fmt.Sprintf("%d skills", len(payload)),
-	)
+	return skillCatalogViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) skillView(

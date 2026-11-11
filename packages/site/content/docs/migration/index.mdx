@@ -732,3 +732,27 @@ Runtime names are allocated automatically. Extension inputs use their own creden
 namespace; manual MCP Vault references cannot be imported into extension inputs.
 See the Unreleased migration block in [release notes](https://github.com/compozy/compozy/blob/main/RELEASE_NOTES.md) for the
 append-only database upgrades and preserved state.
+
+## Native tool result views
+
+The default result of native tools changed. To keep receiving the complete record:
+
+| You have                          | Do this                                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An agent prompt or AGENT.md       | Tell the agent to pass `result_view: "full"` on the calls that need it                                                                                                  |
+| A Loop node                       | Add `result_view: full` to the node's `params`                                                                                                                          |
+| A `tool.post_call` hook           | Patch `tool_input` with `result_view: "full"` in `tool.pre_call`, except on calls that carry `pinned_result_view` (Loop nodes); the agent then gets the full record too |
+| An MCP client                     | Send `"result_view": "full"` in the call `arguments`                                                                                                                    |
+| A script on `compozy tool invoke` | Add `"result_view":"full"` to `--input`                                                                                                                                 |
+
+Hosted MCP clients no longer receive `outputSchema` for any native tool. Read contracts
+with `compozy__tool_info`, `compozy tool info` or HTTP/UDS descriptors (`output_views`).
+`structuredContent` and serialized JSON text remain unchanged, including continuation
+and typed-error payloads.
+
+The release note lists every tool whose default changed and the fields that moved to the full view.
+HTTP/UDS session responses did not change. Native tool invocation responses use the selected view.
+
+Existing definitions are not rewritten. Runs already in flight use the full result through
+one-release snapshot translation; it is removed in the next release (#1462). See
+[Result Views](/docs/tools/result-views) for Loop errors, hooks and MCP boundaries.

@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+type TaskRunCancelParams struct {
+	ID       string          `json:"id"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+type TaskRunClaimCriteria struct {
+	RunID                string   `json:"run_id,omitempty"`
+	RunKind              string   `json:"run_kind,omitempty"`
+	WorkspaceID          string   `json:"workspace_id,omitempty"`
+	TargetSessionID      string   `json:"target_session_id,omitempty"`
+	ClaimerSessionID     string   `json:"claimer_session_id,omitempty"`
+	AgentName            string   `json:"agent_name,omitempty"`
+	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
+	PriorityMin          int      `json:"priority_min,omitempty"`
+}
+
 type TaskRunCompleteParams struct {
 	ID             string          `json:"id"`
 	Result         json.RawMessage `json:"result,omitempty"`
@@ -437,10 +454,3 @@ type TaskRunSessionPayload struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
-
-type TaskRunStartParams struct {
-	ID             string `json:"id"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type TaskRunStatus uint8

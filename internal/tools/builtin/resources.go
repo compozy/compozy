@@ -5,7 +5,7 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 const resourcesKey = "resources"
 
 var resourceTools = []toolspkg.Descriptor{
-	nativeResourceDescriptor(
+	withResultViews(nativeResourceDescriptor(
 		toolspkg.ToolIDResourcesList,
 		"resources_list",
 		"Resources List",
@@ -16,7 +16,7 @@ var resourceTools = []toolspkg.Descriptor{
 		false,
 		[]string{resourcesKey, descriptorKeywordCatalog},
 		[]string{"list resources", "desired state"},
-	),
+	), resourcesListCompactOutputSchema, `{"type":"object"}`),
 	nativeResourceDescriptor(
 		toolspkg.ToolIDResourcesInfo,
 		"resources_info",
@@ -29,7 +29,7 @@ var resourceTools = []toolspkg.Descriptor{
 		[]string{resourcesKey, descriptorKeywordStatus},
 		[]string{"resource info", "desired-state record"},
 	),
-	nativeResourceDescriptor(
+	withResultViews(nativeResourceDescriptor(
 		toolspkg.ToolIDResourcesSnapshot,
 		"resources_snapshot",
 		"Resources Snapshot",
@@ -40,7 +40,7 @@ var resourceTools = []toolspkg.Descriptor{
 		false,
 		[]string{resourcesKey, descriptorKeywordSnapshot},
 		[]string{"resource snapshot", "desired-state snapshot"},
-	),
+	), resourcesSnapshotCompactOutputSchema, `{"type":"object"}`),
 }
 
 func resourceDescriptors() []toolspkg.Descriptor {

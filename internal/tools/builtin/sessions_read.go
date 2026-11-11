@@ -21,8 +21,7 @@ func sessionStatusDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, sessionsStatusKey},
 		[]string{"session status", "session snapshot"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionStatusOutputSchema)
 }
 
 func sessionEventsDescriptor() toolspkg.Descriptor {

@@ -308,6 +308,14 @@ func windowManagerDescriptors() []toolspkg.Descriptor {
 		metadata.ReservedWorkspacePartition = true
 		descriptor.ToolExecutionMetadata = &metadata
 		descriptor.OutputSchema = json.RawMessage(spec.outputSchema)
+		switch spec.id {
+		case toolspkg.ToolIDDesktopClients:
+			descriptor = withResultViews(descriptor, desktopClientsCompactSchema, spec.outputSchema)
+		case toolspkg.ToolIDLayoutGet:
+			descriptor = withResultViews(descriptor, layoutGetCompactSchema, spec.outputSchema)
+		case toolspkg.ToolIDLayoutPreview:
+			descriptor = withResultViews(descriptor, layoutPreviewCompactSchema, spec.outputSchema)
+		}
 		descriptors = append(descriptors, withRequiredCapabilities(descriptor, spec.capability))
 	}
 	return descriptors

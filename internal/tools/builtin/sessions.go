@@ -81,7 +81,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionEventsDescriptor(),
 	sessionSearchDescriptor(),
 	sessionOutlineDescriptor(),
-	nativeDescriptor(
+	withResultViews(nativeDescriptor(
 		toolspkg.ToolIDSessionDescribe,
 		"session_describe",
 		"Session Describe",
@@ -95,7 +95,7 @@ var sessionTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
 		[]string{sessionsSessionsKey, "describe"},
 		[]string{"session describe", "session detail"},
-	),
+	), sessionDescribeCompactOutputSchema, `{"type":"object"}`),
 }
 
 func sessionListDescriptor() toolspkg.Descriptor {
@@ -113,8 +113,7 @@ func sessionListDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, sessionsListKey},
 		[]string{"session list", "runtime sessions"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionListOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionListCompactOutputSchema(), sessionListOutputSchema)
 }
 
 func sessionDescriptors() []toolspkg.Descriptor {
@@ -140,8 +139,7 @@ func sessionCreateDescriptor() toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, descriptorKeywordCreate},
 		[]string{"create session", "new session"},
 	)
-	descriptor.OutputSchema = json.RawMessage(sessionCreateOutputSchema)
-	return descriptor
+	return withResultViews(descriptor, sessionRecordCompactOutputSchema, sessionCreateOutputSchema)
 }
 
 func sessionPromptDescriptor() toolspkg.Descriptor {

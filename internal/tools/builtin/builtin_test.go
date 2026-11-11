@@ -8,6 +8,7 @@ import (
 	"go/constant"
 	"go/types"
 	"maps"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -254,6 +255,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		descriptor := descriptors[toolspkg.ToolIDGoalControl]
+		descriptor.OutputSchema = descriptor.ResultViews().Full.Schema
 		var output struct {
 			Required             []string                   `json:"required"`
 			AdditionalProperties bool                       `json:"additionalProperties"`
@@ -426,7 +428,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionArchive],
-				[]string{"processes", "profile", "session_id", "stop", "with_children", "workspace"},
+				[]string{"processes", "profile", "result_view", "session_id", "stop", "with_children", "workspace"},
 			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
@@ -434,7 +436,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionUnarchive],
-				[]string{"profile", "session_id", "workspace"},
+				[]string{"profile", "result_view", "session_id", "workspace"},
 			)
 		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
@@ -718,7 +720,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("session list input schema exposes internal dream type: %s", sessionList.InputSchema)
 		}
 
-		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].OutputSchema)
+		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].ResultViews().Full.Schema)
 		for _, requiredRecoveryContract := range []string{
 			`"recovering"`,
 			`"automatic_recovery"`,
@@ -790,6 +792,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	t.Run("Should accept profile-owned tool approval output contracts", func(t *testing.T) {
 		t.Parallel()
 
+		set := descriptors[toolspkg.ToolIDToolApprovalsSet]
+		set.OutputSchema = set.ResultViews().Full.Schema
+		list := descriptors[toolspkg.ToolIDToolApprovalsList]
+		list.OutputSchema = list.ResultViews().Full.Schema
 		grant := `{
 			"id":"grant-1",
 			"profile_id":"01JPROFILEMARKETING0000000",
@@ -806,12 +812,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}`
 		assertNativeOutputSchemaAccepts(
 			t,
-			descriptors[toolspkg.ToolIDToolApprovalsSet],
+			set,
 			`{"grant":`+grant+`}`,
 		)
 		assertNativeOutputSchemaAccepts(
 			t,
-			descriptors[toolspkg.ToolIDToolApprovalsList],
+			list,
 			`{"grants":[`+grant+`],"total":1}`,
 		)
 	})
@@ -844,6 +850,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if err := input.Validate(conflicting); err == nil {
 			t.Fatal("session_spawn input schema accepted worktree with new_worktree")
 		}
+		spawn.OutputSchema = spawn.ResultViews().Full.Schema
 		assertNativeOutputSchemaAccepts(t, spawn, `{
 			"session_id":"sess-child","spawn_role":"worker","spawn_depth":1,"ttl_expires_at":"2026-10-21T12:00:00Z",
 			"permissions":{"tools":["compozy__read"],"skills":[],"mcp_servers":[],"workspace_paths":[]},
@@ -864,7 +871,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		status := descriptors[toolspkg.ToolIDLoopStatus]
+		status.OutputSchema = status.ResultViews().Full.Schema
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
+		runs.OutputSchema = runs.ResultViews().Full.Schema
 		var runsInput struct {
 			Properties map[string]struct {
 				Type        string `json:"type"`
@@ -899,13 +908,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
+		nodes.OutputSchema = nodes.ResultViews().Full.Schema
 		requests := descriptors[toolspkg.ToolIDLoopRequests]
+		requests.OutputSchema = requests.ResultViews().Full.Schema
 		request := descriptors[toolspkg.ToolIDLoopRequest]
 		respond := descriptors[toolspkg.ToolIDLoopRespond]
 		amend := descriptors[toolspkg.ToolIDLoopNodeAmend]
+		amend.OutputSchema = amend.ResultViews().Full.Schema
 		diff := descriptors[toolspkg.ToolIDLoopDiff]
 		rerun := descriptors[toolspkg.ToolIDLoopRerun]
 		fork := descriptors[toolspkg.ToolIDLoopFork]
+		fork.OutputSchema = fork.ResultViews().Full.Schema
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","completion_state":"partial","best_generation":2,"best_score":0.91},
 			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
@@ -1218,7 +1231,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertWindowManagerResultSchemas(
 			t,
 			descriptors[toolspkg.ToolIDDesktopCreate].OutputSchema,
-			descriptors[toolspkg.ToolIDLayoutPreview].OutputSchema,
+			descriptors[toolspkg.ToolIDLayoutPreview].ResultViews().Full.Schema,
 		)
 		assertWindowManagerLayoutDocumentSchemas(
 			t,
@@ -1972,7 +1985,7 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"agent", "name", "new_worktree", "profile", "workspace", "worktree",
+		"agent", "name", "new_worktree", "profile", "result_view", "workspace", "worktree",
 	})
 	var newWorktree nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["new_worktree"], &newWorktree); err != nil {
@@ -2016,7 +2029,7 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t,
 		descriptor.ID.String()+" input",
 		input,
-		[]string{"name", "profile", "session_id", "workspace"},
+		[]string{"name", "profile", "result_view", "session_id", "workspace"},
 	)
 	if !slices.Equal(input.Required, []string{"session_id", "name"}) {
 		t.Fatalf("%s input required = %#v, want [session_id name]", descriptor.ID, input.Required)
@@ -2041,7 +2054,7 @@ func assertSessionReparentMutationSchema(t *testing.T, descriptor toolspkg.Descr
 		t,
 		descriptor.ID.String()+" input",
 		input,
-		[]string{"parent_session_id", "profile", "session_id", "top_level", "workspace"},
+		[]string{"parent_session_id", "profile", "result_view", "session_id", "top_level", "workspace"},
 	)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
@@ -2295,7 +2308,7 @@ func assertSessionRuntimeMutationSchemas(
 		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 			t.Fatalf("%s input schema unmarshal error = %v", id, err)
 		}
-		wantFields := []string{"expected_revision", "profile", "session_id", "workspace"}
+		wantFields := []string{"expected_revision", "profile", "result_view", "session_id", "workspace"}
 		if id == toolspkg.ToolIDSessionRuntimeSet {
 			wantFields = append(wantFields, "runtime")
 		}
@@ -4028,4 +4041,161 @@ func TestCheckInWritableInventory(t *testing.T) {
 			t.Fatal("notification write missing")
 		}
 	})
+}
+
+func TestResultViewDeclaration(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{emptyInputSchema, `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`} {
+		t.Run("Should inject the optional selector into "+input, func(t *testing.T) {
+			t.Parallel()
+			d := sessionEventsDescriptor()
+			d.InputSchema = json.RawMessage(input)
+			original := cloneDescriptor(d)
+			compact := `{"type":"object","additionalProperties":false}`
+			result := withResultViews(d, compact, string(d.OutputSchema))
+			digest, err := toolspkg.SchemaDigest(original.InputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ResultViews().PreViewInputSchemaDigest != digest {
+				t.Fatal("pre-view digest changed")
+			}
+			if string(result.OutputSchema) != compact ||
+				string(result.ResultViews().Full.Schema) != string(original.OutputSchema) {
+				t.Fatal("output contracts changed")
+			}
+			if !strings.HasSuffix(result.Description, resultViewDescription) {
+				t.Fatal("missing discovery sentence")
+			}
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			}
+			if err := json.Unmarshal(result.InputSchema, &schema); err != nil {
+				t.Fatal(err)
+			}
+			if string(schema.Properties[toolspkg.ResultViewInputKey]) != toolspkg.ResultViewSelectorSchema {
+				t.Fatalf("selector=%s", schema.Properties[toolspkg.ResultViewInputKey])
+			}
+			if slices.Contains(schema.Required, toolspkg.ResultViewInputKey) {
+				t.Fatal("selector is required")
+			}
+			if err := result.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			result.InputSchema = original.InputSchema
+			result.OutputSchema = original.OutputSchema
+			result.SetResultViews(nil)
+			result.ToolExecutionMetadata = original.ToolExecutionMetadata
+			result.Description = original.Description
+			if !reflect.DeepEqual(result, original) {
+				t.Fatal("unrelated descriptor metadata changed")
+			}
+		})
+	}
+}
+
+func TestSingleResultContracts(t *testing.T) {
+	t.Parallel()
+	descriptors := map[toolspkg.ToolID]toolspkg.Descriptor{}
+	for _, d := range NativeDescriptors() {
+		descriptors[d.ID] = d
+	}
+	for _, family := range singleResultFamilies {
+		for id, reason := range family {
+			t.Run("Should retain the single result contract of "+id.String(), func(t *testing.T) {
+				t.Parallel()
+				d, exists := descriptors[id]
+				if !exists {
+					t.Fatal("unknown single-result tool")
+				}
+				got, ok := SingleResultReasonFor(id)
+				if !ok || got != reason {
+					t.Fatal("reason lookup mismatch")
+				}
+				if !slices.Contains(
+					[]SingleResultReason{SingleResultContent, SingleResultMinimal, SingleResultCallerBounded},
+					reason,
+				) {
+					t.Fatal("invalid reason")
+				}
+				if d.ResultViews() != nil {
+					t.Fatal("single-result tool has views")
+				}
+				if err := d.Validate(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	}
+}
+
+// UT-014: every native tool has exactly one result contract.
+func TestNativeResultClassification(t *testing.T) {
+	t.Parallel()
+	for _, d := range NativeDescriptors() {
+		t.Run("Should classify "+d.ID.String()+" exactly once", func(t *testing.T) {
+			t.Parallel()
+			_, single := SingleResultReasonFor(d.ID)
+			if (d.ResultViews() != nil) == single {
+				t.Fatalf("%s must have views or a single-result reason, exclusively", d.ID)
+			}
+		})
+	}
+}
+
+// UT-015: the generated product catalog describes the live contracts.
+func TestNativeResultCatalog(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("testdata/native-tool-catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []struct {
+		ID       toolspkg.ToolID    `json:"tool_id"`
+		Contract string             `json:"result_contract"`
+		Reason   SingleResultReason `json:"single_result_reason"`
+		Compact  string             `json:"compact_output_schema_digest"`
+		Full     string             `json:"full_output_schema_digest"`
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		t.Fatal(err)
+	}
+	descriptors := NativeDescriptors()
+	if len(entries) != len(descriptors) {
+		t.Fatalf("catalog=%d descriptors=%d", len(entries), len(descriptors))
+	}
+	byID := make(map[toolspkg.ToolID]int, len(entries))
+	for i, e := range entries {
+		if _, exists := byID[e.ID]; exists {
+			t.Fatalf("duplicate catalog entry %s", e.ID)
+		}
+		byID[e.ID] = i
+	}
+	for _, descriptor := range descriptors {
+		t.Run("Should publish the result contract of "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			d, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			i, exists := byID[d.ID]
+			if !exists {
+				t.Fatalf("missing catalog entry %s", d.ID)
+			}
+			entry := entries[i]
+			if views := d.ResultViews(); views != nil {
+				if entry.Contract != "compact_full" || entry.Reason != "" || entry.Compact != views.Compact.Digest ||
+					entry.Full != views.Full.Digest {
+					t.Fatalf("catalog contract differs for %s", d.ID)
+				}
+			} else {
+				reason, ok := SingleResultReasonFor(d.ID)
+				if !ok || entry.Contract != "single" || entry.Reason != reason || entry.Compact != "" ||
+					entry.Full != "" {
+					t.Fatalf("catalog single result differs for %s", d.ID)
+				}
+			}
+		})
+	}
 }

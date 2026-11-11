@@ -78,7 +78,7 @@ func (n *daemonNativeTools) sessionWorktreeBinding(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	payload := core.SessionPayloadFromInfo(updated)
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	return sessionRecordViews.result(req.View, payload)
 }
 
 func (n *daemonNativeTools) sessionWorktreeBindingAvailability() toolspkg.NativeAvailabilityFunc {

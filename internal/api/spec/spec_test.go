@@ -3292,6 +3292,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
 		addNativeReadPagingSchemas(t, baseline)
+		if addNativeResultViewSchemas(baseline) == 0 {
+			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		}
 		addSettingsMCPHeaderPresence(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
@@ -6549,4 +6552,36 @@ func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	if count == 0 {
 		t.Fatal("no historical agent MCP schemas found")
 	}
+}
+
+func addNativeResultViewSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			view := map[string]any{
+				"type":       "object",
+				"required":   []any{"schema"},
+				"properties": map[string]any{"schema": map[string]any{}, "digest": map[string]any{"type": "string"}},
+			}
+			properties["output_views"] = map[string]any{"oneOf": []any{
+				map[string]any{
+					"type":       "object",
+					"required":   []any{"compact", "full"},
+					"properties": map[string]any{"compact": view, "full": view},
+				},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
+			count++
+		}
+	}
+	return count
 }
