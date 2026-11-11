@@ -18,8 +18,15 @@ export const apiClient = createClient<compozyPaths>({
 
 export const clientID = `web-${createClientId()}`;
 
+// Trace ids are correlation values, not secrets: without browser crypto (some embedded or
+// insecure contexts) fall back to Math.random rather than failing the request.
 function randomHex(bytes: number): string {
-  const values = globalThis.crypto.getRandomValues(new Uint8Array(bytes));
+  const values = new Uint8Array(bytes);
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(values);
+  } else {
+    for (let index = 0; index < bytes; index++) values[index] = Math.floor(Math.random() * 256);
+  }
   return Array.from(values, value => value.toString(16).padStart(2, "0")).join("");
 }
 
