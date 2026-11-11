@@ -585,29 +585,12 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
 			return &fakeServer{name: "uds"}, nil
 		}
-		ctx, cancelBoot := context.WithCancel(testutil.Context(t))
-		defer cancelBoot()
 		bootResult := make(chan error, 1)
-		bootDone := make(chan struct{})
-		releaseNeutralize := sync.OnceFunc(func() { close(registry.releaseNeutralize) })
-		go func() {
-			defer close(bootDone)
-			bootResult <- d.boot(ctx)
-		}()
-		t.Cleanup(func() {
-			cancelBoot()
-			releaseNeutralize()
-			<-bootDone
-			if err := d.Shutdown(testutil.Context(t)); err != nil {
-				t.Error(err)
-			}
-		})
+		go func() { bootResult <- d.boot(testutil.Context(t)) }()
 		select {
 		case <-registry.neutralizeStarted:
-		case err := <-bootResult:
-			t.Fatalf("boot() returned before the Loop neutralization barrier: %v", err)
-		case <-ctx.Done():
-			t.Fatalf("daemon did not enter the Loop neutralization barrier: %v", ctx.Err())
+		case <-time.After(time.Second):
+			t.Fatal("daemon did not enter the Loop neutralization barrier")
 		}
 		select {
 		case runID := <-registry.claimAttempts:
@@ -619,15 +602,20 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 			t.Fatal("daemon became ready while Loop neutralization was blocked")
 		default:
 		}
-		releaseNeutralize()
+		close(registry.releaseNeutralize)
 		select {
 		case err := <-bootResult:
 			if err != nil {
 				t.Fatalf("boot() error = %v", err)
 			}
-		case <-ctx.Done():
-			t.Fatalf("daemon boot did not finish after Loop neutralization was released: %v", ctx.Err())
+		case <-time.After(5 * time.Second):
+			t.Fatal("daemon boot did not finish after Loop neutralization was released")
 		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
 		actor, err := taskpkg.DeriveDaemonActorContext("barrier-claimer", "loop.boot")
 		if err != nil {
 			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
