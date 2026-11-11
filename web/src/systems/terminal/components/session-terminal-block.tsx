@@ -124,7 +124,7 @@ function SessionTerminalBlockBody({
     >
       <TerminalView
         aria-label={live ? `${title} — watching` : `${title} — final screen`}
-        className="px-2.5 py-2 font-mono text-transcript-meta tracking-mono"
+        className="px-2.5 py-2 font-mono text-terminal-preview tracking-mono"
         {...(engineLoader ? { engineLoader } : {})}
         handleRef={replay.handleRef}
         // A distinct identity from the app's pane: the preview is a second

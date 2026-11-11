@@ -301,8 +301,10 @@ type SettingsSectionName string
 
 // SettingsShellAppearancePayload is a daemon API value.
 type SettingsShellAppearancePayload struct {
-	UIFont   *string `json:"ui_font,omitempty"`
-	MonoFont *string `json:"mono_font,omitempty"`
+	UIFont        *string                     `json:"ui_font,omitempty"`
+	MonoFont      *string                     `json:"mono_font,omitempty"`
+	TextSize      *SettingsShellTextSize      `json:"text_size,omitempty"`
+	LetterSpacing *SettingsShellLetterSpacing `json:"letter_spacing,omitempty"`
 }
 
 // SettingsShellLegacyScopePayload is a daemon API value.
@@ -311,6 +313,9 @@ type SettingsShellLegacyScopePayload struct {
 	Explicit bool                      `json:"explicit"`
 	Revision uint64                    `json:"revision"`
 }
+
+// SettingsShellLetterSpacing is a daemon API value.
+type SettingsShellLetterSpacing string
 
 // SettingsShellMutationResponse is a daemon API value.
 type SettingsShellMutationResponse struct {
@@ -367,6 +372,9 @@ type SettingsShellSessionsPayload struct {
 	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
 	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
 }
+
+// SettingsShellTextSize is a daemon API value.
+type SettingsShellTextSize string
 
 // SettingsSkillSourceCollisionPayload is a daemon API value.
 type SettingsSkillSourceCollisionPayload struct {

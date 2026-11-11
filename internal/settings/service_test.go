@@ -1691,6 +1691,28 @@ func TestUpdateSectionShell(t *testing.T) {
 			t.Fatalf("config after ui_font reset should delete only ui_font:\n%s", contents)
 		}
 
+		update("", compozyconfig.ShellAppearanceConfig{
+			TextSize: compozyconfig.ShellTextSizeLarge, TextSizeExplicit: true,
+			LetterSpacing: compozyconfig.ShellLetterSpacingRelaxed, LetterSpacingExplicit: true,
+		})
+		update("", compozyconfig.ShellAppearanceConfig{TextSizeExplicit: true})
+		shell = loadAppearance()
+		if shell.Appearance.TextSize != "" ||
+			shell.Appearance.LetterSpacing != compozyconfig.ShellLetterSpacingRelaxed ||
+			shell.Appearance.MonoFont != "Fira Code" {
+			t.Fatalf("Shell after text_size reset = %#v, want default size, relaxed spacing and Fira Code",
+				shell.Appearance)
+		}
+		contents = readFile(t, homePaths.ConfigFile)
+		if strings.Contains(contents, "text_size") || !strings.Contains(contents, `letter_spacing = "relaxed"`) {
+			t.Fatalf("config after text_size reset should delete only text_size:\n%s", contents)
+		}
+		update("", compozyconfig.ShellAppearanceConfig{LetterSpacingExplicit: true})
+		if contents := readFile(t, homePaths.ConfigFile); strings.Contains(contents, "letter_spacing") ||
+			!strings.Contains(contents, `mono_font = "Fira Code"`) {
+			t.Fatalf("config after letter_spacing reset should delete only letter_spacing:\n%s", contents)
+		}
+
 		// A hand-written empty key is still a stored key: resetting it deletes it.
 		writeFile(t, homePaths.ConfigFile, strings.Replace(contents,
 			`mono_font = "Fira Code"`, "mono_font = \"Fira Code\"\nui_font = \"\"", 1))

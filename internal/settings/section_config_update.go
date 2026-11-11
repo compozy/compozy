@@ -174,6 +174,12 @@ func (s *service) updateShellSection(
 	if !desired.Appearance.MonoFontExplicit {
 		desired.Appearance.MonoFont = cfg.Shell.Appearance.MonoFont
 	}
+	if !desired.Appearance.TextSizeExplicit {
+		desired.Appearance.TextSize = cfg.Shell.Appearance.TextSize
+	}
+	if !desired.Appearance.LetterSpacingExplicit {
+		desired.Appearance.LetterSpacing = cfg.Shell.Appearance.LetterSpacing
+	}
 	if err := desired.Validate(); err != nil {
 		return MutationResult{}, validationError(err)
 	}

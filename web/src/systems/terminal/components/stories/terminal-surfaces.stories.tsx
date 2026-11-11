@@ -344,7 +344,7 @@ export const SkippedContent: Story = {
   name: "VC-20 · Skipped content and falling behind",
   render: () => (
     <TerminalVisualStage>
-      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-code-block text-terminal-fg">
+      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-terminal text-terminal-fg">
         <span className="block">
           <span className="text-terminal-ansi-8">12:44:01</span> GET /api/journal 200 4.1ms
         </span>

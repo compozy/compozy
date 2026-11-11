@@ -404,6 +404,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				)
 			}
 		}
+		assertEnumValues(
+			t,
+			propertySchema(t, shellAppearanceSchema, "text_size"),
+			"small", "default", "large", "larger",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, shellAppearanceSchema, "letter_spacing"),
+			"tight", "default", "relaxed", "wide",
+		)
 		assertEnumValues(t, propertySchema(t, shellSessionsSchema, "group_by"), "none", "project", "profile")
 		assertEnumValues(
 			t,

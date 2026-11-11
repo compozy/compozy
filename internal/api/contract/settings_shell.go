@@ -26,12 +26,35 @@ type SettingsShellSessionsPayload struct {
 	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
 }
 
-// SettingsShellAppearancePayload carries shell font family preferences.
-// On update, an omitted field preserves the stored family and "" resets it to the default.
-// Responses always populate both fields.
+// SettingsShellTextSize is a named step that scales every shell text size together.
+type SettingsShellTextSize string
+
+const (
+	SettingsShellTextSizeSmall   SettingsShellTextSize = "small"
+	SettingsShellTextSizeDefault SettingsShellTextSize = "default"
+	SettingsShellTextSizeLarge   SettingsShellTextSize = "large"
+	SettingsShellTextSizeLarger  SettingsShellTextSize = "larger"
+)
+
+// SettingsShellLetterSpacing is a named step for the interface text tracking.
+type SettingsShellLetterSpacing string
+
+const (
+	SettingsShellLetterSpacingTight   SettingsShellLetterSpacing = "tight"
+	SettingsShellLetterSpacingDefault SettingsShellLetterSpacing = "default"
+	SettingsShellLetterSpacingRelaxed SettingsShellLetterSpacing = "relaxed"
+	SettingsShellLetterSpacingWide    SettingsShellLetterSpacing = "wide"
+)
+
+// SettingsShellAppearancePayload carries shell text preferences: font families,
+// text size and letter spacing. On update, an omitted field preserves the stored
+// value; a "" family and the "default" size or spacing reset it to the default.
+// Responses always populate every field.
 type SettingsShellAppearancePayload struct {
-	UIFont   *string `json:"ui_font,omitempty"`
-	MonoFont *string `json:"mono_font,omitempty"`
+	UIFont        *string                     `json:"ui_font,omitempty"`
+	MonoFont      *string                     `json:"mono_font,omitempty"`
+	TextSize      *SettingsShellTextSize      `json:"text_size,omitempty"`
+	LetterSpacing *SettingsShellLetterSpacing `json:"letter_spacing,omitempty"`
 }
 
 // SettingsShellPayload is the stable operator shell settings contract.

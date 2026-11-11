@@ -25,6 +25,12 @@ import {
   writeFontAppearanceCache,
 } from "../lib/font-appearance";
 import { installThemeRuntime } from "../lib/install-theme-runtime";
+import {
+  TYPE_STORAGE_KEY,
+  applyTypeAppearance,
+  writeTypeAppearanceCache,
+  type TypeAppearance,
+} from "../lib/type-appearance";
 import { THEME_STORAGE_KEY, readThemePreference, resolveTheme } from "../lib/theme-preference";
 import { selectResolvedTheme, themePreferenceLogic } from "../stores/theme-preference-store";
 import type { ThemePreference } from "../types";
@@ -32,6 +38,11 @@ import type { ThemePreference } from "../types";
 const jetBrainsMono = vi.hoisted(() => vi.fn());
 vi.mock("@fontsource-variable/jetbrains-mono", () => {
   jetBrainsMono();
+  return {};
+});
+const geist = vi.hoisted(() => vi.fn());
+vi.mock("@fontsource-variable/geist", () => {
+  geist();
   return {};
 });
 
@@ -232,6 +243,7 @@ describe("font appearance runtime", () => {
     root.style.removeProperty("--user-font-sans");
     root.style.removeProperty("--user-font-mono");
     jetBrainsMono.mockClear();
+    geist.mockClear();
   });
 
   it("Should head the stacks with the chosen families and drop the override on reset", () => {
@@ -288,7 +300,14 @@ describe("font appearance runtime", () => {
 
   it("Should name Figtree as the built-in face and keep stored catalog choices resolving", () => {
     expect(DEFAULT_FONT_LABEL.sans).toBe("Figtree");
-    expect(FONT_CATALOG.some(entry => /inter/i.test(entry.family))).toBe(false);
+    // Geist, Inter and Instrument Sans ship as Interface choices, never as Code faces.
+    expect(
+      FONT_CATALOG.filter(entry => entry.roles.includes("sans")).map(entry => entry.label)
+    ).toEqual(["Geist", "Inter", "Instrument Sans", "JetBrains Mono", "System"]);
+    expect(FONT_CATALOG.filter(entry => entry.roles.includes("mono")).map(e => e.label)).toEqual([
+      "JetBrains Mono",
+      "System",
+    ]);
     // A choice stored before the brand change still paints and downloads its face.
     applyFontAppearance(root, { sans: "", mono: "JetBrains Mono Variable" });
     expect(fontVariables().mono).toBe('"JetBrains Mono Variable"');
@@ -308,6 +327,10 @@ describe("font appearance runtime", () => {
 
     await loadBundledFonts({ sans: "", mono: "JetBrains Mono Variable" });
     expect(jetBrainsMono).toHaveBeenCalledTimes(1);
+    expect(geist).not.toHaveBeenCalled();
+
+    await loadBundledFonts({ sans: "Geist Variable", mono: "" });
+    expect(geist).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -322,5 +345,52 @@ describe("font appearance runtime", () => {
     ["x".repeat(129), false],
   ])("Should mirror the daemon's family rule for %j (storable: %s)", (family, storable) => {
     expect(isStorableFontFamily(family)).toBe(storable);
+  });
+});
+
+describe("type appearance runtime", () => {
+  const root = document.documentElement;
+  const typeVariables = () => ({
+    scale: root.style.getPropertyValue("--user-text-scale"),
+    tracking: root.style.getPropertyValue("--user-tracking-body"),
+  });
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetDocument();
+    root.style.removeProperty("--user-text-scale");
+    root.style.removeProperty("--user-tracking-body");
+  });
+
+  it("Should scale and track the text for a choice and drop each override at its default", () => {
+    applyTypeAppearance(root, { size: "large", spacing: "tight" });
+    expect(typeVariables()).toEqual({ scale: "1.075", tracking: "-0.02em" });
+
+    applyTypeAppearance(root, { size: "default", spacing: "tight" });
+    expect(typeVariables()).toEqual({ scale: "", tracking: "-0.02em" });
+
+    applyTypeAppearance(root, { size: "default", spacing: "default" });
+    expect(typeVariables()).toEqual({ scale: "", tracking: "" });
+  });
+
+  it.each<TypeAppearance>([
+    { size: "larger", spacing: "wide" },
+    { size: "small", spacing: "default" },
+    { size: "default", spacing: "default" },
+  ])("Should boot-paint the cached type %o exactly as the runtime does", type => {
+    writeTypeAppearanceCache(type);
+    new Function(BOOT_SCRIPT)();
+    const booted = typeVariables();
+
+    root.style.removeProperty("--user-text-scale");
+    root.style.removeProperty("--user-tracking-body");
+    applyTypeAppearance(root, type);
+    expect(booted).toEqual(typeVariables());
+  });
+
+  it("Should keep the built-in type scale when the type cache is corrupt", () => {
+    window.localStorage.setItem(TYPE_STORAGE_KEY, "{not json");
+    new Function(BOOT_SCRIPT)();
+    expect(typeVariables()).toEqual({ scale: "", tracking: "" });
   });
 });

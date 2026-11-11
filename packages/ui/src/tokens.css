@@ -263,98 +263,114 @@
      / eyebrow / kbd) · 12.5 meta · 13 small-body · 13.5 body · 14 item-title /
      card-title · 15 heading · 18 page H1; the other tiers below are
      role-specific (badges, KPIs, prose, site). Leading: body ≈1.45–1.5,
-     titles ≈1.3, headings 1.25, transcript 1.6. */
-  --text-meta: 0.78125rem; /* 12.5px — meta rows, tool-row trailing details */
-  --text-meta--line-height: 1.125rem;
-  --text-body: 0.84375rem; /* 13.5px — UI baseline: rows, labels, tabs */
-  --text-body--line-height: 1.25rem;
-  --text-heading: 0.9375rem; /* 15px — surface headings, window titles, medium */
-  --text-heading--line-height: 1.1875rem;
-  --text-item-title: 0.875rem; /* 14px — card & row titles */
-  --text-item-title--line-height: 1.125rem;
-  --text-small-body: 0.8125rem; /* 13px — secondary text, inputs, menu items */
-  --text-small-body--line-height: 1.1875rem;
-  --text-badge: 0.6875rem; /* 11px — matches --text-micro */
-  --text-badge--line-height: 0.75rem;
-  --text-eyebrow: 0.75rem; /* 12px */
-  --text-eyebrow--line-height: 1rem;
+     titles ≈1.3, headings 1.25, transcript 1.6. Every rem step multiplies by
+     the Appearance text size (`--user-text-scale`, 1 by default). */
+  /* Tailwind's text-xs / text-sm, which some file and diff surfaces still use,
+     re-declared so they follow the Appearance text size like every step below.
+     Leading keeps Tailwind's ratio. */
+  --text-xs: calc(0.75rem * var(--user-text-scale));
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: calc(0.875rem * var(--user-text-scale));
+  --text-sm--line-height: calc(1.25 / 0.875);
+  --text-meta: calc(
+    0.78125rem * var(--user-text-scale)
+  ); /* 12.5px — meta rows, tool-row trailing details */
+  --text-meta--line-height: calc(1.125rem * var(--user-text-scale));
+  --text-body: calc(
+    0.84375rem * var(--user-text-scale)
+  ); /* 13.5px — UI baseline: rows, labels, tabs */
+  --text-body--line-height: calc(1.25rem * var(--user-text-scale));
+  --text-heading: calc(
+    0.9375rem * var(--user-text-scale)
+  ); /* 15px — surface headings, window titles, medium */
+  --text-heading--line-height: calc(1.1875rem * var(--user-text-scale));
+  --text-item-title: calc(0.875rem * var(--user-text-scale)); /* 14px — card & row titles */
+  --text-item-title--line-height: calc(1.125rem * var(--user-text-scale));
+  --text-small-body: calc(
+    0.8125rem * var(--user-text-scale)
+  ); /* 13px — secondary text, inputs, menu items */
+  --text-small-body--line-height: calc(1.1875rem * var(--user-text-scale));
+  --text-badge: calc(0.6875rem * var(--user-text-scale)); /* 11px — matches --text-micro */
+  --text-badge--line-height: calc(0.75rem * var(--user-text-scale));
+  --text-eyebrow: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-eyebrow--line-height: calc(1rem * var(--user-text-scale));
   /* Caps rendition of the eyebrow contract — uppercase reads ~20% larger
      optically, so it steps down a size and takes positive tracking. */
-  --text-eyebrow-caps: 0.6875rem; /* 11px */
-  --text-eyebrow-caps--line-height: 1rem;
+  --text-eyebrow-caps: calc(0.6875rem * var(--user-text-scale)); /* 11px */
+  --text-eyebrow-caps--line-height: calc(1rem * var(--user-text-scale));
   /* Keyboard-key cap tier — the one size every shortcut chip renders at.
      Legibility comes from the single-face --font-keys stack (the old blur was
      per-glyph fallback, not the point size); 12px regular matches the brand
      ramp's smallest step. A dedicated role token because --text-eyebrow is
      the lint-enforced structural-label contract, never a key size. */
-  --text-kbd: 0.75rem; /* 12px */
-  --text-kbd--line-height: 1rem;
+  --text-kbd: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-kbd--line-height: calc(1rem * var(--user-text-scale));
   /* Weight rides the token so every text-kbd caller inherits it. */
   --text-kbd--font-weight: 450;
   /* Empty-desktop hero question only. */
-  --text-display-2xl: 1.5rem; /* 24px */
+  --text-display-2xl: calc(1.5rem * var(--user-text-scale)); /* 24px */
   --text-display-2xl--line-height: 1.25;
-  --text-site-lead: 1.1875rem; /* 19px */
+  --text-site-lead: calc(1.1875rem * var(--user-text-scale)); /* 19px */
   --text-site-lead--line-height: 1.5;
-  --text-micro: 0.6875rem; /* 11px */
-  --text-micro--line-height: 0.75rem;
+  --text-micro: calc(0.6875rem * var(--user-text-scale)); /* 11px */
+  --text-micro--line-height: calc(0.75rem * var(--user-text-scale));
   /* Count badge on pills and rail items (Pill.Count size "count"). */
-  --text-count: 0.59375rem; /* 9.5px */
-  --text-count--line-height: 0.9375rem; /* 15px */
+  --text-count: calc(0.59375rem * var(--user-text-scale)); /* 9.5px */
+  --text-count--line-height: calc(0.9375rem * var(--user-text-scale)); /* 15px */
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
-  --text-ui-title-lg: 1.35rem;
+  --text-ui-title-lg: calc(1.35rem * var(--user-text-scale));
 
   /* Type ladder additions. */
-  --text-detail-h1: 1.125rem; /* 18px — page H1 */
+  --text-detail-h1: calc(1.125rem * var(--user-text-scale)); /* 18px — page H1 */
   --text-detail-h1--line-height: 1.25;
   /* PH3 split-pane compact page-head H1 (route chrome contract §08). */
-  --text-compact-h1: 0.9375rem; /* 15px */
+  --text-compact-h1: calc(0.9375rem * var(--user-text-scale)); /* 15px */
   --text-compact-h1--line-height: 1.25;
-  --text-empty-h1: 0.9375rem; /* 15px */
-  --text-modal-title: 0.875rem; /* 14px */
-  --text-section-head: 0.7rem;
-  --text-form-input: 0.8125rem; /* 13px */
-  --text-form-label: 0.8125rem; /* 13px */
-  --text-form-hint: 0.75rem; /* 12px */
-  --text-form-required: 0.625rem;
-  --text-metric-value: 1.25rem; /* 20px */
+  --text-empty-h1: calc(0.9375rem * var(--user-text-scale)); /* 15px */
+  --text-modal-title: calc(0.875rem * var(--user-text-scale)); /* 14px */
+  --text-section-head: calc(0.7rem * var(--user-text-scale));
+  --text-form-input: calc(0.8125rem * var(--user-text-scale)); /* 13px */
+  --text-form-label: calc(0.8125rem * var(--user-text-scale)); /* 13px */
+  --text-form-hint: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-form-required: calc(0.625rem * var(--user-text-scale));
+  --text-metric-value: calc(1.25rem * var(--user-text-scale)); /* 20px */
   /* In-window KPI / metric value (DS Components §09) — 20px number at
      font-semibold (600) with tabular-nums. --text-kpi-compact is the 15px tier. */
-  --text-kpi-value: 1.25rem; /* 20px */
+  --text-kpi-value: calc(1.25rem * var(--user-text-scale)); /* 20px */
   --text-kpi-value--line-height: 1.1;
-  --text-kpi-compact: 0.9375rem; /* 15px */
-  --text-agent-metric: 0.9375rem; /* 15px */
-  --text-rail-avatar: 0.71875rem;
-  --text-ws-name: 0.875rem; /* 14px */
-  --text-mono-id: 0.6875rem;
-  --text-pill-group-badge: 0.5625rem;
+  --text-kpi-compact: calc(0.9375rem * var(--user-text-scale)); /* 15px */
+  --text-agent-metric: calc(0.9375rem * var(--user-text-scale)); /* 15px */
+  --text-rail-avatar: calc(0.71875rem * var(--user-text-scale));
+  --text-ws-name: calc(0.875rem * var(--user-text-scale)); /* 14px */
+  --text-mono-id: calc(0.6875rem * var(--user-text-scale));
+  --text-pill-group-badge: calc(0.5625rem * var(--user-text-scale));
   /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
      tool-call title). Two steps above `--text-small-body` (13 px), shared
      with `--text-item-title`. Block code never rides this sans tier — it has
      its own mono pair below. */
-  --text-card-title: 0.875rem; /* 14px */
+  --text-card-title: calc(0.875rem * var(--user-text-scale)); /* 14px */
   --text-card-title--line-height: 1.3;
   /* Prose heading ladder (Markdown H1–H3) — must stay above the 13.5 px prose body. */
-  --text-prose-h1: 1.125rem; /* 18px */
+  --text-prose-h1: calc(1.125rem * var(--user-text-scale)); /* 18px */
   --text-prose-h1--line-height: 1.25;
-  --text-prose-h2: 1rem; /* 16px */
+  --text-prose-h2: calc(1rem * var(--user-text-scale)); /* 16px */
   --text-prose-h2--line-height: 1.3;
-  --text-prose-h3: 0.90625rem; /* 14.5px */
+  --text-prose-h3: calc(0.90625rem * var(--user-text-scale)); /* 14.5px */
   --text-prose-h3--line-height: 1.4;
   /* Block-code tier — Geist Mono block surfaces (CodeBlock, JsonViewer)
      share one size; density varies padding/surface only. */
-  --text-code-block: 0.8125rem; /* 13px */
+  --text-code-block: calc(0.8125rem * var(--user-text-scale)); /* 13px */
   --text-code-block--line-height: 1.5;
 
   /* Calm transcript ladder — shared by timeline rows, detail rails, working
      state, and the user-message surface. These preserve the OpenDesign rhythm
      without scattering pixel literals across the web renderer. */
-  --text-transcript-message: 0.875rem; /* 14px — chat reading text */
+  --text-transcript-message: calc(0.875rem * var(--user-text-scale)); /* 14px — chat reading text */
   --text-transcript-message--line-height: 1.6;
-  --text-transcript-body: 0.78125rem; /* 12.5px */
-  --text-transcript-meta: 0.75rem; /* 12px */
-  --text-transcript-caption: 0.6875rem; /* 11px */
+  --text-transcript-body: calc(0.78125rem * var(--user-text-scale)); /* 12.5px */
+  --text-transcript-meta: calc(0.75rem * var(--user-text-scale)); /* 12px */
+  --text-transcript-caption: calc(0.6875rem * var(--user-text-scale)); /* 11px */
 
   /* Leading. */
   --leading-small-body: var(--text-small-body--line-height);
@@ -385,7 +401,7 @@
   /* Body baseline tracking — matches the `letter-spacing` set on `body`
      (tokens-runtime.css). Used by tabs label and any UI row that needs to
      read against body type without optical drift. */
-  --tracking-body: -0.01em;
+  --tracking-body: var(--user-tracking-body);
   /* Listing-row title optical tightening (one step, matches --text-card-title). */
   --tracking-row-title: -0.01em;
   /* Prose heading ladder — tightening scales with size, like the page-head H1s. */
@@ -699,6 +715,15 @@
      <html>, never the stacks themselves. */
   --user-font-sans: "Figtree Variable";
   --user-font-mono: "Geist Mono Variable";
+
+  /* Appearance text size and letter spacing. `--user-text-scale` multiplies
+     every rem `--text-*` step and its leading in @theme, so a choice keeps the
+     ramp's proportions; `--user-tracking-body` feeds `--tracking-body`. The
+     defaults are the built-in ramp; web's type runtime (and the pre-paint boot
+     script) override them inline on <html>. The terminal keeps its own size
+     (`--text-terminal*` in terminal-tokens.css). */
+  --user-text-scale: 1;
+  --user-tracking-body: -0.01em;
 
   /* Dark theme-shadow literals behind the @theme `--shadow-*` adapters.
      card / pop / overlay open with the 1px `line` hairline (polish contract

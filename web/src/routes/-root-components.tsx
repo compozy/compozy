@@ -12,7 +12,7 @@ import { Button, Empty, buttonVariants } from "@compozy/ui";
 
 import { useReleaseActivationFocus } from "@/hooks/use-release-activation-focus";
 import { GatewayAccessBoundary } from "@/systems/gateway";
-import { FontAppearanceSync } from "@/systems/theme";
+import { FontAppearanceSync, TypeAppearanceSync } from "@/systems/theme";
 
 export function RootComponent() {
   useReleaseActivationFocus();
@@ -23,6 +23,7 @@ export function RootComponent() {
         className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       >
         <FontAppearanceSync />
+        <TypeAppearanceSync />
         <Outlet />
       </div>
     </GatewayAccessBoundary>

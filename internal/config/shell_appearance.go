@@ -15,21 +15,32 @@ const (
 	ShellFontFamilyMaxLen = 128
 )
 
-// ShellAppearanceConfig persists operator font choices for every shell client.
-// An empty family selects the built-in default stack.
+// ShellAppearanceConfig persists operator text choices for every shell client.
+// An empty family, size or spacing selects the built-in default.
 type ShellAppearanceConfig struct {
-	UIFont           string `toml:"ui_font"`
-	MonoFont         string `toml:"mono_font"`
-	UIFontExplicit   bool   `toml:"-"         json:"-"`
-	MonoFontExplicit bool   `toml:"-"         json:"-"`
+	UIFont                string             `toml:"ui_font"`
+	MonoFont              string             `toml:"mono_font"`
+	TextSize              ShellTextSize      `toml:"text_size"`
+	LetterSpacing         ShellLetterSpacing `toml:"letter_spacing"`
+	UIFontExplicit        bool               `toml:"-"              json:"-"`
+	MonoFontExplicit      bool               `toml:"-"              json:"-"`
+	TextSizeExplicit      bool               `toml:"-"              json:"-"`
+	LetterSpacingExplicit bool               `toml:"-"              json:"-"`
 }
 
-// Validate rejects font family names that are not a single safe family name.
+// Validate rejects font family names that are not a single safe family name
+// and text sizes or letter spacings outside their named steps.
 func (c ShellAppearanceConfig) Validate() error {
 	if err := validateShellFontFamily(shellAppearanceUIFontPath, c.UIFont); err != nil {
 		return err
 	}
-	return validateShellFontFamily(shellAppearanceMonoFontPath, c.MonoFont)
+	if err := validateShellFontFamily(shellAppearanceMonoFontPath, c.MonoFont); err != nil {
+		return err
+	}
+	if err := c.TextSize.validate(); err != nil {
+		return err
+	}
+	return c.LetterSpacing.validate()
 }
 
 func validateShellFontFamily(path string, family string) error {

@@ -3,6 +3,14 @@
    preserving the same Tailwind utilities and runtime custom properties. */
 
 @theme {
+  /* Terminal text: the block-code size, deliberately outside the Appearance
+     text size. The emulator measures its cells from
+     this size, so scaling it would resize every terminal and refit its PTY. */
+  --text-terminal: 0.8125rem; /* 13px */
+  --text-terminal--line-height: 1.5;
+  /* The transcript's read-only preview of the same emulator, one step smaller. */
+  --text-terminal-preview: 0.75rem; /* 12px */
+
   /* Utility adapters over the canonical literals below. */
   --color-terminal-bg: var(--terminal-bg);
   --color-terminal-fg: var(--terminal-fg);

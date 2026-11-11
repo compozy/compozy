@@ -38,7 +38,7 @@ CompozyOS archives them on load instead of failing; see
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
-| `[shell.appearance]`                 | Interface and Code fonts every connected Web and desktop client paints with.           | Inter and Geist Mono                                                                                  |
+| `[shell.appearance]`                 | Fonts, text size, and letter spacing every connected client paints with.               | Figtree and Geist Mono, default text size and spacing                                                 |
 | `[user_scope]`                       | Working directory for work that belongs to no project (the User scope).                | `work_dir = "~"`                                                                                      |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
@@ -1086,22 +1086,27 @@ workspace-scoped CLI or native-tool writes are rejected.
 
 ## `[shell.appearance]`
 
-The Interface and Code fonts chosen in **Settings › Appearance › Fonts**. They are global and
-live-applied: every Web and desktop client connected to this CompozyOS repaints with them, and a
+The fonts, text size, and letter spacing chosen in **Settings › Appearance › Text**. They are global
+and live-applied: every Web and desktop client connected to this CompozyOS repaints with them, and a
 client that reconnects later loads them. A family that is not installed on one device falls back to
 the built-in stack there.
 
-| Field       | Type   | Default | Valid values                                                                  | Description                                                         |
-| ----------- | ------ | ------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ui_font`   | string | `""`    | Empty, or one family name: letters, digits, spaces, `-_.'`; at most 128 chars | Interface font. Empty uses Inter.                                   |
-| `mono_font` | string | `""`    | Same as `ui_font`                                                             | Code blocks, diffs, paths, and the terminal. Empty uses Geist Mono. |
+| Field            | Type   | Default | Valid values                                                                  | Description                                                                        |
+| ---------------- | ------ | ------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `ui_font`        | string | `""`    | Empty, or one family name: letters, digits, spaces, `-_.'`; at most 128 chars | Interface font. Empty uses Figtree.                                                |
+| `mono_font`      | string | `""`    | Same as `ui_font`                                                             | Code blocks, diffs, paths, and the terminal. Empty uses Geist Mono.                |
+| `text_size`      | string | unset   | `small`, `default`, `large`, `larger`                                         | Scales every text size of the app together. The terminal keeps its own size.       |
+| `letter_spacing` | string | unset   | `tight`, `default`, `relaxed`, `wide`                                         | Space between letters in interface text. `default` is the built-in tight tracking. |
 
-`system-ui` and `ui-monospace` select the platform's own faces; `JetBrains Mono Variable` ships with
-the app and downloads only once chosen. Invalid values fail with `shell_config_invalid`.
+`system-ui` and `ui-monospace` select the platform's own faces. `Geist Variable`, `Inter Variable`,
+`Instrument Sans Variable`, and `JetBrains Mono Variable` ship with the app and load only when
+chosen or previewed in the font list. An unset `text_size` or `letter_spacing` reads as `default`.
+Invalid values fail with `shell_config_invalid`.
 
 ```bash
 compozy config set shell.appearance.mono_font "JetBrains Mono Variable"
-compozy config unset shell.appearance.mono_font
+compozy config set shell.appearance.text_size large
+compozy config unset shell.appearance.text_size
 ```
 
 ## `[cmd_palette]`

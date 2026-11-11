@@ -80,6 +80,8 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 			"shell.sessions.scope",
 			"shell.appearance.ui_font",
 			"shell.appearance.mono_font",
+			"shell.appearance.text_size",
+			"shell.appearance.letter_spacing",
 		}, lifecycle.Live)
 	default:
 		return lifecycle.RestartRequired

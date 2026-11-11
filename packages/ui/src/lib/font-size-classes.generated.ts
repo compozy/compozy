@@ -1,5 +1,6 @@
 // Generated from:
 //   packages/ui/src/tokens.css
+//   packages/ui/src/terminal-tokens.css
 //   packages/site/app/global.css
 // by scripts/sync-font-size-classes.mjs.
 // Do not edit by hand. Run make codegen to refresh.
@@ -44,7 +45,10 @@ export const fontSizeClasses = [
   "text-rail-avatar",
   "text-section-head",
   "text-site-lead",
+  "text-sm",
   "text-small-body",
+  "text-terminal",
+  "text-terminal-preview",
   "text-transcript-body",
   "text-transcript-caption",
   "text-transcript-message",
@@ -52,6 +56,7 @@ export const fontSizeClasses = [
   "text-ui-title-lg",
   "text-workspace-avatar",
   "text-ws-name",
+  "text-xs",
 ];
 
 // tailwind-merge only knows Tailwind's default radius names. Registering the

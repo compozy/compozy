@@ -4849,6 +4849,81 @@ func TestSettingsShellAppearance(t *testing.T) {
 			t.Fatalf("response must serialize the default ui_font explicitly: %s", response.Body.String())
 		}
 	})
+	t.Run("Should store a default text size as a reset and always return both steps", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultShellConfig()
+		cfg.Appearance.LetterSpacing = compozyconfig.ShellLetterSpacingWide
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				want := compozyconfig.ShellAppearanceConfig{TextSizeExplicit: true}
+				if req.Shell == nil || req.Shell.Appearance != want {
+					t.Fatalf("appearance request = %#v, want text_size reset with spacing preserved", req.Shell)
+				}
+				return settingspkg.ApplyResult{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Applied: true,
+				}, nil
+			},
+			GetSectionFn: func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Shell:   &settingspkg.ShellSection{Config: cfg},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{},"appearance":{"text_size":"default"}}}`),
+		)
+		var payload contract.SettingsShellMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		appearance := payload.Config.Appearance
+		if response.Code != http.StatusOK || appearance == nil || appearance.TextSize == nil ||
+			appearance.LetterSpacing == nil || *appearance.TextSize != contract.SettingsShellTextSizeDefault ||
+			*appearance.LetterSpacing != contract.SettingsShellLetterSpacingWide {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+	t.Run("Should reject an unknown text size before applying settings", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{},"appearance":{"text_size":"huge"}}}`),
+		)
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+			!strings.Contains(response.Body.String(), "shell.appearance.text_size") ||
+			service.ApplySectionCalls != 0 {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+	t.Run("Should reject an empty written step instead of resetting it", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{
+			`{"config":{"sessions":{},"appearance":{"text_size":""}}}`,
+			`{"config":{"sessions":{},"appearance":{"letter_spacing":""}}}`,
+		} {
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/shell", []byte(body))
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+				service.ApplySectionCalls != 0 {
+				t.Fatalf("%s: response=%d %s", body, response.Code, response.Body.String())
+			}
+		}
+	})
 	t.Run("Should reject an unsafe font family before applying settings", func(t *testing.T) {
 		t.Parallel()
 		service := &stubSettingsService{}

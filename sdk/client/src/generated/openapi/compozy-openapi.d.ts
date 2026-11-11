@@ -17542,7 +17542,11 @@ export interface components {
       workspace_id?: string;
     };
     SettingsShellAppearancePayload: {
+      /** @enum {string|null} */
+      letter_spacing?: "tight" | "default" | "relaxed" | "wide" | null;
       mono_font?: string | null;
+      /** @enum {string|null} */
+      text_size?: "small" | "default" | "large" | "larger" | null;
       ui_font?: string | null;
     };
     SettingsShellLegacyScopePayload: {

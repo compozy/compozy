@@ -32,11 +32,16 @@ export interface FontCatalogEntry {
 }
 
 /**
- * Curated choices offered on every device. JetBrains Mono ships with the app
- * but only downloads when chosen; the System entries resolve the platform UI
- * and monospace faces without any download.
+ * Curated choices offered on every device. Geist, Inter, Instrument Sans and
+ * JetBrains Mono ship with the app (same origin) but stay out of the initial
+ * load: they download when chosen, or when the font list opens so each row
+ * previews in its own face. The System entries resolve the platform UI and
+ * monospace faces without any download.
  */
 export const FONT_CATALOG: readonly FontCatalogEntry[] = [
+  { family: "Geist Variable", label: "Geist", roles: ["sans"] },
+  { family: "Inter Variable", label: "Inter", roles: ["sans"] },
+  { family: "Instrument Sans Variable", label: "Instrument Sans", roles: ["sans"] },
   { family: "JetBrains Mono Variable", label: "JetBrains Mono", roles: ["sans", "mono"] },
   { family: "system-ui", label: "System", roles: ["sans"] },
   { family: "ui-monospace", label: "System", roles: ["mono"] },
@@ -57,6 +62,9 @@ const DEFAULT_FONT_FAMILY: Record<FontRole, string> = {
 // Maps, not object literals: a stored family such as "__proto__" or
 // "constructor" is a valid name and must never resolve to a prototype member.
 const BUNDLED_FONT_LOADERS = new Map<string, () => Promise<unknown>>([
+  ["Geist Variable", () => import("@fontsource-variable/geist")],
+  ["Inter Variable", () => import("@fontsource-variable/inter")],
+  ["Instrument Sans Variable", () => import("@fontsource-variable/instrument-sans")],
   ["JetBrains Mono Variable", () => import("@fontsource-variable/jetbrains-mono")],
 ]);
 

@@ -9,6 +9,7 @@ const designPath = join(root, "DESIGN.md");
 const runtimeCss = ["tokens.css", "terminal-tokens.css"]
   .map(file => readFileSync(join(root, "packages/ui/src", file), "utf8"))
   .join("\n");
+const appearanceDefaults = appearanceDefaultsOf(runtimeCss);
 // The light theme re-declares theme-scoped tokens under `[data-theme="light"]:root`;
 // every other value is shared with the (default) dark theme.
 const lightCss = readFileSync(join(root, "packages/ui/src/tokens-light.css"), "utf8");
@@ -63,6 +64,26 @@ function parseTheme(css, label) {
   return matches.flatMap(match => parseDecls(match[1]));
 }
 
+// The Appearance text size and letter spacing (`--user-text-scale`,
+// `--user-tracking-body`) only multiply or replace a token at runtime; the spec
+// shows the built-in value behind them, as it does for the theme adapters.
+function appearanceDefaultsOf(css) {
+  return new Map(
+    Array.from(css.matchAll(/--(user-text-scale|user-tracking-body)\s*:\s*([^;]+);/g), match => [
+      match[1],
+      match[2].trim(),
+    ])
+  );
+}
+
+function resolveAppearanceDefaults(value) {
+  const resolved = value.replace(
+    /var\(--(user-text-scale|user-tracking-body)\)/g,
+    (whole, name) => appearanceDefaults.get(name) ?? whole
+  );
+  return resolved.replace(/^calc\(\s*([0-9.]+rem)\s*\*\s*1\s*\)$/, "$1");
+}
+
 function lightBlock(css) {
   const match = css.match(/\[data-theme="light"\]:root\s*\{([\s\S]*?)\n\}/);
   if (!match) throw new Error('Could not locate [data-theme="light"]:root in tokens-light.css');
@@ -72,7 +93,7 @@ function lightBlock(css) {
 function parseDecls(css) {
   return Array.from(css.matchAll(/--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g), match => ({
     name: match[1],
-    value: match[2].replace(/\s+/g, " ").trim(),
+    value: resolveAppearanceDefaults(match[2].replace(/\s+/g, " ").trim()),
   }));
 }
 

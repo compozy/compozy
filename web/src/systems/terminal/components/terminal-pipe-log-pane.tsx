@@ -53,7 +53,7 @@ export function TerminalPipeLogPane({
     >
       <div
         aria-label={`${terminalDisplayTitle(terminal)} — command output, read-only`}
-        className="min-h-0 flex-1 overflow-auto px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono text-terminal-ansi-7"
+        className="min-h-0 flex-1 overflow-auto px-3.5 pt-2.5 pb-3 font-mono text-terminal tracking-mono text-terminal-ansi-7"
         ref={logRef}
         role="log"
       >
