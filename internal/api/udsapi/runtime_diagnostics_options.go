@@ -2,6 +2,7 @@ package udsapi
 
 import (
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/ginutil"
 	"github.com/compozy/compozy/internal/doctor"
 )
 
@@ -27,10 +28,5 @@ func WithTelemetryStatus(source core.TelemetryStatusSource) Option {
 
 // RouteTemplates returns the path templates of the mounted routes.
 func (s *Server) RouteTemplates() []string {
-	routes := s.engine.Routes()
-	templates := make([]string, 0, len(routes))
-	for _, route := range routes {
-		templates = append(templates, route.Path)
-	}
-	return templates
+	return ginutil.RouteTemplates(s.engine)
 }

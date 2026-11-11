@@ -61,8 +61,8 @@ func TraceParent(ctx context.Context) string {
 	return carrier.Get(traceParentKey)
 }
 
-// TracerProvider returns a provider whose tracers start each span with the global provider installed at that moment.
-// Instrumentation built before Init, such as the HTTP and UDS middleware, so follows the provider Init installs.
+// TracerProvider returns a provider whose tracers start each span with the global provider installed at that moment,
+// so instrumentation built before Init, such as the HTTP and UDS middleware, follows the provider Init installs.
 func TracerProvider() trace.TracerProvider {
 	return globalTracerProvider{}
 }

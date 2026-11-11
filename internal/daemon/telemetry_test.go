@@ -93,6 +93,8 @@ func TestBootTelemetryStartsAfterTheServersMountTheirRoutes(t *testing.T) {
 				{ID: "reviewer", Spec: compozyconfig.AgentDef{Name: "reviewer"}},
 			})
 			cleanup := &bootCleanup{}
+			// An OK runtime installs the process-wide store write observer.
+			t.Cleanup(func() { store.SetWriteObserver(nil) })
 
 			if err := d.bootTelemetry(t.Context(), state, cleanup); err != nil {
 				t.Fatalf("bootTelemetry() error = %v", err)
@@ -347,8 +349,6 @@ func assertOwnerValidators(t *testing.T, ids map[attribute.Key]func(string) bool
 	}
 }
 
-// The turn span exports compozy.session_id and compozy.turn_id only when the owner validators accept them, so the
-// synthetic identities the daemon hands the session runtime must keep matching sessionid.
 func TestTelemetryModelClassesFollowTheCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -500,6 +500,8 @@ func newTestTelemetryModelClasses(catalog telemetryModelCatalog, now func() time
 	}
 }
 
+// The turn span exports compozy.session_id and compozy.turn_id only when the owner validators accept them, so the
+// synthetic identities the daemon hands the session runtime must keep matching sessionid.
 func TestDaemonSyntheticIdentitiesMatchTelemetryValidators(t *testing.T) {
 	t.Parallel()
 

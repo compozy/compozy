@@ -158,7 +158,6 @@ func (s *HostedService) callRecord(
 	record *hostedBindRecord,
 	req HostedCallRequest,
 ) (HostedCallResponse, error) {
-	var err error
 	toolID := tools.ToolID(strings.TrimSpace(req.ToolName))
 	if err := toolID.Validate(); err != nil {
 		return HostedCallResponse{}, err
@@ -185,7 +184,10 @@ func (s *HostedService) callRecord(
 		CorrelationID: strings.TrimSpace(req.CorrelationID),
 		Input:         input,
 	}
-	var result tools.ToolResult
+	var (
+		result tools.ToolResult
+		err    error
+	)
 	if bootstrap, ok := registry.(hostedBootstrapCallRegistry); ok {
 		result, err = bootstrap.BootstrapSessionCall(ctx, record.scope(), call)
 	} else {

@@ -25,17 +25,8 @@ function randomHex(bytes: number): string {
  * A W3C `traceparent` with the sampled flag off (`-00`), so the daemon's sample ratio stays
  * authoritative for traces the web client starts.
  */
-export function formatTraceparent(traceId: string = randomHex(16)): string {
-  return `00-${traceId}-${randomHex(8)}-00`;
-}
-
-/**
- * Scopes one trace id over the daemon requests a single user action issues: pass
- * `headers: action()` on each call. Requests without one get a fresh trace id.
- */
-export function startTraceAction(): () => { traceparent: string } {
-  const traceId = randomHex(16);
-  return () => ({ traceparent: formatTraceparent(traceId) });
+function formatTraceparent(): string {
+  return `00-${randomHex(16)}-${randomHex(8)}-00`;
 }
 
 // Daemon-bound requests carry an unsampled traceparent; any other origin never receives one.

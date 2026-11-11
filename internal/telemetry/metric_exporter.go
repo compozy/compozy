@@ -121,9 +121,9 @@ func (s *sanitizer) metric(in metricdata.Metrics) (metricdata.Metrics, bool) {
 	return metricdata.Metrics{Name: s.finalString(in.Name), Unit: s.finalString(registered.unit), Data: data}, true
 }
 
-// Points whose sanitized attribute sets collide (for example two unregistered models, both exported
-// as "other") are merged so every exported series carries one point. Exemplars are never copied.
-
+// sanitizeSum and its gauge and histogram siblings merge points whose sanitized attribute sets collide (for example
+// two unregistered models, both exported as "other") so every exported series carries one point. Exemplars are never
+// copied.
 func sanitizeSum[N int64 | float64](in metricdata.Sum[N], attrs func(attribute.Set) attribute.Set) metricdata.Sum[N] {
 	clean := metricdata.Sum[N]{Temporality: in.Temporality, IsMonotonic: in.IsMonotonic}
 	index := make(map[attribute.Distinct]int, len(in.DataPoints))

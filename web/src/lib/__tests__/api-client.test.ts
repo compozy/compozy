@@ -8,7 +8,6 @@ import {
   daemonFetch,
   defaultApiErrorMessage,
   requireResponseData,
-  startTraceAction,
 } from "@/lib/api-client";
 
 const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/;
@@ -100,7 +99,7 @@ describe("api client", () => {
   });
 });
 
-// Invariant: daemon-bound requests join one unsampled W3C trace per user action; other origins
+// Invariant: each daemon-bound request starts its own unsampled W3C trace; other origins
 // never receive trace context.
 describe("api client trace propagation", () => {
   afterEach(() => {
@@ -135,10 +134,12 @@ describe("api client trace propagation", () => {
 
   it("Should not send a traceparent to another origin", async () => {
     const traceparent = stubFetch();
-    const action = startTraceAction();
 
     await apiClient.GET("/api/status", { baseUrl: "https://other.example" });
-    await apiClient.GET("/api/status", { baseUrl: "https://other.example", headers: action() });
+    await apiClient.GET("/api/status", {
+      baseUrl: "https://other.example",
+      headers: { traceparent: "kept-out" },
+    });
 
     expect(traceparent(0)).toBeNull();
     expect(traceparent(1)).toBeNull();
@@ -166,22 +167,6 @@ describe("api client trace propagation", () => {
     expect(promptHeaders.get("Content-Type")).toBe("application/json");
     expect(stop[0].headers.get("traceparent")).toMatch(TRACEPARENT);
     expect(new Headers(other[1].headers).get("traceparent")).toBeNull();
-  });
-
-  it("Should share one trace id across the requests of one action", async () => {
-    const traceparent = stubFetch();
-    const first = startTraceAction();
-    const second = startTraceAction();
-
-    await apiClient.GET("/api/status", { headers: first() });
-    await apiClient.GET("/api/status", { headers: first() });
-    await apiClient.GET("/api/status", { headers: second() });
-
-    expect(traceparent(0)).toMatch(TRACEPARENT);
-    expect(traceparent(1)).toMatch(TRACEPARENT);
-    expect(traceparent(1)).not.toBe(traceparent(0));
-    expect(traceId(traceparent(1))).toBe(traceId(traceparent(0)));
-    expect(traceId(traceparent(2))).not.toBe(traceId(traceparent(0)));
   });
 });
 

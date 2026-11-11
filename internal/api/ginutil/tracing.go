@@ -26,3 +26,14 @@ func requestSpanName(c *gin.Context) string {
 	}
 	return "HTTP " + c.Request.Method
 }
+
+// RouteTemplates returns the path templates of the routes mounted on engine; the tracing sanitizer accepts them as
+// span names.
+func RouteTemplates(engine *gin.Engine) []string {
+	routes := engine.Routes()
+	templates := make([]string, 0, len(routes))
+	for _, route := range routes {
+		templates = append(templates, route.Path)
+	}
+	return templates
+}

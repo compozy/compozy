@@ -2,9 +2,9 @@ import {
   apiBaseUrl,
   apiClient,
   apiRequestFailed,
+  daemonFetch,
   defaultApiErrorMessage,
   requireResponseData,
-  daemonFetch,
 } from "@/lib/api-client";
 
 import type { CreateSupportBundleRequest, SupportBundleOperation } from "../types";

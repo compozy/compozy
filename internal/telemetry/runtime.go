@@ -70,13 +70,13 @@ type SecretResolver interface {
 }
 
 // Tracer returns the global tracer for an instrumentation scope (one of the Scope constants).
-func Tracer(component string) trace.Tracer {
-	return otel.Tracer(component)
+func Tracer(scope string) trace.Tracer {
+	return otel.Tracer(scope)
 }
 
 // Meter returns the global meter for an instrumentation scope (one of the Scope constants).
-func Meter(component string) metric.Meter {
-	return otel.Meter(component)
+func Meter(scope string) metric.Meter {
+	return otel.Meter(scope)
 }
 
 // Init installs the global providers for cfg. Disabled or inactive export installs no-op providers. When export

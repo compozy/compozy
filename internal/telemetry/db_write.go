@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -28,7 +27,7 @@ type DBWrite struct {
 // RecordDBWrite records write in the write histograms and, when writeSpanWanted holds for slowDBWriteMS, as a db.write
 // span with the measured timestamps under ctx's span.
 func RecordDBWrite(ctx context.Context, write DBWrite, slowDBWriteMS int) {
-	outcome := writeOutcome(write.Err)
+	outcome := Outcome(write.Err)
 	// Code-owned operation names are prose ("update session state"); the exported shape admits no spaces.
 	operation := AttrDBOperation.String(strings.ReplaceAll(write.Operation, " ", "_"))
 	coalesced := AttrDBCoalesced.Bool(write.Coalesced)
@@ -61,16 +60,4 @@ func RecordDBWrite(ctx context.Context, write DBWrite, slowDBWriteMS int) {
 // either not coalesced or at least as slow as the threshold.
 func writeSpanWanted(threshold time.Duration, parentRecording, coalesced bool, duration time.Duration) bool {
 	return threshold > 0 && parentRecording && (!coalesced || duration >= threshold)
-}
-
-// writeOutcome matches EndSpan: a canceled write is OutcomeCancelled, any other failure OutcomeError.
-func writeOutcome(err error) string {
-	switch {
-	case err == nil:
-		return OutcomeOK
-	case errors.Is(err, context.Canceled):
-		return OutcomeCancelled
-	default:
-		return OutcomeError
-	}
 }

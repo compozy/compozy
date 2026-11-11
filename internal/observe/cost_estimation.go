@@ -158,20 +158,21 @@ func (o *Observer) aggregateObservedUsage(
 		Provider:         snapshot.provider,
 		Model:            snapshot.model,
 		Agent:            snapshot.agentName,
-		InputTokens:      derefOr(event.Usage.InputTokens, 0),
-		OutputTokens:     derefOr(event.Usage.OutputTokens, 0),
-		CacheReadTokens:  derefOr(event.Usage.CacheReadTokens, 0),
-		CacheWriteTokens: derefOr(event.Usage.CacheWriteTokens, 0),
-		CostAmount:       derefOr(costAmount, 0),
-		CostCurrency:     derefOr(costCurrency, ""),
+		InputTokens:      derefOrZero(event.Usage.InputTokens),
+		OutputTokens:     derefOrZero(event.Usage.OutputTokens),
+		CacheReadTokens:  derefOrZero(event.Usage.CacheReadTokens),
+		CacheWriteTokens: derefOrZero(event.Usage.CacheWriteTokens),
+		CostAmount:       derefOrZero(costAmount),
+		CostCurrency:     derefOrZero(costCurrency),
 		CostStatus:       modelcatalog.CostStatus(costStatus),
 	})
 	return nil
 }
 
-func derefOr[T any](value *T, fallback T) T {
+func derefOrZero[T any](value *T) T {
 	if value == nil {
-		return fallback
+		var zero T
+		return zero
 	}
 	return *value
 }

@@ -1,5 +1,5 @@
-// Package otlptest runs an in-process OTLP/HTTP collector for tests that export through the daemon's real telemetry
-// runtime: the providers telemetry.Init installs, the sanitizing exporters, and the OTLP/HTTP exporter.
+// Package otlptest runs an in-process OTLP collector (HTTP or gRPC) for tests that export through the daemon's real
+// telemetry runtime: the providers telemetry.Init installs, the sanitizing exporters, and the OTLP exporters.
 package otlptest
 
 import (
@@ -166,7 +166,7 @@ func (c *Collector) export(t testing.TB, sampleRatio float64, metrics bool, reg 
 	cfg.Enabled = true
 	cfg.OTel.Enabled = true
 	cfg.OTel.Endpoint = c.URL
-	cfg.OTel.Protocol = "http/protobuf"
+	cfg.OTel.Protocol = compozyconfig.OTelProtocolHTTPProtobuf
 	cfg.OTel.SampleRatio = sampleRatio
 	cfg.OTel.Metrics = metrics
 	runtime := initTelemetry(t, cfg, reg)

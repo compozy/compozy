@@ -105,9 +105,10 @@ func (s *telemetrySlot) shutdown(ctx context.Context, logger *slog.Logger) {
 // bootTelemetry starts OTLP export once the HTTP and UDS servers have mounted their routes, whose templates the
 // sanitizer accepts as span names. Export problems surface in status and never fail boot.
 func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	if state.telemetry == nil || state.httpServer == nil || state.udsServer == nil {
+	if state.httpServer == nil || state.udsServer == nil {
 		return errors.New("daemon: telemetry starts after the HTTP and UDS servers mount their routes")
 	}
+	slot := state.ensureTelemetry()
 	var refs telemetry.SecretResolver
 	if state.providerVault != nil {
 		refs = state.providerVault
@@ -123,7 +124,7 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 	if err != nil {
 		return fmt.Errorf("daemon: init telemetry: %w", err)
 	}
-	state.telemetry.publish(runtime)
+	slot.publish(runtime)
 	// Writes record into the global providers Init just installed; like them, the observer is process-wide. Only a
 	// started export gets one, so a daemon that exports nothing adds no work to the write path.
 	if runtime.Status().State == telemetry.StateOK {
@@ -138,7 +139,7 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 		}
 	}
 	cleanup.add(func(ctx context.Context) error {
-		state.telemetry.shutdown(ctx, state.logger)
+		slot.shutdown(ctx, state.logger)
 		return nil
 	})
 	return nil

@@ -112,7 +112,7 @@ func TestDaemonE2EOTelExportsTurnMetrics(t *testing.T) {
 			string(telemetry.AttrGenAIModel):  telemetry.ValueOther,
 		}
 		requireHistogramPoint(t, metrics, telemetry.MetricSessionTurnDuration,
-			with(turnAttrs, string(telemetry.AttrOutcome), telemetry.OutcomeOK))
+			withMetricAttr(turnAttrs, string(telemetry.AttrOutcome), telemetry.OutcomeOK))
 		requireHistogramPoint(t, metrics, telemetry.MetricSessionTTFT, map[string]any{
 			string(telemetry.AttrGenAISystem): acpmock.ProviderName,
 			string(telemetry.AttrGenAIModel):  telemetry.ValueOther,
@@ -148,7 +148,7 @@ func TestDaemonE2EOTelExportsTurnMetrics(t *testing.T) {
 				t.Fatalf("token_stats %+v lacks %s tokens", usage.Usage, tokenType)
 			}
 			requireSeries(t, metrics, telemetry.MetricTokens,
-				with(turnAttrs, string(telemetry.AttrTokenType), tokenType), float64(*stat))
+				withMetricAttr(turnAttrs, string(telemetry.AttrTokenType), tokenType), float64(*stat))
 		}
 		if _, ok := metrics[telemetry.MetricCost]; ok != countsCostStatus(usage.Usage.CostStatus) {
 			t.Fatalf("compozy.cost exported = %v, token_stats cost status %q", ok, usage.Usage.CostStatus)
@@ -267,7 +267,7 @@ func requireSeries(t *testing.T, metrics map[string]otlptest.Metric, name string
 	t.Fatalf("%s points = %+v, want a series with %v", name, metrics[name].Points, attrs)
 }
 
-func with(attrs map[string]any, key string, value any) map[string]any {
+func withMetricAttr(attrs map[string]any, key string, value any) map[string]any {
 	extended := maps.Clone(attrs)
 	extended[key] = value
 	return extended

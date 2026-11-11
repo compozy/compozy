@@ -3439,3 +3439,12 @@ func TestHostedToolPermissionGates(t *testing.T) {
 		}
 	})
 }
+
+// beginPrompt starts an untraced prompt outside any run, for tests that drive a prompt directly.
+func (p *AgentProcess) beginPrompt(
+	turnID string,
+	bufferSize int,
+	cancelFns ...context.CancelFunc,
+) (*activePromptState, error) {
+	return p.beginPromptState(turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
+}

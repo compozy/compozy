@@ -35,7 +35,8 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	promptCtx, cancelPrompt := context.WithCancel(ctx)
 	var active *activePromptState
 	var err error
-	if traceCtx := trace.SpanContextFromContext(ctx); strings.TrimSpace(req.RunID) == "" {
+	traceCtx := trace.SpanContextFromContext(ctx)
+	if strings.TrimSpace(req.RunID) == "" {
 		active, err = proc.beginPromptState(req.TurnID, "", 0, traceCtx, d.promptBufferCap, cancelPrompt)
 	} else {
 		active, err = proc.beginPromptForRun(

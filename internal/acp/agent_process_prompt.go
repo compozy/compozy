@@ -64,14 +64,6 @@ type toolCallProjection struct {
 
 const maxPendingToolResults = 128
 
-func (p *AgentProcess) beginPrompt(
-	turnID string,
-	bufferSize int,
-	cancelFns ...context.CancelFunc,
-) (*activePromptState, error) {
-	return p.beginPromptState(turnID, "", 0, trace.SpanContext{}, bufferSize, cancelFns...)
-}
-
 func (p *AgentProcess) beginPromptForRun(
 	turnID string,
 	runID string,

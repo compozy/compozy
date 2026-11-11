@@ -80,7 +80,7 @@ func newBootLoopActionRegistry(
 // installLoopRunTraces registers the loop.run span registry with the Loop lifecycle observers.
 func installLoopRunTraces(state *bootState) *looppkg.RunTraces {
 	traces := &looppkg.RunTraces{}
-	if state != nil && state.notifier != nil {
+	if state.notifier != nil {
 		state.notifier.AddLoopStartedObserver(traces)
 		state.notifier.AddLoopTerminalObserver(traces)
 	}

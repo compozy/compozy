@@ -270,7 +270,7 @@ func statusNeedsAttentionRuns(tasks contract.TaskHealthPayload) int {
 func statusOTelLine(otel *contract.OTelStatusPayload) string {
 	switch {
 	case otel == nil:
-		return stringOrDash("")
+		return "--"
 	case otel.State == statusOTelDisabled:
 		return statusOTelDisabled
 	case otel.State == statusOTelInactive:

@@ -26,7 +26,7 @@ func TestPackageBoundary(t *testing.T) {
 
 		const internalPrefix = "github.com/compozy/compozy/internal/"
 		forbidden := map[string]struct{}{
-			"session": {}, "acp": {}, "mcp": {}, "api": {}, "observe": {}, "store": {}, "daemon": {},
+			"session": {}, "acp": {}, "mcp": {}, "api": {}, "cli": {}, "observe": {}, "store": {}, "daemon": {},
 		}
 		for importPath := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 			relative, internal := strings.CutPrefix(importPath, internalPrefix)

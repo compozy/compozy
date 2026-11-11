@@ -136,16 +136,11 @@ func observedToolID(event acp.AgentEvent) string {
 
 // permissionOutcome maps a resolved permission decision; a pending request is not counted yet.
 func permissionOutcome(event acp.AgentEvent) (string, bool) {
-	switch acp.PermissionDecision(strings.TrimSpace(event.Decision)) {
-	case "", acp.PermissionDecisionPending:
+	decision := acp.PermissionDecision(strings.TrimSpace(event.Decision))
+	if decision == "" || decision == acp.PermissionDecisionPending {
 		return "", false
-	case acp.PermissionDecisionAllowOnce, acp.PermissionDecisionAllowAlways:
-		return telemetry.OutcomeApproved, true
-	case acp.PermissionDecisionRejectOnce, acp.PermissionDecisionRejectAlways:
-		return telemetry.OutcomeDenied, true
-	default:
-		return telemetry.OutcomeCancelled, true
 	}
+	return decision.TelemetryOutcome(), true
 }
 
 // agentErrorType classifies an agent error by its failure kind; the error text is never exported.

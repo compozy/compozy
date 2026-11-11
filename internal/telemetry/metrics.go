@@ -19,8 +19,8 @@ var durationOptions = []metric.Float64HistogramOption{
 	),
 }
 
-// DurationHistogram returns the registered duration histogram name of scope's global meter, and false when it does
-// not record (export or metrics off), so callers build attributes only for a measurement that is kept.
+// DurationHistogram returns scope's global-meter histogram for the registered duration instrument name, and false when
+// it does not record (export or metrics off), so callers build attributes only for a measurement that is kept.
 func DurationHistogram(ctx context.Context, scope, name string) (metric.Float64Histogram, bool) {
 	histogram, err := Meter(scope).Float64Histogram(name, durationOptions...)
 	if err != nil || !histogram.Enabled(ctx) {
