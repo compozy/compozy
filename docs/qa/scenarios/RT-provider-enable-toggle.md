@@ -57,5 +57,15 @@ Planning 2026-11-07 (issue #1326, spec `provider-enable-toggle`, task_06). Walk 
     provider can be committed. An exact `provider/model` entry (loop runtime, `allowCustomProvider`)
     naming any provider the selector knows is disabled is refused, even when it is not the current
     value.
+12. **Profile-only provider (#1434).** Define `[providers.work]` with `command` and
+    `enabled = false` only in the profile `config.toml`, with no global entry. `GET /api/providers`
+    and `compozy provider list -o json` for that profile list `work` with `enabled: false`, and a
+    non-workspace model list (`GET /api/model-catalog/models`, `compozy__provider_models_list`
+    without a workspace) returns no `work` models. A profile entry with `enabled` and no `command`
+    stays out of the inventory and the list still loads.
+13. **Session bound to a disabled provider (#1422).** Disable the provider an existing session runs
+    on. The session composer's runtime picker still shows that provider as the current value with
+    the `· disabled` marker, its models cannot be picked, and other disabled providers stay out of
+    the list. Picking another provider drops the disabled one from the list.
 
 QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.

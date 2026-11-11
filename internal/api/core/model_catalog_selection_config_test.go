@@ -89,6 +89,45 @@ func TestModelCatalogSelectionConfig(t *testing.T) {
 			t.Fatalf("models = %#v, want codex dropped by the default profile's disable", payload.Models)
 		}
 	})
+	t.Run("Should drop models of a provider the profile defines and disables on its own", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		homePaths := compozyconfig.HomePaths{
+			ConfigFile:  filepath.Join(root, compozyconfig.ConfigName),
+			ProfilesDir: filepath.Join(root, "profiles"),
+		}
+		profileDir := filepath.Join(homePaths.ProfilesDir, "default")
+		if err := os.MkdirAll(profileDir, 0o700); err != nil {
+			t.Fatalf("mkdir profile: %v", err)
+		}
+		profileFile := filepath.Join(profileDir, compozyconfig.ConfigName)
+		profileTOML := "[providers.work]\ncommand = \"work-acp\"\nenabled = false\n"
+		if err := os.WriteFile(profileFile, []byte(profileTOML), 0o600); err != nil {
+			t.Fatalf("write profile config: %v", err)
+		}
+		service := &modelCatalogServiceSpy{
+			listModelsFn: func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error) {
+				return []modelcatalog.Model{
+					seedModelCatalogModel("codex", "gpt-5.4"),
+					seedModelCatalogModel("work", "work-large"),
+				}, nil
+			},
+		}
+		engine := newModelCatalogCoreEngineWithConfig(t, &BaseHandlerConfig{
+			Config:       compozyconfig.DefaultWithHome(homePaths),
+			HomePaths:    homePaths,
+			ModelCatalog: service,
+		})
+		recorder := performModelCatalogRequest(t, engine, http.MethodGet, "/model-catalog/models", nil)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+		var payload contract.ProviderModelListResponse
+		decodeModelCatalogResponse(t, recorder, &payload)
+		if len(payload.Models) != 1 || payload.Models[0].ProviderID != "codex" {
+			t.Fatalf("models = %#v, want only codex once the profile disables its own work provider", payload.Models)
+		}
+	})
 	t.Run(
 		"Should apply the selected profile's disable to a workspace read without profile-aware resolution",
 		func(t *testing.T) {

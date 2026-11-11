@@ -62,9 +62,15 @@ func (h *BaseHandlers) GetProvider(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
-// ProbeProviderAuth runs a live provider auth status command.
+// ProbeProviderAuth runs a live provider auth status command. It resolves the provider the way the
+// list does, so a provider the selected profile defines on its own can be probed too.
 func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
-	cfg, err := h.activeConfig(c.Request.Context())
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	cfg, err := h.profileProviderConfig(c.Request.Context(), selection)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
