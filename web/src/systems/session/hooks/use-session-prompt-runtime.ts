@@ -76,31 +76,29 @@ function snapshotFromSelection(
 }
 
 /**
- * Combine workspace provider availability with current authentication status. The workspace
- * leaves disabled providers out, so a session still bound to one gets it back from the profile
- * inventory, marked disabled: the picker shows it as the current value and refuses new picks.
+ * Combine workspace provider availability with the profile inventory's auth and enabled state.
+ * The workspace list is not profile-scoped, so the inventory marks a profile-disabled provider
+ * there; a session still bound to a provider the workspace dropped gets it back, marked disabled.
+ * The picker shows a disabled provider only as the current value and refuses new picks.
  */
 function runtimeProviderOptions(
   providers: SessionProviderOption[] | undefined,
   globalProviders: ProviderSummary[] | undefined,
   selectedProvider: string
 ): RuntimeProviderOption[] {
-  const needsAuthByProvider = new Map(
-    (globalProviders ?? []).map(provider => [
-      provider.name,
-      providerNeedsAuth(provider.auth_status?.state),
-    ])
-  );
-  const options = (providers ?? []).map(provider => ({
-    ...workspaceProviderToOption(provider),
-    needs_auth: needsAuthByProvider.get(provider.name) ?? false,
-  }));
+  const inventory = new Map((globalProviders ?? []).map(provider => [provider.name, provider]));
+  const options: RuntimeProviderOption[] = (providers ?? []).map(provider => {
+    const summary = inventory.get(provider.name);
+    return {
+      ...workspaceProviderToOption(provider),
+      needs_auth: summary ? providerNeedsAuth(summary.auth_status?.state) : false,
+      ...(summary && !isProviderEnabled(summary) ? { disabled: true } : {}),
+    };
+  });
   const selected = selectedProvider.trim();
   if (selected.length === 0 || options.some(option => option.id === selected)) return options;
-  const disabled = globalProviders?.find(
-    provider => provider.name === selected && !isProviderEnabled(provider)
-  );
-  if (!disabled) return options;
+  const disabled = inventory.get(selected);
+  if (!disabled || isProviderEnabled(disabled)) return options;
   return [
     ...options,
     {

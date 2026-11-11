@@ -420,13 +420,14 @@ describe("useSessionPromptRuntime", () => {
     });
   });
 
-  it("Should keep a session's disabled provider as the current value, marked disabled", async () => {
+  it("Should mark profile-disabled providers and keep the session's own as the current value", async () => {
     const workspaceId = workspaceDetailFixture.workspace.id;
     const { queryClient, wrapper } = createHarness();
     queryClient.setQueryData(workspaceKeys.detail(workspaceId), {
       ...workspaceDetailFixture,
       providers: [
         { display_name: "Codex", harness: "acp", name: "codex", runtime_provider: "codex" },
+        { display_name: "Gemini", harness: "acp", name: "gemini", runtime_provider: "gemini" },
       ],
     } satisfies WorkspaceDetailPayload);
     queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
@@ -456,10 +457,13 @@ describe("useSessionPromptRuntime", () => {
 
     await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
     expect(result.current.value).toMatchObject({ provider: "claude", model: "claude-fable-5" });
+    // The workspace list is not profile-scoped: gemini stays there but the inventory disables it.
     expect(result.current.catalog.providers).toEqual([
       expect.objectContaining({ id: "codex" }),
+      expect.objectContaining({ id: "gemini", disabled: true }),
       expect.objectContaining({ id: "claude", name: "Claude", disabled: true }),
     ]);
+    expect(result.current.catalog.providers[0]?.disabled).toBeUndefined();
     expect(result.current.catalog.models.some(entry => entry.provider === "claude")).toBe(false);
 
     act(() => {
@@ -469,7 +473,7 @@ describe("useSessionPromptRuntime", () => {
         reasoning_effort: "",
       });
     });
-    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex"]);
+    expect(result.current.catalog.providers.map(entry => entry.id)).toEqual(["codex", "gemini"]);
   });
 
   // A continued or forked session is unbound with the runtime its dialog chose as its
