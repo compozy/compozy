@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
+const schemaAnyType = "any"
+
 func inputSchema(input dsl.Input) refs.Schema {
 	switch input.Type {
 	case dsl.InputTypeAgent, dsl.InputTypeRef, dsl.InputTypeFile:
@@ -44,7 +46,7 @@ func inputSchema(input dsl.Input) refs.Schema {
 	}
 }
 
-func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
+func (c *lintContext) referenceOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if len(node.Produces) > 0 {
 		// Source declarations describe incoming fields without output-schema validation.
 		if node.Class == dsl.NodeClassSource {
@@ -56,7 +58,7 @@ func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 	case dsl.NodeClassSource:
 		return c.sourceOutputSchema(node)
 	case dsl.NodeClassAction:
-		return c.actionOutputSchema(node)
+		return c.referenceActionOutputSchema(node)
 	case dsl.NodeClassControl:
 		if dsl.ControlKind(node.Kind) == dsl.ControlAsk {
 			var params dsl.AskParams
@@ -85,7 +87,7 @@ func (c *lintContext) sourceOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	}
 }
 
-func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
+func (c *lintContext) referenceActionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	if !dsl.IsReservedActionKind(node.Kind) {
 		return c.toolOutputSchema(node)
 	}
@@ -128,7 +130,7 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		}
 		schema := refs.Schema{}
 		for key := range params.Map {
-			schema[key] = "any"
+			schema[key] = schemaAnyType
 		}
 		return referenceFieldSchema(schema), true
 	default:
@@ -208,7 +210,7 @@ func normalizedReferenceSchema(schema dsl.Schema) (refs.Schema, bool) {
 func referenceFieldSchema(fields refs.Schema) refs.Schema {
 	properties := make(map[string]any, len(fields))
 	for key, value := range fields {
-		if value == "any" {
+		if value == schemaAnyType {
 			properties[key] = map[string]any{}
 		} else {
 			properties[key] = shorthandPropertySchema(value)
@@ -247,4 +249,79 @@ func authoredOutputSchema(node dsl.Node) refs.Schema {
 		}
 	}
 	return nil
+}
+
+func isToolAction(node dsl.Node) bool {
+	return node.Class == dsl.NodeClassAction && !dsl.IsReservedActionKind(node.Kind)
+}
+
+func (c *lintContext) nonToolOutputShape(node dsl.Node) refs.Schema {
+	if isToolAction(node) {
+		return nil
+	}
+	if authored := authoredOutputSchema(node); authored != nil {
+		return authored
+	}
+	if node.Class == dsl.NodeClassSource {
+		schema, _ := c.sourceOutputSchema(node)
+		return schema
+	}
+	if node.Class != dsl.NodeClassAction {
+		return nil
+	}
+	switch dsl.ActionKind(node.Kind) {
+	case dsl.ActionRunLoop:
+		if c.legacyRunLoopOutputSchema {
+			return refs.Schema{
+				reasonMetaStatus:     jsonSchemaStringType,
+				"outputs":            map[string]any{},
+				metadataLoopRunIDKey: jsonSchemaStringType,
+			}
+		}
+		var params dsl.RunLoopParams
+		if node.Params.Decode(&params) != nil {
+			return nil
+		}
+		if params.Mode == dsl.RunLoopDetach {
+			return refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}
+		}
+		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}
+	case dsl.ActionTransform:
+		var params dsl.TransformParams
+		if node.Params.Decode(&params) != nil || len(params.Map) == 0 {
+			return nil
+		}
+		schema := refs.Schema{}
+		for key := range params.Map {
+			schema[key] = schemaAnyType
+		}
+		return schema
+	default:
+		return nil
+	}
+}
+
+func (c *lintContext) referenceNodeSchema(node dsl.Node) refs.NodeSchema {
+	schema, ok := c.referenceOutputSchema(node)
+	fallback := c.nonToolOutputShape(node)
+	return refs.NodeSchema{
+		Output:           schema,
+		FallbackOutput:   fallback,
+		HasOutput:        ok || fallback != nil,
+		OutputJSONSchema: outputIsJSONSchema(node),
+		HasProgress:      isControlKind(node, dsl.ControlFanOut),
+		AllowOpenOutput:  c.allowsOpenOutput(node),
+	}
+}
+
+// outputSchema preserves raw runtime history shapes; reference schemas are lint-only.
+func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
+	if authored := authoredOutputSchema(node); authored != nil {
+		return authored, true
+	}
+	if isToolAction(node) {
+		return c.toolOutputSchema(node)
+	}
+	schema := c.nonToolOutputShape(node)
+	return schema, schema != nil
 }

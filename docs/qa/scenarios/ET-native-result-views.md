@@ -40,3 +40,13 @@ R1b regression checks: run `TestLinterOutputShapeRuntimeAgreement` and
 historically accepted authored scalar/metadata references validate with cannot-be-proven warnings.
 Annotated tool schemas keep strict declared-property
 resolution, including `$comment`, `$ref`, `patternProperties`, `else`, and extension annotations.
+
+R2 regression checks: tool nodes with any `produces` declaration remain bounded by their
+pinned descriptor view for current, previous and best references; declarations can only narrow
+the contract. Non-tool inferred input/source/sub-loop references retain baseline acceptance,
+using cannot-be-proven warnings when only the legacy field-map lookup accepts a path.
+`TestLinterOutputShapeRuntimeAgreement` also compares 93 generated authored definitions with
+the baseline field-map acceptance rule. List/range warnings name the complete reference.
+`TestGenerationHistoryProjection` pins exact first-generation previous/best defaults across
+node sources, including legacy shorthand quirks, null transform fields, template rendering,
+and CEL null guards. Schema normalization for lint must never change these runtime defaults.

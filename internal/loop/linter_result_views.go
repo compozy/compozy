@@ -59,7 +59,7 @@ func (c *lintContext) lintToolResultView(node dsl.Node, snapshot ToolSchemaSnaps
 				c.addRefsError(node.ID, err)
 			}
 		} else {
-			c.warnUnknownOutputReferences(
+			c.checkReferenceContracts(
 				node.ID,
 				[]refs.Reference{{Raw: strings.Join(path, "."), Path: path}},
 				namespace,
@@ -69,6 +69,13 @@ func (c *lintContext) lintToolResultView(node dsl.Node, snapshot ToolSchemaSnaps
 }
 
 func (c *lintContext) allowsOpenOutput(node dsl.Node) bool {
+	if isToolAction(node) {
+		if len(node.Produces) > 0 || c.linter.tools == nil {
+			return false
+		}
+		snapshot, ok := c.linter.tools.Snapshot(node.Kind)
+		return ok && snapshot.FullOutputSchemaDigest != "" && nodeResultView(node) == tools.ResultViewFull
+	}
 	if node.Class == dsl.NodeClassSource {
 		return false
 	}
@@ -76,11 +83,7 @@ func (c *lintContext) allowsOpenOutput(node dsl.Node) bool {
 		return isFullJSONSchema(map[string]any(authored))
 	}
 
-	if node.Class != dsl.NodeClassAction || len(node.Produces) > 0 || c.linter.tools == nil {
-		return false
-	}
-	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
-	return ok && snapshot.FullOutputSchemaDigest != "" && nodeResultView(node) == tools.ResultViewFull
+	return false
 }
 
 func (c *lintContext) addResultViewReferenceError(consumer dsl.NodeID, refErr *refs.Error) bool {
@@ -89,8 +92,25 @@ func (c *lintContext) addResultViewReferenceError(consumer dsl.NodeID, refErr *r
 		return false
 	}
 	node, ok := c.nodeByID[dsl.NodeID(path[1])]
-	if !ok || len(node.Produces) > 0 {
+	if !ok {
 		return false
+	}
+
+	if len(node.Produces) > 0 {
+		declared, valid := normalizedReferenceSchema(node.Produces)
+		declaration := refs.Namespace{
+			Nodes: map[string]refs.NodeSchema{
+				path[1]: {
+					Output:           declared,
+					HasOutput:        valid,
+					OutputJSONSchema: true,
+					AllowOpenOutput:  isFullJSONSchema(map[string]any(convertSchema(node.Produces))),
+				},
+			},
+		}
+		if !valid || declaration.ValidatePath(path) != nil {
+			return false
+		}
 	}
 	return c.addToolResultViewReferenceError(consumer, node, refErr)
 }
@@ -100,12 +120,23 @@ func (c *lintContext) addToolResultViewReferenceError(
 ) bool {
 	path := nodeOutputReferencePath(refErr.ReferencePath)
 	if refErr.Code != refs.CodeUnresolvablePath || len(path) < 4 || c.linter.tools == nil ||
-		node.Class != dsl.NodeClassAction || nodeResultView(node) == tools.ResultViewFull {
+		!isToolAction(node) || nodeResultView(node) == tools.ResultViewFull {
 		return false
 	}
 	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
 	if !ok || snapshot.FullOutputSchemaDigest == "" {
 		return false
+	}
+
+	compactRaw, _ := snapshot.OutputSchemaFor(tools.ResultViewCompact)
+	compact, compactErr := schemaFromJSON(compactRaw)
+	if compactErr == nil {
+		compactNamespace := refs.Namespace{
+			Nodes: map[string]refs.NodeSchema{path[1]: {Output: compact, HasOutput: true, OutputJSONSchema: true}},
+		}
+		if compactNamespace.ValidatePath(path) == nil {
+			return false
+		}
 	}
 	raw, _ := snapshot.OutputSchemaFor(tools.ResultViewFull)
 	full, err := schemaFromJSON(raw)
@@ -170,14 +201,28 @@ func declaredOutputPaths(value any) [][]string {
 	return paths
 }
 
-func (c *lintContext) warnUnknownOutputReferences(
+func (c *lintContext) checkReferenceContracts(
 	nodeID dsl.NodeID,
 	references []refs.Reference,
 	namespace refs.Namespace,
 ) {
 	for _, reference := range references {
+		if namespace.InputPathUnproven(reference.Path) {
+			c.warn(
+				nodeID,
+				refs.CodeUnresolvablePath,
+				"input %q path %q cannot be proven",
+				reference.Path[1],
+				strings.Join(reference.Path, "."),
+			)
+			continue
+		}
+
 		path := nodeOutputReferencePath(reference.Path)
 		if len(path) < 3 {
+			continue
+		}
+		if producer, ok := c.nodeByID[dsl.NodeID(path[1])]; ok && c.rejectToolReference(nodeID, producer, reference) {
 			continue
 		}
 		node, ok := namespace.Nodes[path[1]]
@@ -189,7 +234,7 @@ func (c *lintContext) warnUnknownOutputReferences(
 			refs.CodeUnresolvablePath,
 			"node %q output path %q cannot be proven",
 			path[1],
-			reference.Raw,
+			strings.Join(reference.Path, "."),
 		)
 	}
 }
@@ -202,4 +247,32 @@ func nodeOutputReferencePath(path []string) []string {
 		return nil
 	}
 	return path
+}
+
+func (c *lintContext) rejectToolReference(consumer dsl.NodeID, node dsl.Node, reference refs.Reference) bool {
+	if !isToolAction(node) || c.linter.tools == nil {
+		return false
+	}
+	schema, ok := c.toolOutputSchema(node)
+	if !ok {
+		return false
+	}
+	snapshot, _ := c.linter.tools.Snapshot(node.Kind)
+	namespace := refs.Namespace{
+		Nodes: map[string]refs.NodeSchema{
+			string(node.ID): {
+				Output:           schema,
+				HasOutput:        true,
+				OutputJSONSchema: true,
+				AllowOpenOutput:  nodeResultView(node) == tools.ResultViewFull || snapshot.FullOutputSchemaDigest == "",
+			},
+		},
+	}
+	if err := namespace.ValidatePath(reference.Path); err != nil {
+		if !c.addToolResultViewReferenceError(consumer, node, err) {
+			c.addRefsError(consumer, err)
+		}
+		return true
+	}
+	return false
 }

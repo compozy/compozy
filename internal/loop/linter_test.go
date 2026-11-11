@@ -1569,7 +1569,7 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 							Kind:  string(dsl.ActionRunAgent),
 							Params: dsl.NodeParams{
 								"agent":  "codex",
-								"prompt": "Summarize {{ .nodes.nested_load.output.type }}",
+								"prompt": "Summarize {{ .nodes.nested_load.output }}",
 								"output_schema": map[string]any{
 									"summary": "string",
 								},
@@ -2755,16 +2755,17 @@ func TestLinterResultViewReferences(t *testing.T) {
 	const compact = `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`
 	const full = `{"type":"object","properties":{"id":{"type":"string"},"details":{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false},"scalar":{"type":"string"}},"additionalProperties":false}`
 	for _, tc := range []struct {
-		name     string
-		view     any
-		compact  string
-		full     string
-		path     string
-		produces bool
-		override dsl.Schema
-		want     string
-		warning  bool
-		prefix   string
+		name          string
+		view          any
+		compact       string
+		full          string
+		path          string
+		produces      bool
+		override      dsl.Schema
+		want          string
+		warning       bool
+		prefix        string
+		consumerError bool
 	}{
 		{name: "Should reject annotated scalar schema metadata", view: "full", full: `{"type":"string","$comment":"scalar"}`, path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject annotated closed-object metadata", view: "full", full: `{"type":"object","additionalProperties":false,"$comment":"empty"}`, path: "additionalProperties", want: refs.CodeUnresolvablePath},
@@ -2772,6 +2773,27 @@ func TestLinterResultViewReferences(t *testing.T) {
 		{name: "Should reject metadata with a schema reference", view: "full", full: `{"type":"string","$ref":"#/$defs/value","$defs":{"value":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata with pattern properties", view: "full", full: `{"type":"object","additionalProperties":false,"patternProperties":{"^x":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject metadata with conditional schemas", view: "full", full: `{"type":"string","else":{}}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should require full despite an open tool declaration from current", prefix: "", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject metadata despite a closed tool declaration from current", prefix: "", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite an open tool declaration from current", prefix: "", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should preserve a narrowing tool declaration from current", prefix: "", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should accept declared compact fields with a tool declaration from current", prefix: "", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
+		{name: "Should require full despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject metadata despite a closed tool declaration from previous.", prefix: "previous.", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite an open tool declaration from previous.", prefix: "previous.", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should preserve a narrowing tool declaration from previous.", prefix: "previous.", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should accept declared compact fields with a tool declaration from previous.", prefix: "previous.", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
+		{name: "Should require full despite an open tool declaration from best.", prefix: "best.", view: nil, path: "details.name", override: dsl.Schema{"type": "object"}, want: loop.CodeResultViewFieldRequiresFull},
+		{name: "Should reject metadata despite a closed tool declaration from best.", prefix: "best.", view: nil, path: "type", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}, "additionalProperties": false}, want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata despite an open tool declaration from best.", prefix: "best.", view: nil, path: "type", override: dsl.Schema{"type": "object"}, want: refs.CodeUnresolvablePath},
+		{name: "Should preserve a narrowing tool declaration from best.", prefix: "best.", view: "full", path: "details.name", override: dsl.Schema{"id": "string"}, want: refs.CodeUnresolvablePath},
+		{name: "Should accept declared compact fields with a tool declaration from best.", prefix: "best.", view: nil, path: "id", override: dsl.Schema{"type": "object", "properties": map[string]any{"id": map[string]any{"type": "string"}}}, want: ""},
+		{name: "Should bound a declared moved field at its consumer from current", prefix: "", path: "details.name", override: dsl.Schema{"details": map[string]any{"name": "string"}}, want: loop.CodeResultViewFieldRequiresFull, consumerError: true},
+		{name: "Should bound declared keyword data at its consumer from current", prefix: "", path: "type", override: dsl.Schema{"type": "string", "id": "string"}, want: refs.CodeUnresolvablePath, consumerError: true},
+		{name: "Should bound a declared moved field at its consumer from previous.", prefix: "previous.", path: "details.name", override: dsl.Schema{"details": map[string]any{"name": "string"}}, want: loop.CodeResultViewFieldRequiresFull, consumerError: true},
+		{name: "Should bound declared keyword data at its consumer from previous.", prefix: "previous.", path: "type", override: dsl.Schema{"type": "string", "id": "string"}, want: refs.CodeUnresolvablePath, consumerError: true},
+		{name: "Should bound a declared moved field at its consumer from best.", prefix: "best.", path: "details.name", override: dsl.Schema{"details": map[string]any{"name": "string"}}, want: loop.CodeResultViewFieldRequiresFull, consumerError: true},
+		{name: "Should bound declared keyword data at its consumer from best.", prefix: "best.", path: "type", override: dsl.Schema{"type": "string", "id": "string"}, want: refs.CodeUnresolvablePath, consumerError: true},
 		{name: "Should accept compact fields", path: "id"},
 		{name: "Should reject schema keywords on a closed compact node", path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject schema keywords on a closed full node", view: "full", path: "properties.id", want: refs.CodeUnresolvablePath},
@@ -2861,12 +2883,16 @@ func TestLinterResultViewReferences(t *testing.T) {
 				Lint(def)
 			var codes []string
 			warned := false
+			consumerRejected := false
 			for _, diagnostic := range diagnostics {
 				if diagnostic.Severity == loop.SeverityWarning {
 					warned = warned || strings.Contains(diagnostic.Message, "cannot be proven")
 					continue
 				}
 				codes = append(codes, diagnostic.Code)
+				if diagnostic.NodeID == "report" && diagnostic.Code == tc.want {
+					consumerRejected = true
+				}
 				if diagnostic.Code == loop.CodeResultViewFieldRequiresFull &&
 					(!strings.Contains(diagnostic.Path, "nodes.inspect.output."+tc.path) || !strings.Contains(diagnostic.Message, snapshot.ToolID) || !strings.Contains(diagnostic.Message, "params of node \"inspect\"")) {
 					t.Fatalf("missing source metadata: %#v", diagnostic)
@@ -2877,6 +2903,9 @@ func TestLinterResultViewReferences(t *testing.T) {
 			}
 			if tc.want == refs.CodeUnresolvablePath && slices.Contains(codes, loop.CodeResultViewFieldRequiresFull) {
 				t.Fatal(diagnostics)
+			}
+			if tc.consumerError && !consumerRejected {
+				t.Fatalf("consumer escaped selected view: %#v", diagnostics)
 			}
 			if tc.warning && !warned {
 				t.Fatalf("missing open schema warning: %#v", diagnostics)
@@ -2949,6 +2978,105 @@ func TestLinterResultViewReferences(t *testing.T) {
 
 func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve inferred non-tool references", testInferredNonToolReferences)
+	t.Run("Should report full paths for list shorthand warnings", func(t *testing.T) {
+		t.Parallel()
+		for _, prompt := range []string{"{{ .nodes.origin.output.issues.title }}", "{{ range .nodes.origin.output.issues }}{{ .title }}{{ end }}"} {
+			node := dsl.Node{
+				ID:       "origin",
+				Class:    dsl.NodeClassAction,
+				Kind:     "transform",
+				Produces: dsl.Schema{"issues": []any{map[string]any{"title": "string"}}},
+				Params: dsl.NodeParams{
+					"map": map[string]any{"issues": map[string]any{"value": []any{map[string]any{"title": "issue"}}}},
+				},
+			}
+			def := singleNodeDefinition(node)
+			def.Graph.Nodes = append(
+				def.Graph.Nodes,
+				dsl.Node{
+					ID:     "read",
+					Class:  dsl.NodeClassAction,
+					Kind:   "run-agent",
+					Params: dsl.NodeParams{"agent": "codex", "prompt": prompt},
+				},
+			)
+			def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
+			warned := false
+			for _, d := range loop.NewLinter().Lint(def) {
+				if d.Severity == loop.SeverityError {
+					t.Fatal(d)
+				}
+				if d.Severity == loop.SeverityWarning && strings.Contains(d.Message, "cannot be proven") {
+					warned = true
+					if !strings.Contains(d.Message, "nodes.origin.output.issues.title") {
+						t.Fatalf("relative warning: %#v", d)
+					}
+				}
+			}
+			if !warned {
+				t.Fatal("missing list warning")
+			}
+		}
+	})
+
+	t.Run("Should preserve baseline acceptance for generated keyword fields", func(t *testing.T) {
+		t.Parallel()
+		keys := []string{"type", "title", "properties", "items", "id"}
+		for mask := 1; mask < 1<<len(keys); mask++ {
+			schema := dsl.Schema{}
+			prompt := ""
+			for index, key := range keys {
+				if mask&(1<<index) != 0 {
+					schema[key] = "string"
+					prompt += "{{ .nodes.origin.output." + key + " }} "
+				}
+			}
+			baseline := refs.Namespace{
+				Nodes: map[string]refs.NodeSchema{"origin": {Output: refs.Schema(schema), HasOutput: true}},
+			}
+			for key := range schema {
+				if err := baseline.ValidatePath([]string{"nodes", "origin", "output", key}); err != nil {
+					t.Fatalf("baseline field %s: %v", key, err)
+				}
+			}
+			for _, source := range []string{"produces", "output_schema", "expect"} {
+				producer := dsl.Node{
+					ID:     "origin",
+					Class:  dsl.NodeClassAction,
+					Kind:   "run-agent",
+					Params: dsl.NodeParams{"agent": "codex", "prompt": "Return"},
+				}
+				switch source {
+				case "produces":
+					producer.Produces = schema
+				case "output_schema":
+					producer.Params["output_schema"] = map[string]any(schema)
+				case "expect":
+					producer.Class = dsl.NodeClassControl
+					producer.Kind = "ask"
+					producer.Params = dsl.NodeParams{"prompt": "Return", "expect": map[string]any(schema)}
+				}
+				def := singleNodeDefinition(producer)
+				def.Graph.Nodes = append(
+					def.Graph.Nodes,
+					dsl.Node{
+						ID:     "read",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-agent",
+						Params: dsl.NodeParams{"agent": "codex", "prompt": prompt},
+					},
+				)
+				def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
+				for _, diagnostic := range loop.NewLinter().Lint(def) {
+					if diagnostic.Severity == loop.SeverityError {
+						t.Fatalf("source=%s schema=%#v lost baseline acceptance: %#v", source, schema, diagnostic)
+					}
+				}
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name, source, schema, payload string
 		valid, invalid, unproven      []string
@@ -2967,6 +3095,7 @@ func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 		{name: "Should warn for metadata of a nested authored string", schema: `{"user":{"type":"string"},"id":"string"}`, payload: `{"user":"value","id":"id"}`, valid: []string{"user", "id", "user.type"}, unproven: []string{"user.type"}},
 		{name: "Should warn for authored array metadata", schema: `{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}}`, payload: `[{"id":"id"}]`, valid: []string{"type", "items.type"}, unproven: []string{"type", "items.type"}},
 		{name: "Should preserve keyword collisions in authored properties", schema: `{"type":"object","properties":{"type":{"type":"string"}},"additionalProperties":false}`, payload: `{"type":"value"}`, valid: []string{"type", "type.type"}, unproven: []string{"type.type"}},
+		{name: "Should retain Goal authored compatibility", source: "goal-output_schema", schema: `{"status":{"type":"string","enum":["complete","blocked"]},"user":{"type":"string"}}`, payload: `{"status":"complete","user":"value"}`, valid: []string{"status", "user", "user.type"}, unproven: []string{"user.type"}},
 	} {
 		sources := []string{tc.source}
 		if tc.source == "" {
@@ -3027,6 +3156,15 @@ func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 						node.Produces = schema
 					case "output_schema":
 						node.Params[source] = map[string]any(schema)
+					case "goal-output_schema":
+						node.Kind = "goal"
+						node.Params = dsl.NodeParams{
+							"agent":         "codex",
+							"objective":     "Return output",
+							"max_turns":     1,
+							"judge":         []any{map[string]any{"id": "verify", "type": "command", "check": "true"}},
+							"output_schema": map[string]any(schema),
+						}
 					case "expect":
 						node.Class = dsl.NodeClassControl
 						node.Kind = "ask"
@@ -3140,5 +3278,91 @@ func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func testInferredNonToolReferences(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	for _, kind := range []string{"direct-string", "direct-number", "direct-boolean", "direct-file", "direct-agent", "direct-ref", "direct-runtime", "source-input", "await-loop", "detach-loop"} {
+		t.Run("Should retain "+kind+" reference acceptance", func(t *testing.T) {
+			t.Parallel()
+			input := dsl.Input{Type: dsl.InputTypeString}
+			field := "type"
+			switch kind {
+			case "direct-number":
+				input.Type = dsl.InputTypeNumber
+			case "direct-boolean":
+				input.Type = dsl.InputTypeBoolean
+			case "direct-file":
+				input.Type = dsl.InputTypeFile
+			case "direct-agent":
+				input.Type = dsl.InputTypeAgent
+			case "direct-ref":
+				input.Type = dsl.InputTypeRef
+				input.Ref = &dsl.InputRef{Kind: dsl.InputRefKindSkill}
+			case "direct-runtime":
+				input.Type = dsl.InputTypeRuntime
+				field = "provider.type"
+			case "detach-loop":
+				field = "loop_run_id"
+			}
+			for _, prefix := range []string{"", "previous.", "best."} {
+				producer := dsl.Node{
+					ID:       "origin",
+					Class:    dsl.NodeClassSource,
+					Kind:     string(dsl.SourceInput),
+					InputRef: "subject",
+				}
+				if kind == "await-loop" || kind == "detach-loop" {
+					mode := "await"
+					if kind == "detach-loop" {
+						mode = "detach"
+					}
+					producer = dsl.Node{
+						ID:     "origin",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-loop",
+						Params: dsl.NodeParams{"loop": "child", "mode": mode, "inputs": map[string]any{}},
+					}
+				}
+				path := prefix + "nodes.origin.output." + field
+				if strings.HasPrefix(kind, "direct-") {
+					if prefix != "" {
+						continue
+					}
+					path = "inputs.subject." + field
+				}
+				def := singleNodeDefinition(producer)
+				def.Inputs = map[string]dsl.Input{"subject": input}
+				def.Graph.Nodes = append(
+					def.Graph.Nodes,
+					dsl.Node{
+						ID:     "read",
+						Class:  dsl.NodeClassAction,
+						Kind:   "run-agent",
+						Params: dsl.NodeParams{"agent": "codex", "prompt": "{{ ." + path + " }}"},
+					},
+				)
+				def.Graph.Edges = []dsl.Edge{{From: "origin", To: "read"}}
+				diagnostics := loop.NewLinter().Lint(def)
+				warned := false
+				for _, diagnostic := range diagnostics {
+					if diagnostic.Severity == loop.SeverityError {
+						t.Errorf("path=%s unexpected error=%#v", path, diagnostic)
+					}
+					if diagnostic.Severity == loop.SeverityWarning &&
+						strings.Contains(diagnostic.Message, "cannot be proven") {
+						warned = true
+					}
+				}
+				if kind != "detach-loop" && !warned {
+					t.Errorf("path=%s missing warning: %#v", path, diagnostics)
+				}
+				if kind == "detach-loop" && warned {
+					t.Errorf("proven handle warned: %#v", diagnostics)
+				}
+			}
+		})
 	}
 }

@@ -573,9 +573,13 @@ The warning column describes lint; runtime errors above remain unchanged.
 | Authored (all three sources) | Closed object metadata; nested string metadata; array metadata; keyword collisions | Accepted | Values are not guaranteed by those contracts | Accepted; cannot-be-proven warning |
 | Tool descriptor JSON Schema | Scalar/closed-object metadata, including annotations | Historically admitted by old metadata lookup | Not output fields | Rejected, unchanged from R1b |
 
-### General acceptance check
+### General acceptance check (R1c scope; superseded by R2)
 
-The fix is not a list of exceptions for those three rows. `NodeSchema.AuthoredOutput` retains the
+R1c did not cover inferred inputs/source/run-loop schemas, and incorrectly let tool declarations
+use the authored allowance. The R2 inventory and tool-bound checks below replace any broader
+closure claim in this section.
+
+The R1c fix was not a list of exceptions for those three rows. `NodeSchema.AuthoredOutput` retains the
 raw converted declaration for every authored producer (`produces`, Goal/run-agent `output_schema`,
 and ask `expect`, including source declarations). If normalized resolution rejects a path, the
 field-map resolver replays the exact main ordering: declared `properties` lookup, direct-key lookup,
@@ -620,3 +624,192 @@ The two named daemon integrations passed together (4.026s). Focused lint finishe
 one earlier long-line finding was corrected before that pass. `git diff --check` passed.
 No remaining repair item is open. Pre-commit tasks are executed with `--no-stash`, preserving the
 session's Git restriction; commit-message validation uses the same repository convention.
+
+
+## R2 — Tool bounds, inferred compatibility, and unchanged history values
+
+Base: `87ae6d8b051e310622e25eb523b9bde5d5eeb4d0`. Read the complete Round 2 sections from both
+reviewers. The history/resolver files at this base are byte-identical to integration `66194fd73`,
+verified with a focused Git comparison. Main compatibility remains pinned to `766345807`; a later
+moving `origin/main` ref is not used as the baseline.
+
+### Dispositions
+
+- **Astra R2-N1 / Fable R2-B2:** tool nodes never receive a field-map fallback or an authored open
+  allowance. Accepted references are also checked against the selected descriptor in the shared
+  reference-contract check (templates, CEL, collections, watch filters, and result-contract fields).
+  This is independent of declaration-path enumeration. Tests explicitly require a consumer error
+  for an authored `type` data field that the enumeration skipped, and for a declared moved field,
+  so a producer diagnostic cannot conceal a consumer escape. Open overrides require full for moved
+  fields; closed metadata remains an error; narrower declarations retain their restrictions.
+- **Astra R2-N2 / Fable R2-N1:** raw fallback is now the non-tool source shape, rather than only an
+  authored declaration. Inputs have the same raw-vs-strict compatibility check. Main-accepted
+  inferred metadata paths are warnings, using the existing `unresolvable_path` code. Tool outputs
+  are explicitly excluded before collecting any fallback. Current/previous/best share the policy.
+- **Fable R2-B1:** runtime `outputSchema` returns raw schemas/field maps again. Lint normalization
+  and wrapping live in `referenceOutputSchema` / `referenceActionOutputSchema`; runtime history
+  cannot consume those helpers. This restores all old defaults, including the misleading defaults
+  for keyword-named authored shorthand; correcting them would be a separate behavior change.
+- **Fable R2-N2:** list shorthand keeps its warning because the unchanged structured-output
+  validator does not accept that schema notation. The message now uses the complete reference path,
+  including inside `range` (for example `nodes.origin.output.issues.title`), rather than `.title`.
+  This applies the requested minimum fix without changing runtime normalization or claiming those
+  outputs satisfy its validator. Lint acceptance is preserved.
+- **Fable R2-N3 / running-page nit:** the instance-source passage asks for full only for poll
+  timestamps and `last_item_count`. The Loop status row separates compact run/generation facts
+  from full-only executed-definition, materialized-contract and effective-config details.
+
+### Complete non-tool source inventory
+
+The inventory follows every branch of the namespace builders, not a search for a few schema keys.
+`referenceNodeSchema` is the common node constructor for the main namespace and result contracts;
+its raw source shape is also used by runtime history. Descriptor-only temporary namespaces are
+created separately for tool view/declaration/bound checks and receive no fallback.
+
+| Producer | Raw shape / policy | Coverage or completeness evidence |
+| --- | --- | --- |
+| Direct inputs: string, number, boolean, file, agent, ref, runtime | Original `inputSchema`; raw input-path acceptance with warnings on strict misses | New direct-input cases cover all seven `dsl.InputType` values, including nested runtime metadata |
+| Source `input`, without produces | Original referenced input schema | New inferred-source case covers current/previous/best metadata; exact runtime-default test includes it |
+| Source `watch-events`, without produces | Original event/cursor field map | Same raw mode; existing owning source suites run in the single final Loop check; exact history test pins its envelope |
+| Any non-tool source/action/control with `produces` | Raw converted declaration, normalized only for lint | Existing 33 shape/source cases, new generated matrix, and source-declaration history fixture |
+| Run-agent `output_schema` | Raw converted schema; lint normalization plus raw compatibility | Existing matrix and both keyword-sensitive exact history fixtures |
+| Goal `output_schema` | Same raw authored helper, preserving the Goal contract | New valid Goal/status-enum lint case and exact Goal history default; invalid generic Goal fixtures were corrected to respect the existing required status enum |
+| Ask `expect` | Raw converted schema | Existing matrix and exact ask history default |
+| Transform `map` without produces | One raw `any` field per actual map key | Real executor cases; exact null defaults, template rendering and CEL null-guard behavior |
+| Awaited run-loop without produces | Raw `{type: string}` | New current/previous/best inferred metadata cases; exact history scalar default |
+| Detached run-loop without produces | Raw `{loop_run_id: string}` | New proven-handle control (no warning); exact history handle default |
+| Legacy run-loop hydration | Original `{status, outputs, loop_run_id}` field map | Preserved literal branch; existing hydration tests in the final owning suite; no normalization added |
+| Other source/action/control nodes with no output schema | No inferred schema | Original unknown-output behavior remains; exact history fixture pins `{}` for a schema-less control |
+| Nested bodies / fan-out scopes | Same builders applied to the body context | No independent source classifier; existing body/history suites use the same factory |
+| Tool nodes, including ones with produces | Selected descriptor bounds references; declarations may narrow only | New open/closed/data-field cases for current/previous/best; no non-tool fallback |
+
+`produces` is the priority override in both old and current raw `outputSchema`; run-agent/Goal/ask
+and inferred branches above account for every remaining switch case. Inputs are a separate map and
+are covered explicitly. A raw shape's presence also survives a lint-normalization error, so the
+history path does not lose its fallback merely because normalized schema creation failed. This is
+a structural preservation argument, supplemented by tests, not a claim that finite fixtures cover
+all possible user YAML or all dynamic values.
+
+The generated differential is durable in `TestLinterOutputShapeRuntimeAgreement`: 31 nonempty
+combinations of five keyword/data field names, checked against the preserved baseline field-map
+mode and then through produces, output_schema and expect (93 definitions). No old-accepted field
+may become an error. The baseline side also asserts each generated field is accepted, preventing a
+vacuous comparison. The full named focused run, including history and view tests, remained under a
+second before the final full-package check. No slow generated run or out-of-tree probe was added.
+
+### Added source/path comparison
+
+The R1c table remains applicable to authored sources and transforms, with the warning path now
+written in full (without a relative leading dot). These rows extend it. Baseline observations for
+inferred shapes follow the unchanged `inputSchema`/raw output constructors and the exact field-map
+lookup in `766345807`; no additional baseline overlay run was made under this round's tighter scope.
+
+| Source | Shape / reference | Main lint | Runtime behavior / value | Lint now / warning |
+| --- | --- | --- | --- | --- |
+| Direct string/number/boolean/file/agent/ref input | Scalar schema → `inputs.subject.type` | Accepted | Values are scalar; a child field is not guaranteed and scalar field evaluation fails | Accepted; `input "subject" path "inputs.subject.type" cannot be proven` |
+| Direct runtime input | `provider` string → `inputs.subject.provider.type` | Accepted | `provider` is a string, not an object exposing schema metadata | Accepted; full-path cannot-be-proven warning |
+| Source input, no produces | Inferred string → `output.type`, current/previous/best | Accepted | Current scalar has no field; first-generation history defaults to `""` | Accepted; full-path cannot-be-proven warning |
+| Awaited run-loop, no produces | Inferred string → `output.type`, current/previous/best | Accepted | Child result is a string; first-generation history defaults to `""` | Accepted; full-path cannot-be-proven warning |
+| Detached run-loop | Handle → `output.loop_run_id`, current/previous/best | Accepted | Object has the handle field | Accepted; no warning |
+| Non-tool authored list produces | `{issues: [{title: string}]}` → `issues.title`, direct/range | Accepted | Produces alone is descriptive; shared structured validator rejects this notation | Accepted; warning names `nodes.origin.output.issues.title` |
+| Tool + open produces | `{type: object}` → full-only `details.name`, current/previous/best | Rejected by old raw declaration lookup; selected views did not exist | Compact result has no such field | Error `result_view_field_requires_full`; never a compatibility warning |
+| Tool + closed produces | Closed object → schema keyword `type`, current/previous/best | Old direct lookup accepted metadata | Closed descriptor has no such output field | Error `unresolvable_path`; intentional strict descriptor rule |
+| Tool + data declaration | Declared `details.name` or `type`, current/previous/best | Declaration lookup accepted those keys | Actual compact descriptor bounds the result regardless of declaration | Consumer error, even if producer already has a diagnostic |
+| Tool + narrower declaration | `{id: string}` → full descriptor's `details.name` | Rejected | Declaration omits the field | Error `unresolvable_path`; narrowing retained |
+
+As in R1c, scalar or missing-field template evaluation fails the consuming node's materialization,
+not necessarily the entire Loop: failure policy/routing still determines the run outcome. Runtime
+evaluation and normalization code are unchanged. The new first-generation history checks below
+exercise the real template and CEL evaluators, rather than predicting their null behavior from lint.
+
+### Non-lint caller audit and runtime equivalence
+
+The audit searched production call sites of every changed schema/traversal helper, including the
+R1b/R1c functions. `outputSchema` has one non-lint data consumer. Its two other direct call sites
+are `linter_review.go` checks; they again see the raw shapes from main as well.
+
+| Function/helper changed in the repairs | Non-lint caller / downstream use | Baseline-equivalence evidence |
+| --- | --- | --- |
+| `outputSchema`, formerly its `actionOutputSchema` branch | `control_namespace_shape.go:historyNodeZeroValues`; called by `newDefinitionControlTopology`, then previous/best namespace builders | Restored raw produces/expect/output_schema, raw transform `any`, raw inferred inputs and run-loop shapes; exact whole previous/best node maps in the owning history suite |
+| `referenceOutputSchema`, `referenceActionOutputSchema`, `referenceFieldSchema`, `normalizedReferenceSchema`, `outputIsJSONSchema`, open/fallback source policy | No runtime data consumer after this fix | Production call search shows these reachable only from lint/reference construction; history calls raw `outputSchema` |
+| `authoredOutputSchema`, `nonToolOutputShape`, `convertSchema`, recursive schema-value conversion | Raw `outputSchema` uses them for the history consumer above | Same conversion and priority as `766345807`; no wrapper/normalizer in that path; fixtures include both keyword-sensitive shorthand forms |
+| `toolOutputSchema`, `schemaFromJSON` | Raw `outputSchema` for a tool without produces | Parses the same selected schema without normalization; exact tool/default fixture. The previously accepted S4 selected-view choice remains, with no new history transformation from this repair |
+| `isFullJSONSchema` / runtime normalization call sites | `normalizeLoopSchema`, `shorthandPropertySchema`; used by structured-output validation and prompt/response contracts | Runtime classifier keys/logic and these normalizer bodies are unchanged from main; no list or keyword-default repair is made there |
+| refs path traversal / node mode / input fallback | `CompileTemplate` walker and CEL `ConditionCompiler` reference validation; compiler manifest and start-binding compilation use these | Only acceptance/diagnostics change as authorized. They do not map runtime values. Evaluation still uses the same template/CEL program and namespace; the history test evaluates both directly |
+| Runtime render/evaluation entry points | `action_params`, `action_contract`, `fanout_materialization`, `control_file_import`, `control_gate`, and `Condition.Evaluate` | Those evaluator bodies are untouched; supplying the restored history values reproduces the baseline render and CEL results below |
+
+For the same input definition and selected tool-schema snapshot, first-generation maps now match
+main exactly, including historical quirks. The accepted result-view schema choice itself is not
+reverted. The exact fixture includes transform, source input, source produces, watch-events,
+run-agent produces/output_schema, Goal, ask, awaited/detached sub-loop, tool, tool-with-produces,
+and schema-less control nodes.
+
+| Observation | Main / expected fixture | Before this history fix | Now |
+| --- | --- | --- | --- |
+| Transform field default | `null` | `{}` | `null` |
+| Previous/best transform template | `<no value>` | `map[]` | `<no value>` |
+| `score == null` | true | false | true |
+| `score != null && score > 0` | false, no error | `no such overload` | false, no error |
+| `{type:string,id:string}` declaration default | `""` | object containing both fields | `""` |
+| `{title:string,body:string}` declaration default | `{body:""}` | object also containing title | `{body:""}` |
+| Explicit tool object schema default | Same typed zero object | Same | Same |
+
+### Red-to-green and verification scope
+
+Tests were added before each production repair. At the original base the named focused test
+reproduced the selected-view escapes and inferred-input errors. The new history test then failed
+on exact previous/best maps, `map[]` rendering, the false null comparison and both guarded CEL
+expressions; the list/range test failed on the relative warning. After the repairs these pass.
+Consumer-ID assertions separately prove a tool reference is rejected at the reader, even when a
+producer declaration check already emitted an error or skipped its keyword-named field.
+
+Verification commands run in this round:
+
+```sh
+# Named tests during red/green iteration only.
+go test ./internal/loop -run '^Test(LinterOutputShapeRuntimeAgreement|LinterResultViewReferences)$' -count=1
+go test ./internal/loop -run '^Test(GenerationHistoryProjection|LinterOutputShapeRuntimeAgreement|LinterResultViewReferences)$' -count=1
+# After the single full run exposed an incidental reference in the existing cycle fixture:
+go test ./internal/loop -run '^Test(LinterShouldRejectClosedEnumAndReservedSchemaViolations|GenerationHistoryProjection|LinterOutputShapeRuntimeAgreement|LinterResultViewReferences)$'
+# One final complete Loop-package run.
+go test ./internal/loop/...
+# The two daemon result-view integrations, once.
+go test -tags=integration ./internal/daemon -run '^Test(NativeResultViewsIntegration|LoopResultViewsIntegration)$'
+# Changed packages only.
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./internal/loop ./internal/loop/dsl/refs
+git diff --check
+```
+
+No Turbo, site build/typecheck/tests, Storybook, global gates, race, E2E or additional daemon suite
+runs. Docs-only edits receive no local run, per the tightened dispatch. The change-impact owner
+remains the existing Native Tool Result Views audit; this repair restores runtime history and
+narrows tool validation while preserving non-tool acceptance, without changing native IDs, wire
+DTOs, hook/config contracts or persisted data shapes.
+
+The single complete Loop run passed the five subpackages but exposed one pre-existing cycle-test
+fixture that incidentally read inferred `nested_load.output.type`. Its helper required every
+diagnostic to be an error, conflicting with the newly required compatibility warning. The owning
+invariant is sub-loop cycle rejection in `TestLinterShouldRejectClosedEnumAndReservedSchemaViolations`;
+the fixture now reads the entire output instead. Its required `CodeCycle` assertion is unchanged.
+Scalar-metadata compatibility remains explicitly asserted in the dedicated shape suite. The
+affected existing test and all three changed canonical tests then passed together (0.398s).
+Per the one-full-run limit, the complete suite was not repeated after this fixture-only adjustment.
+
+Both named daemon integrations passed in the single invocation (4.099s). The first lint run found
+one repeated `any` sentinel, now a shared local constant. A subsequent attempt could not acquire
+the global golangci lock while another worker was running; no process or lock was removed and
+parallel execution was not forced. Final lint and commit evidence follows below.
+
+Final lint completed with `0 issues` through a Compozy-owned terminal and completion monitor:
+
+```sh
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allow-serial-runners --timeout=5m ./internal/loop ./internal/loop/dsl/refs
+```
+
+The serial flag waits for the existing runner and does not run linters concurrently. The tool's
+macOS linker deprecation message is unchanged. Focused Golangci formatting, scoped Markdown
+Oxfmt, commit-message validation and `git diff --check` passed. The default pre-commit hook uses
+Git stash and repository-wide Go formatting; its scoped formatting equivalents are run explicitly
+and the hook is disabled for this commit, honoring the Git restriction and tightened local scope.
+No acceptance item remains open; the only full Loop run's incidental fixture failure was repaired
+and its owning test passed by name, without a prohibited second complete run. No push or PR.

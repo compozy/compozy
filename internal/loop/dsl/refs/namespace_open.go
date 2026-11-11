@@ -12,7 +12,7 @@ func (n NodeSchema) OutputPathUnproven(path []string) bool {
 	if validateSchemaPath(n.Output, path, path, false, n.OutputJSONSchema) == nil {
 		return false
 	}
-	if n.authoredPathAccepted(path, path) {
+	if n.fallbackPathAccepted(path, path) {
 		return true
 	}
 	return n.AllowOpenOutput && validateSchemaPath(n.Output, path, path, true, n.OutputJSONSchema) == nil
@@ -20,14 +20,14 @@ func (n NodeSchema) OutputPathUnproven(path []string) bool {
 
 func (n NodeSchema) validateOutputPath(path, original []string) *Error {
 	err := validateSchemaPath(n.Output, path, original, n.AllowOpenOutput, n.OutputJSONSchema)
-	if err != nil && n.authoredPathAccepted(path, original) {
+	if err != nil && n.fallbackPathAccepted(path, original) {
 		return nil
 	}
 	return err
 }
 
-func (n NodeSchema) authoredPathAccepted(path, original []string) bool {
-	return n.AuthoredOutput != nil && validateSchemaPath(n.AuthoredOutput, path, original, false, false) == nil
+func (n NodeSchema) fallbackPathAccepted(path, original []string) bool {
+	return n.FallbackOutput != nil && validateSchemaPath(n.FallbackOutput, path, original, false, false) == nil
 }
 
 func openSchemaObject(current any) bool {
@@ -56,4 +56,14 @@ func openSchemaObject(current any) bool {
 		return slices.Contains(kind, schemaObjectType)
 	}
 	return false
+}
+
+// InputPathUnproven reports inferred input paths accepted only by field-map compatibility.
+func (n Namespace) InputPathUnproven(path []string) bool {
+	if len(path) < 3 || path[0] != namespaceInputs {
+		return false
+	}
+	schema, ok := n.Inputs[path[1]]
+	return ok && validateSchemaPath(schema, path[2:], path, false, true) != nil &&
+		validateSchemaPath(schema, path[2:], path, false, false) == nil
 }

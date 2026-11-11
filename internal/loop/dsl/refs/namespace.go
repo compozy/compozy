@@ -57,7 +57,7 @@ type Namespace struct {
 // NodeSchema exposes the referenceable output/status shape for one node.
 type NodeSchema struct {
 	Output         Schema
-	AuthoredOutput Schema
+	FallbackOutput Schema
 	// OutputJSONSchema distinguishes normalized/descriptor schemas from field maps.
 	OutputJSONSchema bool
 	HasOutput        bool
@@ -159,7 +159,11 @@ func (n Namespace) validateInputPath(path []string) *Error {
 	if !ok {
 		return newPathError(CodeUnknownReference, path, "unknown input %q", path[1])
 	}
-	return validateSchemaPath(schema, path[2:], path, false, true)
+	err := validateSchemaPath(schema, path[2:], path, false, true)
+	if err != nil && n.InputPathUnproven(path) {
+		return nil
+	}
+	return err
 }
 
 func (n Namespace) validateNodePath(path []string) *Error {

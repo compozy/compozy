@@ -1158,10 +1158,10 @@ does not produce a lost-wake report; stopping the main session still reports its
   `more`, `duration_ms`, optional `error`) and source digest items keyed
   `source:<id>:<item key>`. A dry run polls without committing state or status. A real check
   while a source poll runs returns gate `source_poll_in_flight` and starts nothing.
-- `compozy__agent_instance_get` with `result_view: "full"` includes `sources`: per declared source `id`, `kind` or
+- `compozy__agent_instance_get` includes `sources` by default: per-source `id`, `kind` or
   `script`, `status` (`pending_first_poll`, `ok`, `failing`, `unavailable`, `disabled`,
-  `unapproved`), poll timestamps, `last_item_count`, `failure_streak`, optional `error`, and
-  `next_poll_at`.
+  `unapproved`), `failure_streak`, optional `error`, `next_poll_at`, and `awaiting_approval`.
+  Request `result_view: "full"` for poll timestamps and `last_item_count`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
 - `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
