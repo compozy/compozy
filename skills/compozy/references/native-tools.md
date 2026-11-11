@@ -78,7 +78,7 @@ apply.
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
 
 `compozy__tool_search` defaults to 20 results (maximum 100; zero uses the default).
-Continue with `offset: next_offset` and the same query. Both views include `offset`, `count`, `total`, `has_more`, and optional `next_offset`.
+Continue with `offset: next_offset` and the same query. Both views include `count`, `total` and `has_more`; `offset` and `next_offset` are omitted when zero.
 Compact rows summarize descriptors; `result_view: "full"` retains complete descriptors.
 `tool_info` reads one complete descriptor.
 Operator and session HTTP/UDS search share these bounds; CLI uses `tool search --limit --offset`.
