@@ -10,16 +10,21 @@ func TestTelemetryForwarding(t *testing.T) {
 	t.Parallel()
 
 	const traceParent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-	inherited := []string{"PATH=/usr/bin", "OTEL_EXPORTER_OTLP_ENDPOINT=http://inherited:4318"}
+	inherited := []string{
+		"PATH=/usr/bin",
+		"OTEL_EXPORTER_OTLP_ENDPOINT=http://inherited:4318",
+		"OTEL_EXPORTER_OTLP_HEADERS=api-key=daemon-secret",
+		"TRACEPARENT=00-11111111111111111111111111111111-2222222222222222-01",
+	}
 
 	// UT-070
-	t.Run("Should add no OTLP variables or TRACEPARENT while forwarding is off", func(t *testing.T) {
+	t.Run("Should drop inherited OTEL_* and TRACEPARENT and add none while forwarding is off", func(t *testing.T) {
 		t.Parallel()
 
 		env := ApplyTelemetryForwarding(slices.Clone(inherited), nil, "sess-9c1e", "general")
 		env = ApplyTraceParent(env, "")
-		if !slices.Equal(env, inherited) {
-			t.Fatalf("env = %v, want the inherited environment unchanged %v", env, inherited)
+		if want := []string{"PATH=/usr/bin"}; !slices.Equal(env, want) {
+			t.Fatalf("env = %v, want only the non-telemetry inherited environment %v", env, want)
 		}
 	})
 

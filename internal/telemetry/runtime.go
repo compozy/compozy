@@ -372,11 +372,12 @@ func resolveRef(ctx context.Context, refs SecretResolver, ref string) (string, e
 	return refs.ResolveRef(ctx, ref)
 }
 
-// registerHeaderSecrets registers resolved header values for redaction until shutdown, as other resolved secrets are.
+// registerHeaderSecrets registers resolved header values for redaction until shutdown. They are classified secrets, so
+// short values register too (dynamic discovery skips values under eight characters).
 func registerHeaderSecrets(headers map[string]string) func() {
 	forget := make([]func(), 0, len(headers))
 	for _, value := range headers {
-		forget = append(forget, redact.RegisterDynamicSecret(value))
+		forget = append(forget, redact.RegisterRequiredSecret(value))
 	}
 	return func() {
 		for _, cleanup := range forget {

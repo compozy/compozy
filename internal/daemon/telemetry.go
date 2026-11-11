@@ -87,6 +87,8 @@ func (s *telemetrySlot) shutdown(ctx context.Context, logger *slog.Logger) {
 	if s == nil {
 		return
 	}
+	// Normal stop and boot rollback both end here: no write reports to a runtime that is shutting down.
+	store.SetWriteObserver(nil)
 	s.mu.RLock()
 	runtime := s.runtime
 	s.mu.RUnlock()
@@ -136,7 +138,6 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 		}
 	}
 	cleanup.add(func(ctx context.Context) error {
-		store.SetWriteObserver(nil)
 		state.telemetry.shutdown(ctx, state.logger)
 		return nil
 	})

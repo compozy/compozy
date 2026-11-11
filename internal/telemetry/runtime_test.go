@@ -276,42 +276,46 @@ func TestInitSendsResolvedHeaders(t *testing.T) {
 
 	// The assertions above only prove a span without attributes carries no header value. This one puts the value
 	// where the sanitizer must catch it: a registered attribute value that contains it.
-	t.Run(
-		"Should export a header value that reaches an attribute as invalid and forget it at shutdown",
-		func(t *testing.T) {
-			t.Parallel()
+	for _, secret := range []string{
+		"otlp-header-secret-3d9f1c",
+		// Shorter than the eight bytes heuristic discovery requires: header values are classified secrets.
+		"q7zx91",
+	} {
+		t.Run(
+			"Should export a header value that reaches an attribute as invalid and forget it at shutdown: "+secret,
+			func(t *testing.T) {
+				t.Parallel()
 
-			// Longer than eight bytes: the redaction registry ignores shorter heuristic secrets.
-			const secret = "otlp-header-secret-3d9f1c"
-			cfg := exportConfig(func(otel *config.ObservabilityOTelConfig) {
-				otel.Headers = map[string]string{"api-key": "vault:observability/nr"}
-			})
-			started := startRuntimeWithRegistries(
-				t,
-				cfg,
-				fakeResolver{"vault:observability/nr": secret},
-				&fakeNetwork{},
-				testRegistries([]string{secret}),
-			)
-			started.exportSpanWith(t, trace.WithAttributes(attribute.String(string(telemetry.AttrAgent), secret)))
+				cfg := exportConfig(func(otel *config.ObservabilityOTelConfig) {
+					otel.Headers = map[string]string{"api-key": "vault:observability/nr"}
+				})
+				started := startRuntimeWithRegistries(
+					t,
+					cfg,
+					fakeResolver{"vault:observability/nr": secret},
+					&fakeNetwork{},
+					testRegistries([]string{secret}),
+				)
+				started.exportSpanWith(t, trace.WithAttributes(attribute.String(string(telemetry.AttrAgent), secret)))
 
-			requests, _ := started.network.captured()
-			if len(requests) != 1 {
-				t.Fatalf("exporter sent %d requests, want one trace export", len(requests))
-			}
-			if body := requests[0].body; bytes.Contains(body, []byte(secret)) ||
-				!bytes.Contains(body, []byte(telemetry.ValueInvalid)) {
-				t.Fatalf("trace export = %q, want the header value exported as %q", body, telemetry.ValueInvalid)
-			}
+				requests, _ := started.network.captured()
+				if len(requests) != 1 {
+					t.Fatalf("exporter sent %d requests, want one trace export", len(requests))
+				}
+				if body := requests[0].body; bytes.Contains(body, []byte(secret)) ||
+					!bytes.Contains(body, []byte(telemetry.ValueInvalid)) {
+					t.Fatalf("trace export = %q, want the header value exported as %q", body, telemetry.ValueInvalid)
+				}
 
-			if err := started.runtime.Shutdown(t.Context()); err != nil {
-				t.Fatalf("Shutdown() error = %v", err)
-			}
-			if redact.ContainsRegisteredSecret(secret) {
-				t.Fatal("header value is still registered for redaction after Shutdown")
-			}
-		},
-	)
+				if err := started.runtime.Shutdown(t.Context()); err != nil {
+					t.Fatalf("Shutdown() error = %v", err)
+				}
+				if redact.ContainsRegisteredSecret(secret) {
+					t.Fatal("header value is still registered for redaction after Shutdown")
+				}
+			},
+		)
+	}
 }
 
 // UT-015

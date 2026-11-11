@@ -2,14 +2,20 @@ package providerenv
 
 import (
 	"net/url"
+	"slices"
 	"strings"
 )
 
-// ApplyTelemetryForwarding sets the OTLP export variables the daemon forwards to a provider and the session's
-// OTEL_RESOURCE_ATTRIBUTES, replacing inherited values. forward holds the telemetry runtime's KEY=value pairs; empty
-// means forwarding is off or export is inactive, and env is returned unchanged. Callers apply agent-defined variables
+// ApplyTelemetryForwarding makes telemetry forwarding opt-in: it first removes every OTEL_* and TRACEPARENT variable
+// the daemon inherited, so a provider never exports through the daemon's own environment, then sets the OTLP export
+// variables the daemon forwards and the session's OTEL_RESOURCE_ATTRIBUTES. forward holds the telemetry runtime's
+// KEY=value pairs; empty means forwarding is off or export is inactive. Callers apply agent-defined variables
 // afterwards so those win.
 func ApplyTelemetryForwarding(env []string, forward []string, sessionID string, agent string) []string {
+	env = slices.DeleteFunc(env, func(entry string) bool {
+		key, _, _ := strings.Cut(entry, "=")
+		return strings.HasPrefix(key, "OTEL_") || key == "TRACEPARENT"
+	})
 	if len(forward) == 0 {
 		return env
 	}
