@@ -128,7 +128,7 @@ func (n *daemonNativeTools) providerModelsList(
 
 // selectionConfig resolves the caller's effective config for selection filtering: the scope's
 // workspace with its profile layers (the source session admission uses), else the active global
-// snapshot plus the selected profile's own enabled overrides, so pending global edits stay isolated
+// snapshot plus the selected profile's own provider tables, so pending global edits stay isolated
 // (B-013) and every profile, default included, keeps its overrides (BR-2). A scope that cannot be
 // resolved is an error: the unscoped config could offer a provider the scope disables.
 func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.Scope) (compozyconfig.Config, error) {
@@ -162,7 +162,7 @@ func (n *daemonNativeTools) selectionConfig(ctx context.Context, scope toolspkg.
 	if err != nil {
 		return compozyconfig.Config{}, fmt.Errorf("provider models: resolve profile %q: %w", profileID, err)
 	}
-	return compozyconfig.WithProfileProviderEnabled(&active, n.deps.HomePaths, profileName)
+	return compozyconfig.WithProfileProviders(&active, n.deps.HomePaths, profileName)
 }
 
 // activeConfig reads the live active config through settings, falling back to the boot snapshot.

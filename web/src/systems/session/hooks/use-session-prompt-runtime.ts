@@ -24,7 +24,7 @@ import {
   type RuntimeCatalogProvider,
   useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
-import { type ProviderSummary, useProviders } from "@/systems/providers";
+import { isProviderEnabled, type ProviderSummary, useProviders } from "@/systems/providers";
 import {
   normalizeRuntimeACPSelections,
   type RuntimeProviderOption,
@@ -75,10 +75,15 @@ function snapshotFromSelection(
   };
 }
 
-/** Combine workspace provider availability with current authentication status. */
+/**
+ * Combine workspace provider availability with current authentication status. The workspace
+ * leaves disabled providers out, so a session still bound to one gets it back from the profile
+ * inventory, marked disabled: the picker shows it as the current value and refuses new picks.
+ */
 function runtimeProviderOptions(
   providers: SessionProviderOption[] | undefined,
-  globalProviders: ProviderSummary[] | undefined
+  globalProviders: ProviderSummary[] | undefined,
+  selectedProvider: string
 ): RuntimeProviderOption[] {
   const needsAuthByProvider = new Map(
     (globalProviders ?? []).map(provider => [
@@ -86,10 +91,25 @@ function runtimeProviderOptions(
       providerNeedsAuth(provider.auth_status?.state),
     ])
   );
-  return (providers ?? []).map(provider => ({
+  const options = (providers ?? []).map(provider => ({
     ...workspaceProviderToOption(provider),
     needs_auth: needsAuthByProvider.get(provider.name) ?? false,
   }));
+  const selected = selectedProvider.trim();
+  if (selected.length === 0 || options.some(option => option.id === selected)) return options;
+  const disabled = globalProviders?.find(
+    provider => provider.name === selected && !isProviderEnabled(provider)
+  );
+  if (!disabled) return options;
+  return [
+    ...options,
+    {
+      id: disabled.name,
+      name: disabled.display_name?.trim() || disabled.name,
+      ...(disabled.runtime_strategy ? { runtime_strategy: disabled.runtime_strategy } : {}),
+      disabled: true,
+    },
+  ];
 }
 
 /**
@@ -134,12 +154,12 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   );
   const providers = runtimeProviderOptions(
     workspace.data?.providers,
-    globalProviders.data?.providers
+    globalProviders.data?.providers,
+    value.provider
   );
-  const catalogProviders: RuntimeCatalogProvider[] = providers.map(provider => ({
-    id: provider.id,
-    needsAuth: provider.needs_auth,
-  }));
+  const catalogProviders: RuntimeCatalogProvider[] = providers.flatMap(provider =>
+    provider.disabled ? [] : [{ id: provider.id, needsAuth: provider.needs_auth }]
+  );
   const availabilityError = workspace.error
     ? describeWorkspaceProvidersError(workspace.error)
     : globalProviders.error
@@ -150,7 +170,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       input.canPrompt &&
       !globalProviders.isLoading &&
       availabilityError === null &&
-      providers.length > 0,
+      catalogProviders.length > 0,
   });
   const canSelectRuntime =
     input.canPrompt &&

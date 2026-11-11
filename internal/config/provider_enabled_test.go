@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -322,7 +323,7 @@ func TestProviderEnabledLayerRestriction(t *testing.T) {
 	})
 }
 
-func TestWithProfileProviderEnabled(t *testing.T) {
+func TestWithProfileProviders(t *testing.T) {
 	t.Parallel()
 
 	t.Run(
@@ -333,11 +334,12 @@ func TestWithProfileProviderEnabled(t *testing.T) {
 			writeFile(
 				t,
 				profileConfigFile(homePaths, "work"),
-				"[providers.work]\ncommand = \"work-acp\"\nenabled = false\n\n[providers.gemini]\nenabled = false\n",
+				"[providers.work]\ncommand = \"work-acp\"\nenabled = false\n\n"+
+					"[providers.ghost]\nenabled = false\n\n[providers.gemini]\nenabled = false\n",
 			)
-			cfg, err := WithProfileProviderEnabled(base, homePaths, "work")
+			cfg, err := WithProfileProviders(base, homePaths, "work")
 			if err != nil {
-				t.Fatalf("WithProfileProviderEnabled() error = %v", err)
+				t.Fatalf("WithProfileProviders() error = %v", err)
 			}
 			for _, name := range ProviderInventoryNames(&cfg) {
 				if _, err := cfg.ResolveProvider(name); err != nil {
@@ -346,6 +348,24 @@ func TestWithProfileProviderEnabled(t *testing.T) {
 			}
 			if enabled, _ := cfg.ProviderEnabled("gemini"); enabled {
 				t.Fatal("ProviderEnabled(gemini) = true, want the profile override applied to the built-in")
+			}
+			inventory := ProviderInventoryNames(&cfg)
+			if !slices.Contains(inventory, "work") {
+				t.Fatalf("ProviderInventoryNames() = %v, want the profile-only provider listed", inventory)
+			}
+			if slices.Contains(inventory, "ghost") {
+				t.Fatalf("ProviderInventoryNames() = %v, want the incomplete profile-only entry left out", inventory)
+			}
+			work, err := cfg.ResolveProvider("work")
+			if err != nil {
+				t.Fatalf("ResolveProvider(work) error = %v", err)
+			}
+			if work.Command != "work-acp" || !cfg.IsProviderDisabled("work") {
+				t.Fatalf("work = command %q disabled %v, want the profile definition and its disable",
+					work.Command, cfg.IsProviderDisabled("work"))
+			}
+			if _, listed := base.Providers["work"]; listed {
+				t.Fatal("base.Providers gained work, want the base config left unchanged")
 			}
 		},
 	)

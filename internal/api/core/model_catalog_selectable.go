@@ -46,8 +46,8 @@ func (h *BaseHandlers) selectionConfig(c *gin.Context) (compozyconfig.Config, er
 		}
 		if !layered {
 			// Without profile-aware resolution the workspace config carries no profile layer; apply the
-			// selected profile's enabled overrides so its disables still filter (BR-2).
-			return compozyconfig.WithProfileProviderEnabled(&resolved.Config, h.HomePaths, selection.ProfileName)
+			// selected profile's provider tables so its disables still filter (BR-2).
+			return compozyconfig.WithProfileProviders(&resolved.Config, h.HomePaths, selection.ProfileName)
 		}
 		return resolved.Config, nil
 	}
@@ -62,8 +62,9 @@ var defaultProfileReadScope = resolvedProfileReadScope{
 }
 
 // profileProviderConfig is the active global snapshot plus the selected profile's own
-// providers.<id>.enabled overrides: pending global edits stay isolated (B-013) and every profile,
-// default included, keeps its overrides (BR-2). Reads without one profile see the global layer.
+// [providers.<id>] tables, profile-only providers included: pending global edits stay isolated
+// (B-013) and every profile, default included, keeps its overrides (BR-2). Reads without one
+// profile see the global layer.
 func (h *BaseHandlers) profileProviderConfig(
 	ctx context.Context,
 	selection resolvedProfileReadScope,
@@ -72,5 +73,5 @@ func (h *BaseHandlers) profileProviderConfig(
 	if err != nil {
 		return compozyconfig.Config{}, err
 	}
-	return compozyconfig.WithProfileProviderEnabled(&active, h.HomePaths, selection.ProfileName)
+	return compozyconfig.WithProfileProviders(&active, h.HomePaths, selection.ProfileName)
 }
