@@ -8,6 +8,7 @@
         "mcp-serve",
         "database",
         "support-bundles",
+        "telemetry-export",
         "troubleshooting",
         "production"
     ]

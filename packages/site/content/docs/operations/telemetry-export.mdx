@@ -1,0 +1,360 @@
+---
+title: Export traces and metrics
+description: Send CompozyOS daemon traces and metrics to an OpenTelemetry collector over OTLP, read export status, and fix export failures.
+---
+
+The daemon can export traces and metrics over OTLP to any OpenTelemetry collector or hosted backend.
+Export is off by default. When it is on, every exported value passes a sanitizing exporter that keeps
+IDs, fixed names, and counts, and never prompt text, tool payloads, paths, or credentials.
+
+Configuration lives in the global `config.toml` under
+[`[observability.otel]`](/docs/configuration/config-toml#observabilityotel). Every key is
+`restart-required`, so restart the daemon after a change.
+
+## Try it with a local stack
+
+This stack accepts both signals: an OpenTelemetry Collector (OTLP on 4317/4318) forwards traces to
+Jaeger (UI on 16686) and metrics to Prometheus (UI on 9090).
+
+`~/otel-local/compose.yaml`:
+
+```yaml
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    ports:
+      - "16686:16686"
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    command: ["--config.file=/etc/prometheus/prometheus.yaml"]
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    ports:
+      - "9090:9090"
+```
+
+`~/otel-local/collector.yaml`:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls: { insecure: true }
+  prometheus:
+    endpoint: 0.0.0.0:8889
+service:
+  pipelines:
+    traces: { receivers: [otlp], exporters: [otlp/jaeger] }
+    metrics: { receivers: [otlp], exporters: [prometheus] }
+```
+
+`~/otel-local/prometheus.yaml`:
+
+```yaml
+scrape_configs:
+  - job_name: compozy-collector
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["collector:8889"]
+```
+
+Start the stack, enable export, and restart the daemon:
+
+```bash
+$ cd ~/otel-local && docker compose up -d
+
+$ compozy config set observability.otel.enabled true
+Config
+======
+Path:               observability.otel.enabled
+Value:              true
+Scope:              global
+Target:             /home/ana/.compozy/config.toml
+Redacted:           false
+Lifecycle:          restart-required
+Applied:            false
+Next Action:        restart-daemon
+Apply Record:       -
+Active Generation:  14
+Restart Required:   true
+Restart Scope:      daemon
+Status:             saved
+Winning Layer:      global
+
+$ compozy daemon stop && compozy daemon start
+$ compozy session prompt sess-9c1e "list my open sessions"
+$ compozy status
+Runtime
+=======
+Status:             running
+...
+Config:             ok
+OTel:               ok · http/protobuf → localhost:4318 · traces ok, metrics ok · sample 1.0
+Log Tail:           available
+```
+
+Open Jaeger at [localhost:16686](http://localhost:16686), pick service `compozy-daemon` and operation `session.turn`. The trace
+shows `POST /api/workspaces/:workspace_id/sessions/:session_id/prompt` → `session.turn` →
+`acp.process.spawn` on a cold session and `acp session/prompt`, with `mcp.hosted.call` →
+`tool.execute` (`compozy.tool = compozy__session_list`) nested inside `session.turn`.
+
+Open Prometheus at [localhost:9090](http://localhost:9090) and query:
+
+```text
+histogram_quantile(0.95, sum by (le) (rate(compozy_session_turn_duration_seconds_bucket[5m])))
+```
+
+Metrics show `pending` in `compozy status` until the first push, which happens every 60 seconds by
+default.
+
+`[observability] enabled` must stay `true`; with it off, status reports
+`inactive (observability.enabled = false)` and nothing is exported.
+
+## Configure export
+
+```toml
+[observability]
+enabled = true                       # existing; OTel export requires it
+
+[observability.otel]
+enabled = false                      # master switch for OTLP export
+protocol = "http/protobuf"           # "http/protobuf" | "grpc"
+endpoint = ""                        # "" → OTEL_EXPORTER_OTLP_ENDPOINT → http://localhost:4318 (grpc: http://localhost:4317)
+traces = true                        # export spans when enabled
+metrics = true                       # export metrics when enabled
+sample_ratio = 1.0                   # 0.0–1.0, new traces and unsampled parents
+metric_interval = "60s"              # minimum "5s"
+service_name = "compozy-daemon"      # service.name; letters, digits, . _ - (max 64)
+slow_db_write_ms = 50                # write-span threshold; 0 = no write spans
+forward_to_providers = false         # give provider processes OTEL_* + TRACEPARENT (operator policy)
+
+[observability.otel.headers]         # values must be env: or vault:observability/ refs
+# "api-key" = "vault:observability/newrelic-license"
+# "Authorization" = "env:GRAFANA_OTLP_AUTH"
+```
+
+Scalar keys are settable with `compozy config set`; edit `headers` in the file.
+
+```bash
+$ compozy config set observability.otel.protocol grpc
+$ compozy config set observability.otel.endpoint http://collector.local:4317
+$ compozy config set observability.otel.sample_ratio 0.25
+$ compozy config get observability.otel.enabled
+observability.otel.enabled: true
+```
+
+| Key                    | Observable effect                                                                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`              | `false`: no providers, no connections, `OTel: disabled`. `true`: export starts at the next daemon start.                                                                     |
+| `protocol`             | Wire protocol to the collector; also picks the default endpoint port.                                                                                                        |
+| `endpoint`             | Collector base URL; `/v1/traces` and `/v1/metrics` are appended for HTTP.                                                                                                    |
+| `traces` / `metrics`   | Turn each signal off independently; status shows each.                                                                                                                       |
+| `sample_ratio`         | Fraction of new traces kept, also applied to unsampled incoming parents (what the CompozyOS web and desktop send). An external caller's sampled parent is always kept.       |
+| `metric_interval`      | How often metric points are pushed.                                                                                                                                          |
+| `service_name`         | Name shown in the backend's service list.                                                                                                                                    |
+| `slow_db_write_ms`     | A write inside a trace becomes a `db.write` span when it is not part of streaming coalescing, or when it takes at least this long. Histograms record every write regardless. |
+| `forward_to_providers` | Operator policy that gives provider processes started afterwards the OTLP environment. Off by default.                                                                       |
+| `headers.*`            | Header sent on every export request, resolved from the ref at daemon start.                                                                                                  |
+
+All keys are global-only. A workspace `config.toml` that sets `[observability.otel]` fails to load,
+workspace-scope writes are rejected, and profile overlays deny the `observability` block.
+
+### Environment variables
+
+Standard OpenTelemetry variables fill only the values `config.toml` does not set. A value written in
+the file wins even when it equals the default; an empty `endpoint` counts as not set.
+
+| Variable                      | Effect                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Fills `endpoint`.                                                                 |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | Fills `protocol`.                                                                 |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Fills headers; a non-empty `[observability.otel.headers]` replaces them entirely. |
+| `OTEL_SERVICE_NAME`           | Fills `service_name`.                                                             |
+| `OTEL_SDK_DISABLED=true`      | Forces export off.                                                                |
+| `OTEL_RESOURCE_ATTRIBUTES`    | Ignored.                                                                          |
+
+Their values are checked only while export is enabled, so variables set for other tools never block
+a daemon that exports nothing.
+
+### Header secrets
+
+Hosted backends authenticate with a header. Header values must be `env:` or `vault:observability/`
+refs; literal values are rejected. Store the secret in the vault, then reference it:
+
+```bash
+$ printf '%s' "$NEW_RELIC_LICENSE_KEY" | compozy vault put vault:observability/newrelic-license --kind token --value-stdin
+$ compozy config edit   # add the [observability.otel.headers] entry
+```
+
+```toml
+[observability.otel.headers]
+"api-key" = "vault:observability/newrelic-license"
+```
+
+The daemon resolves refs at start. `compozy config get` and `compozy__config_get` show the ref, never
+the resolved value.
+
+### Agents
+
+Agents can read the keys but not change them. `compozy__config_set` refuses every
+`observability.otel.*` key with `config_trust_root_forbidden`: telemetry settings decide what leaves
+the machine and where, so only the operator sets them with `compozy config set` or
+`compozy config edit`. `compozy__config_get` reads one key per call, for example
+`{"path": "observability.otel.headers.api-key"}` → `"vault:observability/newrelic-license"`. It shows
+`config.toml` values and defaults; `OTEL_*` values never appear.
+
+## Read export status
+
+`compozy status` shows one `OTel` line in the Runtime section:
+
+| State                             | Line                                                                                                                 |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `disabled`                        | `OTel:               disabled`                                                                                       |
+| `inactive_observability_disabled` | `OTel:               inactive (observability.enabled = false)`                                                       |
+| `ok`                              | `OTel:               ok · grpc → collector.local:4317 · traces ok, metrics ok · sample 0.25`                         |
+| `ok`, metrics off                 | `OTel:               ok · http/protobuf → localhost:4318 · traces ok, metrics off · sample 1.0`                      |
+| `degraded`                        | `OTel:               degraded · grpc → collector.local:4317 · traces ok, metrics http_401 (12 failed) · sample 0.25` |
+| forwarding on                     | the line ends with ` · forwarding to providers`                                                                      |
+
+`compozy status --json` and `GET /api/status` (HTTP and UDS) carry the same data in `otel`:
+
+```json
+{
+  "otel": {
+    "state": "ok",
+    "protocol": "grpc",
+    "endpoint_host": "collector.local:4317",
+    "sample_ratio": 0.25,
+    "forward_to_providers": false,
+    "traces": { "enabled": true, "last_export_at": "2026-11-07T14:02:11Z", "failed_exports": 0 },
+    "metrics": { "enabled": true, "last_export_at": "2026-11-07T14:02:00Z", "failed_exports": 0 },
+    "dropped_spans": 0
+  }
+}
+```
+
+A degraded signal reports its last error class and failure count:
+
+```json
+"metrics": { "enabled": true, "last_export_at": "2026-11-07T13:20:00Z", "last_error_class": "http_401", "failed_exports": 12 }
+```
+
+A daemon older than OTLP export omits `otel`; treat a missing object as unknown. Export failures
+never fail a command, and `compozy status` exits 0 whenever the daemon answers.
+
+Every HTTP route accepts a W3C `traceparent` header, so an external caller can join its own trace.
+Invalid values are ignored and the request is served normally; `tracestate` is ignored.
+
+## What is exported
+
+Everything below passes the daemon's sanitizing exporter. The resource carries `service.name`
+(config), `service.version` (daemon version), `service.instance.id` (daemon boot ID), `os.type`, and
+`host.arch`. Span status descriptions are always empty; failures carry `error.type`.
+
+### Spans
+
+| Name                                                     | Kind     | Parent                                                                               | Attributes                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<METHOD> <route template>` (unmatched: `HTTP <METHOD>`) | server   | incoming `traceparent` or root                                                       | `http.route`, `http.request.method`, `http.response.status_code`                                                                                                                                                                                                        |
+| `session.turn`                                           | internal | request span; queued prompt: root + link to the enqueue request                      | `compozy.session_id`, `compozy.turn_id`, `compozy.run_id`, `compozy.workspace_id`, `compozy.profile_id`, `compozy.agent`, `gen_ai.system`, `gen_ai.request.model`, `compozy.outcome`, `compozy.db.flushes`, `compozy.db.write_ms_total`, `error.type`; event `recovery` |
+| `acp.process.spawn`                                      | internal | `session.turn`                                                                       | `gen_ai.system`, `compozy.outcome`                                                                                                                                                                                                                                      |
+| `acp <method>` (for example `acp session/prompt`)        | client   | `session.turn`                                                                       | `rpc.system`, `rpc.method`, `compozy.outcome`; event `first_token`                                                                                                                                                                                                      |
+| `acp.permission.wait`                                    | internal | `session.turn`                                                                       | `compozy.outcome` (`approved`/`denied`/`cancelled`)                                                                                                                                                                                                                     |
+| `mcp.hosted.call`                                        | server   | the bound run's `session.turn`; after the run: root + link to it; unknown bind: root | `compozy.tool`, `compozy.run_id`, `compozy.outcome` (`ok`/`error`/`after_run`/`unbound`)                                                                                                                                                                                |
+| `tool.execute`                                           | internal | caller                                                                               | `compozy.tool`, `compozy.tool.risk`, `compozy.outcome`, `error.type`                                                                                                                                                                                                    |
+| `db.write`                                               | internal | caller (only inside a trace)                                                         | `compozy.db.operation`, `compozy.db.coalesced`, `compozy.outcome`                                                                                                                                                                                                       |
+| `hook.dispatch`                                          | internal | caller                                                                               | `compozy.hook.event`, `compozy.outcome`                                                                                                                                                                                                                                 |
+| `loop.run` / `automation.run` / `scheduler.tick`         | internal | root                                                                                 | `compozy.loop.id` / `compozy.automation.id`                                                                                                                                                                                                                             |
+
+### Metrics
+
+Prometheus renames dots to underscores and adds the unit, so `compozy.session.turn.duration` becomes
+`compozy_session_turn_duration_seconds`.
+
+| Name                              | Type      | Unit        | Attributes                                                                                                                                                                                                                        |
+| --------------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy.session.turn.duration`   | histogram | s           | `gen_ai.system`, `gen_ai.request.model` (catalog name, `custom`, or `other`), `compozy.agent`, `compozy.outcome`                                                                                                                  |
+| `compozy.session.ttft`            | histogram | s           | `gen_ai.system`, `gen_ai.request.model`                                                                                                                                                                                           |
+| `compozy.acp.rpc.duration`        | histogram | s           | `gen_ai.system`, `rpc.method`, `compozy.outcome`                                                                                                                                                                                  |
+| `compozy.tool.call.duration`      | histogram | s           | `compozy.tool`, `compozy.outcome`                                                                                                                                                                                                 |
+| `http.server.request.duration`    | histogram | s           | `http.route`, `http.request.method`, `http.response.status_code`                                                                                                                                                                  |
+| `compozy.db.write.duration`       | histogram | s           | `compozy.db.operation`, `compozy.db.coalesced`, `compozy.outcome`                                                                                                                                                                 |
+| `compozy.db.write.admission_wait` | histogram | s           | `compozy.db.operation`                                                                                                                                                                                                            |
+| `compozy.tokens`                  | counter   | `{token}`   | `gen_ai.system`, `gen_ai.request.model`, `compozy.agent`, `compozy.token.type` (`input`/`output`/`cache_read`/`cache_write`)                                                                                                      |
+| `compozy.cost`                    | counter   | `{USD}`     | `gen_ai.system`, `gen_ai.request.model`, `compozy.agent`, `compozy.cost.status` (`actual` = reported by the provider, `estimated` = from the pricing catalog). Plan-included and unknown costs, and non-USD amounts, add nothing. |
+| `compozy.tool.calls`              | counter   | `{call}`    | `compozy.tool`, `compozy.outcome`; one count per tool call, on its first completed or failed update                                                                                                                               |
+| `compozy.permission.requests`     | counter   | `{request}` | `compozy.outcome`                                                                                                                                                                                                                 |
+| `compozy.agent.errors`            | counter   | `{error}`   | `gen_ai.system`, `error.type`                                                                                                                                                                                                     |
+| `compozy.session.active`          | gauge     | `{session}` | none                                                                                                                                                                                                                              |
+| `compozy.agent.active`            | gauge     | `{agent}`   | none                                                                                                                                                                                                                              |
+| `compozy.uptime`                  | gauge     | s           | none                                                                                                                                                                                                                              |
+
+### Value rules
+
+- Agent, provider, model, and tool values not known to their registries export as `other`.
+- A model exports by name only when it comes from the model catalog (built-in or models.dev). A model
+  that exists only in your configuration exports as `custom`.
+- Identity and enum values outside their owner's format are omitted.
+- Any value containing a registered secret exports as `invalid`.
+- Unregistered span names export as `compozy.unknown`.
+- No exemplars are exported.
+
+### Never exported
+
+The daemon never exports prompt or response text, tool arguments or results, file contents,
+filesystem paths, environment values, header values, credentials, error message text, span or
+attribute values outside the registries above, or incoming `tracestate`.
+
+## Troubleshoot export
+
+Configuration errors stop `config set`, `compozy__config_set`, and config load with one of these
+messages:
+
+| Condition                     | Message                                                                                              | Action                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Bad protocol                  | `observability.otel.protocol must be "http/protobuf" or "grpc"`                                      | Fix the value.                                                  |
+| Bad env protocol              | `OTEL_EXPORTER_OTLP_PROTOCOL must be "http/protobuf" or "grpc"`                                      | Fix or unset the variable.                                      |
+| Bad endpoint                  | `observability.otel.endpoint must be an http(s) URL with a host`                                     | Fix the URL. Userinfo, a query, or a fragment is also rejected. |
+| Bad env endpoint              | `OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL with a host`                                     | Fix or unset the variable.                                      |
+| Bad env headers               | `OTEL_EXPORTER_OTLP_HEADERS must be a comma-separated list of name=value pairs`                      | Fix or unset the variable.                                      |
+| Literal header                | `observability.otel.headers."api-key" must be an env: or vault:observability/ ref`                   | Store the secret with `compozy vault put` and reference it.     |
+| Wrong vault namespace         | `observability.otel.headers."api-key" is invalid: vault:other/x must use vault:observability/<path>` | Move the secret under `observability/`.                         |
+| Bad header name               | `observability.otel.headers."api key" must be a valid HTTP header name`                              | Use a header name without spaces or separators.                 |
+| Workspace file sets the block | `workspace config "<path>": observability.otel settings are global-only`                             | Move the block to the global `config.toml`.                     |
+| Sample ratio                  | `observability.otel.sample_ratio must be between 0 and 1`                                            | Fix the value.                                                  |
+| Interval                      | `observability.otel.metric_interval must be at least 5s`                                             | Raise it.                                                       |
+| Slow-write threshold          | `observability.otel.slow_db_write_ms must be >= 0`                                                   | Fix the value.                                                  |
+| Service name                  | `observability.otel.service_name must match ^[A-Za-z0-9._-]{1,64}$`                                  | Use a simple name.                                              |
+
+Runtime failures never fail a command. They show as `degraded` in `compozy status`, with the error
+class per signal in `last_error_class`:
+
+| Error class             | Meaning                                                                | What to check                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `http_400`              | The collector rejected the payload.                                    | The endpoint path and protocol match what the collector serves.                                     |
+| `http_401`, `http_403`  | The backend rejected the credentials.                                  | The header name and the secret behind its ref; restart the daemon after rotating it.                |
+| `http_404`              | No OTLP receiver at that URL.                                          | The endpoint base URL; HTTP appends `/v1/traces` and `/v1/metrics`.                                 |
+| `http_413`              | The request was too large for the backend.                             | The backend's payload limits.                                                                       |
+| `http_429`              | The backend is rate limiting.                                          | The backend quota; lower `sample_ratio` or raise `metric_interval`.                                 |
+| `http_5xx`              | The collector or backend failed.                                       | Collector health and logs.                                                                          |
+| `unavailable`           | The collector is unreachable.                                          | That the collector runs and the host and port match `protocol` (4318 HTTP, 4317 gRPC by default).   |
+| `deadline_exceeded`     | The export timed out.                                                  | Network path and collector load.                                                                    |
+| `tls`                   | TLS handshake or certificate verification failed.                      | The `https` URL, the certificate chain, and the host name.                                          |
+| `header_ref_unresolved` | A header ref did not resolve at start; both enabled signals report it. | The daemon log names the ref (never its value); store the secret or set the variable, then restart. |
+| `other`                 | Any other failure.                                                     | The daemon log at `$COMPOZY_HOME/logs/compozy.log`.                                                 |
+
+`dropped_spans` counts spans dropped because the export queue was full; a growing count means the
+collector cannot keep up.
