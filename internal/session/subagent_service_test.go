@@ -2119,6 +2119,60 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			})
 		})
 	}
+	t.Run("Should recover a saved summary before a later turn fallback", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "fallback-summary",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		content, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				ToolCallID: launch.ProviderToolCallID,
+				TurnID:     "turn",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind:       acp.NativeTaskKindState,
+					TaskID:     "agent-fallback",
+					ToolCallID: launch.ProviderToolCallID,
+					Status:     acp.NativeTaskStatusCompleted,
+					Summary:    new("saved answer"),
+				},
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.nativeTasks = []store.SessionEvent{
+			{
+				Sequence:  1,
+				TurnID:    "turn",
+				Type:      acp.EventTypeNativeTask,
+				Timestamp: at.Add(time.Second),
+				Content:   content,
+			},
+		}
+		if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", at.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+		if row.Result == nil || *row.Result != "saved answer" {
+			t.Fatal(row)
+		}
+	})
+
 	t.Run("Should recover only the resumed run summary after its completion patch", func(t *testing.T) {
 		t.Parallel()
 		s, db, runtime := newSubagentTestService(t)

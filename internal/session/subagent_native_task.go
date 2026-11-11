@@ -342,6 +342,9 @@ func (c *nativeReplayCall) observe(ev NativeSubagentEvent) {
 		if ev.Task.Background != nil && *ev.Task.Background {
 			c.background = true
 		}
+		if nativeTaskActive(ev.Task) {
+			c.tasks = c.tasks[:0]
+		}
 		if _, terminal := nativeTaskOutcome(ev.Task); terminal || nativeTaskActive(ev.Task) {
 			c.tasks = append(c.tasks, ev)
 		}
@@ -439,9 +442,6 @@ func (s *subagentService) replayNativeCall(
 			return err
 		}
 		if store.IsSubagentStatusTerminal(current.Status) {
-			if current.SettledAt != nil && !ev.At.IsZero() && ev.At.Before(*current.SettledAt) {
-				continue
-			}
 			err = s.enrichNativeResult(ctx, current, status, ev.Task, ev.At)
 		} else {
 			_, err = s.finalizeNativeTask(ctx, current, status, ev.Task, ev.At)
