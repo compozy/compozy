@@ -166,3 +166,7 @@ Poor tool candidates:
 - [SKILL.md Format](/docs/skills/skill-md) explains how skills teach agents when to use
   tools.
 - [Tool CLI Reference](/docs/cli/tool) is the generated command reference.
+
+Tool search returns 20 matches per page by default, with a maximum of 100; zero uses 20.
+Read `has_more` and continue from `next_offset` with the same query (`--offset` in the CLI).
+Search results keep the complete descriptor. Use `tool info` for one exact tool.

@@ -273,8 +273,9 @@ func (c *Client) ListWorkspacesWithParams(ctx context.Context, params ListWorksp
 
 // ListWorktreesParams carries the path, query, and header parameters.
 type ListWorktreesParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	Refresh     *bool  `url:"refresh"`
+	WorkspaceID    string `url:"workspace_id"`
+	Refresh        *bool  `url:"refresh"`
+	IncludeRemoved *bool  `url:"include_removed"`
 }
 
 // ListWorktrees List registered and discovered worktrees
@@ -284,6 +285,9 @@ func (c *Client) ListWorktrees(ctx context.Context, params ListWorktreesParams) 
 	query := url.Values{}
 	if params.Refresh != nil {
 		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.IncludeRemoved != nil {
+		query.Set("include_removed", strconv.FormatBool(*params.IncludeRemoved))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -297,8 +301,9 @@ func (c *Client) ListWorktrees(ctx context.Context, params ListWorktreesParams) 
 
 // ListWorktreesAggregateParams carries the path, query, and header parameters.
 type ListWorktreesAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
+	AllWorkspaces  *bool     `url:"all_workspaces"`
+	WorkspaceIds   *[]string `url:"workspace_ids"`
+	IncludeRemoved *bool     `url:"include_removed"`
 }
 
 // ListWorktreesAggregate List registered and discovered worktrees
@@ -312,6 +317,9 @@ func (c *Client) ListWorktreesAggregate(ctx context.Context, params ListWorktree
 		for _, value := range *params.WorkspaceIds {
 			query.Add("workspace_ids", value)
 		}
+	}
+	if params.IncludeRemoved != nil {
+		query.Set("include_removed", strconv.FormatBool(*params.IncludeRemoved))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

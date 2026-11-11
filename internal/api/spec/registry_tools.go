@@ -44,7 +44,7 @@ func searchToolsOperationSpec() OperationSpec {
 		Path:        "/api/tools/search",
 		AppAccess:   AppAccessDenied,
 		OperationID: "searchTools",
-		Summary:     "Search operator-visible registry tools",
+		Summary:     "Search operator-visible registry tools (default 20, maximum 100 per page)",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  withProfileSelector(),

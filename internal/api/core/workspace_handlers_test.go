@@ -301,6 +301,56 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, resolved, _, _, _, _, _ := setup(t)
+		resolved.WorkspaceID = "metadata-alpha"
+		fixture.Handlers.Workspaces = testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) { return resolved, nil },
+			GetFn:     func(context.Context, string) (workspacepkg.Workspace, error) { return workspace, nil },
+		}
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Handlers.Sessions = &testutil.StubSessionManager{
+			ListForWorkspaceFn: func(_ context.Context, id string) ([]*session.Info, error) {
+				if id != workspace.ID {
+					t.Fatalf("workspace id = %s", id)
+				}
+				own := testutil.NewSessionInfo("own")
+				own.WorkspaceID = workspace.ID
+				other := testutil.NewSessionInfo("other-profile")
+				other.WorkspaceID = workspace.ID
+				other.ProfileID = "profile-marketing"
+				return []*session.Info{own, other}, nil
+			},
+		}
+		for _, scope := range []struct {
+			name, query string
+			want        []string
+		}{
+			{"Should include all profile owners", "?all_profiles=true", []string{"other-profile", "own"}},
+			{"Should select only the named profile", "?profile=marketing", []string{"other-profile"}},
+		} {
+			t.Run(scope.name, func(t *testing.T) {
+				response := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodGet,
+					"/workspaces/"+workspace.ID+scope.query,
+					nil,
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("scoped workspace = %d %s", response.Code, response.Body)
+				}
+				var payload contract.WorkspaceDetailPayload
+				testutil.DecodeJSONResponse(t, response, &payload)
+				ids := make([]string, 0, len(payload.Sessions))
+				for _, item := range payload.Sessions {
+					ids = append(ids, item.ID)
+				}
+				slices.Sort(ids)
+				if !slices.Equal(ids, scope.want) {
+					t.Fatalf("session owners = %v, want %v", ids, scope.want)
+				}
+			})
+		}
+
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusOK)

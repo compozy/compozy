@@ -78,13 +78,13 @@ func (c *daemonClient) AutomationJobRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	var response contract.RunsResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
 	if err := c.doJSON(ctx, http.MethodGet, path, automationRunValues(query), nil, &response); err != nil {
-		return nil, err
+		return AutomationRunListRecord{}, err
 	}
-	return response.Runs, nil
+	return response, nil
 }
 
 func (c *daemonClient) ListAutomationTriggers(
@@ -147,47 +147,22 @@ func (c *daemonClient) AutomationTriggerRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	var response contract.RunsResponse
 	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
 	if err := c.doJSON(ctx, http.MethodGet, path, automationRunValues(query), nil, &response); err != nil {
-		return nil, err
+		return AutomationRunListRecord{}, err
 	}
-	return response.Runs, nil
+	return response, nil
 }
 
-func (c *daemonClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
-	var runs []RunRecord
-	remaining := query.Limit
-	for {
-		request := query
-		if query.AllWorkspaces && (request.Limit == 0 || request.Limit > 200) {
-			request.Limit = 200
-		}
-		var response contract.RunsResponse
-		if err := c.doJSON(
-			ctx,
-			http.MethodGet,
-			"/api/automation/runs",
-			automationRunValues(request),
-			nil,
-			&response,
-		); err != nil {
-			return nil, err
-		}
-		runs = append(runs, response.Runs...)
-		if !query.AllWorkspaces || response.Page == nil || !response.Page.HasMore {
-			return runs, nil
-		}
-		if remaining > 0 {
-			remaining -= len(response.Runs)
-			if remaining <= 0 {
-				return runs, nil
-			}
-			query.Limit = remaining
-		}
-		query.Cursor = response.Page.NextCursor
-	}
+func (c *daemonClient) ListAutomationRuns(
+	ctx context.Context,
+	query AutomationRunQuery,
+) (AutomationRunListRecord, error) {
+	var response AutomationRunListRecord
+	err := c.doJSON(ctx, http.MethodGet, "/api/automation/runs", automationRunValues(query), nil, &response)
+	return response, err
 }
 
 func (c *daemonClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +18,61 @@ import (
 
 func TestDaemonNativeAutomationTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bound omitted run limits on every native history read", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			id    toolspkg.ToolID
+			input string
+		}{
+			{"Should page all runs", toolspkg.ToolIDAutomationRunsList, `{}`},
+			{"Should page job history", toolspkg.ToolIDAutomationJobsHistory, `{"job_id":"job"}`},
+			{"Should page trigger history", toolspkg.ToolIDAutomationTriggersHistory, `{"trigger_id":"trigger"}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Automation: apitest.StubAutomationManager{
+					GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+						return automationpkg.Job{ID: "job", ProfileID: store.DefaultProfileID}, nil
+					},
+					GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+						return automationpkg.Trigger{ID: "trigger", ProfileID: store.DefaultProfileID}, nil
+					},
+					ListRunsFn: func(_ context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error) {
+						if query.Limit != 51 {
+							t.Errorf("run query limit = %d, want 50 plus lookahead", query.Limit)
+						}
+						return []automationpkg.Run{}, nil
+					},
+				}}, nativeApproveAllPolicyInputs())
+				result, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(tc.input)},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				requireNativeStructuredContains(t, result, []byte(`"page"`))
+				var invalid map[string]any
+				if err := json.Unmarshal([]byte(tc.input), &invalid); err != nil {
+					t.Fatal(err)
+				}
+				invalid["limit"] = 201
+				raw, err := json.Marshal(invalid)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: tc.id, Input: raw},
+				)
+				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonAutomationValidationFailed)
+			})
+		}
+	})
 
 	t.Run("Should use registration identity for every automation workspace selector", func(t *testing.T) {
 		t.Parallel()
@@ -408,7 +462,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		}
 		if listRunQuery.JobID != job.ID ||
 			listRunQuery.Status != automationpkg.RunCompleted ||
-			listRunQuery.Limit != 2 ||
+			listRunQuery.Limit != 3 ||
 			listRunQuery.Since.IsZero() {
 			t.Fatalf("job run query = %#v, want filtered job history", listRunQuery)
 		}
@@ -585,7 +639,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_triggers_history) error = %v", err)
 		}
-		if listRunQuery.TriggerID != trigger.ID || listRunQuery.JobID != "" || listRunQuery.Limit != 1 {
+		if listRunQuery.TriggerID != trigger.ID || listRunQuery.JobID != "" || listRunQuery.Limit != 2 {
 			t.Fatalf("trigger run query = %#v, want trigger history", listRunQuery)
 		}
 
@@ -616,7 +670,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			t.Fatalf("Registry.Call(automation_runs_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, runsListResult, []byte(`"run-1"`))
-		if listRunQuery.JobID != job.ID || listRunQuery.Limit != 5 {
+		if listRunQuery.JobID != job.ID || listRunQuery.Limit != 6 {
 			t.Fatalf("runs query = %#v, want job run list", listRunQuery)
 		}
 
@@ -889,57 +943,33 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		})
 	})
 
-	t.Run("Should stop workspace pagination when cursors do not advance", func(t *testing.T) {
+	t.Run("Should send bounded workspace history reads directly to storage", func(t *testing.T) {
 		t.Parallel()
-
-		var jobCalls int
-		var triggerCalls int
-		manager := apitest.StubAutomationManager{
-			ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
-				jobCalls++
-				if jobCalls > 2 {
-					return automationpkg.JobListPage{}, errors.New("job pagination did not stop")
+		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{Automation: apitest.StubAutomationManager{
+			ListRunsFn: func(_ context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error) {
+				if query.WorkspaceID != "ws-a" || query.Limit != 2 ||
+					query.ReadScope.ProfileID != store.DefaultProfileID {
+					t.Fatalf("incorrect scoped page query: %#v", query)
 				}
-				return automationpkg.JobListPage{
-					Jobs:       []automationpkg.Job{{ID: fmt.Sprintf("job-%d", jobCalls)}},
-					HasMore:    true,
-					NextCursor: "job-cursor",
-					Limit:      query.Limit,
+				return []automationpkg.Run{
+					{ID: "first", ProfileID: store.DefaultProfileID},
+					{ID: "second", ProfileID: store.DefaultProfileID},
 				}, nil
 			},
-			ListTriggersFn: func(
-				_ context.Context,
-				query automationpkg.TriggerListQuery,
-			) (automationpkg.TriggerListPage, error) {
-				triggerCalls++
-				if triggerCalls > 2 {
-					return automationpkg.TriggerListPage{}, errors.New("trigger pagination did not stop")
-				}
-				return automationpkg.TriggerListPage{
-					Triggers:   []automationpkg.Trigger{{ID: fmt.Sprintf("trigger-%d", triggerCalls)}},
-					HasMore:    true,
-					NextCursor: "trigger-cursor",
-					Limit:      query.Limit,
-				}, nil
-			},
-		}
-		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{Automation: manager}}
-
-		readScope := store.ReadScope{AllProfiles: true}
-		jobs, err := tools.nativeAutomationJobsForWorkspace(t.Context(), "ws-a", readScope)
+		}}}
+		result, err := tools.automationRunsForQuery(
+			t.Context(),
+			toolspkg.ToolIDAutomationRunsList,
+			" ws-a ",
+			automationpkg.RunQuery{Limit: 1, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+		)
 		if err != nil {
-			t.Fatalf("nativeAutomationJobsForWorkspace() error = %v", err)
+			t.Fatal(err)
 		}
-		if len(jobs) != 2 || jobCalls != 2 {
-			t.Fatalf("jobs/calls = %d/%d, want 2/2", len(jobs), jobCalls)
-		}
-		triggers, err := tools.nativeAutomationTriggersForWorkspace(t.Context(), "ws-a", readScope)
-		if err != nil {
-			t.Fatalf("nativeAutomationTriggersForWorkspace() error = %v", err)
-		}
-		if len(triggers) != 2 || triggerCalls != 2 {
-			t.Fatalf("triggers/calls = %d/%d, want 2/2", len(triggers), triggerCalls)
-		}
+		requireNativeStructuredContains(t, result, []byte(`"first"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"second"`))
+		requireNativeStructuredContains(t, result, []byte(`"has_more":true`))
+		requireNativeStructuredContains(t, result, []byte(`"next_cursor"`))
 	})
 
 	t.Run("Should preserve workspace identity across consent-first suggestion tools", func(t *testing.T) {

@@ -4978,7 +4978,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Search operator-visible registry tools */
+    /** Search operator-visible registry tools (default 20, maximum 100 per page) */
     post: operations["searchTools"];
     delete?: never;
     options?: never;
@@ -20722,6 +20722,7 @@ export interface components {
     ToolSearchRequest: {
       agent_name?: string;
       limit?: number;
+      offset?: number;
       query: string;
       session_id?: string;
       workspace_id?: string;
@@ -20738,7 +20739,12 @@ export interface components {
       workspace_id?: string;
     };
     ToolsResponse: {
+      count: number;
+      has_more: boolean;
+      next_offset?: number;
+      offset?: number;
       tools: components["schemas"]["ToolPayload"][];
+      total: number;
     };
     ToolsetPayload: {
       expanded_tools?: string[];
@@ -29356,7 +29362,9 @@ export interface operations {
         since?: string;
         /** @description Only runs started before this timestamp */
         until?: string;
-        /** @description Maximum number of records to return */
+        /** @description Continue after page.next_cursor with unchanged filters */
+        cursor?: string;
+        /** @description Page size (default 50, maximum 200; zero uses default) */
         limit?: number;
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -29502,7 +29510,7 @@ export interface operations {
         since?: string;
         /** @description Only runs started before this timestamp */
         until?: string;
-        /** @description Maximum number of records to return */
+        /** @description Page size (default 50, maximum 200; zero uses default) */
         limit?: number;
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -30029,7 +30037,9 @@ export interface operations {
         since?: string;
         /** @description Only runs started before this timestamp */
         until?: string;
-        /** @description Maximum number of records to return */
+        /** @description Continue after page.next_cursor with unchanged filters */
+        cursor?: string;
+        /** @description Page size (default 50, maximum 200; zero uses default) */
         limit?: number;
         /** @description Read one profile's rows by name */
         profile?: string;
@@ -49012,7 +49022,12 @@ export interface operations {
   };
   getWorkspace: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id or path */
@@ -49031,13 +49046,33 @@ export interface operations {
           "application/json": components["schemas"]["WorkspaceDetailPayload"];
         };
       };
-      /** @description Workspace not found */
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Workspace or requested profile not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Profile archived or unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Unknown workspace config keys (workspace_config_invalid) */
@@ -62683,6 +62718,8 @@ export interface operations {
       query?: {
         /** @description Refresh Git discovery and status */
         refresh?: boolean;
+        /** @description Include removed records (excluded by default) */
+        include_removed?: boolean;
       };
       header?: never;
       path: {
@@ -63795,6 +63832,8 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Repeatable project IDs or @user; requires all_workspaces=true */
         workspace_ids?: string[];
+        /** @description Include removed records (excluded by default) */
+        include_removed?: boolean;
       };
       header?: never;
       path?: never;

@@ -265,7 +265,8 @@ func listAutomationJobRunsOperationSpec() OperationSpec {
 			enumQueryParam("status", "Filter by run status", automationRunStatusValues()),
 			dateTimeQueryParam("since", "Only runs started since this timestamp"),
 			dateTimeQueryParam("until", "Only runs started before this timestamp"),
-			intQueryParam("limit", "Maximum number of records to return"),
+			queryParam("cursor", "Continue after page.next_cursor with unchanged filters", false),
+			intQueryParam("limit", "Page size (default 50, maximum 200; zero uses default)"),
 		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.RunsResponse{}},

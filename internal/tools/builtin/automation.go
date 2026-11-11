@@ -469,7 +469,8 @@ const automationJobHistoryProperties = `{
 	"status":{"type":"string"},
 	"since":{"type":"string"},
 	"until":{"type":"string"},
-	"limit":{"type":"integer"}
+	"cursor":{"type":"string"},
+	"limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
 }`
 
 const automationTriggerHistoryProperties = `{
@@ -478,7 +479,8 @@ const automationTriggerHistoryProperties = `{
 	"status":{"type":"string"},
 	"since":{"type":"string"},
 	"until":{"type":"string"},
-	"limit":{"type":"integer"}
+	"cursor":{"type":"string"},
+	"limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
 }`
 
 const automationRunQueryProperties = `{
@@ -488,5 +490,6 @@ const automationRunQueryProperties = `{
 	"status":{"type":"string"},
 	"since":{"type":"string"},
 	"until":{"type":"string"},
-	"limit":{"type":"integer"}
+	"cursor":{"type":"string"},
+	"limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
 }`

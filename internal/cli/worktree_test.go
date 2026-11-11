@@ -14,6 +14,36 @@ import (
 func TestWorktreeListCommand(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should explicitly request removed records", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		client := withWorkspaceResolution(
+			&stubClient{
+				listWorktreesFn: func(_ context.Context, _ string, _ bool, includeRemoved bool) (WorktreeListRecord, error) {
+					called = true
+					if !includeRemoved {
+						t.Fatal("include-removed flag was lost")
+					}
+					return WorktreeListRecord{}, nil
+				},
+			},
+		)
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"worktree",
+			"list",
+			"--workspace",
+			"workspace-a",
+			"--include-removed",
+			"-o",
+			"json",
+		)
+		if err != nil || !called {
+			t.Fatalf("called=%v error=%v", called, err)
+		}
+	})
+
 	t.Run("Should preserve the HTTP worktree fields and states in JSON output", func(t *testing.T) {
 		t.Parallel()
 
@@ -64,8 +94,9 @@ func TestWorktreeListCommand(t *testing.T) {
 			_ context.Context,
 			workspaceID string,
 			refresh bool,
+			includeRemoved bool,
 		) (WorktreeListRecord, error) {
-			if workspaceID != "workspace-a" || refresh {
+			if workspaceID != "workspace-a" || refresh || includeRemoved {
 				t.Fatalf("ListWorktrees() args = %q, %t", workspaceID, refresh)
 			}
 			return WorktreeListRecord{Worktrees: items}, nil
@@ -130,6 +161,7 @@ func TestWorktreeListCommand(t *testing.T) {
 			context.Context,
 			string,
 			bool,
+			bool,
 		) (WorktreeListRecord, error) {
 			return WorktreeListRecord{}, nil
 		}})
@@ -149,6 +181,7 @@ func TestWorktreeListCommand(t *testing.T) {
 		client := withWorkspaceResolution(&stubClient{listWorktreesFn: func(
 			context.Context,
 			string,
+			bool,
 			bool,
 		) (WorktreeListRecord, error) {
 			return WorktreeListRecord{}, &daemonAPIError{

@@ -43360,6 +43360,9 @@
           "limit": {
             "type": "integer"
           },
+          "offset": {
+            "type": "integer"
+          },
           "query": {
             "type": "string"
           },
@@ -43416,15 +43419,33 @@
       },
       "ToolsResponse": {
         "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
           "tools": {
             "items": {
               "$ref": "#/components/schemas/ToolPayload"
             },
             "type": "array"
+          },
+          "total": {
+            "type": "integer"
           }
         },
         "required": [
-          "tools"
+          "count",
+          "has_more",
+          "tools",
+          "total"
         ],
         "type": "object"
       },
@@ -59343,7 +59364,15 @@
             }
           },
           {
-            "description": "Maximum number of records to return",
+            "description": "Continue after page.next_cursor with unchanged filters",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (default 50, maximum 200; zero uses default)",
             "in": "query",
             "name": "limit",
             "schema": {
@@ -59608,7 +59637,7 @@
             }
           },
           {
-            "description": "Maximum number of records to return",
+            "description": "Page size (default 50, maximum 200; zero uses default)",
             "in": "query",
             "name": "limit",
             "schema": {
@@ -60480,7 +60509,15 @@
             }
           },
           {
-            "description": "Maximum number of records to return",
+            "description": "Continue after page.next_cursor with unchanged filters",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (default 50, maximum 200; zero uses default)",
             "in": "query",
             "name": "limit",
             "schema": {
@@ -86281,7 +86318,7 @@
             "description": "Tool registry unavailable"
           }
         },
-        "summary": "Search operator-visible registry tools",
+        "summary": "Search operator-visible registry tools (default 20, maximum 100 per page)",
         "tags": [
           "tools"
         ],
@@ -88693,6 +88730,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -88706,15 +88759,42 @@
             },
             "description": "OK"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid profile selection"
+          },
           "404": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Workspace not found"
+            "description": "Workspace or requested profile not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Profile archived or unavailable"
           },
           "422": {
             "content": {
@@ -109819,6 +109899,14 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "description": "Include removed records (excluded by default)",
+            "in": "query",
+            "name": "include_removed",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -111364,6 +111452,14 @@
               "type": "array"
             },
             "style": "form"
+          },
+          {
+            "description": "Include removed records (excluded by default)",
+            "in": "query",
+            "name": "include_removed",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

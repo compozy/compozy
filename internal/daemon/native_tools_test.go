@@ -1306,6 +1306,80 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) *apitest
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bound default tool search results with continuation metadata", func(t *testing.T) {
+		t.Parallel()
+		deps := &daemonNativeToolsDeps{}
+		newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		result, err := (&daemonNativeTools{deps: deps}).toolSearch(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolSearch, Input: json.RawMessage(`{"query":""}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Tools      []json.RawMessage `json:"tools"`
+			HasMore    bool              `json:"has_more"`
+			NextOffset int               `json:"next_offset"`
+			Total      int               `json:"total"`
+		}
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Tools) != 20 || !page.HasMore || page.NextOffset != len(page.Tools) {
+			t.Fatalf(
+				"default search returned %d tools, has_more=%v, next_offset=%d",
+				len(page.Tools),
+				page.HasMore,
+				page.NextOffset,
+			)
+		}
+		seen := map[toolspkg.ToolID]bool{}
+		offset := 0
+		for {
+			input, err := json.Marshal(toolSearchInput{Query: "", Offset: offset, Limit: 37})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := (&daemonNativeTools{deps: deps}).toolSearch(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolSearch, Input: input},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var next struct {
+				Tools      []toolspkg.ToolView `json:"tools"`
+				Total      int                 `json:"total"`
+				HasMore    bool                `json:"has_more"`
+				NextOffset int                 `json:"next_offset"`
+			}
+			if err := json.Unmarshal(result.Structured, &next); err != nil {
+				t.Fatal(err)
+			}
+			for _, view := range next.Tools {
+				if seen[view.Descriptor.ID] {
+					t.Fatalf("duplicate tool %s", view.Descriptor.ID)
+				}
+				seen[view.Descriptor.ID] = true
+			}
+			if !next.HasMore {
+				if len(seen) != next.Total {
+					t.Fatalf("found %d of %d", len(seen), next.Total)
+				}
+				break
+			}
+			if next.NextOffset <= offset {
+				t.Fatal("offset did not advance")
+			}
+			offset = next.NextOffset
+		}
+	})
 	t.Run("Should explain invalid monitor fields without creating a monitor or exposing input", func(t *testing.T) {
 		t.Parallel()
 		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})

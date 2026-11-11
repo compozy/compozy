@@ -19,8 +19,9 @@ type toolListInput struct {
 }
 
 type toolSearchInput struct {
-	Query string `json:"query"`
-	Limit int    `json:"limit,omitzero"`
+	Offset int    `json:"offset,omitzero"`
+	Query  string `json:"query"`
+	Limit  int    `json:"limit,omitzero"`
 }
 
 type toolInfoInput struct {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -100,7 +101,13 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		return
 	}
 
-	sessions, err := h.Sessions.ListForWorkspace(c.Request.Context(), resolved.WorkspaceID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+
+	sessions, err := h.Sessions.ListForWorkspace(c.Request.Context(), resolved.ID)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -118,7 +125,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 	}
 	sessionPayloads, err := h.decorateSessionOwners(
 		c.Request.Context(),
-		SessionPayloadsForWorkspace(sessions, resolved.WorkspaceID),
+		SessionPayloadsForWorkspace(sessions, resolved.ID, readScope),
 	)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
@@ -370,8 +377,17 @@ func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (strin
 }
 
 // SessionPayloadsForWorkspace filters and converts sessions for one workspace.
-func SessionPayloadsForWorkspace(infos []*session.Info, workspaceID string) []contract.SessionPayload {
-	return SessionPayloadsFromInfos(
-		visibleSessionInfosInternal(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)),
-	)
+func SessionPayloadsForWorkspace(
+	infos []*session.Info,
+	workspaceID string,
+	readScope store.ReadScope,
+) []contract.SessionPayload {
+	visible := visibleSessionInfosInternal(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID))
+	filtered := visible[:0]
+	for _, info := range visible {
+		if readScope.Matches(info.ProfileID) {
+			filtered = append(filtered, info)
+		}
+	}
+	return SessionPayloadsFromInfos(filtered)
 }

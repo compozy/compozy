@@ -13298,7 +13298,7 @@ export class tools extends HeyApiClient {
   }
 
   /**
-   * Search operator-visible registry tools
+   * Search operator-visible registry tools (default 20, maximum 100 per page)
    */
   public searchTools<ThrowOnError extends boolean = true>(
     options: Options<SearchToolsData, ThrowOnError>

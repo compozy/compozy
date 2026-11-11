@@ -64,9 +64,7 @@ func getWorkspaceOperationSpec() OperationSpec {
 		Summary:     "Get one resolved workspace with related data",
 		Tags:        []string{specWorkspacesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Workspace id or path"),
-		},
+		Parameters:  withProfileScope(pathParam("id", "Workspace id or path")),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorkspaceDetailPayload{}},
 			{
@@ -74,7 +72,20 @@ func getWorkspaceOperationSpec() OperationSpec {
 				Description: workspaceConfigInvalidDescription,
 				Body:        contract.ErrorPayload{},
 			},
-			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      400,
+				Description: authoredContextInvalidProfileSelectionDescription,
+				Body:        contract.ProfileErrorPayload{},
+			},
+			{
+				Status:      404,
+				Description: "Workspace or requested profile not found",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](),
+					responseBodyOf[contract.ProfileErrorPayload](),
+				),
+			},
+			{Status: 409, Description: "Profile archived or unavailable", Body: contract.ProfileErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

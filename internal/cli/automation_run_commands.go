@@ -11,6 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	automationRunSinceHelp = "Show runs since RFC3339 or a relative duration; " +
+		"use absolute time from the first page when paging"
+	automationRunUntilHelp = "Show runs until RFC3339 or a relative duration; " +
+		"use absolute time from the first page when paging"
+)
+
 func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 	var (
 		jobID     string
@@ -19,6 +26,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 		sinceRaw  string
 		untilRaw  string
 		last      int
+		cursor    string
 	)
 
 	cmd := &cobra.Command{
@@ -31,7 +39,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := parseAutomationRunListQuery(statusRaw, sinceRaw, untilRaw, last, deps.now)
+			query, err := parseAutomationRunListQuery(statusRaw, sinceRaw, untilRaw, last, cursor, deps.now)
 			if err != nil {
 				return err
 			}
@@ -66,7 +74,10 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				bundle.human = automationRunAggregateTable(runs, labels)
+				bundle.human = automationRunAggregateTable(runs.Runs, labels)
+				if runs.Page != nil {
+					bundle.human = withListPageHuman(bundle.human, automationRunPageRows(runs.Page))
+				}
 			}
 			return writeCommandOutput(cmd, bundle)
 		},
@@ -77,10 +88,11 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&triggerID, "trigger-id", "", "Filter by automation trigger ID")
 	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
-		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
+		StringVar(&sinceRaw, "since", "", automationRunSinceHelp)
 	cmd.Flags().
-		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
-	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
+		StringVar(&untilRaw, "until", "", automationRunUntilHelp)
+	cmd.Flags().IntVar(&last, "last", 50, "Maximum runs per page (0 uses 50; maximum 200)")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after page.next_cursor (time filters must be RFC3339)")
 	cmd.AddCommand(newAutomationRunsGetCommand(deps))
 	configureProfileReadCommand(cmd, deps)
 	return cmd
@@ -113,9 +125,22 @@ func parseAutomationRunListQuery(
 	sinceRaw string,
 	untilRaw string,
 	last int,
+	cursor string,
 	now func() time.Time,
 ) (AutomationRunQuery, error) {
-	query := AutomationRunQuery{}
+	query := AutomationRunQuery{Cursor: strings.TrimSpace(cursor)}
+	if query.Cursor != "" {
+		for _, filter := range []struct{ name, value string }{{"since", sinceRaw}, {"until", untilRaw}} {
+			if value := strings.TrimSpace(filter.value); value != "" {
+				if _, err := time.Parse(time.RFC3339Nano, value); err != nil {
+					return AutomationRunQuery{}, fmt.Errorf(
+						"cli: --%s must be RFC3339 when --cursor is set",
+						filter.name,
+					)
+				}
+			}
+		}
+	}
 	if err := validateAutomationLast(last); err != nil {
 		return AutomationRunQuery{}, err
 	}
@@ -331,8 +356,8 @@ func parseAutomationOptionalTimeFlag(
 }
 
 func validateAutomationLast(last int) error {
-	if last < 0 {
-		return fmt.Errorf("cli: --last must be zero or positive: %d", last)
+	if last < 0 || last > automationpkg.MaxListLimit {
+		return fmt.Errorf("cli: --last must be between 0 and 200: %d", last)
 	}
 	return nil
 }

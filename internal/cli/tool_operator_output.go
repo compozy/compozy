@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 
 	"strings"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func toolListBundle(response ToolsResponseRecord) outputBundle {
-	return listBundle(
+	bundle := listBundle(
 		response,
 		response.Tools,
 		toolOperatorToolsValue,
@@ -49,6 +50,32 @@ func toolListBundle(response ToolsResponseRecord) outputBundle {
 				formatBool(item.Decision.Callable),
 				joinReasons(item.Availability.ReasonCodes, item.Decision.ReasonCodes),
 			}
+		},
+	)
+	page := struct {
+		Offset     int  `json:"offset"`
+		Count      int  `json:"count"`
+		Total      int  `json:"total"`
+		NextOffset int  `json:"next_offset,omitempty"`
+		HasMore    bool `json:"has_more"`
+	}{response.Offset, response.Count, response.Total, response.NextOffset, response.HasMore}
+	return withListPageOutput(
+		bundle,
+		page,
+		[]keyValue{
+			{Label: "Offset", Value: strconv.Itoa(page.Offset)},
+			{Label: listReturnedLabel, Value: strconv.Itoa(page.Count)},
+			{Label: listTotalLabel, Value: strconv.Itoa(page.Total)},
+			{Label: listHasMoreLabel, Value: strconv.FormatBool(page.HasMore)},
+			{Label: "Next Offset", Value: strconv.Itoa(page.NextOffset)},
+		},
+		[]string{listOffsetField, listReturnedField, listTotalField, listHasMoreField, listNextOffsetField},
+		[]string{
+			strconv.Itoa(page.Offset),
+			strconv.Itoa(page.Count),
+			strconv.Itoa(page.Total),
+			strconv.FormatBool(page.HasMore),
+			strconv.Itoa(page.NextOffset),
 		},
 	)
 }

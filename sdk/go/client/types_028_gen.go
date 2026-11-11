@@ -295,6 +295,7 @@ type ToolResult struct {
 
 // ToolSearchRequest is a daemon API value.
 type ToolSearchRequest struct {
+	Offset      int    `json:"offset,omitzero"`
 	Query       string `json:"query"`
 	Limit       int    `json:"limit,omitzero"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -316,7 +317,12 @@ type ToolSourceRefPayload struct {
 
 // ToolsResponse is a daemon API value.
 type ToolsResponse struct {
-	Tools []ToolPayload `json:"tools"`
+	Tools      []ToolPayload `json:"tools"`
+	Offset     int           `json:"offset,omitzero"`
+	Count      int           `json:"count"`
+	Total      int           `json:"total"`
+	NextOffset int           `json:"next_offset,omitzero"`
+	HasMore    bool          `json:"has_more"`
 }
 
 // ToolsetID is a daemon API value.
