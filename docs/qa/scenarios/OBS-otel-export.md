@@ -6,13 +6,13 @@ persona: Dora
 journey: J-export-telemetry-to-collector
 expected: With export enabled against the Compose Collector, each prompt is one session.turn trace in Jaeger with spawn, ACP, and hosted tool spans nested, the Prometheus p95 query returns a value, and status reports export health identically over CLI, HTTP, and UDS.
 entry_points: compozy config set observability.otel.*; compozy status; compozy status --json; GET /api/status over HTTP; GET /api/status over UDS; web session composer; desktop app; compozy__config_set; http://localhost:16686; http://localhost:9090
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-decision
+bug_ids: BUG-20261111-web-adapter-requests-skip-traceparent; BUG-20261111-otel-model-exports-other; BUG-20261111-otel-model-probe-spawn-provider-other; BUG-20261111-otel-header-refs-redacted
+fix_status: pending
+retest_status: pass
+fix_commits: 47b40a7b4
+evidence: docs/qa/evidence/2026-11-11-otel-telemetry-export/
+last_report: docs/qa/reports/2026-11-11-otel-telemetry-export.md
 overlaps: OBS-otel-export; RT-001
 ---
 
@@ -131,7 +131,7 @@ Expected: every daemon-bound request carries a `-00` header with a fresh trace i
 HTTP server span as its root, and for the prompt it continues into `session.turn`. Requests to non-daemon origins
 (desktop update feed) carry no `traceparent`. At ratio 0 nothing is exported for client requests.
 
-Pre-walk risk (from code reading, not yet reproduced): the composer's prompt send does not go through
+Pre-walk risk (from code reading; confirmed and fixed in e434ff7fd before the 2026-11-11 walk): the composer's prompt send does not go through
 `web/src/lib/api-client.ts`. `use-session-chat-runtime.ts` passes `createGoalAwareFetch` (default
 `globalThis.fetch`, `session-goal-chat-transport.ts`) to the AI SDK chat transport, so the `apiClient` middleware that
 adds `traceparent` never runs for `POST …/prompt`. The desktop window embeds the same web client. If the walk confirms
@@ -216,6 +216,21 @@ Reuses: `TestDaemonNativeTools` (`observability.otel.enabled`/`endpoint` refused
 `ReasonConfigTrustRootForbidden`), `TestToolConfigPathPolicy`, `TestObservabilityOTelConfigIsGlobalOnly`. Remains: the
 refusal through a real agent turn.
 
+## 2026-11-11 run
+
+Walked against the `_dx.md` Compose stack (report `docs/qa/reports/2026-11-11-otel-telemetry-export.md`).
+
+- §1 pass: trace shape, p95 vector (after a second turn), required series, canary absent, catalog matches the docs.
+  `gen_ai.request.model = other` reproduced → BUG-20261111-otel-model-exports-other; the model-option inspection spawn
+  exports `gen_ai.system = other` → BUG-20261111-otel-model-probe-spawn-provider-other.
+- §2 pass on all four surfaces, except the daemon log masks the unresolved ref → BUG-20261111-otel-header-refs-redacted.
+- §3 web pass after fixing BUG-20261111-web-adapter-requests-skip-traceparent (`47b40a7b4`): the prompt POST joins its
+  trace (e434ff7fd); ratio 0 exports nothing. The EventSource stream cannot carry headers. Desktop leg blocked (no
+  packaged build; disk full); desktop unit tests pass.
+- §4 forwarding pass (env, `TRACEPARENT` = spawn span, agent value wins, nothing when off); Claude Code 2.1.321 exported
+  no series to the Collector even when run directly, so step 3 is blocked.
+- §5 pass. §6 refusal pass; `compozy__config_get` masks the header ref → BUG-20261111-otel-header-refs-redacted.
+
 ## Regression hot spots
 
 Automated guards for the `_spec.md` Safety Invariants and ADRs. A QA walk does not re-prove these; a failure in a walk
@@ -236,5 +251,5 @@ that touches one of them goes back to the named suite.
 | SI-11 only the sanitizing exporter is constructible | `internal/telemetry` `TestPackageBoundary`; depguard rule `otel-sdk-telemetry-only` | covered |
 | ADR-003 observe parity (tokens/cost/events from the observe funnel, gauges never `Health()`, inactive when observability off) | UT-050–UT-055 `internal/observe` `TestObserverEventMetrics`; IT-012 `TestDaemonE2EOTelExportsTurnMetrics` (tokens equal `token_stats`, gauges equal status); UT-017 | covered |
 | Sanitizer fallbacks (`compozy.unknown`, `other`, `custom`, `invalid`, omitted ids, no exemplars, empty descriptions) | UT-022 `TestSanitizingSpanExporterRebuildsSpanFields`; UT-046 `TestSanitizingSpanExporterAppliesPerKeyFallbackPolicy`, `TestSanitizingMetricExporterAppliesPerKeyFallbackPolicy`; UT-039 `TestSanitizingSpanExporterEnforcesNameAndScopeRegistries`; `TestSanitizingExportersCheckEveryExportedStringForSecrets`; `TestSanitizingSpanExporterFailsClosedWithZeroRegistries`; UT-024 `TestSanitizingMetricExporterExportsNoExemplars`; IT-014/E2E-003 `TestDaemonE2EOTelExportCarriesNoContent` | covered |
-| Client propagation (unsampled `-00`, daemon-origin only) | UT-060–UT-064 (`api-client.test.ts`, desktop `runtime-health-monitor` tests); IT-013 `TestRequestTracingHonorsTraceParentOverHTTPAndUDS` | gap: the composer's prompt POST bypasses `apiClient` (walk 3) |
-| Model attribute | UT-046 (policy) | gap: `Registries.Models` is not wired, so real turns export `other` |
+| Client propagation (unsampled `-00`, daemon-origin only) | UT-060–UT-064 (`api-client.test.ts`, desktop `runtime-health-monitor` tests); `terminal-api.test.ts` daemon-request traceparent; IT-013 `TestRequestTracingHonorsTraceParentOverHTTPAndUDS` | covered: every web daemon request goes through `daemonFetch` (e434ff7fd, 47b40a7b4); EventSource streams carry none |
+| Model attribute | UT-046 (policy) | gap: `Registries.Models` is not wired, so real turns export `other` (BUG-20261111-otel-model-exports-other) |

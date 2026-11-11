@@ -1,0 +1,1 @@
+{'compozy-daemon': [('host.arch', 'amd64'), ('os.type', 'linux'), ('service.instance.id', 'IG2DX3RYPDP4MK7H76OHASTUJY'), ('service.version', 'v0.5.4-77-g09ba702a3')]}
