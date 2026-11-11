@@ -21,9 +21,7 @@
     },
     "compozy__loop_nodes": {
         "type": "object",
-        "required": [
-            "items"
-        ],
+        "required": ["items"],
         "properties": {
             "items": {
                 "type": "array",
@@ -41,12 +39,7 @@
                     "properties": {
                         "state": {
                             "type": "string",
-                            "enum": [
-                                "waiting",
-                                "quarantined",
-                                "attention",
-                                "retrying"
-                            ]
+                            "enum": ["waiting", "quarantined", "attention", "retrying"]
                         },
                         "loop_run_id": {
                             "type": "string",
@@ -82,10 +75,7 @@
                         },
                         "output": {
                             "type": "object",
-                            "required": [
-                                "node_id",
-                                "status"
-                            ],
+                            "required": ["node_id", "status"],
                             "properties": {
                                 "generation": {
                                     "type": "integer",
