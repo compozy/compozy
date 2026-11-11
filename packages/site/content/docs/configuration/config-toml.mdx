@@ -1099,9 +1099,9 @@ the built-in stack there.
 | `letter_spacing` | string | unset   | `tight`, `default`, `relaxed`, `wide`                                         | Space between letters in interface text. `default` is the built-in tight tracking. |
 
 `system-ui` and `ui-monospace` select the platform's own faces. `Geist Variable`, `Inter Variable`,
-`Instrument Sans Variable`, and `JetBrains Mono Variable` ship with the app and download only once
-chosen. An unset `text_size` or `letter_spacing` reads as `default`. Invalid values fail with
-`shell_config_invalid`.
+`Instrument Sans Variable`, and `JetBrains Mono Variable` ship with the app and load only when
+chosen or previewed in the font list. An unset `text_size` or `letter_spacing` reads as `default`.
+Invalid values fail with `shell_config_invalid`.
 
 ```bash
 compozy config set shell.appearance.mono_font "JetBrains Mono Variable"

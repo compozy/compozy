@@ -4901,8 +4901,27 @@ func TestSettingsShellAppearance(t *testing.T) {
 			"/api/settings/shell",
 			[]byte(`{"config":{"sessions":{},"appearance":{"text_size":"huge"}}}`),
 		)
-		if response.Code != http.StatusBadRequest || service.ApplySectionCalls != 0 {
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+			!strings.Contains(response.Body.String(), "shell.appearance.text_size") ||
+			service.ApplySectionCalls != 0 {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+	t.Run("Should reject an empty written step instead of resetting it", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{
+			`{"config":{"sessions":{},"appearance":{"text_size":""}}}`,
+			`{"config":{"sessions":{},"appearance":{"letter_spacing":""}}}`,
+		} {
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/shell", []byte(body))
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+				service.ApplySectionCalls != 0 {
+				t.Fatalf("%s: response=%d %s", body, response.Code, response.Body.String())
+			}
 		}
 	})
 	t.Run("Should reject an unsafe font family before applying settings", func(t *testing.T) {

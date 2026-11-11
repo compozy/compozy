@@ -34,10 +34,23 @@ func (s ShellTextSize) Normalized() ShellTextSize {
 	return s
 }
 
+// ValidateStep rejects a written size that is not a named step. Unlike a stored
+// value, an explicit write never accepts the empty string.
+func (s ShellTextSize) ValidateStep() error {
+	if s == "" {
+		return s.invalid()
+	}
+	return s.validate()
+}
+
 func (s ShellTextSize) validate() error {
 	if s == "" || slices.Contains(ShellTextSizes(), s) {
 		return nil
 	}
+	return s.invalid()
+}
+
+func (s ShellTextSize) invalid() error {
 	return shellValidationError(
 		shellAppearanceTextSizePath,
 		fmt.Sprintf("must be one of %q, %q, %q or %q: %q",
@@ -71,10 +84,23 @@ func (s ShellLetterSpacing) Normalized() ShellLetterSpacing {
 	return s
 }
 
+// ValidateStep rejects a written spacing that is not a named step. Unlike a
+// stored value, an explicit write never accepts the empty string.
+func (s ShellLetterSpacing) ValidateStep() error {
+	if s == "" {
+		return s.invalid()
+	}
+	return s.validate()
+}
+
 func (s ShellLetterSpacing) validate() error {
 	if s == "" || slices.Contains(ShellLetterSpacings(), s) {
 		return nil
 	}
+	return s.invalid()
+}
+
+func (s ShellLetterSpacing) invalid() error {
 	return shellValidationError(
 		shellAppearanceLetterSpacingPath,
 		fmt.Sprintf("must be one of %q, %q, %q or %q: %q",

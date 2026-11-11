@@ -65,10 +65,16 @@ func shellConfigFromPayload(payload contract.SettingsShellPayload) (compozyconfi
 			value.Appearance.MonoFontExplicit = true
 		}
 		if appearance.TextSize != nil {
+			if err := compozyconfig.ShellTextSize(*appearance.TextSize).ValidateStep(); err != nil {
+				return compozyconfig.ShellConfig{}, NewSettingsValidationError(err)
+			}
 			value.Appearance.TextSize = shellTextSizeFromPayload(*appearance.TextSize)
 			value.Appearance.TextSizeExplicit = true
 		}
 		if appearance.LetterSpacing != nil {
+			if err := compozyconfig.ShellLetterSpacing(*appearance.LetterSpacing).ValidateStep(); err != nil {
+				return compozyconfig.ShellConfig{}, NewSettingsValidationError(err)
+			}
 			value.Appearance.LetterSpacing = shellLetterSpacingFromPayload(*appearance.LetterSpacing)
 			value.Appearance.LetterSpacingExplicit = true
 		}

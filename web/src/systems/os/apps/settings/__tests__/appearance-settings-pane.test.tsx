@@ -11,7 +11,7 @@
 // a choice PATCHes only its own key and paints `--user-text-scale` / `--user-tracking-body`, and
 // the default step removes the override.
 // Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
@@ -25,6 +25,7 @@ import {
   THEME_STORAGE_KEY,
   TypeAppearanceSync,
   themePreferenceStore,
+  useTypeAppearance,
 } from "@/systems/theme";
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
@@ -253,9 +254,6 @@ describe("AppearanceSettingsPane", () => {
       "aria-pressed",
       "true"
     );
-    // The step already stored is not written again.
-    await user.click(within(size).getByRole("button", { name: "Large" }));
-    expect(await shellWrites()).toHaveLength(1);
 
     await user.click(within(spacing).getByRole("button", { name: "Relaxed" }));
     await waitFor(() => expect(root.style.getPropertyValue("--user-tracking-body")).toBe("0em"));
@@ -271,6 +269,30 @@ describe("AppearanceSettingsPane", () => {
       { config: { sessions: {}, appearance: { letter_spacing: "relaxed" } } },
       { config: { sessions: {}, appearance: { text_size: "default" } } },
     ]);
+  });
+
+  it("Should write only the changed text steps and skip a step already stored", async () => {
+    daemon.appearance = { ...DEFAULT_APPEARANCE, text_size: "large" };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useTypeAppearance(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.type.size).toBe("large"));
+
+    act(() => {
+      result.current.setType({ size: "large" });
+      result.current.setType({});
+    });
+    expect(await shellWrites()).toEqual([]);
+
+    act(() => result.current.setType({ size: "larger", spacing: "wide" }));
+    await waitFor(async () =>
+      expect(await shellWrites()).toEqual([
+        { config: { sessions: {}, appearance: { text_size: "larger", letter_spacing: "wide" } } },
+      ])
+    );
   });
 
   it("Should explain a rejected font save and keep the stored font", async () => {

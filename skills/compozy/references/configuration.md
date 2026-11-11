@@ -649,7 +649,7 @@ daemon-wide, so every connected Web and desktop client repaints with them; a fam
 device falls back to the built-in stack there. Each value is one family name of letters, digits,
 spaces, `-`, `_`, `.`, or `'` (at most 128 characters); anything else fails with
 `shell_config_invalid`. `Geist Variable`, `Inter Variable`, `Instrument Sans Variable` and
-`JetBrains Mono Variable` ship with the app and download only once chosen.
+`JetBrains Mono Variable` ship with the app and load only when chosen or previewed in the font list.
 `compozy config set shell.appearance.mono_font "JetBrains Mono Variable"` sets one;
 `compozy config unset shell.appearance.mono_font` (or PATCH `""`) restores the default.
 

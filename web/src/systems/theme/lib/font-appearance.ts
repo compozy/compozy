@@ -33,8 +33,10 @@ export interface FontCatalogEntry {
 
 /**
  * Curated choices offered on every device. Geist, Inter, Instrument Sans and
- * JetBrains Mono ship with the app but only download when chosen; the System
- * entries resolve the platform UI and monospace faces without any download.
+ * JetBrains Mono ship with the app (same origin) but stay out of the initial
+ * load: they download when chosen, or when the font list opens so each row
+ * previews in its own face. The System entries resolve the platform UI and
+ * monospace faces without any download.
  */
 export const FONT_CATALOG: readonly FontCatalogEntry[] = [
   { family: "Geist Variable", label: "Geist", roles: ["sans"] },
