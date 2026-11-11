@@ -19,6 +19,7 @@ const (
 	loopRuntimeModelPayloadKey     = "model"
 	loopRuntimeReasoningPayloadKey = "reasoning"
 	loopRuntimeSpeedPayloadKey     = "speed"
+	loopRuntimeACPOptionsKey       = "acp_options"
 	loopRuntimeSpeedOutcomeKey     = "speed_resolution"
 	loopRuntimeSourcePayloadKey    = "source"
 )
@@ -122,17 +123,24 @@ func appliedRuntimeEventPayload(
 	itemIndex int,
 	resolved looppkg.ResolvedRuntime,
 ) map[string]any {
+	sourcePayload := map[string]any{
+		loopRuntimeProviderPayloadKey:  resolved.Source.Provider,
+		loopRuntimeModelPayloadKey:     resolved.Source.Model,
+		loopRuntimeReasoningPayloadKey: resolved.Source.Reasoning,
+		loopRuntimeSpeedPayloadKey:     resolved.Source.Speed,
+	}
+	if len(resolved.Source.ACPOptions) > 0 {
+		sourcePayload[loopRuntimeACPOptionsKey] = resolved.Source.ACPOptions
+	}
 	resolvedPayload := map[string]any{
 		loopRuntimeProviderPayloadKey:  resolved.Runtime.Provider,
 		loopRuntimeModelPayloadKey:     resolved.Runtime.Model,
 		loopRuntimeReasoningPayloadKey: resolved.Runtime.Reasoning,
 		loopRuntimeSpeedPayloadKey:     resolved.Runtime.Speed,
-		loopRuntimeSourcePayloadKey: map[string]any{
-			loopRuntimeProviderPayloadKey:  resolved.Source.Provider,
-			loopRuntimeModelPayloadKey:     resolved.Source.Model,
-			loopRuntimeReasoningPayloadKey: resolved.Source.Reasoning,
-			loopRuntimeSpeedPayloadKey:     resolved.Source.Speed,
-		},
+		loopRuntimeSourcePayloadKey:    sourcePayload,
+	}
+	if len(resolved.Runtime.ACPOptions) > 0 {
+		resolvedPayload[loopRuntimeACPOptionsKey] = resolved.Runtime.ACPOptions
 	}
 	if resolved.SpeedResolution != nil {
 		resolvedPayload[loopRuntimeSpeedOutcomeKey] = resolved.SpeedResolution
