@@ -1,0 +1,8 @@
+---
+title: Batch session actions match the single-session menu and run in parallel
+type: fix
+---
+
+Selecting several sessions now offers the same actions as one session's menu, and batch Stop, Archive, Unarchive, Delete, Mark as seen, Make top-level and Later actions run in parallel instead of one at a time. Batch worktree actions run in parallel too. At most three requests run at once, every running session shows its own progress, and actions that would overlap a running batch wait for it.
+
+Migration notes: no action needed.

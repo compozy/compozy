@@ -1632,7 +1632,7 @@ digest and triggers a fresh resolution at the next wake decision.
 | Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                             |
 | ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                                |
-| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Deprecated, no effect: `approve-all` selects the provider's unrestricted mode. Loaded with a warning through v0.5.6; removed in v0.5.7. |
+| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Deprecated, no effect: `approve-all` selects the provider's unrestricted mode. Loaded with a warning through v0.6.0; removed in v0.6.1. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never

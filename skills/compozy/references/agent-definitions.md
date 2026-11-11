@@ -390,7 +390,7 @@ On-demand children resolve their own definition or settings level.
 
 `approve-all` alone selects the unrestricted mode, also Copilot `allow_all = on` and `agy` `yolo`; an agent's explicit
 `mode` or `allow_all` selection wins, and a narrower session level drops it. The deprecated
-`permissions.provider_full_access` key has no effect and is removed in v0.5.7.
+`permissions.provider_full_access` key has no effect and is removed in v0.6.1.
 If a provider does not uniquely advertise a `mode` config option, Full access skips the unrestricted
 startup selection. Later runtime changes may retain that same skipped intent without applying it;
 new mode selections still require a unique advertisement. Advertised options require supported
