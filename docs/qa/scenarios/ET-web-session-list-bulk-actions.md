@@ -169,3 +169,13 @@ latency emulation on an isolated lab) while walking these checks.
 The lifecycle hook suite (`use-session-actions.test.tsx`) owns same-turn admission in every
 family order, running-target progress transitions and the singular/batch lineage boundary; the
 session list suite owns per-row progress and the row lock.
+
+Evidence (2026-11-11, PR #1498): an isolated lab daemon built from the branch served the branch web
+bundle; four nested sessions under distinct roots were detached with genuine `DELETE .../parent`
+requests held in the browser. Checks 1 and 3 passed in the rendered session sidebar: three rows
+showed progress with all 16 row controls disabled, the queued fourth row gained progress when a
+slot freed, and a batch Make top-level issued no request while a single Make top-level was held,
+then detached all three after it settled (daemon reads confirmed every lineage change). Check 2
+needs two invocations within one React turn, which a pointer cannot produce; the lifecycle hook
+suite owns it. At rest the end slot shows the time, so progress appears on hover or focus, as
+before #1472.
