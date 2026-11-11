@@ -26,6 +26,11 @@ outputSchema for every native tool while retaining result_view inputs. Through r
 verify compact/full structuredContent and JSON text, truncated continuations and typed errors.
 Read both contracts from tool info; compare catalog bytes against the pre-feature baseline.
 
+Full-record parity checks must explicitly select `result_view: "full"`: extension skill list/search
+provenance, provider model catalogs compared with HTTP/CLI, and approval grant set/list records
+compared across transports and daemon restart. Keep the complete-record assertions in the existing
+daemon integration suites; the default compact projection remains covered by the result-view suites.
+
 Regression checks: shorthand Loop schemas such as `produces: {type: string, id: string}`,
 nested `type` field maps, and transform maps resolve their declared fields. Real JSON Schema
 keywords remain non-addressable. Run `TestNamespaceSchemaNamedFields` in the refs suite.

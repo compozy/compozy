@@ -1250,7 +1250,7 @@ matcher = {tool_id = "compozy__task_list"}
 			ctx,
 			client,
 			toolspkg.ToolIDProviderModelsList.String(),
-			map[string]any{"provider_id": "codex", "view": "all"},
+			map[string]any{"provider_id": "codex", "view": "all", "result_view": "full"},
 			&nativeAll,
 		)
 		solNative := requireProviderModelPayload(t, nativeAll.Models, "gpt-5.6-sol")
@@ -1281,7 +1281,7 @@ matcher = {tool_id = "compozy__task_list"}
 			ctx,
 			client,
 			toolspkg.ToolIDProviderModelsList.String(),
-			map[string]any{"provider_id": "codex"},
+			map[string]any{"provider_id": "codex", "result_view": "full"},
 			&nativeCurated,
 		)
 		solCuratedNative := requireProviderModelPayload(t, nativeCurated.Models, "gpt-5.6-sol")
