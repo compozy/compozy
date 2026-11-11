@@ -6631,10 +6631,13 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 	t.Run("Should expose only unadopted workspace profile hints", func(t *testing.T) {
 		t.Parallel()
 
-		profiles := &workspaceHintProfileServiceStub{profiles: []profilepkg.WithCounts{
-			{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
-			{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
-		}}
+		profiles := &workspaceHintProfileServiceStub{
+			ProfileService: sessionProfileServiceStub{},
+			profiles: []profilepkg.WithCounts{
+				{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+				{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
+			},
+		}
 		fixture := newHandlerFixture(
 			t,
 			&testutil.StubSessionManager{},
