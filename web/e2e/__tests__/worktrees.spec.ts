@@ -1077,7 +1077,7 @@ for (const surface of ["menubar", "overview"] as const) {
     await expect(dialog.getByRole("status")).toContainText("4 of 4 done");
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    const final = await listWorktrees(runtime, workspace.id, true);
+    const final = await listWorktrees(runtime, workspace.id, true, true);
     expect(final.worktrees.find(row => row.id === dirty.id)?.state).toBe("removed");
     expect(final.worktrees.some(row => row.id === missing.id)).toBe(false);
     expect(final.discovered.some(row => row.path.endsWith("external-work"))).toBe(false);
