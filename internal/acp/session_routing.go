@@ -155,6 +155,8 @@ func (p *AgentProcess) elicitationRequestIsBound(id acpsdk.SessionId) bool {
 	return p.interactiveCallbackIsBound(id, acpsdk.ClientMethodElicitationCreate)
 }
 
+// interactiveCallbackIsBound reports whether an operator-facing callback
+// belongs to the bound session, counting and logging foreign traffic.
 func (p *AgentProcess) interactiveCallbackIsBound(id acpsdk.SessionId, method string) bool {
 	switch p.routeSessionUpdate(id) {
 	case sessionUpdateRouteBound:

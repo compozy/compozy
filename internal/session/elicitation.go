@@ -18,6 +18,8 @@ func (m *Manager) SetClarifyBroker(broker toolspkg.ClarifyBroker) {
 	m.clarifyMu.Unlock()
 }
 
+// clarifyBroker returns the installed operator question broker, or nil when
+// provider elicitation has no operator channel.
 func (m *Manager) clarifyBroker() toolspkg.ClarifyBroker {
 	if m == nil {
 		return nil

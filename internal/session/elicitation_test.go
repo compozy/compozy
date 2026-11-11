@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -23,7 +24,7 @@ func TestElicitationSessionIsInteractive(t *testing.T) {
 		{sessionType: SessionTypeTriage},
 	}
 	for _, tt := range tests {
-		t.Run(string(tt.sessionType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Should report interactive=%t for %s", tt.want, tt.sessionType), func(t *testing.T) {
 			t.Parallel()
 			if got := elicitationSessionIsInteractive(tt.sessionType); got != tt.want {
 				t.Fatalf("elicitationSessionIsInteractive(%q) = %t, want %t",
@@ -36,86 +37,102 @@ func TestElicitationSessionIsInteractive(t *testing.T) {
 func TestElicitationAskerRoutesThroughClarifyBroker(t *testing.T) {
 	t.Parallel()
 
-	broker := &recordingClarifyBroker{answer: toolspkg.ClarifyAnswer{Text: "ledger"}}
-	manager := &Manager{}
-	manager.SetClarifyBroker(broker)
-	ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", SessionTypeUser)
+	t.Run("Should ask with the session scope and return the operator answer", func(t *testing.T) {
+		t.Parallel()
 
-	answer, err := ask(t.Context(), toolspkg.ClarifyQuestion{
-		Question: "What should I call the module?",
-		Choices:  []string{"ledger", "journal"},
+		broker := &recordingClarifyBroker{answer: toolspkg.ClarifyAnswer{Text: "ledger"}}
+		manager := &Manager{}
+		manager.SetClarifyBroker(broker)
+		ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", SessionTypeUser)
+
+		answer, err := ask(t.Context(), toolspkg.ClarifyQuestion{
+			Question: "What should I call the module?",
+			Choices:  []string{"ledger", "journal"},
+		})
+		if err != nil {
+			t.Fatalf("ask() error = %v", err)
+		}
+		if answer.Text != "ledger" {
+			t.Fatalf("answer = %+v, want ledger", answer)
+		}
+		if len(broker.calls) != 1 {
+			t.Fatalf("broker calls = %d, want 1", len(broker.calls))
+		}
+		wantScope := toolspkg.Scope{
+			ProfileID:   "profile-1",
+			WorkspaceID: "ws-1",
+			SessionID:   "sess-1",
+			AgentName:   "agent-1",
+		}
+		if broker.calls[0].scope != wantScope {
+			t.Fatalf("scope = %+v, want %+v", broker.calls[0].scope, wantScope)
+		}
+		if broker.calls[0].question.Question != "What should I call the module?" {
+			t.Fatalf("question = %+v", broker.calls[0].question)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ask() error = %v", err)
-	}
-	if answer.Text != "ledger" {
-		t.Fatalf("answer = %+v, want ledger", answer)
-	}
-	if len(broker.calls) != 1 {
-		t.Fatalf("broker calls = %d, want 1", len(broker.calls))
-	}
-	wantScope := toolspkg.Scope{
-		ProfileID:   "profile-1",
-		WorkspaceID: "ws-1",
-		SessionID:   "sess-1",
-		AgentName:   "agent-1",
-	}
-	if broker.calls[0].scope != wantScope {
-		t.Fatalf("scope = %+v, want %+v", broker.calls[0].scope, wantScope)
-	}
-	if broker.calls[0].question.Question != "What should I call the module?" {
-		t.Fatalf("question = %+v", broker.calls[0].question)
-	}
 }
 
 func TestElicitationAskerRefusesHeadlessSessions(t *testing.T) {
 	t.Parallel()
 
-	broker := &recordingClarifyBroker{}
-	manager := &Manager{}
-	manager.SetClarifyBroker(broker)
+	t.Run("Should refuse system, spawned, and triage sessions without asking", func(t *testing.T) {
+		t.Parallel()
 
-	for _, sessionType := range []Type{SessionTypeSystem, SessionTypeSpawned, SessionTypeTriage} {
-		ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", sessionType)
-		if _, err := ask(t.Context(), toolspkg.ClarifyQuestion{Question: "Continue?"}); !errors.Is(
-			err, acp.ErrElicitationUnavailable,
-		) {
-			t.Fatalf("%s: error = %v, want %v", sessionType, err, acp.ErrElicitationUnavailable)
+		broker := &recordingClarifyBroker{}
+		manager := &Manager{}
+		manager.SetClarifyBroker(broker)
+
+		for _, sessionType := range []Type{SessionTypeSystem, SessionTypeSpawned, SessionTypeTriage} {
+			ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", sessionType)
+			if _, err := ask(t.Context(), toolspkg.ClarifyQuestion{Question: "Continue?"}); !errors.Is(
+				err, acp.ErrElicitationUnavailable,
+			) {
+				t.Fatalf("%s: error = %v, want %v", sessionType, err, acp.ErrElicitationUnavailable)
+			}
 		}
-	}
-	if len(broker.calls) != 0 {
-		t.Fatalf("broker calls = %d, want a headless session to skip the broker", len(broker.calls))
-	}
+		if len(broker.calls) != 0 {
+			t.Fatalf("broker calls = %d, want a headless session to skip the broker", len(broker.calls))
+		}
+	})
 }
 
 func TestElicitationAskerWithoutBrokerIsUnavailable(t *testing.T) {
 	t.Parallel()
 
-	manager := &Manager{}
-	ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", SessionTypeUser)
-	if _, err := ask(t.Context(), toolspkg.ClarifyQuestion{Question: "Continue?"}); !errors.Is(
-		err, acp.ErrElicitationUnavailable,
-	) {
-		t.Fatalf("error = %v, want %v", err, acp.ErrElicitationUnavailable)
-	}
+	t.Run("Should report unavailable when the broker is not wired", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Manager{}
+		ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", SessionTypeUser)
+		if _, err := ask(t.Context(), toolspkg.ClarifyQuestion{Question: "Continue?"}); !errors.Is(
+			err, acp.ErrElicitationUnavailable,
+		) {
+			t.Fatalf("error = %v, want %v", err, acp.ErrElicitationUnavailable)
+		}
+	})
 }
 
 func TestElicitationAskerHonorsCanceledContext(t *testing.T) {
 	t.Parallel()
 
-	broker := &recordingClarifyBroker{}
-	manager := &Manager{}
-	manager.SetClarifyBroker(broker)
-	ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", SessionTypeUser)
+	t.Run("Should return the canceled turn error without asking", func(t *testing.T) {
+		t.Parallel()
 
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	if _, err := ask(ctx, toolspkg.ClarifyQuestion{Question: "Continue?"}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("error = %v, want context.Canceled", err)
-	}
-	if len(broker.calls) != 0 {
-		t.Fatalf("broker calls = %d, want a canceled turn to skip the broker", len(broker.calls))
-	}
+		broker := &recordingClarifyBroker{}
+		manager := &Manager{}
+		manager.SetClarifyBroker(broker)
+		ask := manager.elicitationAsker("sess-1", "ws-1", "profile-1", "agent-1", SessionTypeUser)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := ask(ctx, toolspkg.ClarifyQuestion{Question: "Continue?"}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want context.Canceled", err)
+		}
+		if len(broker.calls) != 0 {
+			t.Fatalf("broker calls = %d, want a canceled turn to skip the broker", len(broker.calls))
+		}
+	})
 }
 
 type recordingClarifyBroker struct {

@@ -1,11 +1,12 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,40 @@ func TestElicitationFormAnswersThroughOperator(t *testing.T) {
 			}
 		}
 	}`
+	titledMultiSchema := `{
+		"sessionId":"sess-direct",
+		"mode":"form",
+		"message":"Complete setup",
+		"requestedSchema":{
+			"type":"object",
+			"properties":{
+				"q0":{
+					"type":"string",
+					"title":"Database",
+					"oneOf":[{"const":"pg","title":"Postgres"},{"const":"sqlite","title":"SQLite"}]
+				},
+				"q1":{
+					"type":"string",
+					"title":"Region",
+					"oneOf":[{"const":"eu","title":"Europe"},{"const":"us","title":"United States"}]
+				}
+			}
+		}
+	}`
+	spacedConstSchema := `{
+		"sessionId":"sess-direct",
+		"mode":"form",
+		"message":"Which environment?",
+		"requestedSchema":{
+			"type":"object",
+			"properties":{
+				"q0":{
+					"type":"string",
+					"oneOf":[{"const":" prod ","title":"Production"},{"const":"staging","title":"Staging"}]
+				}
+			}
+		}
+	}`
 
 	tests := []struct {
 		name      string
@@ -146,6 +181,31 @@ func TestElicitationFormAnswersThroughOperator(t *testing.T) {
 				Choices:  []string{"Postgres", "SQLite"},
 			}},
 			want: map[string]any{"question_0": "Postgres"},
+		},
+		{
+			name:   "Should use each field title when several fields carry no description",
+			schema: titledMultiSchema,
+			answers: []toolspkg.ClarifyAnswer{
+				{Choice: new(1)},
+				{Choice: new(0)},
+			},
+			wantAsked: []toolspkg.ClarifyQuestion{
+				{Question: "Database", Choices: []string{"Postgres", "SQLite"}},
+				{Question: "Region", Choices: []string{"Europe", "United States"}},
+			},
+			want: map[string]any{"q0": "sqlite", "q1": "eu"},
+		},
+		{
+			name:   "Should preserve the provider const value byte for byte",
+			schema: spacedConstSchema,
+			answers: []toolspkg.ClarifyAnswer{
+				{Choice: new(0)},
+			},
+			wantAsked: []toolspkg.ClarifyQuestion{{
+				Question: "Which environment?",
+				Choices:  []string{"Production", "Staging"},
+			}},
+			want: map[string]any{"q0": " prod "},
 		},
 	}
 	for _, tt := range tests {
@@ -283,46 +343,51 @@ func TestElicitationDeclinesWithoutAnAnswer(t *testing.T) {
 func TestElicitationCancelsWithTheTurn(t *testing.T) {
 	t.Parallel()
 
-	params := json.RawMessage(`{
-		"sessionId":"sess-direct",
-		"mode":"form",
-		"message":"Questions",
-		"requestedSchema":{"type":"object","properties":{
-			"q0":{"type":"string","description":"Continue?"}
-		}}
-	}`)
-	proc := newElicitationTestProcess(t)
-	started := make(chan struct{})
-	proc.elicitationAsker = func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-		close(started)
-		<-ctx.Done()
-		return toolspkg.ClarifyAnswer{}, ctx.Err()
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	go func() {
-		<-started
-		cancel()
-	}()
+	t.Run("Should answer cancel when the turn ends while the operator is asked", func(t *testing.T) {
+		t.Parallel()
 
-	result, reqErr := proc.handleCreateElicitation(ctx, params)
-	if reqErr != nil {
-		t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
-	}
-	response := result.(acpsdk.UnstableCreateElicitationResponse)
-	if response.Cancel == nil {
-		t.Fatalf("response = %+v, want cancel", response)
-	}
-	if response.Cancel.Action != "cancel" {
-		t.Fatalf("action = %q, want cancel", response.Cancel.Action)
-	}
+		params := json.RawMessage(`{
+			"sessionId":"sess-direct",
+			"mode":"form",
+			"message":"Questions",
+			"requestedSchema":{"type":"object","properties":{
+				"q0":{"type":"string","description":"Continue?"}
+			}}
+		}`)
+		proc := newElicitationTestProcess(t)
+		started := make(chan struct{})
+		proc.elicitationAsker = func(ctx context.Context, _ toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			close(started)
+			<-ctx.Done()
+			return toolspkg.ClarifyAnswer{}, ctx.Err()
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			<-started
+			cancel()
+		}()
+
+		result, reqErr := proc.handleCreateElicitation(ctx, params)
+		if reqErr != nil {
+			t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
+		}
+		response := result.(acpsdk.UnstableCreateElicitationResponse)
+		if response.Cancel == nil {
+			t.Fatalf("response = %+v, want cancel", response)
+		}
+		if response.Cancel.Action != "cancel" {
+			t.Fatalf("action = %q, want cancel", response.Cancel.Action)
+		}
+	})
 }
 
 func TestElicitationRejectsUnrenderableForms(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		params string
+		name       string
+		params     string
+		wantReason string
 	}{
 		{
 			name: "Should decline URL elicitation",
@@ -333,6 +398,7 @@ func TestElicitationRejectsUnrenderableForms(t *testing.T) {
 				"url":"https://example.com",
 				"elicitationId":"elicit-1"
 			}`,
+			wantReason: "unsupported_mode",
 		},
 		{
 			name: "Should decline a multiselect field",
@@ -344,6 +410,7 @@ func TestElicitationRejectsUnrenderableForms(t *testing.T) {
 					"q0":{"type":"array","items":{"type":"string"}}
 				}}
 			}`,
+			wantReason: "unsupported_form",
 		},
 		{
 			name: "Should decline a choice list above the operator cap",
@@ -358,6 +425,7 @@ func TestElicitationRejectsUnrenderableForms(t *testing.T) {
 					]}
 				}}
 			}`,
+			wantReason: "unsupported_form",
 		},
 		{
 			name: "Should decline numeric fields",
@@ -369,13 +437,38 @@ func TestElicitationRejectsUnrenderableForms(t *testing.T) {
 					"q0":{"type":"integer"}
 				}}
 			}`,
+			wantReason: "unsupported_form",
+		},
+		{
+			name: "Should decline an enum field instead of rendering free text",
+			params: `{
+				"sessionId":"sess-direct",
+				"mode":"form",
+				"message":"Questions",
+				"requestedSchema":{"type":"object","properties":{
+					"q0":{"type":"string","enum":["a","b"]}
+				}}
+			}`,
+			wantReason: "unsupported_form",
+		},
+		{
+			name: "Should decline an empty const instead of trimming it away",
+			params: `{
+				"sessionId":"sess-direct",
+				"mode":"form",
+				"message":"Questions",
+				"requestedSchema":{"type":"object","properties":{
+					"q0":{"type":"string","oneOf":[{"const":"","title":"Empty"}]}
+				}}
+			}`,
+			wantReason: "unsupported_form",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			proc := newElicitationTestProcess(t)
+			proc, logs := newLoggedElicitationTestProcess(t)
 			proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
 				t.Fatal("an unrenderable form must not reach the operator")
 				return toolspkg.ClarifyAnswer{}, nil
@@ -389,111 +482,177 @@ func TestElicitationRejectsUnrenderableForms(t *testing.T) {
 			if response.Decline == nil {
 				t.Fatalf("response = %+v, want decline", response)
 			}
+			if !strings.Contains(logs.String(), "reason="+tt.wantReason) {
+				t.Fatalf("logs = %q, want reason=%s", logs.String(), tt.wantReason)
+			}
 		})
 	}
+}
+
+func TestElicitationDeclinesUnlistedFreeText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decline free text for a select without a custom companion", func(t *testing.T) {
+		t.Parallel()
+
+		proc, logs := newLoggedElicitationTestProcess(t)
+		proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			return toolspkg.ClarifyAnswer{Text: "something else"}, nil
+		}
+
+		result, reqErr := proc.handleCreateElicitation(t.Context(), json.RawMessage(`{
+			"sessionId":"sess-direct",
+			"mode":"form",
+			"message":"Questions",
+			"requestedSchema":{"type":"object","properties":{
+				"q0":{"type":"string","description":"Which approach?","oneOf":[
+					{"const":"fast","title":"Fast"},{"const":"safe","title":"Safe"}
+				]}
+			}}
+		}`))
+		if reqErr != nil {
+			t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
+		}
+		response := result.(acpsdk.UnstableCreateElicitationResponse)
+		if response.Decline == nil {
+			t.Fatalf("response = %+v, want decline", response)
+		}
+		if !strings.Contains(logs.String(), "reason=invalid_answer") {
+			t.Fatalf("logs = %q, want reason=invalid_answer", logs.String())
+		}
+	})
 }
 
 func TestElicitationDeclinesForeignSession(t *testing.T) {
 	t.Parallel()
 
-	proc := newElicitationTestProcess(t)
-	proc.bindSessionRoute("sess-direct")
-	proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-		t.Fatal("a foreign session must not reach the operator")
-		return toolspkg.ClarifyAnswer{}, nil
-	}
+	t.Run("Should decline a foreign session before asking the operator", func(t *testing.T) {
+		t.Parallel()
 
-	result, reqErr := proc.handleCreateElicitation(t.Context(), json.RawMessage(`{
-		"sessionId":"sess-foreign",
-		"mode":"form",
-		"message":"Questions",
-		"requestedSchema":{"type":"object","properties":{
-			"q0":{"type":"string","description":"Continue?"}
-		}}
-	}`))
-	if reqErr != nil {
-		t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
-	}
-	if result.(acpsdk.UnstableCreateElicitationResponse).Decline == nil {
-		t.Fatalf("response = %+v, want decline", result)
-	}
-	if dropped := proc.foreignSessionTrafficDropped(); dropped != 1 {
-		t.Fatalf("foreign dropped = %d, want 1", dropped)
-	}
+		proc := newElicitationTestProcess(t)
+		proc.bindSessionRoute("sess-direct")
+		proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			t.Fatal("a foreign session must not reach the operator")
+			return toolspkg.ClarifyAnswer{}, nil
+		}
+
+		result, reqErr := proc.handleCreateElicitation(t.Context(), json.RawMessage(`{
+			"sessionId":"sess-foreign",
+			"mode":"form",
+			"message":"Questions",
+			"requestedSchema":{"type":"object","properties":{
+				"q0":{"type":"string","description":"Continue?"}
+			}}
+		}`))
+		if reqErr != nil {
+			t.Fatalf("handleCreateElicitation() error = %+v", reqErr)
+		}
+		if result.(acpsdk.UnstableCreateElicitationResponse).Decline == nil {
+			t.Fatalf("response = %+v, want decline", result)
+		}
+		if dropped := proc.foreignSessionTrafficDropped(); dropped != 1 {
+			t.Fatalf("foreign dropped = %d, want 1", dropped)
+		}
+	})
 }
 
 func TestElicitationDispatchWireEnvelope(t *testing.T) {
 	t.Parallel()
 
-	proc := newElicitationTestProcess(t)
-	proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-		return toolspkg.ClarifyAnswer{Choice: new(0)}, nil
-	}
+	t.Run("Should answer elicitation/create through the inbound dispatcher", func(t *testing.T) {
+		t.Parallel()
 
-	result, reqErr := proc.handleInbound(t.Context(), acpsdk.ClientMethodElicitationCreate, json.RawMessage(`{
-		"sessionId":"sess-direct",
-		"mode":"form",
-		"message":"Questions",
-		"requestedSchema":{"type":"object","properties":{
-			"q0":{"type":"string","oneOf":[{"const":"keep","title":"Keep"},{"const":"drop","title":"Drop"}]}
-		}}
-	}`))
-	if reqErr != nil {
-		t.Fatalf("handleInbound() error = %+v", reqErr)
-	}
-	payload, err := json.Marshal(result)
-	if err != nil {
-		t.Fatalf("marshal response: %v", err)
-	}
-	var envelope struct {
-		Action  string         `json:"action"`
-		Content map[string]any `json:"content"`
-	}
-	if err := json.Unmarshal(payload, &envelope); err != nil {
-		t.Fatalf("decode response %s: %v", payload, err)
-	}
-	if envelope.Action != "accept" {
-		t.Fatalf("action = %q, want accept", envelope.Action)
-	}
-	if envelope.Content["q0"] != "keep" {
-		t.Fatalf("content = %#v, want q0=keep", envelope.Content)
-	}
+		proc := newElicitationTestProcess(t)
+		proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			return toolspkg.ClarifyAnswer{Choice: new(0)}, nil
+		}
+
+		result, reqErr := proc.handleInbound(
+			t.Context(),
+			acpsdk.ClientMethodElicitationCreate,
+			json.RawMessage(`{
+				"sessionId":"sess-direct",
+				"mode":"form",
+				"message":"Questions",
+				"requestedSchema":{"type":"object","properties":{
+					"q0":{"type":"string","oneOf":[{"const":"keep","title":"Keep"},{"const":"drop","title":"Drop"}]}
+				}}
+			}`),
+		)
+		if reqErr != nil {
+			t.Fatalf("handleInbound() error = %+v", reqErr)
+		}
+		payload, err := json.Marshal(result)
+		if err != nil {
+			t.Fatalf("marshal response: %v", err)
+		}
+		var envelope struct {
+			Action  string         `json:"action"`
+			Content map[string]any `json:"content"`
+		}
+		if err := json.Unmarshal(payload, &envelope); err != nil {
+			t.Fatalf("decode response %s: %v", payload, err)
+		}
+		if envelope.Action != "accept" {
+			t.Fatalf("action = %q, want accept", envelope.Action)
+		}
+		if envelope.Content["q0"] != "keep" {
+			t.Fatalf("content = %#v, want q0=keep", envelope.Content)
+		}
+	})
 }
 
 func TestElicitationRejectsMalformedParams(t *testing.T) {
 	t.Parallel()
 
-	proc := newElicitationTestProcess(t)
-	_, reqErr := proc.handleInbound(
-		t.Context(),
-		acpsdk.ClientMethodElicitationCreate,
-		json.RawMessage(`{"mode":`),
-	)
-	if reqErr == nil || reqErr.Code != -32602 {
-		t.Fatalf("request error = %+v, want invalid params", reqErr)
-	}
+	t.Run("Should reject malformed params as invalid params", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newElicitationTestProcess(t)
+		_, reqErr := proc.handleInbound(
+			t.Context(),
+			acpsdk.ClientMethodElicitationCreate,
+			json.RawMessage(`{"mode":`),
+		)
+		if reqErr == nil || reqErr.Code != -32602 {
+			t.Fatalf("request error = %+v, want invalid params", reqErr)
+		}
+	})
 }
 
 func TestStartElicitationAskerReadsSessionPolicy(t *testing.T) {
 	t.Parallel()
 
-	if asker := startElicitationAsker(StartOpts{}); asker != nil {
-		t.Fatal("startElicitationAsker() without a policy = non-nil, want nil")
-	}
-	asker := ElicitationAsker(func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-		return toolspkg.ClarifyAnswer{}, nil
+	t.Run("Should carry the asker from the session approval policy", func(t *testing.T) {
+		t.Parallel()
+
+		if asker := startElicitationAsker(StartOpts{}); asker != nil {
+			t.Fatal("startElicitationAsker() without a policy = non-nil, want nil")
+		}
+		asker := ElicitationAsker(func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			return toolspkg.ClarifyAnswer{}, nil
+		})
+		got := startElicitationAsker(StartOpts{
+			PermissionPolicy: &StartPermissionPolicy{ElicitationAsker: asker},
+		})
+		if got == nil {
+			t.Fatal("startElicitationAsker() dropped the session asker")
+		}
 	})
-	got := startElicitationAsker(StartOpts{
-		PermissionPolicy: &StartPermissionPolicy{ElicitationAsker: asker},
-	})
-	if got == nil {
-		t.Fatal("startElicitationAsker() dropped the session asker")
-	}
 }
 
 func newElicitationTestProcess(t *testing.T) *AgentProcess {
 	t.Helper()
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-	proc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	proc, _ := newLoggedElicitationTestProcess(t)
 	return proc
+}
+
+// newLoggedElicitationTestProcess keeps the daemon log lines so a test can
+// assert why a form was declined, which the wire response does not carry.
+func newLoggedElicitationTestProcess(t *testing.T) (*AgentProcess, *bytes.Buffer) {
+	t.Helper()
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+	logs := &bytes.Buffer{}
+	proc.logger = slog.New(slog.NewTextHandler(logs, nil))
+	return proc, logs
 }

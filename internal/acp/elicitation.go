@@ -48,12 +48,16 @@ type wireElicitationCreateParams struct {
 }
 
 // elicitationQuestion binds one rendered question to the schema keys that
-// carry its answer back to the provider.
+// carry its answer back to the provider. description, title, and message keep
+// the provider text that the final question wording selects from.
 type elicitationQuestion struct {
-	question  toolspkg.ClarifyQuestion
-	key       string
-	customKey string
-	values    []string
+	question    toolspkg.ClarifyQuestion
+	key         string
+	customKey   string
+	values      []string
+	description string
+	title       string
+	message     string
 }
 
 // handleCreateElicitation serves the agent's inbound elicitation/create
@@ -141,11 +145,15 @@ func (p *AgentProcess) elicitationErrorOutcome(ctx, askCtx context.Context, err 
 	}
 }
 
+// declineElicitation answers decline and records why the operator never saw
+// the form or could not answer it.
 func (p *AgentProcess) declineElicitation(ctx context.Context, reason string, cause error) any {
 	p.logElicitation(ctx, slog.LevelInfo, "elicitation.declined", reason, "error", cause)
 	return p.elicitationOutcome(ctx, elicitationOutcomeDecline)
 }
 
+// elicitationOutcome builds the ACP response variant. A canceled request
+// context always answers cancel, whatever the caller decided.
 func (p *AgentProcess) elicitationOutcome(ctx context.Context, outcome string) any {
 	if outcome == elicitationOutcomeCancel || ctx.Err() != nil {
 		return acpsdk.UnstableCreateElicitationResponse{
@@ -157,6 +165,8 @@ func (p *AgentProcess) elicitationOutcome(ctx context.Context, outcome string) a
 	}
 }
 
+// logElicitation records one elicitation outcome with the session ids and a
+// stable reason for operators reading daemon logs.
 func (p *AgentProcess) logElicitation(ctx context.Context, level slog.Level, message, reason string, attrs ...any) {
 	logger := p.logger
 	if logger == nil {
@@ -195,16 +205,22 @@ func elicitationQuestions(message string, schema acpsdk.UnstableElicitationSchem
 			return nil, fmt.Errorf("%w: property %q has unsupported type %q",
 				ErrElicitationUnsupported, key, kind)
 		}
+		if _, constrained := property["enum"]; constrained && property["oneOf"] == nil {
+			return nil, fmt.Errorf("%w: property %q uses enum, only oneOf selects are rendered",
+				ErrElicitationUnsupported, key)
+		}
 		labels, values, err := elicitationOptions(property)
 		if err != nil {
 			return nil, fmt.Errorf("%w: property %q: %w", ErrElicitationUnsupported, key, err)
 		}
 		rendered := elicitationQuestion{
-			key:    key,
-			values: values,
+			key:         key,
+			values:      values,
+			description: elicitationStringField(property, "description"),
+			title:       elicitationStringField(property, "title"),
+			message:     strings.TrimSpace(message),
 			question: toolspkg.ClarifyQuestion{
-				Question: elicitationQuestionText(property, message, key),
-				Choices:  labels,
+				Choices: labels,
 			},
 		}
 		if len(labels) > 0 {
@@ -219,6 +235,10 @@ func elicitationQuestions(message string, schema acpsdk.UnstableElicitationSchem
 	}
 	if len(questions) == 0 {
 		return nil, fmt.Errorf("%w: form has no renderable properties", ErrElicitationUnsupported)
+	}
+	single := len(questions) == 1
+	for index := range questions {
+		questions[index].question.Question = elicitationQuestionText(questions[index], single)
 	}
 	return questions, nil
 }
@@ -248,9 +268,18 @@ func elicitationOptions(property map[string]any) ([]string, []string, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("oneOf[%d] is not an object", index)
 		}
-		value := elicitationScalar(option["const"])
+		rawConst, exists := option["const"]
+		if !exists {
+			return nil, nil, fmt.Errorf("oneOf[%d] has no const", index)
+		}
+		// Preserve the provider value byte for byte: the accepted content is
+		// validated against the requested schema. Only the label is trimmed.
+		value, ok := rawConst.(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("oneOf[%d] const is not a string", index)
+		}
 		if value == "" {
-			return nil, nil, fmt.Errorf("oneOf[%d] has no string const", index)
+			return nil, nil, fmt.Errorf("oneOf[%d] const is empty, unsupported", index)
 		}
 		label := elicitationStringField(option, "title")
 		if label == "" {
@@ -287,6 +316,9 @@ func elicitationContent(
 		if text == "" {
 			return nil, fmt.Errorf("question %q has no answer", question.key)
 		}
+		if len(question.values) > 0 && question.customKey == "" {
+			return nil, fmt.Errorf("question %q only accepts a listed choice", question.key)
+		}
 		key := question.key
 		if question.customKey != "" {
 			key = question.customKey
@@ -296,35 +328,30 @@ func elicitationContent(
 	return content, nil
 }
 
-func elicitationQuestionText(property map[string]any, message, key string) string {
-	// description owns per-field text; message carries the whole form and is
-	// the question itself for single-field forms. title is the short header.
-	for _, candidate := range []string{
-		elicitationStringField(property, "description"),
-		strings.TrimSpace(message),
-		elicitationStringField(property, "title"),
-		key,
-	} {
+// elicitationQuestionText picks the wording an operator sees. Per-field
+// description wins; a lone question uses the form message (which is the
+// question itself for single-field forms), while a multi-field form keeps each
+// field's title so the operator can tell the questions apart.
+func elicitationQuestionText(question elicitationQuestion, single bool) string {
+	candidates := []string{question.description, question.title, question.message, question.key}
+	if single {
+		candidates = []string{question.description, question.message, question.title, question.key}
+	}
+	for _, candidate := range candidates {
 		if candidate != "" {
 			return candidate
 		}
 	}
-	return key
+	return question.key
 }
 
+// elicitationStringField reads a trimmed string property, tolerating absence
+// and non-string values from the provider schema.
 func elicitationStringField(property map[string]any, key string) string {
 	value, ok := property[key]
 	if !ok {
 		return ""
 	}
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(text)
-}
-
-func elicitationScalar(value any) string {
 	text, ok := value.(string)
 	if !ok {
 		return ""

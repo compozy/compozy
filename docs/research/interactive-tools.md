@@ -106,9 +106,13 @@ an explicit decline for sessions that cannot answer.
 
 Out, deliberately:
 
-- `multiselect`/array fields, and `number`/`integer`/`boolean` fields: the clarification
-  answer is one choice or one text, so these forms are declined rather than narrowed
-  silently.
+- `multiselect`/array fields, `number`/`integer`/`boolean` fields, and string fields
+  constrained by `enum` instead of a titled `oneOf`: the clarification answer is one choice
+  or one text, so these forms are declined rather than narrowed silently. An option whose
+  `const` is empty is declined too, because the operator channel rejects empty choices.
+- Free text on a select field without a `_custom` companion: the answer could not match the
+  provider's `oneOf`, so the form is declined instead of returning content the provider
+  rejects.
 - URL elicitation (`elicitation/create` `mode: "url"`, `elicitation/complete`): not
   advertised, not served.
 - More than four choices on one field: the broker cap rejects them; declining is honest.
