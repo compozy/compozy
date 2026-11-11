@@ -27,10 +27,13 @@ export interface SessionListPreferences {
   groupBy: SessionListGroupBy;
 }
 
-/** Calm defaults: newest created first, one flat list. */
+/**
+ * Calm defaults: newest created first, grouped by project. Project grouping
+ * renders only under All projects, so one project's list stays flat.
+ */
 export const DEFAULT_SESSION_LIST_PREFERENCES: SessionListPreferences = {
   sort: "created",
-  groupBy: "none",
+  groupBy: "project",
 };
 
 const SORTS: ReadonlySet<string> = new Set(SESSION_LIST_SORTS);
