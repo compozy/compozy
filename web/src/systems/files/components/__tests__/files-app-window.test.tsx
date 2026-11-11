@@ -469,4 +469,77 @@ describe("FilesAppWindow", () => {
     await waitFor(() => expect(treeRow("web/src/")).toHaveAttribute("aria-selected", "true"));
     expect(treeRow("web/src/main.tsx")).not.toBeNull();
   });
+
+  it("Should reveal the same Go to file folder through a flattened lazy chain again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(String(input));
+        const url = new URL(request.url);
+        const root = { kind: "workspace", workspace_id: "ws_1", name: "compozy" };
+        if (url.pathname.endsWith("/files/find")) {
+          return Response.json({
+            root,
+            query: url.searchParams.get("q"),
+            results: [{ path: "web/src", kind: "directory", score: 10, match_ranges: [[4, 7]] }],
+            indexed_files: 3,
+            index_truncated: false,
+          });
+        }
+        if (!url.pathname.endsWith("/files/entries")) return new Response("{}", { status: 404 });
+        const path = url.searchParams.get("path") ?? "";
+        const entries: Record<string, unknown[]> = {
+          "": [{ name: "web", path: "web", kind: "directory" }],
+          web: [{ name: "src", path: "web/src", kind: "directory" }],
+          "web/src": [{ name: "main.tsx", path: "web/src/main.tsx", kind: "file", size: 1 }],
+        };
+        return Response.json({ root, entries: entries[path] ?? [], truncated: false });
+      })
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <div style={{ height: 500 }}>
+            <FilesExplorer
+              root={{ kind: "workspace", workspaceId: "ws_1" }}
+              target={null}
+              onOpenFile={() => {}}
+            />
+          </div>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+    const treeRow = (path: string) =>
+      container
+        .querySelector("file-tree-container")
+        ?.shadowRoot?.querySelector<HTMLElement>(`[data-type="item"][data-item-path="${path}"]`) ??
+      null;
+    const chooseFolder = async () => {
+      fireEvent.click(screen.getByTestId("files-go-to-file"));
+      fireEvent.change(await screen.findByTestId("go-to-file-input"), {
+        target: { value: "src" },
+      });
+      const rows = await screen.findAllByTestId("go-to-file-row", {}, { timeout: 3000 });
+      fireEvent.click(rows.find(row => row.dataset.path === "web/src")!);
+      await waitFor(() => expect(screen.queryByTestId("go-to-file")).toBeNull());
+    };
+    await waitFor(() => expect(treeRow("web/")).not.toBeNull());
+
+    await chooseFolder();
+    await waitFor(() => expect(treeRow("web/src/main.tsx")).not.toBeNull());
+    expect(treeRow("web/src/")).toHaveAttribute("aria-expanded", "true");
+    expect(treeRow("web/src/")).toHaveAttribute("aria-selected", "true");
+    expect(treeRow("web/")).toBeNull();
+
+    act(() => treeRow("web/src/")!.click());
+    await waitFor(() => expect(treeRow("web/src/")).toHaveAttribute("aria-expanded", "false"));
+
+    await waitFor(() => expect(treeRow("web/src/main.tsx")).toBeNull());
+
+    await chooseFolder();
+    await waitFor(() => expect(treeRow("web/src/")).toHaveAttribute("aria-expanded", "true"));
+    await waitFor(() => expect(treeRow("web/src/")).toHaveAttribute("aria-selected", "true"));
+    expect(treeRow("web/src/main.tsx")).not.toBeNull();
+  });
 });

@@ -1050,25 +1050,32 @@ func TestResolveAgentAppliesApproveAllProviderMode(t *testing.T) {
 			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode plus allow_all=on", got)
 		}
 	})
-	t.Run("Should map by the runtime a provider launches", func(t *testing.T) {
-		t.Parallel()
-		routed := DefaultWithHome(homePaths)
-		routed.Providers = map[string]ProviderConfig{
-			"claude":     {Command: "gemini --acp", RuntimeProvider: "gemini"},
-			"codex-work": {Command: "codex-acp", RuntimeProvider: "codex", Harness: ProviderHarnessACP},
-		}
-		for provider, want := range map[string]string{"claude": "", "codex-work": "agent-full-access"} {
-			resolved, err := routed.ResolveAgent(AgentDef{Name: "qa", Provider: provider, Prompt: "prompt"})
+	for _, tc := range []struct {
+		name     string
+		provider string
+		want     string
+	}{
+		{name: "Should omit unrestricted mode for Claude routed to Gemini", provider: "claude"},
+		{name: "Should select full access for a custom provider routed to Codex", provider: "codex-work", want: "agent-full-access"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			routed := DefaultWithHome(homePaths)
+			routed.Providers = map[string]ProviderConfig{
+				"claude":     {Command: "gemini --acp", RuntimeProvider: "gemini"},
+				"codex-work": {Command: "codex-acp", RuntimeProvider: "codex", Harness: ProviderHarnessACP},
+			}
+			resolved, err := routed.ResolveAgent(AgentDef{Name: "qa", Provider: tc.provider, Prompt: "prompt"})
 			if err != nil {
-				t.Fatalf("ResolveAgent(%s) error = %v", provider, err)
+				t.Fatalf("ResolveAgent(%s) error = %v", tc.provider, err)
 			}
 			options := resolved.ACPOptionsValue()
-			if want == "" && len(options) != 0 ||
-				want != "" && (len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != want) {
-				t.Fatalf("ResolveAgent(%s) ACPOptions = %#v, want mode %q", provider, options, want)
+			if tc.want == "" && len(options) != 0 ||
+				tc.want != "" && (len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != tc.want) {
+				t.Fatalf("ResolveAgent(%s) ACPOptions = %#v, want mode %q", tc.provider, options, tc.want)
 			}
-		}
-	})
+		})
+	}
 	t.Run("Should keep an explicit mode for a provider without a full-access mapping", func(t *testing.T) {
 		t.Parallel()
 		agent := AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"}
