@@ -13,6 +13,7 @@ import {
 import { FAVORITES_STORAGE_KEY } from "../runtime-selector/favorites";
 import {
   runtimeSelectorStoryAdvancedOptions as advancedOptions,
+  runtimeSelectorStoryLongNameModel as longNameModel,
   runtimeSelectorStoryModels as models,
   runtimeSelectorStoryProviders as providers,
 } from "./runtime-selector-story-fixtures";
@@ -214,6 +215,81 @@ export const PopupReasoningSlider: Story = {
     await expect(track).toHaveAttribute("aria-valuetext", "Medium (model default)");
     await expect(within(footer).queryByText("None")).not.toBeInTheDocument();
     await expect(within(footer).queryByText("Default")).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * Truncated names and OpenCode provider labels keep their full text on hover;
+ * the visual truncation stays, the tooltip is the reveal.
+ */
+export const PopupModelNameTooltip: Story = {
+  args: {
+    value: { provider: "opencode", model: "", reasoning_effort: "" },
+    providers: [...providers, { id: "opencode", name: "OpenCode", runtime_provider: "opencode" }],
+    models: [...models, longNameModel],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Hovering a truncated model name (or its OpenCode upstream provider label) reveals the complete text through the shared tooltip; neither trigger takes a tab stop inside the listbox.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    const list = within(await body.findByTestId("runtime-selector-list"));
+    const name = await list.findByText("Claude Sonnet 4.6 Long Context Preview");
+    await userEvent.hover(name);
+    await expect(
+      await body.findByText("Claude Sonnet 4.6 Long Context Preview", {
+        selector: '[data-slot="tooltip-content"]',
+      })
+    ).toBeVisible();
+  },
+};
+
+/**
+ * More providers than the 320px rail can show: the native scrollbar is gone,
+ * edge fades mark the hidden chips, and the chevron pages the track.
+ */
+export const PopupOverflowingRail: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    providers: [
+      ...providers,
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `rail-${index}`,
+        name: `Rail provider ${index}`,
+        runtime_provider: "codex",
+      })),
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Overflowing provider rail: 28px chips inside the unchanged 32px line, no native scrollbar, and a pointer-only end chevron that pages the track without moving focus.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    const track = body.getByRole("radiogroup");
+    await expect(track.scrollWidth).toBeGreaterThan(track.clientWidth);
+
+    const end = await waitFor(() => {
+      const edge = canvasElement.ownerDocument.body.querySelector<HTMLElement>(
+        '[data-rail-scroll="end"]'
+      );
+      if (!edge) throw new Error("expected the rail end scroll affordance");
+      return edge;
+    });
+    await expect(end).toBeVisible();
+
+    const before = track.scrollLeft;
+    await userEvent.click(end);
+    await waitFor(() => expect(track.scrollLeft).toBeGreaterThan(before));
   },
 };
 

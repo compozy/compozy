@@ -931,6 +931,37 @@ describe("RuntimeSelector provider tooltips", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Should reveal the full model name and OpenCode provider label on hover without a tab stop", async () => {
+    const user = userEvent.setup();
+    const longName = "Acme Model With A Very Long Display Name";
+    renderSelector({
+      value: { provider: "opencode", model: "", reasoning_effort: "" },
+      providers: [{ id: "opencode", name: "OpenCode" }],
+      models: [model("openrouter/acme/model", { provider: "opencode", name: longName })],
+    });
+
+    await openSelector(user);
+    const option = row("openrouter/acme/model");
+    const name = within(option).getByText(longName);
+    const providerLabel = within(option).getByText("openrouter");
+    // The tooltip trigger is pointer-only: a focusable trigger inside the
+    // listbox option would add a tab stop and break the combobox pattern.
+    expect(name).not.toHaveAttribute("tabindex");
+    expect(name).not.toHaveAttribute("role", "button");
+    expect(option.querySelector('[tabindex="0"], [role="button"]')).toBeNull();
+
+    await user.hover(name);
+    expect(
+      await screen.findByText(longName, { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
+    await user.unhover(name);
+
+    await user.hover(providerLabel);
+    expect(
+      await screen.findByText("openrouter", { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
+  });
+
   it("Should show the provider name when a pinned model row glyph is hovered", async () => {
     const user = userEvent.setup();
     window.localStorage.setItem(
@@ -2014,6 +2045,59 @@ describe("RuntimeSelector provider rail filtering", () => {
       expect(document.querySelector('[data-rail="all"]')).toHaveAttribute("data-active", "true")
     );
     expect(document.activeElement).toBe(document.querySelector('[data-rail="all"]'));
+  });
+
+  it("Should page an overflowing chip rail from its pointer-only edge affordances", async () => {
+    const user = userEvent.setup();
+    const manyProviders = [
+      ...twoProviders,
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `overflow-${index}`,
+        name: `Overflow provider ${index}`,
+      })),
+    ];
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      providers: manyProviders,
+      models: railModels,
+    });
+
+    await openSelector(user);
+    const radiogroup = document.querySelector<HTMLElement>('[role="radiogroup"]')!;
+    // jsdom has no layout: give the track a scrollable box and a spyable scrollBy.
+    Object.defineProperty(radiogroup, "scrollWidth", { configurable: true, value: 600 });
+    Object.defineProperty(radiogroup, "clientWidth", { configurable: true, value: 200 });
+    const scrollBy = vi.fn();
+    Object.defineProperty(radiogroup, "scrollBy", { configurable: true, value: scrollBy });
+    fireEvent.scroll(radiogroup);
+
+    const end = await waitFor(() => {
+      const edge = document.querySelector<HTMLElement>('[data-rail-scroll="end"]');
+      expect(edge).not.toBeNull();
+      return edge!;
+    });
+    // At scroll origin only the end edge hides content.
+    expect(document.querySelector('[data-rail-scroll="start"]')).toHaveAttribute(
+      "data-visible",
+      "false"
+    );
+    expect(end).toHaveAttribute("aria-hidden", "true");
+    expect(end).toHaveAttribute("tabindex", "-1");
+
+    await user.click(end);
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+    const scrollOptions = scrollBy.mock.calls[0]?.[0] as ScrollToOptions | undefined;
+    expect(scrollOptions?.left).toBeGreaterThan(0);
+    expect(onChange).not.toHaveBeenCalled();
+
+    radiogroup.scrollLeft = 200;
+    fireEvent.scroll(radiogroup);
+    await waitFor(() =>
+      expect(document.querySelector('[data-rail-scroll="start"]')).toHaveAttribute(
+        "data-visible",
+        "true"
+      )
+    );
   });
 
   it("Should suppress rail radios while searching (not keyboard-activatable)", async () => {

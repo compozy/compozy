@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## Runtime selector hover names and chip rail paging — 2026-11-11
+
+Owner: small-work PR `run/polish-runtime-selector-rail-and-model-name-tooltips-c4b3757d`. QA:
+`docs/qa/scenarios/ET-web-runtime-selector-minimal-slider.md` (2026-11-11 impact note).
+
+- Web only (`web/src/systems/runtime/`), internal regime (SD-013): model rows reveal the full model
+  name and the OpenCode upstream provider label through the shared `@compozy/ui` tooltip; the
+  trigger is pointer-only, so the listbox keeps its combobox/activedescendant focus model. Provider
+  chips move from a 24px to a 28px target inside the unchanged 32px line; the native rail scrollbar
+  is replaced by edge fades and pointer-only paging chevrons. `@compozy/ui` primitives are consumed
+  unchanged — no new primitive.
+- No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema, or
+  migration changes. Provider enable/disable semantics and list filtering are untouched.
+- Workspace data isolation: unaffected (presentation only). Official skill `skills/compozy/`: no
+  change. Docs: no public documentation change; the QA scenario carries the impact flag.
+
 ## Native Tool Result Views — issue #1432 — 2026-11-10
 
 Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure and M1 integration. ADR-002 records the

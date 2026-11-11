@@ -97,6 +97,14 @@ export const runtimeSelectorStoryModels: RuntimeModelOption[] = [
   }),
 ];
 
+// Deliberately long display name so the truncation + hover-reveal contract is
+// reviewable in Storybook.
+export const runtimeSelectorStoryLongNameModel: RuntimeModelOption = runtimeModel({
+  id: "openrouter/anthropic/claude-sonnet-4.6-long-context-preview",
+  provider: "opencode",
+  name: "Claude Sonnet 4.6 Long Context Preview",
+});
+
 export const runtimeSelectorStoryAdvancedOptions: RuntimeACPOption[] = [
   {
     id: "context_window",
