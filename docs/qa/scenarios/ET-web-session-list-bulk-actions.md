@@ -148,3 +148,36 @@ Issue #1464 evidence (2026-11-10): see
 rendered session-menu/lifecycle checks, real API/Git timings, deterministic partial-failure
 coverage, and the public screenshot-upload blocker. This does not replace unrelated journeys
 in this scenario.
+
+## Batch follow-ups: progress, shared admission and lineage lock (#1470, #1472, #1475)
+
+Added 2026-11-11. Hold several genuine requests in flight (for example, with browser network
+latency emulation on an isolated lab) while walking these checks.
+
+1. Select at least four eligible independent sessions and run Make top-level, Back from Later,
+   Stop, Archive, Unarchive or Mark as seen. Press Done to clear the selection while requests are
+   in flight: every row whose request is running shows a spinner on its row-actions control,
+   queued and finished rows do not, and every row's controls stay disabled until the last request
+   settles. Failures keep their per-target receipt.
+2. Start a batch from one family (for example Back from Later) and immediately invoke another
+   (Make top-level, Unarchive): the second is declined and sends no request, so at most three
+   requests are in flight. Invoking it again after the first batch settles runs it normally.
+3. Start a single Nest under (drop) or Make top-level and, before it settles, invoke Make
+   top-level on a selection: the batch is declined and sends no request. Invoking it again after
+   the single move settles detaches every target. While a batch Make top-level runs, a row drop,
+   a single Make top-level or a nest toast's Undo is declined; other batch families (Stop,
+   Archive, Mark as seen) leave single lineage moves available.
+
+The lifecycle hook suite (`use-session-actions.test.tsx`) owns same-turn admission in every
+family order, running-target progress transitions and the singular/batch lineage boundary; the
+session list suite owns per-row progress and the row lock.
+
+Evidence (2026-11-11, PR #1498): an isolated lab daemon built from the branch served the branch web
+bundle; four nested sessions under distinct roots were detached with genuine `DELETE .../parent`
+requests held in the browser. Checks 1 and 3 passed in the rendered session sidebar: three rows
+showed progress with all 16 row controls disabled, the queued fourth row gained progress when a
+slot freed, and a batch Make top-level issued no request while a single Make top-level was held;
+invoked again after it settled, it detached all three (daemon reads confirmed every lineage change). Check 2
+needs two invocations within one React turn, which a pointer cannot produce; the lifecycle hook
+suite owns it. At rest the end slot shows the time, so progress appears on hover or focus, as
+before #1472.

@@ -158,7 +158,7 @@ function renderBoard(
 function lifecycleActions(): SessionLifecycleActionHandlers {
   return {
     pendingAction: null,
-    pendingSessionId: null,
+    pendingSessionIds: [],
     onStop: vi.fn(),
     onRename: vi.fn(),
     onArchive: vi.fn(),

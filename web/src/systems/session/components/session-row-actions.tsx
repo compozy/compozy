@@ -23,7 +23,7 @@ export interface SessionRowActionsProps {
 
 /** State-gated lifecycle menu shared by every session list row. */
 export function SessionRowActions({ session, actions }: SessionRowActionsProps) {
-  const pending = actions.pendingSessionId === session.id ? actions.pendingAction : null;
+  const pending = actions.pendingSessionIds.includes(session.id) ? actions.pendingAction : null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
   const items = useSessionRowMenuItems(session, actions);
