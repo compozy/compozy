@@ -46,6 +46,7 @@ jobs:
       - name: Install syscall tracer
         run: |
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --yes strace
       - name: Check out the fixed baseline

@@ -161,6 +161,7 @@ jobs:
           # must not block preflight when their indexes are inconsistent.
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --yes ripgrep
           rg --version
@@ -364,6 +365,7 @@ jobs:
         run: |
           test -f /etc/apt/sources.list.d/ubuntu.sources
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get "${apt_sources[@]}" update
           sudo apt-get "${apt_sources[@]}" install --no-install-recommends --yes zsh
           # Runner-provided completion directories can be group/world writable.
@@ -883,6 +885,7 @@ jobs:
       - name: Allow the Chromium user namespace sandbox
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash .github/scripts/apt-mirror-fallback.sh
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes openbox
 

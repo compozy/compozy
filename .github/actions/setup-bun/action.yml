@@ -99,6 +99,7 @@ runs:
       working-directory: web
       run: |
         # The browser cache does not contain system libraries.
+        bash "${GITHUB_WORKSPACE}/.github/scripts/apt-mirror-fallback.sh"
         if [[ "${{ runner.os }}" == "Linux" ]] && ! bunx --no-install playwright install-deps --dry-run chromium; then
           bunx --no-install playwright install-deps chromium
           bunx --no-install playwright install-deps --dry-run chromium
