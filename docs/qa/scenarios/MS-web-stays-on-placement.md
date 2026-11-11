@@ -287,3 +287,5 @@ rotates the main session when its context runs out). An ordinary session keeps a
 the instance's `main_session_id`, never the agent name. Verified on the Storybook route stories
 `AgentSession/AlwaysOnMain` and `AgentSession/LinkedWorkWithTrail` in headless Chromium, by DOM probe
 and screenshot before and after the change. Not walked in a live lab.
+
+QA impact 2026-11-11 (#1487): the sessions list toggle moved to the start of every session head, before the project name, and stays there while the list is collapsed; before, an always-on main lost the toggle once the list closed and could not reopen it from the head. The main's right side now holds only the Always-on pill and the agent's `…` menu, with no divider before them; a context sidebar left open still adds its close toggle. Walked in an isolated lab (branch daemon and web bundle, acpmock provider) at 1600px and 1280px: the list toggle opened and closed the list in both states, ⌘B still toggled it, and the base bundle reproduced the missing toggle.

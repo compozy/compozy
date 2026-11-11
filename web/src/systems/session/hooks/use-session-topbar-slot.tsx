@@ -94,6 +94,12 @@ interface UseSessionTopbarSlotInput {
   /** The connection chip (S4): mounts in the status slot's reserved trailing position, before the actions. */
   transportChip?: React.ReactNode;
   onInspectorToggle: () => void;
+  /**
+   * The composer carries the context control that opens and closes the inspector (#1487). A window
+   * without it (a read-only superseded session) keeps the inspector toggle in the head instead.
+   * Defaults to true.
+   */
+  composerContextControl?: boolean;
   onSidebarToggle: () => void;
   onStop: (processes?: SessionProcessPolicy) => void;
   onUnarchive: () => void;
@@ -174,19 +180,14 @@ function ownChipActions({
   };
 }
 
-/** The sessions sidebar toggle; the board drawer has no rail to toggle. */
-function sidebarToggle(input: UseSessionTopbarSlotInput, inWindow: boolean) {
-  return inWindow ? (
-    <SessionPanelToggle panel="sidebar" open={input.sidebarOpen} onToggle={input.onSidebarToggle} />
-  ) : null;
-}
-
-/** An ordinary session's head: linked work entry, run verbs, then the panel toggles. */
+/**
+ * An ordinary session's head: linked work entry, run verbs, then the Changes toggle. The composer's
+ * context control opens and closes the inspector; a window without one keeps the head toggle.
+ */
 function sessionActions(
   input: UseSessionTopbarSlotInput,
   actions: ReturnType<typeof sessionTopbarActions>,
-  linkedList: SessionLinkedWorkListProps,
-  inWindow: boolean
+  linkedList: SessionLinkedWorkListProps
 ) {
   const { session, linkedWork } = input;
   return (
@@ -200,36 +201,35 @@ function sessionActions(
         runningProcesses={sessionRunningProcesses(session)}
         processPorts={sessionProcessPorts(session)}
       />
-      {sidebarToggle(input, inWindow)}
       <SessionReviewPanelToggle
         workspaceId={session.workspace_id}
         open={input.reviewOpen}
         onToggle={input.onReviewToggle}
       />
-      <SessionPanelToggle
-        panel="inspector"
-        open={input.inspectorOpen}
-        onToggle={input.onInspectorToggle}
-      />
+      {input.composerContextControl === false ? (
+        <SessionPanelToggle
+          panel="inspector"
+          open={input.inspectorOpen}
+          onToggle={input.onInspectorToggle}
+        />
+      ) : null}
     </>
   );
 }
 
 /**
- * An always-on agent's main (#1303): the agent's `…` menu owns its lifecycle, so the head keeps it
- * without linked work, Stop or the layout toggles. A panel that is still open (a kept preference,
- * or the inspector a subagent link opened) keeps its toggle as the way to close it.
+ * An always-on agent's main (#1303): the Always-on label and the agent's `…` menu, which owns its
+ * lifecycle, without linked work, Stop or the Changes toggle. These actions publish with
+ * `actionsDivider: false`, so they sit right after the status with no hairline between them. Its
+ * composer has no context control, so a panel that is still open (a kept preference, or the
+ * inspector a subagent link opened) keeps its toggle as the way to close it.
  */
-function alwaysOnMainActions(
-  input: UseSessionTopbarSlotInput,
-  instance: AgentInstancePayload,
-  inWindow: boolean
-) {
+function alwaysOnMainActions(input: UseSessionTopbarSlotInput, instance: AgentInstancePayload) {
   return (
     <>
+      <Pill size="sm">Always-on</Pill>
       <AlwaysOnAgentMenu instance={instance} />
       <SessionMarkSeenAction session={input.session} />
-      {input.sidebarOpen ? sidebarToggle(input, inWindow) : null}
       {input.reviewOpen ? (
         <SessionPanelToggle panel="review" open onToggle={input.onReviewToggle} />
       ) : null}
@@ -264,6 +264,15 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
 
   useTopbarSlot({
+    // The sessions list toggle leads every session head, open or closed (#1487); the board drawer
+    // has no rail to toggle.
+    start: inWindow ? (
+      <SessionPanelToggle
+        panel="sidebar"
+        open={input.sidebarOpen}
+        onToggle={input.onSidebarToggle}
+      />
+    ) : undefined,
     leading: inWindow ? (
       <WorkspaceBadge
         identity={workspaceBadgeIdentity(session.workspace_id ?? "", workspaceNames)}
@@ -286,7 +295,6 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     crumb: instance?.label ?? getSessionDisplayTitle(session),
     status: (
       <span className="flex min-w-0 items-center gap-2">
-        {instance ? <Pill size="sm">Always-on</Pill> : null}
         {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
         {instance ? null : (
           <SessionLinkedWorkStatus
@@ -326,10 +334,11 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         ) : null}
       </span>
     ),
-    // The run verbs lead; the panel toggles trail as quiet icons.
+    // The run verbs lead; the Changes toggle trails as a quiet icon.
     actions: instance
-      ? alwaysOnMainActions(input, instance, inWindow)
-      : sessionActions(input, actions, linkedList, inWindow),
+      ? alwaysOnMainActions(input, instance)
+      : sessionActions(input, actions, linkedList),
+    actionsDivider: !instance,
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (
       <SessionViewToggle onValueChange={view.setView} value={view.view} />
