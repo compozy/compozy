@@ -1091,8 +1091,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 	})
 
 	t.Run("Should converge Cancel after session materialization and before binding activation", func(t *testing.T) {
-		materialized := make(chan struct{})
+		materialized := make(chan session.EnsureCreatedResult, 1)
 		releaseActivation := make(chan struct{})
+		release := sync.OnceFunc(func() { close(releaseActivation) })
+		defer release()
 		fixture := newLoopGoalManagedRuntimeFixture(
 			t,
 			"stop-create-race",
@@ -1105,15 +1107,25 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}),
 		)
 		request := fixture.bindingRequest("stop-create-race")
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
 		result := make(chan error, 1)
 		go func() {
-			_, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+			_, err := fixture.runtime.BindActionSession(ctx, request)
 			result <- err
 		}()
+		var createdSessionID string
 		select {
-		case <-materialized:
-		case <-time.After(time.Second):
-			t.Fatal("managed session creation did not materialize")
+		case created := <-materialized:
+			createdSessionID = created.SessionID
+		case bindErr := <-result:
+			t.Fatalf("BindActionSession completed before the materialization barrier: %v", bindErr)
+		case <-ctx.Done():
+			t.Fatalf("managed session creation did not materialize: %v", ctx.Err())
+		}
+		created, err := fixture.manager.Status(ctx, createdSessionID)
+		if err != nil || created.ID != createdSessionID || created.State == session.StateStopped {
+			t.Fatalf("managed session before cancellation = %#v, %v, want materialized session", created, err)
 		}
 
 		aggregate, err := looppkg.NewService(
@@ -1135,7 +1147,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		if err := aggregate.CancelRun(
-			testutil.Context(t), fixture.run.WorkspaceID, fixture.run.ID, "operator cancel", actor,
+			ctx, fixture.run.WorkspaceID, fixture.run.ID, "operator cancel", actor,
 		); err != nil {
 			t.Fatalf("CancelRun() error = %v", err)
 		}
@@ -1147,36 +1159,37 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if !ok {
 			t.Fatalf("goal store = %T, want goalSessionOutboxStore", fixture.goalStore)
 		}
-		if pending, err := cleanupStore.ClaimLoopSessionCleanup(testutil.Context(t), 10); err != nil {
+		if pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10); err != nil {
 			t.Fatalf("ClaimLoopSessionCleanup(unsettled) error = %v", err)
 		} else if len(pending) != 0 {
 			t.Fatalf("unsettled cleanup = %#v, want hidden", pending)
 		}
-		close(releaseActivation)
+		release()
 		select {
 		case bindErr := <-result:
 			if bindErr == nil {
 				t.Fatal("BindActionSession(after Cancel) error = nil")
 			}
-		case <-time.After(time.Second):
-			t.Fatal("BindActionSession did not converge after Cancel")
+		case <-ctx.Done():
+			t.Fatalf("BindActionSession did not converge after Cancel: %v", ctx.Err())
 		}
 
-		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
-			t.Fatalf("late-created root session %q survived binding cancellation", request.DesiredSessionID)
+		stopped, err := fixture.manager.Status(ctx, createdSessionID)
+		if err != nil || stopped.State != session.StateStopped {
+			t.Fatalf("late-created session after binding cancellation = %#v, %v, want stopped", stopped, err)
 		}
 
 		relay := &goalSessionOutboxRelay{
 			store: outboxStore, appender: fixture.manager,
 			cleanupStore: cleanupStore, stopper: fixture.manager, now: time.Now,
 		}
-		if err := relay.DeliverPending(testutil.Context(t)); err != nil {
+		if err := relay.DeliverPending(ctx); err != nil {
 			t.Fatalf("DeliverPending() error = %v", err)
 		}
-		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
-			t.Fatalf("late-created session %q remained active", request.DesiredSessionID)
+		if _, active := fixture.manager.Get(createdSessionID); active {
+			t.Fatalf("late-created session %q remained active", createdSessionID)
 		}
-		if pending, err := cleanupStore.ClaimLoopSessionCleanup(testutil.Context(t), 10); err != nil {
+		if pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10); err != nil {
 			t.Fatalf("ClaimLoopSessionCleanup(completed) error = %v", err)
 		} else if len(pending) != 0 {
 			t.Fatalf("completed cleanup = %#v, want none", pending)
@@ -1931,7 +1944,7 @@ func withGoalRuntimeSessionManager(
 
 type delayedEnsureCreatedManager struct {
 	*session.Manager
-	materialized chan struct{}
+	materialized chan session.EnsureCreatedResult
 	release      <-chan struct{}
 }
 
@@ -1990,7 +2003,10 @@ func (m *delayedEnsureCreatedManager) EnsureCreated(
 	opts := *optsInput
 
 	result, err := m.Manager.EnsureCreated(ctx, &(opts))
-	close(m.materialized)
+	if err != nil {
+		return result, err
+	}
+	m.materialized <- result
 	select {
 	case <-m.release:
 		return result, err
