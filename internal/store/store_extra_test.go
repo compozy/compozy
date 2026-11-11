@@ -613,6 +613,143 @@ INSERT INTO items SELECT i%10 FROM fixture`); err != nil {
 		}
 	})
 
+	// Invariant: excess WAL allocation is reclaimed without waiting for readers or writers.
+	// Owner: SQLite lifecycle. Canonical suite: TestStoreSQLiteHelpers.
+	t.Run("Should reclaim retained WAL allocation after readers release without blocking writes", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "reclaim.db")
+		db, err := OpenSQLiteDatabaseWithPragmas(ctx, path,
+			[]string{"synchronous(FULL)", "wal_autocheckpoint(0)"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		db.SetMaxOpenConns(2)
+		if _, err := db.ExecContext(
+			ctx,
+			"CREATE TABLE items(value BLOB); INSERT INTO items VALUES (zeroblob(4096))",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := Checkpoint(ctx, db); err != nil {
+			t.Fatal(err)
+		}
+		maintenance, err := openSQLiteHandle(ctx, path, sqliteCheckpointDSN(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := maintenance.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		reader, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("snapshot rows = %d, error = %v", count, err)
+		}
+		worker := &PassiveCheckpointer{walPath: path + "-wal"}
+		WithWALTruncation(1 << 20)(worker)
+		for batch := range 4 {
+			for range 16 {
+				if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (zeroblob(65536))"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			attempt, cancel := context.WithTimeout(ctx, time.Second)
+			err := worker.checkpoint(attempt, maintenance)
+			cancel()
+			if err != nil {
+				t.Fatalf("reader-blocked maintenance batch %d: %v", batch, err)
+			}
+		}
+		frames, copied, err := walCheckpointProgress(ctx, maintenance)
+		if err != nil || frames <= copied {
+			t.Fatalf("reader-held progress = %d/%d, error = %v", copied, frames, err)
+		}
+		before, err := os.Stat(path + "-wal")
+		if err != nil || before.Size() <= worker.truncateAbove {
+			t.Fatalf("fixture WAL = %v, error = %v", before, err)
+		}
+		t.Logf("reader held: bytes=%d, frames=%d, copied=%d", before.Size(), frames, copied)
+		writer, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "INSERT INTO items VALUES (zeroblob(4096))"); err != nil {
+			t.Fatal(err)
+		}
+		attempt, cancel := context.WithTimeout(ctx, time.Second)
+		err = worker.checkpoint(attempt, maintenance)
+		cancel()
+		if err != nil && !IsSQLiteBusy(err) {
+			t.Fatalf("writer-blocked maintenance: %v", err)
+		}
+		if err := writer.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		if err := reader.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("snapshot changed: rows=%d, error=%v", count, err)
+		}
+		if err := reader.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckpointPassive(ctx, maintenance); err != nil {
+			t.Fatal(err)
+		}
+		frames, copied, err = walCheckpointProgress(ctx, maintenance)
+		if err != nil || copied != frames {
+			t.Fatalf("released progress = %d/%d, error = %v", copied, frames, err)
+		}
+		after, err := os.Stat(path + "-wal")
+		if err != nil || after.Size() < before.Size() {
+			t.Fatalf("PASSIVE unexpectedly reclaimed allocation: %v, %v", after, err)
+		}
+		t.Logf("reader released: bytes=%d, frames=%d, copied=%d", after.Size(), frames, copied)
+		if err := worker.checkpoint(ctx, maintenance); err != nil {
+			t.Fatal(err)
+		}
+		after, err = os.Stat(path + "-wal")
+		if err != nil || after.Size() != 0 {
+			t.Fatalf("reclaimed WAL = %v, error = %v", after, err)
+		}
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (zeroblob(4096))"); err != nil {
+			t.Fatal(err)
+		}
+		if err := worker.checkpoint(ctx, maintenance); err != nil {
+			t.Fatal(err)
+		}
+		after, err = os.Stat(path + "-wal")
+		if err != nil || after.Size() == 0 {
+			t.Fatalf("small WAL should remain reusable: %v, %v", after, err)
+		}
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 67 {
+			t.Fatalf("durable rows = %d, error = %v, want 67", count, err)
+		}
+		var integrity string
+		if err := db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&integrity); err != nil || integrity != "ok" {
+			t.Fatalf("integrity=%q, error=%v", integrity, err)
+		}
+	})
+
 	// Invariant: WAL maintenance progresses without reserving writer capacity or
 	// waiting for a live write, and its owner joins it on close. Owner: SQLite
 	// connection lifecycle. Canonical suite: the checkpoint helpers in this file.

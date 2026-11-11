@@ -18,6 +18,9 @@ import (
 // the background writer's between-item budget.
 const retentionBatchSize = 64
 
+// Reclaim burst allocation off the durable ingestion path; this is not a cap on live reader snapshots.
+const walTruncationThreshold = 16 << 20
+
 // Store acknowledges telemetry only after its own WAL commits.
 type Store struct {
 	db         *sql.DB
@@ -29,6 +32,7 @@ type Store struct {
 
 func Path(globalPath string) string { return globalPath + ".telemetry.db" }
 
+// Open separates FULL-synchronous ingestion from observation and WAL-maintenance connections.
 func Open(ctx context.Context, path string) (*Store, error) {
 	db, err := store.OpenSQLiteDatabaseWithPragmas(
 		ctx,
@@ -58,7 +62,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
-	checkpoint, err := store.OpenPassiveCheckpointer(ctx, path)
+	checkpoint, err := store.OpenPassiveCheckpointer(ctx, path, store.WithWALTruncation(walTruncationThreshold))
 	if err != nil {
 		return nil, errors.Join(err, readDB.Close(), db.Close())
 	}
