@@ -106,7 +106,21 @@ func reconcileBootInstances(ctx context.Context, state *bootState, service *agen
 	if err := service.Reconcile(ctx); err != nil {
 		state.logger.ErrorContext(ctx, "daemon: reconcile instances at startup", "error", err)
 	}
-	return sweepInstanceReports(ctx, state)
+	return publishInstanceReports(ctx, state, "daemon: publish instance reports at startup")
+}
+
+// publishInstanceReports sweeps pending reports and logs publication failures; the instance
+// maintenance worker retries them, so only cancellation reaches the caller.
+func publishInstanceReports(ctx context.Context, state *bootState, message string) error {
+	err := sweepInstanceReports(ctx, state)
+	if err == nil {
+		return nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return errors.Join(ctxErr, err)
+	}
+	state.logger.ErrorContext(ctx, message, "error", err)
+	return nil
 }
 
 func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, reconcile func(context.Context) error) {
@@ -136,7 +150,7 @@ func instanceStateEffects(
 	return func(ctx context.Context, instance agentinstance.Instance) error {
 		err := reconcileInstanceState(ctx, state, repo, instance)
 		if instance.State == "paused" {
-			return errors.Join(err, sweepInstanceReports(ctx, state))
+			return errors.Join(err, publishInstanceReports(ctx, state, "daemon: publish instance reports after pause"))
 		}
 		return err
 	}
