@@ -162,6 +162,10 @@ that gate and observe any Stop that committed ahead of it. Check post-record
 callbacks separately for diagnostic, terminal and marker events, exactly once each.
 Repeat activation-persistence failure through the asynchronous accepted-start path
 with a process that refuses Stop; resources remain owned until exit is verified.
+Fail activation catalog persistence while an operator Stop commits. The accepted
+startup owner must settle one verified stopped session with the operator's stop
+reason, one terminal event and notification, and no creation notification. It must
+never roll the admitted Stop back to Starting or discard its retained history.
 If shutdown loses a session to concurrent deletion, it still joins the captured
 start run within its context; a completed discarded startup error is not a new
 shutdown failure.
