@@ -14,6 +14,7 @@ const STATUS_TONE: Record<string, string> = {
   C: "text-destructive",
 };
 
+/** A path as a muted directory and an emphasised basename. */
 function SplitPath({ path }: { path: string }) {
   const slash = path.lastIndexOf("/");
   return (
@@ -118,14 +119,22 @@ export function SessionChangeFileHeader({
         >
           {letter}
         </span>
-        <p className="min-w-0 flex-1 truncate font-mono text-xs" title={item.path}>
-          {item.prevPath ? (
-            <>
-              <SplitPath path={item.prevPath} />
-              <span className="text-muted-foreground"> → </span>
-            </>
-          ) : null}
-          <SplitPath path={item.path} />
+        {/* A long path loses its start, not its end: siblings that share a long prefix keep
+            their nearest folders, file name and extension. `rtl` moves the ellipsis to the
+            start; the isolated `ltr` span keeps the path itself left-to-right. */}
+        <p
+          className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]"
+          title={item.prevPath ? `${item.prevPath} → ${item.path}` : item.path}
+        >
+          <span dir="ltr">
+            {item.prevPath ? (
+              <>
+                <SplitPath path={item.prevPath} />
+                <span className="text-muted-foreground"> → </span>
+              </>
+            ) : null}
+            <SplitPath path={item.path} />
+          </span>
         </p>
         {item.file.generated ? (
           <Pill size="xs" tone="neutral">

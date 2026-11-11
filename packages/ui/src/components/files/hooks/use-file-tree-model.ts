@@ -11,8 +11,10 @@ import {
   isDirectoryPath,
   parentDirectory,
   planPathSync,
+  soleChildDirectories,
   toGitStatusEntries,
   TREE_SPRITE_SHEET,
+  TREE_UNSAFE_CSS,
   type FileTreeDecorations,
 } from "../file-tree-model";
 
@@ -35,6 +37,10 @@ export interface UseFileTreeModelOptions {
 export interface FileTreeModelState {
   filterMatches: boolean;
   handleClickCapture: (event: React.MouseEvent<HTMLElement>) => void;
+  /** Tracks the row under the pointer for `hoverTitle`; wire to `onMouseMove`/`onMouseLeave`. */
+  handleHover: (event: React.MouseEvent<HTMLElement>) => void;
+  /** The full path of the hovered row (no trailing `/`), for the tree's native tooltip. */
+  hoverTitle: string | undefined;
   model: PierreFileTreeModel;
 }
 
@@ -53,6 +59,14 @@ function expandAncestors(model: PierreFileTreeModel, path: string) {
     if (!item || !("expand" in item)) return;
     if (!item.isExpanded()) item.expand();
   }
+}
+
+/** Expands `directory` when its parent is open, so a lone arriving subfolder opens with it. */
+function openUnderExpandedParent(model: PierreFileTreeModel, directory: string) {
+  const parent = model.getItem(parentDirectory(directory));
+  if (!parent || !("isExpanded" in parent) || !parent.isExpanded()) return;
+  const item = model.getItem(directory);
+  if (item && "expand" in item && !item.isExpanded()) item.expand();
 }
 
 function rowPathFromEvent(event: Event): string | null {
@@ -102,13 +116,16 @@ export function useFileTreeModel({
   const { model } = useFileTree({
     paths: [],
     initialExpansion,
-    flattenEmptyDirectories: false,
+    // Single-child directory chains render as one `a / b / c` row, so deep trees keep room
+    // for names.
+    flattenEmptyDirectories: true,
     density: "compact",
     itemHeight: ITEM_HEIGHT,
     search: false,
     fileTreeSearchMode: "hide-non-matches",
     icons: { set: "standard", colored: false, spriteSheet: TREE_SPRITE_SHEET },
     composition: { contextMenu: { triggerMode: "right-click" } },
+    unsafeCSS: TREE_UNSAFE_CSS,
     renderRowDecoration: ({ item }) =>
       buildRowDecoration(
         decorationsRef.current?.[item.path],
@@ -127,7 +144,16 @@ export function useFileTreeModel({
     if (path && !isDirectoryPath(path)) onSelectRef.current?.(path);
   };
 
-  return { filterMatches, handleClickCapture, model };
+  // A row shows a truncated name, so the tree's tooltip carries the full path. Rows live in
+  // Pierre's shadow root; a `title` on the light-DOM wrapper covers them. `mousemove`, because a
+  // `mouseover` between two rows of one shadow root never reaches the light DOM.
+  const [hoverPath, setHoverPath] = React.useState<string | null>(null);
+  const handleHover = (event: React.MouseEvent<HTMLElement>) => {
+    setHoverPath(event.type === "mouseleave" ? null : rowPathFromEvent(event.nativeEvent));
+  };
+  const hoverTitle = hoverPath ? hoverPath.replace(/\/$/, "") : undefined;
+
+  return { filterMatches, handleClickCapture, handleHover, hoverTitle, model };
 }
 
 function useLazyExpansion(
@@ -179,6 +205,10 @@ function useLazyExpansion(
     } else {
       const operations = planPathSync(knownRef.current, paths);
       if (operations.length > 0) model.batch(operations);
+      const added = paths.filter(path => !knownRef.current.has(path));
+      for (const directory of soleChildDirectories(added, paths)) {
+        openUnderExpandedParent(model, directory);
+      }
     }
     knownRef.current = new Set(paths);
     parentsRef.current = new Set(paths.map(parentDirectory));

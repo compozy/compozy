@@ -74,6 +74,11 @@ export interface FileTreeProps extends Omit<
   rowMenu?: (item: FileTreeRowMenuItem, controls: FileTreeRowMenuControls) => React.ReactNode;
   /** Changing it replaces the whole model (root switch or full refresh). */
   resetKey?: string | number;
+  /**
+   * The surface the tree sits on. The tree paints it, and its truncation marks need it to cover
+   * clipped text, so match the panel behind the tree.
+   */
+  surface?: "canvas" | "sunken";
 }
 
 function FileTree({
@@ -92,10 +97,13 @@ function FileTree({
   empty,
   rowMenu,
   resetKey,
+  surface = "canvas",
   className,
+  onMouseMove,
+  onMouseLeave,
   ...props
 }: FileTreeProps) {
-  const { filterMatches, handleClickCapture, model } = useFileTreeModel({
+  const { filterMatches, handleClickCapture, handleHover, hoverTitle, model } = useFileTreeModel({
     decorations,
     filter,
     initialExpansion,
@@ -113,8 +121,18 @@ function FileTree({
   return (
     <div
       data-slot="file-tree"
+      data-surface={surface}
       className={cn("relative flex h-full min-h-0 flex-col", className)}
       onClickCapture={handleClickCapture}
+      onMouseMove={event => {
+        handleHover(event);
+        onMouseMove?.(event);
+      }}
+      onMouseLeave={event => {
+        handleHover(event);
+        onMouseLeave?.(event);
+      }}
+      title={hoverTitle}
       {...props}
     >
       <PierreFileTree
