@@ -4,7 +4,7 @@ import { expect, fn, waitFor } from "storybook/test";
 
 import { DropdownMenuItem, DropdownMenuSeparator } from "../../dropdown-menu";
 import { Empty } from "../../empty";
-import { FileTree, type FileTreeDecorations } from "../file-tree";
+import { FileTree, type FileTreeDecorations, type FileTreeProps } from "../file-tree";
 import { CHANGED_PATHS, CHILD_LISTINGS, DEEP_CHANGED_PATHS, ROOT_LISTING } from "./files-fixtures";
 
 const meta: Meta<typeof FileTree> = {
@@ -55,9 +55,11 @@ const explorerDecorations: FileTreeDecorations = {
 function LazyExplorer({
   onExpand,
   onSelect,
+  surface,
 }: {
   onExpand?: (dir: string) => void;
   onSelect?: (path: string) => void;
+  surface?: FileTreeProps["surface"];
 }) {
   const [paths, setPaths] = React.useState<string[]>(ROOT_LISTING);
   const [loading, setLoading] = React.useState<string[]>([]);
@@ -66,6 +68,7 @@ function LazyExplorer({
     <FileTree
       aria-label="Project files"
       className="h-full"
+      surface={surface}
       paths={paths}
       loadingPaths={loading}
       decorations={explorerDecorations}
@@ -90,7 +93,9 @@ export const LazyExplorerTree: Story = {
   name: "Lazy explorer",
   tags: ["play-fn"],
   args: { onExpand: fn(), onSelect: fn() },
-  render: args => <LazyExplorer onExpand={args.onExpand} onSelect={args.onSelect} />,
+  render: args => (
+    <LazyExplorer onExpand={args.onExpand} onSelect={args.onSelect} surface={args.surface} />
+  ),
   parameters: {
     docs: {
       description: {
