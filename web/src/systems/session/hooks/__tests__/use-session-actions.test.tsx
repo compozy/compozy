@@ -2857,12 +2857,18 @@ describe("session lifecycle batches", () => {
 
   // Invariant: a singular nest or Make top-level and a batch detach share one lineage boundary:
   // a held singular reparent blocks the batch until it settles, and a running batch declines
-  // singular reparents. Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
+  // singular reparents, including a nest toast's Undo.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
   it("Should keep singular reparents and batch detach from overlapping", async () => {
     const held = mockHeld("make-top-level");
     vi.mocked(setSessionParent).mockResolvedValue(createdSession);
     const [single, ...batch] = independent("nested", 3);
     const { result } = lifecycle();
+    act(() => result.current.actions.onAdopt?.(createdSession, single!));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const undo = vi.mocked(toast.success).mock.calls[0]?.[1] as {
+      action: { onClick: () => void };
+    };
     act(() => result.current.actions.onMakeTopLevel?.(single!));
     await waitFor(() => expect(clearSessionParent).toHaveBeenCalledTimes(1));
     act(() => result.current.actions.onMakeTopLevelMany?.(batch));
@@ -2870,15 +2876,16 @@ describe("session lifecycle batches", () => {
     expect(result.current.actions.pendingAction).toBeNull();
 
     await act(async () => held.calls.get(single!.id)!.resolve());
-    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(2));
     act(() => result.current.actions.onMakeTopLevelMany?.(batch));
     await waitFor(() => expect(clearSessionParent).toHaveBeenCalledTimes(3));
     act(() => {
       result.current.actions.onMakeTopLevel?.(single!);
       result.current.actions.onAdopt?.(single!, batch[0]!);
+      undo.action.onClick();
     });
     expect(clearSessionParent).toHaveBeenCalledTimes(3);
-    expect(setSessionParent).not.toHaveBeenCalled();
+    expect(setSessionParent).toHaveBeenCalledTimes(1);
     await act(async () => {
       for (const target of batch) held.calls.get(target.id)!.resolve();
     });

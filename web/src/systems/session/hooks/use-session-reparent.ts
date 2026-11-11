@@ -29,9 +29,11 @@ function workspacePath(session: SessionPayload): string {
  * uses the same detach request: the daemon turns a stopped spawned worker into a
  * top-level user session. The
  * daemon owns the lineage change and validates it; each request names the
- * session's own profile, so it routes under any profile lens.
+ * session's own profile, so it routes under any profile lens. `blocked` is the
+ * host's batch lock: while it holds, every single move (row menu, drop, toast
+ * Undo) is declined so it cannot overlap a batch detach.
  */
-export function useSessionReparent() {
+export function useSessionReparent({ blocked = () => false }: { blocked?: () => boolean } = {}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (variables: ReparentVariables) =>
@@ -53,7 +55,9 @@ export function useSessionReparent() {
     onSettled: (_data, _error, variables) =>
       invalidateWorkspaceSessionCatalog(queryClient, workspacePath(variables.session)),
   });
-  const detach = (session: SessionPayload) =>
+  const declined = () => mutation.isPending || blocked();
+  const detach = (session: SessionPayload) => {
+    if (declined()) return;
     mutation.mutate(
       { kind: "detach", session },
       {
@@ -66,11 +70,12 @@ export function useSessionReparent() {
           ),
       }
     );
+  };
   return {
     pending: mutation.isPending,
     detachAsync: (session: SessionPayload) => mutation.mutateAsync({ kind: "detach", session }),
     adopt: (session: SessionPayload, parent: SessionPayload) => {
-      if (mutation.isPending) return;
+      if (declined()) return;
       mutation.mutate(
         { kind: "adopt", session, parent },
         {
@@ -83,8 +88,6 @@ export function useSessionReparent() {
         }
       );
     },
-    detach: (session: SessionPayload) => {
-      if (!mutation.isPending) detach(session);
-    },
+    detach,
   };
 }

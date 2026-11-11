@@ -25,7 +25,7 @@ export function useSessionBatchMenuActions(
   onProgress: (results: readonly SessionBatchResult[]) => void
 ) {
   const markSeen = useMarkSessionSeen();
-  const reparent = useSessionReparent();
+  const reparent = useSessionReparent({ blocked: running.held });
   const run = async (action: MenuBatchAction, sessions: readonly SessionPayload[]) => {
     if (busy || reparent.pending || running.held()) return;
     const eligible = sessions.filter(sessionBatchAction(action).eligible);
@@ -67,11 +67,7 @@ export function useSessionBatchMenuActions(
     onMarkSeenMany: (sessions: readonly SessionPayload[]) => void run("mark-seen", sessions),
     onMakeTopLevelMany: (sessions: readonly SessionPayload[]) =>
       void run("make-top-level", sessions),
-    onAdopt: (session: SessionPayload, parent: SessionPayload) => {
-      if (!running.held()) reparent.adopt(session, parent);
-    },
-    onMakeTopLevel: (session: SessionPayload) => {
-      if (!running.held()) reparent.detach(session);
-    },
+    onAdopt: reparent.adopt,
+    onMakeTopLevel: reparent.detach,
   };
 }
