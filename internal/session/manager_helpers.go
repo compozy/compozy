@@ -53,6 +53,10 @@ func (m *Manager) activateAndWatch(
 		return err
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
+		// Accepted starts own process cleanup and arbitration with concurrent Stop.
+		if m.sessionStartRun(session.ID) != nil {
+			return err
+		}
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
 	}

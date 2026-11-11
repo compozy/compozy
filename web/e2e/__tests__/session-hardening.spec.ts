@@ -1434,6 +1434,8 @@ test.describe("session context E2E-001", () => {
     await contextButton.click();
     await expect(sidebar).toHaveCount(0);
     await expect(contextButton).toHaveAttribute("aria-pressed", "false");
+    // A click-dismissed tooltip needs a pointer leave before it can reopen.
+    await ui.composerTextarea.hover();
     await ui.composerTextarea.fill("warning");
     await ui.composerTextarea.press("Enter");
     await expect(contextButton).toHaveAccessibleName("Context 88% used");

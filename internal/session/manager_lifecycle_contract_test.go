@@ -1091,6 +1091,62 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 // TestSharedSessionStopOperation verifies durable stop intent and shared recovery settlement.
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: failed activation cannot roll back an admitted Stop. Owner: Manager startup/Stop lifecycle.
+	t.Run("Should converge Stop during failed activation persistence", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		accepted := prepareLifecycleStart(t, h)
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		persistErr := errors.New("activation catalog write failed")
+		catalog.registerHook = func(_ context.Context, info *store.SessionInfo) error {
+			if info.State == string(StateActive) {
+				close(entered)
+				<-release
+				return persistErr
+			}
+			return nil
+		}
+		created := make(chan error, 1)
+		go func() { created <- h.manager.runAcceptedSessionStart(accepted) }()
+		<-entered
+		committed := make(chan struct{})
+		stopped := make(chan error, 1)
+		go func() {
+			_, err := h.manager.requestGuardedSessionStop(
+				t.Context(), accepted.session.ID, CauseUserRequested, "operator stop", nil,
+				func() { close(committed) },
+			)
+			stopped <- err
+		}()
+		<-committed
+		unblock()
+		if err := <-stopped; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-created; err != nil {
+			t.Fatalf("canceled activation = %v, want settled Stop", err)
+		}
+		outcome, err := h.manager.AwaitStopped(t.Context(), accepted.session.ID)
+		if err != nil || !outcome.Verified || outcome.FinalState != StateStopped ||
+			outcome.Cause != CauseUserRequested {
+			t.Fatalf("stop after failed activation = %+v, %v", outcome, err)
+		}
+		if _, active := h.manager.Get(accepted.session.ID); active {
+			t.Fatal("failed activation retained the stopped session")
+		}
+		meta := readMeta(t, accepted.session.MetaPath())
+		if meta.State != string(StateStopped) || meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
+			t.Fatalf("failed activation lost stop classification: %+v", meta)
+		}
+		if countEventType(readStoredEvents(t, accepted.session), EventTypeSessionStopped) != 1 ||
+			h.notifier.createdCount() != 0 || h.notifier.stoppedCount() != 1 {
+			t.Fatal("failed activation did not publish exactly one terminal lifecycle")
+		}
+	})
+
 	// Invariant: startup Stop admission holds the launch gate and dispatches pre_stop once.
 	// Owner/canonical suite: shared Manager Stop lifecycle.
 	for _, state := range []State{StateStarting, StateActive} {
