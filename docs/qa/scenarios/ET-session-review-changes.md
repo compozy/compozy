@@ -53,8 +53,16 @@ Walk:
     browser stops re-requesting the missing base on focus.
 14. Edit a file outside the agent, switch to another CompozyOS window, then back to the session
     window: the summary refreshes without pressing Refresh.
+15. Deep, long paths (#1480): on a branch with ~60 changed files six to eight levels deep that share
+    a long prefix (`packages/<pkg>/proto/review/<long-dir>/attachments/<uuid>.png`), check the panel
+    at the default width and in a narrow window. Tree names truncate behind one clean "…" that
+    never overlaps the text, and the extension stays. A single-child directory chain shows as one
+    `proto / review` row, and the indent leaves room for names. Every file row shows `+N −M` and
+    its status in a trailing column. Hovering a row shows its full path. Diff headers drop the
+    start of a long path (`…customer-detail/admin-billing-fixtures.ts`), so sibling rows differ.
 
-Owning automated coverage: web `session-changes.test.ts` (UT-056), `use-session-changes.test.tsx`
+Owning automated coverage: `@compozy/ui` `file-tree.test.tsx` and the FileTree "Deep changed files"
+stories (step 15); web `session-changes.test.ts` (UT-056), `use-session-changes.test.tsx`
 (UT-053, UT-057, UT-058), `use-session-topbar-slot.test.tsx` (Review changes), and
 `web/e2e/__tests__/session-changes.spec.ts` E2E-004–E2E-007; engine `TestEngine` and
 `TestEngineLimitsAndRaces`; CLI and hosted MCP parity in `TestDaemonSearchSessionFilesWorktreeBoundIT005`.
@@ -89,6 +97,17 @@ next diagnostic step.
 Observations, not defects: after "Compare against <ref>" with a ref that does not exist, the base
 popover stays open; with a valid ref it closes. While the missing base is selected, each focus or
 live refresh retries the summary, and the browser console logs the `409 base_not_found` response.
+
+## Walk 2026-11-10 (#1480)
+
+Lab `compozy-issue-1480-file-tree-20261111-001512-265025` (targeted web/api, `acpmock` agent), a
+`feat/billing-review` branch with 58 changed files under
+`packages/frontend/proto/review/admin-billing-*/`, fix commit `d12f6acbb`.
+
+| Step | Result | Evidence |
+| --- | --- | --- |
+| 15 Deep paths, default width (1600 px) | pass | Before: `stomer-detail`, `attaments`, `3c:png`, no counts, every header `packages/frontend/proto/review/admin-b…` (`01-changes-before-default.png`); after: `proto / review`, `admi…ustomer-detail`, `3c9b…png +1 −0 A`, headers `…tomer-detail/admin-billing-fixtures.ts` (`02-changes-after-default.png`) |
+| 15 Deep paths, narrow (1100 px) | pass | `03-changes-before-narrow.png`, `04-changes-after-narrow.png`; headers keep `…res.ts`, `…3a.png` |
 
 ## Backend consistency and diagnostics regression checks
 

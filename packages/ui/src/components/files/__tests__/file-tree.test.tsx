@@ -245,9 +245,9 @@ describe("FileTree", () => {
     await waitFor(() => row(container, path));
     const tree = container.querySelector('[data-slot="file-tree"]');
 
-    fireEvent.mouseOver(row(container, path));
+    fireEvent.mouseMove(row(container, path));
     expect(tree).toHaveAttribute("title", path);
-    fireEvent.mouseOver(row(container, "packages/frontend/proto/review/"));
+    fireEvent.mouseMove(row(container, "packages/frontend/proto/review/"));
     expect(tree).toHaveAttribute("title", "packages/frontend/proto/review");
     fireEvent.mouseLeave(tree as Element);
     expect(tree).not.toHaveAttribute("title");

@@ -37,7 +37,7 @@ export interface UseFileTreeModelOptions {
 export interface FileTreeModelState {
   filterMatches: boolean;
   handleClickCapture: (event: React.MouseEvent<HTMLElement>) => void;
-  /** Tracks the row under the pointer for `hoverTitle`; wire to `onMouseOver`/`onMouseLeave`. */
+  /** Tracks the row under the pointer for `hoverTitle`; wire to `onMouseMove`/`onMouseLeave`. */
   handleHover: (event: React.MouseEvent<HTMLElement>) => void;
   /** The full path of the hovered row (no trailing `/`), for the tree's native tooltip. */
   hoverTitle: string | undefined;
@@ -145,7 +145,8 @@ export function useFileTreeModel({
   };
 
   // A row shows a truncated name, so the tree's tooltip carries the full path. Rows live in
-  // Pierre's shadow root; a `title` on the light-DOM wrapper covers them.
+  // Pierre's shadow root; a `title` on the light-DOM wrapper covers them. `mousemove`, because a
+  // `mouseover` between two rows of one shadow root never reaches the light DOM.
   const [hoverPath, setHoverPath] = React.useState<string | null>(null);
   const handleHover = (event: React.MouseEvent<HTMLElement>) => {
     setHoverPath(event.type === "mouseleave" ? null : rowPathFromEvent(event.nativeEvent));

@@ -122,7 +122,7 @@ function FileTree({
       data-surface={surface}
       className={cn("relative flex h-full min-h-0 flex-col", className)}
       onClickCapture={handleClickCapture}
-      onMouseOver={handleHover}
+      onMouseMove={handleHover}
       onMouseLeave={handleHover}
       title={hoverTitle}
       {...props}
