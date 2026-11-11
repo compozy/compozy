@@ -1297,7 +1297,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		if len(runsQueries) != 3 {
 			t.Fatalf("ListRuns() calls = %d, want 3", len(runsQueries))
 		}
-		if runsQueries[2].Status != automationpkg.RunCompleted || runsQueries[2].Limit != 5 ||
+		if runsQueries[2].Status != automationpkg.RunCompleted || runsQueries[2].Limit != 6 ||
 			runsQueries[2].JobID != job.ID ||
 			runsQueries[2].Since.IsZero() ||
 			runsQueries[2].Until.IsZero() {

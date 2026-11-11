@@ -115,7 +115,7 @@ func (n *daemonNativeTools) workspaceInfo(
 
 func (n *daemonNativeTools) workspaceDescribe(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input workspaceRefInput
@@ -130,6 +130,10 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	sessions, err := n.deps.Sessions.ListAll(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -138,13 +142,13 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := nativeResolvedWorkspaceID(&resolved)
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{
 		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
-		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID),
+		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID, readScope),
 		nativeToolsAgentsKey:    core.AgentPayloadsFromEntries(agents, &resolved.Config),
 		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
 		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),

@@ -106,7 +106,7 @@ func nativeToolListPayloads(views []toolspkg.ToolView) []nativeToolListView {
 
 func nativeToolListPageFromViews(views []toolspkg.ToolView, offset int, limit int) nativeToolListPage {
 	start := min(offset, len(views))
-	end := min(start+limit, len(views))
+	end := start + min(limit, len(views)-start)
 	hasMore := end < len(views)
 	nextOffset := 0
 	if hasMore {

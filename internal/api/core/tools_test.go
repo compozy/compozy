@@ -110,7 +110,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		if searchScope.SessionID != "sess-1" || searchScope.WorkspaceID != "ws-workspace" || searchScope.Operator {
 			t.Fatalf("session search scope = %#v, want session workspace scope", searchScope)
 		}
-		if searchQuery.Query != "skill" || searchQuery.Limit != 1 {
+		if searchQuery.Query != "skill" || sessionSearch.Count != 1 || sessionSearch.Total < sessionSearch.Count {
 			t.Fatalf("session search query = %#v, want skill limit", searchQuery)
 		}
 

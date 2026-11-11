@@ -219,3 +219,12 @@ warn; **v0.5.0 removes them**, after which they fail like any unknown id:
 Scripts that use `compozy automation jobs|triggers`, `/api/automation/*`, or the
 `compozy__automation_*` tools need no change: their only difference is the added `last_run` field and
 the optional `target` filter.
+
+Run lists and job/trigger histories return 50 records by default, with a maximum of 200 per page.
+An omitted or zero limit uses the default. Follow `page.next_cursor` while `page.has_more` is true,
+keeping the same filters and profile/project scope. The CLI exposes `--last` and `--cursor` and
+preserves `page` in JSON output. Reading every page recovers the full matching history.
+
+When paging CLI run history with `--since` or `--until`, use an absolute RFC3339 timestamp on
+every page. Relative durations (such as `1h`) move between calls and are refused with `--cursor`.
+Human, TOON and JSONL output include page metadata alongside the records.

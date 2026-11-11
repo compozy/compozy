@@ -301,6 +301,32 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, resolved, _, _, _, _, _ := setup(t)
+		resolved.WorkspaceID = "metadata-alpha"
+		fixture.Handlers.Workspaces = testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) { return resolved, nil },
+			GetFn:     func(context.Context, string) (workspacepkg.Workspace, error) { return workspace, nil },
+		}
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Handlers.Sessions = &testutil.StubSessionManager{
+			ListForWorkspaceFn: func(_ context.Context, id string) ([]*session.Info, error) {
+				if id != workspace.ID {
+					t.Fatalf("workspace id = %s", id)
+				}
+				own := testutil.NewSessionInfo("own")
+				own.WorkspaceID = workspace.ID
+				other := testutil.NewSessionInfo("other-profile")
+				other.WorkspaceID = workspace.ID
+				other.ProfileID = "profile-marketing"
+				return []*session.Info{own, other}, nil
+			},
+		}
+		all := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID+"?all_profiles=true", nil)
+		var allPayload contract.WorkspaceDetailPayload
+		testutil.DecodeJSONResponse(t, all, &allPayload)
+		if all.Code != http.StatusOK || len(allPayload.Sessions) != 2 {
+			t.Fatalf("all profiles response = %d %s", all.Code, all.Body)
+		}
+
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusOK)

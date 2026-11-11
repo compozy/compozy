@@ -21,7 +21,7 @@ var catalogTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDToolSearch,
 		"tool_search",
 		"Tool Search",
-		"Search the caller's tool catalog with effective callable or denied diagnostics.",
+		"Search the caller's tool catalog with diagnostics; defaults to 20 results, continued with next_offset.",
 		toolSearchInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -84,7 +84,8 @@ const toolSearchInputSchema = `{
 	"required":["query"],
 	"properties":{
 		"query":{"type":"string"},
-		"limit":{"type":"integer"}
+        "offset":{"type":"integer","minimum":0},
+        "limit":{"type":"integer","minimum":0,"maximum":100,"description":"Page size; omitted or zero uses 20."}
 	},
 	"additionalProperties":false
 }`

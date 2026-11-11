@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -38,32 +37,6 @@ func (n *daemonNativeTools) nativeAutomationJobForWorkspace(
 	return job, nil
 }
 
-func (n *daemonNativeTools) nativeAutomationJobsForWorkspace(
-	ctx context.Context,
-	workspaceID string,
-	readScope store.ReadScope,
-) ([]automationpkg.Job, error) {
-	query := automationpkg.JobListQuery{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		Limit:       automationpkg.MaxListLimit,
-		ReadScope:   readScope,
-	}
-	jobs := make([]automationpkg.Job, 0)
-	for {
-		page, err := n.automationManager().ListJobs(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		jobs = append(jobs, page.Jobs...)
-		nextCursor := strings.TrimSpace(page.NextCursor)
-		if !page.HasMore || nextCursor == "" || nextCursor == strings.TrimSpace(query.Cursor) {
-			return jobs, nil
-		}
-		query.Cursor = nextCursor
-	}
-}
-
 func (n *daemonNativeTools) nativeAutomationTriggerForWorkspace(
 	ctx context.Context,
 	workspaceID string,
@@ -90,32 +63,6 @@ func (n *daemonNativeTools) nativeAutomationTriggerForWorkspace(
 		return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
 	}
 	return trigger, nil
-}
-
-func (n *daemonNativeTools) nativeAutomationTriggersForWorkspace(
-	ctx context.Context,
-	workspaceID string,
-	readScope store.ReadScope,
-) ([]automationpkg.Trigger, error) {
-	query := automationpkg.TriggerListQuery{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		Limit:       automationpkg.MaxListLimit,
-		ReadScope:   readScope,
-	}
-	triggers := make([]automationpkg.Trigger, 0)
-	for {
-		page, err := n.automationManager().ListTriggers(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		triggers = append(triggers, page.Triggers...)
-		nextCursor := strings.TrimSpace(page.NextCursor)
-		if !page.HasMore || nextCursor == "" || nextCursor == strings.TrimSpace(query.Cursor) {
-			return triggers, nil
-		}
-		query.Cursor = nextCursor
-	}
 }
 
 func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
@@ -165,21 +112,6 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 	return run, nil
 }
 
-func (n *daemonNativeTools) nativeAutomationRunsForWorkspace(
-	ctx context.Context,
-	workspaceID string,
-	query automationpkg.RunQuery,
-) ([]automationpkg.Run, error) {
-	if err := n.validateNativeAutomationRunTargets(ctx, workspaceID, query); err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(query.JobID) != "" || strings.TrimSpace(query.TriggerID) != "" {
-		return n.automationManager().ListRuns(ctx, query)
-	}
-
-	return n.nativeAutomationRunsAcrossWorkspaceTargets(ctx, workspaceID, query)
-}
-
 func (n *daemonNativeTools) validateNativeAutomationRunTargets(
 	ctx context.Context,
 	workspaceID string,
@@ -201,70 +133,4 @@ func (n *daemonNativeTools) validateNativeAutomationRunTargets(
 		}
 	}
 	return nil
-}
-
-func (n *daemonNativeTools) nativeAutomationRunsAcrossWorkspaceTargets(
-	ctx context.Context,
-	workspaceID string,
-	query automationpkg.RunQuery,
-) ([]automationpkg.Run, error) {
-	jobs, err := n.nativeAutomationJobsForWorkspace(ctx, workspaceID, query.ReadScope)
-	if err != nil {
-		return nil, err
-	}
-	triggers, err := n.nativeAutomationTriggersForWorkspace(ctx, workspaceID, query.ReadScope)
-	if err != nil {
-		return nil, err
-	}
-	limit := query.Limit
-	query.Limit = 0
-	runsByID := make(map[string]automationpkg.Run)
-	for _, job := range jobs {
-		jobQuery := query
-		jobQuery.JobID = job.ID
-		runs, listErr := n.automationManager().ListRuns(ctx, jobQuery)
-		if listErr != nil {
-			return nil, listErr
-		}
-		addNativeAutomationRuns(runsByID, runs)
-	}
-	for _, trigger := range triggers {
-		triggerQuery := query
-		triggerQuery.TriggerID = trigger.ID
-		runs, listErr := n.automationManager().ListRuns(ctx, triggerQuery)
-		if listErr != nil {
-			return nil, listErr
-		}
-		addNativeAutomationRuns(runsByID, runs)
-	}
-	return sortedNativeAutomationRuns(runsByID, limit), nil
-}
-
-func sortedNativeAutomationRuns(runsByID map[string]automationpkg.Run, limit int) []automationpkg.Run {
-	runs := make([]automationpkg.Run, 0, len(runsByID))
-	for _, run := range runsByID {
-		runs = append(runs, run)
-	}
-	slices.SortFunc(runs, func(a, b automationpkg.Run) int {
-		switch {
-		case a.StartedAt != nil && b.StartedAt == nil:
-			return -1
-		case a.StartedAt == nil && b.StartedAt != nil:
-			return 1
-		case a.StartedAt != nil && b.StartedAt != nil && !a.StartedAt.Equal(*b.StartedAt):
-			return b.StartedAt.Compare(*a.StartedAt)
-		default:
-			return strings.Compare(b.ID, a.ID)
-		}
-	})
-	if limit > 0 && len(runs) > limit {
-		runs = runs[:limit]
-	}
-	return runs
-}
-
-func addNativeAutomationRuns(target map[string]automationpkg.Run, runs []automationpkg.Run) {
-	for _, run := range runs {
-		target[strings.TrimSpace(run.ID)] = run
-	}
 }

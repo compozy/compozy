@@ -16,8 +16,9 @@ import (
 const worktreeKey = "worktree"
 
 type nativeWorktreeListInput struct {
-	Workspace string `json:"workspace"`
-	Refresh   bool   `json:"refresh"`
+	Workspace      string `json:"workspace"`
+	IncludeRemoved bool   `json:"include_removed"`
+	Refresh        bool   `json:"refresh"`
 }
 
 type nativeWorktreeRefInput struct {
@@ -59,7 +60,7 @@ func (n *daemonNativeTools) worktreeList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
 	}
-	payload := core.WorktreesPayloadFromListing(listing)
+	payload := core.WorktreesPayloadFromListing(listing, input.IncludeRemoved)
 	return structuredResult(payload, fmt.Sprintf("%d worktrees", len(payload.Worktrees)))
 }
 

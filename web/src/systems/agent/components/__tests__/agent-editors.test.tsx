@@ -60,7 +60,9 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
 // real socket, and the refused connection fails the mocked requests queued on it (#1445).
 const shellHandlers = [
   compozyApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] })),
-  compozyApiMock.get("/api/tools", () => HttpResponse.json({ tools: [] })),
+  compozyApiMock.get("/api/tools", () =>
+    HttpResponse.json({ tools: [], count: 0, total: 0, has_more: false })
+  ),
   compozyApiMock.get("/api/sessions", () =>
     HttpResponse.json({ sessions: [], page: { has_more: false, limit: 50, total: 0 } })
   ),

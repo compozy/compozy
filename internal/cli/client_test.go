@@ -4173,7 +4173,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Until:  startedAt.Add(time.Hour),
 			Limit:  2,
 		})
-		if err != nil || len(jobRuns) != 1 || jobRuns[0].JobID != "job-created" {
+		if err != nil || len(jobRuns.Runs) != 1 || jobRuns.Runs[0].JobID != "job-created" {
 			t.Fatalf("AutomationJobRuns() = %#v, %v", jobRuns, err)
 		}
 	})
@@ -4241,7 +4241,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Status: automationpkg.RunCompleted,
 			Limit:  1,
 		})
-		if err != nil || len(triggerRuns) != 1 || triggerRuns[0].TriggerID != "trg-created" {
+		if err != nil || len(triggerRuns.Runs) != 1 || triggerRuns.Runs[0].TriggerID != "trg-created" {
 			t.Fatalf("AutomationTriggerRuns() = %#v, %v", triggerRuns, err)
 		}
 	})
@@ -4261,7 +4261,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Until:     startedAt.Add(time.Hour),
 			Limit:     5,
 		})
-		if err != nil || len(runs) != 1 || runs[0].ID != "run-shared" {
+		if err != nil || len(runs.Runs) != 1 || runs.Runs[0].ID != "run-shared" {
 			t.Fatalf("ListAutomationRuns() = %#v, %v", runs, err)
 		}
 	})

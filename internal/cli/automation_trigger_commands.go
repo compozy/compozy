@@ -1,6 +1,8 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 const automationTriggerEventHelp = "Trigger event: session.created, session.stopped, " +
 	"hook.<hook_name>.completed, webhook, or ext.*"
@@ -190,6 +192,7 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 		sinceRaw  string
 		untilRaw  string
 		last      int
+		cursor    string
 	)
 
 	cmd := &cobra.Command{
@@ -202,7 +205,7 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := parseAutomationRunListQuery(statusRaw, sinceRaw, untilRaw, last, deps.now)
+			query, err := parseAutomationRunListQuery(statusRaw, sinceRaw, untilRaw, last, cursor, deps.now)
 			if err != nil {
 				return err
 			}
@@ -219,7 +222,8 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().
 		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
-	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
+	cmd.Flags().IntVar(&last, "last", 50, "Maximum runs per page (0 uses 50; maximum 200)")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after page.next_cursor (time filters must be RFC3339)")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

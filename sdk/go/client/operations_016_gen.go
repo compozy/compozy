@@ -221,13 +221,21 @@ func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowM
 
 // GetWorkspaceParams carries the path, query, and header parameters.
 type GetWorkspaceParams struct {
-	ID string `url:"id"`
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
 }
 
 // GetWorkspace Get one resolved workspace with related data
 func (c *Client) GetWorkspace(ctx context.Context, params GetWorkspaceParams) (*WorkspaceDetailPayload, error) {
 	path := "/api/workspaces/{id}"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out WorkspaceDetailPayload
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
@@ -430,21 +438,4 @@ func (c *Client) InspectTask(ctx context.Context, params InspectTaskParams) (*Ta
 type InspectWorktreeParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	WorktreeID  string `url:"worktree_id"`
-}
-
-// InspectWorktree Inspect one worktree
-func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreeParams) (*WorktreeInspectionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	var out WorktreeInspectionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InstallExtensionParams carries the path, query, and header parameters.
-type InstallExtensionParams struct {
-	Profile *string `url:"profile"`
 }

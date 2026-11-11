@@ -100,3 +100,11 @@ still use one PR batch and check every returned row's status and forge facts.
 Evidence and exact commands: [worktree audit](../reports/2026-11-01-performance/worktree-workspace.md).
 This adds service/store evidence; the enclosing HTTP/UDS/CLI/native transport re-walk
 and current-head CI remain separately owned. Historical scenario status is unchanged.
+
+Removed-record visibility: seed ready, failed, missing and removed records. Native, HTTP/UDS and
+CLI list reads omit only removed records by default. Explicit `include_removed=true` (CLI
+`--include-removed`) restores them, including All projects; discovered checkouts remain visible.
+
+The Web adapter explicitly includes removed records for bound-session resolution, while the
+visible catalog still hides them. Verify a stopped session bound to a removed worktree retains
+its recorded name/state and Resolve control.
