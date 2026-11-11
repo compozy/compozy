@@ -9,7 +9,7 @@ Use this skill only for an explicit request for the independent review and refin
 
 ## Run the existing definition
 
-Inspect `open-design-review` through `compozy__loop_inspect` and read the live descriptors for loop operations. Use the active workspace; the `open-design` profile provides the designer, critic, and linter. If operations are unavailable, report that limitation without claiming an independent cycle ran.
+Inspect `open-design-review` through `compozy__loop_inspect` with `result_view: "full"` and read the live descriptors for loop operations. Use the active workspace; the `open-design` profile provides the designer, critic, and linter. If operations are unavailable, report that limitation without claiming an independent cycle ran.
 
 Supply a concise `brief` and a workspace-relative `artifact_path` under `docs/design/`. Preserve existing or explicitly requested paths; otherwise use `docs/design/<slug>/index.html`. For related HTMLs, name the entry file and list the other boards or `_uiux.md` paths in the brief. The designer returns every HTML path for lint and review.
 
@@ -50,6 +50,6 @@ With these per-run overrides, the native loop permits at most three generations:
 
 ## Deliver the observed outcome
 
-Follow the returned run ID with `compozy__loop_status` and inspect its node outputs, especially `critique` and `verify`. Use `compozy loop why <run-id> -o json` when a result needs diagnosis. Keep observing the existing run after a wait timeout rather than starting it again.
+Follow the returned run ID with `compozy__loop_status` using `result_view: "full"` and inspect its node outputs, especially `critique` and `verify`. Use `compozy loop why <run-id> -o json` when a result needs diagnosis. Keep observing the existing run after a wait timeout rather than starting it again.
 
 Successful completion requires terminal `done` and the recorded approved `critique` result with matching lint verification. Link the actual HTML files, report the terminal outcome and remaining findings or accepted exceptions, and state which browser or visual checks ran. Exhaustion or interruption leaves the latest files on disk; there is no automatic rollback or best-version restoration.

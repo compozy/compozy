@@ -238,3 +238,12 @@ mapping is rejected — because a clock fire has no payload. See
 scoped worktree exit-plan proof; `fingerprint` is a SHA-256 hex digest and the include set contains
 1–4096 exact relative files. The child declares `reviewed_worktree: {type: string, required: false}`.
 Without the original proof, recovery reruns the review instead of adopting its previous result.
+
+## References to native result views
+
+A compact node reading a full-only field fails before Start with
+`result_view_field_requires_full`, naming the source node, tool and path. Set
+`result_view: full` on that source node. The same rule applies to `produces`.
+An undeclared path under an open full-schema object is accepted with the existing
+“cannot be proven” warning; a path rejected by a closed full schema still fails with
+`unresolvable_path`. Check open paths against a real full result.

@@ -402,3 +402,67 @@ Read-only inspection tools may exist for these domains. Do not invent a mutating
 Hosted MCP descriptions include the authored instructions and canonical ID. Discovery tags, search
 hints and toolset membership remain available through tool descriptors and provider search metadata,
 without repeating them in every loaded tool description. Provider-visible server names are unchanged.
+
+## Result views and discovery
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+`compozy__tool_list` and `compozy__tool_search` return compact rows by default, with
+`has_result_views` for discovery. List rows keep id, risk, callable, approval_required,
+reason codes and page fields; search also keeps description. Pass `result_view: "full"`
+for the complete discovery records. `compozy__tool_info` stays whole and exposes both
+`output_views.compact` and `output_views.full`, each with schema and digest.
+
+## Errors
+
+| Condition                                             | Code                 | Reason                            | Message                                                                                |
+| ----------------------------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
+| Unknown `result_view` value                           | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` is not a string                         | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` sent to a single-result tool            | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__skill_view" returns a single result and does not accept "result_view"` |
+| Loop node `result_view` is a template                 | lint                 | `result_view_not_literal`         | `node "inspect" params.result_view must be a literal "compact" or "full"`              |
+| Loop reference reads a field outside the compact view | lint                 | `result_view_field_requires_full` | see the Loops section                                                                  |
+| A hook changed `result_view` on a Loop node's call    | `tool_denied`        | `result_view_pinned`              | `tool "compozy__session_status" result view is pinned to "full" by the caller`         |
+
+Tools that report input errors as `invalid_request` keep that code for the first three rows. In every
+case the tool does not run. The first three rows apply to native tools only: an extension or MCP tool
+that has its own input named `result_view` is not inspected and behaves as before.
+
+A path that neither view accepts keeps the existing Loop error `unresolvable_path`.
+
+## Approvals
+
+`result_view` does not change which approval applies. An approval you remembered for a call matches
+the same call with `result_view: "full"` or `"compact"`, and approvals remembered before the upgrade
+keep matching. The approval prompt shows the input as sent, including the selector. If you mint a
+one-shot approval token from an input digest instead of an input, compute the digest on the input
+without `result_view`.
+
+For native tools with views, managed-session MCP advertises an `outputSchema` with
+compact, full, continuation-envelope and typed-error branches. `compozy mcp serve`
+uses a separate `compozy_host__*` Host API projection without views or output schemas.
+Hooks see `has_result_views` on pre-call, post-call and post-error tool references;
+post-call adds `result_view`. A pre-call `tool_input` patch selects the returned view
+for the agent too. Leave calls with `pinned_result_view` unchanged; select the view
+in the Loop node instead.

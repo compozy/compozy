@@ -1,5 +1,32 @@
 # Compozy Change Impact
 
+## Native Tool Result Views — issue #1432 — 2026-11-10
+
+Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure. ADR-002 records the
+operator-approved hard cut for public default results (SD-013 regime 2).
+
+- **Native tools / CLI / HTTP / UDS:** 99 native tools adopt compact/full; 189 retain a
+  single result. Tool descriptors expose both contracts and digests. Invocation takes
+  `result_view` inside input; HTTP/UDS session DTOs and `compozy session` stay unchanged.
+- **Hooks / extensibility:** tool references add `has_result_views` and, when pinned,
+  `pinned_result_view`; `tool.post_call` adds `result_view`. Pre-call input patches can
+  select a view but cannot override Loop pins. Extension/MCP-backed tools keep their
+  own inputs. Managed-session MCP advertises both result schemas plus envelope/error;
+  `compozy mcp serve` keeps its separate Host API projection.
+- **Config / automation:** no new key or default override. Job/Trigger/LoopTarget
+  definitions start sessions, Tasks or Loops; mappings consume event inputs, not native
+  result fields. No automation storage migration is needed.
+- **User state / workspace isolation:** no SQLite or config shape changes. Existing
+  scope authorization and artifact ownership apply to both views. Pre-view Loop pins
+  translate to full for one release; #1462 removes translation next release. Definitions
+  reading moved fields require a literal full selector before Start.
+- **Official skill / bundled consumers:** native-tools, tools-and-skills and loops
+  references explain selection and migration. Consumer audit evidence is in the S10 QA
+  report and PR inventory. Requested content tools remain whole.
+- **Web / Docs:** generic transcript rendering and required parser fields remain;
+  no new UI. Site tools, hooks, Loop grammar/DSL and migration pages co-ship. QA:
+  ET-native-result-views, ET-cli-tool-invoke-structural-handles, RT-session-spawn-wake.
+
 ## compozy.com redesign on the v1.2 brand — landing, download, marketplace, changelog, blog, docs shell and SDK Reference — 2026-11-10
 
 Owner: spec `.compozy/tasks/site-redesign/` (integration branch `feat/brand-identity-v1-2`, slices

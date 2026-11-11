@@ -182,7 +182,7 @@ Pass `request_id` for replay-safe transport retries. The same key with different
 Follow **inspect → validate → dry-run → publish (with `expected_version`) → run**. Every step before
 `run` is structured and spends no tokens.
 
-1. **inspect** — `compozy__loop_inspect` returns the definition and its current `version`. Read the
+1. **inspect** — `compozy__loop_inspect` with `result_view: "full"` returns the complete inspection record and its current `version`. Read the
    version before you change anything.
 2. **validate** — `compozy__loop_validate` lints and compiles a candidate without saving; it returns
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
@@ -775,7 +775,7 @@ boundary reports a model rejection when it cannot bind that ID.
 
 Successful generation outputs expose the binder-applied `resolved_runtime` fields, per-field
 provenance, and the speed outcome (`applied`, `unsupported`, or `rejected`) through `compozy loop
-status`, HTTP/UDS run detail, `compozy__loop_status`, and `runtime_applied` SSE frames. The web run
+status`, HTTP/UDS run detail, `compozy__loop_status` with `result_view: "full"`, and `runtime_applied` SSE frames. The web run
 inspector displays the same durable values read-only.
 Successful persisted `loop run` responses also expose `web_url`; human output prints it as the final
 line. Dry-run has no run ID and never emits a URL.
@@ -938,3 +938,54 @@ attention with `goal_wait_timeout`; unavailable wait inspection pauses with `goa
 Inspect the monitor or child before explicitly resuming the Goal. A deliberate daemon stop pauses
 the Goal and stops its session: resume the session first, then the Goal. Completion and evidenced
 blocked reports keep their existing judge/control handling, including while another wait is live.
+
+## Loops
+
+A tool action node selects its view in `params`. The value is a literal.
+
+```yaml
+graph:
+  nodes:
+    - id: inspect
+      class: action
+      kind: compozy__session_status
+      params:
+        session_id: "{{ .inputs.session_id }}"
+        result_view: full
+    - id: report
+      class: action
+      kind: run-agent
+      params:
+        agent: general
+        prompt: "Tools allowed: {{ .nodes.inspect.output.session.lineage.permission_policy.tools }}"
+  edges:
+    - from: inspect
+      to: report
+```
+
+Without `result_view: full` on `inspect`, Loop validation (`compozy__loop_validate`,
+`compozy loop create`, `compozy loop run`) stops the Loop before Start:
+
+```text
+error: result_view_field_requires_full
+  node "report" reads nodes.inspect.output.session.lineage, which the compact result of
+  compozy__session_status does not include (the compact lineage includes identity, ttl_expires_at and spawn_budget,
+  but not permission_policy).
+  fix: add `result_view: full` to the params of node "inspect".
+```
+
+With `result_view: full`, a reference may read any field the full record carries, including fields
+the tool's full schema does not list, as long as that part of the schema is open. Validation then
+warns that the path cannot be proven. A field that is missing at run time resolves to an empty value,
+so check the name against a real result.
+
+The same rules apply to a tool node's own `produces`: declaring a field that only the full view has
+fails with `result_view_field_requires_full`; declaring a field neither view has fails with
+`unresolvable_path`.
+
+A run pins the contract of the view each node selected. A run started before the upgrade keeps the
+contract it pinned and its nodes return the full record.
+
+The pre-view snapshot translation is removed in the first release after result views ship
+([#1462](https://github.com/compozy/compozy/issues/1462)). Newly started runs pin their
+selected view. Review edits cannot change the view after validation.

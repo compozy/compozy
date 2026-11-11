@@ -166,3 +166,10 @@ Poor tool candidates:
 - [SKILL.md Format](/docs/skills/skill-md) explains how skills teach agents when to use
   tools.
 - [Tool CLI Reference](/docs/cli/tool) is the generated command reference.
+
+## Native result views
+
+Native tools with result views return compact records by default. Read both schemas through
+`compozy tool info <id> -o json`, then pass `"result_view":"full"` inside `--input` when
+you need the complete record. Single-result tools reject the selector.
+See [Result Views](/docs/tools/result-views) for discovery, errors and migration.

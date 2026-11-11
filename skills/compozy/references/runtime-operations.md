@@ -64,6 +64,7 @@ not prove a live binding and is absent when no runtime identity has been recorde
 Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
 the session's effective model when present, ahead of the configured agent default. A pending
 next-prompt selection does not replace that identity before it is applied.
+For native session reads, pass `result_view: "full"` to inspect runtime catalogs and capabilities.
 `runtime.acp_caps` (absent while unbound) includes `supports_load_session`, `supports_fork_session`,
 and `supports_resume_session`; each is `true` only when the bound agent advertised it.
 
@@ -1646,7 +1647,7 @@ process, and old events can omit this additive object. No retry-after seconds ar
 ## Silence supervision and scheduling pressure
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
-session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
+session resource/status or `compozy__session_describe` with `result_view: "full"`. Fresh agent progress, verified tools,
 active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired

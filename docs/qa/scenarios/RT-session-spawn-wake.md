@@ -204,3 +204,9 @@ N+1 retains task-result stitching and completes on its own terminal evidence or 
 fallback. Repeating N's interruption must not affect N+1 or emit a completed wake for N.
 The existing native service, native ACP daemon integration, and canceled-turn spawn-wake
 suites own these checks; CI owns the full public-surface journey.
+
+QA impact 2026-11-10 — Native result views: inspect the default compact result and
+repeat with `result_view: "full"`. Reuse identity, follow-up fences and TTL values;
+permission policy and diagnostic detail require full. The bounded result-view walk
+is recorded in [the S10 report](../reports/2026-11-10-native-result-views.md); it does
+not replace this scenario's broader historical redaction/wake matrix.

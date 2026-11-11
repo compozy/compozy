@@ -333,7 +333,7 @@ account and organization details from probe responses and diagnostics.
 
 Create supports `display_name` (80 characters), `description` (280), `kind` (`on_demand` by default or `always_on`),
 and an open `appearance` object. `compozy__agent_create` accepts these fields; agent reads include `label`,
-`kind`, authored `appearance`, and `resolved_appearance`. The label falls back to the humanized slug.
+`kind`, authored `appearance`, and `resolved_appearance` (pass `result_view: "full"` on native reads for authored and resolved appearance). The label falls back to the humanized slug.
 A generated appearance uses `{version:1, avatar:"generated", seed:<slug>, generation:1, color:"#7c5cff"}`.
 Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color,
 plus optional `background:"none"` to drop the tinted plate (`"plate"` or unset keeps it). Every write needs

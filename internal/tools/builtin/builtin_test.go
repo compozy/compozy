@@ -8,6 +8,7 @@ import (
 	"go/constant"
 	"go/types"
 	"maps"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -4126,5 +4127,75 @@ func TestSingleResultContracts(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// UT-014: every native tool has exactly one result contract.
+func TestNativeResultClassification(t *testing.T) {
+	t.Parallel()
+	for _, d := range NativeDescriptors() {
+		t.Run("Should classify "+d.ID.String()+" exactly once", func(t *testing.T) {
+			t.Parallel()
+			_, single := SingleResultReasonFor(d.ID)
+			if (d.ResultViews() != nil) == single {
+				t.Fatalf("%s must have views or a single-result reason, exclusively", d.ID)
+			}
+		})
+	}
+}
+
+// UT-015: the generated product catalog describes the live contracts.
+func TestNativeResultCatalog(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("testdata/native-tool-catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []struct {
+		ID       toolspkg.ToolID    `json:"tool_id"`
+		Contract string             `json:"result_contract"`
+		Reason   SingleResultReason `json:"single_result_reason"`
+		Compact  string             `json:"compact_output_schema_digest"`
+		Full     string             `json:"full_output_schema_digest"`
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		t.Fatal(err)
+	}
+	descriptors := NativeDescriptors()
+	if len(entries) != len(descriptors) {
+		t.Fatalf("catalog=%d descriptors=%d", len(entries), len(descriptors))
+	}
+	byID := make(map[toolspkg.ToolID]int, len(entries))
+	for i, e := range entries {
+		if _, exists := byID[e.ID]; exists {
+			t.Fatalf("duplicate catalog entry %s", e.ID)
+		}
+		byID[e.ID] = i
+	}
+	for _, descriptor := range descriptors {
+		t.Run("Should publish the result contract of "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+			d, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			i, exists := byID[d.ID]
+			if !exists {
+				t.Fatalf("missing catalog entry %s", d.ID)
+			}
+			entry := entries[i]
+			if views := d.ResultViews(); views != nil {
+				if entry.Contract != "compact_full" || entry.Reason != "" || entry.Compact != views.Compact.Digest ||
+					entry.Full != views.Full.Digest {
+					t.Fatalf("catalog contract differs for %s", d.ID)
+				}
+			} else {
+				reason, ok := SingleResultReasonFor(d.ID)
+				if !ok || entry.Contract != "single" || entry.Reason != reason || entry.Compact != "" ||
+					entry.Full != "" {
+					t.Fatalf("catalog single result differs for %s", d.ID)
+				}
+			}
+		})
 	}
 }

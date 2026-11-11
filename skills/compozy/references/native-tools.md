@@ -1272,3 +1272,150 @@ Ensure-main requires an existing instance. A missing native target returns
 `agent_instance_not_found`, not a backend health error. Ensure-main does not support
 `dry_run`; the native tool rejects it before starting a main and the CLI offers no such flag.
 Use instance get (CLI `agent instance show`) to inspect without starting a session.
+
+## Result views
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+### Session record tools
+
+`compozy__session_status`, `compozy__session_create` and `compozy__session_archive` return the same
+compact session record shown in the Golden Path. Optional fields appear only when set:
+
+| Field                                   | When present                             |
+| --------------------------------------- | ---------------------------------------- |
+| `attention`, `waiting_on`               | The session needs the operator or waits  |
+| `pending_interactions[]`                | Always (empty list when none)            |
+| `stop_reason`, `stop_detail`, `failure` | The session stopped or failed            |
+| `runtime.failure`                       | The runtime binding failed               |
+| `worktree_id`, `branch`, `pull_request` | The session is bound to a worktree       |
+| `queue`, `children`, `subagent_summary` | The session has queued input or children |
+| `later`                                 | The session is set aside for later       |
+
+`transcript_epoch`, `runtime.generation` and `runtime.selection_revision` are the fences
+`compozy__session_rewind`, `compozy__session_fork`, `compozy__session_continue` and
+`compozy__session_runtime_set` take as input. `runtime.selection_revision` is always present.
+`transcript_epoch` and `runtime.generation` are omitted while they are 0, exactly as in the full
+record: `runtime.generation` until the session is first bound (one `compozy__session_create` just
+returned has none), `transcript_epoch` until the first clear or rewind. Pass 0 as the fence in that
+case. `lineage` carries `kind`, `parent_session_id`, `root_session_id`, `ttl_expires_at` and `spawn_budget` in the
+compact result; the permission policy is in the full result.
+
+A session waiting on a permission prompt:
+
+```json
+{
+  "session": {
+    "id": "sess-7f3a9c21d4e80b16",
+    "agent_name": "general",
+    "state": "active",
+    "badge": "waiting-for-input",
+    "board_column": "needs_you",
+    "runtime": {
+      "status": "ready",
+      "effective": { "provider": "claude", "model": "claude-opus-5-5" }
+    },
+    "pending_interactions": [
+      {
+        "session_id": "sess-7f3a9c21d4e80b16",
+        "interaction_id": "int-52c1",
+        "kind": "permission",
+        "provider_request_id": "req-9",
+        "title": "Run make test",
+        "status": "pending",
+        "created_at": "2026-11-10T14:19:40Z"
+      }
+    ],
+    "archived_at": null,
+    "created_at": "2026-11-10T14:02:11Z",
+    "updated_at": "2026-11-10T14:19:47Z"
+  }
+}
+```
+
+`compozy__session_spawn` compact result — the spawn facts without the permission echo:
+
+```json
+// call
+{
+  "tool": "compozy__session_spawn",
+  "input": { "agent_name": "general", "ttl_seconds": 3600 }
+}
+
+// result (compact, default)
+{
+  "session_id": "sess-1b22e0a947c35d08",
+  "spawn_role": "worker",
+  "spawn_depth": 1,
+  "ttl_expires_at": "2026-11-10T15:20:02Z"
+}
+```
+
+`result_view: "full"` adds `permissions` (`tools`, `skills`, `mcp_servers`, `workspace_paths`), as
+before. When the call sends a first `prompt` or creates a worktree, both views carry the same `prompt`
+and `worktree` entries.
+
+### Discovering both contracts
+
+```json
+// call
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__session_status" } }
+
+// result (descriptor excerpt)
+{
+  "tool_id": "compozy__session_status",
+  "description": "Read one session. Returns the compact result; pass result_view \"full\" for the complete record.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "session_id": { "type": "string" },
+      "result_view": {
+        "type": "string",
+        "enum": ["compact", "full"]
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": { "type": "object", "required": ["session"], "additionalProperties": false },
+  "output_schema_digest": "5d1c0e…",
+  "output_views": {
+    "compact": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "5d1c0e…" },
+    "full": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "a2c799…" }
+  }
+}
+```
+
+`output_schema` and `output_schema_digest` always describe the compact view. The schemas above are
+shortened; the real ones list every property.
+
+A single-result tool has no `output_views` and no `result_view` input:
+
+```json
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__skill_view" } }
+// descriptor has "output_schema" only.
+```
+
+Compact session records also retain `stop_cause`, `permission_mode_degraded`,
+`attention_dismissible`, `lineage.ttl_expires_at` and `lineage.spawn_budget`.
+Compact `compozy__agent_heartbeat_status` retains the policy `snapshot_id`.

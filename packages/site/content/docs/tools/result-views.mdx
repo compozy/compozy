@@ -1,0 +1,412 @@
+---
+title: Result Views
+description: Choose compact or full native tool results and migrate existing consumers.
+---
+
+## Golden Path
+
+An agent checks a session, then asks for the complete record only when it needs it.
+
+```json
+// call
+{ "tool": "compozy__session_status", "input": { "session_id": "sess-7f3a9c21d4e80b16" } }
+
+// result (compact, default)
+{
+  "session": {
+    "id": "sess-7f3a9c21d4e80b16",
+    "profile_id": "prof_default",
+    "name": "Fix flaky upload test",
+    "agent_name": "general",
+    "type": "user",
+    "state": "active",
+    "badge": "running",
+    "board_column": "working",
+    "workspace_id": "ws_bbb9cd622c8d0689",
+    "branch": "fix/upload-flake",
+    "runtime": {
+      "status": "ready",
+      "generation": 3,
+      "selection_revision": 2,
+      "effective": { "provider": "claude", "model": "claude-opus-5-5", "reasoning_effort": "medium" }
+    },
+    "transcript_epoch": 1,
+    "lineage": { "kind": "root", "root_session_id": "sess-7f3a9c21d4e80b16" },
+    "pending_interactions": [],
+    "archived_at": null,
+    "created_at": "2026-11-10T14:02:11Z",
+    "updated_at": "2026-11-10T14:19:47Z"
+  }
+}
+```
+
+```json
+// call
+{
+  "tool": "compozy__session_status",
+  "input": { "session_id": "sess-7f3a9c21d4e80b16", "result_view": "full" }
+}
+
+// result (full): the record this tool returned before result views, unchanged —
+// the compact fields above plus lineage (with the permission policy), supervision,
+// runtime.acp_caps, available_commands, diagnostics, profile presentation and the rest.
+```
+
+## Native Tools
+
+### The selector
+
+| Input         | Type   | Values            | Default   | Present on                |
+| ------------- | ------ | ----------------- | --------- | ------------------------- |
+| `result_view` | string | `compact`, `full` | `compact` | every tool that has views |
+
+`result_view` changes only what is returned. It never changes what the tool does, its risk class, its
+approval requirement or its permission match.
+
+### What compact keeps
+
+A compact result keeps what a caller needs to act:
+
+- identity (`id`, names, the workspace or parent it belongs to);
+- state, and anything the caller must not miss: pending interactions, failures, stop reasons, limits
+  reached, truncation and pagination cursors;
+- the fields a follow-up call takes as input.
+
+The full result adds large content the caller already holds or can fetch on demand: permission
+policies, option catalogs, supervision and diagnostic internals, embedded definitions.
+
+Every field in a compact result is in the full result at the same path with the same value.
+
+### Session record tools
+
+`compozy__session_status`, `compozy__session_create` and `compozy__session_archive` return the same
+compact session record shown in the Golden Path. Optional fields appear only when set:
+
+| Field                                   | When present                             |
+| --------------------------------------- | ---------------------------------------- |
+| `attention`, `waiting_on`               | The session needs the operator or waits  |
+| `pending_interactions[]`                | Always (empty list when none)            |
+| `stop_reason`, `stop_detail`, `failure` | The session stopped or failed            |
+| `runtime.failure`                       | The runtime binding failed               |
+| `worktree_id`, `branch`, `pull_request` | The session is bound to a worktree       |
+| `queue`, `children`, `subagent_summary` | The session has queued input or children |
+| `later`                                 | The session is set aside for later       |
+
+`transcript_epoch`, `runtime.generation` and `runtime.selection_revision` are the fences
+`compozy__session_rewind`, `compozy__session_fork`, `compozy__session_continue` and
+`compozy__session_runtime_set` take as input. `runtime.selection_revision` is always present.
+`transcript_epoch` and `runtime.generation` are omitted while they are 0, exactly as in the full
+record: `runtime.generation` until the session is first bound (one `compozy__session_create` just
+returned has none), `transcript_epoch` until the first clear or rewind. Pass 0 as the fence in that
+case. `lineage` carries `kind`, `parent_session_id`, `root_session_id`, `ttl_expires_at` and `spawn_budget` in the
+compact result; the permission policy is in the full result.
+
+A session waiting on a permission prompt:
+
+```json
+{
+  "session": {
+    "id": "sess-7f3a9c21d4e80b16",
+    "agent_name": "general",
+    "state": "active",
+    "badge": "waiting-for-input",
+    "board_column": "needs_you",
+    "runtime": {
+      "status": "ready",
+      "effective": { "provider": "claude", "model": "claude-opus-5-5" }
+    },
+    "pending_interactions": [
+      {
+        "session_id": "sess-7f3a9c21d4e80b16",
+        "interaction_id": "int-52c1",
+        "kind": "permission",
+        "provider_request_id": "req-9",
+        "title": "Run make test",
+        "status": "pending",
+        "created_at": "2026-11-10T14:19:40Z"
+      }
+    ],
+    "archived_at": null,
+    "created_at": "2026-11-10T14:02:11Z",
+    "updated_at": "2026-11-10T14:19:47Z"
+  }
+}
+```
+
+`compozy__session_spawn` compact result — the spawn facts without the permission echo:
+
+```json
+// call
+{
+  "tool": "compozy__session_spawn",
+  "input": { "agent_name": "general", "ttl_seconds": 3600 }
+}
+
+// result (compact, default)
+{
+  "session_id": "sess-1b22e0a947c35d08",
+  "spawn_role": "worker",
+  "spawn_depth": 1,
+  "ttl_expires_at": "2026-11-10T15:20:02Z"
+}
+```
+
+`result_view: "full"` adds `permissions` (`tools`, `skills`, `mcp_servers`, `workspace_paths`), as
+before. When the call sends a first `prompt` or creates a worktree, both views carry the same `prompt`
+and `worktree` entries.
+
+### Discovering both contracts
+
+```json
+// call
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__session_status" } }
+
+// result (descriptor excerpt)
+{
+  "tool_id": "compozy__session_status",
+  "description": "Read one session. Returns the compact result; pass result_view \"full\" for the complete record.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "session_id": { "type": "string" },
+      "result_view": {
+        "type": "string",
+        "enum": ["compact", "full"]
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": { "type": "object", "required": ["session"], "additionalProperties": false },
+  "output_schema_digest": "5d1c0e…",
+  "output_views": {
+    "compact": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "5d1c0e…" },
+    "full": { "schema": { "type": "object", "required": ["session"], "additionalProperties": false }, "digest": "a2c799…" }
+  }
+}
+```
+
+`output_schema` and `output_schema_digest` always describe the compact view. The schemas above are
+shortened; the real ones list every property.
+
+A single-result tool has no `output_views` and no `result_view` input:
+
+```json
+{ "tool": "compozy__tool_info", "input": { "tool_id": "compozy__skill_view" } }
+// descriptor has "output_schema" only.
+```
+
+## CLI
+
+`compozy tool invoke` passes the input through, so the selector works with no new flag.
+
+```console
+$ compozy tool invoke compozy__session_status \
+    --input '{"session_id":"sess-7f3a9c21d4e80b16"}' -o json
+{"session":{"id":"sess-7f3a9c21d4e80b16","agent_name":"general","state":"active", ...}}
+
+$ compozy tool invoke compozy__session_status \
+    --input '{"session_id":"sess-7f3a9c21d4e80b16","result_view":"full"}' -o json
+{"session":{"id":"sess-7f3a9c21d4e80b16", ..., "lineage":{...},"supervision":{...}}}
+
+$ compozy tool info compozy__session_status -o json | jq '.descriptor.output_views | keys'
+["compact","full"]
+```
+
+Exit codes are unchanged: `0` on success, non-zero with the structured tool error on failure.
+
+`compozy session …` commands and their JSON output do not change; they read the HTTP/UDS session API.
+
+## HTTP / UDS API
+
+Tool descriptor responses gain one optional field. Nothing else changes.
+
+```json
+// ToolDescriptorPayload (tool list, tool info, tool search responses)
+{
+  "tool_id": "compozy__session_status",
+  "output_schema": { "...": "compact schema" },
+  "output_schema_digest": "5d1c0e…",
+  "output_views": {
+    "compact": { "schema": { "...": "compact schema" }, "digest": "5d1c0e…" },
+    "full": { "schema": { "...": "full schema" }, "digest": "a2c799…" }
+  }
+}
+```
+
+Session routes (`GET /api/sessions/{id}` and the rest) return the same `SessionPayload` as before.
+Result views are a projection applied to native tool results only.
+
+Tool invocation over HTTP/UDS takes the selector inside `input`, exactly as the CLI does.
+
+## Loops
+
+A tool action node selects its view in `params`. The value is a literal.
+
+```yaml
+graph:
+  nodes:
+    - id: inspect
+      class: action
+      kind: compozy__session_status
+      params:
+        session_id: "{{ .inputs.session_id }}"
+        result_view: full
+    - id: report
+      class: action
+      kind: run-agent
+      params:
+        agent: general
+        prompt: "Tools allowed: {{ .nodes.inspect.output.session.lineage.permission_policy.tools }}"
+  edges:
+    - from: inspect
+      to: report
+```
+
+Without `result_view: full` on `inspect`, Loop validation (`compozy__loop_validate`,
+`compozy loop create`, `compozy loop run`) stops the Loop before Start:
+
+```text
+error: result_view_field_requires_full
+  node "report" reads nodes.inspect.output.session.lineage, which the compact result of
+  compozy__session_status does not include (the compact lineage includes identity, ttl_expires_at and spawn_budget,
+  but not permission_policy).
+  fix: add `result_view: full` to the params of node "inspect".
+```
+
+With `result_view: full`, a reference may read any field the full record carries, including fields
+the tool's full schema does not list, as long as that part of the schema is open. Validation then
+warns that the path cannot be proven. A field that is missing at run time resolves to an empty value,
+so check the name against a real result.
+
+The same rules apply to a tool node's own `produces`: declaring a field that only the full view has
+fails with `result_view_field_requires_full`; declaring a field neither view has fails with
+`unresolvable_path`.
+
+A run pins the contract of the view each node selected. A run started before the upgrade keeps the
+contract it pinned and its nodes return the full record.
+
+## Hooks
+
+`tool.post_call` says which view the result holds. `result_view` is present only for tools with
+views. `tool_result` is the encoded tool result envelope, as before; the record is under `structured`.
+
+```json
+{
+  "event": "tool.post_call",
+  "tool_id": "compozy__session_status",
+  "tool_call_id": "call-31",
+  "has_result_views": true,
+  "tool_input": { "session_id": "sess-7f3a9c21d4e80b16" },
+  "result_view": "compact",
+  "tool_result": {
+    "structured": { "session": { "id": "sess-7f3a9c21d4e80b16", "state": "active" } },
+    "preview": "sess-7f3a9c21d4e80b16"
+  }
+}
+```
+
+`has_result_views` is on the tool reference of `tool.pre_call`, `tool.post_call` and `tool.post_error`.
+A `tool.pre_call` hook can request the full record for the calls it cares about by patching the input,
+when `has_result_views` is true:
+
+```json
+// tool.pre_call patch
+{ "tool_input": { "session_id": "sess-7f3a9c21d4e80b16", "result_view": "full" } }
+```
+
+Three consequences of that patch:
+
+- The calling agent receives the full record too. A hook cannot get the full record while the agent
+  gets the compact one.
+- On a tool without views (`has_result_views` absent) the patched call fails with the single-result
+  error below.
+- On a call made by a Loop node the view is fixed by the Loop definition, and the tool reference carries
+  `pinned_result_view` (`"compact"` or `"full"`). A patch that changes it fails the node with
+  `tool_denied`, reason `result_view_pinned`. Skip calls that carry `pinned_result_view`, and set
+  `result_view` on the node instead.
+
+## Managed-session MCP clients
+
+For a tool with views, the input schema advertised over MCP lists `result_view` and the advertised
+`outputSchema` accepts either view:
+
+```json
+{
+  "name": "compozy__session_status",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "session_id": { "type": "string" },
+      "result_view": { "type": "string", "enum": ["compact", "full"] }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "anyOf": [
+      { "...": "compact schema" },
+      { "...": "full schema" },
+      { "...": "truncated-result envelope" },
+      { "...": "typed tool error" }
+    ]
+  }
+}
+```
+
+```json
+// tools/call
+{
+  "name": "compozy__session_status",
+  "arguments": { "session_id": "sess-7f3a9c21d4e80b16", "result_view": "full" }
+}
+// structuredContent: the full record
+```
+
+## Migration
+
+The default result of native tools changed. To keep receiving the complete record:
+
+| You have                          | Do this                                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An agent prompt or AGENT.md       | Tell the agent to pass `result_view: "full"` on the calls that need it                                                                                                  |
+| A Loop node                       | Add `result_view: full` to the node's `params`                                                                                                                          |
+| A `tool.post_call` hook           | Patch `tool_input` with `result_view: "full"` in `tool.pre_call`, except on calls that carry `pinned_result_view` (Loop nodes); the agent then gets the full record too |
+| An MCP client                     | Send `"result_view": "full"` in the call `arguments`                                                                                                                    |
+| A script on `compozy tool invoke` | Add `"result_view":"full"` to `--input`                                                                                                                                 |
+
+The release note lists every tool whose default changed and the fields that moved to the full view.
+HTTP and UDS responses did not change.
+
+## Errors
+
+| Condition                                             | Code                 | Reason                            | Message                                                                                |
+| ----------------------------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
+| Unknown `result_view` value                           | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` is not a string                         | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
+| `result_view` sent to a single-result tool            | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__skill_view" returns a single result and does not accept "result_view"` |
+| Loop node `result_view` is a template                 | lint                 | `result_view_not_literal`         | `node "inspect" params.result_view must be a literal "compact" or "full"`              |
+| Loop reference reads a field outside the compact view | lint                 | `result_view_field_requires_full` | see the Loops section                                                                  |
+| A hook changed `result_view` on a Loop node's call    | `tool_denied`        | `result_view_pinned`              | `tool "compozy__session_status" result view is pinned to "full" by the caller`         |
+
+Tools that report input errors as `invalid_request` keep that code for the first three rows. In every
+case the tool does not run. The first three rows apply to native tools only: an extension or MCP tool
+that has its own input named `result_view` is not inspected and behaves as before.
+
+A path that neither view accepts keeps the existing Loop error `unresolvable_path`.
+
+## Approvals
+
+`result_view` does not change which approval applies. An approval you remembered for a call matches
+the same call with `result_view: "full"` or `"compact"`, and approvals remembered before the upgrade
+keep matching. The approval prompt shows the input as sent, including the selector. If you mint a
+one-shot approval token from an input digest instead of an input, compute the digest on the input
+without `result_view`.
+
+`compozy mcp serve` exposes a separate Host API projection (`compozy_host__*`).
+It does not advertise native result views or output schemas.
+
+Compact session records also preserve `stop_cause`, `permission_mode_degraded` and
+`attention_dismissible`. Compact heartbeat status preserves the policy `snapshot_id`.
+
+Pre-view Loop snapshots are translated to full for one release. The translation and the
+superseded schema digest table are removed in the next release
+([#1462](https://github.com/compozy/compozy/issues/1462)).

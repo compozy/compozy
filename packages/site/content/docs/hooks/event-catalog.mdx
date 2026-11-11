@@ -506,3 +506,43 @@ Delegation also uses `spawn.pre_create` with `spawn_role: "subagent"` and a type
 `subagent` object containing `title`, `role`, `task_chars`, and read-only `isolation` and
 `worktree_id`. Denying that hook, rebinding isolation/worktree, or rewriting a TTL for this role
 rejects delegation with `capability_denied`.
+
+## Native tool result views
+
+`tool.post_call` says which view the result holds. `result_view` is present only for tools with
+views. `tool_result` is the encoded tool result envelope, as before; the record is under `structured`.
+
+```json
+{
+  "event": "tool.post_call",
+  "tool_id": "compozy__session_status",
+  "tool_call_id": "call-31",
+  "has_result_views": true,
+  "tool_input": { "session_id": "sess-7f3a9c21d4e80b16" },
+  "result_view": "compact",
+  "tool_result": {
+    "structured": { "session": { "id": "sess-7f3a9c21d4e80b16", "state": "active" } },
+    "preview": "sess-7f3a9c21d4e80b16"
+  }
+}
+```
+
+`has_result_views` is on the tool reference of `tool.pre_call`, `tool.post_call` and `tool.post_error`.
+A `tool.pre_call` hook can request the full record for the calls it cares about by patching the input,
+when `has_result_views` is true:
+
+```json
+// tool.pre_call patch
+{ "tool_input": { "session_id": "sess-7f3a9c21d4e80b16", "result_view": "full" } }
+```
+
+Three consequences of that patch:
+
+- The calling agent receives the full record too. A hook cannot get the full record while the agent
+  gets the compact one.
+- On a tool without views (`has_result_views` absent) the patched call fails with `tool_invalid_input` /
+  `schema_invalid`.
+- On a call made by a Loop node the view is fixed by the Loop definition, and the tool reference carries
+  `pinned_result_view` (`"compact"` or `"full"`). A patch that changes it fails the node with
+  `tool_denied`, reason `result_view_pinned`. Skip calls that carry `pinned_result_view`, and set
+  `result_view` on the node instead.
