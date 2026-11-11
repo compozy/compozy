@@ -81,7 +81,7 @@ const meta: Meta<StoryArgs> = {
               onNewSession={fn()}
               sessionActions={{
                 pendingAction: null,
-                pendingSessionId: null,
+                pendingSessionIds: [],
                 onArchive: fn(),
                 onDelete: fn(),
                 onRename: fn(),

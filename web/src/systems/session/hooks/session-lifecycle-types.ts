@@ -25,7 +25,8 @@ export interface SessionProcessChoice {
 
 export interface SessionLifecycleActionHandlers {
   pendingAction: SessionLifecycleAction | null;
-  pendingSessionId: string | null;
+  /** Every session a pending action is working on; a parallel batch lists each running target. */
+  pendingSessionIds: readonly string[];
   onStop: (session: SessionPayload) => void;
   onRename: (session: SessionPayload) => void;
   onArchive: (session: SessionPayload) => void;

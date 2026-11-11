@@ -84,7 +84,7 @@ export const BranchIndicators: Story = {
     onNewSession: fn(),
     sessionActions: {
       pendingAction: null,
-      pendingSessionId: null,
+      pendingSessionIds: [],
       onArchive: fn(),
       onDelete: fn(),
       onRename: fn(),

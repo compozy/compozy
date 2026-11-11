@@ -148,3 +148,24 @@ Issue #1464 evidence (2026-11-10): see
 rendered session-menu/lifecycle checks, real API/Git timings, deterministic partial-failure
 coverage, and the public screenshot-upload blocker. This does not replace unrelated journeys
 in this scenario.
+
+## Batch follow-ups: progress, shared admission and lineage lock (#1470, #1472, #1475)
+
+Added 2026-11-11. Hold several genuine requests in flight (for example, with browser network
+latency emulation on an isolated lab) while walking these checks.
+
+1. Select at least four eligible independent sessions and run Make top-level, Back from Later,
+   Stop, Archive, Unarchive or Mark as seen. Press Done to clear the selection while requests are
+   in flight: every row whose request is running shows a spinner on its row-actions control,
+   queued and finished rows do not, and every row's controls stay disabled until the last request
+   settles. Failures keep their per-target receipt.
+2. Start a batch from one family (for example Back from Later) and immediately invoke another
+   (Make top-level, Unarchive): the second starts no request while the first runs, so at most
+   three requests are in flight. After the first batch settles, the second runs normally.
+3. Start a single Nest under (drop) or Make top-level and, before it settles, invoke Make
+   top-level on a selection: the batch starts no request until the single move settles. While a
+   batch Make top-level runs, a row drop or single Make top-level is declined.
+
+The lifecycle hook suite (`use-session-actions.test.tsx`) owns same-turn admission in every
+family order, running-target progress transitions and the singular/batch lineage boundary; the
+session list suite owns per-row progress and the row lock.
