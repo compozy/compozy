@@ -147,7 +147,7 @@ func BadgeForInfo(info *Info) Badge {
 		SupervisionAttention:   supervisionNeedsAttention(info.Supervision),
 		Failure:                info.Failure,
 		PendingAuth: info.PendingPermission || info.PendingPermissionCount > 0 ||
-			infoFailureNeedsAuth(info.Failure),
+			infoFailureNeedsAuth(info.Failure) || infoProviderAuthRecovery(info),
 		PendingClarify:    info.PendingClarifyCount > 0,
 		Stalled:           infoHasDetectedStall(info),
 		Waiting:           waitingFromInfo(info),
@@ -213,15 +213,16 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		HealthState:            health.State,
 		Health:                 health.Health,
 		Failure:                failure,
-		PendingAuth:            pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure),
-		PendingClarify:         pendingClarify,
-		ActivePrompt:           health.ActivePrompt,
-		Unseen:                 unseen,
-		Waiting:                waitingFromInfo(info),
-		EndedEarly:             info != nil && strings.TrimSpace(info.EndedEarlyTurnID) != "",
-		ReturnedFromLater:      info != nil && info.LaterReturnedAt != nil,
-		FailureSeen:            info != nil && info.FailureSeenAt != nil,
-		IneligibilityReason:    health.IneligibilityReason,
+		PendingAuth: pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure) ||
+			infoProviderAuthRecovery(info),
+		PendingClarify:      pendingClarify,
+		ActivePrompt:        health.ActivePrompt,
+		Unseen:              unseen,
+		Waiting:             waitingFromInfo(info),
+		EndedEarly:          info != nil && strings.TrimSpace(info.EndedEarlyTurnID) != "",
+		ReturnedFromLater:   info != nil && info.LaterReturnedAt != nil,
+		FailureSeen:         info != nil && info.FailureSeenAt != nil,
+		IneligibilityReason: health.IneligibilityReason,
 	})
 }
 
@@ -245,4 +246,9 @@ func infoFailureNeedsAuth(failure *store.SessionFailure) bool {
 func runningBadgeInput(input BadgeInputs) bool {
 	return input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
 		input.HealthState == heartbeat.SessionHealthStatePrompting
+}
+
+func infoProviderAuthRecovery(info *Info) bool {
+	return info != nil && info.RuntimeRecovery != nil &&
+		info.RuntimeRecovery.Reason == store.SessionRuntimeRecoveryProviderAuth
 }

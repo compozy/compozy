@@ -1353,8 +1353,12 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 				current.Info().State != StateActive {
 				t.Fatal("provider recovery did not preserve the active session")
 			}
-			if h.driver.stopCalls != 0 {
-				t.Fatalf("driver stop calls = %d, want none", h.driver.stopCalls)
+			wantStops := 0
+			if code == acp.ProviderErrorAuthRequired {
+				wantStops = 1
+			}
+			if h.driver.stopCalls != wantStops {
+				t.Fatalf("driver stop calls = %d, want %d", h.driver.stopCalls, wantStops)
 			}
 			stored, err := h.manager.Events(
 				t.Context(),

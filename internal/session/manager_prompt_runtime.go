@@ -46,6 +46,9 @@ func (m *Manager) ensurePromptRuntime(
 	if reservedProcess != snapshot.process {
 		return nil, errors.New("session: runtime process changed while reserving prompt")
 	}
+	if err := m.releaseAuthFailedRuntime(ctx, session, &snapshot); err != nil {
+		return nil, err
+	}
 	mcpChanged := m.hostedMCPToolsChanged(ctx, session)
 	if canReusePromptRuntime(&snapshot, *selection, mcpChanged) {
 		return snapshot.process, nil
@@ -78,10 +81,7 @@ func (m *Manager) ensurePromptRuntime(
 	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
-		runtimeProvider := strings.TrimSpace(plan.runtime.agent.RuntimeProvider)
-		if runtimeProvider == "" {
-			runtimeProvider = strings.TrimSpace(plan.runtime.agent.Provider)
-		}
+		runtimeProvider := firstTrimmedNonEmpty(plan.runtime.agent.RuntimeProvider, plan.runtime.agent.Provider)
 		if RuntimeStrategyForProvider(runtimeProvider) == acp.RuntimeApplicationSessionConfig {
 			if configurator, ok := m.driver.(RuntimeConfigurator); ok {
 				return m.configureOrReplacePromptRuntime(ctx, session, configurator, &snapshot, plan)

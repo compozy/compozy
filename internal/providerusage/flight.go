@@ -142,6 +142,7 @@ func (s *Manager) collectOnce(
 	source := snapshotSource(state.snapshot)
 	s.mu.Unlock()
 	s.observeCollection(profile, id, source, status, intent, started, outcome)
+	s.notifyAuthentication(ctx, target, outcome == nil && validated)
 
 	return outcome, false
 }
@@ -207,4 +208,10 @@ func (s *Manager) discardOwnership(profile, id string, state *targetState) {
 	state.lastSuccess = time.Time{}
 	state.cooldownUntil = time.Time{}
 	s.changedLocked(s.profileLocked(profile))
+}
+
+func (s *Manager) notifyAuthentication(ctx context.Context, target Target, verified bool) {
+	if verified && s.options.OnAuthenticated != nil {
+		s.options.OnAuthenticated(ctx, target)
+	}
 }

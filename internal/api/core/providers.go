@@ -118,6 +118,9 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		probe.Classification,
 		probe.StartedAt,
 	)
+	if probe.Classification.State == authproviders.ProviderAuthStateAuthenticated {
+		h.recoverProviderAuthSessions(c, providerName, provider)
+	}
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, probe.Classification, &env, h.nowUTC(),
 	)
@@ -202,6 +205,9 @@ func (h *BaseHandlers) probeProviderACPAuth(
 			classification,
 			startedAt,
 		)
+		if classification.State == authproviders.ProviderAuthStateAuthenticated {
+			h.recoverProviderAuthSessions(c, providerName, provider)
+		}
 	}
 	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
@@ -417,4 +423,22 @@ func providerAuthStatusPayload(
 		),
 		LastProbeAt: optionalTime(lastProbeAt),
 	}, nil
+}
+
+func (h *BaseHandlers) recoverProviderAuthSessions(c *gin.Context, provider string, cfg compozyconfig.ProviderConfig) {
+	recovery, ok := h.Sessions.(interface {
+		ProviderAuthenticationReady(string, string, string) bool
+	})
+	if !ok {
+		return
+	}
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil || selection.Scope.AllProfiles {
+		return
+	}
+	recovery.ProviderAuthenticationReady(
+		selection.Scope.ProfileID,
+		provider,
+		compozyconfig.CommandFingerprint(cfg.Command),
+	)
 }

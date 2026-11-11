@@ -31,6 +31,7 @@ type promptTurnDispatchState struct {
 }
 
 type promptRecoveryState struct {
+	authReady       chan struct{}
 	executionCtx    context.Context
 	request         acp.PromptRequest
 	originalMessage string
@@ -92,6 +93,7 @@ func clearPromptState(session *Session, turnID string) {
 		session.currentPromptCancelTurn = ""
 	}
 	session.currentTurnID = ""
+	session.currentPromptRecovery = nil
 	session.openToolCalls = nil
 	session.hasBoundarySteer = false
 	session.currentTurnSource = ""

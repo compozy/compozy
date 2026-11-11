@@ -288,9 +288,11 @@ sign-in to come back and retries on its own, for every ACP provider:
   `runtime_recovery_started`, `runtime_recovery_succeeded`, and `runtime_recovery_exhausted` events
   and hooks report progress.
 
-When the window ends without a sign-in, the turn fails exactly as before: one terminal error with the
-usual `provider_error` guidance. Later turns in that session then fail right away instead of waiting
-again, until a turn completes. Cancelling the prompt stops the wait. Set
+When the window ends without a sign-in, the turn ends with one terminal error, login guidance, and
+`waiting-for-auth` attention. After signing in, send another prompt: CompozyOS stops the stale provider
+process and reloads the same conversation before sending it. A successful provider auth probe or Usage
+refresh also reloads matching auth-failed sessions in that profile, and wakes a retry immediately when
+an auth recovery is still in progress. Healthy sessions and other providers or account routes stay intact. Cancelling the prompt stops the wait. Set
 `session.auth_recovery.enabled = false` to turn the wait off.
 
 Automatic replay can repeat a tool or external side effect whose completion was not persisted before

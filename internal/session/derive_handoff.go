@@ -10,12 +10,13 @@ import (
 const handoffGuidanceFormat = "continue this session with another agent or route: " +
 	"compozy session continue %s --agent <name>"
 
-// decorateHandoffAction prescribes handoff on a user session's post-acceptance prompt
-// failure classified rate-limited or unauthenticated. The decision uses the typed session
-// type only; other session types keep the classifier's retry/login action. The daemon
-// never continues a session on its own.
+// decorateHandoffAction offers a route change for user failures that cannot recover through native login.
 func decorateHandoffAction(sessionType Type, sessionID string, event *acp.AgentEvent) {
 	if event == nil || event.ProviderError == nil || normalizeSessionType(sessionType) != SessionTypeUser {
+		return
+	}
+	if event.ProviderError.Code == acp.ProviderErrorAuthRequired &&
+		event.ProviderError.NextAction == acp.ProviderFailureActionLogin {
 		return
 	}
 	switch event.ProviderError.Code {

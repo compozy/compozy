@@ -702,6 +702,143 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 	}
 
+	t.Run("Should rebuild a stale authenticated process on the next prompt after exhaustion", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{0}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		var credentialsValid atomic.Bool
+		var stale *fakeProcess
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if !credentialsValid.Load() || proc == stale {
+				stale = proc
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		if got := BadgeForInfo(session.Info()); got != BadgeWaitingForAuth {
+			t.Errorf("badge = %s, want waiting-for-auth", got)
+		}
+		credentialsValid.Store(true)
+		stream, err = h.manager.Prompt(t.Context(), session.ID, "retry after signing in")
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivered := collectEvents(t, stream)
+		if countAgentEvents(delivered, acp.EventTypeError) != 0 || countAgentEvents(delivered, acp.EventTypeDone) != 1 {
+			t.Fatalf("events = %#v, want a completed turn on a fresh provider", delivered)
+		}
+		if got := BadgeForInfo(session.Info()); got == BadgeWaitingForAuth {
+			t.Fatal("successful retry retained auth attention")
+		}
+	})
+
+	t.Run("Should recover only auth failed sessions on the verified profile provider and account", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = nil
+		target := createSession(t, h)
+		healthy := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID); reportSessionStop(t, h, healthy.ID) })
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			stream <- authLostEvent(proc, req.TurnID)
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "needs sign in")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		before := target.runtimeBindingSnapshot()
+		info := target.Info()
+		for _, wrong := range []struct{ profile, provider, command string }{
+			{"another-profile", info.Provider, target.providerRoutingSnapshot().Command},
+			{info.ProfileID, "another-provider", target.providerRoutingSnapshot().Command},
+			{info.ProfileID, info.Provider, "another-account-cli"},
+		} {
+			if err := h.manager.RecoverProviderAuthentication(
+				t.Context(),
+				wrong.profile,
+				wrong.provider,
+				providerCommandFingerprint(wrong.command),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if target.processHandle() != before.process {
+				t.Fatal("unrelated authentication proof replaced the runtime")
+			}
+		}
+		healthyProcess := healthy.processHandle()
+		if !h.manager.ProviderAuthenticationReady(
+			info.ProfileID,
+			info.Provider,
+			providerCommandFingerprint(target.providerRoutingSnapshot().Command),
+		) {
+			t.Fatal("recovery admission refused")
+		}
+		waitForCondition(t, "verified auth recovery", func() bool {
+			return target.processHandle() != nil && target.Info().RuntimeGeneration > before.generation &&
+				target.Info().Failure == nil
+		})
+		if target.processHandle() == before.process || BadgeForInfo(target.Info()) == BadgeWaitingForAuth {
+			t.Fatal("valid authentication proof did not rebuild the failed session")
+		}
+		if healthy.processHandle() != healthyProcess {
+			t.Fatal("authentication recovery replaced a healthy session")
+		}
+	})
+
+	t.Run("Should wake an active sign in wait when credentials are verified", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{time.Hour}
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) == 1 {
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "resume when signed in")
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "auth recovery", func() bool { return target.Info().RuntimeRecovery != nil })
+		info := target.Info()
+		if got := BadgeForInfo(info); got != BadgeWaitingForAuth {
+			t.Fatalf("badge = %s, want waiting-for-auth", got)
+		}
+		if !h.manager.ProviderAuthenticationReady(
+			info.ProfileID,
+			info.Provider,
+			providerCommandFingerprint(target.providerRoutingSnapshot().Command),
+		) {
+			t.Fatal("recovery admission refused")
+		}
+		delivered := collectEvents(t, stream)
+		if countAgentEvents(delivered, acp.EventTypeDone) != 1 || countAgentEvents(delivered, acp.EventTypeError) != 0 {
+			t.Fatalf("events = %#v, want immediate recovery on verified sign-in", delivered)
+		}
+	})
+
 	for _, action := range []acp.ProviderFailureAction{acp.ProviderFailureActionBindSecret, acp.ProviderFailureActionInspect} {
 		t.Run("Should show actionable provider guidance for "+string(action), func(t *testing.T) {
 			t.Parallel()
@@ -1040,8 +1177,8 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		last := delivered[len(delivered)-1]
 		if last.Type != acp.EventTypeError || last.ProviderError == nil ||
 			last.ProviderError.Code != acp.ProviderErrorAuthRequired ||
-			last.ProviderError.NextAction != acp.ProviderFailureActionHandoff {
-			t.Fatalf("terminal event = %#v, want the provider sign-in failure with handoff guidance", last)
+			last.ProviderError.NextAction != acp.ProviderFailureActionLogin {
+			t.Fatalf("terminal event = %#v, want the provider sign-in failure with login guidance", last)
 		}
 		info := session.Info()
 		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {

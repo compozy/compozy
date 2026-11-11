@@ -73,6 +73,9 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 		if target.ProviderName == "" {
 			target.ProviderName = id
 		}
+		if provider.EffectiveAuthMode() == config.ProviderAuthModeNativeCLI {
+			target.AuthCommandFingerprint = config.CommandFingerprint(provider.Command)
+		}
 		target.CollectorID = r.collectorFamily(id, provider)
 		switch {
 		case cfg.IsProviderDisabled(id) || !cfg.ProviderUsage.ProviderEnabled(id):

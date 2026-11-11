@@ -17,12 +17,45 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
 )
 
 func TestProviderAuthHandlers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should signal same profile provider recovery after a successful auth probe", func(t *testing.T) {
+		t.Parallel()
+		cfg := providerAuthTestConfig(t)
+		var signaled bool
+		sessions := &providerAuthRecoverySessions{ready: func(profile, provider, fingerprint string) bool {
+			signaled = true
+			if profile != store.DefaultProfileID || provider != "native" ||
+				fingerprint != compozyconfig.CommandFingerprint(cfg.Providers["native"].Command) {
+				t.Errorf("unexpected recovery route: %s %s %s", profile, provider, fingerprint)
+			}
+			return true
+		}}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config:                      cfg,
+			Sessions:                    sessions,
+			ProviderAuthCommandResolver: func(context.Context, string, []string, string) (string, error) { return "/test/bin/provider-cli", nil },
+			ProviderAuthRunner: func(context.Context, authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
+				return authproviders.ProviderAuthCommandResult{Stdout: "logged in"}, nil
+			},
+		})
+		router := gin.New()
+		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/providers/native/auth/probe", http.NoBody),
+		)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "authenticated") || !signaled {
+			t.Fatalf("probe = %d %s signaled=%t", response.Code, response.Body.String(), signaled)
+		}
+	})
 
 	t.Run("Should use the active provider generation for inventory auth and agent admission", func(t *testing.T) {
 		t.Parallel()
@@ -849,4 +882,13 @@ func serveProviderJSON(t *testing.T, router http.Handler, path string, out any) 
 	if err := json.Unmarshal(response.Body.Bytes(), out); err != nil {
 		t.Fatalf("decode %s: %v; body=%s", path, err, response.Body.String())
 	}
+}
+
+type providerAuthRecoverySessions struct {
+	sessionManagerStub
+	ready func(string, string, string) bool
+}
+
+func (s *providerAuthRecoverySessions) ProviderAuthenticationReady(profile, provider, fingerprint string) bool {
+	return s.ready(profile, provider, fingerprint)
 }

@@ -97,7 +97,7 @@ func (s *PreStarter) PreStart(
 	if err := s.checkProfileAvailability(ctx, &normalized); err != nil {
 		return preStartErrorReport(&normalized, err)
 	}
-	if s == nil || !preStartContextCacheable(ctx) {
+	if s == nil || normalized.BypassCache || !preStartContextCacheable(ctx) {
 		return runPreStart(ctx, provider, &normalized, s.authVerdicts())
 	}
 	key, cacheable := s.newPreStartCacheKey(provider, &normalized)
