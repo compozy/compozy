@@ -3,27 +3,10 @@ package acp
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
-
-func (d *Driver) applyStartupConfigSelections(
-	ctx context.Context,
-	process *AgentProcess,
-	selections []SessionConfigOptionSelection,
-) error {
-	if _, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); !ok &&
-		process.permissions.mode == compozyconfig.PermissionModeApproveAll {
-		// Full access may supply a mode default that this provider cannot negotiate.
-		selections = slices.DeleteFunc(slices.Clone(selections), func(selection SessionConfigOptionSelection) bool {
-			return selection.ID == sessionConfigModeKey &&
-				compozyconfig.IsUnrestrictedACPMode(process.permissionModeProvider(), selection.ValueID)
-		})
-	}
-	return d.applySessionConfigSelections(ctx, process, selections)
-}
 
 func (d *Driver) applySessionConfigSelections(
 	ctx context.Context,
@@ -34,6 +17,12 @@ func (d *Driver) applySessionConfigSelections(
 		options := process.CapsSnapshot().ConfigOptions
 		option, ok := findConfigOptionByID(options, selection.ID)
 		if !ok {
+			// Full access can supply a mode default that this provider cannot negotiate.
+			if process.permissions.mode == compozyconfig.PermissionModeApproveAll &&
+				selection.ID == sessionConfigModeKey &&
+				compozyconfig.IsUnrestrictedACPMode(process.permissionModeProvider(), selection.ValueID) {
+				continue
+			}
 			return fmt.Errorf("acp: config option %q is not uniquely advertised", selection.ID)
 		}
 		if err := validateSessionConfigOptionSelection(selection, option); err != nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
@@ -119,7 +120,9 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	appliedRuntime := appliedRuntimeFromCreateOptions(&(opts))
 	requestedRuntime := appliedRuntime
 	if info.ACPCapsKnown {
-		appliedRuntime.ACPOptions = loopACPOptionsFromSession(info.EffectiveRuntime().ACPOptions)
+		appliedRuntime.ACPOptions = loopACPOptionsFromSession(acp.ConfirmedSessionConfigOptionSelections(
+			info.ACPOptions, info.ACPCaps.ConfigOptions,
+		))
 	}
 	if info.Speed != "" || info.SpeedResolution != nil {
 		appliedRuntime.Speed = info.EffectiveRuntime().Speed

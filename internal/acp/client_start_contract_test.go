@@ -422,11 +422,39 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 					"bypassPermissions",
 				)
 			} else {
-				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
+				runtime := RuntimeConfig{
 					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: tc.value}},
-				})
-				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
-					t.Fatalf("ConfigureRuntime() error = %v, want missing mode rejection", err)
+				}
+				if tc.scenario == "config_options" {
+					runtime.Model, runtime.ReasoningEffort = "other-model", "high"
+				}
+				if err := driver.ConfigureRuntime(t.Context(), proc, runtime); err != nil {
+					t.Fatalf("ConfigureRuntime() error = %v", err)
+				}
+				if runtime.Model != "" {
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"model",
+						"other-model",
+						"new-model",
+						"loaded-model",
+						"other-model",
+					)
+					assertConfigOption(
+						t,
+						proc.CapsSnapshot().ConfigOptions,
+						"reasoning_effort",
+						"high",
+						"minimal",
+						"none",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+						"ultra",
+					)
 				}
 			}
 		})

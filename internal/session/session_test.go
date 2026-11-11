@@ -79,37 +79,6 @@ func TestSessionInvalidTransitionRejected(t *testing.T) {
 func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report only confirmed ACP selections while retaining intent", func(t *testing.T) {
-		t.Parallel()
-		info := &Info{
-			Provider: "claude", ACPCapsKnown: true,
-			ACPOptions: []acp.SessionConfigOptionSelection{
-				{ID: "mode", ValueID: "bypassPermissions"},
-				{ID: "context", ValueID: "large"},
-				{ID: "duplicate", ValueID: "on"},
-				{ID: "thinking", BoolValue: new(true)},
-			},
-			ACPCaps: acp.Caps{ConfigOptions: []acp.SessionConfigOption{
-				{ID: "context", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "standard"},
-				{ID: "duplicate", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "on"},
-				{ID: "duplicate", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "on"},
-				{ID: "thinking", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(true)},
-			}},
-		}
-		effective := info.EffectiveRuntime()
-		if len(effective.ACPOptions) != 1 || effective.ACPOptions[0].ID != "thinking" {
-			t.Fatalf("effective ACP options = %#v, want only confirmed thinking", effective.ACPOptions)
-		}
-		*effective.ACPOptions[0].BoolValue = false
-		if len(info.RequestedRuntime().ACPOptions) != 4 || !*info.ACPOptions[3].BoolValue {
-			t.Fatalf("requested ACP intent changed: %#v", info.ACPOptions)
-		}
-		info.ACPCapsKnown = false
-		if len(info.EffectiveRuntime().ACPOptions) != 4 {
-			t.Fatal("unknown capabilities discarded requested intent")
-		}
-	})
-
 	t.Run("Should report provider runtime changes without losing requested intent", func(t *testing.T) {
 		t.Parallel()
 		applied := &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied}

@@ -51,9 +51,11 @@ only on its previously verified Codex/Claude branches.
 Under `approve-all`, start providers that omit `mode` or advertise it more than once. Startup must
 skip the unrestricted-mode config selection and preserve the negotiated mode; model and reasoning
 negotiation and the first prompt must still complete. A unique `mode` option must still select and
-confirm the unrestricted value, and an unsupported value must fail. Explicit runtime changes and
-narrower startup mode selections still require a unique advertisement. Loop applied runtime and
-provenance must omit skipped options while the session retains requested intent.
+confirm the unrestricted value, and an unsupported value must fail. Change the model and reasoning
+on the same live process: the unadvertised unrestricted mode must not prevent the change. Other
+options and narrower modes still require unique advertisements. Loop applied runtime and provenance
+must omit skipped options while the session retains requested intent. Triage must refuse ambiguous
+mode options when no independently advertised read-only session mode is available.
 
 Regression ownership: `TestStartUnrestrictedModeAdvertisement` in the ACP startup contract suite.
 Real daemon/process-boundary coverage: `TestAgyACPBuiltInEntry`,

@@ -189,7 +189,7 @@ func (d *Driver) applySessionConfiguration(
 		)
 	}
 	stageStartedAt = time.Now()
-	if err := d.applyStartupConfigSelections(ctx, process, normalized.ACPOptions); err != nil {
+	if err := d.applySessionConfigSelections(ctx, process, normalized.ACPOptions); err != nil {
 		d.logStartStage(normalized, process, "set_acp_options", startOutcomeFailed, stageStartedAt)
 		return WrapFailure(
 			store.FailureProtocol,

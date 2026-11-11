@@ -134,9 +134,6 @@ func (info *Info) EffectiveRuntime() RuntimeSelection {
 	if strategy != acp.RuntimeApplicationSessionConfig {
 		return runtime
 	}
-	if info.ACPCapsKnown {
-		runtime.ACPOptions = acp.ConfirmedSessionConfigOptionSelections(runtime.ACPOptions, info.ACPCaps.ConfigOptions)
-	}
 	if option, ok := acp.ReasoningConfigOption(info.ACPCaps.ConfigOptions); ok {
 		runtime.ReasoningEffort = strings.TrimSpace(option.CurrentValueID)
 	} else if info.ACPCapsKnown {
