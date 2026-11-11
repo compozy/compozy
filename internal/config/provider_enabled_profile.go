@@ -3,14 +3,20 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+
+	burnttoml "github.com/BurntSushi/toml"
 )
 
-// WithProfileProviders returns base with the selected profile's [providers.<id>] tables applied on
-// top (BR-2: the profile layer wins over global). A provider the profile defines on its own joins
-// the inventory with its full definition and enabled state. Only that profile's own file is read,
-// so a pending global edit never leaks in through the profile (B-013). A missing profile name or
-// file leaves base unchanged.
+// WithProfileProviders returns base with the selected profile's providers layered on top (BR-2:
+// the profile layer wins over global). A provider base already knows (configured or built in)
+// takes only the profile's providers.<id>.enabled, so its identity, and any sign-in verdict
+// keyed by it, stays the global one. A provider the profile defines on its own joins with its full
+// [providers.<id>] table; an incomplete one that would not resolve (for example enabled without a
+// command) stays out. Only that profile's own file is read, without migrating or rewriting it, so
+// a pending global edit never leaks in through the profile (B-013). A missing profile name or file
+// leaves base unchanged.
 func WithProfileProviders(base *Config, homePaths HomePaths, profileName string) (Config, error) {
 	if base == nil {
 		return Config{}, errors.New("config: base config is required")
@@ -23,24 +29,40 @@ func WithProfileProviders(base *Config, homePaths HomePaths, profileName string)
 	if err := ValidateResourceProfileName(profileName); err != nil {
 		return Config{}, fmt.Errorf("config: profile providers: %w", err)
 	}
-	overlay, err := loadPersistedConfigOverlay(profileConfigFile(homePaths, profileName), loadProfileConfigOverlayBytes)
+	content, err := os.ReadFile(profileConfigFile(homePaths, profileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return resolved, nil
+	}
 	if err != nil {
-		return Config{}, fmt.Errorf("config: load profile %q config: %w", profileName, err)
+		return Config{}, fmt.Errorf("config: read profile %q config: %w", profileName, err)
+	}
+	var decoded struct {
+		Providers map[string]providerOverlay `toml:"providers"`
+	}
+	if _, err := burnttoml.Decode(string(content), &decoded); err != nil {
+		return Config{}, fmt.Errorf("config: decode profile %q config: %w", profileName, err)
 	}
 	resolved.Providers = CloneProviderConfigs(base.Providers)
-	applyProviderOverlays(&resolved, overlay.Providers)
+	if resolved.Providers == nil {
+		resolved.Providers = make(map[string]ProviderConfig)
+	}
 	builtins := BuiltinProviders()
-	for name := range overlay.Providers {
+	for name, overlay := range decoded.Providers {
 		providerName := CanonicalProviderName(name)
-		if _, known := base.Providers[providerName]; known {
+		if providerName == "" {
 			continue
 		}
-		if _, builtin := builtins[providerName]; builtin {
+		provider, known := resolved.Providers[providerName]
+		if _, builtin := builtins[providerName]; known || builtin {
+			if overlay.Enabled != nil {
+				provider.Enabled = new(*overlay.Enabled)
+				resolved.Providers[providerName] = provider
+			}
 			continue
 		}
+		overlay.Apply(&provider)
+		resolved.Providers[providerName] = provider
 		if _, err := resolved.ResolveProvider(providerName); err != nil {
-			// An incomplete profile-only entry (for example enabled without a command) would make
-			// the inventory unresolvable; it stays out until the profile defines it fully.
 			delete(resolved.Providers, providerName)
 		}
 	}

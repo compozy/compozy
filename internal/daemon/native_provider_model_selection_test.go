@@ -166,8 +166,8 @@ func TestNativeProviderModelSelectionConfig(t *testing.T) {
 			t.Parallel()
 			tools := newTools(t, withGemini(nil), map[string]string{"eng": "[providers.gemini\nenabled = false\n"})
 			cfg, err := tools.selectionConfig(t.Context(), toolspkg.Scope{ProfileID: "profile-eng"})
-			if err == nil || !strings.Contains(err.Error(), `config: load profile "eng" config:`) {
-				t.Fatalf("selectionConfig(profile-eng) gemini disabled = %v, error = %v, want the profile load error",
+			if err == nil || !strings.Contains(err.Error(), `config: decode profile "eng" config:`) {
+				t.Fatalf("selectionConfig(profile-eng) gemini disabled = %v, error = %v, want the profile decode error",
 					cfg.IsProviderDisabled("gemini"), err)
 			}
 		},

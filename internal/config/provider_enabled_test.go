@@ -335,7 +335,7 @@ func TestWithProfileProviders(t *testing.T) {
 				t,
 				profileConfigFile(homePaths, "work"),
 				"[providers.work]\ncommand = \"work-acp\"\nenabled = false\n\n"+
-					"[providers.ghost]\nenabled = false\n\n[providers.gemini]\nenabled = false\n",
+					"[providers.ghost]\nenabled = false\n\n[providers.gemini]\ncommand = \"profile-gemini\"\nenabled = false\n",
 			)
 			cfg, err := WithProfileProviders(base, homePaths, "work")
 			if err != nil {
@@ -363,6 +363,14 @@ func TestWithProfileProviders(t *testing.T) {
 			if work.Command != "work-acp" || !cfg.IsProviderDisabled("work") {
 				t.Fatalf("work = command %q disabled %v, want the profile definition and its disable",
 					work.Command, cfg.IsProviderDisabled("work"))
+			}
+			gemini, err := cfg.ResolveProvider("gemini")
+			if err != nil {
+				t.Fatalf("ResolveProvider(gemini) error = %v", err)
+			}
+			if baseGemini, _ := base.ResolveProvider("gemini"); gemini.Command != baseGemini.Command {
+				t.Fatalf("gemini command = %q, want the global %q: a known provider takes only enabled",
+					gemini.Command, baseGemini.Command)
 			}
 			if _, listed := base.Providers["work"]; listed {
 				t.Fatal("base.Providers gained work, want the base config left unchanged")
