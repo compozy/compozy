@@ -1290,6 +1290,85 @@ func TestBootAgentInstances(t *testing.T) {
 			t.Fatalf("instance = %+v, %v", got, err)
 		}
 	})
+	t.Run("Should keep startup and pause available when an instance report cannot publish", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.RegisterSession(t.Context(), new(store.SessionInfo{
+			ProfileID: store.DefaultProfileID, ID: "sess-unloaded", AgentName: "coder",
+			State: string(session.StateActive), RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt: now, UpdatedAt: now,
+		})); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(),
+			"UPDATE agent_instances SET state='paused', pause_reason='manual', main_session_id='sess-unloaded' WHERE id=?",
+			instance.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{
+			SourceKey: "turn:unpublishable", Kind: "failure",
+			Payload: []byte(`{"reason":"fatigue","detail":"Checks paused"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profile.NewManager(profile.WithStore(db), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var logs bytes.Buffer
+		state := &bootState{
+			sessions:          manager,
+			registry:          db,
+			workspaceResolver: resolver,
+			profiles:          profiles,
+			cfg:               compozyconfig.DefaultWithHome(home),
+			logger:            slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		if err := (&Daemon{now: func() time.Time { return now }}).bootAgentInstances(t.Context(), state); err != nil {
+			t.Fatalf("bootAgentInstances() error = %v", err)
+		}
+		if !strings.Contains(logs.String(), "publish instance reports at startup") ||
+			!strings.Contains(logs.String(), report.ID) {
+			t.Fatalf("missing report publication diagnostic: %s", logs.String())
+		}
+		paused, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := state.agentInstances.Service.ApplyPause(t.Context(), paused); err != nil {
+			t.Fatalf("ApplyPause() error = %v", err)
+		}
+		if !strings.Contains(logs.String(), "publish instance reports after pause") {
+			t.Fatalf("missing pause publication diagnostic: %s", logs.String())
+		}
+		pending, err := db.InstanceReports().UnpublishedReports(t.Context(), "", 10)
+		if err != nil || len(pending) != 1 || pending[0].Report.ID != report.ID {
+			t.Fatalf("unpublished = %+v, %v", pending, err)
+		}
+	})
 }
 
 func TestInstanceMonitorReadModel(t *testing.T) {
