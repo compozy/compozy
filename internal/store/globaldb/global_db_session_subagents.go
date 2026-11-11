@@ -371,3 +371,21 @@ func (g *SessionRepo) EnrichNativeSubagentResult(
 	})
 	return out, changed, err
 }
+
+func (g *SessionRepo) ResumeNativeSubagent(
+	ctx context.Context, id, turn string, at time.Time,
+) (out store.SessionSubagent, changed bool, err error) {
+	err = g.withImmediateTransaction(ctx, "resume native subagent", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		n, e := q.ResumeNativeSubagent(ctx, sqlcgen.ResumeNativeSubagentParams{
+			ID: id, Turn: turn, Now: store.FormatTimestamp(at),
+		})
+		if e != nil {
+			return e
+		}
+		out, e = readSubagent(ctx, q, id)
+		changed = n == 1
+		return e
+	})
+	return out, changed, err
+}

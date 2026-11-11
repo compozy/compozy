@@ -1158,6 +1158,66 @@ func TestGlobalDBSubagentWakeFailures(t *testing.T) {
 // Invariant: native recovery selects only unfinished provider-owned work without crossing delivery ownership.
 // Owner: globaldb read and transition boundary.
 func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
+	t.Run("Should resume only native terminal work with newer activity", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		row := store.SessionSubagent{
+			ID:                 "resumed-native",
+			WorkspaceID:        ws,
+			ParentSessionID:    parent,
+			ParentTurnID:       "first",
+			Origin:             store.SubagentOriginProviderNative,
+			ProviderToolCallID: "call",
+			IdempotencyKey:     "call",
+			RequestFingerprint: "call",
+			Title:              "Native",
+			Depth:              1,
+			WakePolicy:         store.SubagentWakePolicySettledOnly,
+			Status:             store.SubagentStatusRunning,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		}
+		if _, _, err := s.ReserveSubagent(t.Context(), row); err != nil {
+			t.Fatal(err)
+		}
+		end := now.Add(time.Second)
+		if _, _, err := s.FinalizeSubagent(
+			t.Context(),
+			store.SubagentFinalize{ID: row.ID, Status: "completed", Result: new("first"), SettledAt: end},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", now); err != nil || changed {
+			t.Fatal(changed, err)
+		}
+		got, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", end.Add(time.Second))
+		if err != nil || !changed || got.Status != "running" || got.Result != nil || got.SettledAt != nil ||
+			got.ParentTurnID != "second" {
+			t.Fatal(got, changed, err)
+		}
+		if _, changed, err := s.ResumeNativeSubagent(
+			t.Context(),
+			row.ID,
+			"second",
+			end.Add(2*time.Second),
+		); err != nil ||
+			changed {
+			t.Fatal(changed, err)
+		}
+		delegated := reserveSubagent(t, s, ws, parent, "delegated-resume", now)
+		finalizeSubagent(t, s, delegated.ID, end)
+		if _, changed, err := s.ResumeNativeSubagent(
+			t.Context(),
+			delegated.ID,
+			"second",
+			end.Add(time.Second),
+		); err != nil ||
+			changed {
+			t.Fatal(changed, err)
+		}
+	})
+
 	t.Run("Should return only unfinalized native rows and preserve no delivery on dispose", func(t *testing.T) {
 		t.Parallel()
 		db, ws, parent, now := subagentFixture(t)
@@ -1223,12 +1283,12 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 				t.Fatal(id, changed, err)
 			}
 		}
-		missing, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), store.NativeMissingResultCursor{}, 10)
+		missing, err := s.ListNativeReplayCandidates(ctx, now.Add(-time.Hour), store.NativeReplayCursor{}, 10)
 		if err != nil || len(missing) != 1 || missing[0].ID != "native-null" {
 			t.Fatal(missing, err)
 		}
-		if _, err := s.ListNativeMissingResult(ctx, now, store.NativeMissingResultCursor{}, 0); err == nil {
-			t.Fatal("unbounded missing-result list was accepted")
+		if _, err := s.ListNativeReplayCandidates(ctx, now, store.NativeReplayCursor{}, 0); err == nil {
+			t.Fatal("unbounded native replay list was accepted")
 		}
 		want := store.NativeSubagentResultEnrichment{
 			ID: "native-null", WorkspaceID: ws, ParentSessionID: parent, ParentTurnID: "turn",
@@ -1264,19 +1324,19 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 			*again.Result != "summary" {
 			t.Fatal("populated result replaced", again, changed, err)
 		}
-		if missing, err := s.ListNativeMissingResult(
+		if missing, err := s.ListNativeReplayCandidates(
 			ctx,
 			now.Add(-time.Hour),
-			store.NativeMissingResultCursor{},
+			store.NativeReplayCursor{},
 			10,
 		); err != nil ||
-			len(missing) != 0 {
+			len(missing) != 1 || missing[0].Result == nil || *missing[0].Result != "summary" {
 			t.Fatal(missing, err)
 		}
 	})
-	// Invariant: missing-result candidates page newest first by a stable (settled_at, id) cursor, so rows
+	// Invariant: replay candidates page newest first by a stable (settled_at, id) cursor, so rows
 	// beyond one page, including settlement ties, are each returned exactly once.
-	t.Run("Should page native missing-result candidates by a stable cursor", func(t *testing.T) {
+	t.Run("Should page native replay candidates by a stable cursor", func(t *testing.T) {
 		t.Parallel()
 		db, ws, parent, now := subagentFixture(t)
 		s := db.SessionRepo
@@ -1302,9 +1362,9 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 			want = append([]string{id}, want...)
 		}
 		var got []string
-		var after store.NativeMissingResultCursor
+		var after store.NativeReplayCursor
 		for pages := 0; ; pages++ {
-			page, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), after, 2)
+			page, err := s.ListNativeReplayCandidates(ctx, now.Add(-time.Hour), after, 2)
 			if err != nil || pages > 3 {
 				t.Fatal(page, err, pages)
 			}
@@ -1315,7 +1375,7 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 				break
 			}
 			last := page[len(page)-1]
-			after = store.NativeMissingResultCursor{SettledAt: *last.SettledAt, ID: last.ID}
+			after = store.NativeReplayCursor{SettledAt: *last.SettledAt, ID: last.ID}
 		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("paged candidates = %v, want %v", got, want)

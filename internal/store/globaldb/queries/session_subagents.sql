@@ -235,9 +235,9 @@ WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND parent_ses
  AND origin = 'provider_native' AND status = sqlc.arg(status) AND status IN ('completed','failed','canceled')
  AND result IS NULL;
 
--- name: ListNativeMissingResultSubagents :many
+-- name: ListNativeReplayCandidatesSubagents :many
 SELECT * FROM session_subagents
-WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
+WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled')
  AND settled_at >= sqlc.arg(since)
  AND (sqlc.arg(cursor_id) = '' OR (settled_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
 ORDER BY settled_at DESC, id DESC LIMIT sqlc.arg(row_limit);
@@ -275,3 +275,11 @@ SELECT EXISTS (
       AND NOT (wake_policy = 'settled_only' AND delivery = 'none'
         AND status IN ('completed','failed','canceled','interrupted'))
 );
+
+-- name: ResumeNativeSubagent :execrows
+UPDATE session_subagents SET status = 'running', work_state = 'working',
+ parent_turn_id = sqlc.arg(turn), result = NULL, error = NULL, result_truncated = 0,
+ progress = '', settled_at = NULL, updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND origin = 'provider_native'
+ AND status IN ('completed','failed','canceled','interrupted')
+ AND settled_at < sqlc.arg(now);
