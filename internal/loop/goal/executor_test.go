@@ -1120,6 +1120,30 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 }
 
 func TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand(t *testing.T) {
+	t.Run("Should retain requested ACP options when rotating a confirmed subset", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store)
+		executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+		segment := directSegmentForTest(t, store)
+		segment.binding.RequestedRuntime.ACPOptions = []dsl.ACPOptionSelection{
+			{ID: "mode", ValueID: "bypassPermissions"},
+			{ID: "thinking", BoolValue: new(true)},
+		}
+		segment.resolvedRuntime.Runtime.ACPOptions = []dsl.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		if err := executor.rotateBinding(t.Context(), segment); err != nil {
+			t.Fatalf("rotateBinding() error = %v", err)
+		}
+		if len(binder.binds) != 1 || binder.binds[0].TargetBindingEpoch != 2 {
+			t.Fatalf("rotation binds = %#v, want one epoch 2 request", binder.binds)
+		}
+		options := binder.binds[0].RuntimeValue().ACPOptions
+		if len(options) != 2 || options[0].ID != "mode" || options[0].ValueID != "bypassPermissions" ||
+			options[1].ID != "thinking" || options[1].BoolValue == nil || !*options[1].BoolValue {
+			t.Fatalf("rebind options = %#v, want full requested mode and thinking", options)
+		}
+	})
+
 	t.Run("Should enter reseed approval without sending a compaction prompt", func(t *testing.T) {
 		t.Parallel()
 		store := newFakeExecutorStore()

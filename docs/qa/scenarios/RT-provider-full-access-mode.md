@@ -56,6 +56,8 @@ on the same live process: the unchanged skipped mode must not prevent the change
 live mode, other options, and narrower modes still require unique advertisements. Loop applied runtime and provenance
 must omit skipped options while the session retains requested intent. Triage must refuse ambiguous
 mode options when no independently advertised read-only session mode is available.
+Rotate a Goal that requested both a skipped mode and a confirmed option: rebinding must preserve
+the full requested creation profile while its applied projection keeps only confirmed options.
 
 Regression ownership: `TestStartUnrestrictedModeAdvertisement` in the ACP startup contract suite.
 Real daemon/process-boundary coverage: `TestAgyACPBuiltInEntry`,
