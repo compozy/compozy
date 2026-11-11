@@ -870,6 +870,65 @@ func TestProviderInventoryEnabled(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should list a provider defined only in the profile with its enabled state", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		profileDir := filepath.Join(homePaths.ProfilesDir, compozyconfig.DefaultProfileDirName)
+		if err := os.MkdirAll(profileDir, 0o700); err != nil {
+			t.Fatalf("mkdir profile: %v", err)
+		}
+		profileTOML := "[providers.work]\ncommand = \"work-acp\"\ndisplay_name = \"Work\"\nauth_mode = \"none\"\n" +
+			"enabled = false\n\n" +
+			"[providers.ghost]\nenabled = false\n"
+		profileFile := filepath.Join(profileDir, compozyconfig.ConfigName)
+		if err := os.WriteFile(profileFile, []byte(profileTOML), 0o600); err != nil {
+			t.Fatalf("write profile config: %v", err)
+		}
+		settings := &activeProviderSettings{config: providerAuthTestConfig(t)}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config:    compozyconfig.CloneConfig(&settings.config),
+			Settings:  settings,
+			HomePaths: homePaths,
+		})
+		router := gin.New()
+		router.GET("/providers", handlers.ListProviders)
+		router.GET("/providers/:provider_id", handlers.GetProvider)
+		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+
+		var inventory contract.ProviderListResponse
+		serveProviderJSON(t, router, "/providers", &inventory)
+		listed := map[string]contract.ProviderSummaryPayload{}
+		for _, provider := range inventory.Providers {
+			listed[provider.Name] = provider
+		}
+		work, ok := listed["work"]
+		if !ok || work.Enabled || work.DisplayName != "Work" {
+			t.Fatalf("list work = %+v listed = %v, want the profile definition listed disabled", work, ok)
+		}
+		if _, ok := listed["ghost"]; ok {
+			t.Fatalf("list ghost listed, want an enabled-only profile entry without a command left out")
+		}
+		var single contract.ProviderSummaryPayload
+		serveProviderJSON(t, router, "/providers/work", &single)
+		if single.Name != "work" || single.Enabled {
+			t.Fatalf("get work = %+v, want the profile-only provider reported disabled", single)
+		}
+		probe := httptest.NewRecorder()
+		router.ServeHTTP(probe, httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/providers/work/auth/probe", http.NoBody,
+		))
+		var probed contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(probe.Body.Bytes(), &probed); err != nil || probe.Code != http.StatusOK {
+			t.Fatalf("probe work status = %d err = %v; body=%s", probe.Code, err, probe.Body.String())
+		}
+		if probed.Provider != "work" || probed.AuthStatus.Mode != "none" {
+			t.Fatalf("probe work = %+v, want the profile-only definition probed", probed)
+		}
+	})
 }
 
 func serveProviderJSON(t *testing.T, router http.Handler, path string, out any) {

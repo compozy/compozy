@@ -37,6 +37,7 @@ import { agentsListOptions } from "@/systems/agent";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import type { SessionLifecycleAction } from "../../hooks/session-lifecycle-types";
 import {
   profileSessionGroups,
   projectSessionGroup,
@@ -162,7 +163,12 @@ function renderList(
     collapsedThreadIds?: string[];
     subagentThreadIds?: string[];
     view?: SessionListViewModel;
-    actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
+    actions?: {
+      onAdopt?: () => void;
+      onMakeTopLevel?: () => void;
+      pendingAction?: SessionLifecycleAction | null;
+      pendingSessionIds?: readonly string[];
+    };
     /** The session window's clear request for the session it has open. */
     clear?: SessionClearRequest;
     /** The desktop shell the rail opens windows through; absent outside the shell. */
@@ -172,7 +178,7 @@ function renderList(
   const onSelect = vi.fn();
   const actions = {
     pendingAction: null,
-    pendingSessionId: null,
+    pendingSessionIds: [],
     onStop: vi.fn(),
     onRename: vi.fn(),
     onArchive: vi.fn(),
@@ -663,6 +669,20 @@ describe("SessionList selection", () => {
     expect(screen.getByTestId("session-row-actions-running")).toBeInTheDocument();
     await user.click(first);
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(sessions[0]);
+  });
+
+  // Invariant: after the selection clears mid-batch, every target the batch is running shows
+  // progress, a queued or settled target does not, and every row's controls stay locked.
+  it("Should show progress on each running batch target and lock every row", () => {
+    renderList({ actions: { pendingAction: "stop", pendingSessionIds: ["running", "other"] } });
+    for (const id of ["running", "stopped", "other"]) {
+      expect(screen.getByTestId(`session-row-actions-${id}`)).toBeDisabled();
+    }
+    const progress = (id: string) =>
+      within(screen.getByTestId(`session-row-actions-${id}`)).queryByRole("status");
+    expect(progress("running")).toBeInTheDocument();
+    expect(progress("other")).toBeInTheDocument();
+    expect(progress("stopped")).not.toBeInTheDocument();
   });
   it.each([{ ctrlKey: true }, { metaKey: true }])(
     "keeps editable filter shortcuts separate from bulk actions (%o)",

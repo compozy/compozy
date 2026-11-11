@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
 import {
-  lifecyclePendingSessionId,
+  lifecyclePendingSessionIds,
   readCurrentSessions,
   runSessionBatch,
   type SessionBatchResult,
@@ -46,8 +46,8 @@ import {
   reportDeletedSessions,
   settleTreeTarget,
 } from "@/systems/session/hooks/session-lifecycle-helpers";
-import { useSessionReparent } from "./use-session-reparent";
 import { useSessionLaterActions } from "./use-session-later-actions";
+import { useSessionBatchAdmission } from "./use-session-batch-admission";
 import { useMarkSessionSeenAction } from "./use-mark-session-seen";
 import type {
   SessionLifecycleAction,
@@ -85,7 +85,6 @@ export function useSessionLifecycleActions(
   const unarchive = useUnarchiveSession();
   const remove = useDeleteSession(deleteOptions);
   const rename = useRenameSession();
-  const reparent = useSessionReparent();
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
     bulk: boolean;
@@ -94,7 +93,7 @@ export function useSessionLifecycleActions(
   } | null>(null);
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
-  const batchRunning = useRef(false);
+  const batchRunning = useSessionBatchAdmission();
   const deleteConfirmation = useRef(0);
   const [deleteChildren, setDeleteChildren] = useState(false);
   const deleteSessions = useCurrentDeleteSessions(
@@ -131,22 +130,23 @@ export function useSessionLifecycleActions(
   const ownPending = batchAction ?? pendingMutation?.[0] ?? null;
   const later = useSessionLaterActions({
     busy: ownPending !== null,
+    batchRunning,
     onMovedToLater: onLaterSuccess,
   });
   const markSeen = useMarkSessionSeenAction();
   const menuBatch = useSessionBatchMenuActions(
     ownPending !== null || later.pendingAction !== null,
-    reparent.detachAsync,
+    batchRunning,
     setBatchAction,
     setBatchResults
   );
   const pendingAction = ownPending ?? later.pendingAction;
-  const pendingSessionId = lifecyclePendingSessionId({
+  const pendingSessionIds = lifecyclePendingSessionIds({
     batching: batchAction !== null,
     batchResults,
     ownPending: ownPending !== null,
     mutationSessionId: pendingMutation?.[1].variables?.id,
-    laterSessionId: later.pendingSessionId,
+    laterSessionIds: later.pendingSessionIds,
   });
 
   const notifyArchived = (session: SessionPayload, trees?: SessionTrees) =>
@@ -162,8 +162,8 @@ export function useSessionLifecycleActions(
     trees?: SessionTrees
   ): Promise<SessionBatchResult[] | null> => {
     const policy = processes ? { processes } : {};
-    if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
-    batchRunning.current = true;
+    if (batchRunning.held() || pendingAction !== null || sessions.length === 0) return null;
+    batchRunning.hold();
     setBatchAction(action);
     const coveredBy = sessionBatchCoverage(action, sessions, trees);
     return runSessionBatch({
@@ -202,7 +202,7 @@ export function useSessionLifecycleActions(
         }
       },
     }).finally(() => {
-      batchRunning.current = false;
+      batchRunning.release();
       setBatchAction(null);
     });
   };
@@ -256,7 +256,7 @@ export function useSessionLifecycleActions(
       checkingProcesses.current ||
       processChoice !== null ||
       pendingAction !== null ||
-      batchRunning.current
+      batchRunning.held()
     )
       return;
     checkingProcesses.current = true;
@@ -306,7 +306,7 @@ export function useSessionLifecycleActions(
     processes?: SessionProcessPolicy,
     readErrors?: ReadonlyMap<string, unknown>
   ) => {
-    if (!deleteSession || remove.isPending || batchRunning.current) return;
+    if (!deleteSession || remove.isPending || batchRunning.held()) return;
     if (processes) deletePolicy.current = processes;
     if (deleteTarget?.bulk) {
       void confirmDeleteMany(readErrors);
@@ -380,9 +380,9 @@ export function useSessionLifecycleActions(
     batchResults,
     actions: {
       pendingAction,
-      pendingSessionId,
+      pendingSessionIds,
       onRename: session => {
-        if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
+        if (pendingAction === null && !batchRunning.held()) setRenameTarget(session);
       },
       onStop: session =>
         void askAboutProcesses("stop", [session], processes =>
@@ -401,7 +401,7 @@ export function useSessionLifecycleActions(
       onUnarchive: session =>
         unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
-        if (pendingAction === null && !batchRunning.current) {
+        if (pendingAction === null && !batchRunning.held()) {
           deleteConfirmation.current++;
           deletePolicy.current = undefined;
           setDeleteChildren(false);
@@ -414,12 +414,9 @@ export function useSessionLifecycleActions(
       onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
       ...later.handlers,
       onMarkSeen: markSeen.onMarkSeen,
-      onMarkSeenMany: menuBatch.onMarkSeenMany,
-      onMakeTopLevelMany: menuBatch.onMakeTopLevelMany,
-      onAdopt: reparent.adopt,
-      onMakeTopLevel: reparent.detach,
+      ...menuBatch,
       onDeleteMany: (sessions, onSelectionChange) => {
-        if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
+        if (pendingAction === null && !batchRunning.held() && sessions.length > 0) {
           deleteConfirmation.current++;
           deletePolicy.current = undefined;
           setDeleteChildren(false);
@@ -444,7 +441,7 @@ export function useSessionLifecycleActions(
         onRetry: deleteRead.onRetry,
       }),
       onOpenChange: open => {
-        if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
+        if (!open && deleteTarget && !remove.isPending && !batchRunning.held()) {
           deleteConfirmation.current++;
           if (batchResults.some(result => result.status === "failed")) {
             deleteTarget?.onSelectionChange?.(

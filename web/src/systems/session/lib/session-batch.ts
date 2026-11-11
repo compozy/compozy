@@ -121,16 +121,20 @@ export async function readCurrentSessions(
   return { sessions: current, errors };
 }
 
-/** The session a running batch, own mutation, or Later action is working on. */
-export function lifecyclePendingSessionId(state: {
+/** Every session a running batch, own mutation, or Later action is working on. */
+export function lifecyclePendingSessionIds(state: {
   batching: boolean;
   batchResults: readonly SessionBatchResult[];
   ownPending: boolean;
   mutationSessionId: string | undefined;
-  laterSessionId: string | null;
-}): string | null {
-  if (state.batching)
-    return state.batchResults.find(result => result.status === "running")?.id ?? null;
-  if (state.ownPending) return state.mutationSessionId ?? null;
-  return state.laterSessionId;
+  laterSessionIds: readonly string[];
+}): readonly string[] {
+  if (state.batching) return runningSessionIds(state.batchResults);
+  if (state.ownPending) return state.mutationSessionId ? [state.mutationSessionId] : [];
+  return state.laterSessionIds;
+}
+
+/** The targets a parallel batch is executing now; queued and settled ones are excluded. */
+export function runningSessionIds(results: readonly SessionBatchResult[]): readonly string[] {
+  return results.flatMap(result => (result.status === "running" ? [result.id] : []));
 }

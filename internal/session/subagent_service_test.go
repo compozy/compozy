@@ -1032,6 +1032,76 @@ func TestSubagentModelValidation(t *testing.T) {
 
 // UT-036/UT-037 lifecycle half: native tool identity owns one row and never owns a wake.
 func TestSubagentNativeLifecycle(t *testing.T) {
+	t.Run("Should reopen completed background work and settle its next result", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "toolu_resume",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		apply := func(ev NativeSubagentEvent) {
+			t.Helper()
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		apply(launch)
+		done := nativeTaskEvent(
+			"toolu_resume",
+			acp.NativeTaskKindState,
+			acp.NativeTaskStatusCompleted,
+			new("first answer"),
+		)
+		done.At = at.Add(time.Second)
+		apply(done)
+		id := subagentID("parent", "toolu_resume")
+		if db.rows[id].Status != "completed" {
+			t.Fatal(db.rows[id])
+		}
+		// A delayed activity frame from before completion cannot reopen the row.
+		resume := nativeTaskEvent("toolu_resume", acp.NativeTaskKindState, acp.NativeTaskStatusRunning, nil)
+		resume.At = at
+		apply(resume)
+		if db.rows[id].Status != "completed" {
+			t.Fatal(db.rows[id])
+		}
+		delete(s.nativeKnown, "parent")
+		resume.At = at.Add(2 * time.Second)
+		resume.ParentTurnID = "next-turn"
+		snap := runtime.snapshots["parent"]
+		snap.TurnID = "next-turn"
+		runtime.snapshots["parent"] = snap
+
+		apply(resume)
+		row := db.rows[id]
+		if row.Status != "running" || row.WorkState != "working" || row.SettledAt != nil || row.Result != nil ||
+			row.ParentTurnID != "next-turn" {
+			t.Fatal(row)
+		}
+		done.ParentTurnID = "next-turn"
+		done.At = at.Add(3 * time.Second)
+		done.Task.Summary = new("second answer")
+		apply(done)
+		apply(done)
+		row = db.rows[id]
+		if row.Status != "completed" || row.Result == nil || *row.Result != "second answer" || row.SettledAt == nil ||
+			!row.SettledAt.Equal(done.At) ||
+			len(runtime.queues) != 0 {
+			t.Fatal(row, runtime.queues)
+		}
+		if err := s.OnParentTurnInterrupted(t.Context(), "parent", "next-turn"); err != nil {
+			t.Fatal(err)
+		}
+		if len(s.nativeKnown["parent"]) != 0 {
+			t.Fatal("finished resume retained native call tracking", s.nativeKnown["parent"])
+		}
+	})
+
 	// Invariant: the launching call's input streams in, so a later event of the same call fills
 	// the model and subagent type the first one lacked, without erasing them afterwards.
 	t.Run("Should record the model and type a later streamed event names", func(t *testing.T) {
@@ -1959,6 +2029,126 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	for _, turn := range []string{"turn", "resumed-turn"} {
+		t.Run("Should recover a committed resume beyond an existing answer in "+turn, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			at := s.now()
+			launch := NativeSubagentEvent{
+				WorkspaceID:        "ws",
+				ParentTurnID:       "turn",
+				ProviderToolCallID: "saved-resume",
+				ToolName:           "Agent",
+				Background:         true,
+				At:                 at,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			done := nativeTaskEvent(
+				launch.ProviderToolCallID,
+				acp.NativeTaskKindState,
+				acp.NativeTaskStatusCompleted,
+				new("old answer"),
+			)
+			done.At = at.Add(time.Second)
+			if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+				t.Fatal(err)
+			}
+			for i, task := range []*acp.NativeTaskObservation{
+				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusRunning, TaskID: "saved-resume", ToolCallID: launch.ProviderToolCallID},
+				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("new answer"), TaskID: "saved-resume", ToolCallID: launch.ProviderToolCallID},
+			} {
+				content, err := transcript.MarshalAgentEvent(
+					acp.AgentEvent{
+						Type:       acp.EventTypeNativeTask,
+						ToolCallID: launch.ProviderToolCallID,
+						TurnID:     turn,
+					}.WithNativeTask(
+						task,
+					),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				runtime.nativeTasks = append(
+					runtime.nativeTasks,
+					store.SessionEvent{
+						Sequence:  int64(i + 1),
+						TurnID:    turn,
+						Type:      acp.EventTypeNativeTask,
+						Timestamp: at.Add(time.Duration(i+2) * time.Second),
+						Content:   content,
+					},
+				)
+			}
+			if err := s.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+			if row.Result == nil || *row.Result != "new answer" || row.ParentTurnID != turn ||
+				row.Status != store.SubagentStatusCompleted {
+				t.Fatal(row)
+			}
+		})
+	}
+
+	t.Run("Should retain a saved terminal summary when later activity is stale", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "stale-active",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		done := nativeTaskEvent(launch.ProviderToolCallID, acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil)
+		done.At = at.Add(2 * time.Second)
+		if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+			t.Fatal(err)
+		}
+		for i, task := range []*acp.NativeTaskObservation{
+			{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("saved answer")},
+			{Kind: acp.NativeTaskKindProgress, Description: "late activity"},
+		} {
+			content, err := transcript.MarshalAgentEvent(
+				acp.AgentEvent{
+					Type:       acp.EventTypeNativeTask,
+					ToolCallID: launch.ProviderToolCallID,
+					TurnID:     "turn",
+				}.WithNativeTask(
+					task,
+				),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.nativeTasks = append(
+				runtime.nativeTasks,
+				store.SessionEvent{
+					Sequence:  int64(i + 1),
+					TurnID:    "turn",
+					Type:      acp.EventTypeNativeTask,
+					Content:   content,
+					Timestamp: at.Add(time.Duration(3-i) * time.Second),
+				},
+			)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+		if row.Result == nil || *row.Result != "saved answer" || row.Status != store.SubagentStatusCompleted {
+			t.Fatal(row)
+		}
+	})
+
 	t.Run("Should keep settled native tracking retired after a late update", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -2049,6 +2239,187 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			})
 		})
 	}
+	t.Run("Should interrupt a resume recovered after its parent turn disappeared", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "crash-resume",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		done := nativeTaskEvent(launch.ProviderToolCallID, acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil)
+		done.At = at.Add(time.Second)
+		if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+			t.Fatal(err)
+		}
+		content, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				ToolCallID: launch.ProviderToolCallID,
+				TurnID:     "turn",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind:       acp.NativeTaskKindState,
+					TaskID:     "crash-resume",
+					ToolCallID: launch.ProviderToolCallID,
+					Status:     acp.NativeTaskStatusRunning,
+				},
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.nativeTasks = []store.SessionEvent{
+			{
+				Sequence:  1,
+				TurnID:    "turn",
+				Type:      acp.EventTypeNativeTask,
+				Timestamp: at.Add(2 * time.Second),
+				Content:   content,
+			},
+		}
+		snap := runtime.snapshots["parent"]
+		snap.Active = false
+		runtime.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if row := db.rows[subagentID("parent", launch.ProviderToolCallID)]; row.Status != store.SubagentStatusInterrupted {
+			t.Fatal(row)
+		}
+	})
+
+	t.Run("Should recover a saved summary before a later turn fallback", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "fallback-summary",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		content, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				ToolCallID: launch.ProviderToolCallID,
+				TurnID:     "turn",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind:       acp.NativeTaskKindState,
+					TaskID:     "agent-fallback",
+					ToolCallID: launch.ProviderToolCallID,
+					Status:     acp.NativeTaskStatusCompleted,
+					Summary:    new("saved answer"),
+				},
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.nativeTasks = []store.SessionEvent{
+			{
+				Sequence:  1,
+				TurnID:    "turn",
+				Type:      acp.EventTypeNativeTask,
+				Timestamp: at.Add(time.Second),
+				Content:   content,
+			},
+		}
+		if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", at.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+		if row.Result == nil || *row.Result != "saved answer" {
+			t.Fatal(row)
+		}
+	})
+
+	t.Run("Should recover only the resumed run summary after its completion patch", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		at := s.now()
+		launch := NativeSubagentEvent{
+			WorkspaceID:        "ws",
+			ParentTurnID:       "turn",
+			ProviderToolCallID: "resumed",
+			ToolName:           "Agent",
+			Background:         true,
+			At:                 at,
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+			t.Fatal(err)
+		}
+		events := []NativeSubagentEvent{
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, new("first answer")),
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusRunning, nil),
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil),
+			nativeTaskEvent("resumed", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, new("second answer")),
+		}
+		for i, ev := range events {
+			ev.At = at.Add(time.Duration(i+1) * time.Second)
+			if i < len(events)-1 {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			content, err := transcript.MarshalAgentEvent(
+				acp.AgentEvent{
+					Type:       acp.EventTypeNativeTask,
+					ToolCallID: "resumed",
+					TurnID:     "turn",
+				}.WithNativeTask(
+					&acp.NativeTaskObservation{
+						Kind:       ev.Task.Kind,
+						TaskID:     "agent-resumed",
+						ToolCallID: "resumed",
+						Status:     ev.Task.Status,
+						Summary:    ev.Task.Summary,
+					},
+				),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.nativeTasks = append(
+				runtime.nativeTasks,
+				store.SessionEvent{
+					Sequence:  int64(i + 1),
+					TurnID:    "turn",
+					Type:      acp.EventTypeNativeTask,
+					Timestamp: ev.At,
+					Content:   content,
+				},
+			)
+		}
+		id := subagentID("parent", "resumed")
+		if db.rows[id].Result != nil {
+			t.Fatal(db.rows[id])
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if row := db.rows[id]; row.Result == nil || *row.Result != "second answer" || row.SettledAt == nil ||
+			!row.SettledAt.Equal(at.Add(3*time.Second)) {
+			t.Fatal(row)
+		}
+	})
+
 	// Invariant: a delayed cancellation only retires its own turn's native tracking; owner: native lifecycle.
 	t.Run("Should preserve newer native tracking after delayed interruption", func(t *testing.T) {
 		t.Parallel()

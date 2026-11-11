@@ -128,6 +128,7 @@ import { toast } from "@compozy/ui";
 import { notifyUser } from "@/lib/user-feedback";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
+import type { SessionLifecycleActionHandlers } from "../session-lifecycle-types";
 import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 beforeEach(() => {
@@ -2269,7 +2270,7 @@ describe("session lifecycle batches", () => {
         ])
       );
       expect(result.current.actions.pendingAction).toBe(action);
-      expect(result.current.actions.pendingSessionId).toBe(eligible[0]!.id);
+      expect(result.current.actions.pendingSessionIds).toEqual([eligible[0]!.id]);
       act(() => result.current.actions.onMoveToLater?.(createdSession));
       expect(result.current.laterDialog.open).toBe(false);
       act(() => result.current.actions.onBackFromLater?.(createdSession));
@@ -2724,5 +2725,204 @@ describe("session lifecycle batches", () => {
       description: "Failing session: stop before archiving failed",
     });
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  /** Holds each adapter call by session id until the test settles it. */
+  function heldAdapter() {
+    const calls = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
+    const execute = (_workspace: string, id: string) =>
+      new Promise<SessionPayload>((resolve, reject) => {
+        calls.set(id, { resolve: () => resolve({ ...createdSession, id }), reject });
+      });
+    return { calls, execute };
+  }
+  function independent(prefix: string, count: number, extra: Partial<SessionPayload> = {}) {
+    return Array.from({ length: count }, (_, index) => ({
+      ...createdSession,
+      id: `${prefix}-${index}`,
+      name: `${prefix} ${index}`,
+      lineage: {
+        ...createdSession.lineage,
+        kind: "provenance",
+        parent_session_id: `${prefix}-parent-${index}`,
+        root_session_id: `${prefix}-parent-${index}`,
+      },
+      ...extra,
+    })) as SessionPayload[];
+  }
+  const parkedExtra = {
+    state: "stopped" as const,
+    later: { parked_at: "2026-08-01T12:00:00Z", pending_messages: 0 },
+  };
+  const families = {
+    "make-top-level": {
+      adapter: clearSessionParent,
+      targets: () => independent("nested", 4),
+      invoke: (actions: SessionLifecycleActionHandlers, targets: readonly SessionPayload[]) =>
+        actions.onMakeTopLevelMany?.(targets),
+    },
+    "back-from-later": {
+      adapter: resumeSessionFromLater,
+      targets: () => independent("parked", 4, parkedExtra),
+      invoke: (actions: SessionLifecycleActionHandlers, targets: readonly SessionPayload[]) =>
+        actions.onBackFromLaterMany?.(targets),
+    },
+    unarchive: {
+      adapter: unarchiveSession,
+      targets: () => independent("archived", 4, { archived_at: "2026-09-11" }),
+      invoke: (actions: SessionLifecycleActionHandlers, targets: readonly SessionPayload[]) =>
+        actions.onUnarchiveMany?.(targets),
+    },
+  } as const;
+  type Family = keyof typeof families;
+  const mockHeld = (family: Family) => {
+    const held = heldAdapter();
+    vi.mocked(families[family].adapter).mockImplementation(held.execute);
+    return held;
+  };
+
+  // Invariant: every target a parallel batch is executing reports progress; queued and settled
+  // targets do not, and the lock holds until the whole batch settles.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
+  it.each(["make-top-level", "back-from-later"] as const)(
+    "Should report each running %s target as pending",
+    async family => {
+      const held = mockHeld(family);
+      const targets = families[family].targets();
+      const [first, second, third, fourth] = targets.map(target => target.id);
+      const { result } = lifecycle();
+      act(() => families[family].invoke(result.current.actions, targets));
+      await waitFor(() => expect(families[family].adapter).toHaveBeenCalledTimes(3));
+      await waitFor(() =>
+        expect(result.current.actions.pendingSessionIds).toEqual([first, second, third])
+      );
+      await act(async () => held.calls.get(second!)!.reject(new Error("Denied")));
+      await waitFor(() =>
+        expect(result.current.actions.pendingSessionIds).toEqual([first, third, fourth])
+      );
+      await act(async () => held.calls.get(first!)!.resolve());
+      await waitFor(() =>
+        expect(result.current.actions.pendingSessionIds).toEqual([third, fourth])
+      );
+      expect(result.current.actions.pendingAction).toBe(family);
+      await act(async () => {
+        held.calls.get(third!)!.resolve();
+        held.calls.get(fourth!)!.resolve();
+      });
+      await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+      expect(result.current.actions.pendingSessionIds).toEqual([]);
+    }
+  );
+
+  // Invariant: lifecycle, Later and menu batch families share one synchronous admission, so a
+  // second batch invoked in the same turn starts no mutation; a batch after settlement runs.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
+  it.each([
+    ["back-from-later", "make-top-level"],
+    ["make-top-level", "back-from-later"],
+    ["unarchive", "make-top-level"],
+    ["make-top-level", "unarchive"],
+    ["unarchive", "back-from-later"],
+    ["back-from-later", "unarchive"],
+  ] as const)("Should admit only %s when %s starts in the same turn", async (first, second) => {
+    const held = mockHeld(first);
+    const later = mockHeld(second);
+    const firstTargets = families[first].targets();
+    const secondTargets = families[second].targets();
+    const { result } = lifecycle();
+    act(() => {
+      families[first].invoke(result.current.actions, firstTargets);
+      families[second].invoke(result.current.actions, secondTargets);
+    });
+    await waitFor(() => expect(families[first].adapter).toHaveBeenCalledTimes(3));
+    act(() => families[second].invoke(result.current.actions, secondTargets));
+    expect(families[second].adapter).not.toHaveBeenCalled();
+    for (let settled = 0; settled < firstTargets.length; settled++) {
+      await waitFor(() => expect(held.calls.size).toBeGreaterThan(settled));
+      await act(async () => held.calls.get(firstTargets[settled]!.id)!.resolve());
+    }
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+    expect(families[second].adapter).not.toHaveBeenCalled();
+    act(() => families[second].invoke(result.current.actions, secondTargets));
+    await waitFor(() => expect(families[second].adapter).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      for (const call of later.calls.values()) call.resolve();
+    });
+    await waitFor(() => expect(later.calls.size).toBe(secondTargets.length));
+    await act(async () => {
+      for (const call of later.calls.values()) call.resolve();
+    });
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+  });
+
+  // Invariant: a singular nest or Make top-level and a batch detach share one lineage boundary:
+  // a held singular reparent blocks the batch until it settles, and a running batch declines
+  // singular reparents, including a nest toast's Undo.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
+  it("Should keep singular reparents and batch detach from overlapping", async () => {
+    const held = mockHeld("make-top-level");
+    vi.mocked(setSessionParent).mockResolvedValue(createdSession);
+    const [single, ...batch] = independent("nested", 3);
+    const { result } = lifecycle();
+    act(() => result.current.actions.onAdopt?.(createdSession, single!));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const undo = vi.mocked(toast.success).mock.calls[0]?.[1] as {
+      action: { onClick: () => void };
+    };
+    act(() => result.current.actions.onMakeTopLevel?.(single!));
+    await waitFor(() => expect(clearSessionParent).toHaveBeenCalledTimes(1));
+    act(() => result.current.actions.onMakeTopLevelMany?.(batch));
+    expect(clearSessionParent).toHaveBeenCalledTimes(1);
+    expect(result.current.actions.pendingAction).toBeNull();
+
+    await act(async () => held.calls.get(single!.id)!.resolve());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(2));
+    act(() => result.current.actions.onMakeTopLevelMany?.(batch));
+    await waitFor(() => expect(clearSessionParent).toHaveBeenCalledTimes(3));
+    act(() => {
+      result.current.actions.onMakeTopLevel?.(single!);
+      result.current.actions.onAdopt?.(single!, batch[0]!);
+      undo.action.onClick();
+    });
+    expect(clearSessionParent).toHaveBeenCalledTimes(3);
+    expect(setSessionParent).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      for (const target of batch) held.calls.get(target.id)!.resolve();
+    });
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+  });
+
+  // Invariant: the lineage boundary covers only lineage work: a running non-lineage batch leaves
+  // single Make top-level available, and a pending single reparent leaves Mark as seen available.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
+  it("Should leave single lineage moves and non-lineage batches independent", async () => {
+    const unarchiving = mockHeld("unarchive");
+    const detaching = mockHeld("make-top-level");
+    vi.mocked(markSessionSeen).mockImplementation(async (_workspace, id) => ({
+      ...createdSession,
+      id,
+    }));
+    const [single] = independent("nested", 1);
+    const { result } = lifecycle();
+    act(() => result.current.actions.onUnarchiveMany?.(families.unarchive.targets()));
+    await waitFor(() => expect(unarchiveSession).toHaveBeenCalledTimes(3));
+    act(() => result.current.actions.onMakeTopLevel?.(single!));
+    await waitFor(() => expect(clearSessionParent).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      for (const call of unarchiving.calls.values()) call.resolve();
+    });
+    await waitFor(() => expect(unarchiving.calls.size).toBe(4));
+    await act(async () => {
+      for (const call of unarchiving.calls.values()) call.resolve();
+    });
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+    act(() =>
+      result.current.actions.onMarkSeenMany?.([
+        { ...createdSession, id: "seen-0", attention_dismissible: true },
+      ])
+    );
+    await waitFor(() => expect(markSessionSeen).toHaveBeenCalledTimes(1));
+    await act(async () => detaching.calls.get(single!.id)!.resolve());
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
   });
 });

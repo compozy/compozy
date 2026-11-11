@@ -15,7 +15,7 @@ export function sessionLifecycleActionsFixture(
 ): SessionLifecycleActionHandlers {
   return {
     pendingAction: null,
-    pendingSessionId: null,
+    pendingSessionIds: [],
     onStop: handler(),
     onRename: handler(),
     onArchive: handler(),

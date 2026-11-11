@@ -72,7 +72,7 @@ const SESSIONS: SessionPayload[] = [
 
 const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
-  pendingSessionId: null,
+  pendingSessionIds: [],
   onArchive: () => {},
   onDelete: () => {},
   onRename: () => {},

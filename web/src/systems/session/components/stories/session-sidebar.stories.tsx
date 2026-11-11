@@ -85,7 +85,7 @@ export const ProvenanceThreads: Story = {
     onNewSession: fn(),
     sessionActions: {
       pendingAction: null,
-      pendingSessionId: null,
+      pendingSessionIds: [],
       onArchive: fn(),
       onDelete: fn(),
       onRename: fn(),

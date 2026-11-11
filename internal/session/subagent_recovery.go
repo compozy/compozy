@@ -36,6 +36,7 @@ func (s *subagentService) Recover(ctx context.Context) error {
 		return err
 	}
 	s.recoveryResult(ctx, "", "child_activity", s.recoverChildActivity(ctx))
+	s.recoveryResult(ctx, "", "native_results", s.recoverNativeResults(ctx))
 	native, err := s.store.ListUnfinalizedNative(ctx)
 	if err != nil {
 		return err
@@ -43,7 +44,6 @@ func (s *subagentService) Recover(ctx context.Context) error {
 	for _, turn := range groupNativeTurns(native) {
 		s.recoveryResult(ctx, turn[0].ParentTurnID, "native_interrupted", s.recoverNative(ctx, turn))
 	}
-	s.recoveryResult(ctx, "", "native_results", s.recoverNativeResults(ctx))
 	if err := s.recoverWakes(ctx); err != nil {
 		return err
 	}
