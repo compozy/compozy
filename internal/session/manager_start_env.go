@@ -25,12 +25,7 @@ func (m *Manager) sessionStartOpts(
 		strings.TrimSpace(s.reasoningEffort),
 	)
 	env = setSessionStartEnvValue(env, "COMPOZY_HOME", m.homePaths.HomeDir)
-	// Forwarded before agent-defined session_env and command assignments are applied, so agent OTEL_* values win.
-	var forward []string
-	if m.providerTelemetryEnv != nil {
-		forward = m.providerTelemetryEnv()
-	}
-	env = providerenv.ApplyTelemetryForwarding(env, forward, s.sessionID, resolved.Name)
+	env, forwardTraceParent := m.forwardProviderTelemetry(env, s.sessionID, resolved.Name)
 	providerID := strings.TrimSpace(resolved.RuntimeProvider)
 	if providerID == "" {
 		providerID = strings.TrimSpace(resolved.Provider)
@@ -79,7 +74,7 @@ func (m *Manager) sessionStartOpts(
 		ResumeSessionID:    s.acpSessionID,
 		InputOnly:          IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
 		ShellWaitGuard:     shellWaitGuard,
-		ForwardTraceParent: len(forward) > 0,
+		ForwardTraceParent: forwardTraceParent,
 		LeanEnvironment:    sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
 		IsolateProviderMCP: sessionIsolatesProviderMCP(
 			session.AgentDefinition().EffectiveKind(), resolved.LeanEnvironmentValue(),
@@ -227,4 +222,15 @@ func sessionLeanEnvironment(sessionType Type, authored *bool) bool {
 		return true
 	}
 	return authored != nil && *authored
+}
+
+// forwardProviderTelemetry applies the operator's provider telemetry forwarding to env and reports whether the
+// provider also gets the spawn's TRACEPARENT. It runs before agent-defined session_env and command assignments are
+// applied, so agent OTEL_* values win.
+func (m *Manager) forwardProviderTelemetry(env []string, sessionID, agentName string) ([]string, bool) {
+	var forward []string
+	if m.providerTelemetryEnv != nil {
+		forward = m.providerTelemetryEnv()
+	}
+	return providerenv.ApplyTelemetryForwarding(env, forward, sessionID, agentName), len(forward) > 0
 }
