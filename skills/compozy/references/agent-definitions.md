@@ -359,8 +359,8 @@ Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Ca
 win conflicts; original values and source text are retained as inactive comments. Persisted
 AGENT.md files migrate when loaded from any discovery root, including extension roots.
 Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
-still decode as `always_on` and log guidance to update the source before v0.6.0.
-This single persisted-file shim generation is scheduled for removal in v0.6.0.
+still decode as `always_on` and log guidance to update the source before v0.6.1.
+This single persisted-file shim generation is scheduled for removal in v0.6.1.
 CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
 update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
 
@@ -390,7 +390,7 @@ On-demand children resolve their own definition or settings level.
 
 `approve-all` alone selects the unrestricted mode, also Copilot `allow_all = on` and `agy` `yolo`; an agent's explicit
 `mode` or `allow_all` selection wins, and a narrower session level drops it. The deprecated
-`permissions.provider_full_access` key has no effect and is removed in v0.5.7.
+`permissions.provider_full_access` key has no effect and is removed in v0.6.1.
 If a provider does not uniquely advertise a `mode` config option, Full access skips the unrestricted
 startup selection. Later runtime changes may retain that same skipped intent without applying it;
 new mode selections still require a unique advertisement. Advertised options require supported

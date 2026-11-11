@@ -57,7 +57,7 @@ func (p *AgentProcess) warnUsageAlias(usage *wireUsage) {
 	p.usageAliasWarning.Do(func() {
 		p.usageLogger().Warn(
 			"acp: cacheReadTokens/cacheWriteTokens are deprecated; "+
-				"send cachedReadTokens/cachedWriteTokens (alias removed in v0.6.0)",
+				"send cachedReadTokens/cachedWriteTokens (alias removed in v0.6.1)",
 			"session_id", p.SessionID,
 		)
 	})

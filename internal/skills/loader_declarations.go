@@ -171,7 +171,7 @@ func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 	return slices.Clip(hooks), nil
 }
 
-// Remove this boundary shim in v0.6.0 after the retired matcher migration window.
+// Remove this boundary shim in v0.6.1 after the retired matcher migration window.
 func ignoreRetiredSkillHookMatchers(entry map[string]any) (map[string]any, []string) {
 	matcher, ok := entry["matcher"].(map[string]any)
 	if !ok {

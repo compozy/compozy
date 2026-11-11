@@ -164,7 +164,7 @@ func assignAllowedField(front *Frontmatter, key string, value any) error {
 		}
 		front.Collaboration = values
 	case "memory_policy":
-		// Retired frontmatter stays inert until the v0.6.0 shim removal.
+		// Retired frontmatter stays inert until the v0.6.1 shim removal.
 		return nil
 	case "tags":
 		values, err := stringList(value, key)

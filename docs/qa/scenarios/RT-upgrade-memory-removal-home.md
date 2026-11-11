@@ -80,7 +80,7 @@ bytes; stop the daemon cleanly; back up the home.
    `observe.session_recovery_skipped` per observer lifetime with `session_id`, `session_type`, `spawn_role`,
    and `reason` (`unknown_session_type` or `retired_spawn_role`). A normal `user` session directory with valid
    metadata and database but no catalog row, and an orphan whose spawn role is a custom advisory role, are
-   recovered into the catalog. This recovery boundary is permanent, not a v0.6.0 shim.
+   recovered into the catalog. This recovery boundary is permanent, not a v0.6.1 shim.
 5. The Markdown memory files, `_inbox/` candidates, `knowledge/` directory, and `ledger.jsonl` are present with
    unchanged hashes; nothing reads them.
 6. The Web desktop opens the saved layout without the Knowledge window, the session window renders with no
@@ -110,7 +110,7 @@ keep `teardown.json` with `clean: true`. Files may stay for forensics; processes
 
 QA impact 2026-10-07 (memory removal): new in this change; no prior verdict. Automated owners: the global and session
 upgrade integration suites, the config archive tests, and the layout reconcile tests; this scenario is the real
-run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) are scheduled for removal in v0.6.0
+run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) are scheduled for removal in v0.6.1
 and this scenario retires with them, except the session recovery boundary in step 4, which is permanent: move
 its checks into a durable recovery scenario before retiring this one.
 

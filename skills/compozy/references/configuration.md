@@ -488,7 +488,7 @@ in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoin
 `compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
 `# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
 file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
-finds nothing to archive. The archive is a v0.6.0 removal shim. It is non-fatal: if the rewrite is refused
+finds nothing to archive. The archive is a v0.6.1 removal shim. It is non-fatal: if the rewrite is refused
 because the file changed concurrently, or fails because the file or its directory is not writable, the
 loader logs the warning `config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired
 values inactive, leaves the file untouched, and retries on the next load. Treat that warning as work to
@@ -502,7 +502,7 @@ The same retirement is ignored, not rejected, in other places: `compaction_reaso
 owner and the file is not rewritten (other invalid fields still fail); an extension manifest entry for
 the removed memory surface, or an extension automation resource whose trigger `event` is
 `memory.consolidated`, is dropped or skipped with `extension.retired_entries_ignored` while the rest of
-the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.0.
+the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.1.
 
 ## Auto-Title Role
 

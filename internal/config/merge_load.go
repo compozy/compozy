@@ -17,10 +17,10 @@ const configBaseURLKey = "base_url"
 var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
 
 // providerFullAccessDeprecationWarning names the replacement for the retired opt-in. Accept the
-// key through v0.5.6; remove permissionsOverlay.ProviderFullAccess and this warning in v0.5.7.
+// key through v0.6.0; remove permissionsOverlay.ProviderFullAccess and this warning in v0.6.1.
 const providerFullAccessDeprecationWarning = "permissions.provider_full_access is deprecated and has no effect: " +
 	"permissions.mode = \"approve-all\" now selects the provider's unrestricted mode, and " +
-	"permissions.mode = \"auto\" selects its reviewer mode; remove the key before v0.5.7"
+	"permissions.mode = \"auto\" selects its reviewer mode; remove the key before v0.6.1"
 
 var warnProviderFullAccessDeprecation = sync.OnceFunc(func() { slog.Warn(providerFullAccessDeprecationWarning) })
 

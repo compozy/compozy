@@ -17,7 +17,7 @@ const (
 	retiredMemoryConsolidatedEvent = "memory.consolidated"
 )
 
-// This boundary archive is removed in v0.6.0.
+// This boundary archive is removed in v0.6.1.
 func archiveRetiredMemorySettings(contents []byte, source string) ([]byte, []string, error) {
 	var values map[string]any
 	if _, err := burnttoml.Decode(string(contents), &values); err != nil {

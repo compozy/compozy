@@ -29,7 +29,7 @@ Metadata must not become database columns or counters. Replayed usage carries th
 Send an invalid `{used:-5,size:0}` update followed by `{used:80,size:100}`. Only the valid update
 becomes a usage observation. Repeated invalid updates log one field-naming warning per session.
 Send legacy cache names twice and verify one deprecation warning naming canonical replacements and
-v0.6.0; canonical values win when both names are supplied.
+v0.6.1; canonical values win when both names are supplied.
 
 Upgrade a previous-version database containing token totals. Existing totals and turns survive;
 new cache columns initially read NULL. `token_usage_daily` retains its existing shape.

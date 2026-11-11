@@ -1,4 +1,4 @@
-// Remove the leftover-reference filter in v0.6.0; retain the retired ID tombstones.
+// Remove the leftover-reference filter in v0.6.1; retain the retired ID tombstones.
 package tools
 
 import (
