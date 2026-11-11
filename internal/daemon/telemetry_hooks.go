@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/telemetry"
@@ -15,17 +14,11 @@ func traceHookDispatch(ctx context.Context, event hookspkg.HookEvent) (context.C
 		span.SetAttributes(telemetry.AttrHookEvent.String(event.String()))
 	}
 	return ctx, func(denied bool, err error) {
-		outcome := telemetry.OutcomeOK
-		switch {
-		case denied:
-			outcome = telemetry.OutcomeDenied
-		case errors.Is(err, context.Canceled):
-			outcome = telemetry.OutcomeCancelled
-		case err != nil:
-			outcome = telemetry.OutcomeError
-			telemetry.MarkError(span, err)
+		if denied {
+			span.SetAttributes(telemetry.AttrOutcome.String(telemetry.OutcomeDenied))
+			span.End()
+			return
 		}
-		span.SetAttributes(telemetry.AttrOutcome.String(outcome))
-		span.End()
+		telemetry.EndSpan(span, err)
 	}
 }
