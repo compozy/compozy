@@ -1,59 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
-import type { RuntimeSpeed } from "@/lib/api-contract";
-
-import {
-  RuntimeSelector,
-  runtimeModelKey,
-  type RuntimeSelectorProps,
-  type RuntimeSelectorValue,
-} from "../runtime-selector";
+import { RuntimeSelector, runtimeModelKey } from "../runtime-selector";
 import { FAVORITES_STORAGE_KEY } from "../runtime-selector/favorites";
 import {
   runtimeSelectorStoryAdvancedOptions as advancedOptions,
+  runtimeSelectorStoryClosedStates as closedStates,
   runtimeSelectorStoryLongNameModel as longNameModel,
+  runtimeSelectorStoryManyIssueProviders as manyIssueProviders,
+  runtimeSelectorStoryManyProviderIssues as manyProviderIssues,
   runtimeSelectorStoryModels as models,
+  runtimeSelectorStoryOpenCodeProvider as openCodeProvider,
+  runtimeSelectorStoryOverflowProviders as overflowProviders,
   runtimeSelectorStoryProviders as providers,
 } from "./runtime-selector-story-fixtures";
-
-function ControlledRuntimeSelector({ value: initial, ...props }: RuntimeSelectorProps) {
-  const [value, setValue] = useState<RuntimeSelectorValue>(initial);
-  // Speed state is controlled only when the story wires the request (mirrors
-  // real surfaces: unwired selectors never show the switch).
-  const [speed, setSpeed] = useState<RuntimeSpeed>(props.speed ?? "normal");
-  const speedProps = props.onSpeedChange
-    ? {
-        speed,
-        onSpeedChange: (next: RuntimeSpeed) => {
-          props.onSpeedChange?.(next);
-          setSpeed(next);
-        },
-      }
-    : {};
-  return (
-    <RuntimeSelector
-      {...props}
-      {...speedProps}
-      value={value}
-      onChange={next => {
-        props.onChange(next);
-        setValue(next);
-      }}
-    />
-  );
-}
-
-function RuntimeSelectorStoryFrame(props: RuntimeSelectorProps) {
-  return (
-    // Fullscreen story envelope (no arbitrary fixed geometry); the popup portals to
-    // the body and floats from the trigger, so the frame just needs viewport height.
-    <div className="flex min-h-dvh items-start p-6">
-      <ControlledRuntimeSelector {...props} />
-    </div>
-  );
-}
+import {
+  ControlledRuntimeSelector,
+  openPopup,
+  RuntimeSelectorStoryFrame,
+  storyDocs,
+} from "./runtime-selector-story-scaffold";
 
 const meta: Meta<typeof RuntimeSelector> = {
   title: "systems/runtime/components/RuntimeSelector",
@@ -80,14 +46,6 @@ const meta: Meta<typeof RuntimeSelector> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-async function openPopup(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement);
-  await userEvent.click(canvas.getByRole("button", { name: /^Runtime:/ }));
-  const body = within(canvasElement.ownerDocument.body);
-  await expect(await body.findByTestId("runtime-selector-popup")).toBeInTheDocument();
-  return body;
-}
-
 // --- Closed-state trigger variants -----------------------------------------
 
 /**
@@ -99,90 +57,30 @@ export const Default: Story = {
   args: {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Closed-state contract: default, compact, small, composer, disabled composer, no-selectable-reasoning, and needs-auth variants.",
-      },
-    },
-  },
-  render: args => {
-    const states: Array<{
-      label: string;
-      description: string;
-      value: RuntimeSelectorValue;
-      variant?: RuntimeSelectorProps["variant"];
-      disabled?: boolean;
-    }> = [
-      {
-        label: "Default",
-        description: "Provider, model, and explicit effort",
-        value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
-      },
-      {
-        label: "Compact",
-        description: "Provider glyph for dense toolbars",
-        value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
-        variant: "compact",
-      },
-      {
-        label: "Small",
-        description: "Provider default in a tighter form row",
-        value: { provider: "claude", model: "claude-fable-5", reasoning_effort: "" },
-        variant: "small",
-      },
-      {
-        label: "Composer",
-        description: "Chromeless inside a prompt box: no border, fill, or shadow",
-        value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
-        variant: "composer",
-      },
-      {
-        label: "Composer, inert",
-        description: "Dimmed and unpressable: label and chevron stop answering hover",
-        value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
-        variant: "composer",
-        disabled: true,
-      },
-      {
-        label: "No selectable effort",
-        description: "Reasoning meter is absent",
-        value: {
-          provider: "claude",
-          model: "claude-haiku-4-5-20251001",
-          reasoning_effort: "",
-        },
-      },
-      {
-        label: "Needs sign in",
-        description: "Unavailable provider is stated inline",
-        value: { provider: "cursor", model: "", reasoning_effort: "" },
-      },
-    ];
-
-    return (
-      <div className="mx-auto grid min-h-dvh w-full max-w-content-max content-start gap-3 p-6 sm:grid-cols-2">
-        {states.map(state => (
-          <section
-            key={state.label}
-            className="flex min-h-32 flex-col justify-between gap-5 rounded-lg border border-line bg-canvas p-5"
-          >
-            <div>
-              <h2 className="text-item-title font-semibold text-fg">{state.label}</h2>
-              <p className="mt-1 text-small-body text-subtle">{state.description}</p>
-            </div>
-            <ControlledRuntimeSelector
-              {...args}
-              value={state.value}
-              variant={state.variant}
-              disabled={state.disabled}
-            />
-          </section>
-        ))}
-      </div>
-    );
-  },
+  parameters: storyDocs(
+    "Closed-state contract: default, compact, small, composer, disabled composer, no-selectable-reasoning, and needs-auth variants."
+  ),
+  render: args => (
+    <div className="mx-auto grid min-h-dvh w-full max-w-content-max content-start gap-3 p-6 sm:grid-cols-2">
+      {closedStates.map(state => (
+        <section
+          key={state.label}
+          className="flex min-h-32 flex-col justify-between gap-5 rounded-lg border border-line bg-canvas p-5"
+        >
+          <div>
+            <h2 className="text-item-title font-semibold text-fg">{state.label}</h2>
+            <p className="mt-1 text-small-body text-subtle">{state.description}</p>
+          </div>
+          <ControlledRuntimeSelector
+            {...args}
+            value={state.value}
+            variant={state.variant}
+            disabled={state.disabled}
+          />
+        </section>
+      ))}
+    </div>
+  ),
 };
 
 // --- Open popup states ------------------------------------------------------
@@ -192,14 +90,9 @@ export const PopupReasoningSlider: Story = {
   args: {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Open popup. Rows are single-line (bare provider mark, name, brain indicator); the footer slider shows only the model's real levels — `none` is filtered out, there is no Default stop, and the model default (medium) renders pre-selected while the wire value stays empty.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Open popup. Rows are single-line (bare provider mark, name, brain indicator); the footer slider shows only the model's real levels — `none` is filtered out, there is no Default stop, and the model default (medium) renders pre-selected while the wire value stays empty."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     // Single-line row: the selected model renders with the neutral tint + check.
@@ -225,17 +118,12 @@ export const PopupReasoningSlider: Story = {
 export const PopupModelNameTooltip: Story = {
   args: {
     value: { provider: "opencode", model: "", reasoning_effort: "" },
-    providers: [...providers, { id: "opencode", name: "OpenCode", runtime_provider: "opencode" }],
+    providers: [...providers, openCodeProvider],
     models: [...models, longNameModel],
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Hovering a truncated model name (or its OpenCode upstream provider label) reveals the complete text through the shared tooltip; neither trigger takes a tab stop inside the listbox.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Hovering a truncated model name (or its OpenCode upstream provider label) reveals the complete text through the shared tooltip; neither trigger takes a tab stop inside the listbox."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     const list = within(await body.findByTestId("runtime-selector-list"));
@@ -256,23 +144,11 @@ export const PopupModelNameTooltip: Story = {
 export const PopupOverflowingRail: Story = {
   args: {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
-    providers: [
-      ...providers,
-      ...Array.from({ length: 8 }, (_, index) => ({
-        id: `rail-${index}`,
-        name: `Rail provider ${index}`,
-        runtime_provider: "codex",
-      })),
-    ],
+    providers: overflowProviders,
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Overflowing provider rail: 28px chips inside the unchanged 32px line, no native scrollbar, and a pointer-only end chevron that pages the track without moving focus.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Overflowing provider rail: 28px chips inside the unchanged 32px line, no native scrollbar, and a pointer-only end chevron that pages the track without moving focus."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     const track = body.getByRole("radiogroup");
@@ -296,13 +172,9 @@ export const PopupOverflowingRail: Story = {
 /** Full-set search revealing a non-curated row while preserving exact tuple identity. */
 export const PopupSearch: Story = {
   args: { value: { provider: "codex", model: "", reasoning_effort: "" } },
-  parameters: {
-    docs: {
-      description: {
-        story: "Search spans the full set (non-curated + cross-provider); the rail is suppressed.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Search spans the full set (non-curated + cross-provider); the rail is suppressed."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     await userEvent.type(body.getByTestId("runtime-selector-search"), "gpt");
@@ -318,13 +190,9 @@ export const PopupSearch: Story = {
 /** Model-supported reasoning where the provider exposes no selectable effort levels. */
 export const PopupReasoningProviderDecides: Story = {
   args: { value: { provider: "claude", model: "claude-haiku-4-5-20251001", reasoning_effort: "" } },
-  parameters: {
-    docs: {
-      description: {
-        story: "Reasoning footer — supported without selectable levels ('provider decides').",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Reasoning footer — supported without selectable levels ('provider decides')."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     // The 'provider decides' footer settled: supported-nolevels mode + the note text.
@@ -340,14 +208,9 @@ export const PopupAdvancedOptions: Story = {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
     acpOptions: advancedOptions,
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Live ACP descriptors render as grouped selects and typed boolean controls under progressive disclosure; private transport aliases are not part of the fixture.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Live ACP descriptors render as grouped selects and typed boolean controls under progressive disclosure; private transport aliases are not part of the fixture."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     const toggle = await body.findByTestId("runtime-selector-advanced-toggle");
@@ -370,14 +233,9 @@ export const PopupSpeedControl: Story = {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
     onSpeedChange: fn(),
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Speed wired (session-create shape), resting on normal: the footer's Fast switch requests `speed: fast`; the daemon resolves it at dispatch, so the switch is intent — never a per-model capability claim.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Speed wired (session-create shape), resting on normal: the footer's Fast switch requests `speed: fast`; the daemon resolves it at dispatch, so the switch is intent — never a per-model capability claim."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     const speedSwitch = await body.findByTestId("runtime-selector-speed");
@@ -391,14 +249,9 @@ export const PopupSpeedFast: Story = {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
     onSpeedChange: fn(),
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Fast requested: the switch is checked (accent track, bolt on the thumb) and the closed trigger mirrors the request with the fast bolt beside the reasoning meter.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Fast requested: the switch is checked (accent track, bolt on the thumb) and the closed trigger mirrors the request with the fast bolt beside the reasoning meter."
+  ),
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement);
     const speedSwitch = await body.findByTestId("runtime-selector-speed");
@@ -416,14 +269,9 @@ export const PopupComposerVariant: Story = {
     value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
     variant: "composer",
   },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Open popup on the composer variant. The trigger keeps no border, fill, or shadow while open — only the chevron flips and the label brightens; the popup itself is identical to every other variant.",
-      },
-    },
-  },
+  parameters: storyDocs(
+    "Open popup on the composer variant. The trigger keeps no border, fill, or shadow while open — only the chevron flips and the label brightens; the popup itself is identical to every other variant."
+  ),
   play: async ({ canvasElement }) => {
     await openPopup(canvasElement);
     const trigger = within(canvasElement).getByRole("button", { name: /^Runtime:/ });
@@ -435,9 +283,7 @@ export const PopupComposerVariant: Story = {
 /** Cross-provider favorites filtered from compound provider/model identities. */
 export const PopupFavoritesRail: Story = {
   args: { value: { provider: "claude", model: "claude-fable-5", reasoning_effort: "high" } },
-  parameters: {
-    docs: { description: { story: "Favorites rail filter — cross-provider favorites pinned." } },
-  },
+  parameters: storyDocs("Favorites rail filter — cross-provider favorites pinned."),
   // Deterministically seed cross-provider favorites (both are valid current tuples,
   // so they survive the strict reconcile); clean up so state never leaks to peers.
   beforeEach: () => {
@@ -459,22 +305,6 @@ export const PopupFavoritesRail: Story = {
     await expect(list.getByText("Claude Fable 5")).toBeInTheDocument();
   },
 };
-
-const manyIssueProviders = [
-  ...providers,
-  ...Array.from({ length: 12 }, (_, index) => ({
-    id: `offline-${index}`,
-    name: `Offline provider ${index}`,
-    runtime_provider: "codex",
-  })),
-];
-const manyProviderIssues: Record<string, string> = Object.fromEntries([
-  ["cursor", "Sign in to update the model list."],
-  ...Array.from({ length: 12 }, (_, index) => [
-    `offline-${index}`,
-    "Could not update the model list. Try refreshing again.",
-  ]),
-]);
 
 /** One provider needs sign-in: the header carries the warning mark before refresh. */
 export const PopupCatalogIssue: Story = {
