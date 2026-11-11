@@ -170,6 +170,7 @@ function TreeBody({
             aria-label="Project files"
             className="min-h-0 flex-1"
             data-testid="files-tree"
+            surface="sunken"
             paths={bridge.paths}
             loadingPaths={bridge.loadingPaths}
             decorations={bridge.decorations}

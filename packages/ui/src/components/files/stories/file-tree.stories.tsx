@@ -5,11 +5,13 @@ import { expect, fn, waitFor } from "storybook/test";
 import { DropdownMenuItem, DropdownMenuSeparator } from "../../dropdown-menu";
 import { Empty } from "../../empty";
 import { FileTree, type FileTreeDecorations } from "../file-tree";
-import { CHANGED_PATHS, CHILD_LISTINGS, ROOT_LISTING } from "./files-fixtures";
+import { CHANGED_PATHS, CHILD_LISTINGS, DEEP_CHANGED_PATHS, ROOT_LISTING } from "./files-fixtures";
 
 const meta: Meta<typeof FileTree> = {
   title: "components/files/FileTree",
   component: FileTree,
+  // The frame below is the sunken panel the Files explorer uses.
+  args: { surface: "sunken" },
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -133,6 +135,53 @@ export const ChangedFiles: Story = {
       },
     },
   },
+};
+
+const deepDecorations: FileTreeDecorations = Object.fromEntries(
+  DEEP_CHANGED_PATHS.filter(path => !path.endsWith("/")).map((path, index) => [
+    path,
+    path.endsWith(".png")
+      ? { status: "untracked", additions: 0, deletions: 0 }
+      : {
+          status: index % 2 === 0 ? "added" : "modified",
+          additions: 24 * (index + 1),
+          deletions: index,
+        },
+  ])
+);
+
+const deepChangedArgs = {
+  "aria-label": "Changed files",
+  paths: DEEP_CHANGED_PATHS,
+  initialExpansion: "open",
+  decorations: deepDecorations,
+  selectedPath:
+    "packages/frontend/proto/review/admin-billing-customer-detail/admin-billing-customer-detail.proto.tsx",
+} satisfies Story["args"];
+
+export const DeepChangedFiles: Story = {
+  name: "Deep changed files",
+  args: deepChangedArgs,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A change set six to eight levels deep with long, look-alike names (#1480). Single-child directory chains collapse into one `a / b / c` row, the indent stays bounded, a long name keeps its extension behind one clean ellipsis, and the counts and status sit in their own trailing lanes.",
+      },
+    },
+  },
+};
+
+export const DeepChangedFilesNarrow: Story = {
+  name: "Deep changed files, narrow",
+  args: deepChangedArgs,
+  decorators: [
+    Story => (
+      <div className="h-full w-[200px]">
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 export const FilterWithoutMatches: Story = {

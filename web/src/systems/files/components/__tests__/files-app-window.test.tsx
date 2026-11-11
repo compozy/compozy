@@ -417,7 +417,11 @@ describe("FilesAppWindow", () => {
         const path = url.searchParams.get("path") ?? "";
         const entries: Record<string, unknown[]> = {
           "": [{ name: "web", path: "web", kind: "directory" }],
-          web: [{ name: "src", path: "web/src", kind: "directory" }],
+          // A sibling file keeps `web/` its own row; a lone `src` would join it as `web / src`.
+          web: [
+            { name: "src", path: "web/src", kind: "directory" },
+            { name: "package.json", path: "web/package.json", kind: "file", size: 1 },
+          ],
           "web/src": [{ name: "main.tsx", path: "web/src/main.tsx", kind: "file", size: 1 }],
         };
         return Response.json({ root, entries: entries[path] ?? [], truncated: false });

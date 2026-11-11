@@ -7,6 +7,7 @@ import { FileTree, type FileTreeProps } from "../file-tree";
 import {
   buildRowDecoration,
   planPathSync,
+  soleChildDirectories,
   toGitStatusEntries,
   TREE_SPINNER_ICON,
   TREE_SPINNER_STATIC_ICON,
@@ -146,7 +147,15 @@ describe("FileTree", () => {
   // ancestor sticks when the path set changes (a listing arrives, a folder collapses); only a
   // new reveal request (another path or revealKey) expands ancestors again.
   it("Should keep a collapsed ancestor of the selection collapsed until a new reveal", async () => {
-    const paths = ["web/", "web/src/", "web/src/main.tsx", "web/src/app.tsx", "README.md"];
+    // `web/package.json` keeps `web/` its own row; a lone `web/src/` would join it as `web / src`.
+    const paths = [
+      "web/",
+      "web/package.json",
+      "web/src/",
+      "web/src/main.tsx",
+      "web/src/app.tsx",
+      "README.md",
+    ];
     const view = (props: Partial<FileTreeProps>) => (
       <FileTree
         aria-label="Project files"
@@ -189,6 +198,61 @@ describe("FileTree", () => {
     await waitFor(() => expect(row(container, "web/")).toHaveAttribute("aria-expanded", "true"));
   });
 
+  // #1480: single-child chains render as one `cmd / compozy` row. A lazy listing that brings a
+  // lone subfolder opens it, so one click on `cmd` reaches its files; a later collapse sticks.
+  it("Should open a lone lazily listed subfolder with its parent and keep a later collapse", async () => {
+    const listings: Record<string, string[]> = {
+      "cmd/": ["cmd/compozy/"],
+      "cmd/compozy/": ["cmd/compozy/main.go"],
+    };
+    const onExpand = vi.fn();
+    function Explorer({ extra = [] }: { extra?: string[] }) {
+      const [paths, setPaths] = React.useState<string[]>(["cmd/", "README.md"]);
+      return (
+        <FileTree
+          aria-label="Project files"
+          paths={[...paths, ...extra]}
+          onExpand={dir => {
+            onExpand(dir);
+            setPaths(current => [...current, ...(listings[dir] ?? [])]);
+          }}
+        />
+      );
+    }
+    const { container, rerender } = render(<Explorer />);
+    await waitFor(() => row(container, "cmd/"));
+
+    act(() => row(container, "cmd/").click());
+    await waitFor(() => row(container, "cmd/compozy/main.go"));
+    expect(onExpand.mock.calls).toEqual([["cmd/"], ["cmd/compozy/"]]);
+    expect(row(container, "cmd/compozy/")).toHaveAttribute("aria-label", "cmd / compozy");
+
+    act(() => row(container, "cmd/compozy/").click());
+    await waitFor(() =>
+      expect(row(container, "cmd/compozy/")).toHaveAttribute("aria-expanded", "false")
+    );
+    rerender(<Explorer extra={["go.mod"]} />);
+    await waitFor(() => row(container, "go.mod"));
+    expect(row(container, "cmd/compozy/")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // #1480: rows show truncated names, so hovering one puts its full path in the tooltip.
+  it("Should title the tree with the hovered row's full path", async () => {
+    const path = "packages/frontend/proto/review/admin-billing-customer-detail.proto.tsx";
+    const { container } = render(
+      <FileTree aria-label="Changed files" paths={[path, "README.md"]} initialExpansion="open" />
+    );
+    await waitFor(() => row(container, path));
+    const tree = container.querySelector('[data-slot="file-tree"]');
+
+    fireEvent.mouseOver(row(container, path));
+    expect(tree).toHaveAttribute("title", path);
+    fireEvent.mouseOver(row(container, "packages/frontend/proto/review/"));
+    expect(tree).toHaveAttribute("title", "packages/frontend/proto/review");
+    fireEvent.mouseLeave(tree as Element);
+    expect(tree).not.toHaveAttribute("title");
+  });
+
   it("Should render the empty slot when there are no paths", () => {
     const { getByText } = render(
       <FileTree aria-label="Project files" paths={[]} empty={<p>This folder is empty</p>} />
@@ -204,6 +268,15 @@ describe("FileTree", () => {
       { type: "add", path: "n/" },
       { type: "add", path: "n/m.ts" },
     ]);
+  });
+
+  it("Should pick only arriving directories that are their parent's sole entry", () => {
+    expect(
+      soleChildDirectories(
+        ["cmd/compozy/", "web/src/", "web/package.json", "top/"],
+        ["cmd/", "cmd/compozy/", "web/", "web/src/", "web/package.json", "top/"]
+      )
+    ).toEqual(["cmd/compozy/"]);
   });
 
   // US-001.AC-4: an unloaded changed directory gets Pierre's own dot through one placeholder.

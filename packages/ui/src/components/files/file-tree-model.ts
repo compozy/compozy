@@ -71,6 +71,14 @@ export const TREE_SPRITE_SHEET = [
   "</symbol></svg>",
 ].join("");
 
+/**
+ * Row layout fix injected into the tree's shadow root (Pierre's `unsafeCSS` layer outranks its
+ * base layer). Pierre's decoration lane (`+N −M`, `C`, lock) has a zero basis and shrinks first,
+ * so a long name squeezed the counts to a clipped tail (`·0 M`). It keeps its width now and the
+ * name truncates instead.
+ */
+export const TREE_UNSAFE_CSS = '[data-item-section="decoration"] { flex: 1 0 auto; }';
+
 const PIERRE_STATUS: Record<FileTreeStatus, GitStatus | null> = {
   added: "added",
   modified: "modified",
@@ -103,6 +111,24 @@ export function ancestorDirectories(path: string): string[] {
     parent = parentDirectory(parent);
   }
   return ancestors;
+}
+
+/**
+ * Directories among `added` that are the only entry under their (non-root) parent in `paths`.
+ * Pierre renders such a chain as one `a / b` row whose toggle is the deepest directory, so a
+ * lazy listing that brings a lone subfolder opens it too; otherwise expanding `a` would show a
+ * closed `a / b` row.
+ */
+export function soleChildDirectories(added: readonly string[], paths: readonly string[]): string[] {
+  const childCounts = new Map<string, number>();
+  for (const path of paths) {
+    const parent = parentDirectory(path);
+    if (parent) childCounts.set(parent, (childCounts.get(parent) ?? 0) + 1);
+  }
+  return added.filter(path => {
+    const parent = parentDirectory(path);
+    return isDirectoryPath(path) && parent !== "" && childCounts.get(parent) === 1;
+  });
 }
 
 function depth(path: string): number {

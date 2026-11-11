@@ -6,8 +6,16 @@
    come from the Shiki pair in lib/code-theme.ts. Visual gaps are fixed here,
    never at callsites. */
 
+/* The tree paints its own surface and Pierre draws every row on it. Pierre's truncation "…"
+   is a chip filled with that background laid over the clipped glyphs, so the background must
+   be opaque and equal to what sits behind the row: a transparent one left the "…" printed over
+   the text. The host picks the surface through `FileTree`'s `surface` prop. */
 [data-slot="file-tree"] {
-  --trees-bg-override: transparent;
+  --file-tree-surface: var(--color-canvas);
+  background-color: var(--file-tree-surface);
+  --trees-bg-override: var(--file-tree-surface);
+  /* The chip's edge fade: Pierre's 2 px left half-cut glyphs beside the "…". */
+  --truncate-marker-fade-width: 6px;
   --trees-fg-override: var(--color-fg-2);
   --trees-fg-muted-override: var(--color-muted-foreground);
   --trees-bg-muted-override: var(--color-hover);
@@ -26,6 +34,12 @@
   --trees-font-size-override: var(--text-small-body);
   --trees-font-weight-regular-override: var(--font-weight-normal);
   --trees-font-weight-semibold-override: var(--font-weight-semibold);
+  /* Indent step: the 6.4 px compact gap took ~19 px per level, so a six-level path left a
+     narrow panel almost no room for names. 2 px keeps each guide under its chevron at ~15 px. */
+  --trees-level-gap-override: 2px;
+  /* Row inset: Pierre's 16 px per side cost a 240 px Changes tree 32 px of name; 8 px lines the
+     rows up with the 8 px-padded filter box above the tree. */
+  --trees-padding-inline-override: calc(var(--spacing) * 2);
   /* Focus indicator: the 2 px, 50 %-ink ring of `shadow-focus-inset`, drawn
      inside full-bleed rows. */
   --trees-focus-ring-width-override: 2px;
@@ -45,6 +59,10 @@
   --trees-status-renamed-override: var(--color-warning);
   --trees-status-untracked-override: var(--color-muted-foreground);
   --trees-status-ignored-override: var(--color-faint);
+}
+
+[data-slot="file-tree"][data-surface="sunken"] {
+  --file-tree-surface: var(--color-sunken);
 }
 
 [data-slot="code-viewer"],

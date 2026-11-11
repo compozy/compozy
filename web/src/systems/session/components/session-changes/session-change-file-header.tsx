@@ -118,14 +118,22 @@ export function SessionChangeFileHeader({
         >
           {letter}
         </span>
-        <p className="min-w-0 flex-1 truncate font-mono text-xs" title={item.path}>
-          {item.prevPath ? (
-            <>
-              <SplitPath path={item.prevPath} />
-              <span className="text-muted-foreground"> → </span>
-            </>
-          ) : null}
-          <SplitPath path={item.path} />
+        {/* A long path loses its start, not its end: siblings that share a long prefix keep
+            their nearest folders, file name and extension. `rtl` moves the ellipsis to the
+            start; the plaintext span keeps the path itself left-to-right. */}
+        <p
+          className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]"
+          title={item.path}
+        >
+          <span className="[unicode-bidi:plaintext]">
+            {item.prevPath ? (
+              <>
+                <SplitPath path={item.prevPath} />
+                <span className="text-muted-foreground"> → </span>
+              </>
+            ) : null}
+            <SplitPath path={item.path} />
+          </span>
         </p>
         {item.file.generated ? (
           <Pill size="xs" tone="neutral">
