@@ -15,6 +15,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session/sessionid"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/telemetry"
 	"github.com/compozy/compozy/internal/version"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -121,6 +122,11 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 		return fmt.Errorf("daemon: init telemetry: %w", err)
 	}
 	state.telemetry.publish(runtime)
+	// Writes record into the global providers Init just installed; like them, the observer is process-wide.
+	slowDBWriteMS := state.cfg.Observability.OTel.SlowDBWriteMS
+	store.SetWriteObserver(func(ctx context.Context, write store.WriteObservation) {
+		telemetry.RecordDBWrite(ctx, telemetry.DBWrite(write), slowDBWriteMS)
+	})
 	cleanup.add(func(ctx context.Context) error {
 		state.telemetry.shutdown(ctx, state.logger)
 		return nil

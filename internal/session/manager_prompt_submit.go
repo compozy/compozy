@@ -281,8 +281,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	m.recordBatchedPromptInputs(ctx, session, dispatchInput.batched)
 	m.consumeReservedPromptContext(session, req, replayBlock)
 
-	// The pump keeps the lifecycle's cancellation and carries the turn span for the work it persists.
+	// The pump keeps the lifecycle's cancellation and carries the turn span and write account for the work it persists.
 	lifecycleCtx := trace.ContextWithSpan(m.fallbackLifecycleContext(), trace.SpanFromContext(ctx))
+	lifecycleCtx = turnState.turnTrace.attributeWrites(lifecycleCtx)
 	m.startPromptPersistencePump(
 		lifecycleCtx,
 		session,

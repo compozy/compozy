@@ -65,6 +65,12 @@ func TestPromptTurnTrace(t *testing.T) {
 			if turn.StatusCode != tracepb.Status_STATUS_CODE_UNSET {
 				t.Fatalf("session.turn status = %s, want unset", turn.StatusCode)
 			}
+			// The persistence pump's writes count toward the turn and close with its span.
+			flushes, ok := turn.Attributes[string(telemetry.AttrDBFlushes)].(int64)
+			if _, totalOK := turn.Attributes[string(telemetry.AttrDBWriteMSTotal)].(int64); !ok || !totalOK ||
+				flushes < 1 {
+				t.Fatalf("session.turn write counters = %v, want the pump's flushes and their total", turn.Attributes)
+			}
 			for name, providerCtx := range map[string]context.Context{
 				"runtime start": receiveContext(t, startContexts),
 				"prompt":        driver.lastPromptContext(t),

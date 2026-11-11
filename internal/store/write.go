@@ -102,7 +102,7 @@ func executeWrite(
 	db *sql.DB,
 	cfg executeWriteConfig,
 	fn func(context.Context, *WriteTx) error,
-) error {
+) (err error) {
 	if ctx == nil {
 		return errors.New("store: execute write context is required")
 	}
@@ -126,11 +126,15 @@ func executeWrite(
 	admission, unregister := registerWriteAdmission(db)
 	defer unregister()
 	started := time.Now()
+	var admitted time.Time
+	observeCtx := ctx
+	defer func() { observeWrite(observeCtx, cfg.operation, started, admitted, err) }()
 	releaseAdmission, err := admission.acquire(ctx, cfg.background)
 	if err != nil {
 		return writeContentionError(db, cfg.operation, 0, started, err)
 	}
 	defer releaseAdmission()
+	admitted = time.Now()
 	owner := &writeContextOwner{db: db, parent: parent}
 	owner.active.Store(true)
 	defer owner.active.Store(false)

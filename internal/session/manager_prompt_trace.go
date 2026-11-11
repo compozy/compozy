@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/telemetry"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -15,10 +16,11 @@ import (
 var errPromptTurnFailed = telemetry.ProviderError(errors.New("session: prompt turn failed"))
 
 // promptTurnTrace owns one turn's session.turn span. The persistence pump ends it once the pump started; until then the
-// submit path ends it as setup_failed. Only the first end takes effect.
+// submit path ends it as setup_failed. Only the first end takes effect, which also closes the turn's write account.
 type promptTurnTrace struct {
-	span  trace.Span
-	ended atomic.Bool
+	span    trace.Span
+	account *store.TurnWriteAccount
+	ended   atomic.Bool
 }
 
 // startPromptTurnTrace starts session.turn under ctx's span, or, for a queued prompt, as a root linked to the spans
@@ -43,7 +45,16 @@ func startPromptTurnTrace(
 			telemetry.AttrProfileID.String(info.ProfileID),
 		)
 	}
-	return ctx, &promptTurnTrace{span: span}
+	return ctx, &promptTurnTrace{span: span, account: store.NewTurnWriteAccount()}
+}
+
+// attributeWrites attaches the turn's write account to the pump's context as a value, so every write the pump
+// persists counts toward this turn.
+func (t *promptTurnTrace) attributeWrites(ctx context.Context) context.Context {
+	if t == nil {
+		return ctx
+	}
+	return store.WithWriteAttribution(ctx, store.WriteAttribution{Turn: t.account})
 }
 
 // end records the runtime that served the turn and how it ended, then ends the span.
@@ -51,6 +62,7 @@ func (t *promptTurnTrace) end(session *Session, outcome string, err error) {
 	if t == nil || !t.ended.CompareAndSwap(false, true) {
 		return
 	}
+	flushes, writeTotal := t.account.Close()
 	if t.span.IsRecording() {
 		info := session.Info()
 		t.span.SetAttributes(
@@ -58,6 +70,8 @@ func (t *promptTurnTrace) end(session *Session, outcome string, err error) {
 			telemetry.AttrGenAISystem.String(info.Provider),
 			telemetry.AttrGenAIModel.String(info.Model),
 			telemetry.AttrOutcome.String(outcome),
+			telemetry.AttrDBFlushes.Int64(flushes),
+			telemetry.AttrDBWriteMSTotal.Int64(writeTotal.Milliseconds()),
 		)
 		telemetry.MarkError(t.span, err)
 	}
