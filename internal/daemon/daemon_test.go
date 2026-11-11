@@ -1031,7 +1031,7 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		reconcileStarted := make(chan struct{})
 		releaseReconcile := make(chan struct{})
 		release := sync.OnceFunc(func() { close(releaseReconcile) })
-		t.Cleanup(release)
+		defer release()
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 			return &fakeObserver{
 				err: lateFailure,
@@ -1047,15 +1047,19 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return httpServer, nil }
 		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return udsServer, nil }
 
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
 		bootResult := make(chan error, 1)
 		go func() {
-			bootResult <- d.boot(testutil.Context(t))
+			bootResult <- d.boot(ctx)
 		}()
 
 		select {
 		case <-reconcileStarted:
-		case <-time.After(5 * time.Second):
-			t.Fatal("boot() did not reach late reconciliation")
+		case bootErr := <-bootResult:
+			t.Fatalf("boot() returned before late reconciliation: %v", bootErr)
+		case <-ctx.Done():
+			t.Fatalf("boot() did not reach late reconciliation: %v", ctx.Err())
 		}
 
 		_, infoErr := os.Stat(homePaths.DaemonInfo)
@@ -1065,8 +1069,8 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 			if !errors.Is(bootErr, lateFailure) {
 				t.Fatalf("boot() error = %v, want late reconciliation failure", bootErr)
 			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("boot() did not return after late reconciliation failed")
+		case <-ctx.Done():
+			t.Fatalf("boot() did not return after late reconciliation failed: %v", ctx.Err())
 		}
 
 		if !errors.Is(infoErr, os.ErrNotExist) {
