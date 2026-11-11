@@ -335,7 +335,7 @@ function TopbarTrail({ slot }: { slot: TopbarSlotValue | null }) {
           {slot.status}
         </div>
       ) : null}
-      {slot.status && slot.actions ? (
+      {slot.status && slot.actions && slot.actionsDivider !== false ? (
         <span
           aria-hidden="true"
           data-slot="topbar-vsep"
@@ -365,6 +365,11 @@ function Topbar({ controls, title, titleRef, glyph, leading, className, ...props
       )}
       {...props}
     >
+      {slot?.start != null ? (
+        <div data-slot="topbar-start" className="flex shrink-0 items-center">
+          {slot.start}
+        </div>
+      ) : null}
       {lead != null ? (
         <div data-slot="topbar-leading" className="flex min-w-0 shrink-[2] items-center">
           {lead}

@@ -86,6 +86,21 @@ describe("Topbar", () => {
     expect(container.querySelector("[data-slot='topbar-leading']")).toBeNull();
   });
 
+  // Invariant: a published start control leads the head, ahead of the host context and the
+  // identity, and keeps the window's own host context; owner: shared topbar.
+  it("Should lead the head with published start controls, before the host context", () => {
+    const { container } = render(
+      <TopbarSlotProvider>
+        <Topbar leading={<span>checkout-api</span>} title="Session" />
+        <ProbeSlot label="slot" slot={{ start: <button type="button">Toggle list</button> }} />
+      </TopbarSlotProvider>
+    );
+    const start = container.querySelector("[data-slot='topbar-start']");
+    expect(start).toContainElement(screen.getByRole("button", { name: "Toggle list" }));
+    expect(start?.nextElementSibling).toHaveAttribute("data-slot", "topbar-leading");
+    expect(start?.nextElementSibling).toHaveTextContent("checkout-api");
+  });
+
   it("Should render route identity without controls or slots", () => {
     const { container } = render(
       <TopbarSlotProvider>
@@ -129,6 +144,31 @@ describe("Topbar", () => {
     );
     expect(document.querySelector("[data-slot='topbar-count']")).toHaveTextContent("6");
     expect(screen.getByTestId("status-chip")).toBeInTheDocument();
+  });
+
+  // Invariant: the status/actions hairline shows when both zones are set, unless the publisher
+  // groups its actions with the status; owner: shared topbar.
+  it("Should drop the status/actions hairline only when the publisher opts out", () => {
+    const slot = {
+      status: <span>Always-on</span>,
+      actions: <button type="button">Agent actions</button>,
+    };
+    const { container, rerender } = render(
+      <TopbarSlotProvider>
+        <Topbar title="Session" />
+        <ProbeSlot label="slot" slot={slot} />
+      </TopbarSlotProvider>
+    );
+    expect(container.querySelector("[data-slot='topbar-vsep']")).toBeInTheDocument();
+
+    rerender(
+      <TopbarSlotProvider>
+        <Topbar title="Session" />
+        <ProbeSlot label="slot" slot={{ ...slot, actionsDivider: false }} />
+      </TopbarSlotProvider>
+    );
+    expect(container.querySelector("[data-slot='topbar-vsep']")).toBeNull();
+    expect(screen.getByRole("button", { name: "Agent actions" })).toBeInTheDocument();
   });
 
   it("Should keep the head two-element: no nav zone even when legacy nav content is forced [UT-171]", () => {

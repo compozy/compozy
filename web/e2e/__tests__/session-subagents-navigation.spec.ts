@@ -287,7 +287,7 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
   const roster = parentWin.getByTestId("session-inspector-subagents");
 
   await test.step("the inspector roster lists 6 rows, then Show 4 more", async () => {
-    const inspectorToggle = parentWin.getByTestId("session-inspector-toggle");
+    const inspectorToggle = parentWin.getByTestId("composer-context-button");
     if ((await inspectorToggle.getAttribute("aria-pressed")) !== "true")
       await inspectorToggle.click();
     await expect(roster).toBeVisible();

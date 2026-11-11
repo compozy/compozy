@@ -115,14 +115,18 @@ function SessionContextTooltipLine({
   }
 }
 
+/**
+ * The composer's context meter and the one control that opens and closes the Context rail (#1487):
+ * pressed while the rail is open, sharing the rail's per-session preference.
+ */
 export function SessionContextControl({
   context,
-  onOpen,
+  onToggle,
   open = false,
 }: {
   context: SessionContextView;
-  onOpen: () => void;
-  /** The Context rail is open: the trigger keeps its plate, sharing the rail's preference. */
+  onToggle: () => void;
+  /** The Context rail is open: the trigger reads pressed and keeps its plate. */
   open?: boolean;
 }) {
   const tooltipId = useId();
@@ -138,13 +142,12 @@ export function SessionContextControl({
             aria-label={`${view.label}${context.stale ? ", may be out of date" : ""}`}
             aria-describedby={tipOpen ? tooltipId : undefined}
             aria-busy={context.loading}
-            onClick={onOpen}
+            aria-pressed={open}
+            onClick={onToggle}
             data-testid="composer-context-button"
             data-state={view.state}
-            className={cn(
-              "shrink-0 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg",
-              open && "bg-surface-2 text-fg"
-            )}
+            // Pressed reads as the held plate, from the ghost variant.
+            className="shrink-0 data-[popup-open]:bg-surface-2 data-[popup-open]:text-fg"
           />
         }
       >

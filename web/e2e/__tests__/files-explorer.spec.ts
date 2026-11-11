@@ -136,7 +136,7 @@ test("E2E-001: a transcript path opens the Files app as a tab at its line", asyn
   await expect(appWindow(appPage, "files").getByTestId("file-viewer-header")).toContainText(".env");
 
   await showSessionTab(window);
-  await window.page().getByTestId("session-inspector-toggle").click();
+  await window.page().getByTestId("composer-context-button").click();
   await expect(window.getByTestId("session-inspector")).toBeVisible();
   await window.page().getByTestId("session-review-toggle").click();
   const panel = reviewPanel(window);

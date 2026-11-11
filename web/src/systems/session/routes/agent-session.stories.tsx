@@ -138,9 +138,10 @@ export const LinkedWorkWithTrail: Story = {
 };
 
 /**
- * The same session as an always-on agent's main (#1303): the head names the agent with its
- * Always-on badge and `…` menu, and drops the linked chip, Stop and the context sidebar toggle;
- * the transcript drops its trail and the composer its context meter.
+ * The same session as an always-on agent's main (#1303): the head names the agent and groups its
+ * Always-on badge with the `…` menu, without a divider, and drops the linked chip, Stop and
+ * Changes; the list toggle still leads the head (#1487). The transcript drops its trail and the
+ * composer its context meter.
  */
 export const AlwaysOnMain: Story = {
   args: {},
