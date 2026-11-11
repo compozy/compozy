@@ -332,28 +332,10 @@ func (s *subagentService) dropNativeTasks(ctx context.Context, parent, turn stri
 // native call: whether it ran in the background, its launching call's terminal
 // tool result, and its terminal task observations in sequence order.
 type nativeReplayCall struct {
+	terminalAt time.Time
 	background bool
 	result     *NativeSubagentEvent
 	tasks      []NativeSubagentEvent
-}
-
-func (c *nativeReplayCall) observe(ev NativeSubagentEvent) {
-	if ev.Task != nil {
-		if ev.Task.Background != nil && *ev.Task.Background {
-			c.background = true
-		}
-		if nativeTaskActive(ev.Task) {
-			c.tasks = c.tasks[:0]
-		}
-		if _, terminal := nativeTaskOutcome(ev.Task); terminal || nativeTaskActive(ev.Task) {
-			c.tasks = append(c.tasks, ev)
-		}
-		return
-	}
-	c.background = c.background || ev.Background
-	if ev.Status == store.SubagentStatusCompleted || ev.Status == store.SubagentStatusFailed {
-		c.result = &ev
-	}
 }
 
 // replayNativeTurn applies a parent turn's committed native evidence to that
@@ -371,6 +353,9 @@ func (s *subagentService) replayNativeTurn(
 		return nil
 	}
 	parent, turn, workspace := rows[0].ParentSessionID, rows[0].ParentTurnID, rows[0].WorkspaceID
+	if !toolResults {
+		turn = ""
+	}
 	calls := make(map[string]*nativeReplayCall, len(rows))
 	for _, row := range rows {
 		calls[row.ProviderToolCallID] = &nativeReplayCall{}
@@ -387,7 +372,8 @@ func (s *subagentService) replayNativeTurn(
 		}
 		for _, stored := range events {
 			ev, ok, err := NativeSubagentEventFromStored(workspace, stored)
-			if call := calls[ev.ProviderToolCallID]; err == nil && ok && call != nil && ev.ParentTurnID == turn {
+			if call := calls[ev.ProviderToolCallID]; err == nil && ok && call != nil &&
+				(turn == "" || ev.ParentTurnID == turn) {
 				call.observe(ev)
 			}
 		}
@@ -438,6 +424,9 @@ func (s *subagentService) replayNativeCall(
 			}
 			continue
 		}
+		if current.ParentTurnID != ev.ParentTurnID {
+			continue
+		}
 		if err := s.recordNativeUsage(ctx, &current, &ev); err != nil {
 			return err
 		}
@@ -471,14 +460,14 @@ func groupNativeTurns(rows []store.SessionSubagent) [][]store.SessionSubagent {
 }
 
 // recoverNativeResults replays committed summaries into recently settled
-// native rows whose result is still missing. Bounded by age; candidates are
+// native rows, including saved resumes with an older result. Candidates are
 // paged with a stable cursor so older recoverable rows are never starved, and
 // each page reads a parent turn's transcript once for all of its rows.
 func (s *subagentService) recoverNativeResults(ctx context.Context) error {
 	since := s.now().UTC().Add(-nativeTaskReplayResultSince)
-	var after store.NativeMissingResultCursor
+	var after store.NativeReplayCursor
 	for {
-		rows, err := s.store.ListNativeMissingResult(ctx, since, after, nativeTaskReplayRowPage)
+		rows, err := s.store.ListNativeReplayCandidates(ctx, since, after, nativeTaskReplayRowPage)
 		if err != nil {
 			return err
 		}
@@ -495,6 +484,6 @@ func (s *subagentService) recoverNativeResults(ctx context.Context) error {
 		if last.SettledAt == nil {
 			return fmt.Errorf("session: native missing-result row %s has no settlement time", last.ID)
 		}
-		after = store.NativeMissingResultCursor{SettledAt: *last.SettledAt, ID: last.ID}
+		after = store.NativeReplayCursor{SettledAt: *last.SettledAt, ID: last.ID}
 	}
 }

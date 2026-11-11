@@ -2541,6 +2541,36 @@ func drainCompactionTestEvents(t *testing.T, proc *AgentProcess, active *activeP
 }
 
 func TestClaudeAgentSubagentContract(t *testing.T) {
+	t.Run("Should reject historical runless notifications after a run-identified resume", func(t *testing.T) {
+		t.Parallel()
+		tracker := &claudeTaskTracker{}
+		for _, frame := range []wireClaudeTaskMessage{
+			{Type: "system", Subtype: claudeTaskStarted, TaskID: "agent", RunID: "0001", ToolUseID: "launch", TaskType: "local_agent"},
+			{Type: "system", Subtype: claudeTaskStarted, TaskID: "agent", RunID: "0002", ToolUseID: "send-message", TaskType: "local_agent"},
+		} {
+			if observation, reason := tracker.observe(frame); observation == nil || reason != "" {
+				t.Fatal(observation, reason)
+			}
+		}
+		stale := wireClaudeTaskMessage{
+			Type:      "system",
+			Subtype:   claudeTaskNotification,
+			TaskID:    "agent",
+			ToolUseID: "launch",
+			Status:    NativeTaskStatusCompleted,
+		}
+		if observation, reason := tracker.observe(stale); observation != nil || reason != "stale_run" {
+			t.Fatal(observation, reason)
+		}
+		stale.ToolUseID = "send-message"
+		if observation, reason := tracker.observe(
+			stale,
+		); observation == nil || reason != "" ||
+			observation.ToolCallID != "launch" {
+			t.Fatal(observation, reason)
+		}
+	})
+
 	// UT-040; IT-020 ingest side: replay adapter-produced frames through the prompt pipeline.
 	t.Run("Should preserve native metadata on every adapter fixture frame", func(t *testing.T) {
 		t.Parallel()

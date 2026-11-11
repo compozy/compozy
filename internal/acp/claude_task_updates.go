@@ -173,7 +173,7 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 	tracked := t.tasks[message.TaskID]
 	// Raw forwarding precedes the adapter's own stale-run filter: run ids of one
 	// task sort in run order, and an older run must never settle a newer one.
-	if tracked != nil && message.RunID != "" && tracked.runID != "" && message.RunID < tracked.runID {
+	if tracked != nil && tracked.stale(message) {
 		return nil, "stale_run"
 	}
 	if message.Subtype == claudeTaskStarted {
@@ -200,7 +200,7 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 	}
 	callID := cmp.Or(message.ToolUseID, tracked.toolUseID)
 	// A resumed SDK run names SendMessage; its stable task still belongs to the original launch.
-	if message.RunID != "" {
+	if tracked.runID != "" {
 		callID = tracked.launchCallID
 	}
 	observation := &NativeTaskObservation{
@@ -218,6 +218,14 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 	}
 	observation.bound()
 	return observation, ""
+}
+
+func (t *claudeTrackedTask) stale(message wireClaudeTaskMessage) bool {
+	if message.RunID != "" && t.runID != "" {
+		return message.RunID < t.runID
+	}
+	return t.runID != "" && message.RunID == "" && message.Subtype != claudeTaskStarted &&
+		message.ToolUseID != "" && message.ToolUseID != t.toolUseID
 }
 
 // continueRun resolves the tracked task for a non-start subtype. A frame of a

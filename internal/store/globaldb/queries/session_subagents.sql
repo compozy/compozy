@@ -235,9 +235,9 @@ WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND parent_ses
  AND origin = 'provider_native' AND status = sqlc.arg(status) AND status IN ('completed','failed','canceled')
  AND result IS NULL;
 
--- name: ListNativeMissingResultSubagents :many
+-- name: ListNativeReplayCandidatesSubagents :many
 SELECT * FROM session_subagents
-WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
+WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled')
  AND settled_at >= sqlc.arg(since)
  AND (sqlc.arg(cursor_id) = '' OR (settled_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
 ORDER BY settled_at DESC, id DESC LIMIT sqlc.arg(row_limit);

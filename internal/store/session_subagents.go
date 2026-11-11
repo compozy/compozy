@@ -261,9 +261,9 @@ type SubagentPage struct {
 	NextCursor string
 }
 
-// NativeMissingResultCursor is the (settled_at, id) position of the last
-// missing-result row returned; the zero value starts from the newest row.
-type NativeMissingResultCursor struct {
+// NativeReplayCursor is the (settled_at, id) position of the last
+// replay candidate returned; the zero value starts from the newest row.
+type NativeReplayCursor struct {
 	SettledAt time.Time
 	ID        string
 }
@@ -364,11 +364,11 @@ type SubagentStore interface {
 	// EnrichNativeSubagentResult fills a terminal native row's missing result. It
 	// never changes status, settlement, delivery, or child activity.
 	EnrichNativeSubagentResult(ctx context.Context, in NativeSubagentResultEnrichment) (SessionSubagent, bool, error)
-	// ListNativeMissingResult returns at most limit terminal native rows settled
-	// since the cutoff whose result is still missing, newest first, strictly
+	// ListNativeReplayCandidates returns at most limit terminal native rows settled
+	// since the cutoff, including rows with results, newest first, strictly
 	// after the cursor (zero for the first page).
-	ListNativeMissingResult(
-		ctx context.Context, since time.Time, after NativeMissingResultCursor, limit int,
+	ListNativeReplayCandidates(
+		ctx context.Context, since time.Time, after NativeReplayCursor, limit int,
 	) ([]SessionSubagent, error)
 	ListOpenWakes(ctx context.Context) ([]SessionSubagentWake, error)
 	ListPending(ctx context.Context, parentID string) ([]SessionSubagent, error)

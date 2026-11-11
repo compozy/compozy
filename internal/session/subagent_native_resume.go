@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -43,4 +44,30 @@ func (s *subagentService) resumeNativeTask(
 		s.runtime.PublishParent(ctx, row.ParentSessionID)
 	}
 	return updated, changed, nil
+}
+
+func (c *nativeReplayCall) observe(ev NativeSubagentEvent) {
+	if ev.Task != nil {
+		if ev.Task.Background != nil && *ev.Task.Background {
+			c.background = true
+		}
+		if nativeTaskActive(ev.Task) {
+			if !ev.At.IsZero() && !c.terminalAt.IsZero() && !ev.At.After(c.terminalAt) {
+				return
+			}
+			c.tasks = c.tasks[:0]
+			c.terminalAt = time.Time{}
+		}
+		if _, terminal := nativeTaskOutcome(ev.Task); terminal && ev.At.After(c.terminalAt) {
+			c.terminalAt = ev.At
+		}
+		if _, terminal := nativeTaskOutcome(ev.Task); terminal || nativeTaskActive(ev.Task) {
+			c.tasks = append(c.tasks, ev)
+		}
+		return
+	}
+	c.background = c.background || ev.Background
+	if ev.Status == store.SubagentStatusCompleted || ev.Status == store.SubagentStatusFailed {
+		c.result = &ev
+	}
 }
