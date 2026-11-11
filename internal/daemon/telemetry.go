@@ -122,12 +122,16 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 		return fmt.Errorf("daemon: init telemetry: %w", err)
 	}
 	state.telemetry.publish(runtime)
-	// Writes record into the global providers Init just installed; like them, the observer is process-wide.
-	slowDBWriteMS := state.cfg.Observability.OTel.SlowDBWriteMS
-	store.SetWriteObserver(func(ctx context.Context, write store.WriteObservation) {
-		telemetry.RecordDBWrite(ctx, telemetry.DBWrite(write), slowDBWriteMS)
-	})
+	// Writes record into the global providers Init just installed; like them, the observer is process-wide. Only a
+	// started export gets one, so a daemon that exports nothing adds no work to the write path.
+	if runtime.Status().State == telemetry.StateOK {
+		slowDBWriteMS := state.cfg.Observability.OTel.SlowDBWriteMS
+		store.SetWriteObserver(func(ctx context.Context, write store.WriteObservation) {
+			telemetry.RecordDBWrite(ctx, telemetry.DBWrite(write), slowDBWriteMS)
+		})
+	}
 	cleanup.add(func(ctx context.Context) error {
+		store.SetWriteObserver(nil)
 		state.telemetry.shutdown(ctx, state.logger)
 		return nil
 	})
