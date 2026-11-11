@@ -68,7 +68,7 @@ func countsCost(usage observe.AcceptedUsage) bool {
 func usageAttributes(usage observe.AcceptedUsage, kind attribute.KeyValue) []attribute.KeyValue {
 	return []attribute.KeyValue{
 		telemetry.AttrGenAISystem.String(usage.Provider),
-		telemetry.AttrGenAIModel.String(usage.Model),
+		telemetry.AttrGenAIModel.String(telemetry.ModelLabel(usage.Provider, usage.Model)),
 		telemetry.AttrAgent.String(usage.Agent),
 		kind,
 	}

@@ -208,6 +208,11 @@ func (s *sanitizer) member(kv attribute.KeyValue, member func(string) bool) attr
 
 // model exports catalog models verbatim, configuration-only models as "custom", and others as "other".
 func (s *sanitizer) model(kv attribute.KeyValue, provider string) attribute.KeyValue {
+	// Metrics record ModelLabel's sentinels: they are classifications, not model values.
+	if value := kv.Value.AsString(); kv.Value.Type() == attribute.STRING &&
+		(value == ValueOther || value == ValueCustom) {
+		return attribute.String(string(kv.Key), value)
+	}
 	class := ModelUnknown
 	if kv.Value.Type() == attribute.STRING && s.reg.Models != nil {
 		class = s.reg.Models(provider, kv.Value.AsString())

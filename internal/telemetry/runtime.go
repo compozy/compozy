@@ -130,6 +130,7 @@ func initRuntime(ctx context.Context, cfg config.ObservabilityConfig, opts runti
 	if opts.install == nil {
 		opts.install = installGlobalProviders
 	}
+	setModelClasses(nil)
 	noop := func() { opts.install(tracenoop.NewTracerProvider(), metricnoop.NewMeterProvider()) }
 	otelCfg := cfg.OTel
 	switch {
@@ -219,6 +220,7 @@ func (r *exportRuntime) start(
 
 	res := newResource(cfg.ServiceName, opts.version, rand.Text())
 	sanitizer := newSanitizer(opts.reg, res, opts.version)
+	setModelClasses(opts.reg.Models)
 	var tracerProvider trace.TracerProvider = tracenoop.NewTracerProvider()
 	if spanExporter != nil {
 		r.gate = newSpanGate(sdktrace.NewBatchSpanProcessor(

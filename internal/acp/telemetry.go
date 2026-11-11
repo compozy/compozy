@@ -88,7 +88,7 @@ func endPromptRPCSpan(
 		if histogram, ok := telemetry.DurationHistogram(ctx, telemetry.ScopeACP, telemetry.MetricSessionTTFT); ok {
 			histogram.Record(ctx, max(firstToken.Sub(rpc.start), 0).Seconds(), metric.WithAttributes(
 				telemetry.AttrGenAISystem.String(rpc.provider),
-				telemetry.AttrGenAIModel.String(model),
+				telemetry.AttrGenAIModel.String(telemetry.ModelLabel(rpc.provider, model)),
 			))
 		}
 	}

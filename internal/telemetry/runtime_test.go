@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -591,4 +592,53 @@ func TestSamplerHonorsSampledParentsAndTheRatioForTheRest(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestModelLabelClassifiesWhenMetricsRecord installs the process-wide model classifier, so it does not run in parallel.
+func TestModelLabelClassifiesWhenMetricsRecord(t *testing.T) {
+	t.Run("Should label a model by the classification current when the metric records", func(t *testing.T) {
+		var cataloged atomic.Bool
+		reg := testRegistries(nil)
+		reg.Models = func(_, model string) telemetry.ModelClass {
+			switch {
+			case model == "claude-opus-5-5" && cataloged.Load():
+				return telemetry.ModelCatalog
+			case model == "/home/ana/private/model.gguf":
+				return telemetry.ModelCustom
+			default:
+				return telemetry.ModelUnknown
+			}
+		}
+		startRuntimeWithRegistries(t, exportConfig(nil), nil, &fakeNetwork{}, reg)
+
+		if got := telemetry.ModelLabel("claude", "claude-opus-5-5"); got != telemetry.ValueOther {
+			t.Fatalf("ModelLabel() before the catalog knows the model = %q, want %q", got, telemetry.ValueOther)
+		}
+		cataloged.Store(true)
+		for model, want := range map[string]string{
+			"claude-opus-5-5":              "claude-opus-5-5",
+			"/home/ana/private/model.gguf": telemetry.ValueCustom,
+			"my model v2":                  telemetry.ValueOther,
+		} {
+			if got := telemetry.ModelLabel("claude", model); got != want {
+				t.Fatalf("ModelLabel(%q) = %q, want %q", model, got, want)
+			}
+		}
+	})
+
+	t.Run("Should export recorded model sentinels unchanged", func(t *testing.T) {
+		started := startRuntime(t, exportConfig(nil), nil, &fakeNetwork{})
+		started.exportSpanWith(t, trace.WithAttributes(
+			telemetry.AttrGenAIModel.String(telemetry.ValueCustom),
+		))
+
+		requests, _ := started.network.captured()
+		if len(requests) != 1 || !bytes.Contains(requests[0].body, []byte(telemetry.ValueCustom)) {
+			t.Fatalf(
+				"trace export = %d requests, want the %q model sentinel kept",
+				len(requests),
+				telemetry.ValueCustom,
+			)
+		}
+	})
 }

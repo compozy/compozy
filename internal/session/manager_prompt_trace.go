@@ -79,7 +79,7 @@ func (t *promptTurnTrace) end(session *Session, outcome string, err error) {
 	attrs := []attribute.KeyValue{
 		telemetry.AttrAgent.String(info.AgentName),
 		telemetry.AttrGenAISystem.String(info.Provider),
-		telemetry.AttrGenAIModel.String(info.Model),
+		telemetry.AttrGenAIModel.String(telemetry.ModelLabel(info.Provider, info.Model)),
 		telemetry.AttrOutcome.String(outcome),
 	}
 	if t.span.IsRecording() {
