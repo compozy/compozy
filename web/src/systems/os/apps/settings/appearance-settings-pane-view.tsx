@@ -46,7 +46,8 @@ export interface AppearanceSettingsPaneViewProps {
   fonts: FontAppearance;
   onFontChange: (role: FontRole, family: string) => void;
   type: TypeAppearance;
-  onTypeChange: (type: TypeAppearance) => void;
+  /** Receives only the step that changed. */
+  onTypeChange: (patch: Partial<TypeAppearance>) => void;
   wallpaper: OsWallpaper;
   onWallpaperChange: (wallpaper: OsWallpaper) => void;
   /** Opens one font list on mount (prototype states that review the open picker). */
@@ -153,7 +154,7 @@ export function AppearanceSettingsPaneView({
                 data-testid="os-appearance-text-size"
                 items={TEXT_SIZES}
                 value={type.size}
-                onChange={size => onTypeChange({ ...type, size })}
+                onChange={size => onTypeChange({ size })}
               />
             }
             data-testid="os-appearance-text-size-row"
@@ -166,7 +167,7 @@ export function AppearanceSettingsPaneView({
                 data-testid="os-appearance-letter-spacing"
                 items={LETTER_SPACINGS}
                 value={type.spacing}
-                onChange={spacing => onTypeChange({ ...type, spacing })}
+                onChange={spacing => onTypeChange({ spacing })}
               />
             }
             data-testid="os-appearance-letter-spacing-row"

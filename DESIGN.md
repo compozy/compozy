@@ -239,6 +239,8 @@ tokens:
       weight-semibold: "600"
       weight-bold: "600"
     typography:
+      xs: { size: "0.75rem", line: "calc(1 / 0.75)" }
+      sm: { size: "0.875rem", line: "calc(1.25 / 0.875)" }
       meta: { size: "0.78125rem", line: "1.125rem" }
       body: { size: "0.84375rem", line: "1.25rem", tracking: "-0.01em" }
       heading: { size: "0.9375rem", line: "1.1875rem" }
@@ -283,6 +285,8 @@ tokens:
       transcript-meta: { size: "0.75rem" }
       transcript-caption: { size: "0.6875rem" }
       workspace-avatar: { size: "9px" }
+      terminal: { size: "0.8125rem", line: "1.5" }
+      terminal-preview: { size: "0.75rem" }
     rounded:
       DEFAULT: "10px"
       xxs: "4px"
@@ -875,52 +879,56 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 <!-- BEGIN:tokens:type-ladder -->
 
-| Token                       | Size         | Line        | Tracking   |
-| --------------------------- | ------------ | ----------- | ---------- |
-| `--text-meta`               | `0.78125rem` | `1.125rem`  |            |
-| `--text-body`               | `0.84375rem` | `1.25rem`   | `-0.01em`  |
-| `--text-heading`            | `0.9375rem`  | `1.1875rem` |            |
-| `--text-item-title`         | `0.875rem`   | `1.125rem`  |            |
-| `--text-small-body`         | `0.8125rem`  | `1.1875rem` |            |
-| `--text-badge`              | `0.6875rem`  | `0.75rem`   |            |
-| `--text-eyebrow`            | `0.75rem`    | `1rem`      | `-0.005em` |
-| `--text-eyebrow-caps`       | `0.6875rem`  | `1rem`      | `0.06em`   |
-| `--text-kbd`                | `0.75rem`    | `1rem`      | `0.03em`   |
-| `--text-kbd--font-weight`   | `450`        |             |            |
-| `--text-display-2xl`        | `1.5rem`     | `1.25`      |            |
-| `--text-site-lead`          | `1.1875rem`  | `1.5`       |            |
-| `--text-micro`              | `0.6875rem`  | `0.75rem`   |            |
-| `--text-count`              | `0.59375rem` | `0.9375rem` |            |
-| `--text-inline-code`        | `0.9em`      |             |            |
-| `--text-accent-glyph`       | `0.85em`     |             |            |
-| `--text-ui-title-lg`        | `1.35rem`    |             |            |
-| `--text-detail-h1`          | `1.125rem`   | `1.25`      | `-0.015em` |
-| `--text-compact-h1`         | `0.9375rem`  | `1.25`      | `-0.015em` |
-| `--text-empty-h1`           | `0.9375rem`  |             | `-0.015em` |
-| `--text-modal-title`        | `0.875rem`   |             | `-0.012em` |
-| `--text-section-head`       | `0.7rem`     |             | `-0.008em` |
-| `--text-form-input`         | `0.8125rem`  |             |            |
-| `--text-form-label`         | `0.8125rem`  |             |            |
-| `--text-form-hint`          | `0.75rem`    |             |            |
-| `--text-form-required`      | `0.625rem`   |             |            |
-| `--text-metric-value`       | `1.25rem`    |             |            |
-| `--text-kpi-value`          | `1.25rem`    | `1.1`       |            |
-| `--text-kpi-compact`        | `0.9375rem`  |             |            |
-| `--text-agent-metric`       | `0.9375rem`  |             |            |
-| `--text-rail-avatar`        | `0.71875rem` |             |            |
-| `--text-ws-name`            | `0.875rem`   |             |            |
-| `--text-mono-id`            | `0.6875rem`  |             | `0`        |
-| `--text-pill-group-badge`   | `0.5625rem`  |             |            |
-| `--text-card-title`         | `0.875rem`   | `1.3`       |            |
-| `--text-prose-h1`           | `1.125rem`   | `1.25`      | `-0.015em` |
-| `--text-prose-h2`           | `1rem`       | `1.3`       | `-0.015em` |
-| `--text-prose-h3`           | `0.90625rem` | `1.4`       | `-0.01em`  |
-| `--text-code-block`         | `0.8125rem`  | `1.5`       |            |
-| `--text-transcript-message` | `0.875rem`   | `1.6`       |            |
-| `--text-transcript-body`    | `0.78125rem` |             |            |
-| `--text-transcript-meta`    | `0.75rem`    |             |            |
-| `--text-transcript-caption` | `0.6875rem`  |             |            |
-| `--text-workspace-avatar`   | `9px`        |             |            |
+| Token                       | Size         | Line                 | Tracking   |
+| --------------------------- | ------------ | -------------------- | ---------- |
+| `--text-xs`                 | `0.75rem`    | `calc(1 / 0.75)`     |            |
+| `--text-sm`                 | `0.875rem`   | `calc(1.25 / 0.875)` |            |
+| `--text-meta`               | `0.78125rem` | `1.125rem`           |            |
+| `--text-body`               | `0.84375rem` | `1.25rem`            | `-0.01em`  |
+| `--text-heading`            | `0.9375rem`  | `1.1875rem`          |            |
+| `--text-item-title`         | `0.875rem`   | `1.125rem`           |            |
+| `--text-small-body`         | `0.8125rem`  | `1.1875rem`          |            |
+| `--text-badge`              | `0.6875rem`  | `0.75rem`            |            |
+| `--text-eyebrow`            | `0.75rem`    | `1rem`               | `-0.005em` |
+| `--text-eyebrow-caps`       | `0.6875rem`  | `1rem`               | `0.06em`   |
+| `--text-kbd`                | `0.75rem`    | `1rem`               | `0.03em`   |
+| `--text-kbd--font-weight`   | `450`        |                      |            |
+| `--text-display-2xl`        | `1.5rem`     | `1.25`               |            |
+| `--text-site-lead`          | `1.1875rem`  | `1.5`                |            |
+| `--text-micro`              | `0.6875rem`  | `0.75rem`            |            |
+| `--text-count`              | `0.59375rem` | `0.9375rem`          |            |
+| `--text-inline-code`        | `0.9em`      |                      |            |
+| `--text-accent-glyph`       | `0.85em`     |                      |            |
+| `--text-ui-title-lg`        | `1.35rem`    |                      |            |
+| `--text-detail-h1`          | `1.125rem`   | `1.25`               | `-0.015em` |
+| `--text-compact-h1`         | `0.9375rem`  | `1.25`               | `-0.015em` |
+| `--text-empty-h1`           | `0.9375rem`  |                      | `-0.015em` |
+| `--text-modal-title`        | `0.875rem`   |                      | `-0.012em` |
+| `--text-section-head`       | `0.7rem`     |                      | `-0.008em` |
+| `--text-form-input`         | `0.8125rem`  |                      |            |
+| `--text-form-label`         | `0.8125rem`  |                      |            |
+| `--text-form-hint`          | `0.75rem`    |                      |            |
+| `--text-form-required`      | `0.625rem`   |                      |            |
+| `--text-metric-value`       | `1.25rem`    |                      |            |
+| `--text-kpi-value`          | `1.25rem`    | `1.1`                |            |
+| `--text-kpi-compact`        | `0.9375rem`  |                      |            |
+| `--text-agent-metric`       | `0.9375rem`  |                      |            |
+| `--text-rail-avatar`        | `0.71875rem` |                      |            |
+| `--text-ws-name`            | `0.875rem`   |                      |            |
+| `--text-mono-id`            | `0.6875rem`  |                      | `0`        |
+| `--text-pill-group-badge`   | `0.5625rem`  |                      |            |
+| `--text-card-title`         | `0.875rem`   | `1.3`                |            |
+| `--text-prose-h1`           | `1.125rem`   | `1.25`               | `-0.015em` |
+| `--text-prose-h2`           | `1rem`       | `1.3`                | `-0.015em` |
+| `--text-prose-h3`           | `0.90625rem` | `1.4`                | `-0.01em`  |
+| `--text-code-block`         | `0.8125rem`  | `1.5`                |            |
+| `--text-transcript-message` | `0.875rem`   | `1.6`                |            |
+| `--text-transcript-body`    | `0.78125rem` |                      |            |
+| `--text-transcript-meta`    | `0.75rem`    |                      |            |
+| `--text-transcript-caption` | `0.6875rem`  |                      |            |
+| `--text-workspace-avatar`   | `9px`        |                      |            |
+| `--text-terminal`           | `0.8125rem`  | `1.5`                |            |
+| `--text-terminal-preview`   | `0.75rem`    |                      |            |
 
 <!-- END:tokens:type-ladder -->
 

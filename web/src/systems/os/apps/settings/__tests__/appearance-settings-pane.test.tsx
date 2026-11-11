@@ -253,6 +253,9 @@ describe("AppearanceSettingsPane", () => {
       "aria-pressed",
       "true"
     );
+    // The step already stored is not written again.
+    await user.click(within(size).getByRole("button", { name: "Large" }));
+    expect(await shellWrites()).toHaveLength(1);
 
     await user.click(within(spacing).getByRole("button", { name: "Relaxed" }));
     await waitFor(() => expect(root.style.getPropertyValue("--user-tracking-body")).toBe("0em"));

@@ -265,6 +265,13 @@
      role-specific (badges, KPIs, prose, site). Leading: body ≈1.45–1.5,
      titles ≈1.3, headings 1.25, transcript 1.6. Every rem step multiplies by
      the Appearance text size (`--user-text-scale`, 1 by default). */
+  /* Tailwind's text-xs / text-sm, which some file and diff surfaces still use,
+     re-declared so they follow the Appearance text size like every step below.
+     Leading keeps Tailwind's ratio. */
+  --text-xs: calc(0.75rem * var(--user-text-scale));
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: calc(0.875rem * var(--user-text-scale));
+  --text-sm--line-height: calc(1.25 / 0.875);
   --text-meta: calc(
     0.78125rem * var(--user-text-scale)
   ); /* 12.5px — meta rows, tool-row trailing details */
@@ -713,7 +720,8 @@
      every rem `--text-*` step and its leading in @theme, so a choice keeps the
      ramp's proportions; `--user-tracking-body` feeds `--tracking-body`. The
      defaults are the built-in ramp; web's type runtime (and the pre-paint boot
-     script) override them inline on <html>. The terminal sizes itself apart. */
+     script) override them inline on <html>. The terminal keeps its own size
+     (`--text-terminal*` in terminal-tokens.css). */
   --user-text-scale: 1;
   --user-tracking-body: -0.01em;
 

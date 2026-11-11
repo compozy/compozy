@@ -1707,6 +1707,11 @@ func TestUpdateSectionShell(t *testing.T) {
 		if strings.Contains(contents, "text_size") || !strings.Contains(contents, `letter_spacing = "relaxed"`) {
 			t.Fatalf("config after text_size reset should delete only text_size:\n%s", contents)
 		}
+		update("", compozyconfig.ShellAppearanceConfig{LetterSpacingExplicit: true})
+		if contents := readFile(t, homePaths.ConfigFile); strings.Contains(contents, "letter_spacing") ||
+			!strings.Contains(contents, `mono_font = "Fira Code"`) {
+			t.Fatalf("config after letter_spacing reset should delete only letter_spacing:\n%s", contents)
+		}
 
 		// A hand-written empty key is still a stored key: resetting it deletes it.
 		writeFile(t, homePaths.ConfigFile, strings.Replace(contents,

@@ -175,6 +175,24 @@ describe.each(THEMES)("non-text indicator contrast floor (%s theme)", theme => {
   });
 });
 
+describe("Appearance text scale reach", () => {
+  const scaled = /^calc\(\s*[\d.]+rem\s*\*\s*var\(--user-text-scale\)\s*\)$/;
+
+  it("Should scale every rem text step and its leading by the Appearance text size", () => {
+    const steps = Array.from(
+      TOKENS_CSS.matchAll(/--(text-[a-z0-9-]+)\s*:\s*([^;]+);/g),
+      ([, name, value]) => [name, value.replace(/\s+/g, " ").trim()] as const
+    ).filter(([, value]) => /rem/.test(value));
+    expect(steps.length).toBeGreaterThan(40);
+    for (const [name, value] of steps) expect(value, name).toMatch(scaled);
+  });
+
+  it("Should keep the terminal's text outside the scale, since the emulator sizes cells from it", () => {
+    expect(TERMINAL_TOKENS_CSS).toMatch(/--text-terminal:\s*0\.8125rem;/);
+    expect(TERMINAL_TOKENS_CSS).not.toContain("--user-text-scale");
+  });
+});
+
 describe("brand, destructive and muted token names", () => {
   const LEGACY_NAME = /^color-(?:accent(?:-.+)?|danger(?:-.+)?|muted)$/;
 

@@ -1335,7 +1335,8 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			homePaths.ConfigFile,
-			[]byte("[shell.appearance]\nui_font = \"Inter\"\nmono_font = \"JetBrains Mono\"\n"),
+			[]byte("[shell.appearance]\nui_font = \"Inter\"\nmono_font = \"JetBrains Mono\"\n"+
+				"text_size = \"large\"\nletter_spacing = \"wide\"\n"),
 			0o600,
 		); err != nil {
 			t.Fatalf("WriteFile(config) error = %v", err)
@@ -1353,6 +1354,23 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		if loaded.Shell.Appearance.UIFont != "" || loaded.Shell.Appearance.MonoFont != "JetBrains Mono" {
 			t.Fatalf(
 				"appearance after unset = %#v, want default ui_font and preserved mono_font",
+				loaded.Shell.Appearance,
+			)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "unset", "shell.appearance.text_size", "-o", "json",
+		); err != nil {
+			t.Fatalf("config unset shell.appearance.text_size error = %v", err)
+		}
+		loaded, err = compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Shell.Appearance.TextSize != "" ||
+			loaded.Shell.Appearance.LetterSpacing != compozyconfig.ShellLetterSpacingWide {
+			t.Fatalf(
+				"appearance after text_size unset = %#v, want default size and preserved wide spacing",
 				loaded.Shell.Appearance,
 			)
 		}
