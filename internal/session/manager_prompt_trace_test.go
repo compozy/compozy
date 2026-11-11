@@ -116,6 +116,13 @@ func TestPromptTurnTrace(t *testing.T) {
 			t.Fatalf("session.turn error.type = %v, want %s", got, telemetry.ErrorProvider)
 		}
 		assertTurnAttributes(t, turn, session, telemetry.OutcomeError)
+		duration := collector.FlushMetrics(t)[telemetry.MetricSessionTurnDuration].Points
+		if len(duration) != 1 || duration[0].Count != 1 ||
+			duration[0].Attributes[string(telemetry.AttrOutcome)] != telemetry.OutcomeError ||
+			duration[0].Attributes[string(telemetry.AttrAgent)] != session.AgentName {
+			t.Fatalf("%s points = %+v, want one error turn of %s", telemetry.MetricSessionTurnDuration, duration,
+				session.AgentName)
+		}
 	})
 
 	// IT-004
@@ -386,7 +393,7 @@ func exportTurnTraces(t *testing.T) *otlptest.Collector {
 	t.Helper()
 	accept := func(string) bool { return true }
 	collector := otlptest.NewCollector(t)
-	collector.Export(t, 1, telemetry.Registries{
+	collector.ExportWithMetrics(t, 1, telemetry.Registries{
 		RouteTemplates: []string{traceRequestRoute},
 		Agents:         accept,
 		Providers:      accept,

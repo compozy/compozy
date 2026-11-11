@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/telemetry"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -78,4 +80,19 @@ func newBenchmarkTracerProvider(b *testing.B, ratio float64) *sdktrace.TracerPro
 		}
 	})
 	return provider
+}
+
+// BenchmarkDurationHistogramDisabled measures the duration-histogram lookup each turn, ACP request, and tool call
+// pays while export is disabled (the global no-op meter provider Init installs):
+//
+//	go test ./internal/telemetry -run '^$' -bench BenchmarkDurationHistogramDisabled -benchmem
+func BenchmarkDurationHistogramDisabled(b *testing.B) {
+	otel.SetMeterProvider(metricnoop.NewMeterProvider())
+	ctx := context.Background()
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, ok := telemetry.DurationHistogram(ctx, telemetry.ScopeACP, telemetry.MetricACPRPCDuration); ok {
+			b.Fatal("DurationHistogram() recorded with export disabled")
+		}
+	}
 }

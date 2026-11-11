@@ -98,7 +98,7 @@ func TestDaemonE2EOTelMarksProviderFailedTurns(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	t.Run("Should mark a provider-failed turn with provider_error and no description", func(t *testing.T) {
+	t.Run("Should mark a provider-failed turn with provider_error and count the agent error", func(t *testing.T) {
 		t.Parallel()
 
 		collector := otlptest.NewCollector(t)
@@ -115,7 +115,7 @@ func TestDaemonE2EOTelMarksProviderFailedTurns(t *testing.T) {
 			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Observability.OTel.Enabled = true
 				cfg.Observability.OTel.Endpoint = collector.URL
-				cfg.Observability.OTel.Metrics = false
+				cfg.Observability.OTel.MetricInterval = metricTestInterval
 			}},
 		})
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
@@ -136,6 +136,11 @@ func TestDaemonE2EOTelMarksProviderFailedTurns(t *testing.T) {
 					name, span.StatusCode, span.StatusMessage, span.Attributes)
 			}
 		}
+		metrics := waitForMetrics(ctx, t, collector, telemetry.MetricAgentErrors)
+		requireSeries(t, metrics, telemetry.MetricAgentErrors, map[string]any{
+			string(telemetry.AttrGenAISystem): acpmock.ProviderName,
+			string(telemetry.AttrErrorType):   telemetry.ErrorProvider,
+		}, 1)
 	})
 }
 

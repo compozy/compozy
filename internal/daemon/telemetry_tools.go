@@ -3,24 +3,33 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/compozy/compozy/internal/telemetry"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// toolCallSpan is tool.execute for one registry call; internal/tools cannot import telemetry, so the composition root
-// supplies it.
+// toolCallSpan is tool.execute for one registry call and its compozy.tool.call.duration point; internal/tools cannot
+// import telemetry, so the composition root supplies it.
 type toolCallSpan struct {
-	span trace.Span
+	span  trace.Span
+	id    toolspkg.ToolID
+	start time.Time
 }
 
 func traceToolCall(ctx context.Context, id toolspkg.ToolID) (context.Context, toolspkg.CallSpan) {
-	ctx, span := telemetry.Tracer(telemetry.ScopeTools).Start(ctx, telemetry.SpanToolExecute)
+	start := time.Now()
+	ctx, span := telemetry.Tracer(telemetry.ScopeTools).Start(
+		ctx,
+		telemetry.SpanToolExecute,
+		trace.WithTimestamp(start),
+	)
 	if span.IsRecording() {
 		span.SetAttributes(telemetry.AttrTool.String(string(id)))
 	}
-	return ctx, toolCallSpan{span: span}
+	return ctx, toolCallSpan{span: span, id: id, start: start}
 }
 
 func (s toolCallSpan) SetRisk(risk toolspkg.RiskClass) {
@@ -31,6 +40,13 @@ func (s toolCallSpan) SetRisk(risk toolspkg.RiskClass) {
 
 func (s toolCallSpan) End(err error) {
 	telemetry.EndSpan(s.span, err)
+	ctx := context.Background()
+	if histogram, ok := telemetry.DurationHistogram(ctx, telemetry.ScopeTools, telemetry.MetricToolCallDuration); ok {
+		histogram.Record(ctx, time.Since(s.start).Seconds(), metric.WithAttributes(
+			telemetry.AttrTool.String(string(s.id)),
+			telemetry.AttrOutcome.String(telemetry.Outcome(err)),
+		))
+	}
 }
 
 // nativeToolMembership admits the daemon's native tool ids. Extension and MCP server tool names are user-authored, so

@@ -79,6 +79,17 @@ func TestDriverTurnSpans(t *testing.T) {
 		if echoed["traceparent"] != want {
 			t.Fatalf("provider _meta = %v, want traceparent %s of the prompt span", echoed, want)
 		}
+		metrics := collector.FlushMetrics(t)
+		if !slices.ContainsFunc(metrics[telemetry.MetricACPRPCDuration].Points, func(point otlptest.Point) bool {
+			return point.Count == 1 && point.Attributes[string(telemetry.AttrRPCMethod)] == "session/prompt" &&
+				point.Attributes[string(telemetry.AttrOutcome)] == telemetry.OutcomeOK
+		}) {
+			t.Fatalf("%s = %+v, want one ok session/prompt duration", telemetry.MetricACPRPCDuration,
+				metrics[telemetry.MetricACPRPCDuration])
+		}
+		if ttft := metrics[telemetry.MetricSessionTTFT].Points; len(ttft) != 1 || ttft[0].Count != 1 {
+			t.Fatalf("%s points = %+v, want the prompt's first token", telemetry.MetricSessionTTFT, ttft)
+		}
 	})
 
 	// UT-070, UT-071
@@ -216,7 +227,7 @@ func TestActiveTraceContextFollowsTheActivePrompt(t *testing.T) {
 func exportACPTraces(t *testing.T) *otlptest.Collector {
 	t.Helper()
 	collector := otlptest.NewCollector(t)
-	collector.Export(t, 1, telemetry.Registries{ACPMethods: TracedMethods()})
+	collector.ExportWithMetrics(t, 1, telemetry.Registries{ACPMethods: TracedMethods()})
 	return collector
 }
 

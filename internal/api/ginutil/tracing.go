@@ -7,11 +7,13 @@ import (
 )
 
 // traceRequests starts each request's server span from an incoming W3C traceparent; tracestate is ignored. Spans
-// start with the provider telemetry installs when the request arrives, so engines built first are traced too.
+// and request durations use the providers telemetry installs when the request arrives, so engines built first are
+// instrumented too.
 func traceRequests() gin.HandlerFunc {
 	return otelgin.Middleware(
 		"compozy",
 		otelgin.WithTracerProvider(telemetry.TracerProvider()),
+		otelgin.WithMeterProvider(telemetry.MeterProvider()),
 		otelgin.WithPropagators(telemetry.Propagator()),
 		otelgin.WithSpanNameFormatter(requestSpanName),
 	)

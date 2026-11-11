@@ -314,6 +314,7 @@ func (m *Manager) newDispatchPromptRequest(
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,
 		Generation:                session.Info().RuntimeGeneration,
+		Model:                     session.Info().Model,
 		Message:                   dispatchMessage,
 		Sections:                  dispatchInput.sections,
 		Attachments:               attachments,

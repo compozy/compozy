@@ -130,6 +130,11 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 			telemetry.RecordDBWrite(ctx, telemetry.DBWrite(write), slowDBWriteMS)
 		})
 	}
+	if source, ok := state.observer.(activitySource); ok {
+		if err := registerActivityGauges(source); err != nil {
+			state.logger.WarnContext(ctx, "daemon: activity gauges unavailable", "error", err)
+		}
+	}
 	cleanup.add(func(ctx context.Context) error {
 		store.SetWriteObserver(nil)
 		state.telemetry.shutdown(ctx, state.logger)

@@ -5,10 +5,13 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -19,6 +22,7 @@ var errPromptTurnFailed = telemetry.ProviderError(errors.New("session: prompt tu
 // submit path ends it as setup_failed. Only the first end takes effect, which also closes the turn's write account.
 type promptTurnTrace struct {
 	span    trace.Span
+	start   time.Time
 	account *store.TurnWriteAccount
 	ended   atomic.Bool
 }
@@ -34,6 +38,8 @@ func startPromptTurnTrace(
 	if len(req.queuedLinks) > 0 {
 		options = append(options, trace.WithNewRoot(), trace.WithLinks(req.queuedLinks...))
 	}
+	start := time.Now()
+	options = append(options, trace.WithTimestamp(start))
 	ctx, span := telemetry.Tracer(telemetry.ScopeSession).Start(ctx, telemetry.SpanSessionTurn, options...)
 	if span.IsRecording() {
 		info := session.Info()
@@ -45,7 +51,7 @@ func startPromptTurnTrace(
 			telemetry.AttrProfileID.String(info.ProfileID),
 		)
 	}
-	return ctx, &promptTurnTrace{span: span, account: store.NewTurnWriteAccount()}
+	return ctx, &promptTurnTrace{span: span, start: start, account: store.NewTurnWriteAccount()}
 }
 
 // attributeWrites attaches the turn's write account to the pump's context as a value, so every write the pump
@@ -57,25 +63,37 @@ func (t *promptTurnTrace) attributeWrites(ctx context.Context) context.Context {
 	return store.WithWriteAttribution(ctx, store.WriteAttribution{Turn: t.account})
 }
 
-// end records the runtime that served the turn and how it ended, then ends the span.
+// end records the runtime that served the turn and how it ended, then ends the span and records the turn duration.
 func (t *promptTurnTrace) end(session *Session, outcome string, err error) {
 	if t == nil || !t.ended.CompareAndSwap(false, true) {
 		return
 	}
 	flushes, writeTotal := t.account.Close()
+	ctx := context.Background()
+	histogram, record := telemetry.DurationHistogram(ctx, telemetry.ScopeSession, telemetry.MetricSessionTurnDuration)
+	if !t.span.IsRecording() && !record {
+		t.span.End()
+		return
+	}
+	info := session.Info()
+	attrs := []attribute.KeyValue{
+		telemetry.AttrAgent.String(info.AgentName),
+		telemetry.AttrGenAISystem.String(info.Provider),
+		telemetry.AttrGenAIModel.String(info.Model),
+		telemetry.AttrOutcome.String(outcome),
+	}
 	if t.span.IsRecording() {
-		info := session.Info()
+		t.span.SetAttributes(attrs...)
 		t.span.SetAttributes(
-			telemetry.AttrAgent.String(info.AgentName),
-			telemetry.AttrGenAISystem.String(info.Provider),
-			telemetry.AttrGenAIModel.String(info.Model),
-			telemetry.AttrOutcome.String(outcome),
 			telemetry.AttrDBFlushes.Int64(flushes),
 			telemetry.AttrDBWriteMSTotal.Int64(writeTotal.Milliseconds()),
 		)
 		telemetry.MarkError(t.span, err)
 	}
 	t.span.End()
+	if record {
+		histogram.Record(ctx, time.Since(t.start).Seconds(), metric.WithAttributes(attrs...))
+	}
 }
 
 // failSetup ends the span as setup_failed when the submit path returns *err: the turn started once it owned the prompt

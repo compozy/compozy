@@ -240,6 +240,7 @@ type PromptRequest struct {
 	TurnID                    string
 	RunID                     string
 	Generation                int64
+	Model                     string // session model; labels compozy.session.ttft only
 	Message                   string
 	Maintenance               bool
 	AgentCommand              bool

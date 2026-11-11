@@ -12,11 +12,11 @@ import (
 var errSessionNewTimeout = errors.New("acp: session/new control deadline exceeded")
 
 func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, method string, params any) (T, error) {
-	rpcCtx, span := startRPCSpan(ctx, method)
+	rpcCtx, span := startRPCSpan(ctx, process.providerName, method)
 	requestCtx, cancel := context.WithTimeout(rpcCtx, process.controlRequestTimeout(method))
 	defer cancel()
 	response, err := acpsdk.SendRequest[T](process.conn, requestCtx, method, params)
-	endRPCSpan(span, err)
+	endRPCSpan(ctx, span, err)
 	if err != nil {
 		cause := errors.Join(requestCtx.Err(), err)
 		if method == acpsdk.AgentMethodInitialize && isNPX(process.Command) &&

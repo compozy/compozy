@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	colmetricpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -55,12 +56,13 @@ func (s Span) HasEvent(name string) bool {
 	return slices.ContainsFunc(s.Events, func(event Event) bool { return event.Name == name })
 }
 
-// Collector is an OTLP/HTTP collector that keeps every span it receives and accepts metrics without decoding them.
+// Collector is an OTLP/HTTP collector that keeps every span it receives and the latest export of each metric.
 type Collector struct {
 	URL string
 
-	mu    sync.Mutex
-	spans []Span
+	mu      sync.Mutex
+	spans   []Span
+	metrics map[string]Metric
 }
 
 // NewCollector starts a collector that stops at test cleanup.
@@ -86,6 +88,14 @@ func (c *Collector) serve(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		c.keep(&export)
+	}
+	if req.URL.Path == "/v1/metrics" {
+		var export colmetricpb.ExportMetricsServiceRequest
+		if err := proto.Unmarshal(body, &export); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		c.keepMetrics(&export)
 	}
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.WriteHeader(http.StatusOK)
@@ -115,13 +125,24 @@ func (c *Collector) Spans() []Span {
 // parallel.
 func (c *Collector) Export(t testing.TB, sampleRatio float64, reg telemetry.Registries) {
 	t.Helper()
+	c.export(t, sampleRatio, false, reg)
+}
+
+// ExportWithMetrics is Export with metric export on; FlushMetrics collects on demand.
+func (c *Collector) ExportWithMetrics(t testing.TB, sampleRatio float64, reg telemetry.Registries) {
+	t.Helper()
+	c.export(t, sampleRatio, true, reg)
+}
+
+func (c *Collector) export(t testing.TB, sampleRatio float64, metrics bool, reg telemetry.Registries) {
+	t.Helper()
 	cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}).Observability
 	cfg.Enabled = true
 	cfg.OTel.Enabled = true
 	cfg.OTel.Endpoint = c.URL
 	cfg.OTel.Protocol = "http/protobuf"
 	cfg.OTel.SampleRatio = sampleRatio
-	cfg.OTel.Metrics = false
+	cfg.OTel.Metrics = metrics
 	runtime := initTelemetry(t, cfg, reg)
 	t.Cleanup(func() {
 		if err := runtime.Shutdown(context.Background()); err != nil {

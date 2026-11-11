@@ -33,7 +33,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		emitPromptBuildError(proc, req, err)
 		return
 	}
-	rpcCtx, span := startRPCSpan(ctx, acpsdk.AgentMethodSessionPrompt)
+	rpcCtx, span := startRPCSpan(ctx, proc.providerName, acpsdk.AgentMethodSessionPrompt)
 	promptRequest.Meta = withTraceParent(rpcCtx, promptRequest.Meta)
 	// The SDK turns context cancellation into request-scoped $/cancel_request.
 	response, err := acpsdk.SendRequest[wirePromptResponse](
@@ -42,7 +42,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		acpsdk.AgentMethodSessionPrompt,
 		promptRequest,
 	)
-	endPromptRPCSpan(span, active, response.StopReason, err)
+	endPromptRPCSpan(ctx, span, active, req.Model, response.StopReason, err)
 	// Drain admitted steering before closing its owning turn's event stream.
 	active.steerMu.Lock()
 	active.finishing = true

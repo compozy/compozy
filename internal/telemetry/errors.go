@@ -124,12 +124,8 @@ func EndSpan(span trace.Span, err error) {
 	if span == nil {
 		return
 	}
-	outcome := OutcomeOK
-	switch {
-	case errors.Is(err, context.Canceled):
-		outcome = OutcomeCancelled
-	case err != nil:
-		outcome = OutcomeError
+	outcome := Outcome(err)
+	if outcome == OutcomeError {
 		MarkError(span, err)
 	}
 	span.SetAttributes(AttrOutcome.String(outcome))

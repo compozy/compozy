@@ -7,6 +7,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/telemetry"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -29,12 +30,22 @@ func startSpawnSpan(ctx context.Context, provider string) (context.Context, trac
 	return ctx, span
 }
 
-// startRPCSpan starts the client span of one ACP request.
-func startRPCSpan(ctx context.Context, method string) (context.Context, trace.Span) {
+// rpcSpan is one ACP request: its client span and what compozy.acp.rpc.duration records when it ends.
+type rpcSpan struct {
+	span     trace.Span
+	provider string
+	method   string
+	start    time.Time
+}
+
+// startRPCSpan starts the client span of one ACP request to provider.
+func startRPCSpan(ctx context.Context, provider, method string) (context.Context, rpcSpan) {
+	start := time.Now()
 	ctx, span := telemetry.Tracer(telemetry.ScopeACP).Start(
 		ctx,
 		"acp "+method,
 		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithTimestamp(start),
 	)
 	if span.IsRecording() {
 		span.SetAttributes(
@@ -42,26 +53,49 @@ func startRPCSpan(ctx context.Context, method string) (context.Context, trace.Sp
 			telemetry.AttrRPCMethod.String(method),
 		)
 	}
-	return ctx, span
+	return ctx, rpcSpan{span: span, provider: provider, method: method, start: start}
 }
 
-// endRPCSpan ends an ACP request span; an error the peer returned is classified as a provider error.
-func endRPCSpan(span trace.Span, err error) {
+// endRPCSpan ends an ACP request span and records its duration; an error the peer returned is classified as a
+// provider error.
+func endRPCSpan(ctx context.Context, rpc rpcSpan, err error) {
 	if _, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		err = telemetry.ProviderError(err)
 	}
-	telemetry.EndSpan(span, err)
+	telemetry.EndSpan(rpc.span, err)
+	if histogram, ok := telemetry.DurationHistogram(ctx, telemetry.ScopeACP, telemetry.MetricACPRPCDuration); ok {
+		histogram.Record(ctx, time.Since(rpc.start).Seconds(), metric.WithAttributes(
+			telemetry.AttrGenAISystem.String(rpc.provider),
+			telemetry.AttrRPCMethod.String(rpc.method),
+			telemetry.AttrOutcome.String(telemetry.Outcome(err)),
+		))
+	}
 }
 
-// endPromptRPCSpan ends the session/prompt span with the time of the provider's first message chunk, when one came.
-func endPromptRPCSpan(span trace.Span, active *activePromptState, stopReason acpsdk.StopReason, err error) {
+// endPromptRPCSpan ends the session/prompt span with the time of the provider's first message chunk, when one came,
+// and records that time to first token for the prompt's model.
+func endPromptRPCSpan(
+	ctx context.Context,
+	rpc rpcSpan,
+	active *activePromptState,
+	model string,
+	stopReason acpsdk.StopReason,
+	err error,
+) {
 	if at := active.firstOutputAt.Load(); at != 0 {
-		span.AddEvent(telemetry.EventFirstToken, trace.WithTimestamp(time.Unix(0, at)))
+		firstToken := time.Unix(0, at)
+		rpc.span.AddEvent(telemetry.EventFirstToken, trace.WithTimestamp(firstToken))
+		if histogram, ok := telemetry.DurationHistogram(ctx, telemetry.ScopeACP, telemetry.MetricSessionTTFT); ok {
+			histogram.Record(ctx, max(firstToken.Sub(rpc.start), 0).Seconds(), metric.WithAttributes(
+				telemetry.AttrGenAISystem.String(rpc.provider),
+				telemetry.AttrGenAIModel.String(model),
+			))
+		}
 	}
 	if err == nil && stopReason == acpsdk.StopReasonCancelled {
 		err = context.Canceled
 	}
-	endRPCSpan(span, err)
+	endRPCSpan(ctx, rpc, err)
 }
 
 // withTraceParent adds the prompt span's W3C traceparent to the ACP _meta next to CompozyOS's own keys, so a provider
