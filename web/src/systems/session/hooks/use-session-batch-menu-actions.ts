@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { toast } from "@compozy/ui";
 import { runSessionBatch, type SessionBatchResult } from "@/systems/session/lib/session-batch";
 import {
@@ -16,7 +17,8 @@ type MenuBatchAction = "mark-seen" | "make-top-level";
 /**
  * The new selection verbs use the same mutations as rows, with one named result per failure.
  * `running` is the host's shared batch admission, held from the first mutation to settlement.
- * Singular nest and Make top-level share the lineage boundary: neither overlaps a batch detach.
+ * Singular nest and Make top-level share the lineage boundary with batch Make top-level:
+ * neither overlaps the other. Other batch families leave single lineage moves alone.
  */
 export function useSessionBatchMenuActions(
   busy: boolean,
@@ -25,9 +27,10 @@ export function useSessionBatchMenuActions(
   onProgress: (results: readonly SessionBatchResult[]) => void
 ) {
   const markSeen = useMarkSessionSeen();
-  const reparent = useSessionReparent({ blocked: running.held });
+  const detaching = useRef(false);
+  const reparent = useSessionReparent({ blocked: () => detaching.current });
   const run = async (action: MenuBatchAction, sessions: readonly SessionPayload[]) => {
-    if (busy || reparent.pending || running.held()) return;
+    if (busy || running.held() || (action === "make-top-level" && reparent.pending)) return;
     const eligible = sessions.filter(sessionBatchAction(action).eligible);
     const skipped = new Map<string, number>();
     const skippedCount = sessions.length - eligible.length;
@@ -43,6 +46,7 @@ export function useSessionBatchMenuActions(
       return;
     }
     running.hold();
+    detaching.current = action === "make-top-level";
     setPendingAction(action);
     try {
       const byId = new Map(eligible.map(session => [session.id, session]));
@@ -60,6 +64,7 @@ export function useSessionBatchMenuActions(
       reportBatch(action, results, sessions, skipped);
     } finally {
       running.release();
+      detaching.current = false;
       setPendingAction(null);
     }
   };

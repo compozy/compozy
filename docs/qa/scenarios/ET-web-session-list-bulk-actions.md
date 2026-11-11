@@ -160,11 +160,13 @@ latency emulation on an isolated lab) while walking these checks.
    queued and finished rows do not, and every row's controls stay disabled until the last request
    settles. Failures keep their per-target receipt.
 2. Start a batch from one family (for example Back from Later) and immediately invoke another
-   (Make top-level, Unarchive): the second starts no request while the first runs, so at most
-   three requests are in flight. After the first batch settles, the second runs normally.
+   (Make top-level, Unarchive): the second is declined and sends no request, so at most three
+   requests are in flight. Invoking it again after the first batch settles runs it normally.
 3. Start a single Nest under (drop) or Make top-level and, before it settles, invoke Make
-   top-level on a selection: the batch starts no request until the single move settles. While a
-   batch Make top-level runs, a row drop or single Make top-level is declined.
+   top-level on a selection: the batch is declined and sends no request. Invoking it again after
+   the single move settles detaches every target. While a batch Make top-level runs, a row drop,
+   a single Make top-level or a nest toast's Undo is declined; other batch families (Stop,
+   Archive, Mark as seen) leave single lineage moves available.
 
 The lifecycle hook suite (`use-session-actions.test.tsx`) owns same-turn admission in every
 family order, running-target progress transitions and the singular/batch lineage boundary; the
@@ -174,8 +176,8 @@ Evidence (2026-11-11, PR #1498): an isolated lab daemon built from the branch se
 bundle; four nested sessions under distinct roots were detached with genuine `DELETE .../parent`
 requests held in the browser. Checks 1 and 3 passed in the rendered session sidebar: three rows
 showed progress with all 16 row controls disabled, the queued fourth row gained progress when a
-slot freed, and a batch Make top-level issued no request while a single Make top-level was held,
-then detached all three after it settled (daemon reads confirmed every lineage change). Check 2
+slot freed, and a batch Make top-level issued no request while a single Make top-level was held;
+invoked again after it settled, it detached all three (daemon reads confirmed every lineage change). Check 2
 needs two invocations within one React turn, which a pointer cannot produce; the lifecycle hook
 suite owns it. At rest the end slot shows the time, so progress appears on hover or focus, as
 before #1472.

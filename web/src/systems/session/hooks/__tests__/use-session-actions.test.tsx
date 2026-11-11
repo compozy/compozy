@@ -2891,4 +2891,38 @@ describe("session lifecycle batches", () => {
     });
     await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
   });
+
+  // Invariant: the lineage boundary covers only lineage work: a running non-lineage batch leaves
+  // single Make top-level available, and a pending single reparent leaves Mark as seen available.
+  // Owner/canonical suite: lifecycle batch hook, mocked only at adapter I/O.
+  it("Should leave single lineage moves and non-lineage batches independent", async () => {
+    const unarchiving = mockHeld("unarchive");
+    const detaching = mockHeld("make-top-level");
+    vi.mocked(markSessionSeen).mockImplementation(async (_workspace, id) => ({
+      ...createdSession,
+      id,
+    }));
+    const [single] = independent("nested", 1);
+    const { result } = lifecycle();
+    act(() => result.current.actions.onUnarchiveMany?.(families.unarchive.targets()));
+    await waitFor(() => expect(unarchiveSession).toHaveBeenCalledTimes(3));
+    act(() => result.current.actions.onMakeTopLevel?.(single!));
+    await waitFor(() => expect(clearSessionParent).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      for (const call of unarchiving.calls.values()) call.resolve();
+    });
+    await waitFor(() => expect(unarchiving.calls.size).toBe(4));
+    await act(async () => {
+      for (const call of unarchiving.calls.values()) call.resolve();
+    });
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+    act(() =>
+      result.current.actions.onMarkSeenMany?.([
+        { ...createdSession, id: "seen-0", attention_dismissible: true },
+      ])
+    );
+    await waitFor(() => expect(markSessionSeen).toHaveBeenCalledTimes(1));
+    await act(async () => detaching.calls.get(single!.id)!.resolve());
+    await waitFor(() => expect(result.current.actions.pendingAction).toBeNull());
+  });
 });

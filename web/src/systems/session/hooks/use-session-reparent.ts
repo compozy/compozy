@@ -30,8 +30,8 @@ function workspacePath(session: SessionPayload): string {
  * top-level user session. The
  * daemon owns the lineage change and validates it; each request names the
  * session's own profile, so it routes under any profile lens. `blocked` is the
- * host's batch lock: while it holds, every single move (row menu, drop, toast
- * Undo) is declined so it cannot overlap a batch detach.
+ * host's lineage batch lock: while a batch Make top-level runs, every single move
+ * (row menu, drop, toast Undo) is declined so it cannot overlap that batch.
  */
 export function useSessionReparent({ blocked = () => false }: { blocked?: () => boolean } = {}) {
   const queryClient = useQueryClient();
