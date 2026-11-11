@@ -17,8 +17,9 @@ func TestShellConfig(t *testing.T) {
 		t.Parallel()
 
 		got := DefaultShellConfig()
-		if got.Sessions.Sort != ShellSessionSortCreated || got.Sessions.Scope != ShellSessionScopeWorkspace {
-			t.Fatalf("DefaultShellConfig() = %#v, want created/workspace", got)
+		if got.Sessions.Sort != ShellSessionSortCreated || got.Sessions.Scope != ShellSessionScopeWorkspace ||
+			got.Sessions.GroupBy != ShellSessionGroupByProject || got.Sessions.GroupByExplicit {
+			t.Fatalf("DefaultShellConfig() = %#v, want created/workspace/project (unset)", got)
 		}
 		if err := got.Validate(); err != nil {
 			t.Fatalf("Validate(defaults) error = %v", err)
@@ -208,15 +209,23 @@ func TestShellConfig(t *testing.T) {
 func TestShellGroupingCompatibility(t *testing.T) {
 	t.Run("Should derive legacy grouping only until an explicit preference is present", func(t *testing.T) {
 		t.Parallel()
+		for _, legacy := range []ShellSessionScope{ShellSessionScopeAllWorkspaces, ShellSessionScopeWorkspace} {
+			cfg := DefaultShellConfig()
+			shellOverlay{Sessions: shellSessionsOverlay{Scope: &legacy}}.Apply(&cfg)
+			if cfg.Sessions.GroupBy != ShellSessionGroupByProject || !cfg.Sessions.ScopeExplicit {
+				t.Fatalf("legacy %q = %#v, want unset grouping to read project", legacy, cfg)
+			}
+		}
 		cfg := DefaultShellConfig()
-		legacy := ShellSessionScopeAllWorkspaces
-		shellOverlay{Sessions: shellSessionsOverlay{Scope: &legacy}}.Apply(&cfg)
-		if cfg.Sessions.GroupBy != ShellSessionGroupByProject || !cfg.Sessions.ScopeExplicit {
-			t.Fatalf("legacy = %#v", cfg)
+		none := ShellSessionGroupByNone
+		allWorkspaces := ShellSessionScopeAllWorkspaces
+		shellOverlay{Sessions: shellSessionsOverlay{GroupBy: &none, Scope: &allWorkspaces}}.Apply(&cfg)
+		if cfg.Sessions.GroupBy != ShellSessionGroupByNone || !cfg.Sessions.GroupByExplicit {
+			t.Fatalf("explicit none overwritten: %#v", cfg)
 		}
 		group := ShellSessionGroupByProfile
 		shellOverlay{Sessions: shellSessionsOverlay{GroupBy: &group}}.Apply(&cfg)
-		legacy = ShellSessionScopeWorkspace
+		legacy := ShellSessionScopeWorkspace
 		shellOverlay{Sessions: shellSessionsOverlay{Scope: &legacy}}.Apply(&cfg)
 		if cfg.Sessions.GroupBy != ShellSessionGroupByProfile {
 			t.Fatalf("explicit grouping overwritten: %#v", cfg)
