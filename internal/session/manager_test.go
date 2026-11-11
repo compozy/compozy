@@ -740,6 +740,8 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			if resolvedWorkspace.Agents[index].Name != "coder" {
 				continue
 			}
+			// approve-edits keeps the approve-all provider mode out of the layered option set.
+			resolvedWorkspace.Agents[index].Permissions = string(compozyconfig.PermissionModeApproveEdits)
 			resolvedWorkspace.Agents[index].SetSpeed(speedpkg.SpeedFast)
 			resolvedWorkspace.Agents[index].SetACPOptions([]compozyconfig.ACPOptionSelection{
 				{ID: "context", ValueID: "1m"},

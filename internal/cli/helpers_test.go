@@ -201,7 +201,7 @@ type stubClient struct {
 	resolveWorkspaceRefs  bool
 	updateWorkspaceFn     func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn     func(context.Context, string) error
-	listWorktreesFn       func(context.Context, string, bool) (WorktreeListRecord, error)
+	listWorktreesFn       func(context.Context, string, bool, bool) (WorktreeListRecord, error)
 	createWorktreeFn      func(context.Context, string, WorktreeCreateRequest) (WorktreeRecord, error)
 	cancelWorktreeFn      func(context.Context, string, string) error
 	adoptWorktreeFn       func(context.Context, string, string) (WorktreeRecord, error)
@@ -362,14 +362,14 @@ type stubClient struct {
 	updateAutomationJobFn     func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
 	deleteAutomationJobFn     func(context.Context, string) error
 	triggerAutomationJobFn    func(context.Context, string) (RunRecord, error)
-	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error)
 	listAutomationTriggersFn  func(context.Context, AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	createAutomationTriggerFn func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
 	getAutomationTriggerFn    func(context.Context, string) (TriggerRecord, error)
 	updateAutomationTriggerFn func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
 	deleteAutomationTriggerFn func(context.Context, string) error
-	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationRunsFn      func(context.Context, AutomationRunQuery) ([]RunRecord, error)
+	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error)
+	listAutomationRunsFn      func(context.Context, AutomationRunQuery) (AutomationRunListRecord, error)
 	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
 	listTasksFn               func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error)
 	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
@@ -1767,9 +1767,10 @@ func (s *stubClient) ListWorktrees(
 	ctx context.Context,
 	workspace string,
 	refresh bool,
+	includeRemoved bool,
 ) (WorktreeListRecord, error) {
 	if s.listWorktreesFn != nil {
-		return s.listWorktreesFn(ctx, workspace, refresh)
+		return s.listWorktreesFn(ctx, workspace, refresh, includeRemoved)
 	}
 	return WorktreeListRecord{}, errors.New("unexpected ListWorktrees call")
 }
@@ -2870,11 +2871,11 @@ func (s *stubClient) AutomationJobRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	if s.automationJobRunsFn != nil {
 		return s.automationJobRunsFn(ctx, id, query)
 	}
-	return nil, errors.New("unexpected AutomationJobRuns call")
+	return AutomationRunListRecord{}, errors.New("unexpected AutomationJobRuns call")
 }
 
 func (s *stubClient) ListAutomationTriggers(
@@ -2926,21 +2927,21 @@ func (s *stubClient) AutomationTriggerRuns(
 	ctx context.Context,
 	id string,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	if s.automationTriggerRunsFn != nil {
 		return s.automationTriggerRunsFn(ctx, id, query)
 	}
-	return nil, errors.New("unexpected AutomationTriggerRuns call")
+	return AutomationRunListRecord{}, errors.New("unexpected AutomationTriggerRuns call")
 }
 
 func (s *stubClient) ListAutomationRuns(
 	ctx context.Context,
 	query AutomationRunQuery,
-) ([]RunRecord, error) {
+) (AutomationRunListRecord, error) {
 	if s.listAutomationRunsFn != nil {
 		return s.listAutomationRunsFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListAutomationRuns call")
+	return AutomationRunListRecord{}, errors.New("unexpected ListAutomationRuns call")
 }
 
 func (s *stubClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {

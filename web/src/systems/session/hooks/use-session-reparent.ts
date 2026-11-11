@@ -68,6 +68,7 @@ export function useSessionReparent() {
     );
   return {
     pending: mutation.isPending,
+    detachAsync: (session: SessionPayload) => mutation.mutateAsync({ kind: "detach", session }),
     adopt: (session: SessionPayload, parent: SessionPayload) => {
       if (mutation.isPending) return;
       mutation.mutate(

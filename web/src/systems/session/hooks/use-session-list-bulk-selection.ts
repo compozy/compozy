@@ -1,3 +1,5 @@
+import { getSessionDisplayTitle } from "../lib/session-display-title";
+import { sessionBatchAction } from "../lib/session-menu-actions";
 import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
 import { isEditableTarget } from "../lib/editable-target";
@@ -19,7 +21,7 @@ interface SessionListBulkSelectionInput {
   shelf: SessionListShelf;
   /** Every listed session; a grouped list joins what each expanded group reads. */
   sessions: readonly SessionPayload[];
-  /** The ids of the rows on screen, in order; ranges and select-all follow it. */
+  /** The ids of the rows the list shows or can reveal (children behind "Show N more"), in order; ranges and select-all follow it. */
   visibleOrder: readonly string[];
   sessionActions: SessionLifecycleActionHandlers;
   /** The list's folder layouts; absent while the list has no folders to move into. */
@@ -34,6 +36,8 @@ interface SessionListBulkSelectionInput {
 /** What the selection can do, shared by the selection bar's menu and a selected row's context menu. */
 export interface SessionSelectionVerbs {
   count: number;
+  markSeenable: number;
+  topLevelable: number;
   stoppable: number;
   archivable: number;
   /** Archivable sessions that archiving stops first. */
@@ -51,6 +55,9 @@ export interface SessionSelectionVerbs {
   onMoveToLater?: () => void;
   onBackFromLater?: () => void;
   onCopyIds: () => void;
+  onCopyTitles: () => void;
+  onMarkSeen?: () => void;
+  onMakeTopLevel?: () => void;
   /** Move to folder; absent while the list has no folders to move into. */
   folders?: SessionBulkFolderMenu;
 }
@@ -130,6 +137,8 @@ export function useSessionListBulkSelection({
   const verbs: SessionSelectionVerbs = {
     // Held sessions have no payload to act on, so the count names what the verbs receive.
     count: selectedSessions.length,
+    markSeenable: selectedSessions.filter(sessionBatchAction("mark-seen").eligible).length,
+    topLevelable: selectedSessions.filter(sessionBatchAction("make-top-level").eligible).length,
     stoppable: counts.stoppable,
     archivable: counts.archivable,
     archivableLive: counts.archivableLive,
@@ -143,6 +152,10 @@ export function useSessionListBulkSelection({
     onUnarchive: bindToSelection(sessionActions.onUnarchiveMany, selectedSessions),
     onMoveToLater: bindToSelection(sessionActions.onMoveToLaterMany, selectedSessions),
     onBackFromLater: bindToSelection(sessionActions.onBackFromLaterMany, selectedSessions),
+    onMarkSeen: bindToSelection(sessionActions.onMarkSeenMany, selectedSessions),
+    onMakeTopLevel: bindToSelection(sessionActions.onMakeTopLevelMany, selectedSessions),
+    onCopyTitles: () =>
+      void copySessionText(selectedSessions.map(getSessionDisplayTitle).join("\n"), "Titles"),
     onCopyIds: () =>
       void copySessionText(selectedSessions.map(session => session.id).join("\n"), "Session IDs"),
     folders: folderMove?.menu,

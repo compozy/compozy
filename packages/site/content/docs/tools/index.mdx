@@ -173,3 +173,7 @@ Native tools with result views return compact records by default. Read both sche
 `compozy tool info <id> -o json`, then pass `"result_view":"full"` inside `--input` when
 you need the complete record. Single-result tools reject the selector.
 See [Result Views](/docs/tools/result-views) for discovery, errors and migration.
+
+Tool search returns 20 matches per page by default, with a maximum of 100; zero uses 20.
+Read `has_more` and continue from `next_offset` with the same query (`--offset` in the CLI).
+The full result view keeps complete descriptors; compact results keep summaries and continuation metadata. Use `tool info` for one exact tool.

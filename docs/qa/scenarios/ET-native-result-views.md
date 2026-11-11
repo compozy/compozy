@@ -57,3 +57,10 @@ add a descriptor bound. Tools with views intersect that declaration with the sel
 full-open acceptance must warn even when the declaration proves the field. The result-view suite
 covers templates, transform `from`, ranges, and current/previous/best paths; the generated
 compatibility comparison includes single-result, compact and full tool producers.
+
+M1 integration with bounded native reads: tool search retains `offset`, `count`, `total`,
+`has_more` and `next_offset` in both views, omitting optional zero fields identically.
+`TestActionRegistryResultViewPins` verifies translation of current-main pre-view pins for
+`tool_search` and `worktree_list`. Pins predating the bounded-read input changes remain stale,
+as documented in `docs/release/native-read-defaults.md`; result-view translation does not
+waive an unrelated input-contract change. Automation histories remain single-result pages.

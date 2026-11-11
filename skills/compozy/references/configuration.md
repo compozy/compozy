@@ -637,7 +637,7 @@ governs one daemon. Workspace overlays remain valid.
 ## Shell Session Preferences
 
 `shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
-`shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
+`shell.sessions.group_by` controls grouping: `none`, `project` (default), or `profile`. These user-wide
 values apply live as the default for session windows: each Web window keeps its own Sort by / Group by
 (shared by its List and Kanban views), follows these values until the operator chooses there, and never
 writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
@@ -653,14 +653,15 @@ sets one; `compozy config unset shell.appearance.mono_font` (or PATCH `""`) rest
 
 Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
 (`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
-globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
+globe. While grouping is unset, either scope value reads `group_by=project`; an explicit grouping wins.
 The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
 `revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
 Existing clients may continue writing the legacy key in v0.4.0. In v0.5.0 the loader materializes
 `group_by = "project"` from `scope = "all-workspaces"` when grouping is unset, drops the key with a
 logged notice, and the next apply deletes it from the overlay; it never fails as an unknown key.
 `group_by = "project"` takes effect only under All projects and `profile` only under All profiles;
-an inapplicable value renders as `none` without being rewritten. Unknown values fail with
+an inapplicable value renders as `none` without being rewritten, so one project's list stays flat
+under the default. An explicitly persisted `none` stays flat. Unknown values fail with
 `shell_config_invalid`. Breadth (All projects versus one project or User) is browser state owned by
 the topbar globe, not a config key.
 

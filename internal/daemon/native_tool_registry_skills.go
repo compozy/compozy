@@ -51,18 +51,37 @@ func (n *daemonNativeTools) toolSearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.Limit == 0 {
+		input.Limit = 20
+	}
+	offset, limit, err := normalizeNativeToolListInput(
+		req.ToolID,
+		toolListInput{Offset: input.Offset, Limit: input.Limit},
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	registry, ok := n.registry().(nativeToolDiagnosticRegistry)
 	if !ok {
 		return toolspkg.ToolResult{}, unavailableToolDiagnosticRegistryError(req.ToolID)
 	}
 	views, err := registry.DiagnosticSearch(ctx, scope, toolspkg.SearchQuery{
 		Query: input.Query,
-		Limit: input.Limit,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return toolSearchViews.result(req.View, views)
+	start := min(offset, len(views))
+	end := start + min(limit, len(views)-start)
+	next := 0
+	if end < len(views) {
+		next = end
+	}
+	return toolSearchViews.result(req.View, nativeToolSearchPage{
+		Tools:  views[start:end],
+		Offset: offset, Count: end - start, Total: len(views),
+		NextOffset: next, HasMore: end < len(views),
+	})
 }
 
 func (n *daemonNativeTools) toolInfo(

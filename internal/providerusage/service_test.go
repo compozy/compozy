@@ -64,6 +64,37 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	for _, success := range []bool{true, false} {
+		name := "Should notify authentication recovery after a verified successful collection"
+		if !success {
+			name = "Should not notify authentication recovery after a refused collection"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+				if !success {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				writeFixture(w, t, codexHTTPFixture)
+			})
+			var notifications atomic.Int64
+			f.service.options.OnAuthenticated = func(_ context.Context, target Target) {
+				if target.ProfileID != "personal" || target.ProviderID != f.target.ProviderID {
+					t.Errorf("unexpected auth target: %#v", target)
+				}
+				notifications.Add(1)
+			}
+			refreshFixture(t, f, IntentExplicit)
+			want := int64(0)
+			if success {
+				want = 1
+			}
+			if got := notifications.Load(); got != want {
+				t.Fatalf("auth notifications = %d, want %d", got, want)
+			}
+		})
+	}
 	for _, test := range []struct {
 		name         string
 		collisions   int

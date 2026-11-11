@@ -1304,10 +1304,10 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{acp.ProviderErrorAuthRequired, acp.ProviderErrorRateLimited} {
-		t.Run("Should persist "+code+" and accept the next turn without stopping", func(t *testing.T) {
+		t.Run("Should persist "+code+" and accept the next turn in the active session", func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
-			// With the sign-in wait off, an auth loss keeps today's contract; TestPromptProviderAuthRecovery owns the wait.
+			// TestPromptProviderAuthRecovery owns the wait; this suite checks the terminal error and next turn.
 			h.manager.authRecoveryDelays = nil
 			session := createSession(t, h)
 			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
@@ -1353,8 +1353,12 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 				current.Info().State != StateActive {
 				t.Fatal("provider recovery did not preserve the active session")
 			}
-			if h.driver.stopCalls != 0 {
-				t.Fatalf("driver stop calls = %d, want none", h.driver.stopCalls)
+			wantStops := 0
+			if code == acp.ProviderErrorAuthRequired {
+				wantStops = 1
+			}
+			if h.driver.stopCalls != wantStops {
+				t.Fatalf("driver stop calls = %d, want %d", h.driver.stopCalls, wantStops)
 			}
 			stored, err := h.manager.Events(
 				t.Context(),

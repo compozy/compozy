@@ -9,6 +9,42 @@ import (
 	"strings"
 )
 
+// ListAutomationTriggerRuns List run history for one automation trigger
+func (c *Client) ListAutomationTriggerRuns(ctx context.Context, params ListAutomationTriggerRunsParams) (*RunsResponse, error) {
+	path := "/api/automation/triggers/{id}/runs"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Until != nil {
+		query.Set("until", *params.Until)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAutomationTriggersParams carries the path, query, and header parameters.
 type ListAutomationTriggersParams struct {
 	Scope         *string   `url:"scope"`
@@ -407,25 +443,4 @@ func (c *Client) ListGoalTurns(ctx context.Context, params ListGoalTurnsParams) 
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListLogsParams carries the path, query, and header parameters.
-type ListLogsParams struct {
-	WorkspaceID *string `url:"workspace_id"`
-	SessionID   *string `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
-	Type        *string `url:"type"`
-	Run         *string `url:"run"`
-	Actor       *string `url:"actor"`
-	ActorKind   *string `url:"actor_kind"`
-	ActorID     *string `url:"actor_id"`
-	Provider    *string `url:"provider"`
-	Outcome     *string `url:"outcome"`
-	Component   *string `url:"component"`
-	ErrorOnly   *bool   `url:"error_only"`
-	AfterSeq    *int    `url:"after_seq"`
-	Since       *string `url:"since"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

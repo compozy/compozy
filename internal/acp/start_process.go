@@ -190,6 +190,7 @@ func (d *Driver) newAgentProcess(
 		permissionTimeout:      d.permissionWait,
 		permissionWaitResolver: d.permissionWaitResolver,
 		permissionEventHandler: normalized.PermissionEventHandler,
+		elicitationAsker:       startElicitationAsker(normalized),
 		compozySessionID:       normalized.CompozySessionID,
 		controlTimeout:         d.controlTimeout,
 		systemPrompt:           normalized.SystemPrompt,
@@ -198,6 +199,15 @@ func (d *Driver) newAgentProcess(
 		promptCacheControl:     promptCacheControlForStartOpts(normalized),
 		executionPolicy:        normalized.ExecutionPolicyValue(),
 	}
+}
+
+// startElicitationAsker reads the session-owned operator question channel that
+// rides with the approval policy bound to this launch.
+func startElicitationAsker(opts StartOpts) ElicitationAsker {
+	if opts.PermissionPolicy == nil {
+		return nil
+	}
+	return opts.PermissionPolicy.ElicitationAsker
 }
 
 func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess) error {
@@ -248,6 +258,11 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 				WriteTextFile: true,
 			},
 			Terminal: true,
+			// Form elicitation is the only operator question channel this client
+			// renders; URL elicitation stays unadvertised.
+			Elicitation: &acpsdk.ElicitationCapabilities{
+				Form: &acpsdk.ElicitationFormCapabilities{},
+			},
 			Session: &acpsdk.ClientSessionCapabilities{
 				Compaction: &acpsdk.CompactionCapabilities{},
 			},

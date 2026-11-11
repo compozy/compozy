@@ -34,6 +34,7 @@ import {
 } from "@compozy/ui";
 
 import {
+  DEFAULT_SESSION_LIST_PREFERENCES,
   SESSION_LIST_SORTS,
   type SessionListGroupBy,
   type SessionListSort,
@@ -152,7 +153,12 @@ export function SessionViewOptionsMenu({
   // The filter starts on, so showing child sessions is the choice worth marking.
   const showsChildren = onHideChildrenChange !== undefined && !hideChildren;
   const showsAutomation = onShowAutomationChange !== undefined && showAutomation;
-  const marked = groupBy !== "none" || allCollapsed || showsChildren || showsAutomation;
+  // The default grouping renders where the breadth offers it and flat elsewhere; only a choice
+  // that differs from it is worth marking.
+  const defaultGroupBy = groupByOptions.includes(DEFAULT_SESSION_LIST_PREFERENCES.groupBy)
+    ? DEFAULT_SESSION_LIST_PREFERENCES.groupBy
+    : "none";
+  const marked = groupBy !== defaultGroupBy || allCollapsed || showsChildren || showsAutomation;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take

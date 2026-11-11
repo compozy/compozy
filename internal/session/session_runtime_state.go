@@ -20,6 +20,7 @@ type runtimeBindingSnapshot struct {
 	selection               RuntimeSelection
 	status                  RuntimeStatus
 	transition              RuntimeTransitionStrategy
+	sessionFailure          *store.SessionFailure
 	failure                 string
 	generation              int64
 	recovery                *store.SessionRuntimeRecovery
@@ -40,6 +41,7 @@ type runtimeBindingSnapshot struct {
 	configUnverified        bool
 }
 
+// runtimeBindingSnapshot captures the accepted binding and failure state for transactional rollback.
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	if s == nil {
 		return runtimeBindingSnapshot{}
@@ -61,6 +63,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		},
 		status:                 s.RuntimeStatus,
 		transition:             s.RuntimeTransition,
+		sessionFailure:         store.CloneSessionFailure(s.failure),
 		failure:                s.RuntimeFailure,
 		generation:             s.RuntimeGeneration,
 		recovery:               store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
@@ -137,6 +140,7 @@ func (s *Session) completeRecoveryTransition(
 	return previous, nil
 }
 
+// completeRuntimeTransitionLocked commits the replacement and clears auth attention only for a new process.
 func (s *Session) completeRuntimeTransitionLocked(
 	proc *AgentProcess,
 	selection RuntimeSelection,
@@ -162,6 +166,9 @@ func (s *Session) completeRuntimeTransitionLocked(
 	s.runtimeConfigUnverified = false
 	s.RuntimeRecovery = nil
 	if proc != nil && proc != previous {
+		if s.failure != nil && s.failure.Kind == store.FailureProviderAuth {
+			s.failure = nil
+		}
 		s.RuntimeGeneration++
 	}
 	s.updateFromProcessLocked(proc, now, strings.TrimSpace(selection.Model) == "")
@@ -279,8 +286,12 @@ func (s *Session) restoreRecoveryBinding(
 	}
 }
 
+// restoreRuntimeBindingLocked restores the accepted binding and its auth failure after an unsuccessful transition.
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
+	if s.failure == nil && snapshot.sessionFailure != nil && snapshot.sessionFailure.Kind == store.FailureProviderAuth {
+		s.failure = store.CloneSessionFailure(snapshot.sessionFailure)
+	}
 	s.hostedMCPDigest = snapshot.hostedMCPDigest
 	s.directMCPDigest = snapshot.directMCPDigest
 	s.hostedMCPRequiresReload = snapshot.hostedMCPRequiresReload

@@ -1,3 +1,4 @@
+import { settleBounded } from "@/lib/settle-bounded";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionPayload } from "../types";
 import { sessionScopedDetailOptions } from "./query-options";
@@ -9,6 +10,8 @@ export interface SessionBatchResult {
 }
 
 export type SessionBatchAction =
+  | "mark-seen"
+  | "make-top-level"
   | "stop"
   | "archive"
   | "unarchive"
@@ -18,6 +21,8 @@ export type SessionBatchAction =
 
 /** The per-session failure line when the daemon's error carries no text. */
 export function sessionBatchFailureMessage(action: SessionBatchAction): string {
+  if (action === "mark-seen") return "Failed to mark session as seen.";
+  if (action === "make-top-level") return "Failed to make session top-level.";
   if (action === "later") return "Failed to move session to Later.";
   if (action === "back-from-later") return "Failed to bring session back from Later.";
   return `Failed to ${action} session.`;
@@ -27,15 +32,20 @@ interface SessionBatchOptions {
   action: SessionBatchAction;
   ids: readonly string[];
   previous: readonly SessionBatchResult[];
+  /** Related sessions share a lane so recursive lifecycle mutations cannot race. */
+  sessions?: readonly SessionPayload[];
+  coveredBy?: ReadonlyMap<string, string>;
   execute: (id: string) => Promise<unknown>;
   onProgress: (results: readonly SessionBatchResult[]) => void;
 }
 
-/** Sequential mutations preserve daemon ordering and per-row progress, including retries. */
+/** Independent session trees run at bounded concurrency, preserving per-row receipts and retries. */
 export async function runSessionBatch({
   action,
   ids,
   previous,
+  sessions = [],
+  coveredBy = new Map(),
   execute,
   onProgress,
 }: SessionBatchOptions): Promise<SessionBatchResult[]> {
@@ -53,22 +63,34 @@ export async function runSessionBatch({
     onProgress([...results]);
   };
   onProgress([...results]);
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  const lanes = new Map<string, string[]>();
   for (const id of ids) {
-    update({ id, status: "running" });
-    try {
-      await execute(id);
-      update({ id, status: "done" });
-    } catch (error) {
-      update({
-        id,
-        status: "failed",
-        error:
-          error instanceof Error && error.message
-            ? error.message
-            : sessionBatchFailureMessage(action),
-      });
-    }
+    const session = byId.get(coveredBy.get(id) ?? id);
+    const root = session?.lineage?.root_session_id || (coveredBy.get(id) ?? id);
+    const key = JSON.stringify([session?.workspace_id, session?.profile_id, root]);
+    const lane = lanes.get(key) ?? [];
+    lane.push(id);
+    lanes.set(key, lane);
   }
+  await settleBounded([...lanes.values()], 3, async lane => {
+    for (const id of lane) {
+      update({ id, status: "running" });
+      try {
+        await execute(id);
+        update({ id, status: "done" });
+      } catch (error) {
+        update({
+          id,
+          status: "failed",
+          error:
+            error instanceof Error && error.message
+              ? error.message
+              : sessionBatchFailureMessage(action),
+        });
+      }
+    }
+  });
   return results;
 }
 

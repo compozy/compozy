@@ -31,7 +31,7 @@ func newWorktreeCommand(deps commandDeps) *cobra.Command {
 
 func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
-	var refresh bool
+	var refresh, includeRemoved bool
 	cmd := &cobra.Command{
 		Use: worktreeListVerb, Short: "List registered worktrees",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -42,7 +42,7 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.ListWorktrees(cmd.Context(), workspaceID, refresh)
+			result, err := client.ListWorktrees(cmd.Context(), workspaceID, refresh, includeRemoved)
 			if err != nil {
 				return err
 			}
@@ -51,6 +51,7 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "Refresh Git discovery and status")
+	cmd.Flags().BoolVar(&includeRemoved, "include-removed", false, "Include removed worktree records")
 	addAllWorkspacesFlag(cmd)
 	cmd.MarkFlagsMutuallyExclusive("refresh", "all-workspaces")
 	return cmd

@@ -11,6 +11,23 @@ import (
 	"strings"
 )
 
+// InspectWorktree Inspect one worktree
+func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreeParams) (*WorktreeInspectionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	var out WorktreeInspectionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InstallExtensionParams carries the path, query, and header parameters.
+type InstallExtensionParams struct {
+	Profile *string `url:"profile"`
+}
+
 // InstallExtension Install a local or marketplace extension
 func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*InstallExtensionResponse, error) {
 	path := "/api/extensions"
@@ -418,31 +435,4 @@ type ListAgentSoulHistoryParams struct {
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
 	Profile     *string `url:"profile"`
-}
-
-// ListAgentSoulHistory List managed SOUL.md authoring revisions
-func (c *Client) ListAgentSoulHistory(ctx context.Context, params ListAgentSoulHistoryParams) (*AgentSoulHistoryResponse, error) {
-	path := "/api/agents/{name}/soul/history"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

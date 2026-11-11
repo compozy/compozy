@@ -37,6 +37,9 @@ func (d *Daemon) bootSessionRuntime(
 		return d.shutdownSessionManager(cleanupCtx, sessions)
 	})
 	state.sessions = sessions
+	if state.providerUsage != nil && !state.providerUsage.setAuthRecovery(sessions) {
+		state.logger.WarnContext(ctx, "daemon: session manager does not support provider authentication recovery")
+	}
 	monitors, err := newSessionMonitorService(ctx, state)
 	if err != nil {
 		return err
@@ -129,6 +132,11 @@ func (d *Daemon) bootClarifyBridge(state *bootState, cleanup *bootCleanup) error
 	}
 	cleanup.add(bridge.Close)
 	state.clarify = bridge
+	if setter, ok := state.sessions.(clarifyOperatorAskerSetter); ok {
+		setter.SetClarifyBroker(bridge)
+	} else {
+		state.logger.Warn("daemon: session manager cannot answer provider elicitation")
+	}
 	return nil
 }
 

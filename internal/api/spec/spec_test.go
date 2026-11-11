@@ -534,14 +534,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeLogProfileReadModes",
+			name: "ShouldDescribeLogAndWorkspaceProfileReadModes",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				for _, path := range []string{"/api/logs", "/api/logs/stream"} {
+				for _, path := range []string{"/api/logs", "/api/logs/stream", "/api/workspaces/{id}"} {
 					operation := operationFor(t, doc, path, http.MethodGet)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
 					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+				workspace := operationFor(t, doc, "/api/workspaces/{id}", http.MethodGet)
+				missing := jsonResponseSchema(t, workspace, http.StatusNotFound)
+				if len(missing.OneOf) != 2 {
+					t.Fatalf("workspace 404 variants = %d, want workspace and profile errors", len(missing.OneOf))
+				}
+				if !propertySchema(t, missing.OneOf[0].Value, "error").Type.Is("string") ||
+					!propertySchema(t, missing.OneOf[1].Value, "error").Type.Is("object") {
+					t.Fatal("workspace 404 lost its string or structured profile error")
 				}
 			},
 		},
@@ -3282,6 +3291,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addNativeReadPagingSchemas(t, baseline)
+		if addNativeResultViewSchemas(baseline) == 0 {
+			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		}
 		addSettingsMCPHeaderPresence(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
@@ -3797,6 +3810,52 @@ func addSessionRouteProfileSelectors(t *testing.T, baseline map[string]any) {
 	}
 	if added == 0 {
 		t.Fatal("approved session profile selectors: no historical session routes without a selector")
+	}
+}
+
+// #1467: approved read controls and page metadata; existing row schemas stay unchanged.
+func addNativeReadPagingSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	parameter := func(name, kind string) map[string]any {
+		return map[string]any{"in": "query", "name": name, "schema": map[string]any{"type": kind}}
+	}
+	for _, path := range []string{"/api/automation/jobs/{id}/runs", "/api/automation/triggers/{id}/runs"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		index := slices.IndexFunc(parameters, func(value any) bool { return value.(map[string]any)["name"] == "limit" })
+		if index < 0 {
+			t.Fatalf("approved history cursor: no limit parameter at %s", path)
+		}
+		operation["parameters"] = slices.Insert(parameters, index, any(parameter("cursor", "string")))
+	}
+	worktrees := paths["/api/workspaces/{workspace_id}/worktrees"].(map[string]any)["get"].(map[string]any)
+	worktrees["parameters"] = append(worktrees["parameters"].([]any), parameter("include_removed", "boolean"))
+	workspace := paths["/api/workspaces/{id}"].(map[string]any)["get"].(map[string]any)
+	workspace["parameters"] = append(workspace["parameters"].([]any),
+		parameter("profile", "string"), parameter("all_profiles", "boolean"))
+	workspace404 := workspace["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	profile404 := paths["/api/profiles/{name}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	workspace404["schema"] = map[string]any{"oneOf": []any{workspace404["schema"], profile404["schema"]}}
+
+	for _, endpoint := range []struct{ path, method string }{
+		{"/api/tools", "get"}, {"/api/tools/search", "post"},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools", "get"},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search", "post"},
+	} {
+		operation := paths[endpoint.path].(map[string]any)[endpoint.method].(map[string]any)
+		response := operation["responses"].(map[string]any)["200"].(map[string]any)
+		body := response["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		properties := body["properties"].(map[string]any)
+		for _, field := range []string{"offset", "count", "total", "next_offset"} {
+			properties[field] = map[string]any{"type": "integer"}
+		}
+		properties["has_more"] = map[string]any{"type": "boolean"}
+		body["required"] = []any{"count", "has_more", "tools", "total"}
+		if endpoint.method == "post" {
+			request := operation["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+			request["properties"].(map[string]any)["offset"] = map[string]any{"type": "integer"}
+		}
 	}
 }
 
@@ -6493,4 +6552,28 @@ func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	if count == 0 {
 		t.Fatal("no historical agent MCP schemas found")
 	}
+}
+
+func addNativeResultViewSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addNativeResultViewSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			view := map[string]any{"type": "object", "required": []any{"schema"}, "properties": map[string]any{"schema": map[string]any{}, "digest": map[string]any{"type": "string"}}}
+			properties["output_views"] = map[string]any{"oneOf": []any{
+				map[string]any{"type": "object", "required": []any{"compact", "full"}, "properties": map[string]any{"compact": view, "full": view}},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
+			count++
+		}
+	}
+	return count
 }

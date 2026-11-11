@@ -2,7 +2,7 @@
 
 ## Native Tool Result Views — issue #1432 — 2026-11-10
 
-Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure. ADR-002 records the
+Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure and M1 integration. ADR-002 records the
 operator-approved hard cut for public default results (SD-013 regime 2). ADR-004
 approves removal of hosted native output schemas in the same breaking release.
 
@@ -16,6 +16,11 @@ approves removal of hosted native output schemas in the same breaking release.
   input selectors, structured results, text, continuations and typed errors are unchanged.
   Contracts remain discoverable through tool info and HTTP/UDS descriptors;
   `compozy mcp serve` keeps its separate Host API projection.
+- **M1 bounded reads:** search keeps continuation metadata in compact/full, worktree
+  filtering and workspace registration/profile ownership apply before projection. History
+  tools stay single-result pages. Current-main pre-selector input digests translate to full;
+  pre-bounds pins retain the `action_contract_stale` behavior approved in
+  `docs/release/native-read-defaults.md`. No new superseded-digest exception is introduced.
 - **Config / automation:** no new key or default override. Job/Trigger/LoopTarget
   definitions start sessions, Tasks or Loops; mappings consume event inputs, not native
   result fields. No automation storage migration is needed.
@@ -30,7 +35,37 @@ approves removal of hosted native output schemas in the same breaking release.
   no new UI. Site tools, hooks, Loop grammar/DSL and migration pages co-ship. QA:
   ET-native-result-views, ET-cli-tool-invoke-structural-handles, RT-session-spawn-wake.
 
+## Provider interactive tools through ACP elicitation — 2026-11-10
+
+Owner: small-work PR `feat/interactive-tools-support`. Regimes (SD-013): the touched
+packages (`internal/acp`, `internal/session`, `internal/daemon`) are internal code and change
+together; no user state, config key, CLI verb/flag, route, or DTO shape moves. The new
+`clientCapabilities.elicitation.form` is an ACP client capability sent to providers, not a
+Compozy public surface.
+
+- **Native tools.** Unaffected. `compozy__clarify` keeps its descriptor, toolset, digest, and
+  answer surface; provider elicitation reuses its broker.
+- **CLI/HTTP/UDS.** Unaffected. Questions reach the operator through the existing
+  `/clarifications` and `/pending-interactions` routes and `compozy session clarify` verbs.
+- **Extensibility and hooks.** Unaffected. No hook, manifest, extension SDK, skill, or MCP
+  sidecar change. Elicitation does not dispatch a permission hook, before or after.
+- **Config.** Unaffected. `permissions.mode` still governs `session/request_permission` only;
+  `tools.clarify.timeout` still owns the broker wait, while the ACP wait is the session's
+  operator wait (5 minutes by default).
+- **Persisted user state.** Unaffected shape. Provider questions become ordinary
+  `clarify` pending interactions that already exist; no migration.
+- **Workspace isolation.** Preserved. The asker scopes each question with the session's
+  workspace, profile, session id, and agent name, so the existing ownership checks apply.
+- **Official skill.** `skills/compozy/` needs no edit: it documents the clarification channel
+  the provider path now reuses.
+- **Web / Docs.** No Web change; the existing clarification dock renders provider questions.
+  New research note `docs/research/interactive-tools.md`.
+- **QA.** `docs/qa/scenarios/RT-session-clarification-roundtrip.md` records the provider
+  elicitation path; the live cross-provider walk stays outstanding, automated coverage is
+  cited there.
+
 ## compozy.com redesign on the v1.2 brand — landing, download, marketplace, changelog, blog, docs shell and SDK Reference — 2026-11-10
+
 
 Owner: spec `.compozy/tasks/site-redesign/` (integration branch `feat/brand-identity-v1-2`, slices
 S1–S10). Site-only change in `packages/site`: no Go, wire, config or SQLite change. Regimes

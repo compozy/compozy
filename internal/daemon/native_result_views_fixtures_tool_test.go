@@ -109,12 +109,18 @@ func nativeResultViewFixturesTool(t *testing.T) []nativeResultViewFixture {
 			Result: func(v toolspkg.ResultView) (toolspkg.ToolResult, error) {
 				return toolSearchViews.result(
 					v,
-					[]toolspkg.ToolView{{Descriptor: descriptor, Availability: availability, Decision: decision}},
+					nativeToolSearchPage{
+						Tools: []toolspkg.ToolView{{
+							Descriptor: descriptor, Availability: availability, Decision: decision,
+						}},
+						Offset: 20, Count: 1, Total: 40, NextOffset: 21, HasMore: true,
+					},
 				)
 			},
 			MustKeep: []string{
 				"tools.0.descriptor.id",
 				"tools.0.descriptor.description",
+				"offset", "count", "total", "next_offset", "has_more",
 				"tools.0.descriptor.output_views.compact.digest",
 				"tools.0.descriptor.output_views.full.digest",
 				"tools.0.descriptor.risk",
@@ -127,7 +133,7 @@ func nativeResultViewFixturesTool(t *testing.T) []nativeResultViewFixture {
 			ToolID: toolspkg.ToolIDToolSearch,
 			Name:   "empty list",
 			Result: func(v toolspkg.ResultView) (toolspkg.ToolResult, error) {
-				return toolSearchViews.result(v, []toolspkg.ToolView{})
+				return toolSearchViews.result(v, nativeToolSearchPage{Tools: []toolspkg.ToolView{}})
 			},
 			MustKeep: []string{"tools"},
 		},

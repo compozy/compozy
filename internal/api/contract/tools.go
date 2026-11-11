@@ -97,7 +97,12 @@ type ToolPayload struct {
 
 // ToolsResponse returns a registry projection.
 type ToolsResponse struct {
-	Tools []ToolPayload `json:"tools"`
+	Tools      []ToolPayload `json:"tools"`
+	Offset     int           `json:"offset,omitzero"`
+	Count      int           `json:"count"`
+	Total      int           `json:"total"`
+	NextOffset int           `json:"next_offset,omitzero"`
+	HasMore    bool          `json:"has_more"`
 }
 
 // ToolResponse returns one registry tool projection.
@@ -107,6 +112,7 @@ type ToolResponse struct {
 
 // ToolSearchRequest filters the scoped registry projection.
 type ToolSearchRequest struct {
+	Offset      int    `json:"offset,omitzero"`
 	Query       string `json:"query"`
 	Limit       int    `json:"limit,omitzero"`
 	WorkspaceID string `json:"workspace_id,omitempty"`

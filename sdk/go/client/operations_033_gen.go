@@ -49,7 +49,7 @@ type SearchToolsParams struct {
 	Profile *string `url:"profile"`
 }
 
-// SearchTools Search operator-visible registry tools
+// SearchTools Search operator-visible registry tools (default 20, maximum 100 per page)
 func (c *Client) SearchTools(ctx context.Context, params SearchToolsParams, body ToolSearchRequest) (*ToolsResponse, error) {
 	path := "/api/tools/search"
 	query := url.Values{}

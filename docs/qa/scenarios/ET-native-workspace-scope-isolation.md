@@ -23,6 +23,11 @@ shared policy runs. Under a denying mode, confirm the denial occurs before any h
 or write. Under a mode or session answer that allows crossing, confirm the handler receives the
 canonical B scope. Verify pre-call hooks cannot rewrite the rebound workspace.
 
+For `compozy__workspace_describe`, use a registration whose directory metadata ID differs from its
+registry ID. Create a session in that registration and another in workspace B. Confirm `sessions`
+contains the first session and excludes the second. The owning registry fixture covers this identity
+boundary; a fresh isolated-daemon walk is still required for the scenario's runtime evidence.
+
 Mode outcomes, prompt semantics, and operator bypass are owned by
 `ET-workspace-access-mode-matrix` and `ET-workspace-access-prompt-outcomes`; do not duplicate their
 full matrices here.
@@ -102,3 +107,6 @@ CI1 regression coverage (2026-10-21): native execution-profile objects and exten
 profile selectors retain their domain meaning; implicit `@user` skill reads resolve User/Profile
 layers. The affected native dispatcher and real extension lifecycle suites pass with race detection.
 See [the CI1 report](../reports/2026-10-21-all-projects-ci1.md). This does not replace the hosted-agent walk.
+
+For HTTP/UDS workspace detail, select a profile and then use operator `all_profiles=true`;
+verify each response includes only authorized sessions and the registry ID remains authoritative.

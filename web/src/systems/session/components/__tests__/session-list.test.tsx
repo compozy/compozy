@@ -186,6 +186,8 @@ function renderList(
     onBackFromLater: vi.fn(),
     onBackFromLaterMany: vi.fn(),
     onMarkSeen: vi.fn(),
+    onMarkSeenMany: vi.fn(),
+    onMakeTopLevelMany: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -951,6 +953,114 @@ describe("SessionList subagents", () => {
     expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
   });
 
+  // Invariant (#1474): an open child list shows six children in list order, then "Show N more"
+  // reveals the rest and "Show less" folds back; the same control ends the subagent list.
+  describe("child session cap", () => {
+    const parentWithChildren = (
+      count: number,
+      patch: Record<number, Partial<SessionPayload>> = {}
+    ) => [
+      row("parent"),
+      ...Array.from({ length: count }, (_, index) =>
+        row(`child-${index + 1}`, { lineage: lineage("parent"), ...patch[index + 1] })
+      ),
+    ];
+    const childRowIds = () =>
+      within(screen.getByTestId("session-sidebar-thread-parent"))
+        .getAllByTestId(/^session-sidebar-session-child-/)
+        .map(element => element.dataset.testid?.replace("session-sidebar-session-", ""));
+
+    it("Should cap the children at six and expand and collapse with Show more and Show less", async () => {
+      const user = userEvent.setup();
+      renderList({ sessions: [...parentWithChildren(9), row("after")] });
+
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+      ]);
+      expect(screen.getByTestId("session-sidebar-session-after")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Show 3 more" }));
+      expect(childRowIds()).toHaveLength(9);
+      await user.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toHaveLength(6);
+      expect(screen.getByRole("button", { name: "Show 3 more" })).toBeInTheDocument();
+    });
+
+    it("Should show no control while every child fits under the cap", () => {
+      renderList({ sessions: parentWithChildren(6) });
+
+      expect(childRowIds()).toHaveLength(6);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+    });
+
+    it("Should keep the open child and a child that needs you in place past the cap", () => {
+      renderList({
+        sessions: parentWithChildren(10, { 8: { badge: "waiting-for-input" } }),
+        currentSessionId: "child-10",
+      });
+
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+        "child-8",
+        "child-10",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 2 more" })).toBeInTheDocument();
+    });
+
+    it("Should select hidden children in a range and show them", () => {
+      renderList({ sessions: [...parentWithChildren(8), row("after")] });
+
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-5"), { metaKey: true });
+      fireEvent.click(screen.getByTestId("session-sidebar-session-after"), { shiftKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("5 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+
+      // Deselecting a revealed child keeps it in place until Show less folds the list back.
+      fireEvent.click(screen.getByTestId("session-sidebar-session-child-8"));
+      expect(screen.getByTestId("session-sidebar-session-child-8")).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+      expect(childRowIds()).toHaveLength(8);
+      fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+      expect(childRowIds()).toEqual([
+        "child-1",
+        "child-2",
+        "child-3",
+        "child-4",
+        "child-5",
+        "child-6",
+        "child-7",
+      ]);
+      expect(screen.getByRole("button", { name: "Show 1 more" })).toBeInTheDocument();
+    });
+
+    it("Should select every child with select all and show them", () => {
+      renderList({ sessions: parentWithChildren(8) });
+
+      const first = screen.getByTestId("session-sidebar-session-child-1");
+      fireEvent.click(first, { metaKey: true });
+      fireEvent.keyDown(first, { key: "a", metaKey: true });
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("9 selected");
+      expect(childRowIds()).toHaveLength(8);
+      expect(screen.queryByTestId("session-sidebar-children-more-parent")).toBeNull();
+    });
+  });
+
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
     const parent = row("parent", summary(1, 3));
     const plainChild = row("plain", { lineage: lineage("parent") });
@@ -1658,6 +1768,47 @@ describe("SessionList row copy actions", () => {
     expect(writeText).toHaveBeenLastCalledWith("Stopped work");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
   });
+
+  // Invariant: row, toolbar and context menus share meaningful batch verbs; single-only
+  // actions never leak into the selection. Owner/canonical suite: SessionList menu interaction.
+  it.each(["toolbar", "context"])(
+    "Should expose row action parity in the %s selection menu",
+    async kind => {
+      const user = userEvent.setup();
+      const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+      const first = { ...sessions[0]!, attention_dismissible: true };
+      const child = {
+        ...sessions[1]!,
+        lineage: {
+          ...primarySessionFixture.lineage,
+          kind: "provenance",
+          parent_session_id: first.id,
+          root_session_id: first.id,
+        },
+      } as SessionPayload;
+      const { actions } = renderList({ sessions: [first, child] });
+      fireEvent.click(screen.getByTestId(`session-sidebar-session-${first.id}`), { metaKey: true });
+      fireEvent.click(screen.getByTestId(`session-sidebar-session-${child.id}`));
+      const open = async () => {
+        if (kind === "toolbar")
+          await user.click(screen.getByTestId("session-sidebar-selection-more"));
+        else fireEvent.contextMenu(screen.getByTestId(`session-sidebar-session-${first.id}`));
+        return screen.findByRole("menu");
+      };
+      let menu = await open();
+      expect(within(menu).queryByText("Rename session")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Fork session…")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Continue with another agent…")).not.toBeInTheDocument();
+      await user.click(within(menu).getByRole("menuitem", { name: /^Mark as seen/ }));
+      expect(actions.onMarkSeenMany).toHaveBeenCalledWith([first, child]);
+      menu = await open();
+      await user.click(within(menu).getByRole("menuitem", { name: /^Make top-level/ }));
+      expect(actions.onMakeTopLevelMany).toHaveBeenCalledWith([first, child]);
+      menu = await open();
+      await user.click(within(menu).getByRole("menuitem", { name: "Copy titles" }));
+      expect(writeText).toHaveBeenLastCalledWith("Running work\nStopped work");
+    }
+  );
 
   it("Should copy every selected session ID, one per line, from the selection menu", async () => {
     const user = userEvent.setup();
@@ -3024,6 +3175,34 @@ describe("SessionList breadth and Group by", () => {
       expect(filter).toHaveAttribute("aria-checked", String(hideChildren));
       await user.click(filter);
       expect(onHideChildrenChange).toHaveBeenCalledWith(next);
+    }
+  );
+
+  // #1486: project grouping is the default where the breadth offers it, so only a grouping that
+  // differs from the default for the current options marks the trigger.
+  it.each([
+    { groupByOptions: ["none", "project"], groupBy: "project", marked: false },
+    { groupByOptions: ["none", "project"], groupBy: "none", marked: true },
+    { groupByOptions: ["none", "profile"], groupBy: "profile", marked: true },
+    { groupByOptions: ["none"], groupBy: "none", marked: false },
+  ] as const)(
+    "Should mark the trigger for $groupBy grouping only when it differs from the default ($groupByOptions)",
+    ({ groupByOptions, groupBy, marked }) => {
+      render(
+        <SessionViewOptionsMenu
+          allCollapsed={false}
+          groupBy={groupBy}
+          groupByOptions={groupByOptions}
+          onGroupByChange={vi.fn()}
+          onShowEmptyProjectsChange={vi.fn()}
+          onSortChange={vi.fn()}
+          showEmptyProjects={false}
+          sort="created"
+          testId="session-sidebar"
+        />
+      );
+      const trigger = screen.getByRole("button", { name: "View options" });
+      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
     }
   );
 

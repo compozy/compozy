@@ -131,6 +131,97 @@ func TestStoreSQLHelpers(t *testing.T) {
 func TestStoreSQLiteHelpers(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: maintenance creates missing statistics without waiting on a foreground writer.
+	t.Run("Should refresh missing statistics and yield to an occupied writer", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "optimize.db")
+		db, err := OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items(value INTEGER); CREATE INDEX items_value ON items(value);
+WITH RECURSIVE fixture(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM fixture WHERE i < 999)
+INSERT INTO items SELECT i%10 FROM fixture`); err != nil {
+			t.Fatal(err)
+		}
+		maintenance, err := openSQLiteHandle(ctx, path, sqliteCheckpointDSN(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := maintenance.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		writer, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Error(err)
+			}
+		})
+		if _, err := writer.ExecContext(ctx, "INSERT INTO items VALUES (42)"); err != nil {
+			t.Fatal(err)
+		}
+		if err := optimizeSQLite(ctx, maintenance); !IsSQLiteBusy(err) {
+			t.Fatalf("optimize with occupied writer = %v, want SQLite busy", err)
+		}
+		if err := writer.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		worker, err := OpenPassiveCheckpointer(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := worker.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		waitCtx, stopWaiting := context.WithTimeout(ctx, 3*time.Second)
+		defer stopWaiting()
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			var exists int
+			if err := db.QueryRowContext(waitCtx, "SELECT count(*) FROM sqlite_schema WHERE name='sqlite_stat1'").
+				Scan(&exists); err != nil {
+				t.Fatal(err)
+			}
+			if exists == 1 {
+				break
+			}
+			select {
+			case <-waitCtx.Done():
+				t.Fatal("maintenance did not create statistics", waitCtx.Err())
+			case <-ticker.C:
+			}
+		}
+		var stats string
+		if err := db.QueryRowContext(ctx, "SELECT stat FROM sqlite_stat1 WHERE idx='items_value'").
+			Scan(&stats); err != nil ||
+			stats == "" {
+			t.Fatalf("index statistics = %q, error = %v", stats, err)
+		}
+		var count int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 1001 {
+			t.Fatalf("rows after optimize = %d, error = %v, want 1001", count, err)
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := optimizeSQLite(canceled, maintenance); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled optimization = %v", err)
+		}
+	})
+
 	// Invariant: checkpointing leaves WAL-header restarts to maintenance, preserving
 	// backfill and user state. Owner: SQLite lifecycle; suite: TestStoreSQLiteHelpers.
 	t.Run("Should keep WAL restarts off foreground commits", func(t *testing.T) {

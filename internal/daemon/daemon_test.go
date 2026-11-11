@@ -6854,12 +6854,20 @@ type fakeSessionManager struct {
 	workspaceAccessPolicy    workspaceaccess.Policy
 	turnEndNotifier          session.TurnEndNotifier
 	agentExtensionCalls      []fakeAgentExtensionCall
+	clarifyBroker            toolspkg.ClarifyBroker
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
+var _ clarifyOperatorAskerSetter = (*fakeSessionManager)(nil)
 var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
+
+func (f *fakeSessionManager) SetClarifyBroker(broker toolspkg.ClarifyBroker) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.clarifyBroker = broker
+}
 
 func (f *fakeSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
 	f.mu.Lock()

@@ -285,7 +285,7 @@ A subagent is a child agent session that another session's turn delegates one ta
 - Child divider: "Subagent of {parent title}" with the action "Open parent"; "Subagent of a deleted session" when the parent is gone.
 - Waiting banner: "Waiting on subagent {title}" or "Waiting on {N} subagents", "and {N} more", the action "Stop" ("Stopping…" while pending), and the toast "Could not stop subagents."
 - Tool rows: Check / Checking / Checked "subagent capabilities"; Delegate / Delegating / Delegated "a subagent"; Read / Reading / Read "subagent status"; Cancel / Canceling / Canceled "a subagent"; repeats add "… {N} times"; a failed call reads "Tried to check subagent capabilities".
-- Session list branch: the subagent indicator's aria reads "{live} of {total} subagents running", "{total} subagents, {failed} failed", or "{total} subagents" once all settled; the child-session indicator reads "{N} child sessions" ("Toggle {N} child sessions" when it is the row's only toggle); with both kinds the group is "Child sessions and subagents" and the chevron "Toggle child sessions and subagents". An open subagent list rows read "Open {title}", end with "Show {N} more", and a failed read says "Couldn't load subagents." with "Try again".
+- Session list branch: the subagent indicator's aria reads "{live} of {total} subagents running", "{total} subagents, {failed} failed", or "{total} subagents" once all settled; the child-session indicator reads "{N} child sessions" ("Toggle {N} child sessions" when it is the row's only toggle); with both kinds the group is "Child sessions and subagents" and the chevron "Toggle child sessions and subagents". An open subagent list rows read "Open {title}", end with "Show {N} more", and a failed read says "Couldn't load subagents." with "Try again". An open child-session list shows six children (open, selected, and needs-you children past six stay shown), then the same "Show {N} more", and "Show less" once it shows more than that.
 - Inspector: section "Subagents", "Subagents · {N} running", "Previous subagents ({N})", "Show {N} more", the action "Stop subagent", and the toast "Could not stop subagent".
 - Composer control: aria "Subagents, none yet", "Subagents, none running", "Subagents, couldn't load" (a failed read with nothing running), or "Subagents, {N} running" (plus ", {n} needs you"); the popover reuses the inspector's title and rows, and with no subagents reads "Nothing delegated yet." with "When the agent hands work to a subagent, it shows up here."; a failed read says "Couldn't load subagents." with "Try again".
 - Isolated subagents (own worktree): the card and inspector row show the branch, middle-truncated, and a PR link "#{n}" with aria "Pull request #{n}, {open|draft|merged|closed}". Hover labels: Worktree · Branch · Base · Commits · PR · Observed. Values: "{n} ahead", "clean" or "{n} changed", "#{n} {state}", "No pull request" when the forge answered there is none, "PR status unknown" when CompozyOS could not check (never "No PR"), and "{relative} ago". Facts not yet observed are absent, never zero.
@@ -346,7 +346,7 @@ A session's profile never changes; **Move to profile** copies it into another pr
 
 **Mark as seen** clears one occurrence of Needs you the operator has looked at: a turn that ended early, a return from Later, or a stopped session's failure. It never mutes the session; the next occurrence raises Needs you again. Never "dismiss", "snooze", "ignore", or "acknowledge" in UI copy.
 
-- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). It shows only while the daemon reports `attention_dismissible`; a pending answer, sign-in, or stop keeps its own control and never gets this verb.
+- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). Single-session controls show only while the daemon reports `attention_dismissible`; selection menus show it with an eligible-session count and disable it at zero. A pending answer, sign-in, or stop keeps its own control and never gets this verb.
 - Toast fallback: "Couldn't mark the session as seen."; a newer occurrence reads "session: attention changed before it was marked as seen: {id}"; daemon refusals read "session {id} needs you to answer its permission request / answer its question / sign in to its provider / stop its agent process / resolve the work signal it cannot check before it can be marked as seen".
 
 ### Model List Issue Terms
@@ -952,3 +952,13 @@ The List toolbar and the Kanban header share one sliders button named "View opti
 "Hide child sessions" (Kanban only, because the List has no such filter), and one
 action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
 shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."
+
+### Batch session actions
+
+Selection menus use the same action vocabulary as single-session menus. **Mark as seen** and
+**Make top-level** include eligible-session counts and remain disabled when no selected session
+qualifies. Mark as seen acts only on `attention_dismissible` sessions; answers, sign-ins and work
+signals still require their own action. **Copy titles** copies display titles in selection order,
+one per line, and confirms with **Titles copied**. Rename, Fork and Continue with another agent
+remain single-session actions. Batch failures name the affected sessions and retain the daemon's
+error; ineligible selections are explained by reason.

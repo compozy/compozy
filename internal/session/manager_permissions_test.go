@@ -397,6 +397,47 @@ func TestInstancePermissionMode(t *testing.T) {
 		)
 	}
 
+	t.Run("Should start a level-less main without the approve-all provider mode", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessPermissionMode(h, compozyconfig.PermissionModeApproveAll)
+		h.manager.SetInstanceCeilingReader(
+			func(context.Context, string, string) (*InstanceCeiling, error) {
+				return &InstanceCeiling{
+					Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+					Main:   true,
+				}, nil
+			},
+		)
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		if got := created.Info().EffectivePermissions; got != string(compozyconfig.AlwaysOnDefaultPermissionMode) {
+			t.Fatalf("main permissions = %s, want the always-on default", got)
+		}
+		h.driver.mu.Lock()
+		start := h.driver.startCalls[len(h.driver.startCalls)-1]
+		h.driver.mu.Unlock()
+		if len(start.ACPOptions) != 0 || len(created.Info().ACPOptions) != 0 {
+			t.Fatalf("main ACP options = %#v / %#v, want the approve-all provider mode dropped",
+				start.ACPOptions, created.Info().ACPOptions)
+		}
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		snapshot := created.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		if _, err := h.manager.ensurePromptRuntime(t.Context(), created, &selection, snapshot.process); err != nil {
+			t.Fatalf("ensurePromptRuntime() error = %v, want the main to accept a runtime change", err)
+		}
+		if configs := driver.configSnapshots(); len(configs) != 1 || len(configs[0].ACPOptions) != 1 ||
+			configs[0].ACPOptions[0].ID != "thinking" {
+			t.Fatalf("ConfigureRuntime() configs = %#v, want thinking without the provider full-access mode", configs)
+		}
+	})
+
 	t.Run("Should restore the configured level of a main session persisted below it", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

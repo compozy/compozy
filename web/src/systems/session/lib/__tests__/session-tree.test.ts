@@ -1,3 +1,4 @@
+import { runSessionBatch, type SessionBatchResult } from "../session-batch";
 import { describe, expect, it } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
@@ -44,5 +45,119 @@ describe("sessionChildrenScope", () => {
   it("offers no choice without children", () => {
     const scope = sessionChildrenScope("archive", [row("root")], new Map());
     expect(sessionChildrenChoice(scope, true, () => {})).toBeUndefined();
+  });
+});
+
+// Invariant: independent trees overlap within a fixed bound, related mutations stay ordered,
+// and every attempt retains its receipt. Owner: session batch scheduler; canonical tree suite.
+describe("session tree batch execution", () => {
+  it("bounds 15 targets, isolates failures and preserves receipts across retries", async () => {
+    const ids = Array.from({ length: 15 }, (_, index) => `session-${index}`);
+    let active = 0;
+    let peak = 0;
+    const snapshots: Array<readonly SessionBatchResult[]> = [];
+    const results = await runSessionBatch({
+      action: "stop",
+      ids,
+      previous: [],
+      onProgress: results => snapshots.push(results),
+      execute: async id => {
+        active++;
+        peak = Math.max(peak, active);
+        await Promise.resolve();
+        active--;
+        if (id === ids[4]) throw new Error("locked");
+      },
+    });
+    expect(peak).toBe(3);
+    expect(results.map(result => result.status)).toEqual(
+      ids.map((_, index) => (index === 4 ? "failed" : "done"))
+    );
+    expect(results[4]?.error).toBe("locked");
+    expect(snapshots[0]?.every(result => result.status === "pending")).toBe(true);
+    const retried: string[] = [];
+    const retry = await runSessionBatch({
+      action: "stop",
+      ids: [ids[4]!],
+      previous: results,
+      onProgress: () => {},
+      execute: async id => {
+        retried.push(id);
+      },
+    });
+    expect(retried).toEqual([ids[4]]);
+    expect(retry.every(result => result.status === "done")).toBe(true);
+  });
+
+  it("serializes a fork and its child using their inherited daemon root", async () => {
+    const sessions = [
+      row("fork", {
+        lineage: {
+          ...primarySessionFixture.lineage,
+          kind: "fork",
+          parent_session_id: "source",
+          root_session_id: "source",
+        },
+      } as Partial<SessionPayload>),
+      row("child", {
+        lineage: {
+          ...primarySessionFixture.lineage,
+          kind: "spawn",
+          parent_session_id: "fork",
+          root_session_id: "source",
+        },
+      } as Partial<SessionPayload>),
+      row("independent", { lineage: undefined }),
+    ];
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const started: string[] = [];
+    const running = runSessionBatch({
+      action: "stop",
+      ids: sessions.map(session => session.id),
+      sessions,
+      previous: [],
+      onProgress: () => {},
+      execute: async id => {
+        started.push(id);
+        if (id === "fork") await blocked;
+      },
+    });
+    await Promise.resolve();
+    expect(started).toEqual(["fork", "independent"]);
+    release();
+    await running;
+    expect(started).toEqual(["fork", "independent", "child"]);
+  });
+
+  it("settles a covered child only after its root even if the root failed", async () => {
+    const sessions = [row("root"), row("child"), row("other", { lineage: undefined })];
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const started: string[] = [];
+    const running = runSessionBatch({
+      action: "delete",
+      ids: sessions.map(session => session.id),
+      sessions,
+      previous: [],
+      coveredBy: new Map([["child", "root"]]),
+      onProgress: () => {},
+      execute: async id => {
+        started.push(id);
+        if (id === "root") {
+          await blocked;
+          throw new Error("root failed");
+        }
+      },
+    });
+    await Promise.resolve();
+    expect(started).toEqual(["root", "other"]);
+    release();
+    expect((await running).map(result => result.status)).toEqual(["failed", "done", "done"]);
+    expect(started).toEqual(["root", "other", "child"]);
   });
 });

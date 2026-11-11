@@ -46,6 +46,29 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 	return nil
 }
 
+// excludeInheritedUnrestrictedOptions removes unrestricted options the session inherited from its
+// agent once the effective level no longer admits them. Options the session requested stay, so the
+// start still refuses an explicit unrestricted selection below approve-all.
+func (s *sessionStartSpec) excludeInheritedUnrestrictedOptions(
+	provider string,
+	permissions compozyconfig.PermissionMode,
+	authoredOptions []compozyconfig.ACPOptionSelection,
+	requested []acp.SessionConfigOptionSelection,
+	dropInheritedUnrestricted bool,
+) {
+	if s == nil || !compozyconfig.ExcludesInheritedUnrestrictedACPOptions(
+		provider, permissions, authoredOptions, dropInheritedUnrestricted,
+	) {
+		return
+	}
+	s.acpOptions = slices.DeleteFunc(s.acpOptions, func(option acp.SessionConfigOptionSelection) bool {
+		return compozyconfig.IsUnrestrictedACPOption(provider, option.ID, option.ValueID) &&
+			!slices.ContainsFunc(requested, func(selection acp.SessionConfigOptionSelection) bool {
+				return selection.ID == option.ID
+			})
+	})
+}
+
 // MergeRuntimeACPOptions merges base ACP options with explicit runtime overrides in option ID order.
 func MergeRuntimeACPOptions(
 	base []acp.SessionConfigOptionSelection,

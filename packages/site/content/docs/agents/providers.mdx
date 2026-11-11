@@ -204,7 +204,7 @@ What Copilot supports through CompozyOS:
   itself (Auto), model refresh reports that no model option was advertised, and an explicit model
   or effort fails before the first prompt instead of being ignored.
 - **Permissions.** Copilot asks for approval through ACP and CompozyOS answers with the session's
-  permission mode. `permissions.provider_full_access` turns on Copilot's `allow_all` option.
+  permission mode. `approve-all` turns on Copilot's `allow_all` option.
   Copilot's Autopilot mode also approves everything, so CompozyOS treats it as an unrestricted
   mode that requires `approve-all`.
 - **CompozyOS native tools.** Copilot ignores stdio MCP servers sent over ACP, so `copilot`
@@ -484,8 +484,8 @@ Only when that window ends, or for a rate-limit failure, does the failure end th
 keeping the session available. After restoring authentication or waiting for the provider to recover,
 send another prompt in the same session. CompozyOS does not automatically retry rate-limited prompts.
 
-On a user session, a `session/prompt` failure classified `rate_limited` or `not_authenticated` prescribes
-`handoff`: the error event's `provider_error.next_action` is `handoff` and its guidance names the continue
+On a user session, a `session/prompt` rate-limit failure prescribes `handoff`. Native CLI authentication
+failures keep `login` guidance and recover the same conversation after sign-in. For a handoff: the error event's `provider_error.next_action` is `handoff` and its guidance names the continue
 command.
 
 ```json

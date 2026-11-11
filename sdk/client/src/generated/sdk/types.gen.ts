@@ -12446,6 +12446,7 @@ export type ToolResult = {
 export type ToolSearchRequest = {
   agent_name?: string;
   limit?: number;
+  offset?: number;
   query: string;
   session_id?: string;
   workspace_id?: string;
@@ -12463,7 +12464,12 @@ export type ToolSourceRefPayload = {
 };
 
 export type ToolsResponse = {
+  count: number;
+  has_more: boolean;
+  next_offset?: number;
+  offset?: number;
   tools: Array<ToolPayload>;
+  total: number;
 };
 
 export type ToolsetPayload = {
@@ -18687,7 +18693,11 @@ export type ListAutomationJobRunsData = {
      */
     until?: string;
     /**
-     * Maximum number of records to return
+     * Continue after page.next_cursor with unchanged filters
+     */
+    cursor?: string;
+    /**
+     * Page size (default 50, maximum 200; zero uses default)
      */
     limit?: number;
     /**
@@ -18824,7 +18834,7 @@ export type ListAutomationRunsData = {
      */
     until?: string;
     /**
-     * Maximum number of records to return
+     * Page size (default 50, maximum 200; zero uses default)
      */
     limit?: number;
     /**
@@ -19288,7 +19298,11 @@ export type ListAutomationTriggerRunsData = {
      */
     until?: string;
     /**
-     * Maximum number of records to return
+     * Continue after page.next_cursor with unchanged filters
+     */
+    cursor?: string;
+    /**
+     * Page size (default 50, maximum 200; zero uses default)
      */
     limit?: number;
     /**
@@ -33748,15 +33762,32 @@ export type GetWorkspaceData = {
      */
     id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{id}";
 };
 
 export type GetWorkspaceErrors = {
   /**
-   * Workspace not found
+   * Invalid profile selection
    */
-  404: ErrorPayload;
+  400: ProfileErrorPayload;
+  /**
+   * Workspace or requested profile not found
+   */
+  404: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Profile archived or unavailable
+   */
+  409: ProfileErrorPayload;
   /**
    * Unknown workspace config keys (workspace_config_invalid)
    */
@@ -44319,6 +44350,10 @@ export type ListWorktreesData = {
      * Refresh Git discovery and status
      */
     refresh?: boolean;
+    /**
+     * Include removed records (excluded by default)
+     */
+    include_removed?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/worktrees";
 };
@@ -45079,6 +45114,10 @@ export type ListWorktreesAggregateData = {
      * Repeatable project IDs or @user; requires all_workspaces=true
      */
     workspace_ids?: Array<string>;
+    /**
+     * Include removed records (excluded by default)
+     */
+    include_removed?: boolean;
   };
   url: "/api/worktrees";
 };

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -944,6 +946,10 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		t.Parallel()
 
 		toolsResponse := sampleToolsResponse()
+		toolsResponse.Count = len(toolsResponse.Tools)
+		toolsResponse.Total = 42
+		toolsResponse.HasMore = true
+		toolsResponse.NextOffset = 20
 		listBundle := toolListBundle(toolsResponse)
 		listHuman, err := listBundle.human()
 		if err != nil {
@@ -958,6 +964,30 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		}
 		if !strings.Contains(listToon, "tools[2]") {
 			t.Fatalf("tool list toon = %q, want table", listToon)
+		}
+
+		if !strings.Contains(listHuman, "Next Offset") || !strings.Contains(listToon, "next_offset") {
+			t.Fatalf("missing search page in human/toon: %s / %s", listHuman, listToon)
+		}
+		cmd := &cobra.Command{}
+		var output bytes.Buffer
+		cmd.SetOut(&output)
+		if err := listBundle.jsonl(cmd); err != nil {
+			t.Fatal(err)
+		}
+		var footer struct {
+			Type string `json:"type"`
+			Page struct {
+				NextOffset int  `json:"next_offset"`
+				HasMore    bool `json:"has_more"`
+			} `json:"page"`
+		}
+		lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &footer); err != nil {
+			t.Fatal(err)
+		}
+		if footer.Type != "page" || footer.Page.NextOffset != 20 || !footer.Page.HasMore {
+			t.Fatalf("search footer = %#v", footer)
 		}
 
 		infoResponse := ToolResponseRecord{Tool: toolsResponse.Tools[0]}

@@ -8,7 +8,7 @@ const meta = {
   title: "systems/session/components/SessionContextControl",
   component: SessionContextControl,
   parameters: { layout: "centered" },
-  args: { context: deriveSessionContext(sessionContextFixture), onOpen: fn() },
+  args: { context: deriveSessionContext(sessionContextFixture), onToggle: fn() },
 } satisfies Meta<typeof SessionContextControl>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -49,7 +49,7 @@ export const Loading: Story = {
 export const OverCapacity: Story = {
   args: { context: deriveSessionContext({ ...sessionContextFixture, used: 281_600, ratio: 1.1 }) },
 };
-/** The Context rail is open: the trigger keeps its plate while sharing the rail's preference. */
+/** The Context rail is open: the trigger reads pressed, and clicking it closes the rail. */
 export const RailOpen: Story = { args: { open: true } };
 export const NarrowRow: Story = {
   decorators: [

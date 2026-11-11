@@ -2,11 +2,14 @@
 // Invariant: one session publisher exposes self-title, state mark and the List | Kanban toggle
 // (no per-session `…` menu: those verbs live in the session list row menus), then the PR chip
 // first in the status zone (no agent, provider or time there), then lifecycle controls and the
-// sidebar and inspector toggles; the chip menu offers only the actions the session allows.
-// Shown in the board drawer (#1052) the head drops the rail toggle and the view toggle: the
-// board is the list there, and the drawer carries its own controls. An always-on agent's main
-// session (#1303) names the agent, keeps its `…` menu, and drops the linked chip, Stop and both
-// panel toggles, except as the close control of a panel left open; every other session keeps them.
+// Changes toggle; the chip menu offers only the actions the session allows. The sessions list
+// toggle leads every head, before the project, open or closed (#1487); the composer's context
+// control, not the head, opens and closes the inspector. Shown in the board drawer (#1052) the
+// head drops the rail toggle and the view toggle: the board is the list there, and the drawer
+// carries its own controls. A window whose composer has no context control (a read-only
+// superseded session) keeps the head's context toggle. An always-on agent's main session (#1303)
+// names the agent, groups the Always-on label with its `…` menu without a divider, and drops the
+// linked chip, Stop and the Changes toggle; a panel left open keeps its toggle as its close control.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
@@ -70,6 +73,7 @@ function SessionPublisher({
   onReviewToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
+  composerContextControl,
   transportChip,
   onSendPrompt,
   onRefresh,
@@ -90,6 +94,7 @@ function SessionPublisher({
   onReviewToggle?: () => void;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
+  composerContextControl?: boolean;
   transportChip?: ReactNode;
 }) {
   useSessionTopbarSlot({
@@ -107,6 +112,7 @@ function SessionPublisher({
     sidebarOpen,
     onInspectorToggle,
     onSidebarToggle,
+    composerContextControl,
     onStop,
     onUnarchive: vi.fn(),
     onSendPrompt,
@@ -270,7 +276,6 @@ describe("useSessionTopbarSlot", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("session-inspector-toggle")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("Should lead the status zone with the PR chip and drop agent, provider and time", () => {
@@ -294,8 +299,7 @@ describe("useSessionTopbarSlot", () => {
     expect(status.querySelector("button, a")).toBe(chip);
     const order = [
       screen.getByRole("button", { name: "Stop session" }),
-      screen.getByTestId("session-sidebar-toggle"),
-      screen.getByTestId("session-inspector-toggle"),
+      screen.getByTestId("session-review-toggle"),
     ];
     for (const control of order) expect(actions).toContainElement(control);
     for (let index = 1; index < order.length; index += 1) {
@@ -394,30 +398,31 @@ describe("useSessionTopbarSlot", () => {
       );
 
       expect(screen.getByRole("button", { name: "Open sessions sidebar" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
     }
   );
 
-  it("Should keep the view toggle beside the title, ahead of the inspector toggle, and report pressed state", () => {
-    const onInspectorToggle = vi.fn();
-    renderWithTopbar(
-      <SessionPublisher onStop={vi.fn()} inspectorOpen onInspectorToggle={onInspectorToggle} />
-    );
+  // #1487: the list toggle is the head's first item, before the project and the title; the right
+  // side keeps only the run verbs and Changes, whether or not the inspector is open.
+  it.each([false, true])(
+    "Should lead the head with the list toggle and keep the context toggle out (inspector open: %s)",
+    inspectorOpen => {
+      renderWithTopbar(<SessionPublisher onStop={vi.fn()} inspectorOpen={inspectorOpen} />);
 
-    const toggle = screen.getByTestId("session-inspector-toggle");
-    const viewToggle = screen.getByRole("group", { name: "View" });
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(toggle).toHaveAttribute("aria-label", "Close context sidebar");
-    // Shell-rail head: title + view toggle lead, the panel toggles trail (prototype `.head`).
-    expect(
-      viewToggle.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-
-    fireEvent.click(toggle);
-    expect(onInspectorToggle).toHaveBeenCalledTimes(1);
-  });
+      const start = document.querySelector('[data-slot="topbar-start"]');
+      const toggle = screen.getByTestId("session-sidebar-toggle");
+      expect(start).toContainElement(toggle);
+      expect(start?.nextElementSibling).toHaveAttribute("data-slot", "topbar-leading");
+      expect(
+        toggle.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(document.querySelector('[data-slot="topbar-actions"]')).not.toContainElement(toggle);
+      expect(screen.queryByTestId("session-inspector-toggle")).toBeNull();
+      expect(document.querySelector('[data-slot="topbar-vsep"]')).toBeInTheDocument();
+    }
+  );
 
   // #952: the per-session `…` menu left the head; its verbs live in the session
   // list row menus, so no session type gets one and the view toggle always shows.
@@ -433,6 +438,31 @@ describe("useSessionTopbarSlot", () => {
     }
   );
 
+  // A superseded session's window is read-only, with no composer: the head keeps the context
+  // toggle, so its usage stays reachable and an open inline rail stays closable.
+  it.each([
+    { inspectorOpen: false, label: "Open context sidebar" },
+    { inspectorOpen: true, label: "Close context sidebar" },
+  ])(
+    "Should keep the context toggle in the head when the composer has no context control ($label)",
+    ({ inspectorOpen, label }) => {
+      const onInspectorToggle = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          composerContextControl={false}
+          inspectorOpen={inspectorOpen}
+          onInspectorToggle={onInspectorToggle}
+          onStop={vi.fn()}
+        />
+      );
+      const toggle = screen.getByTestId("session-inspector-toggle");
+      expect(toggle).toHaveAccessibleName(label);
+      expect(document.querySelector('[data-slot="topbar-actions"]')?.lastElementChild).toBe(toggle);
+      fireEvent.click(toggle);
+      expect(onInspectorToggle).toHaveBeenCalledTimes(1);
+    }
+  );
+
   it("Should drop the rail and view toggles when the session shows in the board drawer", () => {
     renderWithTopbar(
       <SessionWindowPresentationContext value="board-drawer">
@@ -440,8 +470,9 @@ describe("useSessionTopbarSlot", () => {
       </SessionWindowPresentationContext>
     );
     expect(screen.queryByTestId("session-sidebar-toggle")).toBeNull();
+    expect(document.querySelector('[data-slot="topbar-start"]')).toBeNull();
     expect(screen.queryByRole("group", { name: "View" })).toBeNull();
-    expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-toggle")).toBeNull();
   });
 
   it.each([
@@ -488,7 +519,6 @@ describe("useSessionTopbarSlot", () => {
 
     renderWithTopbar(<IdlePublisher />);
 
-    expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
   });
@@ -648,18 +678,18 @@ describe("useSessionTopbarSlot", () => {
     const renderHead = (panels: { sidebarOpen?: boolean; inspectorOpen?: boolean } = {}) =>
       renderWithTopbar(<SessionPublisher linkedWork={linkedWork} onStop={vi.fn()} {...panels} />);
 
-    it("Should keep the linked chip, Stop and both panel toggles on an ordinary session", () => {
+    it("Should keep the linked chip, Stop, Changes and the list toggle on an ordinary session", () => {
       agentInstances.rows = [agentInstanceFixture({ main_session_id: "sess-other" })];
       renderHead();
       expect(screen.getByTestId("session-links-summary")).toHaveTextContent(/^4 linked$/);
       expect(screen.getByRole("button", { name: "Stop session" })).toBeInTheDocument();
+      expect(screen.getByTestId("session-review-toggle")).toBeInTheDocument();
       expect(screen.getByTestId("session-sidebar-toggle")).toBeInTheDocument();
-      expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
       expect(screen.queryByText("Always-on")).toBeNull();
     });
 
-    // UT-044 (file-explorer). Invariant: the Review panel toggle sits before the Inspector toggle
-    // for a session with a file root and is absent in user scope, where there is no root.
+    // UT-044 (file-explorer). Invariant: the Review panel toggle trails the run verbs for a
+    // session with a file root and is absent in user scope, where there is no root.
     it("Should offer the Review panel toggle only for a session with a file root (UT-044)", () => {
       agentInstances.rows = [];
       const onReviewToggle = vi.fn();
@@ -668,10 +698,7 @@ describe("useSessionTopbarSlot", () => {
       );
       const toggle = screen.getByRole("button", { name: "Changes" });
       expect(toggle).toHaveAttribute("aria-pressed", "false");
-      expect(
-        toggle.compareDocumentPosition(screen.getByTestId("session-inspector-toggle")) &
-          Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy();
+      expect(document.querySelector('[data-slot="topbar-actions"]')?.lastElementChild).toBe(toggle);
       fireEvent.click(toggle);
       expect(onReviewToggle).toHaveBeenCalledTimes(1);
       project.unmount();
@@ -682,23 +709,53 @@ describe("useSessionTopbarSlot", () => {
           session={{ ...primarySessionFixture, workspace_id: "" }}
         />
       );
-      expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Stop session" })).toBeInTheDocument();
       expect(screen.queryByTestId("session-review-toggle")).toBeNull();
     });
 
-    it("Should drop the linked chip, Stop and both panel toggles on the agent's main", () => {
+    it("Should keep only the Always-on label and the agent's menu, without a divider, on the agent's main", () => {
       const instance = agentInstanceFixture({ main_session_id: primarySessionFixture.id });
       agentInstances.rows = [instance];
       renderHead();
       expect(screen.getByRole("heading", { level: 1, name: instance.label })).toBeInTheDocument();
-      expect(screen.getByText("Always-on")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: `${instance.label} actions` })).toBeInTheDocument();
+      const actions = document.querySelector('[data-slot="topbar-actions"]');
+      const menu = screen.getByRole("button", { name: `${instance.label} actions` });
+      expect(actions?.children).toHaveLength(2);
+      expect(actions?.firstElementChild).toHaveTextContent("Always-on");
+      expect(actions?.lastElementChild).toBe(menu);
+      expect(document.querySelector('[data-slot="topbar-vsep"]')).toBeNull();
       expect(screen.queryByTestId("session-links-summary")).toBeNull();
       expect(screen.queryByText(/linked/)).toBeNull();
       expect(screen.queryByRole("button", { name: "Stop session" })).toBeNull();
       expect(screen.queryByTestId("session-inspector-toggle")).toBeNull();
-      expect(screen.queryByTestId("session-sidebar-toggle")).toBeNull();
+      expect(screen.queryByTestId("session-review-toggle")).toBeNull();
     });
+
+    // #1487: a collapsed list must stay reopenable from the head of every session kind.
+    it.each([
+      { kind: "ordinary", main: "sess-other" },
+      { kind: "always-on main", main: primarySessionFixture.id },
+    ])(
+      "Should keep the list toggle leading the $kind head while the list is collapsed",
+      ({ main }) => {
+        agentInstances.rows = [agentInstanceFixture({ main_session_id: main })];
+        const onSidebarToggle = vi.fn();
+        const view = renderWithTopbar(
+          <SessionPublisher onStop={vi.fn()} onSidebarToggle={onSidebarToggle} />
+        );
+        const toggle = screen.getByTestId("session-sidebar-toggle");
+        expect(document.querySelector('[data-slot="topbar-start"]')).toContainElement(toggle);
+        expect(toggle).toHaveAttribute("aria-pressed", "false");
+        expect(toggle).toHaveAccessibleName("Open sessions sidebar");
+        fireEvent.click(toggle);
+        expect(onSidebarToggle).toHaveBeenCalledTimes(1);
+
+        view.rerender(<SessionPublisher onStop={vi.fn()} sidebarOpen />);
+        expect(screen.getByTestId("session-sidebar-toggle")).toHaveAccessibleName(
+          "Close sessions sidebar"
+        );
+      }
+    );
 
     it("Should keep a close control for a panel left open on the agent's main", () => {
       agentInstances.rows = [agentInstanceFixture({ main_session_id: primarySessionFixture.id })];

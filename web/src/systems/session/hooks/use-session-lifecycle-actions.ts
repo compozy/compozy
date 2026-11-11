@@ -1,9 +1,9 @@
+import { useSessionBatchMenuActions } from "@/systems/session/hooks/use-session-batch-menu-actions";
 import {
   batchSkipReason,
   batchSkipNote,
   batchVerbPast,
   reportBatch,
-  type BatchVerb,
 } from "../lib/session-batch-feedback";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -19,7 +19,6 @@ import {
 
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
-  readArchivedDescendants,
   sessionBatchCoverage,
   sessionChildrenChoice,
   sessionChildrenScope,
@@ -39,13 +38,14 @@ import { useCurrentDeleteSessions } from "./use-current-delete-sessions";
 import { useSessionDeleteTrees } from "./use-session-delete-trees";
 import {
   archiveTarget,
+  notifyArchivedSessions,
   loadSessionProcessChoice,
   descendantsOf,
   sessionArchiveChoiceState,
   reportActionError,
   reportDeletedSessions,
   settleTreeTarget,
-} from "./session-lifecycle-helpers";
+} from "@/systems/session/hooks/session-lifecycle-helpers";
 import { useSessionReparent } from "./use-session-reparent";
 import { useSessionLaterActions } from "./use-session-later-actions";
 import { useMarkSessionSeenAction } from "./use-mark-session-seen";
@@ -134,6 +134,12 @@ export function useSessionLifecycleActions(
     onMovedToLater: onLaterSuccess,
   });
   const markSeen = useMarkSessionSeenAction();
+  const menuBatch = useSessionBatchMenuActions(
+    ownPending !== null || later.pendingAction !== null,
+    reparent.detachAsync,
+    setBatchAction,
+    setBatchResults
+  );
   const pendingAction = ownPending ?? later.pendingAction;
   const pendingSessionId = lifecyclePendingSessionId({
     batching: batchAction !== null,
@@ -143,18 +149,10 @@ export function useSessionLifecycleActions(
     laterSessionId: later.pendingSessionId,
   });
 
-  /** A host's follow-up failing does not undo an archive the daemon confirmed. */
-  const notifyArchived = async (session: SessionPayload, trees?: SessionTrees) => {
-    const children = await readArchivedDescendants(queryClient, trees?.get(session.id) ?? []);
-    const results = await Promise.allSettled(
-      [session, ...children].map(target => onArchiveSuccess?.(target))
-    );
-    for (const result of results) {
-      if (result.status === "rejected") reportActionError("archive", result.reason);
-    }
-  };
+  const notifyArchived = (session: SessionPayload, trees?: SessionTrees) =>
+    notifyArchivedSessions(queryClient, session, trees, onArchiveSuccess);
 
-  /** Lock lifecycle controls until the sequential batch has settled every target. */
+  /** Lock lifecycle controls until the bounded batch has settled every target. */
   const runBatch = async (
     action: "stop" | "archive" | "unarchive" | "delete",
     sessions: readonly SessionPayload[],
@@ -172,6 +170,8 @@ export function useSessionLifecycleActions(
       action,
       ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
       previous,
+      sessions,
+      coveredBy,
       onProgress: setBatchResults,
       execute: async id => {
         const session = sessions.find(candidate => candidate.id === id)!;
@@ -208,7 +208,7 @@ export function useSessionLifecycleActions(
   };
 
   const actOnMany = (
-    action: Exclude<BatchVerb, "later" | "back-from-later">,
+    action: "stop" | "archive" | "unarchive",
     sessions: readonly SessionPayload[]
   ) => {
     const eligible: SessionPayload[] = [];
@@ -414,6 +414,8 @@ export function useSessionLifecycleActions(
       onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
       ...later.handlers,
       onMarkSeen: markSeen.onMarkSeen,
+      onMarkSeenMany: menuBatch.onMarkSeenMany,
+      onMakeTopLevelMany: menuBatch.onMakeTopLevelMany,
       onAdopt: reparent.adopt,
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {

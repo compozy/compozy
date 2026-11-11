@@ -111,6 +111,11 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 			toolspkg.Scope{WorkspaceID: "ws-1", Operator: true},
 			toolspkg.SearchQuery{Query: "skill", Limit: 1},
 		)
+		expectedPayload.Count = 1
+		expectedPayload.Total = 2
+		expectedPayload.NextOffset = 1
+		expectedPayload.HasMore = true
+
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -130,6 +135,31 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		var cliPayload ToolsResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
 		assertContractJSONEqual(t, cliPayload, expectedPayload)
+		next, _, err := executeRootCommand(
+			t,
+			deps,
+			"tool",
+			"search",
+			"skill",
+			"--limit",
+			"1",
+			"--offset",
+			"1",
+			"--workspace",
+			"ws-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nextPage ToolsResponseRecord
+		decodeJSONOutput(t, next, &nextPage)
+		if nextPage.Offset != 1 || nextPage.Count != 1 || nextPage.Total != 2 || nextPage.HasMore ||
+			nextPage.NextOffset != 0 || len(nextPage.Tools) != 1 || nextPage.Tools[0].Descriptor.ToolID == cliPayload.Tools[0].Descriptor.ToolID {
+			t.Fatalf("incorrect search continuation: %#v", nextPage)
+		}
+
 	})
 
 	t.Run("Should match tool invoke payload", func(t *testing.T) {
@@ -285,7 +315,7 @@ func expectedCLIToolListPayload(
 	if err != nil {
 		t.Fatalf("registry.List() error = %v", err)
 	}
-	return ToolsResponseRecord{Tools: core.ToolPayloadsFromViews(views)}
+	return ToolsResponseRecord{Tools: core.ToolPayloadsFromViews(views), Count: len(views), Total: len(views)}
 }
 
 func expectedCLIToolSearchPayload(

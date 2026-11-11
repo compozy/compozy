@@ -154,7 +154,8 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		}
 		var search contract.ToolsResponse
 		decodeToolJSON(t, searchResp.Body.Bytes(), &search)
-		if got, want := len(search.Tools), 1; got != want {
+		if got, want := len(search.Tools), 1; got != want || search.Count != 1 || search.Total != 2 ||
+			!search.HasMore || search.NextOffset != 1 {
 			t.Fatalf("search tool count = %d, want %d", got, want)
 		}
 
@@ -177,8 +178,41 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		if searchScope.SessionID != "sess-1" || searchScope.WorkspaceID != "ws-workspace" || searchScope.Operator {
 			t.Fatalf("session search scope = %#v, want session workspace scope", searchScope)
 		}
-		if searchQuery.Query != "skill" || searchQuery.Limit != 1 {
+		if searchQuery.Query != "skill" || sessionSearch.Count != 1 || sessionSearch.Total != 1 ||
+			sessionSearch.HasMore || sessionSearch.NextOffset != 0 {
 			t.Fatalf("session search query = %#v, want skill limit", searchQuery)
+		}
+
+		t.Run("Should page operator search before returning diagnostic matches", func(t *testing.T) {
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/tools/search",
+				[]byte(`{"query":"skill","limit":1,"offset":1}`),
+			)
+			var page contract.ToolsResponse
+			decodeToolJSON(t, response.Body.Bytes(), &page)
+			if response.Code != http.StatusOK || page.Count != 1 || page.Total != 2 || page.HasMore ||
+				page.NextOffset != 0 ||
+				page.Offset != 1 ||
+				len(page.Tools) != 1 ||
+				page.Tools[0].Descriptor.ToolID == search.Tools[0].Descriptor.ToolID {
+				t.Fatalf("search continuation = %d %#v", response.Code, page)
+			}
+		})
+		for _, route := range []string{"/tools/search", "/workspaces/ws-workspace/sessions/sess-1/tools/search"} {
+			t.Run("Should reject an invalid search limit at "+route, func(t *testing.T) {
+				response := performRequest(t, engine, http.MethodPost, route, []byte(`{"query":"skill","limit":101}`))
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("invalid search limit = %d %s", response.Code, response.Body)
+				}
+				var payload contract.ToolErrorResponse
+				decodeToolJSON(t, response.Body.Bytes(), &payload)
+				if payload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+					t.Fatalf("invalid search error = %#v", payload)
+				}
+			})
 		}
 
 		getResp := performRequest(t, engine, http.MethodGet, "/tools/compozy__skill_view", nil)

@@ -179,7 +179,19 @@ export function rowSeed(
   };
 }
 
-export function worktreeRowSeed(worktree: PaletteWorktreeRow, workspaceName?: string): DomainSeed {
+export function projectWorktreeRows(
+  worktrees: readonly PaletteWorktreeRow[],
+  label: (workspaceId: string) => string | undefined
+): DomainSeed[] {
+  const rows: DomainSeed[] = [];
+  for (const worktree of worktrees) {
+    if (worktree.state === "removed") continue;
+    rows.push(worktreeRowSeed(worktree, label(worktree.workspace_id)));
+  }
+  return rows;
+}
+
+function worktreeRowSeed(worktree: PaletteWorktreeRow, workspaceName?: string): DomainSeed {
   return rowSeed(
     "Worktrees",
     {

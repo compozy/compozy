@@ -117,3 +117,10 @@ QA impact 2026-11-09 (harness token efficiency): hosted descriptions keep the to
 instructions and canonical ID, with search tags, hints and toolset names in search metadata and
 `tool_info`. Existing MCP names, schemas, approvals, hook identities and routing remain unchanged.
 Verify search by an alias/tag still finds the tool and invoking it has the same result.
+
+QA scope for bounded reads: seed more than 50 automation runs for a job and trigger. Walk native
+and HTTP/UDS histories using `page.next_cursor`; assert every matching ID appears once, page sizes
+stay bounded, and changing filters/profile/workspace rejects a cursor from another population.
+Search a tool catalog larger than 100 entries; follow `next_offset` under the same query and
+confirm every diagnostic descriptor appears once. Check zero, negative and oversized page inputs.
+Verify CLI JSON retains history/search continuation metadata and its continuation flags round-trip.

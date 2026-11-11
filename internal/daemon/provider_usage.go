@@ -24,6 +24,8 @@ type providerUsageRuntime struct {
 	profileEvents chan profile.Event
 	profileCancel context.CancelFunc
 	profileDone   chan struct{}
+	authMu        sync.RWMutex
+	recoverAuth   func(string, string, string) bool
 }
 
 func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -39,8 +41,13 @@ func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanu
 	metrics := &providerUsageMetrics{}
 	runtime := &providerUsageRuntime{resolver: resolver, metrics: metrics, ctx: ctx}
 	runtime.Manager = providerusage.NewService(providerusage.Options{
-		Resolver: resolver, Collectors: registry, RefreshInterval: state.cfg.ProviderUsage.RefreshInterval,
-		Logger: state.logger, Metrics: metrics, Disabled: !state.cfg.ProviderUsage.Enabled,
+		Resolver:        resolver,
+		Collectors:      registry,
+		RefreshInterval: state.cfg.ProviderUsage.RefreshInterval,
+		Logger:          state.logger,
+		Metrics:         metrics,
+		OnAuthenticated: runtime.onAuthenticated,
+		Disabled:        !state.cfg.ProviderUsage.Enabled,
 	})
 	cleanup.add(runtime.Shutdown)
 	if err := runtime.syncProfiles(ctx); err != nil {
@@ -119,4 +126,26 @@ func (r *providerUsageRuntime) ApplyConsent(ctx context.Context, previous, next 
 func providerUsageConfigChanged(previous, next *config.Config) bool {
 	return !reflect.DeepEqual(previous.ProviderUsage, next.ProviderUsage) ||
 		!reflect.DeepEqual(previous.Providers, next.Providers)
+}
+
+// onAuthenticated forwards published native-auth proofs without holding the config reconciliation lock.
+func (r *providerUsageRuntime) onAuthenticated(_ context.Context, target providerusage.Target) {
+	r.authMu.RLock()
+	recoverAuth := r.recoverAuth
+	r.authMu.RUnlock()
+	if recoverAuth != nil && target.AuthRouteFingerprint != "" {
+		recoverAuth(target.ProfileID, target.ProviderID, target.AuthRouteFingerprint)
+	}
+}
+
+// setAuthRecovery reports whether the session manager exposes verified-auth recovery.
+func (r *providerUsageRuntime) setAuthRecovery(sessions core.SessionManager) bool {
+	recovery, ok := sessions.(core.ProviderAuthRecoverer)
+	if !ok {
+		return false
+	}
+	r.authMu.Lock()
+	r.recoverAuth = recovery.ProviderAuthenticationReady
+	r.authMu.Unlock()
+	return true
 }

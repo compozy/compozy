@@ -35,10 +35,18 @@ func registryWorktreeOperations() []OperationSpec {
 
 func listWorktreesOperationSpec() OperationSpec {
 	return OperationSpec{
-		Method: httpMethodGet, Path: specAPIWorktreesPath, AppAccess: AppAccessDenied, OperationID: "listWorktrees",
-		Summary: "List registered and discovered worktrees", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: append(worktreeWorkspaceParams(), boolQueryParam("refresh", "Refresh Git discovery and status")),
+		Method:      httpMethodGet,
+		Path:        specAPIWorktreesPath,
+		AppAccess:   AppAccessDenied,
+		OperationID: "listWorktrees",
+		Summary:     "List registered and discovered worktrees",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: append(
+			worktreeWorkspaceParams(),
+			boolQueryParam("refresh", "Refresh Git discovery and status"),
+			boolQueryParam("include_removed", "Include removed records (excluded by default)"),
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreesResponse{}},
 			{Status: 400, Description: "Invalid worktree list query", Body: contract.ErrorPayload{}},

@@ -71,6 +71,23 @@ export const TREE_SPRITE_SHEET = [
   "</symbol></svg>",
 ].join("");
 
+/**
+ * Row layout fixes injected into the tree's shadow root (Pierre's `unsafeCSS` layer outranks its
+ * base layer). Pierre's decoration lane (`+N −M`, `C`, lock) has a zero basis and shrinks first,
+ * so a long name squeezed the counts to a clipped tail (`·0 M`); it keeps its width now and the
+ * name truncates instead. The indent never shrank, so a deep branched path in a narrow pane could
+ * push the name out of the row; now the indent gives way (clipping its deepest guides) only once
+ * the name is down to a couple of characters.
+ */
+export const TREE_UNSAFE_CSS = [
+  '[data-item-section="decoration"] { flex: 1 0 auto; }',
+  // The name's huge shrink factor makes it take the whole shortfall until it hits its minimum,
+  // so rows keep their true depth unless the name would otherwise vanish. (A sub-1 factor on
+  // the indent instead would let flexbox absorb only that fraction of the shortfall.)
+  '[data-item-section="spacing"] { min-width: 0; overflow: hidden; }',
+  '[data-item-section="content"] { flex-shrink: 100000; min-width: 2em; }',
+].join("\n");
+
 const PIERRE_STATUS: Record<FileTreeStatus, GitStatus | null> = {
   added: "added",
   modified: "modified",
@@ -103,6 +120,26 @@ export function ancestorDirectories(path: string): string[] {
     parent = parentDirectory(parent);
   }
   return ancestors;
+}
+
+/**
+ * Directories among `added` that are the only entry under their (non-root) parent in `paths`,
+ * shallowest first so a caller opens each parent before checking its child. Pierre renders such
+ * a chain as one `a / b` row whose toggle is the deepest directory, so a lazy listing that brings
+ * a lone subfolder opens it too; otherwise expanding `a` would show a closed `a / b` row.
+ */
+export function soleChildDirectories(added: readonly string[], paths: readonly string[]): string[] {
+  const childCounts = new Map<string, number>();
+  for (const path of paths) {
+    const parent = parentDirectory(path);
+    if (parent) childCounts.set(parent, (childCounts.get(parent) ?? 0) + 1);
+  }
+  return added
+    .filter(path => {
+      const parent = parentDirectory(path);
+      return isDirectoryPath(path) && parent !== "" && childCounts.get(parent) === 1;
+    })
+    .sort((left, right) => depth(left) - depth(right));
 }
 
 function depth(path: string): number {

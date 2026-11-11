@@ -21,6 +21,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKinds(t *testing.T) {
@@ -2123,6 +2124,43 @@ func TestActionRegistryResultViewPins(t *testing.T) {
 			}
 		})
 	}
+	for _, tc := range []struct {
+		id                    tools.ToolID
+		beforeBounds, bounded string
+	}{
+		{tools.ToolIDToolSearch, "235b68f12aa4b9763d295705e9fe8170b86623970f5decd3e16e4468e0f0598a", "5bf79964ab2473119a114432bf55f8c3438ad2f92e1555855501e645e41f9796"},
+		{tools.ToolIDWorktreeList, "a7882fe3d4694479c6738d8f1784ddfc3a2a1b5bb35cf0db079a084090ba3d5c", "7e781f05c625506e362e0185093d63113ae8357a410bd59035da9af76009cee9"},
+	} {
+		t.Run("Should translate only bounded pre-view pins for "+tc.id.String(), func(t *testing.T) {
+			t.Parallel()
+			descriptors := builtin.NativeDescriptors()
+			index := slices.IndexFunc(descriptors, func(d tools.Descriptor) bool { return d.ID == tc.id })
+			if index < 0 {
+				t.Fatal("missing native descriptor")
+			}
+			descriptor, err := tools.DescriptorWithSchemaDigests(descriptors[index])
+			if err != nil {
+				t.Fatal(err)
+			}
+			views := descriptor.ResultViews()
+			if views.PreViewInputSchemaDigest != tc.bounded {
+				t.Fatalf("pre-view digest = %s, want main's bounded input %s", views.PreViewInputSchemaDigest, tc.bounded)
+			}
+			registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{tc.id: {Descriptor: descriptor}}}
+			actions := newActionRegistryForTest(t, registry)
+			expected := loop.ToolSchemaSnapshot{ToolID: tc.id.String(), InputSchemaDigest: tc.bounded, OutputSchemaDigest: views.Full.Digest}
+			if _, err := actions.ResolvePinned(t.Context(), tools.Scope{}, tc.id.String(), &expected, tools.ResultViewCompact); err != nil {
+				t.Fatal(err)
+			}
+			expected.InputSchemaDigest = tc.beforeBounds
+			_, err = actions.ResolvePinned(t.Context(), tools.Scope{}, tc.id.String(), &expected, tools.ResultViewCompact)
+			reason, ok := errors.AsType[*loop.ReasonError](err)
+			if !ok || reason.Code != loop.ReasonCodeActionContractStale {
+				t.Fatalf("pre-bounds pin error = %v, want action_contract_stale per bounded-read migration", err)
+			}
+		})
+	}
+
 }
 
 // UT-033: only the known output corrections translate pre-view pins.

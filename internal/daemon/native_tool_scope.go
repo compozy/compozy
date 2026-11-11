@@ -158,17 +158,6 @@ func (n *daemonNativeTools) nativeWorkspaceID(
 	return workspaceID, nil
 }
 
-func nativeResolvedWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
-	if resolved == nil {
-		return "", errors.New("daemon: resolved workspace is required")
-	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
-	if workspaceID == "" {
-		return "", errors.New("daemon: resolved workspace_id is empty")
-	}
-	return workspaceID, nil
-}
-
 func nativeResolvedRegistryWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
 	if resolved == nil {
 		return "", errors.New("daemon: resolved workspace is required")

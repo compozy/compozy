@@ -108,7 +108,7 @@ func (s *PreStarter) PreStart(
 	now := s.now()
 	s.mu.Lock()
 	s.deleteExpiredLocked(now)
-	if entry, ok := s.entries[key]; ok {
+	if entry, ok := s.entries[key]; ok && !normalized.BypassCache {
 		entry.usedAt = s.nextAccessLocked()
 		s.entries[key] = entry
 		report, cloneable := clonePreStartReport(entry.report)

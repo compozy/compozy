@@ -34,7 +34,10 @@ func (h *BaseHandlers) ListTools(c *gin.Context) {
 		h.respondToolError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.ToolsResponse{Tools: ToolPayloadsFromViews(views)})
+	c.JSON(
+		http.StatusOK,
+		contract.ToolsResponse{Tools: ToolPayloadsFromViews(views), Count: len(views), Total: len(views)},
+	)
 }
 
 // SearchTools searches the operator-visible registry projection.
@@ -53,15 +56,7 @@ func (h *BaseHandlers) SearchTools(c *gin.Context) {
 		return
 	}
 	scope = toolScopeFromSearch(scope, req)
-	views, err := h.Tools.Search(c.Request.Context(), scope, toolspkg.SearchQuery{
-		Query: req.Query,
-		Limit: req.Limit,
-	})
-	if err != nil {
-		h.respondToolError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ToolsResponse{Tools: ToolPayloadsFromViews(views)})
+	h.respondToolSearch(c, scope, req)
 }
 
 // GetTool returns one operator-visible tool projection.
@@ -214,7 +209,10 @@ func (h *BaseHandlers) ListSessionTools(c *gin.Context) {
 		h.respondToolError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.ToolsResponse{Tools: ToolPayloadsFromViews(views)})
+	c.JSON(
+		http.StatusOK,
+		contract.ToolsResponse{Tools: ToolPayloadsFromViews(views), Count: len(views), Total: len(views)},
+	)
 }
 
 // SearchSessionTools searches only within the session/model-callable projection.
@@ -244,15 +242,7 @@ func (h *BaseHandlers) SearchSessionTools(c *gin.Context) {
 		return
 	}
 	scope.AgentName = firstNonEmpty(req.AgentName, scope.AgentName)
-	views, err := h.Tools.Search(c.Request.Context(), scope, toolspkg.SearchQuery{
-		Query: req.Query,
-		Limit: req.Limit,
-	})
-	if err != nil {
-		h.respondToolError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ToolsResponse{Tools: ToolPayloadsFromViews(views)})
+	h.respondToolSearch(c, scope, req)
 }
 
 // ToolPayloadsFromViews converts registry views into public DTOs.

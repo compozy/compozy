@@ -119,6 +119,33 @@ export const CHANGED_PATHS = [
   "docs/old.md",
 ];
 
+/**
+ * The deep, long-named change set from #1480: review attachments six to eight levels down,
+ * sibling directories that share a long prefix, and a few shallow files. Directories are listed
+ * before their children, as the Changes panel sends them.
+ */
+export const DEEP_CHANGED_PATHS: string[] = (() => {
+  const review = "packages/frontend/proto/review/";
+  const screens = [
+    "admin-billing-customer-detail",
+    "admin-billing-customer-invoices",
+    "admin-billing-subscription-cancellation-notice",
+  ];
+  const attachments = [
+    "1a7f3c2e-9b41-4d0a-8e55-0c6f2b9d7a13.png",
+    "6b2e9d40-17c8-4f3a-b0d2-5e8a1c4f9b67.png",
+    "c94d1e8a-3f27-4b6c-9a10-7d5e2f8b0c31.png",
+  ];
+  const paths = ["packages/", "packages/frontend/", "packages/frontend/proto/", review];
+  for (const screen of screens) {
+    const dir = `${review}${screen}/`;
+    paths.push(dir, `${dir}${screen}.proto.tsx`, `${dir}admin-billing-fixtures.ts`);
+    paths.push(`${dir}attachments/`, ...attachments.map(name => `${dir}attachments/${name}`));
+  }
+  paths.push("packages/frontend/src/", "packages/frontend/src/index.ts", "README.md");
+  return paths;
+})();
+
 export const OLD_READER = SAMPLE_GO.replace("\ttruncated := len(entries) > r.limit\n", "").replace(
   "Ignored   bool\n\tSensitive bool\n",
   "Ignored   bool\n"

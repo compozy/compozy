@@ -183,6 +183,41 @@ func (s *nativeWorktreeServiceStub) DeleteLocalBranch(
 
 func TestNativeWorktreeTools(t *testing.T) {
 	t.Parallel()
+	t.Run("Should exclude removed worktrees by default", func(t *testing.T) {
+		t.Parallel()
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeWorktreeWorkspaceService(),
+			Worktrees: &nativeWorktreeServiceStub{
+				list: func(context.Context, string, bool) (*worktree.DetailedListing, error) {
+					return &worktree.DetailedListing{Worktrees: []worktree.Inspection{
+						{Worktree: worktree.Worktree{ID: "ready-worktree", State: worktree.StateReady}},
+						{Worktree: worktree.Worktree{ID: "removed-worktree", State: worktree.StateRemoved}},
+					}}, nil
+				},
+			},
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWorktreeList, Input: json.RawMessage(`{"workspace":"ws-a"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"ready-worktree"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"removed-worktree"`))
+		included, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeList,
+				Input:  json.RawMessage(`{"workspace":"ws-a","include_removed":true}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireNativeStructuredContains(t, included, []byte(`"removed-worktree"`))
+	})
+
 	// Invariant: acceptance survives cancellation and failure of the automatic link I/O boundary.
 	t.Run("Should return accepted worktree when automatic linking fails", func(t *testing.T) {
 		t.Parallel()

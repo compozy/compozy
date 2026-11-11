@@ -165,6 +165,7 @@ type Manager struct {
 	worktreeDeliveryFences     map[string]bool
 	worktreeBindingUses        map[string]int
 	worktreeBindingNotifiers   []WorktreeBindingNotifier
+	providerAuthRecovery       providerAuthRecoveryLifecycle
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization
@@ -208,6 +209,8 @@ type Manager struct {
 	attentionWorkspaceMutes AttentionWorkspaceMuteReader
 	notifyLastBySession     map[string]time.Time
 	waitRegistry            *sessionWaitRegistry
+	clarifyMu               sync.RWMutex
+	clarify                 toolspkg.ClarifyBroker
 	spawnWakeMu             sync.Mutex
 	spawnWakeEventIDs       map[string]struct{}
 	spawnWakeEventOrder     []string

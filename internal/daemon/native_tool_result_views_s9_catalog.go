@@ -44,12 +44,29 @@ type compactToolSearchView struct {
 	Decision     compactToolDecision         `json:"decision"`
 }
 
-var toolSearchViews = resultViews[[]toolspkg.ToolView]{
-	Compact: func(p []toolspkg.ToolView) any {
+type nativeToolSearchPage struct {
+	Tools      []toolspkg.ToolView `json:"tools"`
+	Offset     int                 `json:"offset,omitzero"`
+	Count      int                 `json:"count"`
+	Total      int                 `json:"total"`
+	NextOffset int                 `json:"next_offset,omitzero"`
+	HasMore    bool                `json:"has_more"`
+}
+type compactToolSearchPage struct {
+	Tools      []compactToolSearchView `json:"tools"`
+	Offset     int                     `json:"offset,omitzero"`
+	Count      int                     `json:"count"`
+	Total      int                     `json:"total"`
+	NextOffset int                     `json:"next_offset,omitzero"`
+	HasMore    bool                    `json:"has_more"`
+}
+
+var toolSearchViews = resultViews[nativeToolSearchPage]{
+	Compact: func(p nativeToolSearchPage) any {
 		var rows []compactToolSearchView
-		if p != nil {
-			rows = make([]compactToolSearchView, len(p))
-			for i, v := range p {
+		if p.Tools != nil {
+			rows = make([]compactToolSearchView, len(p.Tools))
+			for i, v := range p.Tools {
 				rows[i] = compactToolSearchView{
 					projectCompactToolSearchDescriptor(v.Descriptor),
 					v.Availability,
@@ -57,10 +74,9 @@ var toolSearchViews = resultViews[[]toolspkg.ToolView]{
 				}
 			}
 		}
-		return map[string]any{"tools": rows}
+		return compactToolSearchPage{rows, p.Offset, p.Count, p.Total, p.NextOffset, p.HasMore}
 	},
-	Full:    func(p []toolspkg.ToolView) any { return map[string]any{"tools": p} },
-	Preview: func(p []toolspkg.ToolView) string { return fmt.Sprintf("%d tools", len(p)) },
+	Preview: func(p nativeToolSearchPage) string { return fmt.Sprintf("%d of %d tools", p.Count, p.Total) },
 }
 var approvalSetViews = resultViews[nativeToolApprovalSetResponse]{
 	Compact: func(p nativeToolApprovalSetResponse) any {

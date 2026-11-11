@@ -506,7 +506,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b1686a27c6b325dc2a2fda6bdb4f21dd01bb9ee3623c2b1410f85ef438b3c27a",
+    "input_schema_digest": "d10c6163fb4204e464fe5ef5d8fdc9582cee97f5ea6e084891ca1f7e73c35abc",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "caller_bounded"
@@ -583,7 +583,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "02c5d7748840a46be39c14de7f15334b9ca14b293c4fab23bb49ae532cbadfc5",
+    "input_schema_digest": "4d53f26274a0dfa0c8c6dbd02a72c5d2a0174cfdcc5ae893057d2d89c97b2535",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "caller_bounded"
@@ -725,7 +725,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "48410365fd74f5cf2e1cc22ab19adfd56e701a1309b418238e2c7b03f6a59e81",
+    "input_schema_digest": "370b4f27403012088e982005922af340c0df616bcac506ff655157dffc98fd06",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "caller_bounded"
@@ -4044,10 +4044,10 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "7c1af8b93c5885f39d72606ef7570faa114732d635aab549d65d563b39c6b562",
-    "output_schema_digest": "02da645f8016599e14851cda7c4500c28b9dcf9c6fcf19c4acb936c5e77a057b",
+    "input_schema_digest": "35b5e1193b8b1ea7b629368f669713524f49beea8d925fd80b147c7b459f8e22",
+    "output_schema_digest": "fc0f916f9cf2d28743473185d328676b7fa2cf9745e1679085c62f0cead4cdb8",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "02da645f8016599e14851cda7c4500c28b9dcf9c6fcf19c4acb936c5e77a057b",
+    "compact_output_schema_digest": "fc0f916f9cf2d28743473185d328676b7fa2cf9745e1679085c62f0cead4cdb8",
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -4556,7 +4556,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3377573f8676957613491bf124f9920a7e7d6d7769c2cbf6b01a12f59dd37a6e",
+    "input_schema_digest": "994c2de53633fdc6fe17f2d95595ad71e24a1955ea93027d6aa1afb936e6c572",
     "output_schema_digest": "f2bab666c092416adaf8f7e7de7e7a4ab94427e9f8f390472c58062abe87fde2",
     "result_contract": "compact_full",
     "compact_output_schema_digest": "f2bab666c092416adaf8f7e7de7e7a4ab94427e9f8f390472c58062abe87fde2",

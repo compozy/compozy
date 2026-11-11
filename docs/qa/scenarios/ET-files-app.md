@@ -39,6 +39,11 @@ Walk:
 8. From a session, a transcript path's plain click and Changes' **Open in Files** open the project's
    Files window as a tab of the session's frame on the session root, at the file and line, or
    retarget the existing one (see `ET-transcript-paths-files-app` steps 2 and 3).
+9. Deep, long paths (#1480): open a file six levels deep with **Open in Files** and check the tree
+   at the default width and in a narrow window. Long names truncate behind one clean "…" with
+   their extension, a single-child chain shows as one `proto / review` row that reveals through,
+   one click on a folder whose only child is a folder opens both, and hovering a row shows its full
+   path.
 
 Persistence: the root and the open path persist per project under `compozy:files:v1:<workspace_id>`.
 
@@ -62,3 +67,4 @@ projects `lab-project` (worktree `feature-lab`) and `bulk-project`.
 | 6 Project context menu | pass | **Open files** opened the `bulk-project` window (`A06-context-menu.png`, `A06b-bulk-files.png`) |
 | 7 Removed worktree | pass | Root unavailable, then Switch to project root restored `feat/review` (`A07-root-unavailable.png`) |
 | 8 Open in Files window | pass after fix | See `ET-transcript-paths-files-app` step 8 and BUG-20261107-files-root-internal-workspace-id |
+| 9 Deep paths (2026-11-10, #1480) | pass | Lab `compozy-issue-1480-file-tree-20261111-001512-265025`, fix `d12f6acbb`: before `admuustomer-detail`, `:payment-methods` (`05-files-tree-before-default.png`, `07-files-tree-before-narrow.png`); after `admin-billing…ustomer-detail`, revealed `admin-billing-subscri…tsx` under `proto / review` (`06-files-tree-after-default.png`, `08-files-tree-after-narrow.png`) |

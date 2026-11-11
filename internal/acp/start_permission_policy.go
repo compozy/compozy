@@ -7,6 +7,9 @@ type StartPermissionPolicy struct {
 	ExecutionPolicy string
 	Rules           []compozyconfig.PermissionRule
 	Denials         *PermissionDenials
+	// ElicitationAsker renders provider questions to the same session operator
+	// that answers this policy's approvals. Nil declines provider questions.
+	ElicitationAsker ElicitationAsker
 }
 
 func (o StartOpts) ExecutionPolicyValue() string {

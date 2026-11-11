@@ -27,6 +27,12 @@ func (m *Manager) startHostedPromptRun(
 	if state.recovery == nil {
 		state.recovery = &promptRecoveryState{}
 	}
+	if state.recovery.authReady == nil {
+		state.recovery.authReady = make(chan struct{}, 1)
+	}
+	session.mu.Lock()
+	session.currentPromptRecovery = state.recovery
+	session.mu.Unlock()
 	state.recovery.executionCtx = ctx
 	state.recovery.request = clonePromptRecoveryRequest(request)
 

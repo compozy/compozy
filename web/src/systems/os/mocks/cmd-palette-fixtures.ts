@@ -1,8 +1,10 @@
+import rankingWeights from "../../../../../internal/cmdpalette/testdata/ranking_weights_v1.json";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
 import { buildPaletteRegistry } from "../lib/cmd-palette-registry";
 import type {
   CmdPaletteAttachedClient,
+  CmdPaletteRankSignals,
   CmdPaletteCatalogResponse,
   CmdPaletteCommand,
   PaletteRegistry,
@@ -379,3 +381,13 @@ export const cmdPaletteClientsFixture: CmdPaletteAttachedClient[] = [
     attached_at: "2026-04-17T18:00:00Z",
   },
 ];
+
+/** Deterministic scorer snapshot for palette stories that read domain catalogs. */
+export const cmdPaletteRankSignalsFixture: CmdPaletteRankSignals = {
+  profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
+  weights: rankingWeights,
+  usage: [],
+  query_hits: [],
+  pins: [],
+  revision: "ps_worktrees_story",
+};

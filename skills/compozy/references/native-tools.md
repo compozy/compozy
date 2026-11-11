@@ -77,6 +77,12 @@ apply.
 
 The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
 
+`compozy__tool_search` defaults to 20 results (maximum 100; zero uses the default).
+Continue with `offset: next_offset` and the same query. Both views include `offset`, `count`, `total`, `has_more`, and optional `next_offset`.
+Compact rows summarize descriptors; `result_view: "full"` retains complete descriptors.
+`tool_info` reads one complete descriptor.
+Operator and session HTTP/UDS search share these bounds; CLI uses `tool search --limit --offset`.
+
 ## Command Palette Tools
 
 Use `compozy__cmd_palette_list` to read the daemon-canonical command catalog for the bound workspace.
@@ -490,8 +496,9 @@ Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
 mutating; remove is destructive and approval-gated, and its opt-in `delete_branch` input also deletes
 the local branch with the safety rules in `references/worktrees.md`. Remove takes `path` instead of
 `ref` for a discovered (not adopted) checkout, exactly as `worktree_list` reports it; that form keeps
-the branch and rejects `ref` and `delete_branch`. All carry an explicit or caller-resolved
-workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
+the branch and rejects `ref` and `delete_branch`. List excludes `removed` records by default; pass `include_removed: true` to read them. HTTP/UDS
+uses `include_removed=true`, including All projects; CLI uses `worktree list --include-removed`.
+All carry an explicit or caller-resolved workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
 CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
@@ -579,7 +586,9 @@ session in a folder.
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 
 Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
-`compozy__agent_list`, `compozy__agent_create`. `compozy__agent_list` returns exact names from the
+`compozy__agent_list`, `compozy__agent_create`. `compozy__workspace_describe` returns sessions owned
+by the resolved workspace registration, even when its directory metadata has a different ID.
+`compozy__agent_list` returns exact names from the
 resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
 `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
 model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
@@ -843,8 +852,15 @@ Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automatio
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`
 (`agent`|`loop`|`task`|`agent_instance`; `task` matches no trigger; `agent_instance` is trigger-only), search, and event;
-run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
-unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
+run history stays uncounted and defaults to 50 records per page (maximum 200; zero uses 50).
+`automation_runs_list`, `automation_jobs_history`, and `automation_triggers_history` return
+`page.limit`, `page.has_more`, and `page.next_cursor`. Continue with `cursor` and unchanged filters
+and profile/workspace scope. HTTP/UDS shares the same page contract. CLI history and runs use
+`--last` for page size and `--cursor` for continuation. JSON preserves the `page` envelope;
+human, TOON and JSONL expose continuation too. For CLI history that spans pages, use absolute
+RFC3339 time filters from the first request. Relative durations move between calls and cannot
+be reused with `--cursor`. Changing filters or scope starts a new first page. Other
+`compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable. List and get items carry `last_run` (`id`, `status`,
 `started_at`, `ended_at`, `skip_reason` for a skipped fire stored as `canceled`), equal to the first

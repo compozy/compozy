@@ -56,6 +56,45 @@ func TestSessionEnvRedaction(t *testing.T) {
 func TestPreStarter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bypass a cached auth refusal during credential recovery", func(t *testing.T) {
+		t.Parallel()
+		starter := NewPreStarter()
+		provider := compozyconfig.ProviderConfig{
+			Command:       "provider acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "provider auth status",
+		}
+		valid, calls := false, 0
+		env := &ProbeEnv{
+			ProviderName:  "provider-a",
+			PreStartScope: preStartTestScope("one"),
+			CommandEnv:    []string{"PATH=/provider/bin"},
+			LookPath:      func(string) (string, error) { return "/provider/bin/provider", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				calls++
+				if valid {
+					return ProviderAuthCommandResult{Stdout: "authenticated"}, nil
+				}
+				return ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+			},
+		}
+		for range 2 {
+			if report := starter.PreStart(t.Context(), provider, env); report.Item == nil {
+				t.Fatal("expected sign-in refusal")
+			}
+		}
+		if calls != 1 {
+			t.Fatalf("calls = %d, want cached refusal", calls)
+		}
+		valid, env.BypassCache = true, true
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		env.BypassCache = false
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		if calls != 2 {
+			t.Fatalf("calls = %d, want a fresh auth proof", calls)
+		}
+	})
+
 	t.Run("Should return nil item when auth mode is none", func(t *testing.T) {
 		t.Parallel()
 

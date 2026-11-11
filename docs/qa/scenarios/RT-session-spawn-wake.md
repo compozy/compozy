@@ -210,3 +210,14 @@ repeat with `result_view: "full"`. Reuse identity, follow-up fences and TTL valu
 permission policy and diagnostic detail require full. The bounded result-view walk
 is recorded in [the S10 report](../reports/2026-11-10-native-result-views.md); it does
 not replace this scenario's broader historical redaction/wake matrix.
+
+QA impact 2026-11-11 (native call turn identity): launch a background Agent call in turn A,
+then deliver a non-task update for the same call with turn B or no turn. Interrupt B twice,
+then finish A twice. The row must retain A, complete once through the background fallback,
+and produce no delegated-child wake. Repeat with an empty persisted turn and a named update;
+the empty identity remains authoritative. `TestSubagentNativeRecoveryEdges` owns this
+deterministic service regression. The existing native daemon integration exercises real ACP
+subprocesses and SQLite; CI owns the full transport journey. ET-042's hook contract and
+attention lock ordering are unchanged; its native-settlement coverage remains applicable.
+After A completes and its tracking is retired, send a late Agent update in B and settle B.
+Metadata may refresh, but a later nested heartbeat must not recreate tracking or read storage.

@@ -60,7 +60,9 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
 // real socket, and the refused connection fails the mocked requests queued on it (#1445).
 const shellHandlers = [
   compozyApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] })),
-  compozyApiMock.get("/api/tools", () => HttpResponse.json({ tools: [] })),
+  compozyApiMock.get("/api/tools", () =>
+    HttpResponse.json({ tools: [], count: 0, total: 0, has_more: false })
+  ),
   compozyApiMock.get("/api/sessions", () =>
     HttpResponse.json({ sessions: [], page: { has_more: false, limit: 50, total: 0 } })
   ),
@@ -1642,14 +1644,6 @@ describe("Permissions", () => {
     expect(screen.queryByTestId("agent-permissions-no-reviewer")).toBeNull();
   });
 
-  it("Should explain that Full access on Codex keeps Codex's own reviewer", async () => {
-    const codex: AgentPayload = { ...alwaysOn, provider: "codex", permissions: "approve-all" };
-    serveAgent(codex);
-    serveProvider("codex", "agent");
-    renderEditor(<AgentPermissionsEditor {...props({ agent: codex })} />);
-    expect(await screen.findByText("Codex keeps its own reviewer here")).toBeTruthy();
-  });
-
   it("Should list exceptions with the coverage note and block a path outside the project", async () => {
     const user = userEvent.setup();
     const put = vi.fn();
@@ -1727,22 +1721,6 @@ describe("Permissions", () => {
     serveSessions("active");
     renderEditor(<AgentPermissionsEditor {...props({ agent: reviewer })} />);
     expect(await screen.findByText("The reviewer isn't available right now")).toBeTruthy();
-  });
-
-  it("Should explain the Codex reviewer for an agent that inherits Codex", async () => {
-    const inherits: AgentPayload = {
-      ...alwaysOn,
-      provider: "",
-      permissions: "approve-all",
-      effective_runtime: {
-        ...agent.effective_runtime,
-        provider: "codex",
-      } as AgentPayload["effective_runtime"],
-    };
-    serveAgent(inherits);
-    serveProvider("codex", "agent");
-    renderEditor(<AgentPermissionsEditor {...props({ agent: inherits })} />);
-    expect(await screen.findByText("Codex keeps its own reviewer here")).toBeTruthy();
   });
 
   it("Should treat picking the default reach as no change, and round-trip a wider one", async () => {

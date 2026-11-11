@@ -105,8 +105,13 @@ minute for `session.auth_recovery.window` (10m), restarting the provider and rel
 time. A turn with no provider output yet is resent; a turn that already produced output or tool calls
 receives a continuation that asks the agent to verify state before repeating actions. Do not prompt,
 stop, or continue a session while it reports `provider_auth` recovery; wait or cancel the prompt. When the
-window ends, the turn fails with today's `provider_error` guidance, and later turns fail without waiting
-until one completes.
+window ends, the turn ends with `provider_error` login guidance and the session reads `waiting-for-auth`.
+After signing in, send another prompt to replace the stale provider process and reload the same conversation.
+A successful auth probe or Usage collection also reloads matching auth-failed sessions in that profile;
+while a turn is still recovering, that proof wakes its next retry. Other providers, account routes, and
+healthy sessions are left alone. A probe without a profile selector uses the default profile
+(or its calling managed session profile); Usage carries its selected profile. The exhausted automatic
+wait remains spent until a turn completes or the provider changes.
 
 Automatic replay can repeat an external side effect whose completion was not persisted before the
 disconnect. Inspect the retained tool results and external system before manually repeating the work.
