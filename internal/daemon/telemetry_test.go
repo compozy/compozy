@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session/sessionid"
 	"github.com/compozy/compozy/internal/store"
@@ -347,6 +349,120 @@ func assertOwnerValidators(t *testing.T, ids map[attribute.Key]func(string) bool
 
 // The turn span exports compozy.session_id and compozy.turn_id only when the owner validators accept them, so the
 // synthetic identities the daemon hands the session runtime must keep matching sessionid.
+func TestTelemetryModelClassesFollowTheCatalog(t *testing.T) {
+	t.Parallel()
+
+	row := func(provider, model string, kinds ...modelcatalog.SourceKind) modelcatalog.Model {
+		sources := make([]modelcatalog.SourceRef, 0, len(kinds))
+		for _, kind := range kinds {
+			sources = append(sources, modelcatalog.SourceRef{SourceKind: kind})
+		}
+		return modelcatalog.Model{ProviderID: provider, ModelID: model, Sources: sources}
+	}
+
+	t.Run("Should export catalog names, configured models as custom, and the rest as other", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &telemetryModelCatalogStub{models: []modelcatalog.Model{
+			row("claude", "claude-sonnet-4-5", modelcatalog.SourceKindBuiltin),
+			row("opencode", "org/model", modelcatalog.SourceKindModelsDev, modelcatalog.SourceKindProviderLive),
+			row("local", "/home/ana/private/model.gguf", modelcatalog.SourceKindConfig),
+			row("claude", "live-only-model", modelcatalog.SourceKindProviderLive),
+		}}
+		classes := newTestTelemetryModelClasses(catalog, time.Now)
+		if got := classes.Classify("claude", "claude-sonnet-4-5"); got != telemetry.ModelUnknown {
+			t.Fatalf("Classify() before the first build = %v, want ModelUnknown", got)
+		}
+		if err := classes.rebuild(t.Context()); err != nil {
+			t.Fatalf("rebuild() error = %v", err)
+		}
+
+		for _, tc := range []struct {
+			provider, model string
+			want            telemetry.ModelClass
+		}{
+			{"claude", "claude-sonnet-4-5", telemetry.ModelCatalog},
+			{"opencode", "org/model", telemetry.ModelCatalog},
+			{"local", "/home/ana/private/model.gguf", telemetry.ModelCustom},
+			{"claude", "live-only-model", telemetry.ModelUnknown},
+			{"claude", "my model v2", telemetry.ModelUnknown},
+			{"opencode", "claude-sonnet-4-5", telemetry.ModelUnknown},
+		} {
+			if got := classes.Classify(tc.provider, tc.model); got != tc.want {
+				t.Fatalf("Classify(%q, %q) = %v, want %v", tc.provider, tc.model, got, tc.want)
+			}
+		}
+	})
+
+	t.Run("Should pick up a new catalog row once the snapshot expires", func(t *testing.T) {
+		t.Parallel()
+
+		var now atomic.Pointer[time.Time]
+		start := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+		now.Store(&start)
+		catalog := &telemetryModelCatalogStub{listed: make(chan struct{}, 4)}
+		classes := newTestTelemetryModelClasses(catalog, func() time.Time { return *now.Load() })
+		if err := classes.rebuild(t.Context()); err != nil {
+			t.Fatalf("rebuild() error = %v", err)
+		}
+		catalog.set([]modelcatalog.Model{row("claude", "claude-opus-5", modelcatalog.SourceKindBuiltin)})
+
+		if got := classes.Classify("claude", "claude-opus-5"); got != telemetry.ModelUnknown {
+			t.Fatalf("Classify() within the snapshot TTL = %v, want the cached ModelUnknown", got)
+		}
+		expired := start.Add(telemetryModelSnapshotTTL)
+		now.Store(&expired)
+		classes.Classify("claude", "claude-opus-5")
+		select {
+		case <-catalog.listed:
+		case <-t.Context().Done():
+			t.Fatal("expired snapshot did not rebuild")
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for classes.Classify("claude", "claude-opus-5") != telemetry.ModelCatalog {
+			if time.Now().After(deadline) {
+				t.Fatal("Classify() never saw the new catalog row")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	})
+}
+
+type telemetryModelCatalogStub struct {
+	mu     sync.Mutex
+	models []modelcatalog.Model
+	listed chan struct{}
+}
+
+func (s *telemetryModelCatalogStub) set(models []modelcatalog.Model) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.models = models
+}
+
+func (s *telemetryModelCatalogStub) ListModels(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.listed != nil {
+		select {
+		case s.listed <- struct{}{}:
+		default:
+		}
+	}
+	return slices.Clone(s.models), nil
+}
+
+func newTestTelemetryModelClasses(catalog telemetryModelCatalog, now func() time.Time) *telemetryModelClasses {
+	return &telemetryModelClasses{
+		catalog: catalog,
+		begin:   func() (func(), bool) { return func() {}, true },
+		now:     now,
+	}
+}
+
 func TestDaemonSyntheticIdentitiesMatchTelemetryValidators(t *testing.T) {
 	t.Parallel()
 

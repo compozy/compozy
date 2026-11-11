@@ -146,7 +146,7 @@ func (d *Daemon) bootTelemetry(ctx context.Context, state *bootState, cleanup *b
 
 // telemetryRegistries holds what the sanitizer checks exported values against: route templates of the mounted
 // servers, traced ACP methods, hook events, provider, agent, and native tool membership, and each identity
-// attribute's owner validator. Model values have no registry yet and export as "other".
+// attribute's owner validator. Models are classified against the model catalog.
 func telemetryRegistries(ctx context.Context, state *bootState) telemetry.Registries {
 	var routes []string
 	for _, server := range []Server{state.httpServer, state.udsServer} {
@@ -169,6 +169,7 @@ func telemetryRegistries(ctx context.Context, state *bootState) telemetry.Regist
 			return agents.Contains(func(agent compozyconfig.AgentDef) bool { return agent.Name == name })
 		},
 		ToolIDs: nativeToolMembership(ctx, state.nativeToolProvider, state.logger),
+		Models:  telemetryModelClassifier(state),
 		IDs: map[attribute.Key]func(string) bool{
 			telemetry.AttrProfileID:    profile.IsProfileID,
 			telemetry.AttrWorkspaceID:  workspacepkg.IsWorkspaceIdentifier,
@@ -195,4 +196,14 @@ func providerMembership(configured map[string]compozyconfig.ProviderConfig) func
 		_, ok := names[name]
 		return ok
 	}
+}
+
+// telemetryModelClassifier returns the model catalog classifier, or nil (every model exports "other") without a
+// catalog.
+func telemetryModelClassifier(state *bootState) func(provider, model string) telemetry.ModelClass {
+	classes := newTelemetryModelClasses(state.modelCatalog, state.logger)
+	if classes == nil {
+		return nil
+	}
+	return classes.Classify
 }
