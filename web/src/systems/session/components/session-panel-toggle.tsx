@@ -1,12 +1,12 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
-import { FileDiff, List, PanelRight } from "@compozy/ui/icons";
+import { FileDiff, PanelLeft, PanelRight } from "@compozy/ui/icons";
 
 /**
  * A toggle's accessible name: "Open"/"Close" plus the panel, or one fixed `name` (the Changes
  * toggle reads "Changes" either way; `aria-pressed` carries its state).
  */
 const PANELS = {
-  sidebar: { label: "sessions sidebar", testId: "session-sidebar-toggle", Glyph: List },
+  sidebar: { label: "sessions sidebar", testId: "session-sidebar-toggle", Glyph: PanelLeft },
   review: { name: "Changes", testId: "session-review-toggle", Glyph: FileDiff },
   inspector: { label: "context sidebar", testId: "session-inspector-toggle", Glyph: PanelRight },
 } as const;

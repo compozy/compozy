@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { LayoutDashboard, List, ListChecks } from "../../../icons";
+import { LayoutDashboard, ListChecks, PanelLeft } from "../../../icons";
 import { Button } from "../../button";
 import { ListingToolbar } from "../listing-toolbar";
 import { RouteNav } from "../route-nav";
@@ -65,7 +65,7 @@ function StartControlSetup() {
   useTopbarSlot({
     start: (
       <Button aria-label="Close sessions sidebar" aria-pressed size="icon-sm" variant="quiet">
-        <List aria-hidden="true" className="size-4" />
+        <PanelLeft aria-hidden="true" className="size-4" />
       </Button>
     ),
     status: <span className="text-xs text-subtle">Always-on</span>,
