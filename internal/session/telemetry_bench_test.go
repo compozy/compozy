@@ -18,6 +18,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session/sessionid"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/telemetry"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/compozy/compozy/internal/testutil/otlptest"
@@ -36,7 +37,8 @@ const (
 //	go test ./internal/session -run '^$' -bench BenchmarkTurnTelemetryFootprint -benchmem
 //
 // Each turn runs through the real ACP driver and acpmock on a warm session: 200 streamed chunks, one hosted tool
-// call, and a usage event. Enabled mode exports to an in-process OTLP/HTTP receiver. Besides ns/turn it reports
+// call, and a usage event. Enabled mode exports to an in-process OTLP/HTTP receiver and installs the daemon's
+// store write observer. Besides ns/turn it reports
 // cpu_ns/turn (this process's user+sys CPU from getrusage around the measured loop, the final export included),
 // otlp_bytes/turn (serialized trace request bytes per turn plus one full metric push), and spans/turn.
 func BenchmarkTurnTelemetryFootprint(b *testing.B) {
@@ -57,6 +59,13 @@ func BenchmarkTurnTelemetryFootprint(b *testing.B) {
 			if mode.export {
 				collector = otlptest.NewCollector(b)
 				collector.ExportWithMetrics(b, 1, footprintRegistries())
+				// The daemon installs this observer whenever export starts; default slow-write threshold.
+				defaults := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+				slowDBWriteMS := defaults.Observability.OTel.SlowDBWriteMS
+				store.SetWriteObserver(func(ctx context.Context, write store.WriteObservation) {
+					telemetry.RecordDBWrite(ctx, telemetry.DBWrite(write), slowDBWriteMS)
+				})
+				b.Cleanup(func() { store.SetWriteObserver(nil) })
 			}
 			h, sessionID := startFootprintSession(b, driverPath, fixture)
 			runFootprintTurn(b, h, sessionID) // warm-up: runtime start and the first turn stay out of the measurement
