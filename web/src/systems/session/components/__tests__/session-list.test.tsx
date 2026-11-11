@@ -3178,6 +3178,34 @@ describe("SessionList breadth and Group by", () => {
     }
   );
 
+  // #1486: project grouping is the default where the breadth offers it, so only a grouping that
+  // differs from the default for the current options marks the trigger.
+  it.each([
+    { groupByOptions: ["none", "project"], groupBy: "project", marked: false },
+    { groupByOptions: ["none", "project"], groupBy: "none", marked: true },
+    { groupByOptions: ["none", "profile"], groupBy: "profile", marked: true },
+    { groupByOptions: ["none"], groupBy: "none", marked: false },
+  ] as const)(
+    "Should mark the trigger for $groupBy grouping only when it differs from the default ($groupByOptions)",
+    ({ groupByOptions, groupBy, marked }) => {
+      render(
+        <SessionViewOptionsMenu
+          allCollapsed={false}
+          groupBy={groupBy}
+          groupByOptions={groupByOptions}
+          onGroupByChange={vi.fn()}
+          onShowEmptyProjectsChange={vi.fn()}
+          onSortChange={vi.fn()}
+          showEmptyProjects={false}
+          sort="created"
+          testId="session-sidebar"
+        />
+      );
+      const trigger = screen.getByRole("button", { name: "View options" });
+      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+    }
+  );
+
   it("Should leave Hide child sessions out of the List's View options", async () => {
     const user = userEvent.setup();
     renderList({ view });

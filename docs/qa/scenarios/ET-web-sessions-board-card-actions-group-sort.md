@@ -54,4 +54,6 @@ fresh `config.toml` without `[shell.sessions]`, Playwright Chromium): `GET /api/
 project groups with View options › Group by on Project; focused on one project the list rendered flat
 with no Group by control. After `compozy config set shell.sessions.group_by none` the All projects
 list rendered flat with None checked. With `group_by` unset and a legacy `scope = "workspace"` the
-daemon still reported `project`.
+daemon still reported `project`. The View options trigger stays unmarked on the default grouping and
+is marked only when the window's grouping differs from it (None under All projects, Profile under All
+profiles).
