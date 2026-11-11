@@ -81,3 +81,10 @@ Evidence (`docs/qa/evidence/2026-11-11-otel-telemetry-export/`): `w1-model-turn-
 `w1-model-jaeger-turn2-before-ttl.json`, `w1-model-jaeger-turn4-after-ttl.json`, `w1-model-jaeger-restart-turn.json`,
 `w1-model-prom-turn-duration.json`, `w1-model-prom-tokens.json`, `w1-model-distinct-values.txt`,
 `w1-model-catalog-sources.txt`, `w1-model-session-runtime.json`.
+
+## Follow-up: first-boot window
+
+The re-walk found turns on a fresh home exporting `other` for up to the 5-minute snapshot TTL, because the first
+catalog refresh lands after telemetry starts. `db86be3de` rebuilds the snapshot when a lookup misses and the snapshot
+is at least 30 s old, so a model the catalog learns after boot exports its name within about 30 s; unit-tested in
+`TestTelemetryModelClassesFollowTheCatalog` (red with the 5-minute-only rule).
