@@ -28,6 +28,15 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	session.mu.RLock()
 	sessionType := session.Type
 	session.mu.RUnlock()
+	if normalized.Type == acp.EventTypeError && normalized.ProviderError != nil &&
+		normalized.ProviderError.Code == acp.ProviderErrorAuthRequired && normalized.Failure != nil {
+		normalized.Failure = store.CloneSessionFailure(normalized.Failure)
+		normalized.Failure.Kind = store.FailureProviderAuth
+		session.setFailure(normalized.Failure)
+		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+			return err
+		}
+	}
 	decorateHandoffAction(sessionType, session.ID, &normalized)
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)

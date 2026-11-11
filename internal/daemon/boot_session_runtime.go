@@ -37,6 +37,9 @@ func (d *Daemon) bootSessionRuntime(
 		return d.shutdownSessionManager(cleanupCtx, sessions)
 	})
 	state.sessions = sessions
+	if state.providerUsage != nil && !state.providerUsage.setAuthRecovery(sessions) {
+		state.logger.WarnContext(ctx, "daemon: session manager does not support provider authentication recovery")
+	}
 	monitors, err := newSessionMonitorService(ctx, state)
 	if err != nil {
 		return err

@@ -38,6 +38,7 @@ func DefaultProviderAuthCommandResolver(
 
 // ProbeEnv supplies process, env, and vault access to provider auth probes.
 type ProbeEnv struct {
+	BypassCache    bool
 	ProviderName   string
 	HomePaths      compozyconfig.HomePaths
 	PreStartScope  PreStartScope

@@ -36,6 +36,7 @@ func clonePromptRecoveryRequest(request acp.PromptRequest) acp.PromptRequest {
 	return cloned
 }
 
+// attemptPromptRecovery spends the existing bounded recovery schedule, waking early on verified sign-in.
 func (m *Manager) attemptPromptRecovery(
 	ctx context.Context,
 	session *Session,
@@ -79,7 +80,11 @@ func (m *Manager) attemptPromptRecovery(
 		// the recovery state. In that case it did not yet see a daemon-owned wait.
 		// Daemon shutdown may begin during the delay; it must not spawn a replacement runtime.
 		if session.promptCancellationRequested(turnState.turnID) ||
-			waitForPromptRecovery(recovery.executionCtx, delay) != nil || m.daemonShuttingDown() {
+			waitForPromptRecoverySignal(
+				recovery.executionCtx,
+				delay,
+				session.authRecoverySignal(reason),
+			) != nil || m.daemonShuttingDown() {
 			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 		}
 		if !budget.expiresAt.IsZero() && !m.now().Before(budget.expiresAt) {
@@ -210,7 +215,8 @@ func (m *Manager) startRecoveredPrompt(
 	return source, replayBlock, nil
 }
 
-func waitForPromptRecovery(ctx context.Context, delay time.Duration) error {
+// waitForPromptRecoverySignal waits for backoff, verified credentials, or cancellation.
+func waitForPromptRecoverySignal(ctx context.Context, delay time.Duration, ready <-chan struct{}) error {
 	if delay <= 0 {
 		return ctx.Err()
 	}
@@ -220,6 +226,8 @@ func waitForPromptRecovery(ctx context.Context, delay time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-timer.C:
+		return nil
+	case <-ready:
 		return nil
 	}
 }

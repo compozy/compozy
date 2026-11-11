@@ -1,10 +1,10 @@
 ---
 id: RT-provider-error-handoff
 area: RT
-title: A rate-limited or unauthenticated turn on a user session prescribes handoff
+title: Rate-limited user turns offer handoff while native auth failures retain login recovery
 persona: Rafa
 journey: J-15-operate-session-via-cli-api
-expected: When a session/prompt on a user session fails as rate_limited or not_authenticated, the persisted error event carries provider_error.next_action "handoff" with guidance "continue this session with another agent or route: compozy session continue <id> --agent <name>", the transcript marker is recorded, the session stays active, and nothing is created automatically; the same failures on spawned, coordinator, or system sessions keep retry/login, and pre-acceptance refusals keep use_fallback.
+expected: When a session/prompt on a user session fails as rate_limited, the persisted error event carries provider_error.next_action "handoff" with guidance "continue this session with another agent or route: compozy session continue <id> --agent <name>", the transcript marker is recorded, the session stays active, and nothing is created automatically; the same failures on spawned, coordinator, or system sessions keep retry/login, native CLI auth failures retain login guidance and waiting-for-auth recovery in the same session; pre-acceptance refusals keep use_fallback.
 entry_points: compozy session prompt <id> "…"; compozy session events <id> --type error -o json; GET /api/workspaces/{workspace_id}/sessions/{session_id}/events; compozy session continue <id> --agent <name>; compozy session list -o json
 qa_status: pass
 bug_ids: BUG-20260928-handoff-stream-error-says-retry; BUG-20260928-provider-error-notice-live-duplicate
@@ -76,3 +76,5 @@ Auth-leg verification 2026-11-03 (#1216): after six attempts in the isolated moc
 one terminal error retained `provider_auth_required` and `handoff`; subsequent prompts failed
 immediately until a successful turn re-armed recovery. This delta is recorded in
 `docs/qa/reports/2026-11-03-issue-1216-auth-recovery.md`; prior rate-limit evidence above is unchanged.
+
+Native-login recovery (#1481) is owned and re-walked by `RT-provider-auth-recovery`; auth errors no longer force a user-session handoff. Rate-limit handoff behavior is unchanged.
