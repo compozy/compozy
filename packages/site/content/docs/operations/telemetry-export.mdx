@@ -81,18 +81,18 @@ Config
 ======
 Path:               observability.otel.enabled
 Value:              true
-Scope:              global
+Scope:              user
 Target:             /home/ana/.compozy/config.toml
 Redacted:           false
 Lifecycle:          restart-required
 Applied:            false
 Next Action:        restart-daemon
-Apply Record:       -
-Active Generation:  14
+Apply Record:       cfgapp-2f7faa2253b9fd65
+Active Generation:  0
 Restart Required:   true
 Restart Scope:      daemon
-Status:             saved
-Winning Layer:      global
+Status:             --
+Winning Layer:      --
 
 $ compozy daemon stop && compozy daemon start
 $ compozy session prompt sess-9c1e "list my open sessions"
@@ -118,7 +118,8 @@ histogram_quantile(0.95, sum by (le) (rate(compozy_session_turn_duration_seconds
 ```
 
 Metrics show `pending` in `compozy status` until the first push, which happens every 60 seconds by
-default.
+default. The query returns `NaN` after a single turn, because `rate()` needs an increase between two
+samples; send a second prompt within the 5-minute window to get a value.
 
 `[observability] enabled` must stay `true`; with it off, status reports
 `inactive (observability.enabled = false)` and nothing is exported.
@@ -360,38 +361,42 @@ $ compozy daemon stop && compozy daemon start
 ## Overhead
 
 `BenchmarkTurnTelemetryFootprint` measures one turn with export disabled and with export enabled at a
-sample ratio of 1, exporting to an in-process OTLP/HTTP receiver. Each turn runs through the ACP
+sample ratio of 1, exporting to an in-process OTLP/HTTP receiver with the daemon's database write
+instrumentation installed. Each turn runs through the ACP
 driver against a mock agent on a warm session: 200 streamed chunks, one hosted tool call, and a usage
 event. Reproduce it from the repository root:
 
 ```bash
-go test ./internal/session -run '^$' -bench BenchmarkTurnTelemetryFootprint -benchmem -benchtime=10x -count=5
+go test ./internal/session -run '^$' -bench BenchmarkTurnTelemetryFootprint -benchmem -benchtime=10x -count=10
 ```
 
-Means of 5 runs of 10 turns each:
+Means of 10 runs of 10 turns each:
 
 | Measure                              | Disabled   | Enabled (100%) | Difference |
 | ------------------------------------ | ---------- | -------------- | ---------- |
-| Elapsed time per turn (`ns/turn`)    | 1,164.1 ms | 1,164.8 ms     | +0.07%     |
-| Process CPU per turn (`cpu_ns/turn`) | 135.3 ms   | 136.3 ms       | +0.8%      |
-| OTLP bytes per turn                  | 0          | 3,228 B        | 3.2 KB     |
-| Spans per turn                       | 0          | 2              |            |
+| Elapsed time per turn (`ns/turn`)    | 1,172.9 ms | 1,176.0 ms     | +0.26%     |
+| Process CPU per turn (`cpu_ns/turn`) | 145.6 ms   | 161.4 ms       | +10.9%     |
+| Heap allocations per turn            | 295,666    | 296,229        | +0.19%     |
+| OTLP bytes per turn                  | 0          | 6,614 B        | 6.5 KB     |
+| Spans per turn                       | 0          | 10             |            |
 
 - Elapsed time is dominated by the mock agent's streaming, so it includes provider I/O.
 - CPU is the benchmark process's user and system time from `getrusage`, around the measured turns and their
-  final export. Individual runs varied by about ±15%, so the +0.8% difference is within run-to-run
-  noise.
+  final export. Individual runs ranged from 82 ms to 197 ms in both modes, so the CPU difference is within
+  run-to-run noise. Allocations, which do not depend on machine load, grow by 563 per turn.
 - OTLP bytes are the serialized trace requests per turn plus one full metric push, counted as if
   every turn triggered a push.
-- The two spans are `session.turn` and `acp session/prompt`. The benchmark runs the session runtime
+- The spans are `session.turn`, `acp session/prompt`, and `db.write` spans for the turn's store
+  writes. The benchmark runs the session runtime
   without the daemon's HTTP server and hosted tool service, so it does not count the request span,
   `mcp.hosted.call`, or `tool.execute` that a daemon turn also exports.
 
-Measured on Linux amd64 with an Intel Core 7 240H (16 threads) and an otherwise idle machine.
+Measured on Linux amd64 with an Intel Core 7 240H (16 threads), with other agent sessions running
+(load average 3 to 7).
 
 ## Troubleshoot export
 
-Configuration errors stop `config set`, `compozy__config_set`, and config load with one of these
+Configuration errors stop `compozy config set` and config load with one of these
 messages:
 
 | Condition                     | Message                                                                                              | Action                                                          |

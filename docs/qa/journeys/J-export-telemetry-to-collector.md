@@ -60,7 +60,7 @@ journey:
       expected_observable: "Background work appears as its own root traces."
     - step: 5
       verb: "Query the p95 turn latency in Prometheus"
-      expected_observable: "The histogram_quantile query returns a value after the first metric push."
+      expected_observable: "The histogram_quantile query returns a value after a second turn inside the 5m window (NaN after the first)."
     - step: 6
       verb: "Break and repair the export (metrics off, unreachable endpoint, bad credential, forwarding on)"
       expected_observable: "Status changes to metrics off, degraded with the right error class, or adds forwarding to providers; the daemon and its turns keep working."

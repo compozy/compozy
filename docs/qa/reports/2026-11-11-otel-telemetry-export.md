@@ -35,16 +35,17 @@ Evidence paths are relative to `docs/qa/evidence/2026-11-11-otel-telemetry-expor
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
 | 1 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §1 golden path | Dora | Feature Tour | Pass | BUG-20261111-otel-model-exports-other (fixed); BUG-20261111-otel-model-probe-spawn-provider-other | 82347190f |
-| 2 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §2 status + RT-001 | Dora | Feature Tour | Blocked (human decision) | BUG-20261111-otel-header-refs-redacted | |
+| 2 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §2 status + RT-001 | Dora | Feature Tour | Pass | BUG-20261111-otel-header-refs-redacted (resolved) | |
 | 3a | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §3 web | Dora | Feature Tour | Fixed | BUG-20261111-web-adapter-requests-skip-traceparent | 47b40a7b4 |
 | 3b | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §3 desktop | Dora | Feature Tour | Blocked (needs human verify) | | |
 | 4 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §4 provider forwarding | Dora | Feature Tour | Blocked (needs human verify) | | |
 | 5 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §5 background traces | Dora | Feature Tour | Pass | | |
-| 6 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §6 agent refusal | Ada | Feature Tour | Blocked (human decision) | BUG-20261111-otel-header-refs-redacted | |
+| 6 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §6 agent refusal | Ada | Feature Tour | Pass | BUG-20261111-otel-header-refs-redacted (resolved) | |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 
-Scenario verdicts: `OBS-otel-export` → `blocked-decision`; `RT-001` → `pass` (the `otel` object matched across CLI,
+Scenario verdicts: `OBS-otel-export` → `blocked-verify` (desktop 3b and provider series 4; the header-ref decision
+is resolved); `RT-001` → `pass` (the `otel` object matched across CLI,
 HTTP, and UDS in every state).
 
 ### Per-walk results
@@ -63,13 +64,14 @@ HTTP, and UDS in every state).
    `QA-CANARY-otel-20261111`: 0 hits in its trace and 0 in every daemon trace of the last hour, which also had no
    `/home/…` path. Every exported span name, attribute key, metric, and resource attribute is listed in
    `telemetry-export.mdx` "What is exported". Evidence: `w1-*`.
-2. **Status over four surfaces — Blocked (human decision).** For ok, metrics off, degraded unreachable
+2. **Status over four surfaces — Pass (after the header-ref decision).** For ok, metrics off, degraded unreachable
    (`127.0.0.1:1`: `traces unavailable (3 failed), metrics unavailable (3 failed)`), degraded `header_ref_unresolved`
    (`failed_exports: 0`), recovered, and forwarding (`… · forwarding to providers`, `forward_to_providers: true`), the
    human line matched `_dx.md` and the `otel` object was identical across `status --json`, HTTP, and UDS. The only
    difference was `last_export_at` in the forwarding read, where a 5 s export landed between the CLI and HTTP reads. A
    prompt completed normally in each degraded state, and `status` exited 0. One expectation failed: the daemon log
-   masks the unresolved ref (`"ref":"[REDACTED]"`), which needs a product decision (below). The optional 401 leg was
+   masks the unresolved ref (`"ref":"[REDACTED]"`); the operator decision (below) kept the mask and corrected the
+   contract. The optional 401 leg was
    not walked; E2E-002 owns it. Evidence: `w2-*`.
 3. **Web — Fixed; desktop — Blocked (needs human verify).** The composer's `POST …/prompt` carried
    `00-fc6c6d88…-…-00`, and Jaeger's trace for that id is the HTTP server span → `session.turn` → ACP spans, so
@@ -99,7 +101,7 @@ HTTP, and UDS in every state).
    `session.turn`, and `hook.dispatch` (`session.post_create`, `session.message_persisted`, `session.post_stop`) descend
    from it. `loop.run` root with `compozy.loop.id = looprun-295092b387aac6d7`; both node turns descend from it. Hook
    spans sit under the turn that fired them. No prompt text appears in any background trace. Evidence: `w5-*`.
-6. **Agent refusal — Blocked (human decision).** A live Claude turn called `compozy__config_set` for
+6. **Agent refusal — Pass (after the header-ref decision).** A live Claude turn called `compozy__config_set` for
    `observability.otel.enabled` and `observability.otel.endpoint`; both returned `config_trust_root_forbidden`, and
    `config.toml` stayed byte-identical (sha256). The operator-side `compozy tool invoke compozy__config_set` was refused
    the same way (`tool_denied`, `reason_codes: [config_trust_root_forbidden]`), which matches `_dx.md` ("refuses every
@@ -117,11 +119,11 @@ HTTP, and UDS in every state).
     adapters used a bare fetch. Fixed.
   - Every turn's model exports `other` (Trust-Damage: the docs promise the catalog name for dashboards grouped by model).
   - A turn's model-option inspection spawn exports `gen_ai.system = other` (Friction).
-  - Header refs are masked in the daemon log and in `compozy__config_get` (Friction; needs a decision).
+  - Header refs are masked in the daemon log and in `compozy__config_get` (Friction; resolved by an operator decision).
 - **Bugs filed/updated:** BUG-20261111-web-adapter-requests-skip-traceparent (fixed),
   BUG-20261111-otel-model-exports-other, BUG-20261111-otel-model-probe-spawn-provider-other,
   BUG-20261111-otel-header-refs-redacted.
-- **Scenarios settled:** OBS-otel-export → blocked-decision; RT-001 → pass.
+- **Scenarios settled:** OBS-otel-export → blocked-verify; RT-001 → pass.
 - **Paper cuts:** see Paper Cuts.
 - **Surprises:** the first prompt of a fresh daemon spent about 14 s in a synchronous model-option inspection (15
   `session/set_config_option` probes) before the real provider spawn. The export made this visible; it predates this
@@ -148,8 +150,8 @@ HTTP, and UDS in every state).
 
 | Persona | Where (journey/step) | Felt | Sharpness | Outcome |
 |---|---|---|---|---|
-| Dora | J-export-telemetry-to-collector, Prometheus p95 | "The p95 query from the docs returns NaN after my first prompt." Needs a second turn inside the 5 m window. | dull | watching (docs could mention it) |
-| Dora | J-export-telemetry-to-collector, `config set` | The published sample shows `Scope: global`, `Status: saved`, `Winning Layer: global`; the CLI prints `Scope: user`, `Status: --`, `Winning Layer: --`. | dull | deferred (docs sample drift) |
+| Dora | J-export-telemetry-to-collector, Prometheus p95 | "The p95 query from the docs returns NaN after my first prompt." Needs a second turn inside the 5 m window. | dull | fixed (docs state the two-turn need) |
+| Dora | J-export-telemetry-to-collector, `config set` | The published sample shows `Scope: global`, `Status: saved`, `Winning Layer: global`; the CLI prints `Scope: user`, `Status: --`, `Winning Layer: --`. | dull | fixed (docs sample replaced with the captured output) |
 | Dora | J-export-telemetry-to-collector, Jaeger `db.write` | Some `compozy.db.operation` values are Go symbol names (`github.com/compozy/compozy/internal/store/sessiondb.(*SessionDB).writeTokenUsage`, `globaldb.UpsertToolProcessRecord`) next to snake_case names. | dull | deferred |
 | Dora | J-export-telemetry-to-collector, restart | Once, right after web onboarding, `compozy daemon stop && compozy daemon start` failed with `daemon: already running with pid …`; a retry worked and five later restarts were clean. | dull | watching (not reproduced) |
 | Ada | Loop start | `compozy loop run` from the CLI needs `start: - kind: uds`; declaring `kind: cli` alone is refused with `start_kind_not_allowed`. | dull | deferred (outside this spec) |
@@ -178,6 +180,7 @@ HTTP, and UDS in every state).
 ## Decisions for a Human
 
 ### Header refs are masked where the contract shows them (BUG-20261111-otel-header-refs-redacted)
+- Resolved (2026-11-11): option 1; the contract and docs now say the refs are masked.
 - What's broken: the daemon log line for an unresolved header and `compozy__config_get` print `[REDACTED]` instead
   of `env:NAME` / `vault:observability/<path>`; the published troubleshooting table and `_dx.md` promise the ref.
   Evidence: `w2-degraded-header-daemon-log.txt`, `w6-tool-invoke-config-get-header.json`.
@@ -210,13 +213,13 @@ HTTP, and UDS in every state).
   Lab teardown: `teardown.json` `clean: true`, no survivors; Compose stack removed with `docker compose down -v`.
   QA tree checks: `scripts/check-product-language.sh` passed; `materialize_state.py docs/qa` parsed 1096 scenarios.
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 1 (model `other`, fixed in `82347190f` and re-walked, see Addendum) · Friction 3
-  (web traceparent fixed; header refs masked, decision; probe provider `other`, open) · Cosmetic 0.
-- **Coverage:** 6/6 walks attempted; walks 1 and 5 pass, walk 3 web fixed and re-walked; walks 2 and 6 wait on the
-  header-ref decision; desktop (3b) and the provider's own export (4, step 3) need a human-verified environment. The
+  (web traceparent fixed; header refs masked, resolved by decision; probe provider `other`, open) · Cosmetic 0.
+- **Coverage:** 6/6 walks attempted; walks 1, 2, 5, and 6 pass (2 and 6 after the header-ref
+  decision); walk 3 web fixed and re-walked; desktop (3b) and the provider's own export (4, step 3) need a human-verified environment. The
   optional 401 leg was not walked (E2E-002 owns it).
 - **Verdict:** QA round complete with blocked items: export works end to end against a real Collector, Jaeger, and
-  Prometheus. One defect was fixed (`47b40a7b4`); one product decision and two environment-bound verifications remain,
-  and two low-to-medium attribute-labeling bugs are open.
+  Prometheus. Two defects were fixed (`47b40a7b4`, `82347190f`) and the header-ref decision is resolved; two
+  environment-bound verifications remain, and one low attribute-labeling bug (probe provider `other`) is open.
 
 ## Addendum — 2026-11-11 re-walk: catalog model names (BUG-20261111-otel-model-exports-other)
 

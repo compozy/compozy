@@ -68,3 +68,7 @@ log names the header and agents read refs only through the operator CLI.
 Operator decision (2026-11-11): keep the daemon-wide `env:`/`vault:` ref redaction. `_dx.md`,
 `telemetry-export.mdx`, and the official skill now say that the daemon log names the header (the ref is masked) and
 that `compozy__config_get` reads header values as `[REDACTED]`; the operator reads refs with `compozy config get`.
+The `redacted: false` flag is accepted: it reports only the config-path secret policy
+(`internal/config/tool_surface_security.go` marks `env`, `secret_env`, and auth login command keys), which does not
+cover header refs. The `[REDACTED]` value comes from the later daemon-wide ref redaction of the tool result, so the
+flag stays `false` while the value is masked.

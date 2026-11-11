@@ -43,7 +43,7 @@ under daemon-chosen trace ids, so the web client cannot correlate them and the "
   `window-manager-layouts-api`, `support-api`) called the daemon with `runtimeFetch`, a bare `globalThis.fetch`
   delegate exported from `web/src/lib/api-client.ts`. Only `apiClient`'s middleware and `daemonFetch` applied the
   traceparent rule, so any adapter that picked `runtimeFetch` silently opted out.
-- **Fix commit:** see the report's What Was Fixed (`fix: send traceparent from every web daemon adapter`).
+- **Fix commit:** `47b40a7b4` (`fix: send traceparent from every web daemon adapter`).
   `runtimeFetch` is removed; `apiClient` and every adapter use `daemonFetch`, the single place that applies the rule.
 - **Regression test:** `web/src/systems/terminal/adapters/__tests__/terminal-api.test.ts` "Should join each daemon
   request to a fresh unsampled trace" — failed before (no `traceparent`), passes after.

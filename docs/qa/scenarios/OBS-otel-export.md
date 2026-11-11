@@ -6,10 +6,10 @@ persona: Dora
 journey: J-export-telemetry-to-collector
 expected: With export enabled against the Compose Collector, each prompt is one session.turn trace in Jaeger with spawn, ACP, and hosted tool spans nested, the Prometheus p95 query returns a value, and status reports export health identically over CLI, HTTP, and UDS.
 entry_points: compozy config set observability.otel.*; compozy status; compozy status --json; GET /api/status over HTTP; GET /api/status over UDS; web session composer; desktop app; compozy__config_set; http://localhost:16686; http://localhost:9090
-qa_status: blocked-decision
+qa_status: blocked-verify
 bug_ids: BUG-20261111-web-adapter-requests-skip-traceparent; BUG-20261111-otel-model-exports-other; BUG-20261111-otel-model-probe-spawn-provider-other; BUG-20261111-otel-header-refs-redacted
-fix_status: pending
-retest_status: pass
+fix_status: fixed
+retest_status: pending
 fix_commits: 47b40a7b4; 82347190f
 evidence: docs/qa/evidence/2026-11-11-otel-telemetry-export/
 last_report: docs/qa/reports/2026-11-11-otel-telemetry-export.md
@@ -55,7 +55,8 @@ hosted MCP tools are enabled (claude or codex).
    the UI (service `compozy-daemon`, operation `session.turn`).
 7. Prometheus: `curl -s http://localhost:9090/api/v1/query --data-urlencode
    'query=histogram_quantile(0.95, sum by (le) (rate(compozy_session_turn_duration_seconds_bucket[5m])))'`
-   after one scrape (15 s) past the first metric push.
+   after a second turn inside the 5 m window and one scrape (15 s) past the next metric push; after a single turn
+   `rate()` sees no increase and the query returns `NaN`.
 8. Privacy spot check: send a second prompt containing `QA-CANARY-otel-<date>`, then
    `curl -s http://localhost:16686/api/traces/<trace-id> | grep -c QA-CANARY` → `0`.
 
@@ -135,13 +136,8 @@ Expected: every daemon-bound request carries a `-00` header with a fresh trace i
 HTTP server span as its root, and for the prompt it continues into `session.turn`. Requests to non-daemon origins
 (desktop update feed) carry no `traceparent`. At ratio 0 nothing is exported for client requests.
 
-Pre-walk risk (from code reading; confirmed and fixed in e434ff7fd before the 2026-11-11 walk): the composer's prompt send does not go through
-`web/src/lib/api-client.ts`. `use-session-chat-runtime.ts` passes `createGoalAwareFetch` (default
-`globalThis.fetch`, `session-goal-chat-transport.ts`) to the AI SDK chat transport, so the `apiClient` middleware that
-adds `traceparent` never runs for `POST …/prompt`. The desktop window embeds the same web client. If the walk confirms
-a prompt POST without `traceparent`, register a bug and route the fix to the web transport (UT-060 covers only
-`apiClient` requests). The task_11 note "each request, including a prompt send, already joins its daemon trace"
-would then be wrong. `startTraceAction()` is still unused; decide here whether a multi-request action needs it.
+History: the composer prompt POST bypassed `apiClient` before e434ff7fd; every web daemon request now goes through
+`daemonFetch` (47b40a7b4).
 
 Evidence: HAR or Playwright request log with the headers, Jaeger trace JSON per trace id, screenshot of the web trace.
 
@@ -236,6 +232,9 @@ Walked against the `_dx.md` Compose stack (report `docs/qa/reports/2026-11-11-ot
   no series to the Collector even when run directly, so step 3 is blocked.
 - §5 pass. §6 refusal pass; `compozy__config_get` masks the header ref as now documented
   (BUG-20261111-otel-header-refs-redacted, resolved).
+- State: `blocked-verify` on the two human verifications (desktop §3, provider series §4 step 3). `fix_status` stays
+  `pending` for the open BUG-20261111-otel-model-probe-spawn-provider-other; the fixed traceparent and model bugs were
+  re-walked and pass.
 
 ## Regression hot spots
 
@@ -251,7 +250,7 @@ that touches one of them goes back to the named suite.
 | SI-5 `session.turn` single end owner | UT-037, IT-004, IT-005, IT-017, IT-018 (session part), IT-019 in `internal/session` `TestPromptTurnTrace`; `TestPromptTurnOutcome` | covered; IT-018's HTTP span error status is not asserted (otelgin maps the missing binary to 404) |
 | SI-6 ADR-002 non-coalesced writes keep caller cancellation; attribution is a value only | IT-021 `internal/store/sessiondb` `TestSessionWriterAttribution`; UT-043 `internal/store` `TestWriteObservation` | covered |
 | SI-7 coalesced batch updates each turn account once; `Add` after `Close` ignored | IT-015 `TestSessionWriterAttribution`; UT-044 `TestTurnWriteAccount`; UT-040–UT-042 `internal/telemetry` `TestRecordDBWrite` | covered |
-| SI-8 export is asynchronous; nothing waits on an exporter | `BenchmarkTurnTelemetryFootprint` (+0.07 % elapsed), `BenchmarkSpanOverhead`; walk 2 degraded legs | partial: no test blocks the exporter during a turn |
+| SI-8 export is asynchronous; nothing waits on an exporter | `BenchmarkTurnTelemetryFootprint` (+0.26 % elapsed), `BenchmarkSpanOverhead`; walk 2 degraded legs | partial: no test blocks the exporter during a turn |
 | SI-9 `Init` failure degrades and never blocks boot | UT-015/UT-016 `internal/telemetry` `TestInitDegradesWhenExportCannotStart`, `TestInitInstallsNoopProvidersWhenExportCannotRun`; E2E-002 | covered |
 | SI-10 shutdown after servers stop, bounded to 5 s | UT-019 `TestRuntimeShutdownIsBoundedByItsContext`; `internal/daemon` `TestBootTelemetryStartsAfterTheServersMountTheirRoutes`; task_03 mutants (order, 5 s bound) | covered |
 | SI-11 only the sanitizing exporter is constructible | `internal/telemetry` `TestPackageBoundary`; depguard rule `otel-sdk-telemetry-only` | covered |
