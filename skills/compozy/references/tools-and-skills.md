@@ -428,21 +428,22 @@ policies, option catalogs, supervision and diagnostic internals, embedded defini
 
 Every field in a compact result is in the full result at the same path with the same value.
 
-`compozy__tool_list` and `compozy__tool_search` return compact rows by default, with
-`has_result_views` for discovery. List rows keep id, risk, callable, approval_required,
-reason codes and page fields; search also keeps description. Pass `result_view: "full"`
-for the complete discovery records. `compozy__tool_info` stays whole and exposes both
-`output_views.compact` and `output_views.full`, each with schema and digest.
+`compozy__tool_list` compact rows keep descriptor `id`, `risk` and `has_result_views`,
+availability, callable/approval decisions and reason codes; page fields stay unchanged.
+List rows have no description in either view. `compozy__tool_search` compact rows keep
+`description` and the two `output_views` digests instead of `has_result_views`.
+Pass `result_view: "full"` for the complete discovery records. `compozy__tool_info`
+stays whole and exposes both view schemas and digests.
 
 ## Errors
 
-| Condition                                             | Code                 | Reason                            | Message                                                                                |
+| Condition                                             | Code                 | Reason                            | Dispatch message                                                                       |
 | ----------------------------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
 | Unknown `result_view` value                           | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
 | `result_view` is not a string                         | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__session_status" input "result_view" must be one of "compact", "full"`  |
 | `result_view` sent to a single-result tool            | `tool_invalid_input` | `schema_invalid`                  | `tool "compozy__skill_view" returns a single result and does not accept "result_view"` |
 | Loop node `result_view` is a template                 | lint                 | `result_view_not_literal`         | `node "inspect" params.result_view must be a literal "compact" or "full"`              |
-| Loop reference reads a field outside the compact view | lint                 | `result_view_field_requires_full` | see the Loops section                                                                  |
+| Loop reference reads a field outside the compact view | lint                 | `result_view_field_requires_full` | `result_view_field_requires_full`, naming the source node and path                     |
 | A hook changed `result_view` on a Loop node's call    | `tool_denied`        | `result_view_pinned`              | `tool "compozy__session_status" result view is pinned to "full" by the caller`         |
 
 Tools that report input errors as `invalid_request` keep that code for the first three rows. In every
@@ -450,6 +451,10 @@ case the tool does not run. The first three rows apply to native tools only: an 
 that has its own input named `result_view` is not inspected and behaves as before.
 
 A path that neither view accepts keeps the existing Loop error `unresolvable_path`.
+
+CLI and HTTP/UDS errors retain the code and reason but redact the dispatch message to
+`invalid tool request` for input errors or `tool invocation denied` for denials. The table
+shows dispatch diagnostics, not a guaranteed verbatim CLI message.
 
 ## Approvals
 

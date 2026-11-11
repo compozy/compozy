@@ -182,7 +182,7 @@ Pass `request_id` for replay-safe transport retries. The same key with different
 Follow **inspect → validate → dry-run → publish (with `expected_version`) → run**. Every step before
 `run` is structured and spends no tokens.
 
-1. **inspect** — `compozy__loop_inspect` with `result_view: "full"` returns the complete inspection record and its current `version`. Read the
+1. **inspect** — `compozy__loop_inspect` returns the input contract and its current `version`. Read the
    version before you change anything.
 2. **validate** — `compozy__loop_validate` lints and compiles a candidate without saving; it returns
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
@@ -941,7 +941,7 @@ blocked reports keep their existing judge/control handling, including while anot
 
 ## Loops
 
-A tool action node selects its view in `params`. The value is a literal.
+A tool action node selects its view in `params`. The value must be the literal `compact` or `full`.
 
 ```yaml
 graph:
@@ -968,10 +968,7 @@ Without `result_view: full` on `inspect`, Loop validation (`compozy__loop_valida
 
 ```text
 error: result_view_field_requires_full
-  node "report" reads nodes.inspect.output.session.lineage, which the compact result of
-  compozy__session_status does not include (the compact lineage includes identity, ttl_expires_at and spawn_budget,
-  but not permission_policy).
-  fix: add `result_view: full` to the params of node "inspect".
+  node "report" reads nodes.inspect.output.session.lineage.permission_policy.tools, which the compact result of compozy__session_status does not include; fix: add `result_view: full` to the params of node "inspect"
 ```
 
 With `result_view: full`, a reference may read any field the full record carries, including fields

@@ -518,11 +518,11 @@ views. `tool_result` is the encoded tool result envelope, as before; the record 
   "tool_id": "compozy__session_status",
   "tool_call_id": "call-31",
   "has_result_views": true,
-  "tool_input": { "session_id": "sess-7f3a9c21d4e80b16" },
+  "tool_input": { "session_id": "sess-example" },
   "result_view": "compact",
   "tool_result": {
-    "structured": { "session": { "id": "sess-7f3a9c21d4e80b16", "state": "active" } },
-    "preview": "sess-7f3a9c21d4e80b16"
+    "structured": { "session": { "id": "sess-example", "state": "active" } },
+    "preview": "sess-example"
   }
 }
 ```
@@ -533,14 +533,14 @@ when `has_result_views` is true:
 
 ```json
 // tool.pre_call patch
-{ "tool_input": { "session_id": "sess-7f3a9c21d4e80b16", "result_view": "full" } }
+{ "tool_input": { "session_id": "sess-example", "result_view": "full" } }
 ```
 
 Three consequences of that patch:
 
 - The calling agent receives the full record too. A hook cannot get the full record while the agent
   gets the compact one.
-- On a tool without views (`has_result_views` absent) the patched call fails with `tool_invalid_input` /
+- On a native tool without views (`has_result_views` absent) the patched call fails with `tool_invalid_input` /
   `schema_invalid`.
 - On a call made by a Loop node the view is fixed by the Loop definition, and the tool reference carries
   `pinned_result_view` (`"compact"` or `"full"`). A patch that changes it fails the node with

@@ -1301,17 +1301,18 @@ Every field in a compact result is in the full result at the same path with the 
 ### Session record tools
 
 `compozy__session_status`, `compozy__session_create` and `compozy__session_archive` return the same
-compact session record shown in the Golden Path. Optional fields appear only when set:
+compact session record shown above. Optional fields appear only when set:
 
-| Field                                   | When present                             |
-| --------------------------------------- | ---------------------------------------- |
-| `attention`, `waiting_on`               | The session needs the operator or waits  |
-| `pending_interactions[]`                | Always (empty list when none)            |
-| `stop_reason`, `stop_detail`, `failure` | The session stopped or failed            |
-| `runtime.failure`                       | The runtime binding failed               |
-| `worktree_id`, `branch`, `pull_request` | The session is bound to a worktree       |
-| `queue`, `children`, `subagent_summary` | The session has queued input or children |
-| `later`                                 | The session is set aside for later       |
+| Field                                   | When present                            |
+| --------------------------------------- | --------------------------------------- |
+| `attention`, `waiting_on`               | The session needs the operator or waits |
+| `pending_interactions[]`                | Always (empty list when none)           |
+| `stop_reason`, `stop_detail`, `failure` | The session stopped or failed           |
+| `runtime.failure`                       | The runtime binding failed              |
+| `worktree_id`, `branch`                 | A worktree or branch is associated      |
+| `pull_request`                          | Always; null when none is associated    |
+| `queue`, `children`, `subagent_summary` | The corresponding summary is available  |
+| `later`                                 | The session is set aside for later      |
 
 `transcript_epoch`, `runtime.generation` and `runtime.selection_revision` are the fences
 `compozy__session_rewind`, `compozy__session_fork`, `compozy__session_continue` and
@@ -1322,15 +1323,15 @@ returned has none), `transcript_epoch` until the first clear or rewind. Pass 0 a
 case. `lineage` carries `kind`, `parent_session_id`, `root_session_id`, `ttl_expires_at` and `spawn_budget` in the
 compact result; the permission policy is in the full result.
 
-A session waiting on a permission prompt:
+Excerpt from a session waiting on a permission prompt:
 
 ```json
 {
   "session": {
-    "id": "sess-7f3a9c21d4e80b16",
+    "id": "sess-example",
     "agent_name": "general",
     "state": "active",
-    "badge": "waiting-for-input",
+    "badge": "waiting-for-auth",
     "board_column": "needs_you",
     "runtime": {
       "status": "ready",
@@ -1338,7 +1339,7 @@ A session waiting on a permission prompt:
     },
     "pending_interactions": [
       {
-        "session_id": "sess-7f3a9c21d4e80b16",
+        "session_id": "sess-example",
         "interaction_id": "int-52c1",
         "kind": "permission",
         "provider_request_id": "req-9",
@@ -1363,9 +1364,9 @@ A session waiting on a permission prompt:
   "input": { "agent_name": "general", "ttl_seconds": 3600 }
 }
 
-// result (compact, default)
+// result excerpt (compact, default)
 {
-  "session_id": "sess-1b22e0a947c35d08",
+  "session_id": "sess-child",
   "spawn_role": "worker",
   "spawn_depth": 1,
   "ttl_expires_at": "2026-11-10T15:20:02Z"
@@ -1382,9 +1383,9 @@ and `worktree` entries.
 // call
 { "tool": "compozy__tool_info", "input": { "tool_id": "compozy__session_status" } }
 
-// result (descriptor excerpt)
+// result (descriptor excerpt; inside tool.descriptor)
 {
-  "tool_id": "compozy__session_status",
+  "id": "compozy__session_status",
   "description": "Read one session. Returns the compact result; pass result_view \"full\" for the complete record.",
   "input_schema": {
     "type": "object",
@@ -1406,8 +1407,9 @@ and `worktree` entries.
 }
 ```
 
-`output_schema` and `output_schema_digest` always describe the compact view. The schemas above are
-shortened; the real ones list every property.
+For a tool with views, `output_schema` and `output_schema_digest` describe the compact view. The schemas above are
+shortened. Full schemas can leave parts of a record open; inspect the live schema and result
+before referencing a field.
 
 A single-result tool has no `output_views` and no `result_view` input:
 

@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtin "github.com/compozy/compozy/internal/tools/builtin"
 )
 
@@ -28,7 +29,10 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 	acpmock.RequireDriver(t)
 	opts := &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{{
 		FixturePath: mockFixturePath(t, "multi_agent_fixture.json"), FixtureAgent: "alpha", AgentName: "general",
-	}}, ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *config.Config) { cfg.Roles.AutoTitle.Enabled = false; cfg.ProviderUsage.Enabled = false }}}
+	}}, ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *config.Config) {
+		cfg.Roles.AutoTitle.Enabled = false
+		cfg.ProviderUsage.Enabled = false
+	}}}
 	for _, d := range builtin.NativeDescriptors() {
 		opts.MockAgents[0].Tools = append(opts.MockAgents[0].Tools, d.ID.String())
 	}
@@ -97,6 +101,7 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 	t.Run("Should measure both session views through public CLI E2E-001", func(t *testing.T) {
 		for _, name := range []string{"session_status", "session_create", "session_spawn", "session_archive"} {
 			input := map[string]any{}
+			var archiveLineage *contract.SessionLineagePayload
 			switch name {
 			case "session_status":
 				input["session_id"] = parent.ID
@@ -121,6 +126,11 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 				if err := h.StopSession(ctx, child.ID); err != nil {
 					t.Fatal(err)
 				}
+				before, err := h.GetSession(ctx, child.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				archiveLineage = before.Lineage
 				input["session_id"] = child.ID
 			}
 			compact := invoke(t, "compozy__"+name, input)
@@ -134,21 +144,68 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 				100*(1-float64(len(compact.Result.Structured))/float64(len(full.Result.Structured))),
 				utf8.RuneCount(full.Result.Structured), utf8.RuneCount(compact.Result.Structured),
 			)
-			if name != "session_create" && len(compact.Result.Structured)*5 > len(full.Result.Structured) {
-				t.Fatalf("%s misses 80%% reduction", name)
+			// The hosted MCP projection emits the preview plus the structured JSON as text.
+			// Count both, rather than presenting structured bytes as total model-facing text.
+			compactChars := utf8.RuneCountInString(compact.Result.Preview) + utf8.RuneCount(compact.Result.Structured)
+			fullChars := utf8.RuneCountInString(full.Result.Preview) + utf8.RuneCount(full.Result.Structured)
+			t.Logf("HOSTED_TEXT %s full_chars=%d compact_chars=%d", name, fullChars, compactChars)
+			if name != "session_create" &&
+				(compactChars*5 > fullChars || len(compact.Result.Structured)*5 > len(full.Result.Structured)) {
+				t.Fatalf("%s misses 80%% text reduction", name)
+			}
+			var compactRecord map[string]any
+			if err := json.Unmarshal(compact.Result.Structured, &compactRecord); err != nil {
+				t.Fatal(err)
+			}
+			var compactID string
+			if name == "session_spawn" {
+				compactID, _ = compactRecord["session_id"].(string)
+			} else if session, ok := compactRecord["session"].(map[string]any); ok {
+				compactID, _ = session["id"].(string)
+			}
+			if compactID == "" {
+				t.Fatal("compact result lost the follow-up session handle")
+			}
+			if _, err := h.GetSession(ctx, compactID); err != nil {
+				t.Fatal(err)
 			}
 			var record map[string]any
 			if err := json.Unmarshal(full.Result.Structured, &record); err != nil {
 				t.Fatal(err)
 			}
-			if name == "session_status" {
+			if name == "session_archive" {
+				var archived struct {
+					Session contract.SessionPayload `json:"session"`
+				}
+				if err := json.Unmarshal(full.Result.Structured, &archived); err != nil {
+					t.Fatal(err)
+				}
+				// Archive returns a catalog snapshot, unlike live session detail. Its
+				// persisted full lineage must survive the mutation without projection.
+				if archived.Session.ArchivedAt == nil || archiveLineage == nil ||
+					len(archiveLineage.PermissionPolicy.Tools) == 0 ||
+					!reflect.DeepEqual(archiveLineage, archived.Session.Lineage) {
+					t.Fatal("full archive lost persisted lineage or archive state")
+				}
+			}
+			if name == "session_status" || name == "session_create" {
 				session := record["session"].(map[string]any)
-				if session["lineage"] == nil {
+				if name == "session_status" && session["lineage"] == nil {
 					t.Fatal("full result lost lineage")
 				}
-				previous, err := h.GetSession(ctx, parent.ID)
+				previous, err := h.GetSession(ctx, session["id"].(string))
 				if err != nil {
 					t.Fatal(err)
+				}
+				// Create historically returns SessionPayloadFromInfo, without the
+				// profile owners and queue/linked-work decorations used by detail reads.
+				if name != "session_status" {
+					previous.ProfileName, previous.ProfileColor, previous.ProfileIcon, previous.ProfileEmoji = "", "", "", ""
+					previous.ProfileArchived = false
+					previous.Queue, previous.LinkedWork = nil, nil
+					if name == "session_create" {
+						previous.ParentTitle = ""
+					}
 				}
 				previousJSON, err := json.Marshal(previous)
 				if err != nil {
@@ -174,7 +231,7 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 		}
 	})
 	t.Run("Should discover both contracts and reject invalid selectors E2E-002", func(t *testing.T) {
-		var info map[string]any
+		var info contract.ToolResponse
 		if err := h.CLI.RunJSONInDir(
 			ctx,
 			h.WorkspaceRoot,
@@ -187,20 +244,40 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		encoded, err := json.Marshal(info)
-		if err != nil {
+		descriptor := info.Tool.Descriptor
+		views := descriptor.OutputViews
+		if descriptor.ToolID != toolspkg.ToolID("compozy__session_status") || views == nil {
+			t.Fatal("descriptor lost result views")
+		}
+		if len(views.Compact.Schema) == 0 || len(views.Full.Schema) == 0 || views.Compact.Digest == "" ||
+			views.Full.Digest == "" {
+			t.Fatal("descriptor must publish both schemas and digests")
+		}
+		var defaultSchema, compactSchema map[string]any
+		if err := json.Unmarshal(descriptor.OutputSchema, &defaultSchema); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(encoded), `"output_views"`) || !strings.Contains(string(encoded), `"compact"`) ||
-			!strings.Contains(string(encoded), `"full"`) {
-			t.Fatal("invalid descriptor JSON")
+		if err := json.Unmarshal(views.Compact.Schema, &compactSchema); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(defaultSchema, compactSchema) || descriptor.OutputSchemaDigest != views.Compact.Digest {
+			t.Fatal("default descriptor contract must equal compact")
 		}
 		full := invoke(t, "compozy__session_status", map[string]any{"session_id": parent.ID, "result_view": "full"})
-		if len(full.Result.Structured) == 0 {
-			t.Fatal("empty full result")
+		var fullRecord struct {
+			Session struct {
+				Lineage *contract.SessionLineagePayload `json:"lineage"`
+			} `json:"session"`
+		}
+		if err := json.Unmarshal(full.Result.Structured, &fullRecord); err != nil {
+			t.Fatal(err)
+		}
+		if fullRecord.Session.Lineage == nil || len(fullRecord.Session.Lineage.PermissionPolicy.Tools) == 0 {
+			t.Fatal("full result lost the session permission policy")
 		}
 		for _, row := range []struct{ id, input string }{
 			{"compozy__session_status", fmt.Sprintf(`{"session_id":%q,"result_view":"summary"}`, parent.ID)},
+			{"compozy__session_status", fmt.Sprintf(`{"session_id":%q,"result_view":true}`, parent.ID)},
 			{"compozy__skill_view", `{"name":"compozy","result_view":"full"}`},
 		} {
 			out, stderr, err := h.CLI.RunInDir(
@@ -214,7 +291,8 @@ func TestDaemonE2ENativeResultViews(t *testing.T) {
 				"-o",
 				"json",
 			)
-			if err == nil || !strings.Contains(out+stderr, "tool_invalid_input") {
+			if err == nil || !strings.Contains(out+stderr, "tool_invalid_input") ||
+				!strings.Contains(out+stderr, "schema_invalid") {
 				t.Fatalf("invalid selector outcome: %v %s %s", err, out, stderr)
 			}
 			t.Logf("selector rejection: %s %s", out, stderr)

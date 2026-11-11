@@ -36,8 +36,8 @@ and compact defaults; it is not the original pre-adoption catalog (744,687 bytes
 
 Search roots: skills/, extensions/, .agents/, .compozy/agents and internal/ prompt templates.
 Moved-field reads repaired: tasks-and-orchestration reply watches; runtime-operations ACP
-capabilities and supervision; loops resolved runtime and full inspection; open-design-review
-inspection/node output detail; merge-gate lineage spawn depth; agent-definitions appearance.
+capabilities and supervision; loops resolved runtime; merge-gate lineage spawn depth;
+agent-definitions appearance. OpenDesign reads retained fields and needs no selector change.
 Runtime confirmation instructions read runtime.effective, which compact retains. Merge-gate
 lineage identity remains in compact. Automation Job, Trigger and LoopTarget in
 internal/automation/model/types.go contain session/Task/Loop targets and event input mappings;
@@ -90,6 +90,8 @@ owned and joined by RuntimeHarness; targeted bootstrap teardown independently ch
 
 ## Exact commands
 
+Set `S10_QA_OUTPUT` to the isolated bootstrap manifest’s `qa_output_path`.
+
 ```sh
 bun install
 make codegen
@@ -97,7 +99,7 @@ go test ./internal/tools/builtin -run 'Test(NativeResult|SingleResultContracts|R
 go test ./internal/daemon -run 'TestNative(ResultViewContracts|SessionResultViews)' -v -count=1
 go test ./internal/mcp -run TestHostedResultViewCatalogSize -v -count=1
 go test ./internal/testutil/e2e -run '^TestSeedConfigPersistsProviderUsageOverlay$' -count=1
-COMPOZY_S10_LAB_MANIFEST=/Users/pedronauck/dev/qa-labs/compozy-native-result-views-s10-20261111-000039-415039-lab/qa-artifacts/qa/bootstrap-manifest.json go test -tags=integration ./internal/daemon -run '^TestDaemonE2ENativeResultViews$' -v -count=1
+COMPOZY_S10_LAB_MANIFEST="$S10_QA_OUTPUT/qa/bootstrap-manifest.json" go test -tags=integration ./internal/daemon -run '^TestDaemonE2ENativeResultViews$' -v -count=1
 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./internal/tools/builtin ./internal/testutil/e2e --new-from-rev=HEAD
 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --build-tags=integration ./internal/daemon --new-from-rev=HEAD
 bunx turbo run generate:content typecheck lint --filter=./packages/site --only
@@ -124,7 +126,7 @@ come from the spec; the full/compact columns are paired measurements in the curr
 Full status preserves the unchanged native content; all 99 populated full projections
 are also checked by the owning contract suite. Create has no size threshold.
 
-The lab evidence root is `/Users/pedronauck/dev/qa-labs/compozy-native-result-views-s10-20261111-000039-415039-lab/qa-artifacts/qa`.
+The lab evidence root is `$S10_QA_OUTPUT/qa`, resolved from the bootstrap manifest.
 It contains `bootstrap-manifest.json`, `journey-log.jsonl`, `verification-report.md`,
 `result-views-e2e.log`, `result-views-contract.log`, `result-views-builtin.log`,
 `result-views-seed.log`, and `result-views-mcp.log`. Journey entries are retrospective,
@@ -138,14 +140,13 @@ No lab daemon or dev server remains running. Focused Go lint reports zero issues
 for builtin, the seed helper and daemon integration tests.
 
 ```sh
-python3 .agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path /Users/pedronauck/dev/qa-labs/compozy-native-result-views-s10-20261111-000039-415039-lab/qa-artifacts --strict --explain
-python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --manifest /Users/pedronauck/dev/qa-labs/compozy-native-result-views-s10-20261111-000039-415039-lab/qa-artifacts/qa/bootstrap-manifest.json
+python3 .agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path $S10_QA_OUTPUT --strict --explain
+python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --manifest "$S10_QA_OUTPUT/qa/bootstrap-manifest.json"
 ```
 
 Audit fixes: `skills/compozy/references/tasks-and-orchestration.md:48`,
-`runtime-operations.md:67,1650`, `loops.md:185,778`, `agent-definitions.md:336`,
-`.compozy/agents/merge-gate/AGENT.md:22`, and
-`extensions/open-design/skills/open-design-review/SKILL.md:12,53`. All request full
+`runtime-operations.md:67,1650`, `loops.md:778`, `agent-definitions.md:336`, and
+`.compozy/agents/merge-gate/AGENT.md:22`. All request full
 when reading moved fields. No additional moved-field reads were found in bundled
 `.agents` procedures or internal agent prompt templates.
 
@@ -163,3 +164,87 @@ go test ./internal/tools ./internal/loop ./internal/mcp -run 'Test(RuntimeRegist
 ```
 
 Results: tools 0.589s, loop 0.883s, mcp 1.485s.
+
+## S10 corrective self-review
+
+Reviewed the slice against integration follow-ups `24f9e24f8` and `b7ba7f741`.
+The generated catalog was not changed in this pass.
+
+- P2: the migration field inventory reflected populated fixtures, missing optional
+  fields, and incorrectly marked approval `profile_archived` as full-only. The release
+  note now follows projection fields and explicitly preserves gate prompts, review
+  `delivery_id`, archived-profile state and the conditional skill diagnostics rule.
+  `session_list` also retains folder and health fields.
+- P2: native search discovery uses `output_views` digests, not `has_result_views`.
+  Corrected the official reference. Native list keeps `has_result_views` and has no
+  description; tool info stays whole.
+- P2: CLI examples omitted the invoke envelope and the `tool` wrapper on info.
+  Corrected the jq paths, native descriptor `id`, and the moved-field diagnostic path.
+  Full schemas can be open; the documentation no longer promises all fields are declared.
+  Error tables distinguish dispatcher detail from redacted CLI/HTTP messages.
+- P2: E2E discovery checked only JSON substrings and full invocation only nonempty output.
+  It now asserts both actual schemas/digests, default-contract equality and full lineage
+  policy, rejects a non-string selector, reuses compact IDs, and compares full create
+  and status against unchanged records, plus archive lineage against its pre-archive value. Hosted text counts include preview plus
+  structured JSON, matching the hosted result projection; they are not token counts.
+- P2: committed QA commands contained an operator-specific absolute lab path. Replaced
+  it with `S10_QA_OUTPUT`, resolved from the bootstrap manifest; examples use synthetic IDs. Root lineage omits `kind`, and permission prompts use
+  the canonical `waiting-for-auth` badge.
+- P3: OpenDesign inspection and output review read fields compact keeps. Reverted those
+  full selectors. The general Loop authoring instruction now reads the retained input
+  contract/version without requesting full.
+
+Retained scope additions: merge-gate reads `lineage.spawn_depth`; agent identity docs read
+appearance; runtime docs read ACP catalogs and supervision; reply-watch docs read
+`reply_watches`. Those fields require full. Root/site migration parity requires updating
+MIGRATION_GUIDE.md. The config seed repair persists disabled provider usage, and the ACP
+fixture turn is consumed by the full-view Loop journey. Its actual path is
+`internal/testutil/acpmock/testdata/multi_agent_fixture.json`.
+
+UT-014 plus the existing `TestSingleResultContracts` cover exclusive classification and
+orphan single-result entries; UT-015 checks the exact fields specified by the contract.
+No duplicate assertion was added. The three public CLI/process journeys remain together
+in the daemon E2E suite behind `integration && !windows`, matching adjacent RuntimeHarness
+CLI suites; the direct in-process lifecycle suite remains separate.
+
+### Hosted discovery cost finding
+
+The measured S10 full-policy catalog is 1,087,936 bytes versus 744,687 before the feature
+(+343,249, 46.1%). `hostedMCPTool` in `internal/mcp/hosted_proxy.go` sets OutputSchema;
+`reconcileHostedTools` registers that tool with the MCP SDK. The private cache middleware
+only adds cache scope/TTL and the protocol middleware does not prune tools/list. Both
+schemas therefore reach the managed provider's MCP client. This repository does not
+prove whether each external provider forwards outputSchema into model context.
+
+A cheaper advertisement would be an object-only output schema with detailed contracts
+available through tool info, retaining selected-view validation inside dispatch. That
+would sacrifice client-side detailed output validation and change the accepted MCP
+contract, so it is a finding for a separate decision, not an internal/mcp edit in S10.
+
+The corrective test run first exposed two invalid newly added comparisons: raw JSON schema
+bytes differ by indentation in CLI output, and session detail adds fields not emitted by
+the historical create/archive handlers. Schema equality now compares decoded values and
+exact digests. Record equality accounts for the explicit decorations in
+`internal/api/core/authored_context_access.go` and `session_profile_owners.go`;
+`origin/main:internal/daemon/native_session_mutation.go` and `native_session_archive.go`
+both used `SessionPayloadFromInfo` without those decorators. The original status equality
+and 80% byte threshold remain, with an additional text-character threshold.
+
+Archive returns `sessionInfoFromCatalog` from `internal/session/archive.go`, while
+status can return live session metadata. The catalog intentionally lacks live workspace
+path and permission mode and has its own update time. The archive journey therefore
+compares the persisted full lineage against its pre-archive value and checks archive
+state; it does not equate the catalog snapshot with live session detail.
+
+Corrective verification:
+
+- `go test ./internal/tools/builtin -run 'Test(NativeResult|SingleResultContracts|ResultViewDeclaration)' -count=1`: passed (0.476s).
+- `go test -tags=integration ./internal/daemon -run '^TestDaemonE2ENativeResultViews$' -v -count=1`: all three journeys passed (36.421s). The RuntimeHarness owns its temporary home, port, socket and teardown; no provider credentials or dev server were used.
+- `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --build-tags=integration ./internal/daemon --new-from-rev=c936360e1`: passed, 0 issues after the focused formatter correction.
+- `bash scripts/verify-migration-guide-parity.sh`: passed.
+- `bunx turbo run generate:content typecheck lint --filter=./packages/site --only`: passed, 3 tasks (5.66s), zero warnings/errors.
+- Release-note defaults compared with the integration catalog: exactly 99 tools, no missing tools and no single-result tools. Catalog unchanged.
+
+The corrective run's structured full/compact byte samples were status 16,841/1,203,
+create 2,131/955, spawn 11,692/160 and archive 15,095/1,358. The projected hosted text
+adds the 21-character preview to each result. These are single-run samples, not averages.

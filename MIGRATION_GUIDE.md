@@ -741,7 +741,7 @@ The default result of native tools changed. To keep receiving the complete recor
 | A script on `compozy tool invoke` | Add `"result_view":"full"` to `--input`                                                                                                                                 |
 
 The release note lists every tool whose default changed and the fields that moved to the full view.
-HTTP and UDS responses did not change.
+HTTP/UDS session responses did not change. Native tool invocation responses use the selected view.
 
 Existing definitions are not rewritten. Runs already in flight use the full result through
 one-release snapshot translation; it is removed in the next release (#1462). See
