@@ -676,6 +676,30 @@ func TestSanitizingSpanExporterMarksRegisteredSecretsInvalidForEveryStringKey(t 
 	}
 }
 
+// A model sentinel recorded by metrics is still an exported string, so it passes the registered-secret check too.
+func TestSanitizingSpanExporterMarksModelSentinelSecretsInvalid(t *testing.T) {
+	t.Parallel()
+
+	for _, sentinel := range []string{telemetry.ValueOther, telemetry.ValueCustom} {
+		t.Run("Should export a "+sentinel+" model that is a registered secret as invalid", func(t *testing.T) {
+			t.Parallel()
+
+			reg := testRegistries(nil)
+			// A process-wide registration of "other" would leak into parallel tests; this registry sees it alone.
+			reg.Secrets = func(value string) bool { return value == sentinel }
+			provider, exported := newTracerProvider(t, reg)
+			_, span := provider.Tracer(telemetry.ScopeSession).Start(context.Background(), telemetry.SpanSessionTurn,
+				trace.WithAttributes(attrModel.String(sentinel)))
+			span.End()
+
+			got, present := attributeMap(onlySpan(t, exported).Attributes)[attrModel]
+			if !present || got.AsString() != telemetry.ValueInvalid {
+				t.Fatalf("%s = %q (present %t), want %q", attrModel, got.AsString(), present, telemetry.ValueInvalid)
+			}
+		})
+	}
+}
+
 // Resource values and the scope version pass the registered-secret check on every export: service.name is
 // operator input, the version is build input, and a secret can be registered after the exporters are built.
 func TestSanitizingExportersMarkResourceAndScopeSecretsInvalid(t *testing.T) {

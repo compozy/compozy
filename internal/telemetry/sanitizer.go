@@ -211,7 +211,7 @@ func (s *sanitizer) model(kv attribute.KeyValue, provider string) attribute.KeyV
 	// Metrics record ModelLabel's sentinels: they are classifications, not model values.
 	if value := kv.Value.AsString(); kv.Value.Type() == attribute.STRING &&
 		(value == ValueOther || value == ValueCustom) {
-		return attribute.String(string(kv.Key), value)
+		return s.final(kv.Key, value)
 	}
 	class := ModelUnknown
 	if kv.Value.Type() == attribute.STRING && s.reg.Models != nil {
