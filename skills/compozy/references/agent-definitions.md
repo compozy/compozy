@@ -359,8 +359,8 @@ Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Ca
 win conflicts; original values and source text are retained as inactive comments. Persisted
 AGENT.md files migrate when loaded from any discovery root, including extension roots.
 Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
-still decode as `always_on` and log guidance to update the source before v0.6.0.
-This single persisted-file shim generation is scheduled for removal in v0.6.0.
+still decode as `always_on` and log guidance to update the source before v0.6.1.
+This single persisted-file shim generation is scheduled for removal in v0.6.1.
 CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
 update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
 

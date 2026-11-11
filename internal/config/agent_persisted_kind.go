@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/frontmatter"
 )
 
-// Persisted-file migration only; public inputs remain strict. Removal: v0.6.0.
+// Persisted-file migration only; public inputs remain strict. Removal: v0.6.1.
 const retiredAgentKind = "stays_on"
 const agentKindRewriteDelimiter = "---"
 
@@ -38,11 +38,11 @@ func migratePersistedAgentKind(
 	}
 	updated, supported := rewriteAgentKindValue(contents)
 	if !publish || !supported || updated == nil || info.Mode().Perm()&0200 == 0 {
-		slog.Warn("agent persisted kind migration deferred; use always_on before v0.6.0", "path", path)
+		slog.Warn("agent persisted kind migration deferred; use always_on before v0.6.1", "path", path)
 		return
 	}
 	if err := publishMigratedAgentKind(directory, path, info, contents, updated, nil); err != nil {
-		slog.Warn("agent persisted kind migration deferred; use always_on before v0.6.0", "path", path, "error", err)
+		slog.Warn("agent persisted kind migration deferred; use always_on before v0.6.1", "path", path, "error", err)
 	}
 }
 

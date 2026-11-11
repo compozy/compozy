@@ -141,7 +141,7 @@ declaration lives:
 In every case the declaration keeps running with no trigger filter, so it observes every compaction,
 whatever its `trigger`. The rest of the matcher is still validated: an unknown or malformed matcher
 field next to the retired keys is still rejected. The `AGENT.md` and `SKILL.md` handling is a
-compatibility shim that CompozyOS removes in v0.6.0, so replace the two keys with
+compatibility shim that CompozyOS removes in v0.6.1, so replace the two keys with
 `compaction_trigger` before then.
 
 An `AGENT.md` hook cannot target the context events at all. CompozyOS adds the agent's `name` as

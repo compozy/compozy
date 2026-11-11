@@ -205,7 +205,7 @@ compatible installation scopes and profile enablement. Conflicting enablement or
 inputs and credentials retain the old registration; inspect `compozy doctor` and migrate that state
 before using its suggested removal command. Doctor names the actual workspace and profile attachment;
 `--global` removes a global attachment or recovers an unattached registration, not every workspace.
-Successor enrollment and scope transfer commit together. The bundled-name translation expires in v0.6.0.
+Successor enrollment and scope transfer commit together. The bundled-name translation expires in v0.6.1.
 
 One extension's startup failure remains visible in status without aborting another package's
 mutation. If a previous failed install left a package with no scoped installations, an operator

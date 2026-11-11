@@ -9,7 +9,7 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// Remove this boundary shim in v0.6.0 after the retired matcher migration window.
+// Remove this boundary shim in v0.6.1 after the retired matcher migration window.
 func ignoreRetiredAgentHookMatchers(data []byte) ([]byte, error) {
 	var document map[string]any
 	yamlFormat := yaml.Unmarshal(data, &document) == nil

@@ -144,7 +144,7 @@ For each file that holds any of them, the loader:
 
 The archived values stay in the file as comments and no longer apply. The next load finds nothing to
 archive, leaves the file byte for byte unchanged, and logs nothing. The archive step is a
-compatibility shim that CompozyOS removes in v0.6.0.
+compatibility shim that CompozyOS removes in v0.6.1.
 
 Archiving these settings never stops the load. The rewrite is guarded against concurrent edits: just before it
 writes, the loader re-reads the file and requires the same file with the same bytes. If an editor,

@@ -154,7 +154,7 @@ func TestTokenUsageParsing(t *testing.T) {
 		text := logs.String()
 		if strings.Count(text, "are deprecated") != 1 || strings.Count(text, "dropped out-of-range") != 1 ||
 			!strings.Contains(text, "cachedReadTokens/cachedWriteTokens") ||
-			!strings.Contains(text, "v0.6.0") ||
+			!strings.Contains(text, "v0.6.1") ||
 			!strings.Contains(text, "used") {
 			t.Fatalf("warnings: %s", text)
 		}
