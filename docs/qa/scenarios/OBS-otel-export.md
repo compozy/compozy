@@ -223,13 +223,15 @@ Walked against the `_dx.md` Compose stack (report `docs/qa/reports/2026-11-11-ot
 - §1 pass: trace shape, p95 vector (after a second turn), required series, canary absent, catalog matches the docs.
   `gen_ai.request.model = other` reproduced → BUG-20261111-otel-model-exports-other; the model-option inspection spawn
   exports `gen_ai.system = other` → BUG-20261111-otel-model-probe-spawn-provider-other.
-- §2 pass on all four surfaces, except the daemon log masks the unresolved ref → BUG-20261111-otel-header-refs-redacted.
+- §2 pass on all four surfaces; the daemon log masks the unresolved ref, which the contract now documents
+  (BUG-20261111-otel-header-refs-redacted, resolved by an operator decision).
 - §3 web pass after fixing BUG-20261111-web-adapter-requests-skip-traceparent (`47b40a7b4`): the prompt POST joins its
   trace (e434ff7fd); ratio 0 exports nothing. The EventSource stream cannot carry headers. Desktop leg blocked (no
   packaged build; disk full); desktop unit tests pass.
 - §4 forwarding pass (env, `TRACEPARENT` = spawn span, agent value wins, nothing when off); Claude Code 2.1.321 exported
   no series to the Collector even when run directly, so step 3 is blocked.
-- §5 pass. §6 refusal pass; `compozy__config_get` masks the header ref → BUG-20261111-otel-header-refs-redacted.
+- §5 pass. §6 refusal pass; `compozy__config_get` masks the header ref as now documented
+  (BUG-20261111-otel-header-refs-redacted, resolved).
 
 ## Regression hot spots
 

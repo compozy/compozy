@@ -1,6 +1,6 @@
 # BUG-20261111-otel-header-refs-redacted: Agents and the daemon log cannot see which header ref is configured
 
-- **Status:** open
+- **Status:** resolved (2026-11-11, operator decision: correct the contract; redaction unchanged)
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Dora (operator), Ada (agent)
@@ -62,3 +62,9 @@ and tool-policy tests use their own logger or read the structured value before t
 changes is a product decision (report, Decisions for a Human): treat refs as displayable on these two surfaces (a
 narrow exemption that touches the daemon-wide redaction rule), or correct `_dx.md` and the published docs to say the
 log names the header and agents read refs only through the operator CLI.
+
+## Resolution
+
+Operator decision (2026-11-11): keep the daemon-wide `env:`/`vault:` ref redaction. `_dx.md`,
+`telemetry-export.mdx`, and the official skill now say that the daemon log names the header (the ref is masked) and
+that `compozy__config_get` reads header values as `[REDACTED]`; the operator reads refs with `compozy config get`.

@@ -204,17 +204,16 @@ $ compozy config edit   # add the [observability.otel.headers] entry
 "api-key" = "vault:observability/newrelic-license"
 ```
 
-The daemon resolves refs at start. `compozy config get` and `compozy__config_get` show the ref, never
-the resolved value.
+The daemon resolves refs at start. `compozy config get` shows the ref, never the resolved value.
 
 ### Agents
 
 Agents can read the keys but not change them. `compozy__config_set` refuses every
 `observability.otel.*` key with `config_trust_root_forbidden`: telemetry settings decide what leaves
 the machine and where, so only the operator sets them with `compozy config set` or
-`compozy config edit`. `compozy__config_get` reads one key per call, for example
-`{"path": "observability.otel.headers.api-key"}` → `"vault:observability/newrelic-license"`. It shows
-`config.toml` values and defaults; `OTEL_*` values never appear.
+`compozy config edit`. `compozy__config_get` reads one key per call. It shows `config.toml` values and
+defaults; `OTEL_*` values never appear, and header values read as `[REDACTED]` because the daemon masks
+every `env:`/`vault:` ref in agent-facing output. The operator reads the ref with `compozy config get`.
 
 ## Read export status
 
@@ -414,19 +413,19 @@ messages:
 Runtime failures never fail a command. They show as `degraded` in `compozy status`, with the error
 class per signal in `last_error_class`:
 
-| Error class             | Meaning                                                                | What to check                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `http_400`              | The collector rejected the payload.                                    | The endpoint path and protocol match what the collector serves.                                     |
-| `http_401`, `http_403`  | The backend rejected the credentials.                                  | The header name and the secret behind its ref; restart the daemon after rotating it.                |
-| `http_404`              | No OTLP receiver at that URL.                                          | The endpoint base URL; HTTP appends `/v1/traces` and `/v1/metrics`.                                 |
-| `http_413`              | The request was too large for the backend.                             | The backend's payload limits.                                                                       |
-| `http_429`              | The backend is rate limiting.                                          | The backend quota; lower `sample_ratio` or raise `metric_interval`.                                 |
-| `http_5xx`              | The collector or backend failed.                                       | Collector health and logs.                                                                          |
-| `unavailable`           | The collector is unreachable.                                          | That the collector runs and the host and port match `protocol` (4318 HTTP, 4317 gRPC by default).   |
-| `deadline_exceeded`     | The export timed out.                                                  | Network path and collector load.                                                                    |
-| `tls`                   | TLS handshake or certificate verification failed.                      | The `https` URL, the certificate chain, and the host name.                                          |
-| `header_ref_unresolved` | A header ref did not resolve at start; both enabled signals report it. | The daemon log names the ref (never its value); store the secret or set the variable, then restart. |
-| `other`                 | Any other failure.                                                     | The daemon log at `$COMPOZY_HOME/logs/compozy.log`.                                                 |
+| Error class             | Meaning                                                                | What to check                                                                                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `http_400`              | The collector rejected the payload.                                    | The endpoint path and protocol match what the collector serves.                                                                                                                |
+| `http_401`, `http_403`  | The backend rejected the credentials.                                  | The header name and the secret behind its ref; restart the daemon after rotating it.                                                                                           |
+| `http_404`              | No OTLP receiver at that URL.                                          | The endpoint base URL; HTTP appends `/v1/traces` and `/v1/metrics`.                                                                                                            |
+| `http_413`              | The request was too large for the backend.                             | The backend's payload limits.                                                                                                                                                  |
+| `http_429`              | The backend is rate limiting.                                          | The backend quota; lower `sample_ratio` or raise `metric_interval`.                                                                                                            |
+| `http_5xx`              | The collector or backend failed.                                       | Collector health and logs.                                                                                                                                                     |
+| `unavailable`           | The collector is unreachable.                                          | That the collector runs and the host and port match `protocol` (4318 HTTP, 4317 gRPC by default).                                                                              |
+| `deadline_exceeded`     | The export timed out.                                                  | Network path and collector load.                                                                                                                                               |
+| `tls`                   | TLS handshake or certificate verification failed.                      | The `https` URL, the certificate chain, and the host name.                                                                                                                     |
+| `header_ref_unresolved` | A header ref did not resolve at start; both enabled signals report it. | The daemon log names the header (the ref itself is masked); check it with `compozy config get observability.otel.headers`, store the secret or set the variable, then restart. |
+| `other`                 | Any other failure.                                                     | The daemon log at `$COMPOZY_HOME/logs/compozy.log`.                                                                                                                            |
 
 `dropped_spans` counts spans dropped because the export queue was full; a growing count means the
 collector cannot keep up.

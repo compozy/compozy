@@ -711,7 +711,8 @@ They are validated only while export is enabled. `OTEL_SDK_DISABLED=true` forces
 `OTEL_RESOURCE_ATTRIBUTES` is ignored.
 
 Operator-only: `compozy__config_set` refuses every `observability.otel.*` key with
-`config_trust_root_forbidden`. Agents read keys with `compozy__config_get` (header refs stay refs;
+`config_trust_root_forbidden`. Agents read keys with `compozy__config_get` (header values read as `[REDACTED]`: agent-facing
+output masks every `env:`/`vault:` ref, so only the operator's `compozy config get` shows them;
 `OTEL_*` values never appear) and runtime state from `compozy status --json` `.otel` or
 `GET /api/status`: `state` (`disabled`, `inactive_observability_disabled`, `ok`, `degraded`),
 `protocol`, `endpoint_host`, `sample_ratio`, `forward_to_providers`, `traces`/`metrics`
