@@ -425,10 +425,9 @@ func providerAuthStatusPayload(
 	}, nil
 }
 
+// recoverProviderAuthSessions forwards a successful probe only to its resolved profile and launch route.
 func (h *BaseHandlers) recoverProviderAuthSessions(c *gin.Context, provider string, cfg compozyconfig.ProviderConfig) {
-	recovery, ok := h.Sessions.(interface {
-		ProviderAuthenticationReady(string, string, string) bool
-	})
+	recovery, ok := h.Sessions.(ProviderAuthRecoverer)
 	if !ok {
 		return
 	}
@@ -439,6 +438,6 @@ func (h *BaseHandlers) recoverProviderAuthSessions(c *gin.Context, provider stri
 	recovery.ProviderAuthenticationReady(
 		selection.Scope.ProfileID,
 		provider,
-		compozyconfig.CommandFingerprint(cfg.Command),
+		authproviders.AuthenticationRouteFingerprint(provider, cfg),
 	)
 }

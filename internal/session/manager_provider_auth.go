@@ -5,13 +5,14 @@ import (
 	"errors"
 	"sync"
 
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 )
 
 // RecoverProviderAuthentication reloads only idle auth-failed sessions on the verified account route.
 func (m *Manager) RecoverProviderAuthentication(
 	ctx context.Context,
-	profileID, provider, commandFingerprint string,
+	profileID, provider, routeFingerprint string,
 ) error {
 	m.mu.RLock()
 	targets := make([]*Session, 0, len(m.sessions))
@@ -29,8 +30,12 @@ func (m *Manager) RecoverProviderAuthentication(
 			continue
 		}
 		snapshot := target.runtimeBindingSnapshot()
-		if providerCommandFingerprint(target.providerRoutingSnapshot().Command) != commandFingerprint ||
-			len(snapshot.acceptedSessionEnv) > 0 {
+		route := target.providerRoutingSnapshot()
+		if authproviders.AuthenticationRouteFingerprint(
+			provider,
+			providerConfigFromResolvedAgent(route),
+		) != routeFingerprint ||
+			len(route.SessionEnv)+len(snapshot.acceptedSessionEnv) > 0 {
 			continue
 		}
 		if info.RuntimeRecovery != nil && info.RuntimeRecovery.Reason == store.SessionRuntimeRecoveryProviderAuth {
@@ -51,10 +56,11 @@ func (m *Manager) RecoverProviderAuthentication(
 			result = errors.Join(result, err)
 			continue
 		}
-		recoveryCtx, cancel := context.WithTimeout(ctx, defaultLifecycleTimeout)
-		_, err = m.ensurePromptRuntime(recoveryCtx, target, nil, proc)
-		cancel()
+		_, err = m.ensurePromptRuntime(ctx, target, nil, proc)
 		target.finishPromptSetup()
+		if ctx.Err() == nil && !m.daemonShuttingDown() {
+			m.startNextQueuedInputPrompt(target.ID)
+		}
 		result = errors.Join(result, err)
 	}
 	return result
@@ -117,6 +123,7 @@ func (m *Manager) stopProviderAuthRecovery() {
 	lifecycle.wg.Wait()
 }
 
+// releaseAuthFailedRuntime verifies stale-process release before the normal runtime rebind path.
 func (m *Manager) releaseAuthFailedRuntime(
 	ctx context.Context,
 	target *Session,

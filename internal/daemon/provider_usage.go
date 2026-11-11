@@ -128,21 +128,24 @@ func providerUsageConfigChanged(previous, next *config.Config) bool {
 		!reflect.DeepEqual(previous.Providers, next.Providers)
 }
 
+// onAuthenticated forwards published native-auth proofs without holding the config reconciliation lock.
 func (r *providerUsageRuntime) onAuthenticated(_ context.Context, target providerusage.Target) {
 	r.authMu.RLock()
 	recoverAuth := r.recoverAuth
 	r.authMu.RUnlock()
-	if recoverAuth != nil && target.AuthCommandFingerprint != "" {
-		recoverAuth(target.ProfileID, target.ProviderID, target.AuthCommandFingerprint)
+	if recoverAuth != nil && target.AuthRouteFingerprint != "" {
+		recoverAuth(target.ProfileID, target.ProviderID, target.AuthRouteFingerprint)
 	}
 }
 
-func (r *providerUsageRuntime) setAuthRecovery(sessions core.SessionManager) {
-	if recovery, ok := sessions.(interface {
-		ProviderAuthenticationReady(string, string, string) bool
-	}); ok {
-		r.authMu.Lock()
-		r.recoverAuth = recovery.ProviderAuthenticationReady
-		r.authMu.Unlock()
+// setAuthRecovery reports whether the session manager exposes verified-auth recovery.
+func (r *providerUsageRuntime) setAuthRecovery(sessions core.SessionManager) bool {
+	recovery, ok := sessions.(core.ProviderAuthRecoverer)
+	if !ok {
+		return false
 	}
+	r.authMu.Lock()
+	r.recoverAuth = recovery.ProviderAuthenticationReady
+	r.authMu.Unlock()
+	return true
 }

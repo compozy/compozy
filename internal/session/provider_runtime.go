@@ -148,6 +148,7 @@ func setProviderStartEnv(env []string, resolved compozyconfig.ResolvedAgent, pre
 	return setProviderModelEnv(env, resolved, preferredModel)
 }
 
+// providerProbeEnvForStart scopes startup probes to the launch environment and refreshes stale auth refusals.
 func providerProbeEnvForStart(
 	m *Manager,
 	session *Session,

@@ -3301,9 +3301,9 @@ func TestProviderUsageResolver(t *testing.T) {
 			runtime.onAuthenticated(
 				t.Context(),
 				providerusage.Target{
-					ProfileID:              store.DefaultProfileID,
-					ProviderID:             "claude",
-					AuthCommandFingerprint: "sha256:verified",
+					ProfileID:            store.DefaultProfileID,
+					ProviderID:           "claude",
+					AuthRouteFingerprint: "sha256:verified",
 				},
 			)
 			if calls != 1 {

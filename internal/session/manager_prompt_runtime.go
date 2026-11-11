@@ -23,6 +23,7 @@ type promptRuntimePlan struct {
 	replayHistory bool
 }
 
+// ensurePromptRuntime reserves runtime configuration and replaces auth-failed bindings before considering reuse.
 func (m *Manager) ensurePromptRuntime(
 	ctx context.Context,
 	session *Session,

@@ -88,6 +88,8 @@ func TestPreStarter(t *testing.T) {
 		}
 		valid, env.BypassCache = true, true
 		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
+		env.BypassCache = false
+		assertNoPreStartReport(t, starter.PreStart(t.Context(), provider, env))
 		if calls != 2 {
 			t.Fatalf("calls = %d, want a fresh auth proof", calls)
 		}

@@ -83,7 +83,6 @@ Model-discovery follow-up: `go test ./internal/modelcatalog -run TestLiveDiscove
 
 Discovery coverage also checks direct nil-environment inheritance and a real ACP inspection with the canonical fixture driver. Windows retains Go's documented critical `SYSTEMROOT` addition; empty-environment isolation does not disable required OS startup variables.
 
-
 Recovery after expiry (#1481): revoke the synthetic credential, exhaust the bounded wait, and verify
 `waiting-for-auth` plus `next_action: login`. Restore it and explicitly retry in the same session;
 the provider generation increases and the prompt completes with the daemon PID unchanged. Repeat the

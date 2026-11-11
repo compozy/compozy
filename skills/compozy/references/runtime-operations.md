@@ -108,7 +108,9 @@ window ends, the turn ends with `provider_error` login guidance and the session 
 After signing in, send another prompt to replace the stale provider process and reload the same conversation.
 A successful auth probe or Usage collection also reloads matching auth-failed sessions in that profile;
 while a turn is still recovering, that proof wakes its next retry. Other providers, account routes, and
-healthy sessions are left alone.
+healthy sessions are left alone. A probe without a profile selector uses the default profile
+(or its calling managed session profile); Usage carries its selected profile. The exhausted automatic
+wait remains spent until a turn completes or the provider changes.
 
 Automatic replay can repeat an external side effect whose completion was not persisted before the
 disconnect. Inspect the retained tool results and external system before manually repeating the work.

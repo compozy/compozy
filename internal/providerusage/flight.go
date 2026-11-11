@@ -63,6 +63,7 @@ func explicitRecovery(family string, e *UsageError) bool {
 	}
 }
 
+// collectOnce publishes only identity-fenced collection results and reports verified authentication outside the lock.
 func (s *Manager) collectOnce(
 	ctx context.Context,
 	profile, id string,

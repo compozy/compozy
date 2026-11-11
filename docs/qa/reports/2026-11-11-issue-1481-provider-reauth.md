@@ -29,6 +29,11 @@ the successful provider auth probe to reload the session without another prompt.
 Runtime generations increased; the conversation identity and daemon PID stayed
 unchanged throughout both revoke/restore cycles.
 
+The review-round re-walk exposed an implicit-versus-explicit runtime-provider
+identity mismatch in the stronger account proof. The proof now normalizes the
+native runtime default, and the complete prompt/probe walk passed again on the
+corrected build.
+
 The strict targeted evidence audit passed. Targeted teardown completed with `clean: true` and no surviving lab processes. Raw snapshots, prompt outputs and the
 manifest remain in the lab scratch evidence. No operator credentials were copied,
 revoked or restored, and the operator daemon was not restarted.
@@ -38,7 +43,10 @@ revoked or restored, and the operator daemon was not restarted.
 Focused Go tests cover a provider that keeps rejecting credentials until process
 replacement, prompt and probe admission, active-wait wakeup, account/profile/provider
 and healthy-session isolation, fresh pre-start probes, verified Usage publication,
-and the Usage/config lock boundary. A Windows cross-build of the changed backend
+and the Usage/config lock boundary. A corrective regression also covers a prompt queued while
+a background auth reload holds the prompt setup slot; releasing that slot now kicks the queue.
+The same suite verifies that proactive recovery retains the normal provider startup
+budget and ignores proofs for different home or environment policies. A Windows cross-build of the changed backend
 packages passed. Repository-wide gates, race suites and E2E remain CI-owned.
 
 No live provider OAuth or real Usage endpoint was exercised. The lab's synthetic

@@ -32,7 +32,7 @@ func TestProviderAuthHandlers(t *testing.T) {
 		sessions := &providerAuthRecoverySessions{ready: func(profile, provider, fingerprint string) bool {
 			signaled = true
 			if profile != store.DefaultProfileID || provider != "native" ||
-				fingerprint != compozyconfig.CommandFingerprint(cfg.Providers["native"].Command) {
+				fingerprint != authproviders.AuthenticationRouteFingerprint("native", cfg.Providers["native"]) {
 				t.Errorf("unexpected recovery route: %s %s %s", profile, provider, fingerprint)
 			}
 			return true

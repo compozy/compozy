@@ -36,6 +36,7 @@ func clonePromptRecoveryRequest(request acp.PromptRequest) acp.PromptRequest {
 	return cloned
 }
 
+// attemptPromptRecovery spends the existing bounded recovery schedule, waking early on verified sign-in.
 func (m *Manager) attemptPromptRecovery(
 	ctx context.Context,
 	session *Session,
@@ -214,6 +215,7 @@ func (m *Manager) startRecoveredPrompt(
 	return source, replayBlock, nil
 }
 
+// waitForPromptRecoverySignal waits for backoff, verified credentials, or cancellation.
 func waitForPromptRecoverySignal(ctx context.Context, delay time.Duration, ready <-chan struct{}) error {
 	if delay <= 0 {
 		return ctx.Err()

@@ -74,7 +74,7 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 			target.ProviderName = id
 		}
 		if provider.EffectiveAuthMode() == config.ProviderAuthModeNativeCLI {
-			target.AuthCommandFingerprint = config.CommandFingerprint(provider.Command)
+			target.AuthRouteFingerprint = providers.AuthenticationRouteFingerprint(id, provider)
 		}
 		target.CollectorID = r.collectorFamily(id, provider)
 		switch {

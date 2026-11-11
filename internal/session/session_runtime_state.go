@@ -41,6 +41,7 @@ type runtimeBindingSnapshot struct {
 	configUnverified        bool
 }
 
+// runtimeBindingSnapshot captures the accepted binding and failure state for transactional rollback.
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	if s == nil {
 		return runtimeBindingSnapshot{}
@@ -139,6 +140,7 @@ func (s *Session) completeRecoveryTransition(
 	return previous, nil
 }
 
+// completeRuntimeTransitionLocked commits the replacement and clears auth attention only for a new process.
 func (s *Session) completeRuntimeTransitionLocked(
 	proc *AgentProcess,
 	selection RuntimeSelection,
@@ -284,6 +286,7 @@ func (s *Session) restoreRecoveryBinding(
 	}
 }
 
+// restoreRuntimeBindingLocked restores the accepted binding and its auth failure after an unsuccessful transition.
 func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
 	if s.failure == nil && snapshot.sessionFailure != nil && snapshot.sessionFailure.Kind == store.FailureProviderAuth {

@@ -16,6 +16,7 @@ import (
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -768,11 +769,13 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 			{info.ProfileID, "another-provider", target.providerRoutingSnapshot().Command},
 			{info.ProfileID, info.Provider, "another-account-cli"},
 		} {
+			cfg := providerConfigFromResolvedAgent(target.providerRoutingSnapshot())
+			cfg.Command = wrong.command
 			if err := h.manager.RecoverProviderAuthentication(
 				t.Context(),
 				wrong.profile,
 				wrong.provider,
-				providerCommandFingerprint(wrong.command),
+				authproviders.AuthenticationRouteFingerprint(info.Provider, cfg),
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -780,11 +783,43 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 				t.Fatal("unrelated authentication proof replaced the runtime")
 			}
 		}
+		// A provider-level proof cannot authorize a workspace's different launch isolation.
+		route := target.providerRoutingSnapshot()
+		isolatedHome, isolatedEnv := route, route
+		isolatedHome.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
+		isolatedEnv.EnvPolicy = compozyconfig.ProviderEnvPolicyIsolated
+		for _, isolated := range []compozyconfig.ResolvedAgent{isolatedHome, isolatedEnv} {
+			target.setProviderRouting(isolated)
+			if err := h.manager.RecoverProviderAuthentication(
+				t.Context(),
+				info.ProfileID,
+				info.Provider,
+				authproviders.AuthenticationRouteFingerprint(
+					info.Provider,
+					providerConfigFromResolvedAgent(route),
+				),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if target.processHandle() != before.process {
+				t.Fatal("authentication proof crossed the session isolation policy")
+			}
+		}
+		target.setProviderRouting(route)
+		// Model a provider that needs six seconds of its normal startup budget, without sleeping.
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 6*time.Second {
+				return nil, context.DeadlineExceeded
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "normal-startup-budget"), nil
+		}
+		verifiedConfig := providerConfigFromResolvedAgent(route)
+		verifiedConfig.RuntimeProvider = "" // configured native defaults become explicit in the launch route.
 		healthyProcess := healthy.processHandle()
 		if !h.manager.ProviderAuthenticationReady(
 			info.ProfileID,
 			info.Provider,
-			providerCommandFingerprint(target.providerRoutingSnapshot().Command),
+			authproviders.AuthenticationRouteFingerprint(info.Provider, verifiedConfig),
 		) {
 			t.Fatal("recovery admission refused")
 		}
@@ -829,13 +864,93 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		if !h.manager.ProviderAuthenticationReady(
 			info.ProfileID,
 			info.Provider,
-			providerCommandFingerprint(target.providerRoutingSnapshot().Command),
+			authproviders.AuthenticationRouteFingerprint(
+				info.Provider, providerConfigFromResolvedAgent(target.providerRoutingSnapshot()),
+			),
 		) {
 			t.Fatal("recovery admission refused")
 		}
 		delivered := collectEvents(t, stream)
 		if countAgentEvents(delivered, acp.EventTypeDone) != 1 || countAgentEvents(delivered, acp.EventTypeError) != 0 {
 			t.Fatalf("events = %#v, want immediate recovery on verified sign-in", delivered)
+		}
+	})
+
+	t.Run("Should dispatch a prompt queued during a background authentication reload", func(t *testing.T) {
+		t.Parallel()
+		db := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(db))
+		h.manager.authRecoveryDelays = nil
+		registerManagerInputQueueWorkspace(t, db, h)
+		target := createSession(t, h)
+		registerManagerInputQueueSession(t, db, h, target)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		var calls atomic.Int64
+		dispatched := make(chan struct{}, 1)
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) == 1 {
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				dispatched <- struct{}{}
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "needs login")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		entered, release := make(chan struct{}), make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(entered)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "reauth-queued"), nil
+		}
+		info := target.Info()
+		if !h.manager.ProviderAuthenticationReady(
+			info.ProfileID,
+			info.Provider,
+			authproviders.AuthenticationRouteFingerprint(
+				info.Provider, providerConfigFromResolvedAgent(target.providerRoutingSnapshot()),
+			),
+		) {
+			t.Fatal("recovery admission refused")
+		}
+		select {
+		case <-entered:
+		case <-t.Context().Done():
+			t.Fatal("reload did not start")
+		}
+		result, err := h.manager.SendPrompt(
+			t.Context(),
+			target.ID,
+			SendPromptOpts{
+				Message:        "continue after login",
+				Mode:           BusyInputModeQueue,
+				MessageID:      "queued-auth",
+				IdempotencyKey: "queued-auth",
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.QueueEntryID == "" {
+			t.Fatalf("result = %#v, want queued input", result)
+		}
+		releaseOnce()
+		select {
+		case <-dispatched:
+		case <-time.After(3 * time.Second):
+			t.Fatal("queued prompt was not dispatched after authentication reload")
 		}
 	})
 

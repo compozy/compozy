@@ -97,7 +97,7 @@ func (s *PreStarter) PreStart(
 	if err := s.checkProfileAvailability(ctx, &normalized); err != nil {
 		return preStartErrorReport(&normalized, err)
 	}
-	if s == nil || normalized.BypassCache || !preStartContextCacheable(ctx) {
+	if s == nil || !preStartContextCacheable(ctx) {
 		return runPreStart(ctx, provider, &normalized, s.authVerdicts())
 	}
 	key, cacheable := s.newPreStartCacheKey(provider, &normalized)
@@ -108,7 +108,7 @@ func (s *PreStarter) PreStart(
 	now := s.now()
 	s.mu.Lock()
 	s.deleteExpiredLocked(now)
-	if entry, ok := s.entries[key]; ok {
+	if entry, ok := s.entries[key]; ok && !normalized.BypassCache {
 		entry.usedAt = s.nextAccessLocked()
 		s.entries[key] = entry
 		report, cloneable := clonePreStartReport(entry.report)
