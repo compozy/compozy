@@ -71,9 +71,11 @@ Expected:
 - The canary never appears in the exported trace.
 - `session.turn` and `compozy.session.turn.duration` carry `gen_ai.request.model` = the catalog name the session
   reports (for example `claude-opus-5-5`), `custom` for a configuration-only model, and never a raw model string
-  (BUG-20261111-otel-model-exports-other, fixed in `82347190f`). The classifier reads a catalog snapshot that is
-  rebuilt every 5 minutes, so on a fresh home, turns before the first rebuild may export `other`. Check the value
-  on a turn more than 5 minutes after the first boot, or after a restart with the catalog already persisted.
+  (BUG-20261111-otel-model-exports-other, fixed in `82347190f`). The classifier reads a catalog snapshot rebuilt
+  every 5 minutes, and about 30 s after a lookup misses (`db86be3de`), so on a fresh home the first turns may
+  export `other` until the catalog learns the model. Check the value on a turn at least a minute after the
+  first boot, or after a restart with the catalog already persisted. Metrics classify when they record, so a
+  series keeps the label it started with.
 
 Evidence: status text before and after, Jaeger trace JSON and a screenshot of the expanded trace, Prometheus query
 JSON, canary grep output.
@@ -100,7 +102,7 @@ auth, and socket path from the lab manifest, as in RT-001). Compare the `otel` o
 | ok | none (walk 1) | `ok · http/protobuf → localhost:4318 · traces ok, metrics ok · sample 1.0` | `state: ok`, both signals `enabled: true`, `last_export_at` set, `failed_exports: 0`, `dropped_spans: 0`, `forward_to_providers: false` |
 | metrics off | `config set observability.otel.metrics false` | `… · traces ok, metrics off · sample 1.0` | `metrics.enabled: false`, `state: ok` |
 | degraded, unreachable | `metrics true`; `config set observability.otel.endpoint http://127.0.0.1:1` | `degraded · http/protobuf → 127.0.0.1:1 · traces unavailable (N failed), metrics unavailable (N failed) · sample 1.0` | `state: degraded`, `last_error_class: unavailable` on both signals |
-| degraded, unresolved header | endpoint back to `http://localhost:4318`; `compozy config edit` adds `[observability.otel.headers] "api-key" = "env:QA_OTLP_MISSING"` with the variable unset | both signals `header_ref_unresolved` | `state: degraded`, `failed_exports: 0`; the daemon log names `env:QA_OTLP_MISSING` and never a value |
+| degraded, unresolved header | endpoint back to `http://localhost:4318`; `compozy config edit` adds `[observability.otel.headers] "api-key" = "env:QA_OTLP_MISSING"` with the variable unset | both signals `header_ref_unresolved` | `state: degraded`, `failed_exports: 0`; the daemon log masks the ref as `[REDACTED]` and never shows a value |
 | degraded, 401 (optional) | Collector override with a `bearertokenauth` receiver on 4319, daemon header `"Authorization" = "env:QA_OTLP_AUTH"` set to a wrong token | `… metrics http_401 (N failed)` (and traces) | `last_error_class: http_401` |
 | recovered | remove the header, endpoint `http://localhost:4318` | back to `ok` | error classes cleared, `failed_exports` totals reset by the restart |
 | forwarding | `config set observability.otel.forward_to_providers true` | the `ok` line ends with `· forwarding to providers` | `forward_to_providers: true` |
@@ -208,7 +210,7 @@ Preconditions: lab daemon running; any agent session.
 4. `compozy config get observability.otel` and `compozy status`.
 
 Expected: steps 1–2 refuse with `config_trust_root_forbidden`; nothing changes in `config.toml` and the status is
-unchanged. Step 3 returns the ref (`vault:observability/…`), never the resolved value. If the operator-side
+unchanged. Step 3 returns `[REDACTED]`, never the ref or the resolved value; step 4 (`compozy config get`) shows the ref. If the operator-side
 `tool invoke` path is allowed instead of refused, record which caller identity the refusal applies to and compare with
 `_dx.md` ("refuses every `observability.otel.*` key").
 
@@ -256,4 +258,4 @@ that touches one of them goes back to the named suite.
 | ADR-003 observe parity (tokens/cost/events from the observe funnel, gauges never `Health()`, inactive when observability off) | UT-050–UT-055 `internal/observe` `TestObserverEventMetrics`; IT-012 `TestDaemonE2EOTelExportsTurnMetrics` (tokens equal `token_stats`, gauges equal status); UT-017 | covered |
 | Sanitizer fallbacks (`compozy.unknown`, `other`, `custom`, `invalid`, omitted ids, no exemplars, empty descriptions) | UT-022 `TestSanitizingSpanExporterRebuildsSpanFields`; UT-046 `TestSanitizingSpanExporterAppliesPerKeyFallbackPolicy`, `TestSanitizingMetricExporterAppliesPerKeyFallbackPolicy`; UT-039 `TestSanitizingSpanExporterEnforcesNameAndScopeRegistries`; `TestSanitizingExportersCheckEveryExportedStringForSecrets`; `TestSanitizingSpanExporterFailsClosedWithZeroRegistries`; UT-024 `TestSanitizingMetricExporterExportsNoExemplars`; IT-014/E2E-003 `TestDaemonE2EOTelExportCarriesNoContent` | covered |
 | Client propagation (unsampled `-00`, daemon-origin only) | UT-060–UT-064 (`api-client.test.ts`, desktop `runtime-health-monitor` tests); `terminal-api.test.ts` daemon-request traceparent; IT-013 `TestRequestTracingHonorsTraceParentOverHTTPAndUDS` | covered: every web daemon request goes through `daemonFetch` (e434ff7fd, 47b40a7b4); EventSource streams carry none |
-| Model attribute | UT-046 (policy) | gap: `Registries.Models` is not wired, so real turns export `other` (BUG-20261111-otel-model-exports-other) |
+| Model attribute | UT-046 (policy), `TestTelemetryModelClassesFollowTheCatalog`, `TestModelLabelClassifiesWhenMetricsRecord` | covered: catalog classifier wired (BUG-20261111-otel-model-exports-other, fixed); first turns on a fresh home may export `other` |
