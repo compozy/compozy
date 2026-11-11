@@ -347,8 +347,7 @@ them. `session_list` retains `sessions[].folder_id` and `sessions[].health`.
 `compozy__task_fanout_runs`, `compozy__task_run_list`:
 
 `runs[].claim_token_hash`, `runs[].idempotency_key`, `runs[].metadata`, `runs[].origin`,
-`runs[].preferred_capabilities`, `runs[].required_capabilities`, `runs[].result_bytes`,
-`runs[].result_ref`
+`runs[].preferred_capabilities`, `runs[].required_capabilities`
 
 `compozy__task_list`:
 
@@ -385,7 +384,7 @@ them. `session_list` retains `sessions[].folder_id` and `sessions[].health`.
 
 `compozy__task_run_review_submit`:
 
-`continuation_run.claim_token_hash`, `continuation_run.idempotency_key`, `continuation_run.metadata`, `continuation_run.origin`, `continuation_run.preferred_capabilities`, `continuation_run.required_capabilities`, `continuation_run.result_bytes`, `continuation_run.result_ref`, `review.created_at`, `review.review_text`, `review.reviewed_by`, `review.routed_at`, `review.started_at`, `review.updated_at`
+`continuation_run.claim_token_hash`, `continuation_run.idempotency_key`, `continuation_run.metadata`, `continuation_run.origin`, `continuation_run.preferred_capabilities`, `continuation_run.required_capabilities`, `review.created_at`, `review.review_text`, `review.reviewed_by`, `review.routed_at`, `review.started_at`, `review.updated_at`
 
 `compozy__tool_approvals_list`:
 

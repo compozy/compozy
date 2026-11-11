@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -157,7 +158,7 @@ func normalizeLoopSchema(schema dsl.Schema) (map[string]any, error) {
 	if !ok {
 		return nil, errors.New("output schema must normalize to object")
 	}
-	if isFullJSONSchema(schemaMap) {
+	if refs.IsFullJSONSchema(schemaMap) {
 		return schemaMap, nil
 	}
 	properties := make(map[string]any, len(schemaMap))
@@ -174,67 +175,12 @@ func normalizeLoopSchema(schema dsl.Schema) (map[string]any, error) {
 	}, nil
 }
 
-func isFullJSONSchema(schema map[string]any) bool {
-	fullKeys := map[string]struct{}{
-		"$defs":                           {},
-		"$id":                             {},
-		"$schema":                         {},
-		jsonSchemaAdditionalPropertiesKey: {},
-		jsonSchemaAllOfKey:                {},
-		jsonSchemaAnyOfKey:                {},
-		"contains":                        {},
-		"contentEncoding":                 {},
-		"contentMediaType":                {},
-		"const":                           {},
-		jsonSchemaDefaultKey:              {},
-		"dependentRequired":               {},
-		jsonSchemaDependentSchemasKey:     {},
-		"description":                     {},
-		jsonSchemaEnumKey:                 {},
-		"examples":                        {},
-		"exclusiveMaximum":                {},
-		"exclusiveMinimum":                {},
-		"format":                          {},
-		"if":                              {},
-		jsonSchemaItemsKey:                {},
-		"maxItems":                        {},
-		"maxLength":                       {},
-		"maxProperties":                   {},
-		"maximum":                         {},
-		"minItems":                        {},
-		"minLength":                       {},
-		"minProperties":                   {},
-		"minimum":                         {},
-		"multipleOf":                      {},
-		"not":                             {},
-		jsonSchemaOneOfKey:                {},
-		"pattern":                         {},
-		"prefixItems":                     {},
-		jsonSchemaPropertiesKey:           {},
-		"propertyNames":                   {},
-		jsonSchemaRequiredKey:             {},
-		jsonSchemaThenKey:                 {},
-		jsonSchemaTitleKey:                {},
-		jsonSchemaTypeKey:                 {},
-		"unevaluatedProperties":           {},
-		jsonSchemaEntityKindKey:           {},
-	}
-	hasKeyword := false
-	for key := range schema {
-		if _, ok := fullKeys[key]; !ok {
-			return false
-		}
-		hasKeyword = true
-	}
-	return hasKeyword
-}
-
 func shorthandPropertySchema(value any) any {
 	switch typed := value.(type) {
 	case string:
 		return map[string]any{jsonSchemaTypeKey: typed}
 	case map[string]any:
-		if isFullJSONSchema(typed) {
+		if refs.IsFullJSONSchema(typed) {
 			return typed
 		}
 		nested := make(map[string]any, len(typed))

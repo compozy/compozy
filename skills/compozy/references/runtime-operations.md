@@ -1830,7 +1830,7 @@ facts and schedule eligible stale observations in the background. A root session
 captured when its turn settled. A bound session uses its live pending/ready worktree branch; removed
 or unavailable worktrees never fall back to the root branch. Default branches and detached HEADs have
 no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
-`pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.
+`pull_request_lookup.stale` and `state` (request `result_view: "full"` on native session tools) before treating `ready_to_merge` as current.
 
 ### Session changes
 
@@ -1869,6 +1869,7 @@ Raw environments are never exposed. `trees` groups the rows into logical process
 `id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
 wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
 browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+Read `compozy__session_status` with `result_view: "full"` for this summary.
 The session's `process_summary.trees` counts Background and Terminal trees; `background` and
 `terminals` still count processes, with ports from that same population; foreground tools remain in
 the detailed list. Catalog changes invalidate it.

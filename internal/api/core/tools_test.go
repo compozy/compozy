@@ -196,7 +196,9 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/tools/compozy__skill_view/invoke",
-			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
+			[]byte(
+				`{"session_id":"sess-1","workspace_id":"ws-1","view":"full","pinned_view":"full","View":"full","PinnedView":"full","input":{"message":"hello"}}`,
+			),
 		)
 		if invokeResp.Code != http.StatusOK {
 			t.Fatalf("invoke status = %d, want %d; body=%s", invokeResp.Code, http.StatusOK, invokeResp.Body.String())
@@ -208,6 +210,11 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		}
 		if registry.callCount(toolspkg.ToolIDSkillView) != 1 {
 			t.Fatalf("registry call count = %d, want 1", registry.callCount(toolspkg.ToolIDSkillView))
+		}
+
+		_, call := registry.lastCall()
+		if call.View != "" || call.PinnedView != "" || string(call.Input) != `{"message":"hello"}` {
+			t.Fatalf("transport request = %#v, want no wire view metadata", call)
 		}
 
 		toolsetsResp := performRequest(t, engine, http.MethodGet, "/toolsets", nil)

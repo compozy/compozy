@@ -238,7 +238,7 @@ and the owner is resumed only when restart auto-continue rules allow it. A shutd
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
 about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
-Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
+Operators see `monitor_summary.active` on full session payloads (`compozy__session_status` with `result_view: "full"`) and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
@@ -301,7 +301,7 @@ rather than deriving it from the session state.
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
 that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
-history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
+history or hold `session_wait` just to collect the answer. `compozy__session_status` with `result_view: "full"` lists outstanding
 `reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
 summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
@@ -338,9 +338,10 @@ removed. Use this instead of `workspace_paths`, which only records a narrowing a
 
 `prompt` sends the first prompt from the caller with `notify_on_complete` (message ID
 `spawn-prompt-<child_session_id>`), so the reply wake carries the child's final answer. The result
-returns the child ID, role, depth, TTL expiry, effective `permissions`, and optional `worktree` and
+returns the child ID, role, depth, TTL expiry, and optional `worktree` and
 `prompt` objects; a failed first prompt returns `prompt.status: "failed"` with `error`, and the
-child stays live for a `session_prompt` retry. Refusals are structured: `operator_cause` names the field, value, and rule
+child stays live for a `session_prompt` retry. Request `result_view: "full"` on
+`compozy__session_spawn` to inspect effective `permissions`. Refusals are structured: `operator_cause` names the field, value, and rule
 (`subset_of_parent`, `blank_atom`, `known_toolset`) and `operator_recovery` the next step. A
 live-child cap fails with reason `spawn_budget_exhausted` and names the cap and live count; stopped
 children and subagents hold no slot. A depth refusal uses the same reason with cause `max_depth`:
@@ -355,7 +356,7 @@ have an active turn and otherwise returns `parent_not_active`. Use them instead 
 `session_spawn` → `session_prompt` → `session_wait` → `session_history` when you want one task answered
 by another agent, provider, or model while you keep working:
 
-1. `compozy__subagent_capabilities {}` returns the caller's inherited runtime, permission mode, depth,
+1. `compozy__subagent_capabilities {"result_view":"full"}` returns the caller's inherited runtime, permission mode, depth,
    live subagent count, and per-agent and per-provider `can_delegate` with `constraints` and advertised
    models. Pick a target whose `can_delegate` is true. Only delegable providers include models,
    capped at 40 per provider with the caller's current model first, then the provider default.
@@ -1005,11 +1006,11 @@ labels User items `"User"` (previously `"Global"`; a display string).
 ### Session pull-request projection
 
 When a registered project's folder is missing, `compozy__session_status` and
-`compozy__session_describe` retain the session payload and add a `workspace_root_missing`
+`compozy__session_describe`, both with `result_view: "full"`, retain the session payload and add a `workspace_root_missing`
 diagnostic. Stopping and archiving remain available; these controls do not need to load the
 project's agent files. Creating or executing new work still requires an available root.
 
-`compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
+`compozy__session_list` and `compozy__session_status`, with `result_view: "full"`, include `branch`, nullable `pull_request`,
 nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
 complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
 branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
@@ -1062,6 +1063,7 @@ Raw environments are never exposed. `trees` groups the rows into logical process
 `id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
 wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
 browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+Read `compozy__session_status` with `result_view: "full"` for this summary.
 The session's `process_summary.trees` counts Background and Terminal trees; `background` and
 `terminals` still count processes, with ports from that same population; foreground tools remain in
 the detailed list. Catalog changes invalidate it.
@@ -1198,7 +1200,7 @@ repository returns `session_link_fork_unsupported`; providers that omit head rep
 existing behavior. Status follows the branch: selecting another PR on an already linked branch
 replaces its stored number. Local repositories support branch links without a forge.
 Candidate page 1 may include one extra exact PR match; that match is omitted from later pages. Session reads carry
-an additive `linked_work` summary (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
+an additive `linked_work` summary (request `result_view: "full"` on native session tools) (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
 resource's `links` endpoint for the full list; child items carry `source_session_id`
 and `source_session_title` and are read-only on their parent.
 
@@ -1208,9 +1210,9 @@ members). These counts belong to the caller's profile and workspace, including i
 
 ### Check-in source catalog
 
-`compozy__agent_heartbeat_sources` is read-only. Pass `agent` and `workspace` to list
+`compozy__agent_heartbeat_sources` is read-only. Pass `agent`, `workspace`, and `result_view: "full"` to list
 scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
-status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
+status, `scripts_enabled`, and effective `limits`. The full view returns the same catalog JSON as
 `compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.
 
 ### Check-in call audit

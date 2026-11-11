@@ -1084,3 +1084,36 @@ func assertHistoryReferenceCode(t *testing.T, err *refs.Error, wantCode string) 
 func pathString(path []string) string {
 	return strings.Join(path, ".")
 }
+
+func TestNamespaceSchemaNamedFields(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		schema         refs.Schema
+		valid, invalid []string
+	}{
+		{name: "Should resolve shorthand fields named type", schema: refs.Schema{"type": "string", "id": "string"}, valid: []string{"type", "id"}, invalid: []string{"missing"}},
+		{name: "Should resolve nested shorthand type maps", schema: refs.Schema{"item": map[string]any{"type": map[string]any{"name": "string"}, "id": "string"}}, valid: []string{"item.type.name", "item.id"}, invalid: []string{"item.missing"}},
+		{name: "Should resolve transform any fields", schema: refs.Schema{"type": "any", "id": "any"}, valid: []string{"type", "id"}},
+		{name: "Should reject JSON Schema keywords as fields", schema: refs.Schema{"type": "object", "additionalProperties": true}, invalid: []string{"type", "additionalProperties", "missing"}},
+		{name: "Should follow declared JSON Schema properties", schema: refs.Schema{"type": "object", "properties": map[string]any{"type": map[string]any{"type": "string"}}, "additionalProperties": false}, valid: []string{"type"}, invalid: []string{"properties", "type.type", "missing"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ns := refs.Namespace{Nodes: map[string]refs.NodeSchema{"a": {Output: tc.schema, HasOutput: true}}}
+			for _, field := range tc.valid {
+				if err := ns.ValidatePath(
+					append([]string{"nodes", "a", "output"}, strings.Split(field, ".")...),
+				); err != nil {
+					t.Fatalf("%s: %v", field, err)
+				}
+			}
+			for _, field := range tc.invalid {
+				err := ns.ValidatePath(append([]string{"nodes", "a", "output"}, strings.Split(field, ".")...))
+				if err == nil || err.Code != refs.CodeUnresolvablePath {
+					t.Fatalf("%s: %v", field, err)
+				}
+			}
+		})
+	}
+}

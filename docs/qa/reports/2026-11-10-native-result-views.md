@@ -327,3 +327,77 @@ passed with 288 tools, 99 selectors and the same 347,863 / 207,320 byte measurem
 The pinned Go 1.27.3 `golangci-lint@v2.15.0` command above reports 0 issues; the test-shape
 checker and `git diff --check` pass. Site source did not change in this follow-up, so
 its prior scoped Turbo receipts remain applicable.
+
+## R1 — Final review repairs
+
+The repair worktree started clean at `0374f8f0dbbc72dc411e71f3bc4df55cab2a88c0`.
+Fable F1–F4 and Astra F1 are addressed without changing the accepted projections or ADR-004.
+
+- F1: share the existing Loop JSON Schema classifier with the reference resolver and its
+  available-field diagnostics. Apply the keyword guard only to recognized schemas carrying
+  `type` or `additionalProperties`; shorthand field maps retain direct lookup. The existing
+  refs suite now covers plain `type` fields, nested map-valued `type`, transform `any` fields,
+  undeclared paths, real JSON Schema keywords and declared properties.
+- F2: native instructions explicitly select full for reply watches, missing-root diagnostics,
+  PR lookup, heartbeat source schemas, process/monitor/linked-work summaries, spawn permissions,
+  subagent models and skill provenance. Site session/skill pages and the descriptor example
+  identify the full view where required.
+- F3: remove `result_bytes` and `result_ref` from both run-list migration entries and from
+  `continuation_run` on review submit. Rechecked all 99 adopting tools against full/compact
+  schema paths (including local `$ref` definitions), populated/empty fixture results and the
+  projection owners. No other migration-field correction was required. Shared window-manager
+  full schemas declare unused alternate endpoint fields; those are not fields moved by these
+  handlers. `desktop_clients` never returns attachment tokens (the service strips them), so no
+  token migration entry was added. Skill diagnostics remain conditional, as already documented.
+- F4: delete the twelve nil-only fixture families and their aggregator entries. The canonical
+  all-tool contract suite still requires fixtures for every descriptor with views.
+- Safety 6: the dispatcher suite checks the check-in audit preview and both started/completed
+  event input digests retain `result_view`, while the handler receives the stripped input.
+- Safety 4: the shared HTTP/UDS handler suite sends forged snake-case and Go-style wire view/pin
+  fields, checks a successful response, and verifies neither reaches the registry request.
+
+Red/green evidence: `go test ./internal/loop/dsl/refs -run '^TestNamespaceSchemaNamedFields$'
+-count=1` failed before the production edit in all three shorthand cases (`unresolvable_path`),
+then passed after the fix. The first broader Loop run caught an overly broad classifier guard
+on shorthand maps such as `items`; narrowing the guard repaired production behavior. All Loop
+packages subsequently passed. No assertions were weakened.
+
+Verification commands (all from the worktree root):
+
+```sh
+go test ./internal/loop/... ./internal/tools/... -count=1
+go test ./internal/api/core -count=1
+go test ./internal/daemon -run '^Test(NativeResultViewContracts|NativeSessionResultViews|NativeToolHookResultViews|NativeCorrectedOutputSchemas|ToolApprovalResultViews|CheckInResultViewApproval|BoundResultViewApprovalToken)$' -count=1
+go test -tags=integration ./internal/daemon -run '^Test(NativeResultViewsIntegration|LoopResultViewsIntegration)$' -count=1
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./internal/loop/... ./internal/tools/... ./internal/api/core ./internal/daemon
+bunx turbo run typecheck test --filter=./packages/site
+bunx turbo run generate:content typecheck test --filter=./packages/site --only
+bunx turbo run test --filter=./packages/site --only -- --maxWorkers=2
+git diff --check
+```
+
+The Go tests passed, including the real SQLite/session lifecycle and persisted Loop integration
+checks. Test-shape heuristics passed for all four changed test files. Focused Oxfmt checks passed.
+The initial site attempt lacked installed workspace dependencies; `bun install --frozen-lockfile`
+restored them without manifest/lock changes, and the normal Turbo graph then passed (397 tests).
+The final bounded site rerun passed content generation and typecheck after the last prose edits.
+Its test run had one SDK index test exceed the unchanged 5s timeout (396 passed); the full
+site suite was repeated with two workers to reduce contention, without changing assertions
+or timeout configuration.
+The installed lint binary was built with Go 1.26 and could not analyze this Go 1.27 module;
+the repository-pinned lint version was run from source with the current toolchain instead.
+A first lint pass overlapped removal of the temporary audit probe. The next pass reported
+two pre-format Golines findings; focused formatting was applied and the final stable-file
+pass completed with `0 issues`.
+The linker emits its existing macOS `-bind_at_load` deprecation message when building the lint tool.
+
+Impact follows the existing Native Tool Result Views audit in `docs/_memory/change-impact.md`:
+no additional native tool, wire, hook/config or workspace-isolation contract changes; the Loop
+repair restores existing user definitions. Official skill and site consumers are corrected above.
+No database migration, generated-source edit, external-provider run, full gate, race suite or E2E
+run belongs to this repair slice. The conductor owns final-head CI and integrated scenario walks.
+
+Pre-commit tasks passed via `bunx lint-staged --no-stash`; commit-message validation passed via
+`printf '%s\n' 'fix: repair native result view review findings' | bunx commitlint`.
+The commit hook is not repeated because its default invocation creates a Git stash; the same tasks
+were run explicitly without that backup, honoring this slice's Git restrictions.

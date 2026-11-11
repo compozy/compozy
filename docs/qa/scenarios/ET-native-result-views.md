@@ -25,3 +25,10 @@ Verify hook pin refusals through the owning focused suites. Hosted MCP tools/lis
 outputSchema for every tool while retaining result_view inputs. Through real MCP and dispatch,
 verify compact/full structuredContent and JSON text, truncated continuations and typed errors.
 Read both contracts from tool info; compare catalog bytes against the pre-feature baseline.
+
+Regression checks: shorthand Loop schemas such as `produces: {type: string, id: string}`,
+nested `type` field maps, and transform maps resolve their declared fields. Real JSON Schema
+keywords remain non-addressable. Run `TestNamespaceSchemaNamedFields` in the refs suite.
+`TestRuntimeRegistryDispatchResultViews` verifies selector-bearing audit previews and event
+input digests; `TestToolHandlersExposeOperatorSessionInvokeAndToolsets` verifies that the shared
+HTTP/UDS invoke handler ignores wire `View` and `PinnedView` before dispatch.

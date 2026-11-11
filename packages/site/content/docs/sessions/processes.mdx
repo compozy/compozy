@@ -44,7 +44,8 @@ The session routes are `GET /api/workspaces/{workspace_id}/sessions/{session_id}
 exactly one selection: `{"all":true}` or `{"targets":[{"pid":123,"started_at":"<timestamp>"}]}`.
 The list returns `items` and `trees`. A tree has an `id`, a `kind`, its `root`, the `lead` process
 that names it, the `wrappers` that launched the lead, every `member`, and the union of `ports`; each
-item carries its `tree_id`. The session’s `process_summary.trees` counts Background and Terminal
+item carries its `tree_id`. Request `compozy__session_status` with `result_view: "full"`
+to read the session summary through native tools. The session’s `process_summary.trees` counts Background and Terminal
 trees, while `background` and `terminals` keep counting processes.
 
 Each target stops every verified member of its tree, root first. `{"all":true}` stops the trees the

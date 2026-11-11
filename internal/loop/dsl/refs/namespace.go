@@ -250,10 +250,9 @@ func childSchema(current any, segment string) (any, bool) {
 				return childSchema(items, segment)
 			}
 		}
-		if _, isTypedSchema := typed["type"]; isTypedSchema {
-			return nil, false
-		}
-		if _, hasAdditionalProperties := typed["additionalProperties"]; hasAdditionalProperties {
+		_, hasType := typed["type"]
+		_, hasAdditional := typed["additionalProperties"]
+		if (hasType || hasAdditional) && IsFullJSONSchema(typed) {
 			return nil, false
 		}
 		child, ok := typed[segment]

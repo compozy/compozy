@@ -24,10 +24,9 @@ func availableSchemaFields(current any) []string {
 		if typed["type"] == "array" {
 			return availableSchemaFields(typed["items"])
 		}
-		if _, isTypedSchema := typed["type"]; isTypedSchema {
-			return nil
-		}
-		if _, hasAdditionalProperties := typed["additionalProperties"]; hasAdditionalProperties {
+		_, hasType := typed["type"]
+		_, hasAdditional := typed["additionalProperties"]
+		if (hasType || hasAdditional) && IsFullJSONSchema(typed) {
 			return nil
 		}
 		return sortedMapKeys(typed)

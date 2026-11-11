@@ -2109,6 +2109,59 @@ func TestCheckInDispatchAccounting(t *testing.T) {
 // Result selection belongs to dispatch; hooks cannot replace the caller's pin or approval identity.
 func TestRuntimeRegistryDispatchResultViews(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retain the selector in audit and event inputs", func(t *testing.T) {
+		t.Parallel()
+		d := resultViewDispatchDescriptor()
+		input := json.RawMessage(`{"query":"x","result_view":"full"}`)
+		recorder := &checkInRecorderProbe{}
+		sink := &recordingToolEventSink{}
+		provider := dispatchProviderWithHandle(d, &registryTestHandle{
+			descriptor: d, availability: availableDispatchHandle(),
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+				if req.View != ResultViewFull || string(req.Input) != `{"query":"x"}` {
+					t.Fatalf("handler request = %#v", req)
+				}
+				return ToolResult{Structured: json.RawMessage(`{}`)}, nil
+			},
+		})
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithPolicyInputs(
+				PolicyInputs{
+					SystemPermissionMode: PermissionModeApproveReads,
+					CheckIn: &CheckInPolicy{
+						OccurrenceID:  "view-audit",
+						MaxToolCalls:  25,
+						MaxWriteCalls: 5,
+					},
+				},
+				ToolsetCatalog{},
+			),
+			WithCheckInRecorder(recorder),
+			WithToolEventSink(sink),
+		)
+		if _, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-1"},
+			CallRequest{ToolID: d.ID, Input: input},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if recorder.begins != 1 || recorder.finishes != 1 || recorder.attempt.ArgsPreview != string(input) {
+			t.Fatalf("audit = %#v", recorder)
+		}
+		events := sink.snapshot()
+		if len(events) != 2 || events[0].Kind != ToolCallStarted || events[1].Kind != ToolCallCompleted {
+			t.Fatalf("events = %#v", events)
+		}
+		for _, event := range events {
+			if event.InputDigest != digestRaw(redactInputForEvents(input, nil)) {
+				t.Fatalf("event input = %s", event.InputDigest)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name, input, patch string
 		single             bool
