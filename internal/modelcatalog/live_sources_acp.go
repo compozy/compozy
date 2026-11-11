@@ -45,6 +45,8 @@ func (SessionACPModelProbe) InspectModels(
 		Command:   strings.TrimSpace(req.Command),
 		Cwd:       strings.TrimSpace(req.Cwd),
 		Env:       slices.Clone(req.Env),
+
+		TelemetryProvider: strings.TrimSpace(req.ProviderID),
 	})
 	if err != nil {
 		return acp.SessionModelInspection{}, fmt.Errorf(

@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -128,13 +129,36 @@ func startPermissionWaitSpan(ctx context.Context, turn trace.SpanContext) trace.
 
 // endPermissionWaitSpan ends the wait with the decision the provider received.
 func endPermissionWaitSpan(span trace.Span, decision permissionDecision) {
-	outcome := telemetry.OutcomeCancelled
-	switch decision {
-	case decisionAllowOnce, decisionAllowAlways:
-		outcome = telemetry.OutcomeApproved
-	case decisionRejectOnce, decisionRejectAlways:
-		outcome = telemetry.OutcomeDenied
-	}
-	span.SetAttributes(telemetry.AttrOutcome.String(outcome))
+	span.SetAttributes(telemetry.AttrOutcome.String(decision.TelemetryOutcome()))
 	span.End()
+}
+
+// TelemetryOutcome maps a decision to its telemetry outcome: allow is approved, reject is denied, and anything else,
+// such as a cancellation or an unknown value, is OutcomeCancelled.
+func (d PermissionDecision) TelemetryOutcome() string {
+	switch d {
+	case PermissionDecisionAllowOnce, PermissionDecisionAllowAlways:
+		return telemetry.OutcomeApproved
+	case PermissionDecisionRejectOnce, PermissionDecisionRejectAlways:
+		return telemetry.OutcomeDenied
+	default:
+		return telemetry.OutcomeCancelled
+	}
+}
+
+type spawnProviderKey struct{}
+
+// withSpawnProvider labels the acp.process.spawn span of a start that carries no provider name.
+func withSpawnProvider(ctx context.Context, provider string) context.Context {
+	if provider = strings.TrimSpace(provider); provider == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, spawnProviderKey{}, provider)
+}
+
+func spawnProvider(ctx context.Context) string {
+	if provider, ok := ctx.Value(spawnProviderKey{}).(string); ok {
+		return provider
+	}
+	return ""
 }

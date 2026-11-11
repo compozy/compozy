@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -84,7 +85,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (process *AgentProce
 		return nil, WrapFailure(store.FailureProtocol, "ACP reasoning strategy validation failed", err)
 	}
 
-	ctx, spawn := startSpawnSpan(ctx, normalized.ProviderName)
+	ctx, spawn := startSpawnSpan(ctx, cmp.Or(normalized.ProviderName, spawnProvider(ctx)))
 	defer func() { telemetry.EndSpan(spawn, startErr) }()
 	attempts := max(1, d.startAttempts)
 	for attempt := range attempts {

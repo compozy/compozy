@@ -92,6 +92,28 @@ func TestDriverTurnSpans(t *testing.T) {
 		}
 	})
 
+	t.Run("Should label a model inspection spawn with the probed provider", func(t *testing.T) {
+		collector := otlptest.NewCollector(t)
+		collector.ExportWithMetrics(t, 1, telemetry.Registries{
+			ACPMethods: TracedMethods(),
+			Providers:  func(name string) bool { return name == "claude" },
+		})
+		ctx, turn := telemetry.Tracer(telemetry.ScopeSession).Start(testutil.Context(t), telemetry.SpanSessionTurn)
+		if _, err := InspectSessionModels(ctx, SessionInspectionRequest{
+			AgentName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env:               helperEnv("model_specific_config_options", ""),
+			TelemetryProvider: "claude",
+		}); err != nil {
+			t.Fatalf("InspectSessionModels() error = %v", err)
+		}
+		turn.End()
+
+		spawn := onlySpan(t, collector.Flush(t), telemetry.SpanACPProcessSpawn)
+		if got := spawn.Attributes[string(telemetry.AttrGenAISystem)]; got != "claude" {
+			t.Fatalf("acp.process.spawn %s = %v, want claude", telemetry.AttrGenAISystem, got)
+		}
+	})
+
 	// UT-070, UT-071
 	t.Run("Should hand the provider the spawn span's TRACEPARENT only while forwarding", func(t *testing.T) {
 		collector := exportACPTraces(t)

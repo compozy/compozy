@@ -1,6 +1,6 @@
 # BUG-20261111-otel-model-probe-spawn-provider-other: A turn's model-discovery spawn shows provider `other`
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Dora
@@ -31,7 +31,7 @@ Dora sees most of her turn's latency in a spawn she cannot attribute to a provid
 
 - `docs/qa/evidence/2026-11-11-otel-telemetry-export/w1-jaeger-session-turn.json` (span `541d27df3c5c064c`)
 
-## Root cause (from code, not fixed)
+## Root cause
 
 `internal/modelcatalog/live_sources_acp.go` `SessionACPModelProbe.InspectModels` builds an
 `acp.SessionInspectionRequest` without a provider, so `internal/acp/start.go` `startSpawnSpan(ctx,
@@ -41,3 +41,16 @@ is not a telemetry-only change: a non-empty `ProviderName` also enables the prov
 
 Related observation (outside this spec): the inspection runs inside the first turn and delayed the provider spawn by
 about 14 s.
+
+## Fix
+
+`acp.SessionInspectionRequest.TelemetryProvider` labels the inspection's `acp.process.spawn` span without setting
+`ProviderName`, so the provider pre-start stays off. `SessionACPModelProbe.InspectModels` passes the probed provider
+id; `internal/acp/start.go` labels the spawn with `ProviderName`, else that label.
+
+## Retest
+
+`internal/acp` `TestDriverTurnSpans` "Should label a model inspection spawn with the probed provider" exports an
+inspection spawn through the real telemetry runtime to the in-process OTLP collector and asserts
+`gen_ai.system = claude`; it fails with `other` without the fix. A live Jaeger re-walk of OBS-otel-export §1 is still
+pending.
