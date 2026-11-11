@@ -4,7 +4,7 @@ area: ET
 title: Context sidebar opens and closes from the composer
 persona: Bruno
 journey: J-14
-expected: A fresh session defaults to the full-width thread. The composer context button is the one control that opens and closes the Context sidebar, and it reads pressed (`aria-pressed`, held plate) while the sidebar is open; an ordinary session's head has no context toggle. An always-on main has no composer context control, so its head keeps a Close context sidebar toggle only while the sidebar is open. Open/closed preference persists per sessionId; inline rail at 1440px and drawer below; Escape or drawer dismissal updates the shared preference. No Usage, Memory, Files or Vault tabs remain.
+expected: A fresh session defaults to the full-width thread. The composer context button is the one control that opens and closes the Context sidebar, and it reads pressed (`aria-pressed`, held plate) while the sidebar is open; an ordinary session's head has no context toggle, except a read-only superseded session, which has no composer and keeps it. An always-on main has no composer context control, so its head keeps a Close context sidebar toggle only while the sidebar is open. Open/closed preference persists per sessionId; inline rail at 1440px and drawer below; Escape or drawer dismissal updates the shared preference. No Usage, Memory, Files or Vault tabs remain.
 entry_points: web session window composer context control; SessionInspector; localStorage key compozy:session:inspector:v2
 qa_status: pass
 bug_ids:
