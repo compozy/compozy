@@ -20,10 +20,10 @@ compozy automation runs [flags]
   -h, --help                help for runs
       --job-id string       Filter by automation job ID
       --last int            Maximum runs per page (0 uses 50; maximum 200) (default 50)
-      --since string        Show runs since an RFC3339 timestamp or relative duration
+      --since string        Show runs since RFC3339 or a relative duration; use absolute time from the first page when paging
       --status string       Filter by run status
       --trigger-id string   Filter by automation trigger ID
-      --until string        Show runs until an RFC3339 timestamp or relative duration
+      --until string        Show runs until RFC3339 or a relative duration; use absolute time from the first page when paging
       --workspace string    Filter by source project
 ```
 

@@ -11,6 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	automationRunSinceHelp = "Show runs since RFC3339 or a relative duration; " +
+		"use absolute time from the first page when paging"
+	automationRunUntilHelp = "Show runs until RFC3339 or a relative duration; " +
+		"use absolute time from the first page when paging"
+)
+
 func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 	var (
 		jobID     string
@@ -81,9 +88,9 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&triggerID, "trigger-id", "", "Filter by automation trigger ID")
 	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
-		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
+		StringVar(&sinceRaw, "since", "", automationRunSinceHelp)
 	cmd.Flags().
-		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
+		StringVar(&untilRaw, "until", "", automationRunUntilHelp)
 	cmd.Flags().IntVar(&last, "last", 50, "Maximum runs per page (0 uses 50; maximum 200)")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after page.next_cursor (time filters must be RFC3339)")
 	cmd.AddCommand(newAutomationRunsGetCommand(deps))

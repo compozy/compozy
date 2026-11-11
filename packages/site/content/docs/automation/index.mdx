@@ -216,15 +216,15 @@ warn; **v0.5.0 removes them**, after which they fail like any unknown id:
 | Palette ids `app.open.jobs`, `app.open.triggers`                               | `app.open.automations`     | log `cmdpalette.command_id_deprecated`                                              |
 | Palette ids `palette.view.jobs`, `palette.view.triggers`                       | `palette.view.automations` | log `cmdpalette.command_id_deprecated`                                              |
 
-Scripts that use `compozy automation jobs|triggers`, `/api/automation/*`, or the
-`compozy__automation_*` tools need no change: their only difference is the added `last_run` field and
-the optional `target` filter.
+For the window consolidation above, CLI verbs, `/api/automation/*` routes and
+`compozy__automation_*` tool IDs stay the same. The catalogs add `last_run` and an optional
+`target` filter. Run-history callers also follow the paging migration below.
 
 Run lists and job/trigger histories return 50 records by default, with a maximum of 200 per page.
 An omitted or zero limit uses the default. Follow `page.next_cursor` while `page.has_more` is true,
 keeping the same filters and profile/project scope. The CLI exposes `--last` and `--cursor` and
 preserves `page` in JSON output. Reading every page recovers the full matching history.
 
-When paging CLI run history with `--since` or `--until`, use an absolute RFC3339 timestamp on
-every page. Relative durations (such as `1h`) move between calls and are refused with `--cursor`.
+When paging CLI run history with `--since` or `--until`, start with an absolute RFC3339 timestamp on
+the first request and reuse it on every page. Relative durations (such as `1h`) move between calls and are refused with `--cursor`.
 Human, TOON and JSONL output include page metadata alongside the records.

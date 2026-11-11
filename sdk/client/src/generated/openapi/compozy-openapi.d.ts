@@ -49023,8 +49023,10 @@ export interface operations {
   getWorkspace: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {

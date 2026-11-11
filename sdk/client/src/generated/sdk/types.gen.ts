@@ -33753,9 +33753,13 @@ export type GetWorkspaceData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{id}";
 };

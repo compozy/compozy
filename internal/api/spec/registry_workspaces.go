@@ -64,7 +64,7 @@ func getWorkspaceOperationSpec() OperationSpec {
 		Summary:     "Get one resolved workspace with related data",
 		Tags:        []string{specWorkspacesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  withProfileSelector(pathParam("id", "Workspace id or path")),
+		Parameters:  withProfileScope(pathParam("id", "Workspace id or path")),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorkspaceDetailPayload{}},
 			{

@@ -84,8 +84,8 @@ const toolSearchInputSchema = `{
 	"required":["query"],
 	"properties":{
 		"query":{"type":"string"},
-        "offset":{"type":"integer","minimum":0},
-        "limit":{"type":"integer","minimum":0,"maximum":100,"description":"Page size; omitted or zero uses 20."}
+		"offset":{"type":"integer","minimum":0},
+		"limit":{"type":"integer","minimum":0,"maximum":100,"description":"Page size; omitted or zero uses 20."}
 	},
 	"additionalProperties":false
 }`

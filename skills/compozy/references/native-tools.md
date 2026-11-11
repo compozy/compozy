@@ -853,9 +853,11 @@ run history stays uncounted and defaults to 50 records per page (maximum 200; ze
 `automation_runs_list`, `automation_jobs_history`, and `automation_triggers_history` return
 `page.limit`, `page.has_more`, and `page.next_cursor`. Continue with `cursor` and unchanged filters
 and profile/workspace scope. HTTP/UDS shares the same page contract. CLI history and runs use
-`--last` for page size and `--cursor` for continuation; JSON preserves the `page` envelope; human, TOON and JSONL show continuation metadata too. Use
-absolute RFC3339 time filters when combining CLI history reads with `--cursor`. Continue with the returned opaque cursor under
-unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
+`--last` for page size and `--cursor` for continuation. JSON preserves the `page` envelope;
+human, TOON and JSONL expose continuation too. For CLI history that spans pages, use absolute
+RFC3339 time filters from the first request. Relative durations move between calls and cannot
+be reused with `--cursor`. Changing filters or scope starts a new first page. Other
+`compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable. List and get items carry `last_run` (`id`, `status`,
 `started_at`, `ended_at`, `skip_reason` for a skipped fire stored as `canceled`), equal to the first

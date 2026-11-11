@@ -221,8 +221,9 @@ func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowM
 
 // GetWorkspaceParams carries the path, query, and header parameters.
 type GetWorkspaceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetWorkspace Get one resolved workspace with related data
@@ -232,6 +233,9 @@ func (c *Client) GetWorkspace(ctx context.Context, params GetWorkspaceParams) (*
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

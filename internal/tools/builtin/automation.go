@@ -470,7 +470,7 @@ const automationJobHistoryProperties = `{
 	"since":{"type":"string"},
 	"until":{"type":"string"},
 	"cursor":{"type":"string"},
-    "limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
+	"limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
 }`
 
 const automationTriggerHistoryProperties = `{
@@ -480,7 +480,7 @@ const automationTriggerHistoryProperties = `{
 	"since":{"type":"string"},
 	"until":{"type":"string"},
 	"cursor":{"type":"string"},
-    "limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
+	"limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
 }`
 
 const automationRunQueryProperties = `{
@@ -491,5 +491,5 @@ const automationRunQueryProperties = `{
 	"since":{"type":"string"},
 	"until":{"type":"string"},
 	"cursor":{"type":"string"},
-    "limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
+	"limit":{"type":"integer","minimum":0,"maximum":200,"description":"Page size; omitted or zero uses 50."}
 }`

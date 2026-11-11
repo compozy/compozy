@@ -6,7 +6,7 @@ Automation run lists and job/trigger histories now return 50 records per page by
 maximum of 200. Omitted and zero limits use 50. Follow `page.next_cursor` as `cursor` until
 `page.has_more` is false; keep filters and profile/workspace unchanged. CLI users pass `--last`
 and `--cursor`; every output format exposes continuation metadata. When paging with time
-filters, use the same absolute RFC3339 timestamp on every page. Relative durations such as
+filters, use the same absolute RFC3339 timestamp starting with the first request. Relative durations such as
 `--since 1h` cannot be reused with `--cursor`. All records remain stored.
 
 Worktree lists omit removed records. Set native `include_removed: true`, HTTP/UDS

@@ -534,11 +534,11 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeLogProfileReadModes",
+			name: "ShouldDescribeLogAndWorkspaceProfileReadModes",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				for _, path := range []string{"/api/logs", "/api/logs/stream"} {
+				for _, path := range []string{"/api/logs", "/api/logs/stream", "/api/workspaces/{id}"} {
 					operation := operationFor(t, doc, path, http.MethodGet)
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
 					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)

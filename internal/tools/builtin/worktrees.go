@@ -53,7 +53,7 @@ const worktreeListInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"refresh":{"type":"boolean"},
-        "include_removed":{"type":"boolean"}
+		"include_removed":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`

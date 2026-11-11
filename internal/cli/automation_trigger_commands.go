@@ -219,9 +219,9 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
-		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
+		StringVar(&sinceRaw, "since", "", automationRunSinceHelp)
 	cmd.Flags().
-		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
+		StringVar(&untilRaw, "until", "", automationRunUntilHelp)
 	cmd.Flags().IntVar(&last, "last", 50, "Maximum runs per page (0 uses 50; maximum 200)")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after page.next_cursor (time filters must be RFC3339)")
 	configureProfileReadCommand(cmd, deps)
