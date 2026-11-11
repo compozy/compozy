@@ -113,6 +113,37 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 func TestHostedMCPProjectionStreamPush(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should notify without embedding the tool catalog when requested", func(t *testing.T) {
+		t.Parallel()
+		registry, err := toolspkg.NewRegistry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan struct{})
+		close(done)
+		router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, &mcppkg.HostedConfig{
+			Registry: func() toolspkg.Registry { return registry },
+		}, &core.BaseHandlerConfig{StreamDone: done})
+		bind := launchAndBindHostedMCP(t, service, peer, "sess-stream-notification")
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID+"&notifications_only=true", http.NoBody)
+		request = request.WithContext(mcppkg.ContextWithPeerInfo(request.Context(), peer, nil))
+		router.ServeHTTP(recorder, request)
+		records := parseSSE(t, recorder.Body.String())
+		if recorder.Code != http.StatusOK || len(records) != 1 || records[0].Event != "projection_changed" {
+			t.Fatalf("notification status=%d records=%#v", recorder.Code, records)
+		}
+		var notification mcppkg.HostedProjectionResponse
+		decodeSSEData(t, records[0], &notification)
+		if string(records[0].Data) != fmt.Sprintf(`{"digest":%q}`, bind.Digest) {
+			t.Fatalf("notification payload = %s, want only digest", records[0].Data)
+		}
+		if notification.Digest == "" || notification.Digest != bind.Digest || len(notification.Tools) != 0 {
+			t.Fatalf("notification = %#v, want only current digest", notification)
+		}
+	})
+
 	t.Run("Should push a projection on epoch advance and not rebuild while the epoch is unchanged", func(t *testing.T) {
 		t.Parallel()
 

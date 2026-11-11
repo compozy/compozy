@@ -60,7 +60,12 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 		h.respondHostedMCPPeerError(c, err)
 		return
 	}
-	response, err := h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
+	var response mcppkg.HostedProjectionResponse
+	if c.Query("stream_snapshot") == "true" {
+		response, err = h.HostedMCP.StreamSnapshot(c.Request.Context(), c.Query("bind_id"), peer)
+	} else {
+		response, err = h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
+	}
 	if err != nil {
 		respondHostedMCPError(c, err)
 		return
@@ -82,6 +87,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	}
 	bindID := strings.TrimSpace(c.Query("bind_id"))
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
+	notificationsOnly := c.Query("notifications_only") == "true"
 	changes := h.HostedMCP.ProjectionChanges()
 	response, err := h.HostedMCP.StreamProjection(c.Request.Context(), bindID, peer, lastDigest)
 	if err != nil {
@@ -102,11 +108,14 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	defer fallback.Stop()
 	for {
 		if response.Digest != "" && response.Digest != lastDigest {
-			if writeErr := core.WriteSSE(writer, core.SSEMessage{
-				ID:   response.Digest,
-				Name: "projection",
-				Data: response,
-			}); writeErr != nil {
+			message := core.SSEMessage{ID: response.Digest, Name: "projection", Data: response}
+			if notificationsOnly {
+				message.Name = "projection_changed"
+				message.Data = struct {
+					Digest string `json:"digest"`
+				}{response.Digest}
+			}
+			if writeErr := core.WriteSSE(writer, message); writeErr != nil {
 				if h.Logger != nil {
 					h.Logger.Warn("udsapi: failed to emit hosted MCP projection", "error", writeErr)
 				}

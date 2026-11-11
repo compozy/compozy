@@ -609,6 +609,9 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 				t.Fatalf("boot() error = %v", err)
 			}
 		case <-time.After(5 * time.Second):
+			stacks := make([]byte, 1<<20)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			t.Logf("boot timeout goroutines:\n%s", stacks)
 			t.Fatal("daemon boot did not finish after Loop neutralization was released")
 		}
 		t.Cleanup(func() {

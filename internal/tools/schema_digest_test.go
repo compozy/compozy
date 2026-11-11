@@ -24,6 +24,13 @@ func TestCanonicalJSONShouldProduceStableJCSBytes(t *testing.T) {
 			want: `[{"a":1,"z":2},"text",false]`,
 		},
 		{
+			name: "Should preserve JSON string escaping and Unicode in canonical identities",
+			raw: json.RawMessage(
+				`{"unicode":"ação\u2028\u2029","quote\"":"slash\\","control":"\u0000\b\t\n\f\r\u001f"}`,
+			),
+			want: `{"control":"\u0000\b\t\n\f\r\u001f","quote\"":"slash\\","unicode":"ação\u2028\u2029"}`,
+		},
+		{
 			name: "Should CanonicalizeZero",
 			raw:  json.RawMessage(`-0`),
 			want: `0`,

@@ -2187,6 +2187,16 @@ func startHostedMCPClient(
 	}
 	command := exec.CommandContext(ctx, stdio.Command, stdio.Args...)
 	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
+	stderr, err := os.CreateTemp(t.ArtifactDir(), "hosted-mcp-proxy-*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := stderr.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	command.Stderr = stderr
 	opts := &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}}
 	if len(options) > 0 {
 		opts = options[0]

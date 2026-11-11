@@ -143,6 +143,15 @@ func appendCanonicalValue(builder *strings.Builder, value any) error {
 }
 
 func quoteJSONString(value string) string {
+	for i := range len(value) {
+		if value[i] < 0x20 || value[i] >= 0x80 || value[i] == '"' || value[i] == '\\' {
+			return quoteEscapedJSONString(value)
+		}
+	}
+	return `"` + value + `"`
+}
+
+func quoteEscapedJSONString(value string) string {
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)

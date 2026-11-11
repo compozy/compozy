@@ -50,6 +50,32 @@ func (s *HostedService) ProjectionChanges() HostedProjectionChanges {
 	return changes
 }
 
+// StreamSnapshot returns the complete stream-cached catalog without changing bind readiness.
+func (s *HostedService) StreamSnapshot(
+	ctx context.Context,
+	bindID string,
+	peer PeerInfo,
+) (HostedProjectionResponse, error) {
+	record, err := s.recordForBind(ctx, bindID, peer)
+	if err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	if cached, ok := s.projectionCache.loadUnversioned(
+		record.bindID, s.currentProjectionEpoch(), s.now(), s.StreamRefreshInterval(),
+	); ok {
+		return cloneHostedProjectionResponse(cached), nil
+	}
+	registry := s.currentRegistry()
+	if registry == nil {
+		return HostedProjectionResponse{}, ErrHostedRegistryRequired
+	}
+	response, err := s.projectionForGeneration(ctx, record, registry, s.boundedUnversionedProjection)
+	if err != nil {
+		return HostedProjectionResponse{}, err
+	}
+	return cloneHostedProjectionResponse(response), nil
+}
+
 // StreamProjection omits unchanged tools and isolates changed views from the shared cache.
 func (s *HostedService) StreamProjection(
 	ctx context.Context,

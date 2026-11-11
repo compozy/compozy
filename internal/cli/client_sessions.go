@@ -2,8 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 
 	"fmt"
 
@@ -11,13 +9,10 @@ import (
 	"net/url"
 
 	"strconv"
-	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
-
-	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
 func (c *daemonClient) CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error) {
@@ -394,98 +389,4 @@ func (c *daemonClient) SteerSessionPrompt(
 		return SessionPromptRecord{}, err
 	}
 	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
-}
-
-func (c *daemonClient) BindHostedMCP(
-	ctx context.Context,
-	request mcppkg.HostedBindRequest,
-) (mcppkg.HostedBindResponse, error) {
-	var response mcppkg.HostedBindResponse
-	if err := c.doJSON(ctx, http.MethodPost, "/api/internal/hosted-mcp/bind", nil, request, &response); err != nil {
-		return mcppkg.HostedBindResponse{}, err
-	}
-	return response, nil
-}
-
-func (c *daemonClient) HostedMCPProjection(
-	ctx context.Context,
-	bindID string,
-) (mcppkg.HostedProjectionResponse, error) {
-	query := url.Values{}
-	query.Set("bind_id", strings.TrimSpace(bindID))
-	var response mcppkg.HostedProjectionResponse
-	if err := c.doJSON(ctx, http.MethodGet, "/api/internal/hosted-mcp/projection", query, nil, &response); err != nil {
-		return mcppkg.HostedProjectionResponse{}, err
-	}
-	return response, nil
-}
-
-func (c *daemonClient) StreamHostedMCPProjection(
-	ctx context.Context,
-	bindID string,
-	lastDigest string,
-	handler mcppkg.HostedProjectionHandler,
-) error {
-	query := url.Values{}
-	query.Set("bind_id", strings.TrimSpace(bindID))
-	if trimmed := strings.TrimSpace(lastDigest); trimmed != "" {
-		query.Set("last_digest", trimmed)
-	}
-	err := c.doSSE(
-		ctx,
-		"/api/internal/hosted-mcp/projection/stream",
-		query,
-		"",
-		func(event SSEEvent) error {
-			if event.Event == clientErrorKey {
-				return readAPIErrorBody(0, "", event.Data)
-			}
-			if event.Event != "projection" {
-				return nil
-			}
-			var snapshot mcppkg.HostedProjectionResponse
-			if err := json.Unmarshal(event.Data, &snapshot); err != nil {
-				return fmt.Errorf("cli: decode hosted MCP projection event: %w", err)
-			}
-			if handler == nil {
-				return nil
-			}
-			return handler(snapshot)
-		},
-	)
-	if apiErr, ok := errors.AsType[*daemonAPIError](err); ok {
-		switch {
-		case strings.HasPrefix(apiErr.payload.Error, "hosted_mcp_bind_not_found:"):
-			return errors.Join(mcppkg.ErrHostedBindNotFound, err)
-		case strings.HasPrefix(apiErr.payload.Error, "hosted_mcp_bind_required:"):
-			return errors.Join(mcppkg.ErrHostedBindRequired, err)
-		}
-	}
-	return err
-}
-
-func (c *daemonClient) CallHostedMCP(
-	ctx context.Context,
-	request mcppkg.HostedCallRequest,
-) (mcppkg.HostedCallResponse, error) {
-	var response mcppkg.HostedCallResponse
-	if err := c.doJSONWithClient(
-		ctx,
-		http.MethodPost,
-		"/api/internal/hosted-mcp/tools/call",
-		nil,
-		request,
-		&response,
-		c.streamHTTPClient(),
-	); err != nil {
-		return mcppkg.HostedCallResponse{}, err
-	}
-	return response, nil
-}
-
-func (c *daemonClient) ReleaseHostedMCP(
-	ctx context.Context,
-	request mcppkg.HostedReleaseRequest,
-) error {
-	return c.doJSON(ctx, http.MethodPost, "/api/internal/hosted-mcp/release", nil, request, nil)
 }

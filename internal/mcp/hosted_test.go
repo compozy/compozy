@@ -1085,6 +1085,13 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 							return
 						}
 						response.Tools[0].Descriptor.InputSchema[0] = '!'
+						snapshot, err := service.StreamSnapshot(t.Context(), binds[i].BindID, peers[i])
+						if err != nil || snapshot.Digest != response.Digest || len(snapshot.Tools) != 1 ||
+							!json.Valid(snapshot.Tools[0].Descriptor.InputSchema) {
+							t.Errorf("peer %d stream snapshot lost cached catalog: %#v, %v", i, snapshot, err)
+							return
+						}
+						snapshot.Tools[0].Descriptor.InputSchema[0] = '!'
 						unchanged, err := service.StreamProjection(
 							t.Context(),
 							binds[i].BindID,
@@ -1819,6 +1826,11 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			response, err := service.StreamProjection(t.Context(), bind.BindID, peer, "")
 			if err != nil {
 				t.Fatalf("StreamProjection(%s) error = %v", label, err)
+			}
+			snapshot, err := service.StreamSnapshot(t.Context(), bind.BindID, peer)
+			if err != nil || snapshot.Digest != response.Digest ||
+				!slices.Equal(hostedToolIDs(snapshot.Tools), hostedToolIDs(response.Tools)) {
+				t.Fatalf("StreamSnapshot(%s) diverged from stream: %#v, %v", label, snapshot, err)
 			}
 			return response
 		}

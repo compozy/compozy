@@ -39,3 +39,10 @@ receive the URL as one argument. On launch, inspect the recreated desktop entry 
 AppImage path/version, `%u`, and `MimeType=x-scheme-handler/compozyos;`; verify `xdg-mime query
 default x-scheme-handler/compozyos` and launch the URL through KDE without protocol recursion.
 Native KDE/AppImage evidence remains a platform QA requirement; macOS checks do not prove it.
+
+2026-11-11 boot-cost impact: native tool catalog initialization avoids repeated canonicalization
+of byte-identical result schemas and encoder allocation for strings that need no JSON escaping.
+Canonical schema bytes and persisted digests must remain identical. The real SQLite
+`TestBootLoopReconciliationBarrier` keeps its original one/five-second guards and all 16 claim
+rejections; a timeout records goroutine stacks to identify the blocked boot phase. Local CPU
+profiles and focused tests do not replace Linux-race CI or the desktop platform walks above.

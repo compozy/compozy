@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -158,7 +159,11 @@ func streamHostedProjection(
 		// A refresh failure is not a provider disconnect. Calls still go through the
 		// daemon's current authorization, and the next stream rebuild repairs discovery.
 		if err != nil {
-			slog.Warn("mcp: hosted projection stream interrupted; reconnecting")
+			slog.Warn(
+				"mcp: hosted projection stream interrupted; reconnecting",
+				"error",
+				diagnostics.RedactAndBound(err.Error(), 1024),
+			)
 		}
 		retry := time.NewTimer(HostedProjectionFallbackRefresh)
 		select {
