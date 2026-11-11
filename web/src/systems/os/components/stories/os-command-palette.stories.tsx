@@ -19,7 +19,11 @@ import {
   rehydrateActiveWorkspaceStore,
   setActiveWorkspaceId,
 } from "@/systems/workspace";
-import { workspaceFixtures } from "@/systems/workspace/mocks";
+import {
+  buildWorktreeFixture,
+  worktreeListingFixture,
+  workspaceFixtures,
+} from "@/systems/workspace/mocks";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -35,6 +39,7 @@ import type { PaletteViewFrame } from "../../lib/palette-view-stack";
 import {
   cmdPaletteCatalogFixture,
   cmdPaletteProfileExtensionCommand,
+  cmdPaletteRankSignalsFixture,
 } from "../../mocks/cmd-palette-fixtures";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { OsCommandPalette } from "../os-command-palette";
@@ -87,13 +92,29 @@ function shellSettings() {
   };
 }
 
-function paletteHandlers(sessions: SessionFixture[]) {
+function paletteHandlers(sessions: SessionFixture[], worktrees?: typeof worktreeListingFixture) {
   return storybookMswParameters({
     workspace: [
       compozyApiMock.get("/api/workspaces", () =>
         HttpResponse.json({ workspaces: workspaceFixtures })
       ),
+      ...(worktrees
+        ? [
+            compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees", () =>
+              HttpResponse.json(worktrees)
+            ),
+          ]
+        : []),
     ],
+    ...(worktrees
+      ? {
+          os: [
+            compozyApiMock.get("/api/cmd-palette/rank-signals", () =>
+              HttpResponse.json(cmdPaletteRankSignalsFixture)
+            ),
+          ],
+        }
+      : {}),
     settings: [compozyApiMock.get("/api/settings/shell", () => HttpResponse.json(shellSettings()))],
     session: [
       compozyApiMock.get("/api/sessions", ({ request }) => {
@@ -286,6 +307,29 @@ export const SessionsView: Story = {
   args: OPEN_ARGS,
   parameters: paletteHandlers(PALETTE_SESSIONS),
   loaders: [paletteViewLoader([{ viewId: "sessions" }])],
+  render: renderPalette,
+};
+
+/** Removed records remain available to session bindings, not selectable palette rows. */
+export const WorktreesView: Story = {
+  args: OPEN_ARGS,
+  parameters: paletteHandlers(PALETTE_SESSIONS, {
+    ...worktreeListingFixture,
+    worktrees: [
+      buildWorktreeFixture({
+        id: "palette-ready",
+        name: "Available checkout",
+        workspace_id: storyDefaultWorkspaceId,
+      }),
+      buildWorktreeFixture({
+        id: "palette-removed",
+        name: "Removed checkout",
+        state: "removed",
+        workspace_id: storyDefaultWorkspaceId,
+      }),
+    ],
+  }),
+  loaders: [paletteViewLoader([{ viewId: "worktrees" }])],
   render: renderPalette,
 };
 

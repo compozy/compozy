@@ -33772,7 +33772,7 @@ export type GetWorkspaceErrors = {
   /**
    * Workspace or requested profile not found
    */
-  404: ErrorPayload;
+  404: ErrorPayload | ProfileErrorPayload;
   /**
    * Profile archived or unavailable
    */

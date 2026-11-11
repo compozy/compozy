@@ -18,7 +18,7 @@ import {
   rowSeed,
   section,
   taskRoute,
-  worktreeRowSeed,
+  projectWorktreeRows,
   workspaceLabel,
   type OsPaletteDomainSection,
 } from "../lib/os-palette-domain-search";
@@ -57,22 +57,20 @@ function useWorktreeSection(context: OsPaletteDomainContext, catalogs: OsPalette
   const worktrees = useWorktrees(projectId, { enabled });
   if (context.signals === null) return EMPTY_SECTION("Worktrees");
   const all = context.scope.kind === "all";
-  const rows = all ? catalogs.worktrees : (worktrees.data?.worktrees ?? []);
+  const rows = projectWorktreeRows(
+    all ? catalogs.worktrees : (worktrees.data?.worktrees ?? []),
+    workspaceId => workspaceLabel(context.scope, workspaceId, context.workspaceNames)
+  );
   return section(
     "Worktrees",
-    rows.map(worktree =>
-      worktreeRowSeed(
-        worktree,
-        workspaceLabel(context.scope, worktree.workspace_id, context.workspaceNames)
-      )
-    ),
+    rows,
     all ? catalogs.worktreeState : worktrees,
     paletteDomainEnabled(context, "Worktrees") && context.scope.kind !== "user",
     context.query,
     context.signals,
     {
       limit: context.domainLimit,
-      catalogTotal: all ? catalogs.worktreeTotal : worktrees.data?.worktrees.length,
+      catalogTotal: all ? catalogs.worktreeTotal : rows.length,
     }
   );
 }

@@ -82,10 +82,10 @@ func (n *daemonNativeTools) toolSearch(
 	}
 	page := struct {
 		Tools      []toolspkg.ToolView `json:"tools"`
-		Offset     int                 `json:"offset"`
+		Offset     int                 `json:"offset,omitzero"`
 		Count      int                 `json:"count"`
 		Total      int                 `json:"total"`
-		NextOffset int                 `json:"next_offset"`
+		NextOffset int                 `json:"next_offset,omitzero"`
 		HasMore    bool                `json:"has_more"`
 	}{
 		Tools: views[start:end], Offset: offset, Count: end - start,

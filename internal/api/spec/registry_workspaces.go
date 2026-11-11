@@ -77,7 +77,14 @@ func getWorkspaceOperationSpec() OperationSpec {
 				Description: authoredContextInvalidProfileSelectionDescription,
 				Body:        contract.ProfileErrorPayload{},
 			},
-			{Status: 404, Description: "Workspace or requested profile not found", Body: contract.ErrorPayload{}},
+			{
+				Status:      404,
+				Description: "Workspace or requested profile not found",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](),
+					responseBodyOf[contract.ProfileErrorPayload](),
+				),
+			},
 			{Status: 409, Description: "Profile archived or unavailable", Body: contract.ProfileErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

@@ -108,3 +108,7 @@ CLI list reads omit only removed records by default. Explicit `include_removed=t
 The Web adapter explicitly includes removed records for bound-session resolution, while the
 visible catalog still hides them. Verify a stopped session bound to a removed worktree retains
 its recorded name/state and Resolve control.
+
+Open the project Worktrees palette with one ready and one removed record in the shared query.
+Verify that only the ready record is offered and the total is one, while bound-session lookup
+still retains the removed record. The `OsCommandPalette/WorktreesView` story covers this state.

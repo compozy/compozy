@@ -148,7 +148,8 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
   # Emit resolved workspace details as JSON
   compozy workspace info ws_1234 -o json`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed(workspaceFlagName) && strings.TrimSpace(workspaceRef) == "" {
+			// Reject a blank override before profile setup performs workspace lookups.
+			if commandWorkspaceFlagIsBlank(cmd, workspaceRef) {
 				return errWorkspaceReferenceRequired
 			}
 			return cobra.RangeArgs(0, 1)(cmd, args)

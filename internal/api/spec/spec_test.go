@@ -543,6 +543,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
 					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
 				}
+				workspace := operationFor(t, doc, "/api/workspaces/{id}", http.MethodGet)
+				missing := jsonResponseSchema(t, workspace, http.StatusNotFound)
+				if len(missing.OneOf) != 2 {
+					t.Fatalf("workspace 404 variants = %d, want workspace and profile errors", len(missing.OneOf))
+				}
+				if !propertySchema(t, missing.OneOf[0].Value, "error").Type.Is("string") ||
+					!propertySchema(t, missing.OneOf[1].Value, "error").Type.Is("object") {
+					t.Fatal("workspace 404 lost its string or structured profile error")
+				}
 			},
 		},
 
@@ -3822,6 +3831,10 @@ func addNativeReadPagingSchemas(t *testing.T, baseline map[string]any) {
 	workspace := paths["/api/workspaces/{id}"].(map[string]any)["get"].(map[string]any)
 	workspace["parameters"] = append(workspace["parameters"].([]any),
 		parameter("profile", "string"), parameter("all_profiles", "boolean"))
+	workspace404 := workspace["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	profile404 := paths["/api/profiles/{name}"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["404"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	workspace404["schema"] = map[string]any{"oneOf": []any{workspace404["schema"], profile404["schema"]}}
+
 	for _, endpoint := range []struct{ path, method string }{
 		{"/api/tools", "get"}, {"/api/tools/search", "post"},
 		{"/api/workspaces/{workspace_id}/sessions/{session_id}/tools", "get"},

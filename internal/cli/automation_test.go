@@ -822,13 +822,35 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 		t.Fatalf("runs toon output = %q, want automation_runs TOON array", runsToon)
 	}
 	for _, format := range []string{"human", "toon", "jsonl"} {
-		output, _, err := executeRootCommand(t, deps, "automation", "runs", "-o", format)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(output, "next-runs") {
-			t.Fatalf("%s output omits continuation: %s", format, output)
-		}
+		t.Run("Should print the continuation page in "+format+" output", func(t *testing.T) {
+			output, _, err := executeRootCommand(t, deps, "automation", "runs", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if format == "jsonl" {
+				lines := strings.Split(strings.TrimSpace(output), "\n")
+				var footer struct {
+					Type string                     `json:"type"`
+					Page contract.CursorPagePayload `json:"page"`
+				}
+				if err := json.Unmarshal([]byte(lines[len(lines)-1]), &footer); err != nil {
+					t.Fatal(err)
+				}
+				if footer.Type != "page" || footer.Page.NextCursor != "next-runs" || !footer.Page.HasMore ||
+					footer.Page.Limit != 50 {
+					t.Fatalf("run page = %#v", footer)
+				}
+				return
+			}
+			marker := "\nPage"
+			if format == "toon" {
+				marker = "\npage{"
+			}
+			index := strings.Index(output, marker)
+			if index < 0 || !strings.Contains(output[index:], "next-runs") {
+				t.Fatalf("missing continuation page: %s", output)
+			}
+		})
 	}
 }
 
@@ -1125,19 +1147,24 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	t.Parallel()
 
-	for _, filter := range []struct{ since, until string }{{since: "1h"}, {until: "1h"}} {
-		_, err := parseAutomationRunListQuery(
-			"",
-			filter.since,
-			filter.until,
-			50,
-			"next-page",
-			func() time.Time { return fixedTestNow },
-		)
-		if err == nil || !strings.Contains(err.Error(), "RFC3339") {
-			t.Fatalf("relative continuation error = %v", err)
-		}
+	for _, filter := range []struct{ name, since, until string }{
+		{name: "since", since: "1h"}, {name: "until", until: "1h"},
+	} {
+		t.Run("Should reject relative "+filter.name+" during continuation", func(t *testing.T) {
+			_, err := parseAutomationRunListQuery(
+				"",
+				filter.since,
+				filter.until,
+				50,
+				"next-page",
+				func() time.Time { return fixedTestNow },
+			)
+			if err == nil || !strings.Contains(err.Error(), "RFC3339") {
+				t.Fatalf("relative continuation error = %v", err)
+			}
+		})
 	}
+
 	if _, err := parseAutomationRunListQuery("", "2026-04-15T15:00:00Z", "", 50, "next-page", nil); err != nil {
 		t.Fatal(err)
 	}

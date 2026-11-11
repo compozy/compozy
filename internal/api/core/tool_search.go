@@ -18,7 +18,7 @@ func (h *BaseHandlers) respondToolSearch(c *gin.Context, scope toolspkg.Scope, r
 			toolspkg.NewToolError(
 				toolspkg.ErrorCodeInvalidInput,
 				"",
-				"offset must be nonnegative and limit must be between 0 and 100",
+				"offset must be nonnegative; limit must be 1-100, or zero for the default of 20",
 				toolspkg.ErrToolInvalidInput,
 				toolspkg.ReasonSchemaInvalid,
 			),

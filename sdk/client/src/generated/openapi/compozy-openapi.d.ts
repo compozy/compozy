@@ -49061,7 +49061,9 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Profile archived or unavailable */

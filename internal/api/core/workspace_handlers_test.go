@@ -320,11 +320,35 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 				return []*session.Info{own, other}, nil
 			},
 		}
-		all := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID+"?all_profiles=true", nil)
-		var allPayload contract.WorkspaceDetailPayload
-		testutil.DecodeJSONResponse(t, all, &allPayload)
-		if all.Code != http.StatusOK || len(allPayload.Sessions) != 2 {
-			t.Fatalf("all profiles response = %d %s", all.Code, all.Body)
+		for _, scope := range []struct {
+			name, query string
+			want        []string
+		}{
+			{"Should include all profile owners", "?all_profiles=true", []string{"other-profile", "own"}},
+			{"Should select only the named profile", "?profile=marketing", []string{"other-profile"}},
+		} {
+			t.Run(scope.name, func(t *testing.T) {
+				response := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodGet,
+					"/workspaces/"+workspace.ID+scope.query,
+					nil,
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("scoped workspace = %d %s", response.Code, response.Body)
+				}
+				var payload contract.WorkspaceDetailPayload
+				testutil.DecodeJSONResponse(t, response, &payload)
+				ids := make([]string, 0, len(payload.Sessions))
+				for _, item := range payload.Sessions {
+					ids = append(ids, item.ID)
+				}
+				slices.Sort(ids)
+				if !slices.Equal(ids, scope.want) {
+					t.Fatalf("session owners = %v, want %v", ids, scope.want)
+				}
+			})
 		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
