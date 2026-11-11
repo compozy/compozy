@@ -242,6 +242,7 @@ type Manager struct {
 	hooks                      HookSet
 	agentResolver              AgentResolver
 	providerSecrets            ProviderSecretResolver
+	providerTelemetryEnv       func() []string
 	profileNames               ProfileNameResolver
 	modelCatalog               modelcatalog.Service
 	skillRegistry              SkillRegistry

@@ -318,6 +318,38 @@ The daemon never exports prompt or response text, tool arguments or results, fil
 filesystem paths, environment values, header values, credentials, error message text, span or
 attribute values outside the registries above, or incoming `tracestate`.
 
+## Forward to providers
+
+With `forward_to_providers = true` and export running, provider processes started afterwards
+receive:
+
+```text
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS=api-key=<resolved value>
+OTEL_RESOURCE_ATTRIBUTES=compozy.session_id=sess-9c1e,compozy.agent=general
+TRACEPARENT=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+```
+
+`TRACEPARENT` is the provider's `acp.process.spawn` span, so a provider that honors it nests its own
+spans under the turn. It is set only when that span is sampled. Header values are resolved once at
+daemon start and percent-encoded.
+
+**This is an operator policy, not covered by the daemon privacy guarantee.** The provider decides
+what it exports — some providers include prompt text or tool payloads in their own telemetry — and
+it receives the resolved header values. Whether a provider exports anything depends on that provider
+(some need their own enable flag, set through the agent's environment). Agent-defined `OTEL_*`
+values win. `compozy status` shows `forwarding to providers` while it is on.
+
+Nothing is forwarded while export is disabled, inactive (`observability.enabled = false`), or
+degraded at start, for example by a header ref that does not resolve. Providers already running keep
+the environment they started with.
+
+```bash
+$ compozy config set observability.otel.forward_to_providers true
+$ compozy daemon stop && compozy daemon start
+```
+
 ## Troubleshoot export
 
 Configuration errors stop `config set`, `compozy__config_set`, and config load with one of these

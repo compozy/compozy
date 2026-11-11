@@ -2,8 +2,10 @@ package acp
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -76,6 +78,44 @@ func TestDriverTurnSpans(t *testing.T) {
 		want := fmt.Sprintf("00-%s-%s-01", prompt.TraceID, prompt.SpanID)
 		if echoed["traceparent"] != want {
 			t.Fatalf("provider _meta = %v, want traceparent %s of the prompt span", echoed, want)
+		}
+	})
+
+	// UT-070, UT-071
+	t.Run("Should hand the provider the spawn span's TRACEPARENT only while forwarding", func(t *testing.T) {
+		collector := exportACPTraces(t)
+		ctx, turn := telemetry.Tracer(telemetry.ScopeSession).Start(testutil.Context(t), telemetry.SpanSessionTurn)
+		defer turn.End()
+		launchedEnv := func(forward bool) []string {
+			launcher := &recordingLauncher{err: errors.New("stop after launch")}
+			if _, err := New().Start(ctx, StartOpts{
+				AgentName:          "helper",
+				Command:            "agent --acp",
+				Cwd:                t.TempDir(),
+				Env:                []string{"PATH=/usr/bin"},
+				Permissions:        compozyconfig.PermissionModeApproveAll,
+				Launcher:           launcher,
+				ForwardTraceParent: forward,
+			}); err == nil {
+				t.Fatal("Start() error = nil, want the launcher failure")
+			}
+			spec, called := launcher.lastSpec()
+			if !called {
+				t.Fatal("launcher was not called")
+			}
+			return spec.Env
+		}
+
+		forwarded := launchedEnv(true)
+		spawn := onlySpan(t, collector.Flush(t), telemetry.SpanACPProcessSpawn)
+		want := "TRACEPARENT=" + fmt.Sprintf("00-%s-%s-01", spawn.TraceID, spawn.SpanID)
+		if !slices.Contains(forwarded, want) {
+			t.Fatalf("forwarding launch env = %v, want %s of acp.process.spawn", forwarded, want)
+		}
+		for _, entry := range launchedEnv(false) {
+			if strings.HasPrefix(entry, "TRACEPARENT=") {
+				t.Fatalf("launch env without forwarding has %s", entry)
+			}
 		}
 	})
 

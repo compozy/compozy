@@ -37,6 +37,8 @@ type stubTelemetryRuntime struct {
 
 func (r *stubTelemetryRuntime) Status() telemetry.Status { return r.status }
 
+func (r *stubTelemetryRuntime) ProviderEnv() []string { return nil }
+
 func (r *stubTelemetryRuntime) Shutdown(ctx context.Context) error {
 	if r.shutdownFn == nil {
 		return nil

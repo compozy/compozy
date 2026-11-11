@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/providerenv"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -24,6 +25,12 @@ func (m *Manager) sessionStartOpts(
 		strings.TrimSpace(s.reasoningEffort),
 	)
 	env = setSessionStartEnvValue(env, "COMPOZY_HOME", m.homePaths.HomeDir)
+	// Forwarded before agent-defined session_env and command assignments are applied, so agent OTEL_* values win.
+	var forward []string
+	if m.providerTelemetryEnv != nil {
+		forward = m.providerTelemetryEnv()
+	}
+	env = providerenv.ApplyTelemetryForwarding(env, forward, s.sessionID, resolved.Name)
 	providerID := strings.TrimSpace(resolved.RuntimeProvider)
 	if providerID == "" {
 		providerID = strings.TrimSpace(resolved.Provider)
@@ -52,27 +59,28 @@ func (m *Manager) sessionStartOpts(
 				s.sessionType,
 			),
 		},
-		AgentName:         resolved.Name,
-		CompozySessionID:  s.sessionID,
-		WorkspaceID:       s.workspace.ID,
-		ProfileID:         s.profileID,
-		RuntimeGeneration: max(session.RuntimeGeneration, 1),
-		Command:           resolved.Command,
-		Cwd:               s.cwd,
-		AdditionalDirs:    s.executionAdditionalDirs(),
-		Env:               env,
-		MCPServers:        mcpServers,
-		Permissions:       m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
-		SystemPrompt:      resolved.Prompt,
-		PreferredModel:    preferredModel,
-		LaunchModelID:     launchModelID,
-		ReasoningEffort:   strings.TrimSpace(s.reasoningEffort),
-		Speed:             s.speed,
-		ACPOptions:        acp.CloneSessionConfigOptionSelections(s.acpOptions),
-		ResumeSessionID:   s.acpSessionID,
-		InputOnly:         IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
-		ShellWaitGuard:    shellWaitGuard,
-		LeanEnvironment:   sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
+		AgentName:          resolved.Name,
+		CompozySessionID:   s.sessionID,
+		WorkspaceID:        s.workspace.ID,
+		ProfileID:          s.profileID,
+		RuntimeGeneration:  max(session.RuntimeGeneration, 1),
+		Command:            resolved.Command,
+		Cwd:                s.cwd,
+		AdditionalDirs:     s.executionAdditionalDirs(),
+		Env:                env,
+		MCPServers:         mcpServers,
+		Permissions:        m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
+		SystemPrompt:       resolved.Prompt,
+		PreferredModel:     preferredModel,
+		LaunchModelID:      launchModelID,
+		ReasoningEffort:    strings.TrimSpace(s.reasoningEffort),
+		Speed:              s.speed,
+		ACPOptions:         acp.CloneSessionConfigOptionSelections(s.acpOptions),
+		ResumeSessionID:    s.acpSessionID,
+		InputOnly:          IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
+		ShellWaitGuard:     shellWaitGuard,
+		ForwardTraceParent: len(forward) > 0,
+		LeanEnvironment:    sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
 		IsolateProviderMCP: sessionIsolatesProviderMCP(
 			session.AgentDefinition().EffectiveKind(), resolved.LeanEnvironmentValue(),
 		),

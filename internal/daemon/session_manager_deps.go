@@ -58,6 +58,7 @@ type SessionManagerDeps struct {
 	SessionHealthStore      session.HealthStore
 	MentionReferences       session.MentionReferenceRenderer
 	AgentNiceness           int
+	ProviderTelemetryEnv    func() []string
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
@@ -122,6 +123,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionHealthStore:      sessionHealthStoreDependency(state.registry),
 		MentionReferences:       newMentionReferenceRendererForBoot(state),
 		AgentNiceness:           state.cfg.Daemon.Load.AgentNiceness,
+		ProviderTelemetryEnv:    state.ensureTelemetry().ProviderEnv,
 	}
 }
 

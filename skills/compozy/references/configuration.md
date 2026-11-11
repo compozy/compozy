@@ -721,6 +721,15 @@ classes: `http_400`, `http_401`, `http_403`, `http_404`, `http_413`, `http_429`,
 object means an older daemon (unknown). Exports carry IDs and registered names only, never prompt
 text, tool payloads, paths, or secrets.
 
+Provider forwarding: with `forward_to_providers = true` and export running (not disabled, inactive,
+or degraded at start), providers started afterwards receive `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS` (`name=<resolved value>`),
+`OTEL_RESOURCE_ATTRIBUTES` (`compozy.session_id=…,compozy.agent=…`), and `TRACEPARENT` from the
+sampled `acp.process.spawn` span. **This is an operator policy, not covered by the daemon privacy
+guarantee:** the provider decides what it exports (possibly prompt text or tool payloads) and
+receives the resolved header values. Agent-defined `OTEL_*` values win. Status shows
+`forward_to_providers: true` and the human line ends with `forwarding to providers`.
+
 ## User-scope execution directory
 
 `[user_scope] work_dir = "~"` selects the User execution directory. A personal profile overlay may

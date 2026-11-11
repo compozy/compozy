@@ -6,7 +6,9 @@ import (
 	"errors"
 	"log/slog"
 	"maps"
+	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +57,9 @@ type Status struct {
 // Runtime is a started export.
 type Runtime interface {
 	Status() Status
+	// ProviderEnv returns the OTLP export variables forwarded to provider processes (endpoint, protocol, and
+	// resolved headers), or nil unless forward_to_providers is on and export started.
+	ProviderEnv() []string
 	// Shutdown flushes pending telemetry within ctx; it returns ctx.Err() when the flush outlives ctx.
 	Shutdown(ctx context.Context) error
 }
@@ -104,6 +109,8 @@ type exportRuntime struct {
 	metrics *signalTracker
 	gate    *spanGate
 	logger  *slog.Logger
+	// providerEnv is fixed at Init, so header refs are never resolved again per provider spawn.
+	providerEnv []string
 
 	shutdowns     []func(context.Context) error
 	forgetSecrets func()
@@ -166,6 +173,9 @@ func initRuntime(ctx context.Context, cfg config.ObservabilityConfig, opts runti
 	if err := rt.start(ctx, otelCfg, target, opts); err != nil {
 		opts.logger.WarnContext(ctx, "telemetry: exporter setup failed", "error_class", exportClassOther)
 		return degrade(exportClassOther)
+	}
+	if otelCfg.ForwardToProviders {
+		rt.providerEnv = forwardedEnv(otelCfg.Protocol, endpoint, headers)
 	}
 	opts.logger.InfoContext(ctx, "telemetry: initialized", "protocol", otelCfg.Protocol, "endpoint_host", endpoint.Host)
 	return rt, nil
@@ -268,6 +278,28 @@ func (r *exportRuntime) Status() Status {
 		status.State = StateDegraded
 	}
 	return status
+}
+
+// ProviderEnv returns the forwarded OTLP variables; nil when forwarding is off or export did not start.
+func (r *exportRuntime) ProviderEnv() []string {
+	return slices.Clone(r.providerEnv)
+}
+
+// forwardedEnv renders the export target as OTEL_EXPORTER_OTLP_* variables; header values are percent-encoded as
+// the OTLP exporter specification requires.
+func forwardedEnv(protocol string, endpoint *url.URL, headers map[string]string) []string {
+	env := []string{
+		"OTEL_EXPORTER_OTLP_ENDPOINT=" + endpoint.String(),
+		"OTEL_EXPORTER_OTLP_PROTOCOL=" + protocol,
+	}
+	if len(headers) == 0 {
+		return env
+	}
+	pairs := make([]string, 0, len(headers))
+	for _, name := range slices.Sorted(maps.Keys(headers)) {
+		pairs = append(pairs, name+"="+url.PathEscape(headers[name]))
+	}
+	return append(env, "OTEL_EXPORTER_OTLP_HEADERS="+strings.Join(pairs, ","))
 }
 
 // Shutdown flushes both providers concurrently so a stalled signal cannot consume the other's share of ctx.

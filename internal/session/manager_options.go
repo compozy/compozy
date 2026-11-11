@@ -100,6 +100,14 @@ func WithProviderSecretResolver(resolver ProviderSecretResolver) Option {
 	}
 }
 
+// WithProviderTelemetryEnv injects the OTLP export variables forwarded to provider processes; it returns nil while
+// forwarding is off or export is inactive.
+func WithProviderTelemetryEnv(source func() []string) Option {
+	return func(manager *Manager) {
+		manager.providerTelemetryEnv = source
+	}
+}
+
 // WithProfileNameResolver injects stable-id to current-name resolution for profile-owned resources.
 func WithProfileNameResolver(resolver ProfileNameResolver) Option {
 	return func(manager *Manager) {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -455,6 +456,73 @@ func TestInitReportsTheConfiguredPolicyInStatus(t *testing.T) {
 			if status.SampleRatio != tt.ratio || status.ForwardToProviders != tt.forwarding {
 				t.Fatalf("Status() = %+v, want sample ratio %v with provider forwarding %t",
 					status, tt.ratio, tt.forwarding)
+			}
+		})
+	}
+}
+
+// UT-071, UT-073: the forwarded variables carry the target and header resolved at Init, and only while export runs.
+func TestProviderEnvForwardsOnlyAStartedExport(t *testing.T) {
+	t.Parallel()
+
+	forwarding := func(mutate func(*config.ObservabilityOTelConfig)) func(*config.ObservabilityOTelConfig) {
+		return func(otel *config.ObservabilityOTelConfig) {
+			otel.ForwardToProviders = true
+			otel.Endpoint = "http://collector.local:4318"
+			otel.Headers = map[string]string{"api-key": "vault:observability/nr"}
+			if mutate != nil {
+				mutate(otel)
+			}
+		}
+	}
+	inactive := exportConfig(forwarding(nil))
+	inactive.Enabled = false
+	tests := []struct {
+		name string
+		cfg  config.ObservabilityConfig
+		refs telemetry.SecretResolver
+		want []string
+	}{
+		{
+			name: "Should forward the endpoint, protocol, and resolved header value",
+			cfg:  exportConfig(forwarding(nil)),
+			refs: fakeResolver{"vault:observability/nr": "k 1/2"},
+			want: []string{
+				"OTEL_EXPORTER_OTLP_ENDPOINT=http://collector.local:4318",
+				"OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf",
+				"OTEL_EXPORTER_OTLP_HEADERS=api-key=k%201%2F2",
+			},
+		},
+		{
+			name: "Should forward nothing while forwarding is off",
+			cfg: exportConfig(forwarding(func(otel *config.ObservabilityOTelConfig) {
+				otel.ForwardToProviders = false
+			})),
+			refs: fakeResolver{"vault:observability/nr": "k1"},
+		},
+		{
+			name: "Should forward nothing while export is disabled",
+			cfg:  exportConfig(forwarding(func(otel *config.ObservabilityOTelConfig) { otel.Enabled = false })),
+			refs: fakeResolver{"vault:observability/nr": "k1"},
+		},
+		{
+			name: "Should forward nothing while observability is disabled",
+			cfg:  inactive,
+			refs: fakeResolver{"vault:observability/nr": "k1"},
+		},
+		{
+			name: "Should forward nothing when export degraded at init",
+			cfg:  exportConfig(forwarding(nil)),
+			refs: fakeResolver{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			started := startRuntime(t, tt.cfg, tt.refs, &fakeNetwork{})
+			if got := started.runtime.ProviderEnv(); !slices.Equal(got, tt.want) {
+				t.Fatalf("ProviderEnv() = %q, want %q", got, tt.want)
 			}
 		})
 	}

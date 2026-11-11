@@ -61,6 +61,25 @@ func (s *telemetrySlot) Status() (telemetry.Status, bool) {
 	return s.runtime.Status(), true
 }
 
+// ProviderEnv returns the OTLP variables forwarded to providers; nil until telemetry has started.
+func (s *telemetrySlot) ProviderEnv() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.runtime == nil {
+		return nil
+	}
+	return s.runtime.ProviderEnv()
+}
+
+// ensureTelemetry returns the boot's telemetry slot, created by its first consumer: the session manager, which reads
+// provider forwarding at spawn time, or the status handlers.
+func (s *bootState) ensureTelemetry() *telemetrySlot {
+	if s.telemetry == nil {
+		s.telemetry = &telemetrySlot{}
+	}
+	return s.telemetry
+}
+
 // shutdown flushes pending telemetry for at most telemetryShutdownTimeout. A flush that cannot finish never fails
 // daemon shutdown; telemetry logs the timeout itself.
 func (s *telemetrySlot) shutdown(ctx context.Context, logger *slog.Logger) {
