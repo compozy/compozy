@@ -65,7 +65,11 @@ func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev
 	if resumed {
 		call = s.rememberNativeCall(
 			parent,
-			NativeSubagentEvent{ProviderToolCallID: ev.ProviderToolCallID, Background: true},
+			NativeSubagentEvent{
+				ProviderToolCallID: ev.ProviderToolCallID,
+				ParentTurnID:       ev.ParentTurnID,
+				Background:         true,
+			},
 		)
 	}
 
@@ -435,6 +439,9 @@ func (s *subagentService) replayNativeCall(
 			return err
 		}
 		if store.IsSubagentStatusTerminal(current.Status) {
+			if current.SettledAt != nil && !ev.At.IsZero() && ev.At.Before(*current.SettledAt) {
+				continue
+			}
 			err = s.enrichNativeResult(ctx, current, status, ev.Task, ev.At)
 		} else {
 			_, err = s.finalizeNativeTask(ctx, current, status, ev.Task, ev.At)
