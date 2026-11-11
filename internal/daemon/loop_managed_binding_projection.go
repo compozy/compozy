@@ -266,6 +266,7 @@ func (b *loopActionSessionBinder) projectActionBindingSpeed(
 	}
 	if info.ACPCapsKnown {
 		binding.AppliedRuntime.Reasoning = info.EffectiveRuntime().ReasoningEffort
+		binding.AppliedRuntime.ACPOptions = loopACPOptionsFromSession(info.EffectiveRuntime().ACPOptions)
 	}
 	binding.SpeedResolution = speedpkg.CloneResolution(info.SpeedResolution)
 	return binding, nil

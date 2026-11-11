@@ -27,7 +27,8 @@ func (d *Driver) applySessionMode(
 	}
 
 	caps := process.CapsSnapshot()
-	option, configurable := findSelectConfigOption(caps.ConfigOptions, sessionConfigModeKey)
+	option, configurable := findConfigOptionByID(caps.ConfigOptions, sessionConfigModeKey)
+	configurable = configurable && option.Kind == SessionConfigOptionKindSelect
 	modes := caps.SupportedModes
 	if configurable {
 		modes = configOptionChoices(option)

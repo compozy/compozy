@@ -118,6 +118,9 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	info := created.Info()
 	appliedRuntime := appliedRuntimeFromCreateOptions(&(opts))
 	requestedRuntime := appliedRuntime
+	if info.ACPCapsKnown {
+		appliedRuntime.ACPOptions = loopACPOptionsFromSession(info.EffectiveRuntime().ACPOptions)
+	}
 	if info.Speed != "" || info.SpeedResolution != nil {
 		appliedRuntime.Speed = info.EffectiveRuntime().Speed
 	}

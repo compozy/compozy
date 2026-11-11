@@ -654,6 +654,18 @@ func (a *helperACPAgent) NewSession(
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 		}, nil
 	}
+	if strings.HasPrefix(a.scenario, "full_access_mode_") {
+		option := helperSelectConfigOption("mode", "Mode", "default", "default", "bypassPermissions")
+		options := []acpsdk.SessionConfigOption{option}
+		if a.scenario == "full_access_mode_duplicate" {
+			options = append(options, option)
+		}
+		if a.scenario == "full_access_mode_unavailable" {
+			options = []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default")}
+		}
+		a.setHelperConfigOptions(options)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
+	}
 	if a.scenario == "cursor_mode_mapping" || a.scenario == "cursor_mode_current_agent" {
 		current := "plan"
 		if a.scenario == "cursor_mode_current_agent" {

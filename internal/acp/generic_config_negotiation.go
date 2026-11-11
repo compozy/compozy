@@ -3,8 +3,27 @@ package acp
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func (d *Driver) applyStartupConfigSelections(
+	ctx context.Context,
+	process *AgentProcess,
+	selections []SessionConfigOptionSelection,
+) error {
+	if _, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); !ok &&
+		process.permissions.mode == compozyconfig.PermissionModeApproveAll {
+		// Full access may supply a mode default that this provider cannot negotiate.
+		selections = slices.DeleteFunc(slices.Clone(selections), func(selection SessionConfigOptionSelection) bool {
+			return selection.ID == sessionConfigModeKey &&
+				compozyconfig.IsUnrestrictedACPMode(process.permissionModeProvider(), selection.ValueID)
+		})
+	}
+	return d.applySessionConfigSelections(ctx, process, selections)
+}
 
 func (d *Driver) applySessionConfigSelections(
 	ctx context.Context,
