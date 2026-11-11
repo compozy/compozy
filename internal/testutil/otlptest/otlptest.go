@@ -56,13 +56,21 @@ func (s Span) HasEvent(name string) bool {
 	return slices.ContainsFunc(s.Events, func(event Event) bool { return event.Name == name })
 }
 
-// Collector is an OTLP/HTTP collector that keeps every span it receives and the latest export of each metric.
+// Signal request paths of the OTLP/HTTP protocol; Payloads also files gRPC requests under them.
+const (
+	TracesPath  = "/v1/traces"
+	MetricsPath = "/v1/metrics"
+)
+
+// Collector is an OTLP collector that keeps every request body and span it receives and the latest export of each
+// metric.
 type Collector struct {
 	URL string
 
-	mu      sync.Mutex
-	spans   []Span
-	metrics map[string]Metric
+	mu       sync.Mutex
+	payloads map[string][][]byte
+	spans    []Span
+	metrics  map[string]Metric
 }
 
 // NewCollector starts a collector that stops at test cleanup.
@@ -81,7 +89,8 @@ func (c *Collector) serve(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if req.URL.Path == "/v1/traces" {
+	c.record(req.URL.Path, body)
+	if req.URL.Path == TracesPath {
 		var export coltracepb.ExportTraceServiceRequest
 		if err := proto.Unmarshal(body, &export); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -89,7 +98,7 @@ func (c *Collector) serve(w http.ResponseWriter, req *http.Request) {
 		}
 		c.keep(&export)
 	}
-	if req.URL.Path == "/v1/metrics" {
+	if req.URL.Path == MetricsPath {
 		var export colmetricpb.ExportMetricsServiceRequest
 		if err := proto.Unmarshal(body, &export); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -111,6 +120,23 @@ func (c *Collector) keep(export *coltracepb.ExportTraceServiceRequest) {
 			}
 		}
 	}
+}
+
+func (c *Collector) record(path string, body []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.payloads == nil {
+		c.payloads = make(map[string][][]byte)
+	}
+	c.payloads[path] = append(c.payloads[path], slices.Clone(body))
+}
+
+// Payloads returns the raw serialized export requests received so far for a signal path (TracesPath or MetricsPath):
+// the HTTP request bodies, or the gRPC request message bytes.
+func (c *Collector) Payloads(path string) [][]byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.payloads[path])
 }
 
 // Spans returns every span received so far.

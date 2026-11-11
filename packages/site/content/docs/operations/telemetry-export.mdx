@@ -239,8 +239,16 @@ the machine and where, so only the operator sets them with `compozy config set` 
     "endpoint_host": "collector.local:4317",
     "sample_ratio": 0.25,
     "forward_to_providers": false,
-    "traces": { "enabled": true, "last_export_at": "2026-11-07T14:02:11Z", "failed_exports": 0 },
-    "metrics": { "enabled": true, "last_export_at": "2026-11-07T14:02:00Z", "failed_exports": 0 },
+    "traces": {
+      "enabled": true,
+      "last_export_at": "2026-11-07T14:02:11Z",
+      "failed_exports": 0
+    },
+    "metrics": {
+      "enabled": true,
+      "last_export_at": "2026-11-07T14:02:00Z",
+      "failed_exports": 0
+    },
     "dropped_spans": 0
   }
 }
@@ -349,6 +357,38 @@ the environment they started with.
 $ compozy config set observability.otel.forward_to_providers true
 $ compozy daemon stop && compozy daemon start
 ```
+
+## Overhead
+
+`BenchmarkTurnTelemetryFootprint` measures one turn with export disabled and with export enabled at a
+sample ratio of 1, exporting to an in-process OTLP/HTTP receiver. Each turn runs through the ACP
+driver against a mock agent on a warm session: 200 streamed chunks, one hosted tool call, and a usage
+event. Reproduce it from the repository root:
+
+```bash
+go test ./internal/session -run '^$' -bench BenchmarkTurnTelemetryFootprint -benchmem -benchtime=10x -count=5
+```
+
+Means of 5 runs of 10 turns each:
+
+| Measure                              | Disabled   | Enabled (100%) | Difference |
+| ------------------------------------ | ---------- | -------------- | ---------- |
+| Elapsed time per turn (`ns/turn`)    | 1,164.1 ms | 1,164.8 ms     | +0.07%     |
+| Process CPU per turn (`cpu_ns/turn`) | 135.3 ms   | 136.3 ms       | +0.8%      |
+| OTLP bytes per turn                  | 0          | 3,228 B        | 3.2 KB     |
+| Spans per turn                       | 0          | 2              |            |
+
+- Elapsed time is dominated by the mock agent's streaming, so it includes provider I/O.
+- CPU is the benchmark process's user and system time from `getrusage`, around the measured turns and their
+  final export. Individual runs varied by about ±15%, so the +0.8% difference is within run-to-run
+  noise.
+- OTLP bytes are the serialized trace requests per turn plus one full metric push, counted as if
+  every turn triggered a push.
+- The two spans are `session.turn` and `acp session/prompt`. The benchmark runs the session runtime
+  without the daemon's HTTP server and hosted tool service, so it does not count the request span,
+  `mcp.hosted.call`, or `tool.execute` that a daemon turn also exports.
+
+Measured on Linux amd64 with an Intel Core 7 240H (16 threads) and an otherwise idle machine.
 
 ## Troubleshoot export
 
