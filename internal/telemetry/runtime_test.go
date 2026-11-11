@@ -486,11 +486,11 @@ func TestProviderEnvForwardsOnlyAStartedExport(t *testing.T) {
 		{
 			name: "Should forward the endpoint, protocol, and resolved header value",
 			cfg:  exportConfig(forwarding(nil)),
-			refs: fakeResolver{"vault:observability/nr": "k 1/2"},
+			refs: fakeResolver{"vault:observability/nr": "k 1/2,x=y"},
 			want: []string{
 				"OTEL_EXPORTER_OTLP_ENDPOINT=http://collector.local:4318",
 				"OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf",
-				"OTEL_EXPORTER_OTLP_HEADERS=api-key=k%201%2F2",
+				"OTEL_EXPORTER_OTLP_HEADERS=api-key=k%201%2F2%2Cx=y",
 			},
 		},
 		{

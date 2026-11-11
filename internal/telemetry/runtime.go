@@ -297,9 +297,15 @@ func forwardedEnv(protocol string, endpoint *url.URL, headers map[string]string)
 	}
 	pairs := make([]string, 0, len(headers))
 	for _, name := range slices.Sorted(maps.Keys(headers)) {
-		pairs = append(pairs, name+"="+url.PathEscape(headers[name]))
+		pairs = append(pairs, name+"="+escapeHeaderValue(headers[name]))
 	}
 	return append(env, "OTEL_EXPORTER_OTLP_HEADERS="+strings.Join(pairs, ","))
+}
+
+// escapeHeaderValue percent-encodes a forwarded header value; PathEscape keeps ',' literal, which would split the
+// comma-separated OTEL_EXPORTER_OTLP_HEADERS list.
+func escapeHeaderValue(value string) string {
+	return strings.ReplaceAll(url.PathEscape(value), ",", "%2C")
 }
 
 // Shutdown flushes both providers concurrently so a stalled signal cannot consume the other's share of ctx.
