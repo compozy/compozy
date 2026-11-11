@@ -46,7 +46,11 @@ func inputSchema(input dsl.Input) refs.Schema {
 
 func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 	if len(node.Produces) > 0 {
-		return convertSchema(node.Produces), true
+		// Source declarations describe incoming fields without output-schema validation.
+		if node.Class == dsl.NodeClassSource {
+			return convertSchema(node.Produces), true
+		}
+		return normalizedReferenceSchema(node.Produces)
 	}
 	switch node.Class {
 	case dsl.NodeClassSource:
@@ -57,7 +61,7 @@ func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 		if dsl.ControlKind(node.Kind) == dsl.ControlAsk {
 			var params dsl.AskParams
 			if err := node.Params.Decode(&params); err == nil && len(params.Expect) > 0 {
-				return convertSchema(params.Expect), true
+				return normalizedReferenceSchema(params.Expect)
 			}
 		}
 		return nil, false
@@ -92,28 +96,28 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		if err != nil || params.OutputSchema == nil {
 			return nil, false
 		}
-		return convertSchema(*params.OutputSchema), true
+		return normalizedReferenceSchema(*params.OutputSchema)
 	case dsl.ActionRunAgent:
 		params, err := decodeRunAgentNodeParams(node.Params)
 		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
 		if err != nil || len(params.OutputSchema) == 0 {
 			return nil, false
 		}
-		return convertSchema(params.OutputSchema), true
+		return normalizedReferenceSchema(params.OutputSchema)
 	case dsl.ActionRunLoop:
 		if c.legacyRunLoopOutputSchema {
-			return refs.Schema{
+			return referenceFieldSchema(refs.Schema{
 				reasonMetaStatus:     jsonSchemaStringType,
 				"outputs":            map[string]any{},
 				metadataLoopRunIDKey: jsonSchemaStringType,
-			}, true
+			}), true
 		}
 		var params dsl.RunLoopParams
 		if err := node.Params.Decode(&params); err != nil {
 			return nil, false
 		}
 		if params.Mode == dsl.RunLoopDetach {
-			return refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}, true
+			return referenceFieldSchema(refs.Schema{metadataLoopRunIDKey: jsonSchemaStringType}), true
 		}
 		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}, true
 	case dsl.ActionTransform:
@@ -126,7 +130,7 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		for key := range params.Map {
 			schema[key] = "any"
 		}
-		return schema, true
+		return referenceFieldSchema(schema), true
 	default:
 		return nil, false
 	}
@@ -194,4 +198,53 @@ func schemaFromJSON(raw json.RawMessage) (refs.Schema, error) {
 		return nil, fmt.Errorf("decode JSON schema: %w", err)
 	}
 	return refs.Schema(decoded), nil
+}
+
+func normalizedReferenceSchema(schema dsl.Schema) (refs.Schema, bool) {
+	normalized, err := normalizeLoopSchema(schema)
+	return refs.Schema(normalized), err == nil
+}
+
+func referenceFieldSchema(fields refs.Schema) refs.Schema {
+	properties := make(map[string]any, len(fields))
+	for key, value := range fields {
+		if value == "any" {
+			properties[key] = map[string]any{}
+		} else {
+			properties[key] = shorthandPropertySchema(value)
+		}
+	}
+	return refs.Schema{"type": "object", "properties": properties, "additionalProperties": false}
+}
+
+func outputIsJSONSchema(node dsl.Node) bool {
+	return node.Class != dsl.NodeClassSource ||
+		(len(node.Produces) == 0 && dsl.SourceKind(node.Kind) == dsl.SourceInput)
+}
+
+func authoredOutputSchema(node dsl.Node) refs.Schema {
+	if len(node.Produces) > 0 {
+		return convertSchema(node.Produces)
+	}
+	if node.Class == dsl.NodeClassAction {
+		switch dsl.ActionKind(node.Kind) {
+		case dsl.ActionRunAgent:
+			params, err := decodeRunAgentNodeParams(node.Params)
+			if err == nil && len(params.OutputSchema) > 0 {
+				return convertSchema(params.OutputSchema)
+			}
+		case dsl.ActionGoal:
+			params, err := decodeGoalNodeParams(node.Params)
+			if err == nil && params.OutputSchema != nil {
+				return convertSchema(*params.OutputSchema)
+			}
+		}
+	}
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlAsk {
+		var params dsl.AskParams
+		if node.Params.Decode(&params) == nil && len(params.Expect) > 0 {
+			return convertSchema(params.Expect)
+		}
+	}
+	return nil
 }

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/loop/dsl/refs"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -158,7 +157,7 @@ func normalizeLoopSchema(schema dsl.Schema) (map[string]any, error) {
 	if !ok {
 		return nil, errors.New("output schema must normalize to object")
 	}
-	if refs.IsFullJSONSchema(schemaMap) {
+	if isFullJSONSchema(schemaMap) {
 		return schemaMap, nil
 	}
 	properties := make(map[string]any, len(schemaMap))
@@ -180,7 +179,7 @@ func shorthandPropertySchema(value any) any {
 	case string:
 		return map[string]any{jsonSchemaTypeKey: typed}
 	case map[string]any:
-		if refs.IsFullJSONSchema(typed) {
+		if isFullJSONSchema(typed) {
 			return typed
 		}
 		nested := make(map[string]any, len(typed))
@@ -377,4 +376,59 @@ func validJSONObject(candidate string) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return json.RawMessage(candidate), true
+}
+
+func isFullJSONSchema(schema map[string]any) bool {
+	fullKeys := map[string]struct{}{
+		"$defs":                 {},
+		"$id":                   {},
+		"$schema":               {},
+		"additionalProperties":  {},
+		"allOf":                 {},
+		"anyOf":                 {},
+		"contains":              {},
+		"contentEncoding":       {},
+		"contentMediaType":      {},
+		"const":                 {},
+		"default":               {},
+		"dependentRequired":     {},
+		"dependentSchemas":      {},
+		"description":           {},
+		"enum":                  {},
+		"examples":              {},
+		"exclusiveMaximum":      {},
+		"exclusiveMinimum":      {},
+		"format":                {},
+		"if":                    {},
+		"items":                 {},
+		"maxItems":              {},
+		"maxLength":             {},
+		"maxProperties":         {},
+		"maximum":               {},
+		"minItems":              {},
+		"minLength":             {},
+		"minProperties":         {},
+		"minimum":               {},
+		"multipleOf":            {},
+		"not":                   {},
+		"oneOf":                 {},
+		"pattern":               {},
+		"prefixItems":           {},
+		"properties":            {},
+		"propertyNames":         {},
+		"required":              {},
+		"then":                  {},
+		"title":                 {},
+		"type":                  {},
+		"unevaluatedProperties": {},
+		"x-compozy-kind":        {},
+	}
+	hasKeyword := false
+	for key := range schema {
+		if _, ok := fullKeys[key]; !ok {
+			return false
+		}
+		hasKeyword = true
+	}
+	return hasKeyword
 }

@@ -100,7 +100,7 @@ or grant-management tool.
 - **Audit and visibility.** Every grant-authorized decision appends `workspace.access_granted` with
   source `agent_grant`, the acting session and profile, target kind (`workspace`, `user`, or
   `aggregate`), target workspace, and target profile. Session payloads expose
-  `effective_workspace_access`; the Web shows an **Unrestricted** badge; `compozy agent info <name>`
+  `effective_workspace_access` (request `result_view: "full"` on native session reads); the Web shows an **Unrestricted** badge; `compozy agent info <name>`
   prints `workspace_access`.
 - **Soft boundary.** A process inside a session can call the daemon without agent headers, and
   provider filesystem tools reach every file the OS user can. The grant is an authority statement for
@@ -393,6 +393,8 @@ configuration. Workspace declarations are ignored with a diagnostic. Unrestricte
 modes cannot be reviewers, except verified builtin provider/mode pairs.
 If the current provider mode does not confirm the declared reviewer, session status
 reports `effective_permissions: approve-edits` and `permission_mode_degraded: true`.
+Read `compozy__session_status` with `result_view: "full"` for `effective_permissions`;
+`permission_mode_degraded` is present in compact.
 This fallback preserves the configured `auto` intent for a later resume.
 
 At `approve-edits` and `auto`, CompozyOS-native tools are decided once, by declared risk:

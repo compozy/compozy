@@ -56,10 +56,13 @@ type Namespace struct {
 
 // NodeSchema exposes the referenceable output/status shape for one node.
 type NodeSchema struct {
-	Output          Schema
-	HasOutput       bool
-	HasProgress     bool
-	AllowOpenOutput bool
+	Output         Schema
+	AuthoredOutput Schema
+	// OutputJSONSchema distinguishes normalized/descriptor schemas from field maps.
+	OutputJSONSchema bool
+	HasOutput        bool
+	HasProgress      bool
+	AllowOpenOutput  bool
 }
 
 // Reference records one resolved template or CEL path.
@@ -156,7 +159,7 @@ func (n Namespace) validateInputPath(path []string) *Error {
 	if !ok {
 		return newPathError(CodeUnknownReference, path, "unknown input %q", path[1])
 	}
-	return validateSchemaPath(schema, path[2:], path, false)
+	return validateSchemaPath(schema, path[2:], path, false, true)
 }
 
 func (n Namespace) validateNodePath(path []string) *Error {
@@ -183,7 +186,7 @@ func (n Namespace) validateNodePath(path []string) *Error {
 		if !node.HasOutput {
 			return nil
 		}
-		return validateSchemaPath(node.Output, path[3:], path, node.AllowOpenOutput)
+		return node.validateOutputPath(path[3:], path)
 	case namespaceProgress:
 		if !node.HasProgress {
 			return newPathError(CodeUnknownReference, path, "node %q does not expose fan-out progress", path[1])
@@ -204,7 +207,7 @@ func validateProgressPath(path []string, fieldIndex int) *Error {
 	return nil
 }
 
-func validateSchemaPath(schema Schema, path []string, original []string, allowOpen bool) *Error {
+func validateSchemaPath(schema Schema, path []string, original []string, allowOpen, jsonSchema bool) *Error {
 	if len(path) == 0 {
 		return nil
 	}
@@ -214,7 +217,7 @@ func validateSchemaPath(schema Schema, path []string, original []string, allowOp
 
 	current := any(map[string]any(schema))
 	for idx, segment := range path {
-		next, ok := childSchema(current, segment)
+		next, ok := childSchema(current, segment, jsonSchema)
 		if !ok && allowOpen && openSchemaObject(current) {
 			return nil
 		}
@@ -222,7 +225,7 @@ func validateSchemaPath(schema Schema, path []string, original []string, allowOp
 			base := len(original) - len(path)
 			invalidPath := append([]string(nil), original[:base+idx+1]...)
 			deepest := append([]string(nil), original[:base+idx]...)
-			available := availableSchemaFields(current)
+			available := availableSchemaFields(current, jsonSchema)
 			return &Error{
 				Code:             CodeUnresolvablePath,
 				Path:             invalidPath,
@@ -237,26 +240,35 @@ func validateSchemaPath(schema Schema, path []string, original []string, allowOp
 	return nil
 }
 
-func childSchema(current any, segment string) (any, bool) {
+func childSchema(current any, segment string, jsonSchema bool) (any, bool) {
 	switch typed := current.(type) {
 	case Schema:
-		return childSchema(map[string]any(typed), segment)
+		return childSchema(map[string]any(typed), segment, jsonSchema)
 	case map[string]any:
-		if properties, ok := typed["properties"]; ok {
-			return childFromProperties(properties, segment)
-		}
-		if typed["type"] == "array" {
-			if items, ok := typed["items"]; ok {
-				return childSchema(items, segment)
+		if jsonSchema {
+			if properties, ok := typed["properties"]; ok {
+				return childFromProperties(properties, segment)
 			}
-		}
-		_, hasType := typed["type"]
-		_, hasAdditional := typed["additionalProperties"]
-		if (hasType || hasAdditional) && IsFullJSONSchema(typed) {
+			if typed["type"] == schemaArrayType {
+				if items, ok := typed["items"]; ok {
+					return childSchema(items, segment, true)
+				}
+			}
 			return nil, false
 		}
-		child, ok := typed[segment]
-		return child, ok
+		if properties, ok := typed["properties"]; ok {
+			if child, found := childFromProperties(properties, segment); found {
+				return child, true
+			}
+		}
+		if child, ok := typed[segment]; ok {
+			return child, true
+		}
+
+		if typed["type"] == schemaArrayType {
+			return childSchema(typed["items"], segment, false)
+		}
+		return nil, false
 	case map[string]Schema:
 		child, ok := typed[segment]
 		return child, ok
@@ -264,7 +276,7 @@ func childSchema(current any, segment string) (any, bool) {
 		if len(typed) == 0 {
 			return nil, false
 		}
-		return childSchema(typed[0], segment)
+		return childSchema(typed[0], segment, jsonSchema)
 	case string:
 		return nil, false
 	default:

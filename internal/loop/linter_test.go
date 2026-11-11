@@ -3,6 +3,7 @@ package loop_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"maps"
 	"slices"
 	"strings"
@@ -2765,6 +2766,12 @@ func TestLinterResultViewReferences(t *testing.T) {
 		warning  bool
 		prefix   string
 	}{
+		{name: "Should reject annotated scalar schema metadata", view: "full", full: `{"type":"string","$comment":"scalar"}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject annotated closed-object metadata", view: "full", full: `{"type":"object","additionalProperties":false,"$comment":"empty"}`, path: "additionalProperties", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with extension annotations", view: "full", full: `{"type":"string","x-compozy-free-form":true}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with a schema reference", view: "full", full: `{"type":"string","$ref":"#/$defs/value","$defs":{"value":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with pattern properties", view: "full", full: `{"type":"object","additionalProperties":false,"patternProperties":{"^x":{"type":"string"}}}`, path: "type", want: refs.CodeUnresolvablePath},
+		{name: "Should reject metadata with conditional schemas", view: "full", full: `{"type":"string","else":{}}`, path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should accept compact fields", path: "id"},
 		{name: "Should reject schema keywords on a closed compact node", path: "type", want: refs.CodeUnresolvablePath},
 		{name: "Should reject schema keywords on a closed full node", view: "full", path: "properties.id", want: refs.CodeUnresolvablePath},
@@ -2938,4 +2945,200 @@ func TestLinterResultViewReferences(t *testing.T) {
 			t.Fatalf("diagnostics = %#v", diagnostics)
 		}
 	})
+}
+
+func TestLinterOutputShapeRuntimeAgreement(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, source, schema, payload string
+		valid, invalid, unproven      []string
+		warning                       bool
+	}{
+		{name: "Should retain a keyword-only transform", source: "map", payload: `{"type":"bug"}`, valid: []string{"type"}, invalid: []string{"missing"}},
+		{name: "Should retain all keyword-named transform fields", source: "map", payload: `{"type":"bug","title":"title","description":"detail"}`, valid: []string{"type", "title", "description"}},
+		{name: "Should retain a properties-named transform field", source: "map", payload: `{"properties":"value","name":"name"}`, valid: []string{"properties", "name"}},
+		{name: "Should normalize a properties shorthand field", schema: `{"properties":"object","name":"string"}`, payload: `{"properties":{},"name":"name"}`, valid: []string{"properties", "name"}, invalid: []string{"missing"}},
+		{name: "Should normalize nested properties shorthand", schema: `{"properties":{"a":"string"},"id":"string"}`, payload: `{"properties":{"a":"a"},"id":"id"}`, valid: []string{"properties", "properties.a", "id", "a"}, unproven: []string{"a"}},
+		{name: "Should normalize an array-named shorthand field", schema: `{"type":"array","items":"string","name":"string"}`, payload: `{"type":[],"items":"items","name":"name"}`, valid: []string{"type", "items", "name"}},
+		{name: "Should allow an explicit open object with a warning", schema: `{"type":"object"}`, payload: `{"type":"value"}`, valid: []string{"type"}, warning: true},
+		{name: "Should warn for children of an explicit string", schema: `{"type":"string"}`, payload: `"value"`, valid: []string{"type"}, unproven: []string{"type"}},
+		{name: "Should warn for children of an annotated explicit string", schema: `{"type":"string","description":"string"}`, payload: `"value"`, valid: []string{"type", "description"}, unproven: []string{"type", "description"}},
+		{name: "Should warn for metadata of an authored closed object", schema: `{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`, payload: `{"id":"id"}`, valid: []string{"id", "type", "properties", "additionalProperties"}, unproven: []string{"type", "properties", "additionalProperties"}, invalid: []string{"missing"}},
+		{name: "Should warn for metadata of a nested authored string", schema: `{"user":{"type":"string"},"id":"string"}`, payload: `{"user":"value","id":"id"}`, valid: []string{"user", "id", "user.type"}, unproven: []string{"user.type"}},
+		{name: "Should warn for authored array metadata", schema: `{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}}`, payload: `[{"id":"id"}]`, valid: []string{"type", "items.type"}, unproven: []string{"type", "items.type"}},
+		{name: "Should preserve keyword collisions in authored properties", schema: `{"type":"object","properties":{"type":{"type":"string"}},"additionalProperties":false}`, payload: `{"type":"value"}`, valid: []string{"type", "type.type"}, unproven: []string{"type.type"}},
+	} {
+		sources := []string{tc.source}
+		if tc.source == "" {
+			sources = []string{"produces", "output_schema", "expect"}
+		}
+		for _, source := range sources {
+			t.Run(tc.name+" from "+source, func(t *testing.T) {
+				t.Parallel()
+				node := dsl.Node{
+					ID:     "shape",
+					Class:  dsl.NodeClassAction,
+					Kind:   "run-agent",
+					Params: dsl.NodeParams{"agent": "codex", "prompt": "Return output"},
+				}
+				var schema dsl.Schema
+				if source == "map" {
+					var values map[string]any
+					if err := json.Unmarshal([]byte(tc.payload), &values); err != nil {
+						t.Fatal(err)
+					}
+					fields := map[string]any{}
+					for key, value := range values {
+						fields[key] = map[string]any{"value": value}
+					}
+					node.Kind = "transform"
+					node.Params = dsl.NodeParams{"map": fields}
+					raw, err := (loop.TransformActionExecutor{}).Execute(t.Context(), node, loop.ActionExecutionInput{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					expected, err := json.Marshal(values)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(raw.Structured, expected) {
+						t.Fatalf("runtime output=%s want %s", raw.Structured, expected)
+					}
+				} else {
+					if err := json.Unmarshal([]byte(tc.schema), &schema); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := loop.ValidateActionStructured(
+						schema,
+						loop.ActionPromptResult{Structured: json.RawMessage(tc.payload)},
+					); err != nil {
+						t.Fatalf("runtime rejected payload: %v", err)
+					}
+					if strings.HasPrefix(tc.payload, `"`) {
+						if _, err := loop.ValidateActionStructured(
+							schema,
+							loop.ActionPromptResult{Structured: json.RawMessage(`{"type":"value"}`)},
+						); err == nil {
+							t.Fatal("runtime accepted an object for a string schema")
+						}
+					}
+					switch source {
+					case "produces":
+						node.Produces = schema
+					case "output_schema":
+						node.Params[source] = map[string]any(schema)
+					case "expect":
+						node.Class = dsl.NodeClassControl
+						node.Kind = "ask"
+						node.Params = dsl.NodeParams{"prompt": "Return output", "expect": map[string]any(schema)}
+					}
+				}
+				for _, field := range append(slices.Clone(tc.valid), tc.invalid...) {
+					if slices.Contains(tc.unproven, field) {
+						var output any
+						if err := json.Unmarshal([]byte(tc.payload), &output); err != nil {
+							t.Fatal(err)
+						}
+						namespace := map[string]any{"nodes": map[string]any{"shape": map[string]any{"output": output}}}
+						expression := "{{ .nodes.shape.output." + field + " }}"
+						if rendered, err := refs.RenderTemplateString(
+							"authored-output",
+							expression,
+							namespace,
+						); err == nil ||
+							rendered != "" {
+							t.Fatalf("runtime rendered=%q err=%v, want failed evaluation", rendered, err)
+						}
+						for _, mapping := range []map[string]any{{"template": expression}, {"from": "nodes.shape.output." + field}} {
+							consumer := dsl.Node{
+								ID:     "consume",
+								Class:  dsl.NodeClassAction,
+								Kind:   "transform",
+								Params: dsl.NodeParams{"map": map[string]any{"value": mapping}},
+							}
+							if _, err := (loop.TransformActionExecutor{}).Execute(
+								t.Context(),
+								consumer,
+								loop.ActionExecutionInput{Namespace: namespace},
+							); !errors.Is(
+								err,
+								loop.ErrActionMaterialization,
+							) {
+								t.Fatalf("runtime consumer error=%v", err)
+							}
+						}
+						if field == "a" {
+							values := output.(map[string]any)
+							values["a"] = "root"
+							extra, err := json.Marshal(values)
+							if err != nil {
+								t.Fatal(err)
+							}
+							if _, err := loop.ValidateActionStructured(
+								schema,
+								loop.ActionPromptResult{Structured: extra},
+							); err != nil {
+								t.Fatalf("additional root field rejected: %v", err)
+							}
+							if rendered, err := refs.RenderTemplateString(
+								"authored-output",
+								expression,
+								namespace,
+							); err != nil ||
+								rendered != "root" {
+								t.Fatalf("runtime root a=%q err=%v", rendered, err)
+							}
+						}
+					}
+					for _, prefix := range []string{"", "previous.", "best."} {
+						def := singleNodeDefinition(node)
+						def.Graph.Nodes = append(
+							def.Graph.Nodes,
+							dsl.Node{
+								ID:    "read",
+								Class: dsl.NodeClassAction,
+								Kind:  "run-agent",
+								Params: dsl.NodeParams{
+									"agent":  "codex",
+									"prompt": "{{ ." + prefix + "nodes.shape.output." + field + " }}",
+								},
+							},
+						)
+						def.Graph.Edges = []dsl.Edge{{From: "shape", To: "read"}}
+						diagnostics := loop.NewLinter().Lint(def)
+						rejected, warned := false, false
+						for _, d := range diagnostics {
+							if d.Severity == loop.SeverityError {
+								if d.Code != refs.CodeUnresolvablePath {
+									t.Fatalf("unexpected diagnostic: %#v", d)
+								}
+								rejected = true
+								if field == "a" && !strings.Contains(d.Message, "available fields: id, properties") {
+									t.Errorf("lost declared field names: %#v", d)
+								}
+							}
+							if d.Severity == loop.SeverityWarning && strings.Contains(d.Message, "cannot be proven") {
+								warned = true
+							}
+						}
+						t.Logf(
+							"source=%s prefix=%s schema=%s field=%s rejected=%t warning=%t",
+							source,
+							prefix,
+							tc.schema,
+							field,
+							rejected,
+							warned,
+						)
+						if rejected != slices.Contains(tc.invalid, field) {
+							t.Errorf("field=%s diagnostics=%#v", field, diagnostics)
+						}
+						if (tc.warning || slices.Contains(tc.unproven, field)) && !warned {
+							t.Errorf("field=%s missing open-object warning: %#v", field, diagnostics)
+						}
+					}
+				}
+			})
+		}
+	}
 }

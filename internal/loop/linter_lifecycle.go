@@ -118,7 +118,12 @@ func (c *lintContext) lintResultContract(node dsl.Node) {
 		return
 	}
 	namespace := refs.Namespace{Nodes: map[string]refs.NodeSchema{
-		string(node.ID): {Output: schema, HasOutput: true},
+		string(node.ID): {
+			Output:           schema,
+			AuthoredOutput:   authoredOutputSchema(node),
+			HasOutput:        true,
+			OutputJSONSchema: outputIsJSONSchema(node),
+		},
 	}}
 	for _, field := range []string{failureField, strings.TrimSpace(node.ResultContract.MessageField)} {
 		if field == "" {
@@ -127,7 +132,9 @@ func (c *lintContext) lintResultContract(node dsl.Node) {
 		path := append([]string{namespaceNodesKey, string(node.ID), namespaceOutputKey}, strings.Split(field, ".")...)
 		if err := namespace.ValidatePath(path); err != nil {
 			c.add(node.ID, CodeResultContractInvalid, "result_contract field %q is invalid: %v", field, err)
+			continue
 		}
+		c.warnUnknownOutputReferences(node.ID, []refs.Reference{{Raw: strings.Join(path, "."), Path: path}}, namespace)
 	}
 }
 

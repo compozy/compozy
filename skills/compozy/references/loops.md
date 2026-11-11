@@ -526,7 +526,8 @@ declared `inputs` references and materialize once before Goal work. Goal params 
 materialize recursively at their execution boundary; direct references retain JSON types and raw
 `output_schema` values are never rendered. Literal `{{ ... }}` inside an input value stays literal —
 agents and judges do not run a second template pass. Run detail exposes raw `executed_definition`
-beside the input-resolved `materialized_contract`.
+beside the input-resolved `materialized_contract` (request `result_view: "full"` on
+`compozy__loop_status` for these fields).
 
 `command` criteria keep the exact shell program written by the Loop author. Every runtime template
 value emitted inside `check` must end with `| shellQuote` and remain outside authored quotes or

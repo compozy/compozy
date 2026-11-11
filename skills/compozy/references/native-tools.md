@@ -510,7 +510,8 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
 unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,
 independent of its spawn role. Page payloads include the derived `board_column`, direct-child
-`children` counts, and scoped `parent_title`; `waiting_on` explains the `waiting` badge. These
+`children` counts; `waiting_on` explains the `waiting` badge. Request `result_view: "full"`
+for scoped `parent_title`. These
 filters participate in the cursor fingerprint. PR facts are display-cache reads, without forge I/O.
 
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
@@ -1010,8 +1011,8 @@ When a registered project's folder is missing, `compozy__session_status` and
 diagnostic. Stopping and archiving remain available; these controls do not need to load the
 project's agent files. Creating or executing new work still requires an available root.
 
-`compozy__session_list` and `compozy__session_status`, with `result_view: "full"`, include `branch`, nullable `pull_request`,
-nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
+`compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
+and `board_column` by default. Request `result_view: "full"` to inspect nullable `pull_request_lookup`. The PR contains state, nullable draft, head SHA,
 complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
 branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
 remain visible during provider outages. Explicit refresh is available through
@@ -1157,7 +1158,7 @@ does not produce a lost-wake report; stopping the main session still reports its
   `more`, `duration_ms`, optional `error`) and source digest items keyed
   `source:<id>:<item key>`. A dry run polls without committing state or status. A real check
   while a source poll runs returns gate `source_poll_in_flight` and starts nothing.
-- `compozy__agent_instance_get` includes `sources`: per declared source `id`, `kind` or
+- `compozy__agent_instance_get` with `result_view: "full"` includes `sources`: per declared source `id`, `kind` or
   `script`, `status` (`pending_first_poll`, `ok`, `failing`, `unavailable`, `disabled`,
   `unapproved`), poll timestamps, `last_item_count`, `failure_streak`, optional `error`, and
   `next_poll_at`.

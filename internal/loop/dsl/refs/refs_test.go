@@ -1005,8 +1005,8 @@ func namespace(allowFanout bool) refs.Namespace {
 		},
 		Nodes: map[string]refs.NodeSchema{
 			"load": {
-				HasOutput: true,
-				Output: refs.Schema{
+				HasOutput: true, OutputJSONSchema: true,
+				Output: refs.Schema{"type": "object", "properties": map[string]any{
 					"tasks": map[string]any{
 						"type": "array",
 						"items": map[string]any{
@@ -1016,17 +1016,17 @@ func namespace(allowFanout bool) refs.Namespace {
 							},
 						},
 					},
-				},
+				}},
 			},
 			"review": {
-				HasOutput: true,
-				Output: refs.Schema{
-					"verdict": "string",
-				},
+				HasOutput: true, OutputJSONSchema: true,
+				Output: refs.Schema{"type": "object", "properties": map[string]any{
+					"verdict": map[string]any{"type": "string"},
+				}},
 			},
 			"gate": {
-				HasOutput: true,
-				Output: refs.Schema{
+				HasOutput: true, OutputJSONSchema: true,
+				Output: refs.Schema{"type": "object", "properties": map[string]any{
 					"blocking_issues": map[string]any{
 						"type": "array",
 						"items": map[string]any{
@@ -1036,7 +1036,7 @@ func namespace(allowFanout bool) refs.Namespace {
 							},
 						},
 					},
-				},
+				}},
 			},
 		},
 		Gates:       map[string]struct{}{"quality": {}},
@@ -1089,18 +1089,23 @@ func TestNamespaceSchemaNamedFields(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name           string
+		jsonSchema     bool
 		schema         refs.Schema
 		valid, invalid []string
 	}{
 		{name: "Should resolve shorthand fields named type", schema: refs.Schema{"type": "string", "id": "string"}, valid: []string{"type", "id"}, invalid: []string{"missing"}},
 		{name: "Should resolve nested shorthand type maps", schema: refs.Schema{"item": map[string]any{"type": map[string]any{"name": "string"}, "id": "string"}}, valid: []string{"item.type.name", "item.id"}, invalid: []string{"item.missing"}},
 		{name: "Should resolve transform any fields", schema: refs.Schema{"type": "any", "id": "any"}, valid: []string{"type", "id"}},
-		{name: "Should reject JSON Schema keywords as fields", schema: refs.Schema{"type": "object", "additionalProperties": true}, invalid: []string{"type", "additionalProperties", "missing"}},
-		{name: "Should follow declared JSON Schema properties", schema: refs.Schema{"type": "object", "properties": map[string]any{"type": map[string]any{"type": "string"}}, "additionalProperties": false}, valid: []string{"type"}, invalid: []string{"properties", "type.type", "missing"}},
+		{jsonSchema: true, name: "Should reject JSON Schema keywords as fields", schema: refs.Schema{"type": "object", "additionalProperties": true}, invalid: []string{"type", "additionalProperties", "missing"}},
+		{jsonSchema: true, name: "Should follow declared JSON Schema properties", schema: refs.Schema{"type": "object", "properties": map[string]any{"type": map[string]any{"type": "string"}}, "additionalProperties": false}, valid: []string{"type"}, invalid: []string{"properties", "type.type", "missing"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ns := refs.Namespace{Nodes: map[string]refs.NodeSchema{"a": {Output: tc.schema, HasOutput: true}}}
+			ns := refs.Namespace{
+				Nodes: map[string]refs.NodeSchema{
+					"a": {Output: tc.schema, HasOutput: true, OutputJSONSchema: tc.jsonSchema},
+				},
+			}
 			for _, field := range tc.valid {
 				if err := ns.ValidatePath(
 					append([]string{"nodes", "a", "output"}, strings.Split(field, ".")...),

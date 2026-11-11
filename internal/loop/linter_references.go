@@ -415,9 +415,12 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	for _, node := range c.def.Graph.Nodes {
 		schema, ok := c.outputSchema(node)
 		nodes[string(node.ID)] = refs.NodeSchema{
-			Output: schema, HasOutput: ok,
-			HasProgress:     isControlKind(node, dsl.ControlFanOut),
-			AllowOpenOutput: c.toolAllowsOpenOutput(node),
+			Output:           schema,
+			AuthoredOutput:   authoredOutputSchema(node),
+			HasOutput:        ok,
+			OutputJSONSchema: outputIsJSONSchema(node),
+			HasProgress:      isControlKind(node, dsl.ControlFanOut),
+			AllowOpenOutput:  c.allowsOpenOutput(node),
 		}
 		if isControlKind(node, dsl.ControlGate) {
 			gates[string(node.ID)] = struct{}{}

@@ -47,8 +47,8 @@ func (c *lintContext) lintToolResultView(node dsl.Node, snapshot ToolSchemaSnaps
 	}
 	namespace := refs.Namespace{Nodes: map[string]refs.NodeSchema{
 		string(node.ID): {
-			Output:          schema,
-			HasOutput:       true,
+			Output:    schema,
+			HasOutput: true, OutputJSONSchema: true,
 			AllowOpenOutput: nodeResultView(node) == tools.ResultViewFull,
 		},
 	}}
@@ -68,7 +68,14 @@ func (c *lintContext) lintToolResultView(node dsl.Node, snapshot ToolSchemaSnaps
 	}
 }
 
-func (c *lintContext) toolAllowsOpenOutput(node dsl.Node) bool {
+func (c *lintContext) allowsOpenOutput(node dsl.Node) bool {
+	if node.Class == dsl.NodeClassSource {
+		return false
+	}
+	if authored := authoredOutputSchema(node); authored != nil {
+		return isFullJSONSchema(map[string]any(authored))
+	}
+
 	if node.Class != dsl.NodeClassAction || len(node.Produces) > 0 || c.linter.tools == nil {
 		return false
 	}
@@ -106,7 +113,7 @@ func (c *lintContext) addToolResultViewReferenceError(
 		return false
 	}
 	namespace := refs.Namespace{Nodes: map[string]refs.NodeSchema{
-		path[1]: {Output: full, HasOutput: true, AllowOpenOutput: true},
+		path[1]: {Output: full, HasOutput: true, OutputJSONSchema: true, AllowOpenOutput: true},
 	}}
 	if namespace.ValidatePath(path) != nil {
 		return false
@@ -180,7 +187,7 @@ func (c *lintContext) warnUnknownOutputReferences(
 		c.warn(
 			nodeID,
 			refs.CodeUnresolvablePath,
-			"node %q has no declared output schema; path %q cannot be proven",
+			"node %q output path %q cannot be proven",
 			path[1],
 			reference.Raw,
 		)

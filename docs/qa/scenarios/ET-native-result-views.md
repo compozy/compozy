@@ -32,3 +32,11 @@ keywords remain non-addressable. Run `TestNamespaceSchemaNamedFields` in the ref
 `TestRuntimeRegistryDispatchResultViews` verifies selector-bearing audit previews and event
 input digests; `TestToolHandlersExposeOperatorSessionInvokeAndToolsets` verifies that the shared
 HTTP/UDS invoke handler ignores wire `View` and `PinnedView` before dispatch.
+
+R1b regression checks: run `TestLinterOutputShapeRuntimeAgreement` and
+`TestLinterResultViewReferences`. Keyword-only transform maps retain their fields; authored
+`produces`, `expect`, and `output_schema` shorthand with `properties` or `type: array` plus
+`items` follows runtime normalization. Explicit open objects permit unknown fields with a warning;
+historically accepted authored scalar/metadata references validate with cannot-be-proven warnings.
+Annotated tool schemas keep strict declared-property
+resolution, including `$comment`, `$ref`, `patternProperties`, `else`, and extension annotations.

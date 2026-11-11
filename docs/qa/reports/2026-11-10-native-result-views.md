@@ -331,7 +331,8 @@ its prior scoped Turbo receipts remain applicable.
 ## R1 — Final review repairs
 
 The repair worktree started clean at `0374f8f0dbbc72dc411e71f3bc4df55cab2a88c0`.
-Fable F1–F4 and Astra F1 are addressed without changing the accepted projections or ADR-004.
+Fable F2–F4 and Astra F1 were addressed without changing the accepted projections or ADR-004.
+Fable F1 was only partially resolved in R1; the R1b section records the remaining repairs.
 
 - F1: share the existing Loop JSON Schema classifier with the reference resolver and its
   available-field diagnostics. Apply the keyword guard only to recognized schemas carrying
@@ -392,8 +393,9 @@ pass completed with `0 issues`.
 The linker emits its existing macOS `-bind_at_load` deprecation message when building the lint tool.
 
 Impact follows the existing Native Tool Result Views audit in `docs/_memory/change-impact.md`:
-no additional native tool, wire, hook/config or workspace-isolation contract changes; the Loop
-repair restores existing user definitions. Official skill and site consumers are corrected above.
+no additional native tool, wire, hook/config or workspace-isolation contract changes; the first Loop
+repair restored only the shorthand `type` plus non-keyword sibling cases then tested.
+The R1b evidence below supersedes that incomplete compatibility claim. Official skill and site consumers are corrected above.
 No database migration, generated-source edit, external-provider run, full gate, race suite or E2E
 run belongs to this repair slice. The conductor owns final-head CI and integrated scenario walks.
 
@@ -401,3 +403,220 @@ Pre-commit tasks passed via `bunx lint-staged --no-stash`; commit-message valida
 `printf '%s\n' 'fix: repair native result view review findings' | bunx commitlint`.
 The commit hook is not repeated because its default invocation creates a Git stash; the same tasks
 were run explicitly without that backup, honoring this slice's Git restrictions.
+
+
+## R1b — Provenance-aware reference resolution
+
+Base: `cea0ff9646de31579aba5c1fee9970082179ff08`. Read both completed Fable/Astra re-reviews.
+This section supersedes R1's broad compatibility claim; it establishes the listed shapes and
+existing focused suites, not universal compatibility of arbitrary user definitions.
+
+- Fable R1-N1 / Astra Fable F1: `NodeSchema.OutputJSONSchema` carries the producer's known
+  schema kind. Descriptor schemas are always JSON Schema; transforms construct an explicit
+  object schema from their actual map keys; authored action/ask schemas pass through the same
+  `normalizeLoopSchema` used by output validation. Reference resolution never consults a keyword
+  allowlist. The existing runtime authored-schema classifier moves back to its runtime owner,
+  unchanged. Source `produces` declarations and watch-event field descriptions remain field
+  maps: source execution does not run them through output-schema validation. Existing source
+  and mixed field-description traversal is preserved. Normalized/descriptor modes propagate
+  through current, previous and best output paths and diagnostics.
+- Astra R1-N1: six added tool-schema cases cover `$comment` on scalar and closed object schemas,
+  `$ref`, `patternProperties`, `else`, and `x-compozy-free-form`. These reject metadata children
+  without expanding the authored-schema classifier's keyword set. All earlier strict view cases
+  remain green.
+- Fable R1-N2: default `branch`, `pull_request`, and `board_column` are documented separately
+  from full-only `pull_request_lookup`.
+- Fable R1-N3: the HTTP/UDS example again describes the complete HTTP/UDS descriptors. No view
+  selector applies to those routes; native compact search retains view digests, while compact
+  list uses `has_result_views` (the existing native section already documents that distinction).
+- Fable R1-N4 / Astra R1-N2: lifecycle supervision and native lineage origin-field instructions
+  now select full. Repeated the skill/site scan for explicit native tool IDs and named output
+  fields, using the generated compact schemas (resolving local `$ref` definitions), complete
+  payload fixtures and projection owners. Further corrections cover `parent_title`, source poll
+  timestamps/`last_item_count`, effective permission/workspace-access reads, and Loop run-detail
+  snapshot fields. Input parameters, descriptions of internal state computation, CLI/HTTP-only
+  instructions and retained compact fields were not switched to full.
+- Fable R1-N5: scoped the previous claim and recorded concrete comparisons below.
+
+The test invariant is agreement between reference lint and the owning runtime shape. The canonical
+suite is `linter_test.go`: `TestLinterOutputShapeRuntimeAgreement` calls the real transform executor
+or `ValidateActionStructured` before checking references. It runs every authored case independently
+for `produces`, `expect`, and `output_schema`; no provider or validator is mocked. `produces` is a
+node's declared shape, not a guarantee that every executor validates it; the runtime comparison
+here exercises the shared declared-schema validator used for structured output and amendments.
+The lower-level refs fixtures now explicitly mark their JSON Schema provenance, retaining the same
+path assertions. No assertion or runtime schema validation was weakened.
+
+### Shape comparison
+
+`origin/main` was frozen at `766345807802b7056b0fc8a026c84de70f23ea84`. The same test was run
+with all original `internal/loop` sources/tests supplied through a read-only Go overlay, plus the
+new comparison case. The scalar/open-warning assertions intentionally fail against that old lint;
+its logged observations, and the same runtime validator/executor assertions, produce this table.
+
+| Source | Shape and reference | origin/main lint | Runtime observation | Lint now |
+| --- | --- | --- | --- | --- |
+| Transform map | `{type}` → `type` | Accepted | Executor returns `type: "bug"` | Accepted |
+| Transform map | `{type, title, description}` → each key | Accepted | Executor returns exactly those keys | Accepted |
+| Transform map | `{properties, name}` → each key | Accepted | Executor returns both keys | Accepted |
+| Authored: produces / expect / output_schema | `{properties: object, name: string}` → both keys | Accepted | Shared validator accepts `{"properties":{},"name":"name"}` | Accepted |
+| Authored: produces / expect / output_schema | `{properties: {a: string}, id: string}` → `properties.a`, `id` | Accepted | Validator requires the nested object and `id` | Accepted |
+| Authored: produces / expect / output_schema | Same nested shape → root `a` | Accepted | Missing in the original sample; optional extra root `a` is valid and resolves | Accepted with warning (R1c) |
+| Authored: produces / expect / output_schema | `{type: array, items: string, name: string}` → each key | Accepted | Validator accepts `{"type":[],"items":"items","name":"name"}` | Accepted |
+| Authored: produces / expect / output_schema | `{type: object}` → `type` | Accepted, no warning | Validator accepts `{"type":"value"}`; object is open | Accepted with cannot-be-proven warning |
+| Authored: produces / expect / output_schema | `{type: string}` → `type` | Accepted | Validator accepts a structured JSON string; rejects `{"type":"value"}` | Accepted with warning (R1c) |
+| Authored: produces / expect / output_schema | `{type: string, description: string}` → `type`, `description` | Accepted | Same string validation; description is schema metadata | Accepted with warning (R1c) |
+| Tool descriptor JSON Schema | Annotated scalar / closed object metadata children | Old direct fallback accepted metadata | Scalar has no children; closed object has no undeclared properties | Rejected in all six new cases |
+
+Scalar observations refer to the structured JSON validation path. Text-only agent output still
+uses the existing final-object extraction path; this repair does not change it. The table does not
+claim that source hints are runtime validators or that arbitrary additional output fields are
+rejected by an open schema. The R1c section supersedes R1b's classification of historically
+accepted authored references as lint errors; the table above is updated to the current behavior.
+
+### Red, green and verification
+
+The tests were authored before production edits. After correcting the test consumer to use a valid
+run-agent prompt rather than a transform without its required map, the corrected tests were replayed
+against the immutable base production files with a Go overlay, avoiding any Git revert. Baseline:
+15 of 21 shape/source subtests failed (keyword transforms, properties/array shorthand, open object),
+and all six new tool-metadata cases failed. The six scalar negative controls already passed on the
+base. After the fix, all 21 shape/source subtests and all 39 view-reference subtests passed; the full
+`internal/loop/...` suite passed as well. Intermediate broader tests caught source/watch-event hints
+being interpreted as normalized schemas; their producer mode was corrected, preserving their
+existing runtime and lint behavior.
+
+Commands and outcomes:
+
+```sh
+# Baseline replay: expected failure, cases above.
+go test -overlay=/tmp/ntrv-r1b-base-overlay.json ./internal/loop -run '^Test(LinterOutputShapeRuntimeAgreement|LinterResultViewReferences)$' -count=1 -v
+# origin/main comparison: expected differences, runtime assertions passed.
+go test -overlay=/tmp/ntrv-r1b-origin-overlay.json ./internal/loop -run '^TestLinterOutputShapeRuntimeAgreement$' -count=1 -v
+# Passed all packages; verbose output also records every shape/path observation.
+go test ./internal/loop/... -count=1 -v
+# Passed contracts and real persisted Loop/session integration.
+go test ./internal/daemon -run '^Test(NativeResultViewContracts|LoopResultViews.*)$' -count=1
+go test -tags=integration ./internal/daemon -run '^Test(NativeResultViewsIntegration|LoopResultViewsIntegration)$' -count=1
+# Final pass: 0 issues. The earlier pass caught duplicate array literals, replaced with a constant.
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./internal/loop/...
+bunx turbo run generate:content typecheck --filter=./packages/site --only
+bunx turbo run test --filter=./packages/site --only -- --maxWorkers=2
+git diff --check
+```
+
+Content generation/typecheck passed; the test-only Turbo run passed all 397 tests in 54 files.
+A first combined Turbo command incorrectly forwarded the Vitest
+worker flag to Velite; the commands above separate generation/typecheck from test-only arguments.
+The refs test-shape check passed. The linter file checker reports the existing untouched
+`TestLinterShouldRejectDeletedNoProgressParameters` inline-case diagnostic; the identical diagnostic
+was reproduced on the base file. The new table-driven cases use parallel `Should ...` subtests.
+Focused formatting and lint are the checks for these edits; no unrelated test was rewritten.
+
+The cross-surface audit remains the existing Native Tool Result Views record in
+`docs/_memory/change-impact.md`: internal lint/source provenance and corrected official skill/site
+consumers only. No wire DTO, native ToolID, config, hook, data-isolation, migration or generated-source
+change. No external provider, global gate, race or E2E run; no push or PR from this slice.
+
+
+## R1c — Preserve authored reference acceptance
+
+Base: `bd9a78a551bb5d16776c11ae45be6b51b03e5290`. Authored-schema references are user state;
+this feature does not authorize tightening their acceptance. The three previously rejected rows
+are now accepted with the existing `unresolvable_path` code at warning severity. The warning text is
+`node "shape" output path ".nodes.shape.output.<field>" cannot be proven`. No new code was added.
+Tool descriptor schemas have no authored fallback and retain their strict behavior. Transform
+output fields retain their behavior. No runtime validation or executor behavior changes.
+
+### Runtime evidence
+
+Before editing production code, the existing `TestLinterOutputShapeRuntimeAgreement` suite was
+extended to evaluate the disputed references against actual runtime values. These assertions passed
+while nine shape/source subtests failed on lint rejection or missing warnings at the base:
+
+- For the sample `{"properties":{"a":"a"},"id":"id"}`, direct template access to root `a`
+  fails with a missing-map-key error. However, the schema permits additional properties: adding
+  `"a":"root"` passes the real schema validator, and the identical template then renders `root`.
+  Calling this reference universally unresolvable was incorrect.
+- For the validated structured string `"value"`, direct access to `type` or `description` fails:
+  those fields cannot be read from a string. `{type: string, description: string}` still describes
+  a string, not an object with either field. The object payload remains rejected by the validator.
+- `refs.RenderTemplateString` uses `missingkey=error`, so none of the failing evaluations silently
+  renders an empty result. Both `TransformActionExecutor.Execute` mapping forms, `template` and
+  `from`, return `ErrActionMaterialization` for these samples. The coordinator maps that error to
+  `action_materialization_failed`; control-node materialization likewise marks the output failed
+  (`coordinator_action.go:actionMaterializationFailure`, `control_plan.go:materializationFailedOutput`).
+- This does **not** prove every such definition hard-fails the entire Loop. Root `a` can exist as
+  shown; `produces` is descriptive and is not automatically used as run-agent `output_schema`
+  (`action_runagent.go` reads and validates `spec.OutputSchema`, not `node.Produces`); and failure
+  policy/routing determines the run outcome. An unguarded evaluation of the missing/scalar paths
+  tested above fails the consuming node. No empty-value coercion or runtime workaround was added.
+
+### Updated compatibility table
+
+Each authored row runs independently for `produces`, `expect`, and `output_schema`, and checks
+current, `previous`, and `best` references. Main is the frozen `766345807802b7056b0fc8a026c84de70f23ea84`.
+The warning column describes lint; runtime errors above remain unchanged.
+
+| Source | Shape → path | origin/main lint | Runtime evidence | Lint now / warning |
+| --- | --- | --- | --- | --- |
+| Transform map | `{type}` → `type` | Accepted | Executor returns that key | Accepted; no warning |
+| Transform map | `{type,title,description}` → each | Accepted | Executor returns each key | Accepted; no warning |
+| Transform map | `{properties,name}` → each | Accepted | Executor returns both keys | Accepted; no warning |
+| Authored (all three sources) | `{properties: object,name:string}` → both | Accepted | Validator accepts both fields | Accepted; no warning |
+| Authored (all three sources) | `{properties:{a:string},id:string}` → `properties.a`, `id` | Accepted | Valid nested values | Accepted; no warning |
+| Authored (all three sources) | Same shape → root `a` | Accepted | Missing sample fails evaluation; valid extra root `a` resolves | Accepted; cannot-be-proven warning |
+| Authored (all three sources) | `{type:array,items:string,name:string}` → each | Accepted | Valid three-field object | Accepted; no warning |
+| Authored (all three sources) | `{type:object}` → `type` | Accepted | Open object accepts and resolves it | Accepted; cannot-be-proven warning |
+| Authored (all three sources) | `{type:string}` → `type` | Accepted | Direct evaluation against validated string fails | Accepted; cannot-be-proven warning |
+| Authored (all three sources) | `{type:string,description:string}` → both metadata names | Accepted | Direct evaluation against validated string fails | Accepted; cannot-be-proven warning |
+| Authored (all three sources) | Closed object metadata; nested string metadata; array metadata; keyword collisions | Accepted | Values are not guaranteed by those contracts | Accepted; cannot-be-proven warning |
+| Tool descriptor JSON Schema | Scalar/closed-object metadata, including annotations | Historically admitted by old metadata lookup | Not output fields | Rejected, unchanged from R1b |
+
+### General acceptance check
+
+The fix is not a list of exceptions for those three rows. `NodeSchema.AuthoredOutput` retains the
+raw converted declaration for every authored producer (`produces`, Goal/run-agent `output_schema`,
+and ask `expect`, including source declarations). If normalized resolution rejects a path, the
+field-map resolver replays the exact main ordering: declared `properties` lookup, direct-key lookup,
+then array item traversal. A successful replay accepts the path and marks it unproven. The same
+check is used for current/previous/best paths and result-contract fields. Paths rejected by both
+remain errors. Descriptor-only tool outputs never receive this raw declaration.
+
+Checked the permissive branch against `git show 766345807:internal/loop/dsl/refs/namespace.go`:
+map/typed-map/slice/string handling and the empty-schema rule have the same acceptance behavior.
+This preserves main acceptance by construction for the raw authored shapes, without claiming
+that a finite test set enumerates every user definition. A separate main-source Go overlay ran the
+same 33 shape/source cases: all expected acceptance/error classifications matched; the intentional
+failures were only assertions that main should emit the new warnings (main emitted none).
+Runtime assertions passed in that comparison too. Twelve added cases broaden the check beyond the
+three reported rows: authored closed-object metadata, nested scalar metadata, array metadata, and
+keyword collisions, each across all three authored producer locations. Missing undeclared fields
+that main rejected remain negative controls. The 39 strict tool/view cases are unchanged.
+
+Verification commands:
+
+```sh
+# Before production edits: expected failure in nine disputed authored cases; runtime assertions passed.
+go test ./internal/loop -run '^TestLinterOutputShapeRuntimeAgreement$' -count=1 -v
+# Main comparison: expected warning-only assertion differences, no acceptance classification mismatch.
+go test -overlay=/tmp/ntrv-r1b-origin-overlay.json ./internal/loop -run '^TestLinterOutputShapeRuntimeAgreement$' -count=1 -v
+# Full focused Loop packages, including 33 shape/source cases and 39 tool/view cases.
+go test ./internal/loop/... -count=1 -v
+go test -tags=integration ./internal/daemon -run '^Test(NativeResultViewsIntegration|LoopResultViewsIntegration)$' -count=1
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./internal/loop/...
+git diff --check
+```
+
+The test-shape heuristic reports the same untouched inline-case diagnostic on
+`TestLinterShouldRejectDeletedNoProgressParameters` documented in R1b; the new table cases retain
+parallel `Should ...` subtests. No site content changed, so no Turbo rerun is needed in this round.
+No global gate, race, E2E, external-provider run, push or PR. The existing change-impact audit remains
+applicable: authored lint compatibility and QA evidence only; no wire, config, hook or data migration.
+
+Final R1c results: all six Loop packages passed; the shape suite passed 33 source/shape subtests
+(with current/previous/best checks inside each), and the unchanged tool/view suite passed 39.
+The two named daemon integrations passed together (4.026s). Focused lint finished with `0 issues`;
+one earlier long-line finding was corrected before that pass. `git diff --check` passed.
+No remaining repair item is open. Pre-commit tasks are executed with `--no-stash`, preserving the
+session's Git restriction; commit-message validation uses the same repository convention.
