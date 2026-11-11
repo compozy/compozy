@@ -834,7 +834,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 					Page contract.CursorPagePayload `json:"page"`
 				}
 				if err := json.Unmarshal([]byte(lines[len(lines)-1]), &footer); err != nil {
-					t.Fatal(err)
+					t.Fatalf("decode JSONL page footer from %q: %v", output, err)
 				}
 				if footer.Type != "page" || footer.Page.NextCursor != "next-runs" || !footer.Page.HasMore ||
 					footer.Page.Limit != 50 {
@@ -842,13 +842,25 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 				}
 				return
 			}
-			marker := "\nPage"
 			if format == "toon" {
-				marker = "\npage{"
+				_, page, found := strings.Cut(output, "page{returned,limit,has_more,next_cursor}:\n")
+				if !found || strings.TrimSpace(page) != "1,50,true,next-runs" {
+					t.Fatalf("missing or incorrect TOON continuation page: %s", output)
+				}
+				return
 			}
-			index := strings.Index(output, marker)
-			if index < 0 || !strings.Contains(output[index:], "next-runs") {
+			_, page, found := strings.Cut(output, "Page\n")
+			if !found {
 				t.Fatalf("missing continuation page: %s", output)
+			}
+			normalizedPage := "\n"
+			for line := range strings.SplitSeq(page, "\n") {
+				normalizedPage += strings.Join(strings.Fields(line), " ") + "\n"
+			}
+			for _, line := range []string{"Limit: 50", "Has More: true", "Next Cursor: next-runs"} {
+				if !strings.Contains(normalizedPage, "\n"+line+"\n") {
+					t.Fatalf("continuation page missing %q: %s", line, page)
+				}
 			}
 		})
 	}
