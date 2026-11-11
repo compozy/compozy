@@ -209,6 +209,8 @@ type Manager struct {
 	attentionWorkspaceMutes AttentionWorkspaceMuteReader
 	notifyLastBySession     map[string]time.Time
 	waitRegistry            *sessionWaitRegistry
+	clarifyMu               sync.RWMutex
+	clarify                 toolspkg.ClarifyBroker
 	spawnWakeMu             sync.Mutex
 	spawnWakeEventIDs       map[string]struct{}
 	spawnWakeEventOrder     []string
