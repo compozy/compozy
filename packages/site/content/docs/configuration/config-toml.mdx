@@ -228,7 +228,7 @@ max_subscribers = 16
 # Session ordering: "created", "name", "last_activity", "attention", or "manual".
 sort = "created"
 # Session grouping: "none", "project" (under All projects), or "profile" (under All profiles).
-group_by = "none"
+group_by = "project"
 # Deprecated in v0.4.0, removed in v0.5.0: "workspace" or "all-workspaces".
 # scope = "all-workspaces"
 
@@ -1041,7 +1041,7 @@ never moves another. Operators and agents set them with
 | Field      | Type   | Default     | Valid values                                              | Description                                                                              |
 | ---------- | ------ | ----------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `sort`     | string | `created`   | `created`, `name`, `last_activity`, `attention`, `manual` | Newest created first, name A–Z, recent activity, attention urgency, or manual order.     |
-| `group_by` | string | `none`      | `none`, `project`, `profile`                              | Groups the session list by project (under All projects) or profile (under All profiles). |
+| `group_by` | string | `project`   | `none`, `project`, `profile`                              | Groups the session list by project (under All projects) or profile (under All profiles). |
 | `scope`    | string | `workspace` | `workspace`, `all-workspaces`                             | **Deprecated.** Legacy breadth intent; kept through v0.4.0, removed in v0.5.0.           |
 
 Created keeps parent and nested child rows still while agents work. Name orders the visible title
@@ -1055,7 +1055,9 @@ No user-state migration or rewrite is performed. `manual` applies only where the
 one project and profile; elsewhere it displays as Last activity and stays stored.
 
 `group_by = "project"` applies only under All projects and `profile` only under All profiles. An
-inapplicable value renders as `none` and is not rewritten. Unknown values fail with
+inapplicable value renders as `none` and is not rewritten, so one project's list stays flat under the
+default. An unset `group_by` reads `project`; an explicitly persisted `none` stays flat. No user-state
+migration or rewrite is performed. Unknown values fail with
 `shell_config_invalid`. Groups come from server facets, so a group appears even when none of its
 sessions are on the loaded page.
 
@@ -1064,7 +1066,7 @@ sessions are on the loaded page.
 Which projects you see is now decided by the topbar globe (**All projects**), not by a config key.
 Through v0.4.0, `scope` stays stored and is returned as written. Old clients and scripts may keep
 writing it; every write returns a deprecation warning naming `shell.sessions.group_by` and the
-globe. While `group_by` is unset, `scope = "all-workspaces"` derives `group_by = "project"`; an
+globe. While `group_by` is unset, either `scope` value reads `group_by = "project"`, the default; an
 explicit `group_by` always wins. `GET /api/settings/shell` reports `warnings` and
 `legacy_scope: { value, explicit, revision }`. The Web turns on All projects only for an explicit
 `all-workspaces` written after it last looked, never from the default.

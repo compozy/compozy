@@ -41,7 +41,7 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
   useTopbarSlot({
     crumb: <span className="text-muted-foreground">Sessions</span>,
     overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
-    actions: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
+    start: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
   });
 
   return (

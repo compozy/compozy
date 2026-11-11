@@ -329,7 +329,7 @@ export function SessionWindowContent({
                             <SessionContextControl
                               context={sessionContext.context}
                               open={inspector.open}
-                              onOpen={() => inspector.setOpen(true)}
+                              onToggle={inspector.toggle}
                             />
                           )
                         }
