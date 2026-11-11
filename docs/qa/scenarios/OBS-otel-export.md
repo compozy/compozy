@@ -10,7 +10,7 @@ qa_status: blocked-decision
 bug_ids: BUG-20261111-web-adapter-requests-skip-traceparent; BUG-20261111-otel-model-exports-other; BUG-20261111-otel-model-probe-spawn-provider-other; BUG-20261111-otel-header-refs-redacted
 fix_status: pending
 retest_status: pass
-fix_commits: 47b40a7b4
+fix_commits: 47b40a7b4; 82347190f
 evidence: docs/qa/evidence/2026-11-11-otel-telemetry-export/
 last_report: docs/qa/reports/2026-11-11-otel-telemetry-export.md
 overlaps: OBS-otel-export; RT-001
@@ -69,9 +69,11 @@ Expected:
 - The p95 query returns a non-empty vector; `compozy_tokens_total`, `compozy_tool_calls_total`, and
   `http_server_request_duration_seconds_bucket` series exist.
 - The canary never appears in the exported trace.
-- Known gap, record but do not fail the walk on it: `gen_ai.request.model` exports `other` because no task owns the
-  model-catalog registry (`Registries.Models` nil); the docs' value rules promise the catalog name. Register a bug if
-  the gap still has no owner at walk time.
+- `session.turn` and `compozy.session.turn.duration` carry `gen_ai.request.model` = the catalog name the session
+  reports (for example `claude-opus-5-5`), `custom` for a configuration-only model, and never a raw model string
+  (BUG-20261111-otel-model-exports-other, fixed in `82347190f`). The classifier reads a catalog snapshot that is
+  rebuilt every 5 minutes, so on a fresh home, turns before the first rebuild may export `other`. Check the value
+  on a turn more than 5 minutes after the first boot, or after a restart with the catalog already persisted.
 
 Evidence: status text before and after, Jaeger trace JSON and a screenshot of the expanded trace, Prometheus query
 JSON, canary grep output.

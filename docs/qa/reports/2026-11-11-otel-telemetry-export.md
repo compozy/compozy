@@ -34,7 +34,7 @@ Evidence paths are relative to `docs/qa/evidence/2026-11-11-otel-telemetry-expor
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §1 golden path | Dora | Feature Tour | Pass | BUG-20261111-otel-model-exports-other; BUG-20261111-otel-model-probe-spawn-provider-other | |
+| 1 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §1 golden path | Dora | Feature Tour | Pass | BUG-20261111-otel-model-exports-other (fixed); BUG-20261111-otel-model-probe-spawn-provider-other | 82347190f |
 | 2 | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §2 status + RT-001 | Dora | Feature Tour | Blocked (human decision) | BUG-20261111-otel-header-refs-redacted | |
 | 3a | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §3 web | Dora | Feature Tour | Fixed | BUG-20261111-web-adapter-requests-skip-traceparent | 47b40a7b4 |
 | 3b | CH-otel-export-collector-walk | J-export-telemetry-to-collector / OBS-otel-export §3 desktop | Dora | Feature Tour | Blocked (needs human verify) | | |
@@ -209,7 +209,7 @@ HTTP, and UDS in every state).
   (surfaces) and C12 (verification report) passed after the journey log and lab verification report were written.
   Lab teardown: `teardown.json` `clean: true`, no survivors; Compose stack removed with `docker compose down -v`.
   QA tree checks: `scripts/check-product-language.sh` passed; `materialize_state.py docs/qa` parsed 1096 scenarios.
-- **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 1 (model `other`, open) · Friction 3
+- **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 1 (model `other`, fixed in `82347190f` and re-walked, see Addendum) · Friction 3
   (web traceparent fixed; header refs masked, decision; probe provider `other`, open) · Cosmetic 0.
 - **Coverage:** 6/6 walks attempted; walks 1 and 5 pass, walk 3 web fixed and re-walked; walks 2 and 6 wait on the
   header-ref decision; desktop (3b) and the provider's own export (4, step 3) need a human-verified environment. The
@@ -217,3 +217,40 @@ HTTP, and UDS in every state).
 - **Verdict:** QA round complete with blocked items: export works end to end against a real Collector, Jaeger, and
   Prometheus. One defect was fixed (`47b40a7b4`); one product decision and two environment-bound verifications remain,
   and two low-to-medium attribute-labeling bugs are open.
+
+## Addendum — 2026-11-11 re-walk: catalog model names (BUG-20261111-otel-model-exports-other)
+
+- **Build:** branch `run/otel-re-walk-model-name-in-jaeger-a7fcaf7a` at `82347190f` (fix: export catalog model
+  names in telemetry), daemon built from that worktree (`vcs.revision=82347190f`, unmodified).
+- **Lab:** fresh `eng-qa-bootstrap` lab (`/tmp/compozyqa-b35e37c016aa/runtime`, HTTP `127.0.0.1:38193`, own UDS and
+  tmux socket); every lab call ran through a wrapper that unsets inherited `COMPOZY_*` and sets only the lab's
+  `COMPOZY_HOME`, `COMPOZY_HTTP_PORT`, `COMPOZY_UDS_PATH`, and `TMUX_BRIDGE_SOCKET`. `_dx.md` Compose stack in a
+  lab-owned directory (project `otelqa-b35e37`, default host ports). `[defaults] provider = "claude"`, and the
+  operator's `[providers.claude]` block without its optional `session_env` vault refs, `models.default =
+  "claude-opus-5-5"`. Export enabled with `metric_interval = 5s`.
+- **Walk:** OBS-otel-export §1 steps 1–7, with five short prompts on one session: two right after a fresh boot, two
+  after the 5-minute snapshot TTL, and one after a restart.
+- **Result — Fixed.** The session reports provider `claude` and model `claude-opus-5-5`, which matches the catalog row
+  `(claude, claude-opus-5-5)` (sources `config`, `provider_live`, `models_dev`). After the snapshot TTL, and from the
+  first turn after a restart, `session.turn` carries `gen_ai.request.model = claude-opus-5-5`. Prometheus
+  `compozy_session_turn_duration_seconds_bucket` and `compozy_tokens_total` carry
+  `gen_ai_request_model="claude-opus-5-5"`. Across every exported trace and series, the only values are
+  `claude-opus-5-5` and `other`, so no raw user-authored model string was exported.
+- **Residual window (decision for the spec owner):** on a fresh home, the two turns in the first 67 s exported
+  `other`. The boot snapshot (telemetry init 14:39:32Z) predates the `claude` `models_dev` refresh (14:39:48Z, at
+  session creation), and the snapshot is rebuilt only by its 5-minute TTL, not by catalog refreshes. The window is
+  therefore up to 5 minutes after the first boot, not only the first turn as the fix commit says. Because the SDK
+  aggregates on the raw model and the sanitizer relabels at export, the cumulative series moved from `other` to
+  `claude-opus-5-5` once the snapshot was rebuilt. Prometheus then showed the `claude-opus-5-5` series with all four
+  turns, next to a stale `other` series with two. Options: 1. accept and document the warm-up window in
+  `telemetry-export.mdx` "Value rules"; 2. rebuild the snapshot when a catalog refresh completes, or while the
+  snapshot lacks the queried provider, so the first turn after any refresh exports the name. Recommendation: option 2.
+  It is a small change in `internal/daemon/telemetry_models.go`, and it removes a first-run dashboard artifact.
+- **Teardown:** `docker compose down -v`; daemon stopped; manifest teardown `teardown.json` `clean: true`, no
+  survivors.
+- **Evidence** (`docs/qa/evidence/2026-11-11-otel-telemetry-export/`): `w1-model-turn-timeline.txt`,
+  `w1-model-jaeger-turn1.json`, `w1-model-jaeger-turn2-before-ttl.json`, `w1-model-jaeger-turn4-after-ttl.json`,
+  `w1-model-jaeger-restart-turn.json`, `w1-model-prom-before-ttl.json`, `w1-model-prom-turn-duration.json`,
+  `w1-model-prom-tokens.json`, `w1-model-distinct-values.txt`, `w1-model-catalog-sources.txt`,
+  `w1-model-catalog-list.txt`, `w1-model-session-runtime.json`, `w1-model-status-before.txt`,
+  `w1-model-status-after-restart.txt`, `w1-model-config-set.txt`.
