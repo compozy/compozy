@@ -1,4 +1,4 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClient, apiRequestFailed, daemonFetch, requireResponseData } from "@/lib/api-client";
 
 import type {
   ApproveSessionParams,
@@ -272,7 +272,7 @@ export async function cancelSessionPrompt(
       signal,
     }
   );
-  const response = await globalThis.fetch(request);
+  const response = await daemonFetch(request);
   if (!response.ok) {
     if (response.status === 404) {
       throw new SessionNotFoundError(id);
@@ -438,7 +438,7 @@ export async function clearSessionConversation(
     }
   );
 
-  const response = await globalThis.fetch(request);
+  const response = await daemonFetch(request);
   if (!response.ok) {
     if (response.status === 404) {
       throw new SessionNotFoundError(id);

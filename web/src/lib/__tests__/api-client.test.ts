@@ -5,6 +5,7 @@ import {
   apiClient,
   apiErrorMessage,
   apiRequestFailed,
+  daemonFetch,
   defaultApiErrorMessage,
   requireResponseData,
   runtimeFetch,
@@ -165,6 +166,30 @@ describe("api client trace propagation", () => {
 
     expect(traceparent(0)).toBeNull();
     expect(traceparent(1)).toBeNull();
+  });
+
+  it("Should send an unsampled traceparent with daemon requests outside the typed client", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await daemonFetch(`${apiBaseUrl}/api/sessions/s/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    await daemonFetch(new Request(`${apiBaseUrl}/api/sessions/s/stop`, { method: "POST" }));
+    await daemonFetch("https://other.example/api/status", { headers: { traceparent: "kept-out" } });
+
+    const [prompt, stop, other] = fetchMock.mock.calls as [
+      [string, RequestInit],
+      [Request],
+      [string, RequestInit],
+    ];
+    const promptHeaders = new Headers(prompt[1].headers);
+    expect(promptHeaders.get("traceparent")).toMatch(TRACEPARENT);
+    expect(promptHeaders.get("Content-Type")).toBe("application/json");
+    expect(stop[0].headers.get("traceparent")).toMatch(TRACEPARENT);
+    expect(new Headers(other[1].headers).get("traceparent")).toBeNull();
   });
 
   it("Should share one trace id across the requests of one action", async () => {

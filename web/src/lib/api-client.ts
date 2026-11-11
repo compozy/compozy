@@ -47,6 +47,32 @@ export function startTraceAction(): () => { traceparent: string } {
   return () => ({ traceparent: formatTraceparent(traceId) });
 }
 
+// Daemon-bound requests carry an unsampled traceparent; any other origin never receives one.
+function applyTraceparent(url: string, headers: Headers): void {
+  if (new URL(url, apiBaseUrl).origin !== apiBaseUrl) {
+    headers.delete("traceparent");
+  } else if (!headers.has("traceparent")) {
+    headers.set("traceparent", formatTraceparent());
+  }
+}
+
+/**
+ * `fetch` for daemon requests that bypass `apiClient` (prompt streaming, raw `Request`s): it
+ * applies the same traceparent rule and keeps the caller's `(input, init)` shape.
+ */
+export const daemonFetch: typeof globalThis.fetch = (input, init) => {
+  if (input instanceof Request && init === undefined) {
+    applyTraceparent(input.url, input.headers);
+    return globalThis.fetch(input);
+  }
+  const url = input instanceof Request ? input.url : String(input);
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined)
+  );
+  applyTraceparent(url, headers);
+  return globalThis.fetch(input, { ...init, headers });
+};
+
 /**
  * Single chokepoint for "this device's access ended". Only an explicit daemon
  * code on a 401 counts (see `gateway-access-signal`), so ordinary failures and
@@ -62,11 +88,7 @@ export function startTraceAction(): () => { traceparent: string } {
 apiClient.use({
   onRequest({ request }) {
     request.headers.set("X-Compozy-Client-ID", clientID);
-    if (new URL(request.url).origin !== apiBaseUrl) {
-      request.headers.delete("traceparent");
-    } else if (!request.headers.has("traceparent")) {
-      request.headers.set("traceparent", formatTraceparent());
-    }
+    applyTraceparent(request.url, request.headers);
     return request;
   },
   async onResponse({ response }) {
