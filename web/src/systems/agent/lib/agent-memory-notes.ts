@@ -1,8 +1,13 @@
 import type { AgentMemoryBudget } from "../types";
 
+/** A rule binds the agent every turn and only the person can change it; anything else is a note. */
+export type MemoryKind = "note" | "rule";
+
 /** One line of MEMORY.md. */
 export interface MemoryNote {
   id: string;
+  /** Absent means a note, so files from before rules read the same. */
+  kind?: MemoryKind;
   text: string;
   /** The project it was learned in; absent when the person wrote it. */
   learnedIn?: string;
@@ -25,6 +30,8 @@ export interface MemoryFile {
 /** A dated note the person wrote; dated lines need a scope, and this one reads as theirs. */
 export const OPERATOR_SCOPE = "you";
 
+const RULE_PREFIX = "- [rule] ";
+
 const LEARNED = /^- (\d{4}-\d{2}-\d{2}) · (.+?) · (.+?)(?: · until (\d{4}-\d{2}-\d{2}))?$/;
 
 function isDate(value: string) {
@@ -34,6 +41,8 @@ function isDate(value: string) {
 
 function parseLine(line: string, index: number, gap: number): MemoryNote {
   const id = `line-${index}`;
+  const rule = line.startsWith(RULE_PREFIX) ? line.slice(RULE_PREFIX.length).trim() : "";
+  if (rule !== "") return { id, kind: "rule", text: rule, gap, line };
   const match = LEARNED.exec(line);
   if (!match || !isDate(match[1]!) || (match[4] !== undefined && !isDate(match[4]))) {
     return { id, text: line, gap, line };
@@ -70,6 +79,7 @@ export function parseMemoryFile(content: string): MemoryFile {
 
 function composeLine(note: MemoryNote) {
   if (note.line !== undefined) return note.line;
+  if (isMemoryRule(note)) return `${RULE_PREFIX}${note.text}`;
   if (!note.date) return note.text;
   const until = note.until ? ` · until ${note.until}` : "";
   return `- ${note.date} · ${note.learnedIn ?? OPERATOR_SCOPE} · ${note.text}${until}`;
@@ -80,20 +90,37 @@ export function composeMemoryFile({ notes, tail }: MemoryFile) {
   return `${lines.join("\n")}${notes.length > 0 ? tail || "\n" : ""}`;
 }
 
+export function isMemoryRule(note: Pick<MemoryNote, "kind">) {
+  return note.kind === "rule";
+}
+
+/** The same words under the other kind. A rule has no date, place or end; a note made from one is the person's own line. */
+export function withMemoryKind(note: MemoryNote, kind: MemoryKind): MemoryNote {
+  if (isMemoryRule(note) === (kind === "rule")) return note;
+  const { id, text, gap } = note;
+  return kind === "rule" ? { id, kind, text, gap } : { id, text, gap };
+}
+
+/** Same words under the same kind: what the saved file already says. */
+export function sameMemoryNote(a: MemoryNote, b: MemoryNote) {
+  return a.text === b.text && isMemoryRule(a) === isMemoryRule(b);
+}
+
 export function countMemoryChanges(notes: readonly MemoryNote[], saved: readonly MemoryNote[]) {
   const added = notes.filter(note => !saved.some(other => other.id === note.id));
   const removed = saved.filter(note => !notes.some(other => other.id === note.id));
   const edited = notes.filter(note =>
-    saved.some(other => other.id === note.id && other.text !== note.text)
+    saved.some(other => other.id === note.id && !sameMemoryNote(other, note))
   );
   return added.length + removed.length + edited.length;
 }
 
-export type MemoryFilter = "all" | "learned" | "yours";
+export type MemoryFilter = "all" | "learned" | "yours" | "rules";
 
 export function memoryNoteMatches(note: MemoryNote, filter: MemoryFilter, search: string) {
   if (filter === "learned" && !note.learnedIn) return false;
   if (filter === "yours" && note.learnedIn) return false;
+  if (filter === "rules" && !isMemoryRule(note)) return false;
   const haystack = `${note.text} ${note.learnedIn ?? ""}`.toLowerCase();
   return haystack.includes(search.trim().toLowerCase());
 }

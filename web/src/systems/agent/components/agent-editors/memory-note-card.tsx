@@ -1,13 +1,15 @@
 /** One note as a sheet of paper on the board, its inline editor, and the composer for a new one. */
-import { CalendarClock, Pencil, Trash2, UserRound } from "@compozy/ui/icons";
+import { CalendarClock, Gavel, NotebookPen, Pencil, Trash2, UserRound } from "@compozy/ui/icons";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
-import { Button, DateTimePicker, MarkdownEditor, Pill, cn } from "@compozy/ui";
+import { Button, DateTimePicker, MarkdownEditor, Pill, PillGroup, cn } from "@compozy/ui";
 
 import {
   formatMemoryDate,
+  isMemoryRule,
   localDate,
   memoryNoteExpired,
+  type MemoryKind,
   type MemoryNote,
 } from "../../lib/agent-memory-notes";
 import { agentEditorMark } from "../../lib/agent-editor-mark";
@@ -17,6 +19,13 @@ import { AgentMark } from "../agent-mark";
 import { InlineCodeText } from "../inline-code-text";
 
 const MAX_NOTE = 1000;
+
+const KINDS: readonly { value: MemoryKind; label: string }[] = [
+  { value: "note", label: "Note" },
+  { value: "rule", label: "Rule" },
+];
+
+const RULE_HELP = "The agent follows rules on every turn. Only you can change them.";
 
 function Source({
   agent,
@@ -66,40 +75,52 @@ function NoteText({ text, expired }: { text: string; expired?: boolean }) {
 
 export function NoteComposer({
   initial = "",
+  initialKind = "note",
+  chooseKind = false,
   action,
   onCancel,
   onDone,
 }: {
   initial?: string;
+  initialKind?: MemoryKind;
+  /** Offer Note or Rule; an entry being edited keeps its kind. */
+  chooseKind?: boolean;
   action: string;
   onCancel: () => void;
-  onDone: (text: string, until?: string) => void;
+  onDone: (text: string, until?: string, kind?: MemoryKind) => void;
 }) {
   const [text, setText] = useState(initial);
+  const [kind, setKind] = useState<MemoryKind>(initialKind);
+  const rule = kind === "rule";
   const [until, setUntil] = useState<Date | null>(null);
   const over = text.length > MAX_NOTE;
   const ready = text.trim() !== "" && !over;
-  const done = () => onDone(text.trim(), until ? localDate(until) : undefined);
+  const done = () => onDone(text.trim(), !rule && until ? localDate(until) : undefined, kind);
   return (
     <div className="flex flex-col gap-3">
+      {chooseKind ? (
+        <PillGroup aria-label="Kind" items={KINDS} onChange={setKind} size="sm" value={kind} />
+      ) : null}
       <MarkdownEditor
-        aria-label="Note"
+        aria-label={rule ? "Rule" : "Note"}
         aria-invalid={over}
         autoFocus
         onSubmit={() => (ready ? done() : undefined)}
         onValueChange={setText}
-        placeholder="Something it should always remember"
+        placeholder={rule ? "Something it must always do" : "Something it should always remember"}
         value={text}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <div className="w-44">
-          <DateTimePicker
-            clearLabel="Keep it forever"
-            onValueChange={setUntil}
-            placeholder="Forget on a date"
-            value={until}
-          />
-        </div>
+        {rule ? null : (
+          <div className="w-44">
+            <DateTimePicker
+              clearLabel="Keep it forever"
+              onValueChange={setUntil}
+              placeholder="Forget on a date"
+              value={until}
+            />
+          </div>
+        )}
         <span
           className={cn(
             "ml-auto text-eyebrow tabular-nums",
@@ -112,9 +133,10 @@ export function NoteComposer({
           Cancel
         </Button>
         <Button disabled={!ready} onClick={done} size="sm" type="button">
-          {action}
+          {chooseKind && rule ? "Add rule" : action}
         </Button>
       </div>
+      {rule ? <p className="text-eyebrow text-muted-foreground">{RULE_HELP}</p> : null}
     </div>
   );
 }
@@ -186,6 +208,7 @@ export function NoteCard({
   pending,
   scopeLabel = agentScopeLabel,
   onEdit,
+  onKind,
   onRemove,
 }: {
   agent: AgentPayload;
@@ -196,10 +219,14 @@ export function NoteCard({
   /** Added or changed here and not saved yet. */
   pending: boolean;
   onEdit: (text: string) => void;
+  /** Switches the entry between note and rule. */
+  onKind: () => void;
   onRemove: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const expired = memoryNoteExpired(note, today);
+  const rule = isMemoryRule(note);
+  const name = rule ? "rule" : "note";
   return (
     <li>
       <NoteSheet faded={expired && !editing} note={note} tilt={editing ? 0 : tiltOf(note.id)}>
@@ -207,6 +234,7 @@ export function NoteCard({
           <NoteComposer
             action="Done"
             initial={note.text}
+            initialKind={rule ? "rule" : "note"}
             onCancel={() => setEditing(false)}
             onDone={text => {
               onEdit(text);
@@ -220,6 +248,11 @@ export function NoteCard({
               <Forgets note={note} today={today} />
               <div className="flex min-h-6 items-center gap-1 pr-3">
                 <Source agent={agent} note={note} scopeLabel={scopeLabel} today={today} />
+                {rule ? (
+                  <Pill size="xs" title={RULE_HELP} tone="info">
+                    Rule
+                  </Pill>
+                ) : null}
                 {pending ? (
                   <Pill form="plain" size="xs">
                     Not saved yet
@@ -232,7 +265,17 @@ export function NoteCard({
               style={{ backgroundColor: "var(--note-paper)" }}
             >
               <Button
-                aria-label="Edit note"
+                aria-label={rule ? "Make it a note" : "Make it a rule"}
+                onClick={onKind}
+                size="icon-xs"
+                title={rule ? "Make it a note" : "Make it a rule"}
+                type="button"
+                variant="quiet"
+              >
+                {rule ? <NotebookPen aria-hidden="true" /> : <Gavel aria-hidden="true" />}
+              </Button>
+              <Button
+                aria-label={`Edit ${name}`}
                 onClick={() => setEditing(true)}
                 size="icon-xs"
                 type="button"
@@ -241,7 +284,7 @@ export function NoteCard({
                 <Pencil aria-hidden="true" />
               </Button>
               <Button
-                aria-label="Remove note"
+                aria-label={`Remove ${name}`}
                 onClick={onRemove}
                 size="icon-xs"
                 type="button"

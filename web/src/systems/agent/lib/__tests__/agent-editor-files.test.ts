@@ -31,11 +31,17 @@ import {
 } from "../agent-frontmatter";
 import {
   composeMemoryFile,
+  countMemoryChanges,
   formatMemoryDate,
+  isMemoryRule,
   memoryFullness,
   memoryNoteExpired,
+  memoryNoteMatches,
   memoryPercent,
   parseMemoryFile,
+  withMemoryKind,
+  type MemoryFilter,
+  type MemoryNote,
 } from "../agent-memory-notes";
 import { BLANK_SOUL, composeSoulFile, parseSoulFile } from "../agent-soul-form";
 
@@ -436,6 +442,51 @@ Prefer short status updates.
     expect(composeMemoryFile({ ...parsed, notes })).toBe(
       file.replace("Dispatch one executor per issue.", "One worker per issue.")
     );
+  });
+
+  it("Should read a rule line as a rule and write it back byte for byte", () => {
+    const withRules = `- [rule] File issues through report-writer\n${file}- [rule]   \n- [rule]\n`;
+    const parsed = parseMemoryFile(withRules);
+    expect(parsed.notes[0]).toEqual({
+      id: "line-0",
+      kind: "rule",
+      text: "File issues through report-writer",
+      gap: 0,
+      line: "- [rule] File issues through report-writer",
+    });
+    // A rule needs words; a bare marker stays the note it always was.
+    expect(parsed.notes.filter(isMemoryRule)).toHaveLength(1);
+    const withoutId = ({ id: _id, ...note }: MemoryNote) => note;
+    expect(parsed.notes.slice(1, 5).map(withoutId)).toEqual(
+      parseMemoryFile(file).notes.map(withoutId)
+    );
+    expect(composeMemoryFile(parsed)).toBe(withRules);
+  });
+
+  it("Should rewrite only the line whose kind changed, dropping what a rule can't carry", () => {
+    const parsed = parseMemoryFile(file);
+    const asRule = parsed.notes.map((note, index) =>
+      index === 3 ? withMemoryKind(note, "rule") : note
+    );
+    const ruled = composeMemoryFile({ ...parsed, notes: asRule });
+    expect(ruled).toBe(
+      file.replace("- 2026-11-01 · you · Ana is out. · until 2026-11-10", "- [rule] Ana is out.")
+    );
+    expect(memoryNoteExpired(asRule[3]!, "2027-01-01")).toBe(false);
+    const back = asRule.map(note => withMemoryKind(note, "note"));
+    expect(composeMemoryFile({ ...parsed, notes: back })).toBe(
+      file.replace("- 2026-11-01 · you · Ana is out. · until 2026-11-10", "Ana is out.")
+    );
+    expect(countMemoryChanges(asRule, parsed.notes)).toBe(1);
+  });
+
+  it("Should count a rule as the person's, and show it alone under Rules", () => {
+    const { notes } = parseMemoryFile(`- [rule] Ask first\n${file}`);
+    const shown = (filter: MemoryFilter) =>
+      notes.filter(note => memoryNoteMatches(note, filter, "")).map(note => note.text);
+    expect(shown("rules")).toEqual(["Ask first"]);
+    expect(shown("yours")).toEqual(["Ask first", "Prefer short status updates.", "Ana is out."]);
+    expect(shown("learned")).not.toContain("Ask first");
   });
 
   it("Should treat a bad date as the person's own line", () => {
