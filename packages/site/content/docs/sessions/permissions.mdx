@@ -23,8 +23,8 @@ An agent can explicitly choose a narrower ACP mode, and stricter effective Compo
 never permit an unrestricted mode. Unrestricted provider commands run with the daemon user's
 access inside the CompozyOS workspace and operating-system boundaries.
 
-`permissions.provider_full_access` is deprecated and has no effect: `approve-all` alone selects the
-unrestricted mode. CompozyOS still loads the key through v0.6.0 with a warning; v0.6.1 removes it.
+`permissions.provider_full_access` is an unknown key in v0.6.1. Remove it from config;
+`permissions.mode` selects the provider mode. v0.6.0 was its final warning-only release.
 
 When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
 approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway

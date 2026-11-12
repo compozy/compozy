@@ -2512,122 +2512,56 @@ func TestClientPluginManifestPackages(t *testing.T) {
 	})
 }
 
-// Invariant: retired manifest entries cannot block a kept extension or relax unknown-entry validation.
-// Owner: extension manifest ingestion. Canonical suite: manifest_test.go.
+// Invariant: manifest ingestion rejects retired entries after the migration window.
 func TestManifestRetiredMemoryEntries(t *testing.T) {
 	t.Parallel()
-	t.Run("Should filter retired provides methods and consent [UT-021]", func(t *testing.T) {
-		t.Parallel()
-		manifest := expectedManifest()
-		manifest.Capabilities.Provides = []string{"memory.backend", "tool.provider"}
-		manifest.Permissions.Requires = []string{
-			"memory/recall",
-			"sessions/list",
-			"memory.read",
-			"memory/store",
-			"memory/forget",
-			"memory.write",
-		}
-		dropped := dropRetiredMemoryManifestEntries(&manifest)
-		if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"tool.provider"}) ||
-			!reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) ||
-			len(dropped) != 6 {
-			t.Fatalf("filtered manifest = %#v, dropped = %#v", manifest, dropped)
-		}
-		if !slices.Contains(dropped, "capabilities.provides=memory.backend") ||
-			!slices.Contains(dropped, "permissions.requires=memory/recall") ||
-			!slices.Contains(dropped, "permissions.requires=memory.read") {
-			t.Fatalf("dropped = %#v", dropped)
-		}
-		if err := manifest.Validate(); err != nil {
-			t.Fatalf("Validate() = %v", err)
-		}
-		if again := dropRetiredMemoryManifestEntries(&manifest); len(again) != 0 {
-			t.Fatalf("second filter = %#v", again)
-		}
-		manifest.Capabilities.Provides = append(manifest.Capabilities.Provides, "unknown.backend")
-		dropRetiredMemoryManifestEntries(&manifest)
-		if _, ok := errors.AsType[*ManifestValidationError](manifest.Validate()); !ok {
-			t.Fatal("Validate() should retain unknown capability error")
-		}
-	})
 	for _, format := range []string{"toml", "json"} {
-		t.Run("Should load retired entries through "+format+" install ingestion [UT-021]", func(t *testing.T) {
-			t.Parallel()
-			manifest := expectedManifest()
-			manifest.Resources.Tools = nil
-			manifest.Capabilities.Provides = []string{"memory.backend"}
-			manifest.Permissions.Requires = []string{"memory/store", "memory.write", "sessions/list"}
-			var content []byte
-			var err error
-			if format == "toml" {
-				content, err = encodeManifestTOML(&manifest)
-			} else {
-				content, err = json.Marshal(manifest)
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			loaded, err := LoadManifest(dir)
-			if err != nil {
-				t.Fatalf("LoadManifest() = %v", err)
-			}
-			if len(loaded.Capabilities.Provides) != 0 ||
-				!reflect.DeepEqual(loaded.Permissions.Requires, []string{"sessions/list"}) {
-				t.Fatalf("loaded manifest = %#v", loaded)
-			}
-		})
-	}
-}
-
-// Invariant: retired matcher keys preserve hook execution for all native compaction observations.
-func TestManifestCompactionMatcher(t *testing.T) {
-	t.Parallel()
-	for _, format := range []string{"toml", "json"} {
-		t.Run("Should ignore retired matcher keys in "+format+" [UT-041]", func(t *testing.T) {
-			t.Parallel()
-			manifest := expectedManifest()
-			manifest.Resources.Tools = nil
-			manifest.Resources.Hooks = []HookConfig{
-				{
-					Name:    "compaction",
-					Event:   "context.pre_compact",
-					Mode:    "sync",
-					Command: "echo",
-					Matcher: HookMatcherConfig{CompactionReason: "token_limit", CompactionStrategy: "summary"},
-				},
-			}
-			var content []byte
-			var err error
-			if format == "toml" {
-				content, err = encodeManifestTOML(&manifest)
-			} else {
-				content, err = json.Marshal(manifest)
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			loaded, err := LoadManifest(dir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(loaded.Resources.Hooks) != 1 {
-				t.Fatalf("hooks = %#v", loaded.Resources.Hooks)
-			}
-			matcher := hookConfigMatcher(loaded.Resources.Hooks[0].Matcher)
-			for _, trigger := range []string{"requested", "agent"} {
-				if !matcher.MatchesContextCompact(hookspkg.ContextCompactionPayload{Trigger: trigger}) {
-					t.Fatalf("matcher rejected %s", trigger)
+		for _, field := range []string{"capability", "permission", "compaction_reason", "compaction_strategy"} {
+			t.Run("Should reject retired "+field+" in "+format, func(t *testing.T) {
+				t.Parallel()
+				manifest := expectedManifest()
+				manifest.Resources.Tools = nil
+				switch field {
+				case "capability":
+					manifest.Capabilities.Provides = []string{"memory.backend"}
+				case "permission":
+					manifest.Permissions.Requires = []string{"memory/store"}
 				}
-			}
-		})
+				var content []byte
+				var err error
+				if format == "toml" {
+					content, err = encodeManifestTOML(&manifest)
+					if strings.HasPrefix(field, "compaction_") {
+						content = append(content, []byte("\n[[resources.hooks]]\nname='compact'\nevent='context.pre_compact'\n"+
+							"command='echo'\n[resources.hooks.matcher]\n"+field+"='old'\n")...)
+					}
+				} else {
+					content, err = json.Marshal(manifest)
+					if strings.HasPrefix(field, "compaction_") {
+						var document map[string]any
+						if err := json.Unmarshal(content, &document); err != nil {
+							t.Fatal(err)
+						}
+						document["resources"] = map[string]any{
+							"hooks": []any{map[string]any{
+								"name": "compact", "event": "context.pre_compact",
+								"command": "echo", "matcher": map[string]any{field: "old"},
+							}},
+						}
+						content, err = json.Marshal(document)
+					}
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				dir := t.TempDir()
+				if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := LoadManifest(dir); err == nil {
+					t.Fatal("retired entry loaded")
+				}
+			})
+		}
 	}
 }

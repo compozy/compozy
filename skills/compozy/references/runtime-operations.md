@@ -947,9 +947,9 @@ as `cache_read_tokens` and `cache_write_tokens` on usage payloads and accumulate
 statistics. An absent count remains unreported; an explicit zero remains zero. Historical statistics
 upgrade with unknown cache counts until an adapter reports them.
 
-The decoder still accepts `cacheReadTokens` and `cacheWriteTokens` in v0.4.0 and v0.5.0, with a
-once-per-session deprecation warning. Send the canonical names; the aliases are removed in v0.6.1.
-Canonical names take precedence when both are present. Negative counters, negative context usage,
+Starting in v0.6.1, the decoder ignores the removed `cacheReadTokens` and `cacheWriteTokens`
+aliases. Send `cachedReadTokens` and `cachedWriteTokens`; missing canonical values remain unreported.
+Negative counters, negative context usage,
 and a context size of zero or less are discarded with one warning per session.
 
 Object metadata from `usage_update._meta` is available as optional `usage.meta` in live and transcript

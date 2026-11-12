@@ -435,9 +435,6 @@ func applyConcreteSessionToolPolicy(
 	ceiling store.SessionPermissionPolicy,
 ) error {
 	policy := store.NormalizeSessionPermissionPolicy(ceiling)
-	filtered, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{Tools: policy.Tools})
-	toolspkg.WarnRetiredToolReferences("session:"+sessionID, dropped)
-	policy.Tools = filtered.Tools
 	ids := make([]toolspkg.ToolID, 0, len(policy.Tools))
 	for i, raw := range policy.Tools {
 		id := toolspkg.ToolID(strings.TrimSpace(raw))

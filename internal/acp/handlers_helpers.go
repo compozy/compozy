@@ -23,8 +23,8 @@ func tokenUsageFromPromptResponse(turnID string, usage *wireUsage) TokenUsage {
 		OutputTokens:     usage.OutputTokens,
 		TotalTokens:      usage.TotalTokens,
 		ThoughtTokens:    usage.ThoughtTokens,
-		CacheReadTokens:  chooseInt64(usage.CachedReadTokens, usage.LegacyCacheReadTokens),
-		CacheWriteTokens: chooseInt64(usage.CachedWriteTokens, usage.LegacyCacheWriteTokens),
+		CacheReadTokens:  usage.CachedReadTokens,
+		CacheWriteTokens: usage.CachedWriteTokens,
 		Timestamp:        timeNowUTC(),
 	}
 }

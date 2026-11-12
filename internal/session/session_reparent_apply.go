@@ -275,7 +275,6 @@ func (m *Manager) writeReparentLineage(change *reparentChange, now time.Time) (f
 	if change.sessionType != "" {
 		node.meta.SessionType = string(change.sessionType)
 		node.sessionType = change.sessionType
-		node.meta.Failure = recoverStopCanceledStartFailure(node.meta.Failure)
 	}
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, node.id))
 	if err := store.WriteSessionMeta(metaPath, &node.meta); err != nil {
@@ -287,21 +286,6 @@ func (m *Manager) writeReparentLineage(change *reparentChange, now time.Time) (f
 		node.sessionType = normalizeSessionType(Type(previousMeta.SessionType))
 		return store.WriteSessionMeta(metaPath, &previousMeta)
 	}, nil
-}
-
-// recoverStopCanceledStartFailure reclassifies a legacy process failure as the
-// canceled stop it was. Releases through v0.4.7 recorded a stop that interrupted
-// a launch (for example the spawn reaper canceling a resumed child) as a process
-// failure, which marks the runtime dead and refuses every resume. Take-over is the
-// recovery path for those sessions. Remove in v0.6.1.
-func recoverStopCanceledStartFailure(failure *store.SessionFailure) *store.SessionFailure {
-	if failure == nil || failure.Kind != store.FailureProcess ||
-		!strings.HasPrefix(strings.TrimSpace(failure.Summary), errStartupCanceledByStop.Error()+" for ") {
-		return failure
-	}
-	recovered := *failure
-	recovered.Kind = store.FailureCanceled
-	return &recovered
 }
 
 func reparentNodeInfo(node *reparentNode) *Info {

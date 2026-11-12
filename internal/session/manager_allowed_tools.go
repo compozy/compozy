@@ -47,13 +47,10 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 	resolved *compozyconfig.ResolvedAgent,
 	catalog toolspkg.ToolsetCatalog,
 ) error {
-	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{Tools: s.allowedToolsOverride})
-	toolspkg.WarnRetiredToolReferences("session:"+s.sessionID, dropped)
-	override, hasOverride, err := normalizeAllowedToolsOverride(policy.Tools)
+	override, hasOverride, err := normalizeAllowedToolsOverride(s.allowedToolsOverride)
 	if err != nil {
 		return err
 	}
-	hasOverride = hasOverride || len(s.allowedToolsOverride) > 0
 	if !hasOverride {
 		return nil
 	}
@@ -69,14 +66,7 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 	resolved.Toolsets = nil
 
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
-	persistedOverride := override
-	if len(dropped) > 0 {
-		persistedOverride, _, err = normalizeAllowedToolsOverride(s.allowedToolsOverride)
-		if err != nil {
-			return err
-		}
-	}
-	lineage.PermissionPolicy.Tools = append([]string(nil), persistedOverride...)
+	lineage.PermissionPolicy.Tools = append([]string(nil), override...)
 	lineage.PermissionPolicy.MaterializedTools = false
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {

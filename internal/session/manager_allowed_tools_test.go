@@ -139,7 +139,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 			t.Fatalf("resolved.DenyTools = %#v, heartbeat must remain available", resolved.DenyTools)
 		}
 	})
-	t.Run("Should retain an explicit empty override after removing retired tools", func(t *testing.T) {
+	t.Run("Should retain explicit retired tool restrictions without translation", func(t *testing.T) {
 		t.Parallel()
 		spec := sessionStartSpec{
 			sessionID:            "retired-tools-session",
@@ -149,7 +149,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		if err := spec.applyAllowedToolsOverride(&resolved, catalog); err != nil {
 			t.Fatal(err)
 		}
-		if !resolved.ToolPolicyEnforced || len(resolved.Tools) != 0 || spec.lineage == nil ||
+		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, []string{"compozy__memory_list"}) || spec.lineage == nil ||
 			!slices.Equal(spec.lineage.PermissionPolicy.Tools, []string{"compozy__memory_list"}) {
 			t.Fatalf("empty override lost restriction: %#v, %#v", resolved, spec.lineage)
 		}

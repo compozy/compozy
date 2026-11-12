@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ErrRuntimeModelRequired identifies providers that cannot resolve a model.
@@ -82,12 +81,6 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 
 func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFields) (ResolvedAgent, error) {
 	toolPolicyEnforced := len(agent.Tools) > 0 || len(agent.Toolsets) > 0
-	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{
-		Tools: agent.Tools, Toolsets: agent.Toolsets, DenyTools: agent.DenyTools,
-	})
-	agent.Tools, agent.Toolsets, agent.DenyTools = policy.Tools, policy.Toolsets, policy.DenyTools
-	owner := "agent:" + cmp.Or(agent.SourcePath, agent.Name)
-	toolspkg.WarnRetiredToolReferences(owner, dropped)
 	if err := agent.Validate(); err != nil {
 		return ResolvedAgent{}, err
 	}

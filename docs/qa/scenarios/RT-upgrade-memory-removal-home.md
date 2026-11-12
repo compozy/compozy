@@ -1,10 +1,10 @@
 ---
 id: RT-upgrade-memory-removal-home
 area: RT
-title: Upgrade a memory-enabled home without a manual step
+title: Upgrade a memory-enabled home through the final migration release
 persona: Dora
 journey: J-validate-compozy-hard-cut
-expected: A COMPOZY_HOME written by the previous release with memory populated, a Dream run, a `memory.consolidated` trigger, `[memory]` and `[roles.dream]` in config.toml, a SOUL with `memory_policy`, a saved layout with a Knowledge window, and a session compacted by the old pressure compaction starts on the new build with no manual step: retired config tables are archived once into a commented block (a concurrent edit or read-only config only logs a warning and retries on the next load), an agent with memory toolsets starts its session, no memory tables remain, the Markdown memory files are intact, the layout opens without Knowledge, the compacted session shows its full history in history, transcript, search, and anchors, and SOUL validate reports the SOUL valid.
+expected: Run the archival walkthrough on v0.6.0, resolve deferred writes and remove retired declarations, then upgrade to v0.6.1 with migrated state intact. v0.6.1 rejects active retired declarations without rewriting files; permanent SQL migrations and catalog recovery remain.
 entry_points: previous-release compozy binary on a lab COMPOZY_HOME, then the new build on the same home; compozy daemon start; config.toml; compozy status -o json; compozy automation triggers -o json; compozy session list|history; compozy agent soul validate; compozy extension list -o json; Web desktop root with the saved layout
 qa_status: untested
 bug_ids:
@@ -16,8 +16,7 @@ last_report:
 overlaps: ET-retired-product-surfaces-absent; RT-pressure-context-compaction; RT-preserve-shared-schema-isolation; RT-authored-context-lifecycle; RT-session-lineage-upgrade
 ---
 
-Compatibility regime: user state, lossless upgrade with no manual step. Retired memory surfaces must be dropped,
-archived, or ignored without blocking daemon start.
+Compatibility regime: user state. The historical archival walkthrough below runs on v0.6.0, the final migration release; v0.6.1 acceptance is listed at the end.
 
 **Setup (previous release).** Build the previous release (v0.3.0, commit c46be43c7) into the lab with
 `git archive`, boot it on an isolated `COMPOZY_HOME` with the acpmock provider, and create:
@@ -110,7 +109,7 @@ keep `teardown.json` with `clean: true`. Files may stay for forensics; processes
 
 QA impact 2026-10-07 (memory removal): new in this change; no prior verdict. Automated owners: the global and session
 upgrade integration suites, the config archive tests, and the layout reconcile tests; this scenario is the real
-run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) are scheduled for removal in v0.6.1
+run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) were removed in v0.6.1
 and this scenario retires with them, except the session recovery boundary in step 4, which is permanent: move
 its checks into a durable recovery scenario before retiring this one.
 
@@ -152,3 +151,12 @@ CI fix 2 automated layout leg: the single Web Memory removal E2E-008 now reads a
 clientstate snapshot during an isolated cold restart, then verifies Session visibility, removal of
 Knowledge, unchanged floating geometry across reload and no console errors. That browser leg passed;
 it does not replace the complete previous-release home upgrade lab above.
+
+## v0.6.1 acceptance
+
+Run the archival walkthrough above with v0.6.0 before upgrading. In v0.6.1, migrated config and
+comment archives still load; active retired memory/compaction config fails without rewriting files.
+SOUL memory_policy, retired hook matchers, manifest memory entries and memory.consolidated resources
+are rejected. Exact retired policy atoms are no longer filtered. Retired IDs stay reserved and
+permanent session-catalog recovery remains. Memory files and retained extension state stay intact.
+CI owns the current-head owning-suite run; the earlier walkthrough receipt does not verify v0.6.1.

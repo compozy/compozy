@@ -64,7 +64,6 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	// Late notifications can still carry a terminal compaction that invalidates the
 	// accumulated occupancy, so the final usage snapshot is taken only after they drain.
 	d.waitForPromptQuiescence(active)
-	proc.warnUsageAlias(response.Usage)
 	usage := proc.mergePromptUsage(proc.validatedUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage)))
 	doneEvent := AgentEvent{
 		Type:       EventTypeDone,

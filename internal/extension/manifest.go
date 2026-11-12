@@ -183,23 +183,21 @@ type HookExecutorConfig struct {
 
 // HookMatcherConfig narrows when a hook is eligible to run.
 type HookMatcherConfig struct {
-	AgentName          string `toml:"agent_name,omitempty"          json:"agent_name,omitempty"`
-	AgentType          string `toml:"agent_type,omitempty"          json:"agent_type,omitempty"`
-	WorkspaceID        string `toml:"workspace_id,omitempty"        json:"workspace_id,omitempty"`
-	WorkspaceRoot      string `toml:"workspace_root,omitempty"      json:"workspace_root,omitempty"`
-	SessionType        string `toml:"session_type,omitempty"        json:"session_type,omitempty"`
-	InputClass         string `toml:"input_class,omitempty"         json:"input_class,omitempty"`
-	ACPEventType       string `toml:"acp_event_type,omitempty"      json:"acp_event_type,omitempty"`
-	TurnID             string `toml:"turn_id,omitempty"             json:"turn_id,omitempty"`
-	ToolID             string `toml:"tool_id,omitempty"             json:"tool_id,omitempty"`
-	ToolName           string `toml:"tool_name,omitempty"           json:"tool_name,omitempty"`
-	ToolReadOnly       *bool  `toml:"tool_read_only,omitempty"      json:"tool_read_only,omitzero"`
-	DecisionClass      string `toml:"decision_class,omitempty"      json:"decision_class,omitempty"`
-	MessageRole        string `toml:"message_role,omitempty"        json:"message_role,omitempty"`
-	MessageDeltaType   string `toml:"message_delta_type,omitempty"  json:"message_delta_type,omitempty"`
-	CompactionTrigger  string `toml:"compaction_trigger,omitempty"  json:"compaction_trigger,omitempty"`
-	CompactionReason   string `toml:"compaction_reason,omitempty"   json:"compaction_reason,omitempty"`
-	CompactionStrategy string `toml:"compaction_strategy,omitempty" json:"compaction_strategy,omitempty"`
+	AgentName         string `toml:"agent_name,omitempty"          json:"agent_name,omitempty"`
+	AgentType         string `toml:"agent_type,omitempty"          json:"agent_type,omitempty"`
+	WorkspaceID       string `toml:"workspace_id,omitempty"        json:"workspace_id,omitempty"`
+	WorkspaceRoot     string `toml:"workspace_root,omitempty"      json:"workspace_root,omitempty"`
+	SessionType       string `toml:"session_type,omitempty"        json:"session_type,omitempty"`
+	InputClass        string `toml:"input_class,omitempty"         json:"input_class,omitempty"`
+	ACPEventType      string `toml:"acp_event_type,omitempty"      json:"acp_event_type,omitempty"`
+	TurnID            string `toml:"turn_id,omitempty"             json:"turn_id,omitempty"`
+	ToolID            string `toml:"tool_id,omitempty"             json:"tool_id,omitempty"`
+	ToolName          string `toml:"tool_name,omitempty"           json:"tool_name,omitempty"`
+	ToolReadOnly      *bool  `toml:"tool_read_only,omitempty"      json:"tool_read_only,omitzero"`
+	DecisionClass     string `toml:"decision_class,omitempty"      json:"decision_class,omitempty"`
+	MessageRole       string `toml:"message_role,omitempty"        json:"message_role,omitempty"`
+	MessageDeltaType  string `toml:"message_delta_type,omitempty"  json:"message_delta_type,omitempty"`
+	CompactionTrigger string `toml:"compaction_trigger,omitempty"  json:"compaction_trigger,omitempty"`
 }
 
 // MCPServerConfig declares one MCP server packaged with the extension.

@@ -375,11 +375,8 @@ this agent.
 | `env`           | string map   | empty                                               | String keys and values.                                               | Explicit hook environment values.                 |
 | `executor.kind` | string       | `subprocess` when a command is present.             | `subprocess` or `wasm` for user declarations.                         | Executor kind.                                    |
 
-A hook `matcher` that still carries the retired `compaction_reason` or `compaction_strategy` key
-loads normally. CompozyOS ignores those two keys, leaves `AGENT.md` untouched, and logs one
-`agent.retired_entries_ignored` warning with the `agent` name and the ignored `entries` (for example
-`hooks[0].matcher.compaction_reason`). Any other invalid matcher field is still rejected. See
-[Hook declarations](/docs/hooks/declaration#matchers).
+A hook matcher carrying `compaction_reason` or `compaction_strategy` fails validation in v0.6.1.
+Remove the retired keys; source files stay unchanged. See [Hook declarations](/docs/hooks/declaration#matchers).
 
 ## Provider Examples
 

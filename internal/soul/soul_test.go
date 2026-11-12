@@ -73,8 +73,6 @@ func TestParseStrictFrontmatterSoul(t *testing.T) {
 				"  - no hidden authority",
 				"collaboration:",
 				"  - ask only when blocked",
-				"memory_policy:",
-				"  - cite durable memory",
 				"tags:",
 				"  - qa",
 				"---",
@@ -712,39 +710,11 @@ func assertStrings(t *testing.T, got []string, want []string) {
 	}
 }
 
-// Invariant: retired memory_policy cannot invalidate the retained persona fields.
-// Owner: soul parsing. Canonical suite: soul_test.go.
-func TestParseIgnoresRetiredMemoryPolicy(t *testing.T) {
-	t.Parallel()
-	for _, value := range []string{"[keep notes]", "{invalid: [1, false]}", "42", "null"} {
-		t.Run("Should ignore retired policy value "+value+" [UT-009]", func(t *testing.T) {
-			t.Parallel()
-			resolved, err := Parse(
-				t.Context(),
-				ParseRequest{
-					SourcePath: "SOUL.md",
-					Content: []byte(
-						"---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: " + value + "\n---\nKeep the persona.",
-					),
-					Config: testSoulConfig(),
-				},
-			)
-			if err != nil || len(resolved.Diagnostics) != 0 || !resolved.Active {
-				t.Fatalf("Parse() = %#v, %v, want active persona without diagnostics", resolved, err)
-			}
-			if resolved.Profile.Role != "Reviewer" || resolved.Profile.Body != "Keep the persona." {
-				t.Fatalf("Profile = %#v, want preserved role and body", resolved.Profile)
-			}
-			assertStrings(t, resolved.Profile.Principles, []string{"protect correctness"})
-		})
-	}
-}
-
 // Invariant: unsupported memory authority keys remain invalid without a retired runtime owner.
 // Owner: soul parsing. Canonical suite: soul_test.go.
 func TestParseUnsupportedRetiredMemoryKeys(t *testing.T) {
 	t.Parallel()
-	for _, field := range []string{"memory", "memory_store", "memory_scope", "memory_type", "memories"} {
+	for _, field := range []string{"memory_policy", "memory", "memory_store", "memory_scope", "memory_type", "memories"} {
 		t.Run("Should reject unsupported key "+field+" [UT-010]", func(t *testing.T) {
 			t.Parallel()
 			resolved, err := Parse(

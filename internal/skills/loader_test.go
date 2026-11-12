@@ -821,7 +821,7 @@ func TestSkillHookRetiredMatcherCompatibility(t *testing.T) {
 		name, matcher string
 		wantError     bool
 	}{
-		{name: "Should retain multiple hooks while ignoring retired matcher keys", matcher: "workspace_id: ws-1"},
+		{name: "Should reject retired matcher keys", matcher: "workspace_id: ws-1", wantError: true},
 		{name: "Should reject unknown matcher keys alongside retired keys", matcher: "unknown_matcher: value", wantError: true},
 		{name: "Should reject malformed retained matcher values", matcher: "workspace_id: [invalid]", wantError: true},
 	} {

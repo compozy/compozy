@@ -48,7 +48,7 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 		}
 	})
 
-	t.Run("Should ignore retired lineage tools while retaining enforcement", func(t *testing.T) {
+	t.Run("Should retain retired lineage tool restrictions without translation", func(t *testing.T) {
 		t.Parallel()
 		inputs := toolspkg.PolicyInputs{}
 		info := &session.Info{
@@ -64,7 +64,7 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 		if err := applySessionToolPolicy(&inputs, info); err != nil {
 			t.Fatal(err)
 		}
-		if !inputs.Session.Enforced || len(inputs.Session.Tools) != 0 {
+		if !inputs.Session.Enforced || len(inputs.Session.Tools) != 1 || inputs.Session.Tools[0] != "compozy__memory_list" {
 			t.Fatalf("retired lineage policy = %#v", inputs.Session)
 		}
 		if len(info.Lineage.PermissionPolicy.Tools) != 1 {

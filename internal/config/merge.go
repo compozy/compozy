@@ -121,8 +121,7 @@ type sessionBusyInputOverlay struct {
 }
 
 type permissionsOverlay struct {
-	Mode               *PermissionMode `toml:"mode"`
-	ProviderFullAccess *bool           `toml:"provider_full_access"`
+	Mode *PermissionMode `toml:"mode"`
 }
 
 type providerOverlay struct {

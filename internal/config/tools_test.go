@@ -451,9 +451,9 @@ trusted_sources = ["mcp:github", "extension:linear"]
 		writeFile(t, agentPath, `---
 name: coder
 provider: claude
-tools: ["compozy__skill_view", "mcp__github__*", "compozy__memory_list"]
-toolsets: ["compozy__catalog", "compozy__memory", "compozy__memory_admin"]
-deny_tools: ["compozy__task_*", "compozy__memory_reset"]
+tools: ["compozy__skill_view", "mcp__github__*"]
+toolsets: ["compozy__catalog"]
+deny_tools: ["compozy__task_*"]
 ---
 
 You are a code agent.
@@ -481,7 +481,7 @@ You are a code agent.
 			t.Fatalf("ResolveAgent() DenyTools = %#v, want %#v", got, want)
 		}
 	})
-	t.Run("Should preserve retired-only authored tool restrictions", func(t *testing.T) {
+	t.Run("Should retain retired policy atoms for catalog validation", func(t *testing.T) {
 		t.Parallel()
 		cfg := defaultTestConfig(t)
 		agent := AgentDef{
@@ -495,11 +495,8 @@ You are a code agent.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !resolved.ToolPolicyEnforced || len(resolved.Tools) != 0 || len(resolved.Toolsets) != 0 {
-			t.Fatalf("ResolveAgent() widened retired policy: %#v", resolved)
-		}
-		if len(agent.Tools) != 1 || len(agent.Toolsets) != 1 {
-			t.Fatal("authored policy mutated")
+		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, agent.Tools) || !slices.Equal(resolved.Toolsets, agent.Toolsets) {
+			t.Fatalf("authored policy was translated: %#v", resolved)
 		}
 	})
 }

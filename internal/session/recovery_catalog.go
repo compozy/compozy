@@ -11,8 +11,7 @@ import (
 )
 
 // retiredInternalSpawnRoles names spawn roles of internal sessions removed with the memory
-// feature. Their directories are never deleted, so this recovery boundary is permanent and
-// does not expire with the v0.6.1 shims.
+// feature. Their directories are never deleted, so this recovery boundary is permanent.
 var retiredInternalSpawnRoles = []string{"memory-extractor", "checkpoint-summary"}
 
 // ErrRecoveryPersistence prevents admission against an incompletely recovered session inventory.

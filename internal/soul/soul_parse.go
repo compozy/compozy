@@ -163,9 +163,6 @@ func assignAllowedField(front *Frontmatter, key string, value any) error {
 			return err
 		}
 		front.Collaboration = values
-	case "memory_policy":
-		// Retired frontmatter stays inert until the v0.6.1 shim removal.
-		return nil
 	case "tags":
 		values, err := stringList(value, key)
 		if err != nil {

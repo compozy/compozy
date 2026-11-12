@@ -18,7 +18,7 @@ func TestAgentHookRetiredMatcherCompatibility(t *testing.T) {
 			name, yaml, toml string
 			wantError        bool
 		}{
-			{name: "Should retain hooks and ignore retired matcher keys", yaml: "workspace_id: ws-1", toml: "workspace_id = 'ws-1'"},
+			{name: "Should reject retired matcher keys", yaml: "workspace_id: ws-1", toml: "workspace_id = 'ws-1'", wantError: true},
 			{name: "Should reject unknown matcher keys alongside retired keys", yaml: "unknown_matcher: value", toml: "unknown_matcher = 'value'", wantError: true},
 			{name: "Should reject malformed retained matcher values", yaml: "workspace_id: [invalid]", toml: "workspace_id = ['invalid']", wantError: true},
 		} {

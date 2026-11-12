@@ -272,12 +272,11 @@ func TestManagerAdoptSession(t *testing.T) {
 				t.Fatalf("Stop(%q) error = %v", id, err)
 			}
 		}
-		// Releases before the canceled-start fix recorded a reaper-canceled resume
-		// as a process failure, which marks the runtime dead.
+		// Current releases persist an interrupted launch as a canceled stop.
 		metaPath := worker.MetaPath()
 		meta := readMeta(t, metaPath)
 		meta.Failure = &store.SessionFailure{
-			Kind:    store.FailureProcess,
+			Kind:    store.FailureCanceled,
 			Summary: `session: startup canceled for "` + worker.ID + `": spawn_reaper:parent_stopped`,
 		}
 		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
