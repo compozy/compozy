@@ -41,3 +41,13 @@ Walk, in an isolated home (never the operator's default home or port):
 A session started from a daemon that a restart helper launched inherits
 `COMPOZY_INTERNAL_RESTART_OPERATION_ID`; unset it before starting a lab daemon from such a shell,
 or the lab daemon exits with `restart operation not found`.
+
+QA impact 2026-11-12 (#1580): repeat the restart with one or more active always-on instances
+whose main sessions have queued input and need their provider resumed. Instance service setup
+still precedes the listeners, while reconciliation and its catalog-change callback are activated
+only after HTTP and UDS start. Expect the retained input to run on the first resume attempt, with
+no hosted MCP bind-deadline delay, `session.start.driver_start_failed`, or
+`daemon: reconcile instances at startup` error. Record time-to-ready and the instance resume count.
+`TestBootResumesInstancesAfterServersStart` in the daemon integration suite checks the pending
+input and unbound runtime before UDS creation, then delivery without startup errors after boot.
+Validation for this change is CI-only; the desktop restart walk has not been rerun locally.

@@ -38,6 +38,8 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootGateway(ctx, state, cleanup) },
 		func() error { return d.bootServers(ctx, state, cleanup) },
 		func() error { return d.bootProviderAuthStartup(ctx, state, cleanup) },
+		// Instance reconciliation can resume providers whose hosted MCP proxies need the listeners.
+		func() error { return reconcileBootInstances(ctx, state) },
 		func() error { return recoverBootDelegatedSessions(ctx, state) },
 		func() error { return resumeBootInterruptedSessions(ctx, state.sessions) },
 		func() error { return recoverBootMonitors(ctx, state) },
