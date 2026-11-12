@@ -3308,7 +3308,12 @@ func TestDaemonNativeTools(t *testing.T) {
 							t.Fatal(err)
 						}
 						if viewResult.Bytes > int64(len(encodedContent)+(16<<10)) {
-							t.Fatalf("skill_view(%s) envelope = %d bytes for %d encoded document bytes", resource, viewResult.Bytes, len(encodedContent))
+							t.Fatalf(
+								"skill_view(%s) envelope = %d bytes for %d encoded document bytes",
+								resource,
+								viewResult.Bytes,
+								len(encodedContent),
+							)
 						}
 						t.Logf(
 							"%s: full structured bytes=%d, display redactions=%d",
