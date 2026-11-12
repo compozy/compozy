@@ -5993,6 +5993,66 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		}
 	})
 
+	// Invariant: failures before creator-steer handoff release the reservation into normal delivery.
+	for _, fault := range []string{"history read", "turn ended"} {
+		t.Run("Should deliver reserved creator steering after "+fault, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+			creator := createSession(t, f.h)
+			t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
+			f.sess.mu.Lock()
+			f.sess.Lineage = &store.SessionLineage{ParentSessionID: creator.ID, RootSessionID: creator.ID,
+				Kind: store.LineageKindProvenance}
+			recorder := f.sess.recorder
+			f.sess.mu.Unlock()
+			turnID := f.sess.CurrentTurnID()
+			var triggered atomic.Bool
+			wrapped := &maxSequenceHookRecorder{EventRecorder: recorder}
+			wrapped.read = func(ctx context.Context) (int64, error) {
+				entries, err := f.h.manager.inputQueue.List(ctx, f.sess.ID)
+				if err != nil {
+					return 0, err
+				}
+				for _, entry := range entries {
+					if entry.MessageID != "creator-fallback" || entry.Status != store.SessionInputQueueStatusDispatching ||
+						!triggered.CompareAndSwap(false, true) {
+						continue
+					}
+					if fault == "history read" {
+						return 0, errors.New("creator history unavailable")
+					}
+					f.release()
+					waitForCondition(t, "original turn ended during handoff", func() bool {
+						return f.sess.CurrentTurnID() != turnID
+					})
+				}
+				return recorder.MaxEventSequence(ctx)
+			}
+			f.sess.mu.Lock()
+			f.sess.recorder = wrapped
+			f.sess.mu.Unlock()
+			result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, SendPromptOpts{
+				Message: "Retain creator follow-up.", MessageID: "creator-fallback", IdempotencyKey: "creator-fallback",
+				Mode: BusyInputModeSteer,
+				Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: creator.ID,
+					WorkspaceID: f.h.workspaceID, Hop: 1},
+			})
+			if err != nil || !triggered.Load() {
+				t.Fatalf("creator fallback = %#v, %v; fault triggered=%t", result, err, triggered.Load())
+			}
+			drain(t, f)
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent || entry.TurnID == turnID {
+				t.Fatalf("creator entry = %#v, %v; want delivery in a later turn", entry, err)
+			}
+			select {
+			case text := <-f.steered:
+				t.Fatalf("pre-handoff failure still injected text: %q", text)
+			default:
+			}
+		})
+	}
+
 	// Invariant: a creator steer is answered even when its receipt follows the provider's output.
 	t.Run("Should recognize a creator answer stored before its steering receipt", func(t *testing.T) {
 		t.Parallel()
@@ -7765,4 +7825,14 @@ func (s *boundaryInputQueueFaultStore) SettlePendingSessionSteer(
 		}
 	}
 	return entry, changed, err
+}
+
+// maxSequenceHookRecorder injects an event-history read boundary failure.
+type maxSequenceHookRecorder struct {
+	EventRecorder
+	read func(context.Context) (int64, error)
+}
+
+func (r *maxSequenceHookRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
+	return r.read(ctx)
 }

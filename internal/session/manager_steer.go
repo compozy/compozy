@@ -121,7 +121,9 @@ func (m *Manager) injectSteeringInput(
 		origin := request.meta.Origin
 		if err := m.trackCreatorSteerInput(steerCtx, session, entry, origin); err != nil {
 			cancel()
-			return "", nil, err
+			m.sessionLogger(session).WarnContext(ctx, "session: creator steering deferred before provider handoff",
+				"entry_id", entry.ID, "error", err)
+			return store.SteerDeliveryInterruptFallback, nil, nil
 		}
 		session.raiseTurnHop(entry.TargetTurnID, promptMetaHop(request.meta))
 		text := entry.Text
