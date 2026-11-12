@@ -235,3 +235,17 @@ fails must remain recoverable from the ledger; provider output rejected at the s
 is not a committed observation. The native lifecycle and Manager persistence suites own these
 deterministic checks; the native daemon integration uses real ACP subprocesses and SQLite.
 CI owns the full transport journey; these schedules do not claim a live-provider occurrence.
+
+
+QA impact 2026-11-12 (issue #1566): create a child with `notify_creator: false` and let its
+parent register a session monitor covering the child and `needs-attention`. When the child
+ends with no open work, require one monitor wake and no additional early-stop session wake.
+A monitor owned by another session, watching another child or another state, or canceled before
+settlement must not suppress the alarm. Repeat with a monitor that fires before creator-wake
+dispatch; its already-admitted outcome still covers that same attention occurrence.
+For investigation/report children, the alarm asks the parent to review the final answer and does
+not assume a pull request deliverable. Queue an alarm behind a busy parent, start a newer child
+turn, then release the parent: the old alarm must be marked stale/failed before provider dispatch.
+The current revision's alarm must still run. Owning regressions extend
+`TestManagerEarlyStopSupervision`, `TestSessionWorkSourcesMonitors`, and `TestSessionWakeBridge`.
+Validation is CI-only by operator instruction; no local tests, lint, builds or live QA were run.

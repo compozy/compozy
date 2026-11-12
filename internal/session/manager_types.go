@@ -226,6 +226,7 @@ type Manager struct {
 	windowReconciliationWG     sync.WaitGroup
 	turnEndNotifier            TurnEndNotifier
 	spawnWakeNotifier          SpawnWakeNotifier
+	spawnWakeCoverage          func(string, *Info, Badge) bool
 	inputAugmenter             PromptInputAugmenter
 	commandService             CommandService
 	inputQueue                 *inputqueue.Service

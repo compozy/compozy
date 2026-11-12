@@ -625,6 +625,83 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave an early-stop alarm to the creator session monitor", func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		h.manager.ConfigureSpawnWakeCoverage(func(creatorID string, info *Info, badge Badge) bool {
+			return creatorID == parent.ID && info.ID == child.ID && badge == BadgeNeedsAttention
+		})
+
+		promptChild(t, h, child)
+
+		attention, err := db.GetSessionAttention(t.Context(), child.ID)
+		if err != nil || attention.EndedEarlyTurnID == "" {
+			t.Fatalf("attention = %#v, %v; want the monitor to observe the early-stop state", attention, err)
+		}
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("creator wakes = %#v, want only the session monitor's wake", events)
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		advance bool
+	}{
+		{name: "Should dispatch an early-stop wake while its child revision is current"},
+		{name: "Should drop a queued early-stop wake after its child starts another turn", advance: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+			promptChild(t, h, child)
+			_, wakes := notifier.calls()
+			if len(wakes) != 1 {
+				t.Fatalf("child wakes = %#v, want one early-stop wake", wakes)
+			}
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			wake := wakes[0]
+			queued, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+				MessageID: wake.WakeEventID, Message: "Child turn ended with no open work.",
+				Metadata: acp.PromptSyntheticMeta{
+					Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+					Reason: string(wake.Reason), WakeEventID: wake.WakeEventID,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.advance {
+				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+				promptChild(t, h, child)
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			wantStatus := store.SessionInputQueueStatusSent
+			if tc.advance {
+				wantStatus = store.SessionInputQueueStatusFailed
+			}
+			waitForCondition(t, "the queued child wake to settle", func() bool {
+				entry, readErr := h.manager.inputQueue.Get(t.Context(), parent.ID, queued.ID)
+				return readErr == nil && entry.Status == wantStatus
+			})
+			h.driver.mu.Lock()
+			defer h.driver.mu.Unlock()
+			wakeCalls := 0
+			for _, call := range h.driver.promptCalls {
+				if call.Meta.Synthetic != nil && call.Meta.Synthetic.Kind == SpawnWakeKindEndedEarly {
+					wakeCalls++
+				}
+			}
+			wantCalls := 1
+			if tc.advance {
+				wantCalls = 0
+			}
+			if wakeCalls != wantCalls {
+				t.Fatalf("early-stop provider calls = %d, want %d", wakeCalls, wantCalls)
+			}
+		})
+	}
+
 	t.Run("Should clear the early stop when the next prompt starts", func(t *testing.T) {
 		t.Parallel()
 		h, db, notifier, _, child := newEarlyStopHarness(t, "", true, nil)

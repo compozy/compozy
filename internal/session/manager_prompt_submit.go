@@ -191,6 +191,10 @@ func (m *Manager) preparePromptRequestMessage(
 	if err != nil {
 		return "", err
 	}
+	if err := m.validateSpawnWake(ctx, session.ID, req.meta.Synthetic); err != nil {
+		return "", err
+	}
+
 	if err := m.prepareAgentCommandDelivery(ctx, req, message); err != nil {
 		return "", err
 	}

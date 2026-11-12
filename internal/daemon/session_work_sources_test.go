@@ -113,6 +113,47 @@ func assertNoChildWork(t *testing.T, agent string, typ session.Type, lineage sto
 
 func TestSessionWorkSourcesMonitors(t *testing.T) {
 	t.Parallel()
+	// Owner: daemon monitor adapter; only the creator's covering session watch replaces its alarm.
+	t.Run("Should suppress only alarms covered by the creator session monitor", func(t *testing.T) {
+		t.Parallel()
+		gate := make(chan struct{})
+		service, err := monitor.NewService(t.Context(), nil, retryMonitorWaker{},
+			monitor.WithSessionTargets(monitorSessionTargets{sessions: func() any { return nil }}),
+			monitor.WithSessionWatchGate(gate))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		item, err := service.Create(t.Context(), monitor.Spec{
+			WorkspaceID: "ws", ProfileID: store.DefaultProfileID, SessionID: "creator",
+			Kind: monitor.KindSession, Description: "wait for child", Targets: []string{"child"},
+			States: []string{monitor.TargetStateNeedsAttention},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources := sessionWorkSources{state: &bootState{sessionMonitors: service}}
+		child := &session.Info{ID: "child"}
+		if !sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
+			t.Fatal("creator's active watch did not cover the child's alarm")
+		}
+		if sources.creatorMonitorCovers("other", child, session.BadgeNeedsAttention) ||
+			sources.creatorMonitorCovers("creator", &session.Info{ID: "other"}, session.BadgeNeedsAttention) ||
+			sources.creatorMonitorCovers("creator", child, session.BadgeWaitingForInput) {
+			t.Fatal("an unrelated owner, target, or state covered the child's alarm")
+		}
+		if _, err := service.Cancel("creator", item.ID); err != nil {
+			t.Fatal(err)
+		}
+		if sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
+			t.Fatal("a canceled monitor covered the child's alarm")
+		}
+	})
+
 	t.Run("Should project only the owning session live monitors without renewing their deadline", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)

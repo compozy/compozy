@@ -59,8 +59,11 @@ A child session (any session with a parent) that ends a turn on its own with no 
 no open work signal (monitor, subagent, reply watch, task lease, Loop run, scheduled wait), no pending
 interaction, and no reply watch from you on that turn is marked `needs-attention` with
 `attention: "ended_early"` instead of `done`. The parent receives one wake with the child's final
-answer even when the child was created with `notify_creator: false`. Prompt the child to continue,
-or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
+answer even when the child was created with `notify_creator: false`, unless the parent has a
+session monitor covering that child and the needs-attention state. In that case the monitor is the
+only wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
+A queued alarm is discarded if the child starts another turn or its attention revision changes.
+Prompt the child again or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
 instead and are never marked.
 Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does
 not confer a task claim, permission, or approval.

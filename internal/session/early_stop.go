@@ -16,7 +16,7 @@ import (
 const EndedEarlyAttentionCode = "ended_early"
 
 // endedEarlyWakeDetail explains the early-stop wake to the parent session.
-const endedEarlyWakeDetail = "Turn ended without a linked pull request and with no monitor, " +
+const endedEarlyWakeDetail = "Turn ended with no monitor, " +
 	"subagent, reply watch, or pending interaction left to resume it."
 
 const (

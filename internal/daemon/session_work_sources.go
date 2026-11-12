@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -273,4 +274,29 @@ func (s sessionWorkSources) monitors(ctx context.Context, id string) ([]session.
 		})
 	}
 	return result, nil
+}
+
+func (s sessionWorkSources) creatorMonitorCovers(creatorID string, child *session.Info, badge session.Badge) bool {
+	if s.state.sessionMonitors == nil {
+		return false
+	}
+	for _, item := range s.state.sessionMonitors.List(creatorID) {
+		if item.Kind != monitor.KindSession || !slices.Contains(item.TargetSessionIDs, child.ID) ||
+			!slices.Contains(item.States, string(badge)) {
+			continue
+		}
+		switch item.Status {
+		case monitor.StatusActive:
+			return true
+		case monitor.StatusDelivering, monitor.StatusFired:
+			// A monitor can observe the attention edge before its creator wake is dispatched.
+			if item.Reason == monitor.ReasonConditionMet && child.AttentionChangedAt != nil &&
+				!item.FiredAt.Before(*child.AttentionChangedAt) {
+				return slices.ContainsFunc(item.Targets, func(target monitor.TargetStatus) bool {
+					return target.SessionID == child.ID && target.Matched && target.State == string(badge)
+				})
+			}
+		}
+	}
+	return false
 }
