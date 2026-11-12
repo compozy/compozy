@@ -4,25 +4,34 @@ type: fix
 breaking: true
 ---
 
-v0.6.0 was the last release that migrated or silently ignored the retired declarations below (#1518). v0.6.1 removes those compatibility shims (#1593). Old declarations now fail the normal validation for their file, and CompozyOS no longer rewrites the file. Current declarations behave as before.
+v0.6.0 was the last release that migrated or silently ignored the retired declarations below
+(#1518). v0.6.1 removes those compatibility shims (#1593). Most old declarations now fail the
+normal validation for their file instead of being migrated or ignored, and CompozyOS no longer
+rewrites them. The table notes the exceptions. Current declarations behave as before.
 
 ## Migration notes
 
-**Upgrade through v0.6.0 first** if you skipped it. Start v0.6.0 once with every user, profile, workspace and workspace-profile configuration in place so it migrates old files. Resolve any deferred-migration warning, then upgrade. Then remove anything below that is still left over. Existing archived comments, SQL migration history, memory files, transcripts and retained extension registrations are not deleted.
+**Upgrade through v0.6.0 first** if you skipped it. Start v0.6.0 once with every user, profile,
+workspace and workspace-profile configuration in place so it migrates old files, resolve any
+deferred-migration warning, and then upgrade. After upgrading, remove anything below that is still
+left over. Existing archived comments, SQL migration history, memory files, transcripts and
+retained extension registrations are not deleted.
 
 | Removed in v0.6.1 | Use instead |
 | --- | --- |
-| `kind: stays_on` in a persisted `AGENT.md`, decoded and rewritten on load | `kind: always_on` |
+| `kind: stays_on` in a persisted `AGENT.md`, decoded and rewritten on load | `kind: always_on`. Files v0.6.0 could not rewrite (read-only, or shipped in an extension) must be edited at their source; extension authors publish a new version. |
 | `[agents.stays_on]` tables in `config.toml`, migrated on load | `[agents.always_on]` |
-| Archiving retired memory and compaction settings from `config.toml` on start: `[memory]` and its sub-tables, `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, and `[[automation.triggers]]` with `event = "memory.consolidated"` | Delete them. They now fail configuration validation. |
-| Ignoring the hook matcher keys `compaction_reason` and `compaction_strategy` in `AGENT.md` and `SKILL.md` | `compaction_trigger` in config, extension or skill hooks. `AGENT.md` hooks cannot target context events. |
-| Dropping `memory.backend`, the `memory/recall`, `memory/store` and `memory/forget` methods, and the `memory.read` / `memory.write` consents from extension manifests | Remove them from the extension source and publish a new version. Installed packages are never edited. |
+| Archiving retired memory and compaction settings from `config.toml` on start: `[memory]` and its sub-tables, `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, `[[automation.triggers]]` with `event = "memory.consolidated"`, and hook matcher keys `compaction_reason` / `compaction_strategy` | Delete them. They now fail configuration validation. |
+| Ignoring the hook matcher keys `compaction_reason` and `compaction_strategy` in `config.toml` hooks, extension manifest hooks, `AGENT.md` and `SKILL.md` | `compaction_trigger` in config, extension or skill hooks. `AGENT.md` hooks cannot target context events. |
+| Dropping `memory.backend` from an extension manifest's `capabilities.provides`, and `memory/recall`, `memory/store`, `memory/forget`, `memory.read` and `memory.write` from its `permissions.requires` | Remove them from the extension source and publish a new version. Installed packages are never edited. |
 | Skipping extension automation resources triggered by `memory.consolidated` | Remove the resource. |
 | Ignoring `memory_policy` in `SOUL.md` | Delete the field. It now gets the normal unsupported-field diagnostic. |
 | Dropping retired memory tool IDs and the `compozy__memory` / `compozy__memory_admin` toolsets from agent, profile and session tool policies | Remove them. Retired toolsets fail catalog validation. Exact retired `compozy__memory_*` IDs are still accepted but match no tool, and an explicit allow-list stays restricted. |
 | The `permissions.provider_full_access` key, a no-op with a warning in v0.6.0 | `permissions.mode` (`approve-all` for **Full access**). The old key is now unknown. |
-| ACP usage aliases `cacheReadTokens` / `cacheWriteTokens` | ACP adapters must send `cachedReadTokens` / `cachedWriteTokens`. The aliases no longer count toward cache usage. |
-| Automatic transfer of bundled `dev-cycle` extension state to `spec-cycle` | Migrate it yourself. The old state stays in place, and `compozy doctor` still reports it. |
-| Take-over reclassifying process failures from launches canceled before v0.4.8 | Recover those sessions with v0.6.0 before upgrading. |
+| Agent Client Protocol (ACP) usage aliases `cacheReadTokens` / `cacheWriteTokens` | ACP adapters must send `cachedReadTokens` / `cachedWriteTokens`. The aliases are no longer counted toward cache usage; nothing fails. |
+| Automatic transfer of bundled `dev-cycle` extension state to `spec-cycle` | Re-enter its inputs and credentials on `spec-cycle`, then run the removal command `compozy doctor` suggests for each `dev-cycle` installation. The old state stays in place until you do. |
+| Treating a launch that a stop canceled before v0.4.8 as canceled instead of failed when you take over the session, so it could resume | Take over those sessions while still on v0.6.0. Normal session recovery is unchanged. |
 
-Marketplace source management (`compozy marketplace sources`) is still experimental. Only the expired "through v0.6.0" date was removed from its help text. The full upgrade steps are in the migration guide.
+Marketplace source management (`compozy marketplace sources`) is still experimental. Only the
+expired "through v0.6.0" date was removed from its help text. The full upgrade steps are in the
+migration guide.
