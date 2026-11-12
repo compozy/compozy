@@ -208,13 +208,16 @@ func TestSessionWakeBridge(t *testing.T) {
 		})
 		event.ChildSessionID = cmp.Or(event.ChildSessionID, "child-1")
 		event.Reason, event.Badge = session.SpawnWakeReasonNeedsAttention, session.BadgeNeedsAttention
-		event.Detail, event.EndedEarly = "Turn ended without a linked pull request.", true
+		event.Detail, event.EndedEarly = "Turn ended with no open work.", true
 		event.WakeEventID = "wake-early"
 		if err := bridge.WakeSpawnCreator(testutil.Context(t), "parent-1", event); err != nil {
 			t.Fatalf("WakeSpawnCreator() error = %v", err)
 		}
 		manager.mu.Lock()
 		defer manager.mu.Unlock()
+		if manager.promptOpts.Metadata.Kind != session.SpawnWakeKindEndedEarly {
+			t.Fatalf("wake kind = %q, want a revision-fenced early-stop wake", manager.promptOpts.Metadata.Kind)
+		}
 		return manager.promptOpts.Message
 	}
 
@@ -225,7 +228,7 @@ func TestSessionWakeBridge(t *testing.T) {
 		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{FinalAnswer: answer})
 		if !strings.Contains(message, "Final answer:\n---\n"+strings.TrimSpace(answer)) ||
 			!strings.Contains(message, "compozy__session_stop") ||
-			!strings.Contains(message, "Detail: Turn ended without a linked pull request.") {
+			!strings.Contains(message, "Detail: Turn ended with no open work.") {
 			t.Fatalf("wake prompt = %q, want the full bounded final answer and next actions", message)
 		}
 	})
@@ -246,7 +249,7 @@ func TestSessionWakeBridge(t *testing.T) {
 		t.Parallel()
 
 		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{})
-		if !strings.Contains(message, "It stopped before delivering.") ||
+		if !strings.Contains(message, "Review its answer") ||
 			!strings.Contains(message, "compozy__session_stop") || strings.Contains(message, "Final answer:") {
 			t.Fatalf("wake prompt = %q, want the continue-or-stop guidance without an answer block", message)
 		}

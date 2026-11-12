@@ -26,7 +26,7 @@ func (m *Manager) durableSessionInfoForLifecycleTransition(
 			return sessionInfoFromCatalog(&rows[index]), nil
 		}
 	}
-	return nil, fmt.Errorf("session: lifecycle attention snapshot not found for %q", sessionID)
+	return nil, fmt.Errorf("%w: lifecycle attention snapshot not found for %q", ErrSessionNotFound, sessionID)
 }
 
 func (m *Manager) publishLifecycleAttentionTransition(

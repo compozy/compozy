@@ -37,6 +37,7 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 		}
 	}
 	sources := sessionWorkSources{state: state, manager: manager, now: d.now}
+	manager.ConfigureSpawnWakeCoverage(sources.creatorMonitorCovers)
 	manager.SetWorkSignalSources(
 		session.WorkSignalSource{
 			Kind:   session.WorkSignalHeldInput,
