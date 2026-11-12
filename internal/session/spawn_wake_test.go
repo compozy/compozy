@@ -75,6 +75,21 @@ func TestSpawnWakeEventContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep other attention causes distinct from the early-stop occurrence", func(t *testing.T) {
+		t.Parallel()
+		info := spawnWakeTestInfo(true)
+		info.State = StateActive
+		info.PendingInteractions = nil
+		info.EndedEarlyTurnID = "turn-early"
+		earlyID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+		info.StopVerificationFailed = true
+		info.AttentionRevision++
+		failureID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+		if failureID == earlyID {
+			t.Fatal("a new stop-verification failure reused the early-stop alarm identity")
+		}
+	})
+
 	t.Run("Should reject a badge and reason mismatch", func(t *testing.T) {
 		t.Parallel()
 
