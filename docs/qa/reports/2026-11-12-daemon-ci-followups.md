@@ -103,3 +103,27 @@ approved journal row. E2E-008 selects the current output again after the tab
 remount before checking Choose and Copy. No production behavior, timeout or valid
 approval/quote/journal assertion is relaxed. CI must run the corrected journeys;
 no local browser, daemon, test, build or lint execution is claimed.
+
+## Integration boot publication race and recovery fixture diagnostics
+
+[Full Integration Suite (6), job 130980691091](https://github.com/compozy/compozy/actions/runs/43157453599/job/130980691091)
+on `095596a36` reports the same boot race already tracked in #1588: the MCP
+declaration watcher reads `runtimeWorkers.proactiveChecks` while
+`bootProactiveChecks` publishes it. Its stacks affect unattended-instance and
+orphan-report boot scenarios. A boot-state RWMutex now protects publication and
+all boot-state readers; publication occurs after service recovery and callback
+binding. The existing boot-state synchronization suite exercises concurrent
+publication/readers. The watcher lifetime, declaration refresh, configuration
+recovery and cleanup retain their owners. This internal fix changes no public
+contract, persisted data or configuration. CI must run its race regression and
+the actual integration paths. No local execution is claimed.
+
+That job also ended the shutdown-recovery prompt before its expected backoff;
+the original assertion captured no terminal events. The subprocess fixture now
+receives an explicit auth-required test mode rather than matching rendered prompt
+prose. Unexpected early completion retains its synthetic event/status diagnostics.
+This isolates fault injection from prompt formatting while preserving the required
+observed auth backoff, full daemon shutdown and durable restart-intent assertions.
+The original failure's exact terminal event is unavailable; no production recovery
+regression is inferred from that missing observation. CI must establish the actual
+recovery path before this item is accepted.

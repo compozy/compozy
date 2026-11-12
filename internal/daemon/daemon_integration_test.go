@@ -49,6 +49,7 @@ import (
 )
 
 const daemonSessionStopHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER"
+const daemonSessionRecoveryHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_AUTH_RECOVERY"
 
 func daemonMigrationStreams() []store.MigrationStream {
 	return []store.MigrationStream{
@@ -1965,6 +1966,9 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 				cfg.Daemon.ShutdownGrace = time.Millisecond
 			}
 			command := daemonSessionStopHelperCommand(t)
+			if recovering {
+				command = shellquote.Join("env", daemonSessionRecoveryHelperEnvKey+"=1") + " " + command
+			}
 			cfg.Defaults.Provider = acpmock.ProviderName
 			cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 			writeDaemonIntegrationProviderConfig(t, homePaths, acpmock.ProviderName, command)
@@ -2015,13 +2019,18 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 					t.Fatal(err)
 				}
 				ctx := testutil.Context(t)
+				var observed []acp.AgentEvent
 			recovery:
 				for {
 					select {
 					case event, ok := <-stream:
 						if !ok {
-							t.Fatal("prompt completed before entering provider recovery")
+							t.Fatalf(
+								"prompt completed before provider recovery: events=%+v info=%+v",
+								observed, sess.Info(),
+							)
 						}
+						observed = append(observed, event)
 						if event.Type == acp.EventTypeRuntimeRecoveryStarted {
 							interruptedTurn = event.TurnID
 							break recovery
@@ -3295,7 +3304,9 @@ func TestDaemonSessionStopACPHelperProcess(t *testing.T) {
 		return
 	}
 
-	conn := acpsdk.NewAgentSideConnection(daemonSessionStopACPAgent{}, os.Stdout, os.Stdin)
+	conn := acpsdk.NewAgentSideConnection(daemonSessionStopACPAgent{
+		authRequired: os.Getenv(daemonSessionRecoveryHelperEnvKey) == "1",
+	}, os.Stdout, os.Stdin)
 	<-conn.Done()
 	os.Exit(0)
 }
@@ -3485,7 +3496,9 @@ func readDaemonMarkerLines(path string) ([]string, error) {
 	return filtered, nil
 }
 
-type daemonSessionStopACPAgent struct{}
+type daemonSessionStopACPAgent struct {
+	authRequired bool
+}
 
 func (daemonSessionStopACPAgent) Authenticate(
 	context.Context,
@@ -3557,13 +3570,11 @@ func (daemonSessionStopACPAgent) LoadSession(
 	return acpsdk.LoadSessionResponse{}, nil
 }
 
-func (daemonSessionStopACPAgent) Prompt(
-	_ context.Context, params acpsdk.PromptRequest,
+func (a daemonSessionStopACPAgent) Prompt(
+	context.Context, acpsdk.PromptRequest,
 ) (acpsdk.PromptResponse, error) {
-	for _, block := range params.Prompt {
-		if block.Text != nil && strings.Contains(block.Text.Text, "shutdown during provider recovery") {
-			return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
-		}
+	if a.authRequired {
+		return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
 	}
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }

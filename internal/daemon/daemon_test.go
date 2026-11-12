@@ -4235,6 +4235,41 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 	}
 }
 
+// Boot watchers must observe a fully published check service without racing its owner.
+func TestBootStateProactiveChecksAccessIsSynchronized(t *testing.T) {
+	t.Run("Should publish proactive checks safely to concurrent boot watchers", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{}
+		service := new(heartbeat.CheckService)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for range 16 {
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				<-start
+				for range 128 {
+					state.setProactiveChecks(service)
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				for range 128 {
+					if got := state.currentProactiveChecks(); got != nil && got != service {
+						t.Errorf("published check service = %p, want nil or %p", got, service)
+					}
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+		if got := state.currentProactiveChecks(); got != service {
+			t.Fatalf("published check service = %p, want %p", got, service)
+		}
+	})
+}
+
 func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
 	t.Parallel()
 

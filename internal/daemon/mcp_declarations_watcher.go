@@ -77,7 +77,7 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 		sync: func(refreshCtx context.Context) error {
 			state.workspaceResolver.InvalidateAll()
 			err := state.toolMCPResources.Sync(refreshCtx)
-			if checks := state.runtimeWorkers.proactiveChecks; checks != nil {
+			if checks := state.currentProactiveChecks(); checks != nil {
 				err = errors.Join(err, checks.RecoverConfiguration(refreshCtx, nil))
 			}
 			return err
