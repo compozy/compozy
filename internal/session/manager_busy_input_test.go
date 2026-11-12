@@ -5949,6 +5949,11 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			}
 		}
 		for _, id := range staleIDs {
+			// Provider handoff can precede stale entries tied on enqueue time in the promotion pass.
+			waitForCondition(t, "obsolete attention discarded", func() bool {
+				entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
+				return err == nil && entry.Status == store.SessionInputQueueStatusFailed
+			})
 			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
 			if err != nil || entry.Status != store.SessionInputQueueStatusFailed {
 				t.Fatalf("obsolete attention = %#v, %v", entry, err)
