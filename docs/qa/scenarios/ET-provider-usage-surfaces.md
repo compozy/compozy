@@ -221,11 +221,13 @@ QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/
 ### Incomplete profile provider at startup (#1505)
 
 In an isolated home, add `[providers.ghost]` with `enabled = false` to the default
-profile config, without defining `ghost` globally. Start the daemon with usage
+profile config, without defining `ghost` globally. Repeat with a disabled alias that
+sets `runtime_provider = "claude"` but has no command. Start the daemon with usage
 collection enabled, then repeat with `[provider_usage] enabled = false`. Startup
 must reach readiness, resolvable built-ins and configured aliases must retain their
 usage targets, and `ghost` must be absent. The daemon emits
-`provider_usage.provider_unresolved` with the profile and provider IDs; session
+`provider_usage.provider_unresolved` once per unresolved profile/provider pair. Reads
+do not repeat the warning; resolving the provider clears it so a recurrence warns again. Session
 admission still rejects the undefined provider. Malformed profile TOML remains an
 error. Do not use an operator's real home for this check.
 

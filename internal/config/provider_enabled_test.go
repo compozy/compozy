@@ -68,17 +68,22 @@ func TestConfigProviderEnabled(t *testing.T) {
 		if err := cfg.RequireEnabledProvider("ghost"); !errors.Is(err, ErrProviderDisabled) {
 			t.Fatalf("RequireEnabledProvider(ghost) = %v, want ErrProviderDisabled", err)
 		}
-		if _, err := cfg.ResolveProvider("ghost"); err == nil {
-			t.Fatal("ResolveProvider(ghost) succeeded without a command")
+		if _, err := cfg.ResolveProvider(
+			"ghost",
+		); !errors.Is(err, ErrProviderUnavailable) ||
+			!strings.Contains(err.Error(), `provider "ghost" command is required`) {
+			t.Fatalf("ResolveProvider(ghost) = %v, want unavailable missing command", err)
 		}
 		cfg.Providers["ghost"] = ProviderConfig{Enabled: new(true)}
-		if err := cfg.Validate(); err == nil {
-			t.Fatal("Validate() accepted an enabled provider without a command")
+		if err := cfg.Validate(); !errors.Is(err, ErrProviderUnavailable) ||
+			!strings.Contains(err.Error(), `provider "ghost" command is required`) {
+			t.Fatalf("Validate() = %v, want unavailable missing command", err)
 		}
 		cfg.Providers["ghost"] = ProviderConfig{Enabled: new(false)}
 		cfg.Defaults.Provider = "ghost"
-		if err := cfg.Validate(); err == nil {
-			t.Fatal("Validate() accepted an undefined disabled default provider")
+		if err := cfg.Validate(); !errors.Is(err, ErrProviderUnavailable) ||
+			!strings.Contains(err.Error(), `provider "ghost" command is required`) {
+			t.Fatalf("Validate() = %v, want unavailable missing default command", err)
 		}
 	})
 
