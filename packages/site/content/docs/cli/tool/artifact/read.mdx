@@ -18,14 +18,14 @@ compozy tool artifact read <artifact_uri> [flags]
   compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 -o json
 
   # Decode page bytes directly to stdout
-  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 32768
 ```
 
 ### Options
 
 ```
   -h, --help               help for read
-      --limit int          Page size in bytes (default and maximum 65536)
+      --limit int          Page size in bytes (default 32768, maximum 65536)
       --offset int         Zero-based byte offset
       --workspace string   Override workspace (ID, name, or path)
 ```
