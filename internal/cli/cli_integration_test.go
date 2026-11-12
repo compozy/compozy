@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -4088,6 +4089,11 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		if cleanupErr == nil {
 			return
 		}
+		if errors.Is(cleanupErr, context.DeadlineExceeded) {
+			stacks := make([]byte, 64<<10)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			cleanupErr = fmt.Errorf("%w; bounded shutdown goroutines:\n%s", cleanupErr, stacks)
+		}
 		runErr = errors.Join(runErr, fmt.Errorf("%s: %w", operation, cleanupErr))
 	}
 
@@ -4311,7 +4317,9 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		shutdown := func(operation string, stop func(context.Context) error) {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			joinRunError(operation, stop(shutdownCtx))
+			started := time.Now()
+			err := stop(shutdownCtx)
+			joinRunError(fmt.Sprintf("%s (elapsed %s, budget 2s)", operation, time.Since(started)), err)
 		}
 		shutdown("shutdown automation manager", automationManager.Shutdown)
 		for _, info := range manager.List() {

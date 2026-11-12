@@ -2130,6 +2130,9 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 		ok.Store(false)
 		f.clock.Advance(time.Minute)
 		env := refreshFixture(t, f, IntentBackground)
+		if want := f.clock.Now().Add(5 * time.Minute); !want.Equal(*env.Targets[0].NextRefreshAt) {
+			t.Logf("cooldown diagnostic: now=%s calls=%d target=%+v", f.clock.Now(), calls.Load(), env.Targets[0])
+		}
 		requireEqual(t, f.clock.Now().Add(5*time.Minute), *env.Targets[0].NextRefreshAt)
 		requireEqual(t, int32(4), calls.Load())
 	})

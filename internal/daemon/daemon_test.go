@@ -1062,6 +1062,9 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		case bootErr := <-bootResult:
 			t.Fatalf("boot() returned before late reconciliation: %v", bootErr)
 		case <-ctx.Done():
+			stacks := make([]byte, 64<<10)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			t.Logf("bounded boot timeout goroutines:\n%s", stacks)
 			t.Fatalf("boot() did not reach late reconciliation: %v", ctx.Err())
 		}
 

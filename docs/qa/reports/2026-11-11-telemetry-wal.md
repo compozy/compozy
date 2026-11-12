@@ -33,7 +33,8 @@ worker. PASSIVE remains the normal checkpoint. Above the threshold, TRUNCATE use
 existing maintenance handle with busy_timeout=0: reader or writer contention defers
 reclamation instead of waiting on snapshots. It runs independently of ingestion's
 single writer connection and leaves synchronous=FULL and commit acknowledgement intact.
-SQLite owns checkpoint locking and preservation of required frames.
+SQLite owns checkpoint locking and preservation of required frames. A successful
+`wal_checkpoint(TRUNCATE)` holds SQLite's write lock even on this separate connection.
 
 The threshold avoids truncating a small reusable WAL every second. It is an internal
 maintenance policy, not a new config contract or a hard disk bound. A live reader can

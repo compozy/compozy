@@ -402,6 +402,11 @@ Linux race lane observed watcher polling concurrent with bootProactiveChecks pub
 The existing real daemon boot suite and declaration/recovery suites own verification;
 local execution is forbidden for this parallel dispatch.
 
+Heartbeat status input validation: call `compozy__agent_heartbeat_status` with
+`include_session_health: true` and no `session_id` (then a whitespace-only ID).
+Both calls must return `tool_invalid_input` naming `session_id`, before any session-health read.
+An explicit session ID still enforces profile/workspace ownership.
+
 ## Manual wake after repository policy edits
 
 1. Create a valid `HEARTBEAT.md` directly beside an agent definition without using authoring mutations.
