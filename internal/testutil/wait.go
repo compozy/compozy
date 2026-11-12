@@ -5,14 +5,9 @@ import (
 	"time"
 )
 
-const (
-	// eventuallyPollInterval bounds how long a satisfied condition can go
-	// unobserved. It is not scaled: polling faster under -race only adds load.
-	eventuallyPollInterval = 10 * time.Millisecond
-	// deadlineReserve keeps a labeled wait failure ahead of the go test
-	// -timeout panic, which reports no condition and kills the whole binary.
-	deadlineReserve = 5 * time.Second
-)
+// eventuallyPollInterval bounds how long a satisfied condition can go
+// unobserved. It is not scaled: polling faster under -race only adds load.
+const eventuallyPollInterval = 10 * time.Millisecond
 
 // TimeScale reports the multiplier applied to wall-clock test budgets. The
 // race detector slows instrumented code several times over, so a budget sized
@@ -22,27 +17,12 @@ func TimeScale() int {
 	return raceTimeScale
 }
 
-// Scaled returns budget multiplied by TimeScale. A failing wait never outlives
-// the test binary: when the running test has a deadline, the result is capped
-// so the caller fails with its own label before go test aborts the package.
+// Scaled returns budget multiplied by TimeScale. It deliberately ignores
+// t.Deadline, which panics inside a testing/synctest bubble where Context and
+// the waits below are also used.
 func Scaled(t testing.TB, budget time.Duration) time.Duration {
 	t.Helper()
-
-	scaled := budget * time.Duration(TimeScale())
-	deadliner, ok := t.(interface{ Deadline() (time.Time, bool) })
-	if !ok {
-		return scaled
-	}
-	deadline, ok := deadliner.Deadline()
-	if !ok {
-		return scaled
-	}
-	remaining := time.Until(deadline) - deadlineReserve
-	if remaining < budget {
-		// Never shrink below the unscaled budget the caller asked for.
-		return budget
-	}
-	return min(scaled, remaining)
+	return budget * time.Duration(TimeScale())
 }
 
 // Eventually polls condition until it reports true and fails t with label once

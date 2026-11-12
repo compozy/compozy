@@ -194,23 +194,13 @@ func TestFreeTCPPort(t *testing.T) {
 // without failing the enclosing test.
 type recordingTB struct {
 	testing.TB
-	deadline    time.Time
-	hasDeadline bool
-	failures    []string
+	failures []string
 }
 
 func (*recordingTB) Helper() {}
 
 func (r *recordingTB) Fatalf(format string, args ...any) {
 	r.failures = append(r.failures, fmt.Sprintf(format, args...))
-}
-
-type deadlineTB struct {
-	*recordingTB
-}
-
-func (d deadlineTB) Deadline() (time.Time, bool) {
-	return d.deadline, d.hasDeadline
 }
 
 func TestScaled(t *testing.T) {
@@ -222,30 +212,6 @@ func TestScaled(t *testing.T) {
 		budget := 2 * time.Second
 		if got, want := Scaled(&recordingTB{}, budget), budget*time.Duration(TimeScale()); got != want {
 			t.Fatalf("Scaled(%v) = %v, want %v", budget, got, want)
-		}
-	})
-
-	t.Run("Should cap a scaled budget at the remaining test deadline", func(t *testing.T) {
-		t.Parallel()
-
-		budget := time.Second
-		tb := deadlineTB{recordingTB: &recordingTB{
-			deadline:    time.Now().Add(deadlineReserve + 2*time.Second),
-			hasDeadline: true,
-		}}
-		got := Scaled(tb, budget)
-		if got < budget || got > 2*time.Second {
-			t.Fatalf("Scaled(%v) near deadline = %v, want within [%v, %v]", budget, got, budget, 2*time.Second)
-		}
-	})
-
-	t.Run("Should never shrink below the requested budget", func(t *testing.T) {
-		t.Parallel()
-
-		budget := 3 * time.Second
-		tb := deadlineTB{recordingTB: &recordingTB{deadline: time.Now(), hasDeadline: true}}
-		if got := Scaled(tb, budget); got != budget {
-			t.Fatalf("Scaled(%v) past deadline = %v, want %v", budget, got, budget)
 		}
 	})
 }
