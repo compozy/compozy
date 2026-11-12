@@ -36,7 +36,7 @@ env:
 
 jobs:
   paired-load:
-    name: SQLite paired load and 1 GB upgrade
+    name: ${{ inputs.runtime_trace_trials && 'SQLite traced diagnostic (not acceptance)' || 'SQLite paired load and 1 GB upgrade' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

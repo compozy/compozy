@@ -219,6 +219,11 @@ The per-trial `.trace`, JSON and log files then describe the same execution.
 `results.json` identifies these diagnostic timings with `runtime_trace_trials`;
 they cannot replace the required uninstrumented acceptance runs. All failed
 samples and the unchanged acceptance decisions remain in the artifact.
+The workflow uses a separate `SQLite traced diagnostic (not acceptance)` check
+name for this mode. Recording still changes CPU/GC behavior: the heap buffer
+can grow to tens of megabytes, affect GC pacing and incur copying/page faults.
+An abrupt process kill loses the buffered trace. These recordings can identify
+syscall stacks during a pause; they are not an undisturbed GC/latency control.
 
 For a dedicated Linux lab, build the harness in each checkout, then run:
 

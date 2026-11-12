@@ -182,6 +182,22 @@ def acceptance_failures(trials, retention_rows):
     return comparison, regressions, invalid, tails
 
 
+def paired_trials(args, fixture, upgraded):
+    """Keep diagnostic capture on the same balanced baseline/head workload."""
+    trials = {"baseline": [], "head": []}
+    for trial in range(TRIALS):
+        for label in (("baseline", "head") if trial % 2 == 0 else ("head", "baseline")):
+            source = fixture if label == "baseline" else upgraded
+            root = args.output / "trial-data"
+            copy_fixture(source, root)
+            try:
+                trials[label].append(run(getattr(args, label), root, "load", args.output, f"{label}-{trial}",
+                                         runtime_trace=args.runtime_trace_trials))
+            finally:
+                shutil.rmtree(root)
+    return trials
+
+
 def main():
     """Run isolated upgrade/load experiments and preserve receipts before rejecting failures."""
     parser = argparse.ArgumentParser()
@@ -218,18 +234,8 @@ def main():
     reopened = run(args.head, upgraded, "inspect", args.output, "head-reopen")
     if reopened["observe"] != head_view["observe"]:
         raise RuntimeError("Observe changed on second reopen")
-    trials = {"baseline": [], "head": []}
     # Alternate order to expose rather than hide runner drift and cache effects.
-    for trial in range(TRIALS):
-        for label in (("baseline", "head") if trial % 2 == 0 else ("head", "baseline")):
-            source = fixture if label == "baseline" else upgraded
-            root = args.output / "trial-data"
-            copy_fixture(source, root)
-            try:
-                trials[label].append(run(getattr(args, label), root, "load", args.output, f"{label}-{trial}",
-                                         runtime_trace=args.runtime_trace_trials))
-            finally:
-                shutil.rmtree(root)
+    trials = paired_trials(args, fixture, upgraded)
     traced = {}
     for label, source in (("baseline", fixture), ("head", upgraded)):
         traced[label] = trace_diagnostic(getattr(args, label), source, args.output, label)
@@ -252,6 +258,7 @@ def main():
     result["trace_comparable"] = all("diagnostic_error" not in run and not load_failed(run, retention_rows)
                                      for run in traced.values())
     save(args.output / "results.json", result)
+    trial_mode = "Go-traced diagnostic" if args.runtime_trace_trials else "untraced"
     lines = ["# SQLite contention paired experiment", "", f"Baseline `{args.baseline_sha}`; head `{args.head_sha}`.", "",
              f"Original-trial Go tracing: {args.runtime_trace_trials}. Traced timings are diagnostic, not final acceptance evidence.", "",
              "30 sessions; 1,000 completed turns each; 20 Hz transcript chunks, 5 Hz transcript reads,",
@@ -259,7 +266,7 @@ def main():
              "and 90 process observations refreshed every two seconds. Each measured phase also",
              f"sweeps {retention_rows:,} retained summaries older than the fixed six-hour boundary.",
              f"Five-second warmup, {TRIALS} balanced-order paired",
-             "30-second untraced trials; separate 15-second strace diagnostics for actual file-write bytes.",
+             f"30-second {trial_mode} trials; separate 15-second strace diagnostics for actual file-write bytes.",
              f"Acceptance requires median paired throughput ratio >= {MIN_THROUGHPUT_RATIO:.0%} for every operation.", "",
              "| Metric | Baseline | Head |", "| --- | ---: | ---: |"]
     for metric in ("transcript_read", "catalog_read"):
@@ -279,7 +286,7 @@ def main():
         values = [f"{traced[label]['file_writes']['bytes_per_minute'][kind]:.0f}"
                   if result["trace_comparable"] else "n/a (incomplete)" for label in ("baseline", "head")]
         lines.append(f"| {kind} file-write bytes/min (traced) | {values[0]} | {values[1]} |")
-    lines += ["", "Throughput regressions (median of untraced paired ratios): " + json.dumps(regressions),
+    lines += ["", f"Throughput regressions (median of {trial_mode} paired ratios): " + json.dumps(regressions),
               "Transcript write tails (paired maxima; median ratio <= 1; each COMMIT warning must fit its own pair): " + json.dumps(tails),
               "Paired ratios by operation: " + json.dumps(comparison),
               f"Traced byte comparison valid (both runs error-free, retention complete): {result['trace_comparable']}. "
@@ -308,6 +315,8 @@ def main():
     (args.output / "report.md").write_text("\n".join(lines) + "\n")
     # Preserve receipts even if an acceptance condition fails.
     if invalid or regressions or tails["regression"]:
+        if args.runtime_trace_trials:
+            raise RuntimeError("head acceptance failed; inspect results.json and original per-trial traces")
         # Keep failed acceptance unchanged. A separate diagnostic run attributes
         # time to Go scheduling, GC, locks and syscalls; it never replaces a trial.
         diagnose_failure(args.head, upgraded, args.output)

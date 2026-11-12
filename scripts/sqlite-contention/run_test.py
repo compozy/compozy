@@ -5,9 +5,10 @@ from pathlib import Path
 import json
 import subprocess
 import tempfile
+from types import SimpleNamespace
 
 from run import (MAX_RETENTION_SECONDS, MIN_THROUGHPUT_RATIO,
-                 acceptance_failures, load_failed, run, throughput_comparison, trace_diagnostic)
+                 acceptance_failures, load_failed, paired_trials, run, throughput_comparison, trace_diagnostic)
 
 
 def trial(count=100, seconds=30):
@@ -20,6 +21,28 @@ def trial(count=100, seconds=30):
 
 
 class AcceptanceTests(unittest.TestCase):
+    # Invariant: trace mode retains all four balanced pairs, including failed samples.
+    # Owner: experiment trial orchestration; canonical suite: AcceptanceTests.
+    def test_original_trial_trace_mode_keeps_balanced_pairs_and_failures(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                args = SimpleNamespace(output=output, baseline=Path("baseline"), head=Path("head"),
+                                       runtime_trace_trials=enabled)
+                failed = trial()
+                failed["failures"] = {"transcript_write": ["deadline exceeded"]}
+                with patch("run.copy_fixture"), patch("run.shutil.rmtree"), \
+                        patch("run.run", return_value=failed) as child:
+                    trials = paired_trials(args, output / "fixture", output / "upgraded")
+                calls = child.call_args_list
+                self.assertEqual([call.args[4] for call in calls],
+                                 ["baseline-0", "head-0", "head-1", "baseline-1",
+                                  "baseline-2", "head-2", "head-3", "baseline-3"])
+                self.assertTrue(all(call.kwargs["runtime_trace"] == enabled for call in calls))
+                for label in ("baseline", "head"):
+                    self.assertEqual(len(trials[label]), 4)
+                    self.assertTrue(all(sample["failures"] == failed["failures"] for sample in trials[label]))
+
     # Invariant: original-trial diagnostics retain the same workload and receipts.
     # Owner: experiment subprocess boundary; canonical suite: AcceptanceTests.
     def test_runtime_trace_retains_original_workload_and_receipts(self):
