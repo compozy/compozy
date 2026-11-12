@@ -39,8 +39,8 @@ export interface UseDesktopDockOptions {
   onNewSession: () => void;
   onPreload?: DockPreload;
   /**
-   * Catalog truth for the Terminal launcher. When omitted, Terminal follows
-   * the same open-window rule as every other app (isolated dock tests).
+   * Catalog truth for the Terminal launcher. When omitted, Terminal stays
+   * idle until live catalog data is available; saved windows alone never imply a live terminal.
    */
   terminalLive?: boolean;
   /**

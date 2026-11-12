@@ -2,7 +2,11 @@ package daemon
 
 // Invariant: agent terminal lifecycle cannot litter durable desktops; this bridge suite owns event composition.
 import (
+	"context"
+	"errors"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -11,11 +15,15 @@ import (
 const bridgeTestWorkspace = "workspace-a"
 
 type staticWindowManagerProvider struct {
-	manager *windowmanager.Manager
-	err     error
+	manager  *windowmanager.Manager
+	err      error
+	failures atomic.Int32
 }
 
 func (p *staticWindowManagerProvider) For(string) (*windowmanager.Manager, error) {
+	if p.failures.Add(-1) >= 0 {
+		return nil, errors.New("transient provider failure")
+	}
 	if p.err != nil {
 		return nil, p.err
 	}
@@ -43,8 +51,16 @@ func newBridgeTestManager(t *testing.T) *windowmanager.Manager {
 
 func TestAttachTerminalWindowBridge(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []terminalpkg.EventKind{terminalpkg.EventKindClosed, terminalpkg.EventKindDeleted} {
-		t.Run("Should retire persisted windows on "+string(kind), func(t *testing.T) {
+	for _, testCase := range []struct {
+		kind      terminalpkg.EventKind
+		origin    terminalpkg.ActorKind
+		remaining int
+	}{
+		{terminalpkg.EventKindClosed, terminalpkg.ActorKindAgent, 0},
+		{terminalpkg.EventKindDeleted, terminalpkg.ActorKindAgent, 0},
+		{terminalpkg.EventKindClosed, terminalpkg.ActorKindHuman, 1},
+	} {
+		t.Run("Should reconcile "+string(testCase.origin)+" windows on "+string(testCase.kind), func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			manager := newBridgeTestManager(t)
@@ -56,7 +72,18 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			attachTerminalWindowBridge(terminals, &staticWindowManagerProvider{manager: manager}, discardLogger())
+			provider := &staticWindowManagerProvider{manager: manager}
+			worker := attachTerminalWindowBridge(
+				ctx,
+				terminals,
+				provider,
+				discardLogger(),
+			)
+			t.Cleanup(func() {
+				if err := stopOwnedWorker(context.Background(), "test terminal windows", worker); err != nil {
+					t.Errorf("stop bridge: %v", err)
+				}
+			})
 			before, err := manager.Snapshot(ctx, bridgeTestWorkspace)
 			if err != nil {
 				t.Fatal(err)
@@ -68,6 +95,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 						Kind:        terminalpkg.EventKindOpened,
 						WorkspaceID: bridgeTestWorkspace,
 						ProfileID:   "profile-a",
+						Origin:      terminalpkg.Actor{Kind: testCase.origin},
 						Actor:       terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent},
 						Detail:      &terminalpkg.EventDetail{Mode: terminalpkg.ModePTY},
 					},
@@ -102,22 +130,59 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			var updates <-chan windowmanager.SubscriptionUpdate
+			if testCase.remaining == 0 {
+				seeded, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+				if err != nil {
+					t.Fatal(err)
+				}
+				subscription, err := manager.Subscribe(
+					ctx,
+					windowmanager.SubscriptionRequest{WorkspaceID: bridgeTestWorkspace, AfterRevision: seeded.Revision},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := subscription.Close(); err != nil {
+						t.Errorf("Close subscription: %v", err)
+					}
+				})
+				updates = subscription.Updates()
+				provider.failures.Store(1)
+			}
 			notifier.Notify(
 				ctx,
 				terminalpkg.Event{
-					Kind:        kind,
+					Kind:        testCase.kind,
 					WorkspaceID: bridgeTestWorkspace,
 					ProfileID:   "profile-a",
 					TerminalID:  terminalpkg.ID(id),
+					Origin:      terminalpkg.Actor{Kind: testCase.origin},
 					Actor:       terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent},
 				},
 			)
+			if updates != nil {
+				waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				select {
+				case update := <-updates:
+					if update.Event == nil {
+						t.Fatal("missing retirement event")
+					}
+				case <-waitCtx.Done():
+					t.Fatal("retirement was not retried")
+				}
+			}
 			after, err = manager.Snapshot(ctx, bridgeTestWorkspace)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(after.Windows) != 0 {
+			if len(after.Windows) != testCase.remaining {
 				t.Fatalf("stale windows: %+v", after.Windows)
+			}
+			if testCase.remaining != 0 {
+				return
 			}
 			for _, entries := range [][]windowmanager.HistoryEntry{after.History.Undo, after.History.Redo} {
 				for _, entry := range entries {

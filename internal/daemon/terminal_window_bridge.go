@@ -11,18 +11,23 @@ import (
 )
 
 // Agent terminals stay in the catalog until the operator explicitly opens a window.
-func attachTerminalWindowBridge(terminals *terminalpkg.Service, windows windowManagerProvider, logger *slog.Logger) {
+func attachTerminalWindowBridge(
+	ctx context.Context,
+	terminals *terminalpkg.Service,
+	windows windowManagerProvider,
+	logger *slog.Logger,
+) *ownedWorkerGroup {
 	if terminals == nil || windows == nil {
-		return
+		return nil
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	worker := newOwnedWorkerGroup(cancelWorker)
 	terminals.Observe(func(ctx context.Context, event terminalpkg.Event) {
-		agentTerminal := event.Actor.Kind == terminalpkg.ActorKindAgent ||
-			(event.Info != nil && event.Info.BoundRun != nil)
 		retire := event.Kind == terminalpkg.EventKindDeleted ||
-			(event.Kind == terminalpkg.EventKindClosed && agentTerminal)
+			(event.Kind == terminalpkg.EventKindClosed && event.Origin.Kind == terminalpkg.ActorKindAgent)
 		if !retire {
 			return
 		}
@@ -31,8 +36,15 @@ func attachTerminalWindowBridge(terminals *terminalpkg.Service, windows windowMa
 		if err := retireTerminalWindow(cleanupCtx, windows, event); err != nil {
 			logger.Warn("daemon: retire terminal window", "terminal_id", event.TerminalID,
 				"workspace_id", event.WorkspaceID, "profile_id", event.ProfileID, "error", err)
+			if complete, ok := worker.Begin(); ok {
+				go func() {
+					defer complete()
+					retryTerminalWindowRetirement(workerCtx, windows, event, logger)
+				}()
+			}
 		}
 	})
+	return worker
 }
 
 func retireTerminalWindow(ctx context.Context, windows windowManagerProvider, event terminalpkg.Event) error {
@@ -67,4 +79,29 @@ func (r *windowManagerRegistry) reconcileBootTerminals(ctx context.Context) erro
 	return r.reconcilePartitions(ctx, func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
 		return manager.RetireTerminals(ctx, partition, nil)
 	})
+}
+
+func retryTerminalWindowRetirement(
+	ctx context.Context,
+	windows windowManagerProvider,
+	event terminalpkg.Event,
+	logger *slog.Logger,
+) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err := retireTerminalWindow(attemptCtx, windows, event)
+			cancel()
+			if err == nil {
+				return
+			}
+			logger.Warn("daemon: retry terminal window retirement", "terminal_id", event.TerminalID,
+				"workspace_id", event.WorkspaceID, "profile_id", event.ProfileID, "error", err)
+		}
+	}
 }

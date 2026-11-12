@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type terminalRetirementCommand struct{ ids map[string]bool }
@@ -13,7 +14,14 @@ func (terminalRetirementCommand) CommandID() CommandID { return CommandWindowNav
 // ReconcileTerminalWindows removes dead terminal references, including undo and reopen history.
 func ReconcileTerminalWindows(snapshot Snapshot, live func(string) bool) (Snapshot, bool) {
 	return reconcileWindows(snapshot, func(window Window) bool {
-		return window.App != "terminal" || window.InstanceKey == nil || live(*window.InstanceKey)
+		if window.App != "terminal" {
+			return true
+		}
+		if window.InstanceKey != nil && !live(*window.InstanceKey) {
+			return false
+		}
+		id, bound := strings.CutPrefix(window.Route.Pathname, "/terminal/")
+		return !bound || id == "" || live(id)
 	})
 }
 

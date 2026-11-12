@@ -43,7 +43,15 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	state.hookDispatcher = hooks
 	state.hookBindings = hookBindings
 	attachTerminalHookBridge(state.terminals, hooks, state.logger)
-	attachTerminalWindowBridge(state.terminals, state.windowManagers, state.logger)
+	state.runtimeWorkers.terminalWindows = attachTerminalWindowBridge(
+		ctx,
+		state.terminals,
+		state.windowManagers,
+		state.logger,
+	)
+	cleanup.add(func(cleanupCtx context.Context) error {
+		return stopOwnedWorker(cleanupCtx, "terminal window retirement", state.runtimeWorkers.terminalWindows)
+	})
 	if state.windowManagers != nil {
 		if err := state.windowManagers.reconcileBootTerminals(ctx); err != nil {
 			return fmt.Errorf("daemon: reconcile stale terminal windows: %w", err)

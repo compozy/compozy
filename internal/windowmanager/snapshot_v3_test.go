@@ -456,7 +456,8 @@ func TestReconcileTerminalWindows(t *testing.T) {
 		snapshot := reconcileSnapshotFixture(t)
 		dead := snapshot.Windows["knowledge"]
 		dead.App = "terminal"
-		dead.InstanceKey = new("dead")
+		dead.Route.Pathname = "/terminal/dead"
+		dead.InstanceKey = nil
 		snapshot.Windows[dead.ID] = dead
 		live := snapshot.Windows["settings"]
 		live.App = "terminal"
@@ -482,7 +483,12 @@ func TestReconcileTerminalWindows(t *testing.T) {
 		}
 		for _, entries := range [][]HistoryEntry{got.History.Undo, got.History.Redo} {
 			for _, entry := range entries {
-				if len(entry.Before.Windows) != 2 || len(entry.After.Windows) != 2 {
+				_, deadBefore := entry.Before.Windows[dead.ID]
+				_, deadAfter := entry.After.Windows[dead.ID]
+				_, liveBefore := entry.Before.Windows[live.ID]
+				_, liveAfter := entry.After.Windows[live.ID]
+				if deadBefore || deadAfter || !liveBefore || !liveAfter || len(entry.Before.Windows) != 2 ||
+					len(entry.After.Windows) != 2 {
 					t.Fatal("dead terminal in history")
 				}
 			}

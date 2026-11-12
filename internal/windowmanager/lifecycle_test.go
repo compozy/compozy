@@ -2682,3 +2682,60 @@ func TestWorkspaceBindingRetirement(t *testing.T) {
 		},
 	)
 }
+
+// Invariant: terminal retirement repairs client presentation without reversible close history.
+func TestTerminalRetirementClientRepair(t *testing.T) {
+	t.Parallel()
+	for _, zoom := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should repair focused terminal retirement with lifted zoom %t", zoom), func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
+			manager := environment.manager
+			openTestWindow(t, manager, "workspace-a", nil, "kept", "desktop-default")
+			client := ClientID("client-a")
+			registerTestClient(t, manager, "workspace-a", client)
+			executeTestCommand(
+				t,
+				manager,
+				"workspace-a",
+				&client,
+				OpenWindowCommand{
+					Window: WindowSpec{
+						ID:          "terminal",
+						App:         "terminal",
+						InstanceKey: new("dead"),
+						Route:       RouteIntent{Pathname: "/terminal/dead", Search: RouteSearch{}},
+					},
+				},
+			)
+			if zoom {
+				executeTestCommand(t, manager, "workspace-a", &client, ZoomWindowCommand{WindowID: "terminal"})
+			}
+			if err := manager.RetireTerminals(t.Context(), "workspace-a", map[string]bool{"dead": true}); err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			clients, err := manager.Clients(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(clients) != 1 || valueOrZero(clients[0].FocusedWindowID) != "kept" ||
+				slices.Contains(clients[0].FocusOrder, WindowID("terminal")) {
+				t.Fatalf("client presentation: %+v", clients)
+			}
+			if !slices.ContainsFunc(
+				snapshot.Desktops,
+				func(d Desktop) bool { return d.ID == clients[0].ActiveDesktopID },
+			) {
+				t.Fatal("active desktop was removed")
+			}
+			if len(snapshot.ClosedEntries) != 0 {
+				t.Fatal("retirement added reopen history")
+			}
+			requireValidSnapshot(t, snapshot)
+		})
+	}
+}

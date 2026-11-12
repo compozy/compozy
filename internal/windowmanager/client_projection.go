@@ -12,7 +12,8 @@ func (m *Manager) projectClientViews(
 	snapshot Snapshot,
 	request CommandRequest,
 ) (clientViewProjection, error) {
-	if request.ClientID == nil && request.Payload.CommandID() == CommandWindowNavigate {
+	_, terminalRetirement := request.Payload.(terminalRetirementCommand)
+	if request.ClientID == nil && request.Payload.CommandID() == CommandWindowNavigate && !terminalRetirement {
 		return clientViewProjection{}, nil
 	}
 	m.mu.Lock()

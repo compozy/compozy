@@ -1119,7 +1119,7 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 		fixture := newDaemonWindowManagerFixture(t)
 		ctx := t.Context()
 		for _, partition := range []windowmanager.WorkspaceID{windowmanager.WorkspaceID(fixture.workspace.ID), windowmanager.GlobalDesktopWorkspaceID, windowmanager.UserDesktopWorkspaceID} {
-			for _, app := range []string{"terminal", "settings"} {
+			for _, app := range []string{"terminal", "settings", "launcher"} {
 				snapshot, err := fixture.manager.Snapshot(ctx, partition)
 				if err != nil {
 					t.Fatal(err)
@@ -1128,6 +1128,10 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 				spec := windowmanager.WindowSpec{
 					App:   app,
 					Route: windowmanager.RouteIntent{Pathname: "/" + app, Search: windowmanager.RouteSearch{}},
+				}
+				if app == "launcher" {
+					spec.App = "terminal"
+					spec.Route.Pathname = "/terminal"
 				}
 				if app == "terminal" {
 					spec.InstanceKey = &id
@@ -1154,11 +1158,13 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(snapshot.Windows) != 1 {
+			if len(snapshot.Windows) != 2 {
 				t.Fatalf("persisted windows: %+v", snapshot.Windows)
 			}
 			for _, window := range snapshot.Windows {
-				if window.App != "settings" {
+				kept := window.App == "settings" ||
+					(window.App == "terminal" && window.InstanceKey == nil && window.Route.Pathname == "/terminal")
+				if !kept {
 					t.Fatal("stale terminal persisted")
 				}
 			}
@@ -1192,7 +1198,12 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		attachTerminalWindowBridge(terminals, fixture.registry, discardLogger())
+		worker := attachTerminalWindowBridge(ctx, terminals, fixture.registry, discardLogger())
+		t.Cleanup(func() {
+			if err := stopOwnedWorker(context.Background(), "test terminal windows", worker); err != nil {
+				t.Errorf("stop bridge: %v", err)
+			}
+		})
 		if err := terminals.Start(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -1250,6 +1261,20 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 			},
 		); err != nil {
 			t.Fatal(err)
+		}
+		origin := terminalpkg.Actor{
+			Kind:       terminalpkg.ActorKindAgent,
+			ID:         "test-agent",
+			ProfileID:  testWindowManagerProfileID,
+			SessionID:  "test-session",
+			RunID:      "test-run",
+			Generation: 1,
+		}
+		if changed := terminals.RunEnded(ctx, fixture.workspace.ID, origin); changed != 1 {
+			t.Fatalf("RunEnded = %d", changed)
+		}
+		if handle.Info().BoundRun != nil {
+			t.Fatal("terminal still bound to completed run")
 		}
 		if _, err := terminals.Close(
 			ctx,

@@ -103,9 +103,8 @@ func (s *session) finalize(exit Exit) {
 		if emitClosed {
 			s.manager.events.Notify(s.ctx, Event{
 				Kind: EventKindClosed, WorkspaceID: info.WS, ProfileID: info.ProfileID,
-				ProfileName: s.profileName,
-				TerminalID:  info.ID, Actor: actor, Info: &info, Exit: cloneExit(&exit), Reason: reason,
-				At: s.manager.now(),
+				ProfileName: s.profileName, TerminalID: info.ID, Actor: actor, Origin: s.origin,
+				Info: &info, Exit: cloneExit(&exit), Reason: reason, At: s.manager.now(),
 			})
 		}
 		s.releaseWorktree()
