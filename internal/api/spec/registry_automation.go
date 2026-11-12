@@ -224,14 +224,19 @@ func triggerAutomationJobOperationSpec() OperationSpec {
 		Path:        "/api/automation/jobs/{id}/trigger",
 		AppAccess:   AppAccessAllowed,
 		OperationID: "triggerAutomationJob",
-		Summary:     "Trigger one automation job immediately",
+		Summary:     "Start one automation job and return its admission receipt",
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("id", "Automation job id"),
+			boolQueryParam("wait", "Wait for completion (default false); execution continues after the wait ends"),
+			queryParam("timeout",
+				"Completion wait budget when wait=true (default 1m; positive duration up to 24h). "+
+					"On expiry returns the running admission receipt", false),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.RunResponse{}},
+			{Status: 200, Description: "Admitted run with id and running status, or final result when wait=true; " +
+				"task and Loop targets retain delegated status", Body: contract.RunResponse{}},
 			{
 				Status:      404,
 				Description: specAutomationJobNotFoundDescription,

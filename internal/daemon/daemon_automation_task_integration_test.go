@@ -473,3 +473,37 @@ func registerAutomationTaskArtifacts(
 		}
 	})
 }
+
+func TestDaemonE2EManualJobTriggerReturnsBeforeTurnCompletion(t *testing.T) {
+	t.Run("Should return a CLI admission receipt for a turn longer than the client timeout", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+		harness := startAutomationTaskHarness(t, mockFixturePath(t, "automation_task_fixture.json"))
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+		defer cancel()
+		job, err := harness.CreateAutomationJob(ctx, compozycontract.CreateJobRequest{
+			Scope: automationpkg.AutomationScopeWorkspace, WorkspaceID: harness.WorkspaceID,
+			Name: "long-manual-run", AgentName: automationTaskFixtureAgentName,
+			Prompt:   "Run the long manual automation.",
+			Schedule: automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "1h"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var receipt compozycontract.RunPayload
+		if err := harness.CLI.RunJSON(ctx, &receipt, "automation", "jobs", "trigger", job.ID, "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		if receipt.ID == "" || receipt.SessionID == "" || receipt.Status != automationpkg.RunRunning {
+			t.Fatalf("CLI admission receipt = %#v", receipt)
+		}
+		waitForRuntimeCondition(t, "long manual automation completion", 60*time.Second, func() bool {
+			run, err := harness.GetAutomationRun(ctx, receipt.ID)
+			return err == nil && run.Status == automationpkg.RunCompleted
+		})
+		run, err := harness.GetAutomationRun(ctx, receipt.ID)
+		if err != nil || run.SessionID != receipt.SessionID || run.EndedAt == nil {
+			t.Fatalf("completed run = %#v, %v", run, err)
+		}
+	})
+}

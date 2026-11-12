@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -31,7 +32,7 @@ type automationClientAPI interface {
 	GetAutomationJob(ctx context.Context, id string) (JobRecord, error)
 	UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error)
 	DeleteAutomationJob(ctx context.Context, id string) error
-	TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error)
+	TriggerAutomationJob(ctx context.Context, id string, waitTimeout ...time.Duration) (RunRecord, error)
 	AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) (AutomationRunListRecord, error)
 	ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error)

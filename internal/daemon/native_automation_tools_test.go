@@ -1718,3 +1718,53 @@ func requireNativeAutomationLastRun(t *testing.T, result toolspkg.ToolResult, fi
 		t.Fatalf("last run = %#v, want %s completed", actual.LastRun, id)
 	}
 }
+
+func TestNativeAutomationJobTriggerAdmission(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, input string
+		wait        time.Duration
+	}{
+		{name: "Should return admission by default", input: `{"job_id":"job-1"}`},
+		{
+			name:  "Should wait only with an explicit budget",
+			input: `{"job_id":"job-1","wait":true,"timeout":"2m"}`, wait: 2 * time.Minute,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			job := nativeAutomationJobFixture("job-1", automationpkg.JobSourceDynamic)
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Automation: apitest.StubAutomationManager{
+					GetJobFn: func(context.Context, string) (automationpkg.Job, error) { return job, nil },
+					StartJobFn: func(_ context.Context, id string, wait time.Duration) (automationpkg.Run, error) {
+						if id != job.ID || wait != tc.wait {
+							t.Fatalf("StartJob(%s, %s)", id, wait)
+						}
+						return automationpkg.Run{
+							ID: "run-admitted", JobID: job.ID, Status: automationpkg.RunRunning,
+						}, nil
+					},
+				},
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsTrigger, Input: json.RawMessage(tc.input),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Run struct {
+					ID     string `json:"id"`
+					Status string `json:"status"`
+				} `json:"run"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Run.ID != "run-admitted" || payload.Run.Status != "running" {
+				t.Fatalf("receipt = %#v", payload)
+			}
+		})
+	}
+}

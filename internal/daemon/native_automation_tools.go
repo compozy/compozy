@@ -179,7 +179,7 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input automationJobIDInput
+	var input automationJobTriggerInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -195,7 +195,11 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	run, err := n.automationManager().TriggerJob(ctx, job.ID)
+	waitTimeout, err := automationpkg.ParseJobWaitTimeout(input.Wait, input.Timeout)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
+	}
+	run, err := n.automationManager().StartJob(ctx, job.ID, waitTimeout)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}

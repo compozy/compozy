@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // Start synchronizes TOML definitions into persistence, loads effective
@@ -18,6 +19,9 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	if m.running {
 		return nil
+	}
+	if err := m.ensureShutdownCompleteLocked(); err != nil {
+		return err
 	}
 
 	syncStats, err := m.syncConfigDefinitions(ctx)
@@ -68,6 +72,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.running = true
 	m.runtimeCtx = runtimeCtx
 	m.runtimeCancel = runtimeCancel
+	m.manualRuns = &sync.WaitGroup{}
 	m.scheduler = scheduler
 	m.triggers = triggerEngine
 	m.lastSync = syncStats
@@ -93,11 +98,15 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 	m.mu.Lock()
 	if !m.running {
+		done := m.shutdownDone
 		m.mu.Unlock()
-		return nil
+		return waitForManualShutdown(ctx, done)
 	}
+	done := make(chan struct{})
+	m.shutdownDone = done
 
 	cancel := m.runtimeCancel
+	manualRuns := m.manualRuns
 	scheduler := m.scheduler
 	triggerEngine := m.triggers
 	m.running = false
@@ -122,7 +131,43 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			errs = append(errs, err)
 		}
 	}
+	go func() {
+		manualRuns.Wait()
+		close(done)
+	}()
+	if err := waitForManualShutdown(ctx, done); err != nil {
+		errs = append(errs, err)
+	}
 
 	m.logger.Info("automation.manager.shutdown")
 	return errors.Join(errs...)
+}
+
+func waitForManualShutdown(ctx context.Context, done <-chan struct{}) error {
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	default:
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *Manager) ensureShutdownCompleteLocked() error {
+	if m.shutdownDone == nil {
+		return nil
+	}
+	select {
+	case <-m.shutdownDone:
+		return nil
+	default:
+		return fmt.Errorf("%w: shutdown is still in progress", ErrManagerNotRunning)
+	}
 }

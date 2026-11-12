@@ -13,6 +13,12 @@ type automationJobIDInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 }
 
+type automationJobTriggerInput struct {
+	automationJobIDInput
+	Wait    bool   `json:"wait,omitempty"`
+	Timeout string `json:"timeout,omitempty"`
+}
+
 type automationTriggerIDInput struct {
 	TriggerID   string `json:"trigger_id"`
 	WorkspaceID string `json:"workspace,omitempty"`

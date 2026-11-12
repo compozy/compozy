@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"strings"
+	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/spf13/cobra"
@@ -304,23 +305,40 @@ func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAutomationJobsTriggerCommand(deps commandDeps) *cobra.Command {
+	var wait bool
+	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "trigger <id>",
 		Short: "Force an immediate automation job run",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("timeout") && !wait {
+				return errors.New("--timeout requires --wait")
+			}
+			var waitTimeout []time.Duration
+			if wait {
+				if _, err := automationpkg.ParseJobWaitTimeout(true, timeout.String()); err != nil {
+					return err
+				}
+				waitTimeout = append(waitTimeout, timeout)
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
-			run, err := client.TriggerAutomationJob(cmd.Context(), args[0])
+			run, err := client.TriggerAutomationJob(cmd.Context(), args[0], waitTimeout...)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, automationRunBundle(run))
 		},
 	}
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for the run to finish")
+	cmd.Flags().DurationVar(
+		&timeout, "timeout", automationpkg.DefaultJobWaitTimeout,
+		"Completion wait budget with --wait (up to 24h; expiry returns the running receipt)",
+	)
 	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }

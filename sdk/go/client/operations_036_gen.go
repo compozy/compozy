@@ -5,6 +5,7 @@ package client
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -30,14 +31,22 @@ func (c *Client) TerminateSessionProcesses(ctx context.Context, params Terminate
 // TriggerAutomationJobParams carries the path, query, and header parameters.
 type TriggerAutomationJobParams struct {
 	ID      string  `url:"id"`
+	Wait    *bool   `url:"wait"`
+	Timeout *string `url:"timeout"`
 	Profile *string `url:"profile"`
 }
 
-// TriggerAutomationJob Trigger one automation job immediately
+// TriggerAutomationJob Start one automation job and return its admission receipt
 func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
 	path := "/api/automation/jobs/{id}/trigger"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
 	query := url.Values{}
+	if params.Wait != nil {
+		query.Set("wait", strconv.FormatBool(*params.Wait))
+	}
+	if params.Timeout != nil {
+		query.Set("timeout", *params.Timeout)
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
@@ -430,15 +439,4 @@ func (c *Client) UpdateMarketplaceSource(ctx context.Context, params UpdateMarke
 // UpdateProfileParams carries the path, query, and header parameters.
 type UpdateProfileParams struct {
 	Name string `url:"name"`
-}
-
-// UpdateProfile Update profile identity
-func (c *Client) UpdateProfile(ctx context.Context, params UpdateProfileParams, body UpdateProfileRequest) (*Profile, error) {
-	path := "/api/profiles/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out Profile
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

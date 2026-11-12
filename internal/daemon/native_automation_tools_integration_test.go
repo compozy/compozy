@@ -327,7 +327,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsTrigger,
-				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
+				Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"wait":true}`, jobID)),
 			},
 		)
 		if err != nil {

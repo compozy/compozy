@@ -852,6 +852,11 @@ later invocations.
 
 Automations (jobs and triggers): the Web UI shows both in one Automations window — a job is a
 scheduled automation, a trigger an automation on an event, a webhook trigger a link automation.
+Manual `compozy__automation_jobs_trigger` calls return the run id and `running` status after prompt
+admission. Completion waiting is opt-in with `wait: true` and `timeout` (default `1m`, maximum `24h`).
+An expired wait returns the running receipt without canceling execution. Read `compozy__automation_runs_get`
+for current state. Task and Loop targets retain their `delegated` receipts. CLI uses `--wait --timeout`;
+HTTP/UDS uses `?wait=true&timeout=5m` on the existing trigger route.
 Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automations` to them.
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`

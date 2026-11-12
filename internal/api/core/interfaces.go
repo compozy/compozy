@@ -256,7 +256,7 @@ type AutomationManager interface {
 	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	DeleteJob(ctx context.Context, id string) error
-	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	StartJob(ctx context.Context, id string, waitTimeout time.Duration) (automationpkg.Run, error)
 	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
 	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)

@@ -906,7 +906,7 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		deleteAutomationJobFn: func(context.Context, string) error {
 			return nil
 		},
-		triggerAutomationJobFn: func(context.Context, string) (RunRecord, error) {
+		triggerAutomationJobFn: func(context.Context, string, ...time.Duration) (RunRecord, error) {
 			return sampleAutomationRunRecord(), nil
 		},
 		automationJobRunsFn: func(_ context.Context, _ string, query AutomationRunQuery) (AutomationRunListRecord, error) {
@@ -1637,4 +1637,62 @@ func TestAutomationInstanceTargets(t *testing.T) {
 			t.Fatalf("instance target error must not name --agent: %v", err)
 		}
 	})
+}
+
+func TestAutomationJobTriggerWaitFlags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		flags   []string
+		wait    time.Duration
+		wantErr string
+	}{
+		{name: "Should return admission without waiting"},
+		{name: "Should pass the default completion budget", flags: []string{"--wait"}, wait: time.Minute},
+		{
+			name:  "Should pass an explicit completion budget",
+			flags: []string{"--wait", "--timeout", "2m"}, wait: 2 * time.Minute,
+		},
+		{
+			name:  "Should reject timeout without wait",
+			flags: []string{"--timeout", "2m"}, wantErr: "--timeout requires --wait",
+		},
+		{
+			name:  "Should reject an unbounded wait",
+			flags: []string{"--wait", "--timeout", "0s"}, wantErr: "positive duration",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			deps := newDefaultProfileTestDeps(t, &stubClient{
+				triggerAutomationJobFn: func(_ context.Context, id string, timeout ...time.Duration) (RunRecord, error) {
+					called = true
+					if id != "job-1" || (tc.wait == 0 && len(timeout) != 0) ||
+						(tc.wait != 0 && (len(timeout) != 1 || timeout[0] != tc.wait)) {
+						t.Fatalf("trigger(%s, %v)", id, timeout)
+					}
+					return RunRecord{ID: "run-1", Status: automationpkg.RunRunning}, nil
+				},
+			})
+			args := append([]string{"automation", "jobs", "trigger", "job-1", "-o", "json"}, tc.flags...)
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || called {
+					t.Fatalf("trigger output=%s error=%v called=%v", stdout, err, called)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var receipt RunRecord
+			if err := json.Unmarshal([]byte(stdout), &receipt); err != nil {
+				t.Fatal(err)
+			}
+			if !called || receipt.ID != "run-1" || receipt.Status != automationpkg.RunRunning {
+				t.Fatalf("receipt=%#v called=%v", receipt, called)
+			}
+		})
+	}
 }

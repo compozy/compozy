@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -314,7 +315,17 @@ func (h *BaseHandlers) TriggerAutomationJob(c *gin.Context) {
 		return
 	}
 
-	run, err := manager.TriggerJob(c.Request.Context(), job.ID)
+	wait, err := strconv.ParseBool(c.DefaultQuery("wait", "false"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(errors.New("wait must be a boolean")))
+		return
+	}
+	waitTimeout, err := automationpkg.ParseJobWaitTimeout(wait, c.Query("timeout"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		return
+	}
+	run, err := manager.StartJob(c.Request.Context(), job.ID, waitTimeout)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return

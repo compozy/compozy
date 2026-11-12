@@ -1088,7 +1088,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Trigger one automation job immediately */
+    /** Start one automation job and return its admission receipt */
     post: operations["triggerAutomationJob"];
     delete?: never;
     options?: never;
@@ -29447,6 +29447,10 @@ export interface operations {
   triggerAutomationJob: {
     parameters: {
       query?: {
+        /** @description Wait for completion (default false); execution continues after the wait ends */
+        wait?: boolean;
+        /** @description Completion wait budget when wait=true (default 1m; positive duration up to 24h). On expiry returns the running admission receipt */
+        timeout?: string;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -29459,7 +29463,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
+      /** @description Admitted run with id and running status, or final result when wait=true; task and Loop targets retain delegated status */
       200: {
         headers: {
           [name: string]: unknown;

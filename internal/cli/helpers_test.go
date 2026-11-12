@@ -361,7 +361,7 @@ type stubClient struct {
 	getAutomationJobFn        func(context.Context, string) (JobRecord, error)
 	updateAutomationJobFn     func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
 	deleteAutomationJobFn     func(context.Context, string) error
-	triggerAutomationJobFn    func(context.Context, string) (RunRecord, error)
+	triggerAutomationJobFn    func(context.Context, string, ...time.Duration) (RunRecord, error)
 	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error)
 	listAutomationTriggersFn  func(context.Context, AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	createAutomationTriggerFn func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
@@ -2860,9 +2860,9 @@ func (s *stubClient) DeleteAutomationJob(ctx context.Context, id string) error {
 	return errors.New("unexpected DeleteAutomationJob call")
 }
 
-func (s *stubClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+func (s *stubClient) TriggerAutomationJob(ctx context.Context, id string, timeout ...time.Duration) (RunRecord, error) {
 	if s.triggerAutomationJobFn != nil {
-		return s.triggerAutomationJobFn(ctx, id)
+		return s.triggerAutomationJobFn(ctx, id, timeout...)
 	}
 	return RunRecord{}, errors.New("unexpected TriggerAutomationJob call")
 }
