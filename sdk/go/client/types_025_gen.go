@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// SuggestionSource is a daemon API value.
+type SuggestionSource string
+
+// SuggestionStatus is a daemon API value.
+type SuggestionStatus string
+
+// SupervisionState is a daemon API value.
+type SupervisionState struct {
+	WorkSignals  []WorkSignal        `json:"work_signals"`
+	Sources      []SignalSourceState `json:"sources"`
+	QuietWarning *QuietWarning       `json:"quiet_warning"`
+}
+
 // SupportBundleManifestArtifactPayload is a daemon API value.
 type SupportBundleManifestArtifactPayload struct {
 	Path             string `json:"path"`
@@ -432,11 +445,3 @@ type TaskInboxItemPayload struct {
 
 // TaskInboxLane is a daemon API value.
 type TaskInboxLane string
-
-// TaskInboxLaneGroupPayload is a daemon API value.
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
-}

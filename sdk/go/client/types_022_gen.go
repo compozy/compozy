@@ -441,17 +441,3 @@ type SettingsSkillSourceInheritancePayload struct {
 	Sources       bool `json:"sources"`
 	CustomSources bool `json:"custom_sources"`
 }
-
-// SettingsSkillSourcePayload is a daemon API value.
-type SettingsSkillSourcePayload struct {
-	Slug          string                           `json:"slug"`
-	Label         string                           `json:"label"`
-	Kind          string                           `json:"kind"`
-	Enabled       bool                             `json:"enabled"`
-	AlwaysOn      bool                             `json:"always_on"`
-	Default       bool                             `json:"default,omitzero"`
-	WorkspacePath string                           `json:"workspace_path,omitempty"`
-	GlobalPath    string                           `json:"global_path,omitempty"`
-	Path          string                           `json:"path,omitempty"`
-	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
-}

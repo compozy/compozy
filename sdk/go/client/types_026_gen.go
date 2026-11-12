@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// TaskInboxLaneGroupPayload is a daemon API value.
+type TaskInboxLaneGroupPayload struct {
+	Lane        TaskInboxLane          `json:"lane"`
+	Count       int                    `json:"count"`
+	UnreadCount int                    `json:"unread_count"`
+	Items       []TaskInboxItemPayload `json:"items,omitempty"`
+}
+
 // TaskInboxPayload is a daemon API value.
 type TaskInboxPayload struct {
 	UnreadTotal   int                         `json:"unread_total"`

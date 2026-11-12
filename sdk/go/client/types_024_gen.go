@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
 // SkillExposureRequest is a daemon API value.
 type SkillExposureRequest struct {
 	Targets     []string `json:"targets"`
@@ -433,17 +447,4 @@ type SubprocessHealthSessionPayload struct {
 	ConsecutiveFailures int        `json:"consecutive_failures"`
 	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
 	Reason              string     `json:"reason,omitempty"`
-}
-
-// SuggestionSource is a daemon API value.
-type SuggestionSource string
-
-// SuggestionStatus is a daemon API value.
-type SuggestionStatus string
-
-// SupervisionState is a daemon API value.
-type SupervisionState struct {
-	WorkSignals  []WorkSignal        `json:"work_signals"`
-	Sources      []SignalSourceState `json:"sources"`
-	QuietWarning *QuietWarning       `json:"quiet_warning"`
 }
