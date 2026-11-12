@@ -209,7 +209,10 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		{
 			"exec",
 			newTerminalExecCommand(deps),
-			[]string{"exec", "--workspace", "workspace-a", "--yield", "250ms", "printf", "ok"},
+			[]string{
+				"exec", "--workspace", "workspace-a", "--yield", "250ms",
+				"--worktree", "wt-ready", "printf", "ok",
+			},
 			"",
 			"ok",
 		},
@@ -303,6 +306,7 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		}
 	})
 	if client.exec.Workspace != "workspace-a" || client.exec.Request.YieldMs != 250 ||
+		client.exec.Request.Worktree != "wt-ready" ||
 		client.signal != "TERM" || !client.inputAllProfiles || !client.journalAllProfiles ||
 		client.journal.Limit != 25 || client.rejected != "input-a" || client.recordAction != "start" ||
 		client.readOptions.FromLine != 0 || client.readOptions.ToLine != 2 {

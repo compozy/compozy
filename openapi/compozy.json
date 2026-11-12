@@ -41141,6 +41141,9 @@
           "visible": {
             "type": "boolean"
           },
+          "worktree": {
+            "type": "string"
+          },
           "yield_ms": {
             "type": "integer"
           }

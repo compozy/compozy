@@ -19742,6 +19742,7 @@ export interface components {
       };
       output?: components["schemas"]["TerminalOutputShape"];
       visible?: boolean;
+      worktree?: string;
       yield_ms?: number;
     };
     TerminalExecResponse: {

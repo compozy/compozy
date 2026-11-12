@@ -396,6 +396,12 @@ This focused runtime check does not replace the live-provider and Web journeys a
 Execution evidence: CI owns validation for this change; local runtime QA is prohibited
 by the parallel-delivery operator constraint.
 
+CI integration repair 2026-11-12 (#1565): start the MCP declaration watcher only after
+the proactive check service is published and its recovery bindings are installed. The
+Linux race lane observed watcher polling concurrent with bootProactiveChecks publication.
+The existing real daemon boot suite and declaration/recovery suites own verification;
+local execution is forbidden for this parallel dispatch.
+
 ## Manual wake after repository policy edits
 
 1. Create a valid `HEARTBEAT.md` directly beside an agent definition without using authoring mutations.
@@ -406,3 +412,10 @@ by the parallel-delivery operator constraint.
 6. Pass an unknown `source`; expect validation failure naming `timer`, `instance_check`, `scheduler`, `manual`, and `harness_reentry`. Tool discovery declares these enum values.
 
 CI coverage: `TestManagedHeartbeatDiskWake` in `internal/heartbeat/authoring_status_test.go` uses real filesystem and SQLite persistence. Local execution is deferred under the CI-only operator rule.
+
+CI integration repair 2026-11-12 (#1565): register a workspace while declaration
+watchers refresh resource-backed hook bindings. Both publications must succeed,
+retain one resource per binding, and leave unchanged bindings at their original
+version. `TestNewHookBindingPublisherUsesResourceBackedSync` covers concurrent
+publication with real SQLite; `TestInstanceRunningCheckPauseIntegration` covers
+workspace registration during real daemon startup. CI is the only execution gate.

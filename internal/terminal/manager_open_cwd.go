@@ -11,11 +11,6 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func (m *Service) resolveActorWorkspace(ctx context.Context, ws, cwd string, actor Actor) (string, string, error) {
-	cwd, workspaceID, _, err := m.resolveOpenWorkspace(ctx, ws, "", cwd, actor.ProfileID, &actor)
-	return cwd, workspaceID, err
-}
-
 // resolveOpenWorkspace returns the launch cwd, the canonical workspace ID, and the
 // usage release of a requested worktree (nil without one).
 func (m *Service) resolveOpenWorkspace(
@@ -169,10 +164,14 @@ func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested st
 		}
 	}
 	return "", &Error{
-		Code:    ErrorCodeInvalidCwd,
-		Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace", displayPath),
-		Path:    displayPath,
-		Err:     ErrInvalidCwd,
+		Code: ErrorCodeInvalidCwd,
+		Message: fmt.Sprintf(
+			"invalid terminal cwd %q: outside workspace; choose a cwd inside the current root, "+
+				"or use the worktree option from an unbound session to select a managed worktree in this project and profile",
+			displayPath,
+		),
+		Path: displayPath,
+		Err:  ErrInvalidCwd,
 	}
 }
 
