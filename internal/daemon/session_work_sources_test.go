@@ -154,6 +154,59 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 		}
 	})
 
+	for _, delivering := range []bool{false, true} {
+		name := "Should retain coverage after the monitor wake is admitted"
+		if delivering {
+			name = "Should retain coverage while the monitor wake is delivering"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				now := time.Now()
+				child := &session.Info{ID: "child", WorkspaceID: "ws", ProfileID: store.DefaultProfileID,
+					State: session.StateActive, EndedEarlyTurnID: "turn-1", AttentionChangedAt: &now}
+				targets := &monitorTargetManagerStub{reads: map[string]int{}, infos: map[string]*session.Info{"child": child}}
+				wakeManager := &monitorWakeManagerStub{status: &session.Info{State: session.StateActive}}
+				var waker monitor.Waker = &monitorSessionWaker{sessions: func() monitorSessionManager { return wakeManager }}
+				wantStatus := monitor.StatusFired
+				if delivering {
+					waker, wantStatus = retryMonitorWaker{}, monitor.StatusDelivering
+				}
+				service, err := monitor.NewService(t.Context(), nil, waker,
+					monitor.WithSessionTargets(monitorSessionTargets{sessions: func() any { return targets }}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := service.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				if _, err := service.Create(t.Context(), monitor.Spec{
+					WorkspaceID: "ws", ProfileID: store.DefaultProfileID, SessionID: "creator",
+					Kind: monitor.KindSession, Description: "child attention", Targets: []string{"child"},
+					States: []string{monitor.TargetStateNeedsAttention},
+				}); err != nil {
+					t.Fatal(err)
+				}
+				synctest.Wait()
+				items := service.List("creator")
+				if len(items) != 1 || items[0].Status != wantStatus {
+					t.Fatalf("monitors = %#v, want %s", items, wantStatus)
+				}
+				sources := sessionWorkSources{state: &bootState{sessionMonitors: service}}
+				if !sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
+					t.Fatal("a monitor that already observed the attention edge did not cover it")
+				}
+				newer := *child
+				newer.AttentionChangedAt = new(now.Add(time.Second))
+				if sources.creatorMonitorCovers("creator", &newer, session.BadgeNeedsAttention) {
+					t.Fatal("a previous monitor outcome covered a newer child attention occurrence")
+				}
+			})
+		})
+	}
+
 	t.Run("Should project only the owning session live monitors without renewing their deadline", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)

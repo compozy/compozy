@@ -33,6 +33,8 @@ const (
 )
 
 var (
+	errSpawnWakeStale  = errors.New("session: stale early-stop wake")
+	errSpawnWakeLookup = errors.New("session: early-stop wake lookup can be retried")
 	// ErrSpawnWakeValidation reports structurally invalid child wake input.
 	ErrSpawnWakeValidation = errors.New("session: spawn wake validation failed")
 	// ErrSpawnWakeSessionNotLive reports that the creator cannot accept a wake prompt.
@@ -258,25 +260,31 @@ func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta 
 	}
 	var info *Info
 	if child, ok := m.Get(meta.ChildSessionID); ok {
-		if child.IsPrompting() {
-			return errors.New("session: stale early-stop wake: child started a newer turn")
+		child.mu.RLock()
+		info = child.infoLocked()
+		currentTurnID := child.currentTurnID
+		child.mu.RUnlock()
+		if currentTurnID != "" && currentTurnID != info.EndedEarlyTurnID {
+			return fmt.Errorf("%w: child started a newer turn", errSpawnWakeStale)
 		}
-		info = child.Info()
 	} else {
 		if m.sessionCatalog == nil {
-			return ErrSessionNotFound
+			return fmt.Errorf("%w: session catalog unavailable", errSpawnWakeLookup)
 		}
 		var err error
 		info, err = m.durableSessionInfoForLifecycleTransition(ctx, meta.ChildSessionID)
+		if errors.Is(err, ErrSessionNotFound) {
+			return fmt.Errorf("%w: child no longer exists", errSpawnWakeStale)
+		}
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %w", errSpawnWakeLookup, err)
 		}
 	}
 	if !EndedEarlyAttention(info, BadgeForInfo(info)) ||
 		store.NormalizeSessionLineage(info.ID, info.Lineage).ParentSessionID != creatorID ||
 		spawnWakeEventID(info, SpawnWakeReasonNeedsAttention) != meta.WakeEventID ||
 		m.spawnWakeCovered(creatorID, info, BadgeNeedsAttention) {
-		return errors.New("session: stale early-stop wake: child attention changed or a session monitor covers it")
+		return fmt.Errorf("%w: child attention changed or a session monitor covers it", errSpawnWakeStale)
 	}
 	return nil
 }

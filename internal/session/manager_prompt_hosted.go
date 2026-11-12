@@ -46,7 +46,11 @@ func (m *Manager) startHostedPromptRun(
 		return nil, err
 	}
 	state.recovery.request = clonePromptRecoveryRequest(request)
-	source, err := m.driver.Prompt(ctx, process, request)
+	var source <-chan acp.AgentEvent
+	err := m.validateSpawnWake(ctx, session.ID, request.Meta.Synthetic)
+	if err == nil {
+		source, err = m.driver.Prompt(ctx, process, request)
+	}
 	if err != nil {
 		err = errors.Join(err, m.failDispatchedReports(ctx, session, state))
 		m.clearActivePromptRunForState(session, state)

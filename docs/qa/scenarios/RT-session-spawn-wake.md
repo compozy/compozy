@@ -249,3 +249,10 @@ turn, then release the parent: the old alarm must be marked stale/failed before 
 The current revision's alarm must still run. Owning regressions extend
 `TestManagerEarlyStopSupervision`, `TestSessionWorkSourcesMonitors`, and `TestSessionWakeBridge`.
 Validation is CI-only by operator instruction; no local tests, lint, builds or live QA were run.
+
+Review-round coverage for #1566: deliver the alarm synchronously while the child's settling
+turn is still registered and its creator is idle; that current-turn alarm must reach the
+provider. Advance the child from an input hook, prompt augmenter and turn-start hook in turn;
+final provider dispatch must discard each old alarm. A transient durable child lookup returns
+the input to the queue for retry; intentional stale drops retain an explicit suppression reason.
+The same suites cover admitted and retrying monitor outcomes against newer attention timestamps.
