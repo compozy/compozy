@@ -12,15 +12,13 @@ import {
   Eyebrow,
   Icon,
   SearchInput,
+  TreeBranch,
+  TreeBranchNode,
   type TopbarSlotValue,
 } from "@compozy/ui";
 
 import { SessionViewToggle } from "@/systems/session/components/session-board/session-view-toggle";
 import { SessionListBranch } from "@/systems/session/components/session-list/session-list-branch";
-import {
-  BRANCH_NODE,
-  BRANCH_RAIL,
-} from "@/systems/session/components/session-list/session-list-branch-rail";
 import { SessionListBranchToggle } from "@/systems/session/components/session-list/session-list-branch-toggle";
 import { SessionListGroupToggle } from "@/systems/session/components/session-list/session-list-group-toggle";
 import { SessionListRowView } from "@/systems/session/components/session-list/session-list-row-view";
@@ -135,13 +133,13 @@ function RailThread({
       <div id={branchId}>
         <SessionListBranch
           render={() => (
-            <div className={BRANCH_RAIL}>
+            <TreeBranch>
               {childIds.map(child => (
-                <div className={BRANCH_NODE} key={child}>
+                <TreeBranchNode key={child}>
                   <RailRow badge={badges} current={child === currentRow} id={child} />
-                </div>
+                </TreeBranchNode>
               ))}
-            </div>
+            </TreeBranch>
           )}
           segment={open ? "children" : null}
         />

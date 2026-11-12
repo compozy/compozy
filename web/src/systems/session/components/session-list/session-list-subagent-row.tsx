@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 
-import { StateGlyph, cn } from "@compozy/ui";
+import { StateGlyph, TreeBranchNode, cn } from "@compozy/ui";
 
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
@@ -10,7 +10,6 @@ import { SubagentElapsed } from "../subagents/subagent-elapsed";
 import { subagentDisplay, type SubagentDisplay } from "../subagents/subagent-format";
 import { subagentRuntimeWords } from "../subagents/subagent-row-format";
 import type { SubagentView } from "../subagents/types";
-import { BRANCH_NODE } from "./session-list-branch-rail";
 import { SessionListAgentMark } from "./session-list-agent-mark";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SESSION_ROW_MARK_TOOLTIP_DELAY, SUBAGENT_ROW_FRAME } from "./session-list-row-frame";
@@ -55,8 +54,7 @@ export function SessionListSubagentRow({
   const rowClass = cn(SUBAGENT_ROW_FRAME, (current || selected) && "bg-selected");
 
   return (
-    <div
-      className={BRANCH_NODE}
+    <TreeBranchNode
       data-slot="session-subagent-row"
       data-status={subagent.status}
       data-state={display.glyph}
@@ -81,7 +79,7 @@ export function SessionListSubagentRow({
           <span className="sr-only">{word}</span>
         </div>
       )}
-    </div>
+    </TreeBranchNode>
   );
 }
 

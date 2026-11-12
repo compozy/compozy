@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 
+import { TreeBranch } from "@compozy/ui";
+
 import { isNeedsYouBadge } from "../../lib/session-badge";
 import type { SessionPayload } from "../../types";
-import { BRANCH_RAIL } from "./session-list-branch-rail";
 import { SessionListBranchMore } from "./session-list-branch-more";
 
 /** The child rows an open branch shows before "Show N more". */
@@ -63,7 +64,7 @@ export function SessionListChildBranch({
   };
 
   return (
-    <div className={BRANCH_RAIL}>
+    <TreeBranch>
       {shown.map(child => childRow(child))}
       {hidden > 0 || foldable ? (
         <SessionListBranchMore
@@ -73,6 +74,6 @@ export function SessionListChildBranch({
           testId={`${testIdPrefix}-children-more-${sessionId}`}
         />
       ) : null}
-    </div>
+    </TreeBranch>
   );
 }

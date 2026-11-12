@@ -1,6 +1,6 @@
 import { use, type MouseEvent } from "react";
 import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
-import { Button, cn } from "@compozy/ui";
+import { Button, TreeBranchNode } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { subagentNavigationTarget } from "../../lib/subagent-navigation";
@@ -8,7 +8,6 @@ import { SUBAGENT_BRANCH_PAGE_SIZE } from "../../lib/subagent-query-options";
 import type { SessionListTarget } from "../../types";
 import { sortSubagentsByUrgency } from "../subagents/subagent-format";
 import type { SubagentView } from "../subagents/types";
-import { BRANCH_NODE } from "./session-list-branch-rail";
 import { SessionListBranchMore } from "./session-list-branch-more";
 import { SessionSubagentRowsSkeleton } from "./session-list-skeleton";
 import { SessionListSubagentRow } from "./session-list-subagent-row";
@@ -83,12 +82,12 @@ export function SessionListSubagentBranch({
         ))
       )}
       {branch.failed ? (
-        <div className={cn(BRANCH_NODE, "flex items-center gap-2 px-2 py-1.5")}>
+        <TreeBranchNode className="flex items-center gap-2 px-2 py-1.5">
           <span className="text-transcript-caption text-subtle">Couldn't load subagents.</span>
           <Button type="button" variant="ghost" size="xs" onClick={branch.retry}>
             Try again
           </Button>
-        </div>
+        </TreeBranchNode>
       ) : branch.loading ? null : (
         <SessionListBranchMore
           count={Math.min(SUBAGENT_BRANCH_PAGE_SIZE, branch.remaining)}

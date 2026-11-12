@@ -1,6 +1,5 @@
-import { Button, cn } from "@compozy/ui";
+import { Button, TreeBranchNode } from "@compozy/ui";
 
-import { BRANCH_NODE } from "./session-list-branch-rail";
 
 export interface SessionListBranchMoreProps {
   /** Rows the next press reveals; 0 once every row shows. */
@@ -27,7 +26,7 @@ export function SessionListBranchMore({
 }: SessionListBranchMoreProps) {
   if (count <= 0 && !onShowLess) return null;
   return (
-    <div className={cn(BRANCH_NODE, "px-0.5 py-0.5")}>
+    <TreeBranchNode className="px-0.5 py-0.5">
       <Button
         type="button"
         variant="ghost"
@@ -38,6 +37,6 @@ export function SessionListBranchMore({
       >
         {count > 0 ? `Show ${count} more` : "Show less"}
       </Button>
-    </div>
+    </TreeBranchNode>
   );
 }
