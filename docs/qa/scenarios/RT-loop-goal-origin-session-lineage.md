@@ -48,7 +48,9 @@ sessions. Verdict: pass.
 Issue #756 update: verdict-only system judges are omitted from default catalogs; inspect them with explicit `--type system` / `type=system` when walking the historical lineage assertions above. New judges use their bound Goal session as informational parent/root provenance. They grant no spawn governance, remain auditable after completion, and are not deleted or archived by this change. Local real-ACP and SQLite owning suites verify shutdown/filtering; full live-provider lab walks remain CI-owned for this assignment.
 
 Cancellation delivery regression #1544: in the managed Goal integration's cancel-after-materialization
-case, stop the fixture's background relay before creating the session. After the creation attempt
+case, stop the fixture's background relay before creating the session. Deliver and acknowledge the
+fixture task run's independent cleanup first, then verify the unsettled Goal cleanup is still hidden.
+After the creation attempt
 settles, require that session's cleanup obligation to be deliverable, then observe the test relay's
 successful acknowledgement of that exact obligation and read back an empty pending queue.
 CI owns execution of this regression; no local runtime or scenario walk was run for this change.

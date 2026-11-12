@@ -1162,6 +1162,30 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if !ok {
 			t.Fatalf("goal store = %T, want goalSessionOutboxStore", fixture.goalStore)
 		}
+		acknowledged := make(chan string, 1)
+		recordingStore := &recordingGoalCleanupStore{loopSessionCleanupStore: cleanupStore, acknowledged: acknowledged}
+		relay := &goalSessionOutboxRelay{
+			store: outboxStore, appender: fixture.manager,
+			cleanupStore: recordingStore, stopper: fixture.manager, now: time.Now,
+		}
+		pendingTaskCleanup, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil || len(pendingTaskCleanup) != 1 ||
+			pendingTaskCleanup[0].SourceKind != looppkg.SessionCleanupSourceTaskRun ||
+			pendingTaskCleanup[0].SourceID != fixture.taskRunID ||
+			pendingTaskCleanup[0].SessionID == createdSessionID {
+			t.Fatalf("pending task cleanup = %#v, %v, want only the fixture task run", pendingTaskCleanup, err)
+		}
+		if err := relay.DeliverPending(ctx); err != nil {
+			t.Fatalf("DeliverPending(task run) error = %v", err)
+		}
+		select {
+		case cleanupID := <-acknowledged:
+			if cleanupID != pendingTaskCleanup[0].CleanupID {
+				t.Fatalf("acknowledged task cleanup = %q, want %q", cleanupID, pendingTaskCleanup[0].CleanupID)
+			}
+		default:
+			t.Fatal("test relay did not acknowledge the fixture task cleanup")
+		}
 		if pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10); err != nil {
 			t.Fatalf("ClaimLoopSessionCleanup(unsettled) error = %v", err)
 		} else if len(pending) != 0 {
@@ -1185,12 +1209,6 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil || len(pending) != 1 || pending[0].SessionID != createdSessionID {
 			t.Fatalf("settled cleanup = %#v, %v, want created session obligation", pending, err)
-		}
-		acknowledged := make(chan string, 1)
-		recordingStore := &recordingGoalCleanupStore{loopSessionCleanupStore: cleanupStore, acknowledged: acknowledged}
-		relay := &goalSessionOutboxRelay{
-			store: outboxStore, appender: fixture.manager,
-			cleanupStore: recordingStore, stopper: fixture.manager, now: time.Now,
 		}
 		if err := relay.DeliverPending(ctx); err != nil {
 			t.Fatalf("DeliverPending() error = %v", err)
