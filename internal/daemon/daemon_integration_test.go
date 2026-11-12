@@ -1962,6 +1962,9 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 			t.Parallel()
 			homePaths := integrationHomePaths(t)
 			cfg := testConfig(t, homePaths)
+			if recovering {
+				cfg.Daemon.ShutdownGrace = time.Millisecond
+			}
 			command := daemonSessionStopHelperCommand(t)
 			cfg.Defaults.Provider = acpmock.ProviderName
 			cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)

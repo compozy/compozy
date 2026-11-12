@@ -10,7 +10,7 @@ qa_status: partial
 bug_ids:
 fix_status:
 retest_status: pending
-fix_commits: a4d7d1abff9175200bf757dde5fdffe590d25cf6; 76d08f05f7b05f5d5ea5b52f52531a82caa14542; 84874c0f5
+fix_commits: 84874c0f5
 evidence: docs/qa/evidence/2026-11-12-issue-1557-recovery.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
 last_report: docs/qa/reports/2026-11-12-issue-1557-recovery-model-list.md
 overlaps: RT-provider-error-handoff; RT-session-fallback-chain
