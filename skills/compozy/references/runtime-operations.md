@@ -2080,8 +2080,10 @@ provider session, when the rules or roster change, and after a completed provide
 opening tag then carries `compaction="<n>"`) until a turn delivers it. Other turns carry a one-line
 marker stating that the earlier block is still current, so the standing rules never depend on a
 compaction summary. An agent with no rules and no peers receives a block saying none are in force,
-which also withdraws rules removed mid-session. A failed roster read keeps the last roster; rules
-that cannot be read are reported in the block instead of dropping it. Rotation starts a new provider session and
+which also withdraws rules removed mid-session. A failed roster read keeps the last roster, or says
+the roster could not be read when there is none; rules that cannot be read are reported in the block
+instead of dropping it. On a turn sent by another agent the block stays above the sender's
+attribution header, and the same tag inside the sender's text is neutralized. Rotation starts a new provider session and
 therefore delivers the full block again.
 
 ## Daemon profiles (experimental)

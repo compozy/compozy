@@ -848,30 +848,38 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 			ID: "sess-lead", InstanceID: "lead-instance", AgentName: "lead",
 			ProfileID: store.DefaultProfileID, WorkspaceID: "allowed",
 		}
-		peers, more := standing.peers(t.Context(), info, "")
+		peers, more, _ := standing.peers(t.Context(), info, "")
 		if more || len(peers) != 1 || peers[0].Name != "writer" || peers[0].Accepts[0] != "intake: <text>" {
 			t.Fatalf("roster = %+v more=%t", peers, more)
 		}
 		admit("allowed", "cleaner")
 		firstReads := reads
-		if peers, _ = standing.peers(t.Context(), info, ""); len(peers) != 1 || reads != firstReads {
+		if peers, _, _ = standing.peers(t.Context(), info, ""); len(peers) != 1 || reads != firstReads {
 			t.Fatalf("cached roster = %+v reads=%d->%d", peers, firstReads, reads)
 		}
 		now = now.Add(standingRosterTTL)
-		if peers, _ = standing.peers(t.Context(), info, ""); len(peers) != 2 {
+		if peers, _, _ = standing.peers(t.Context(), info, ""); len(peers) != 2 {
 			t.Fatalf("refreshed roster = %+v", peers)
 		}
 		admit("allowed", "watcher")
 		standing.forgetRosters()
-		if peers, _ = standing.peers(t.Context(), info, ""); len(peers) != 3 {
+		if peers, _, _ = standing.peers(t.Context(), info, ""); len(peers) != 3 {
 			t.Fatalf("roster after an instance change = %+v", peers)
 		}
 		standing.forgetRosters()
-		if peers, _ = standing.peers(t.Context(), info, "other-placement"); len(peers) != 3 {
+		if peers, _, _ = standing.peers(t.Context(), info, "other-placement"); len(peers) != 3 {
 			t.Fatalf("own placement listed as a peer: %+v", peers)
 		}
+		standing.forgetRosters()
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, _, unavailable := standing.peers(canceled, info, "")
+		failed := renderStandingContext(standingView{peersUnavailable: unavailable})
+		if !unavailable || !strings.Contains(failed, "could not be read") || strings.Contains(failed, "withdrawn") {
+			t.Fatalf("failed roster read rendered as %q", failed)
+		}
 		outsider := &session.Info{ID: "sess-plain", AgentName: "lead", ProfileID: store.DefaultProfileID}
-		if peers, _ = standing.peers(t.Context(), outsider, ""); len(peers) != 0 {
+		if peers, _, _ = standing.peers(t.Context(), outsider, ""); len(peers) != 0 {
 			t.Fatalf("session outside an instance got a roster: %+v", peers)
 		}
 	})

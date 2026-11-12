@@ -57,7 +57,10 @@ const (
 		"instead of doing it yourself or using a generic subagent. Send with " +
 		"compozy__session_prompt and `agent` set to the peer name, using a listed input form " +
 		"when the peer has one.\n\n"
-	standingPeersOverflow = "More peers exist; list them with compozy__agent_instance_list and `peers: true`.\n"
+	standingPeersOverflow    = "More peers exist; list them with compozy__agent_instance_list and `peers: true`.\n"
+	standingPeersUnavailable = "# Peer agents\n\n" +
+		"The peer roster could not be read for this turn. A roster delivered earlier still applies; " +
+		"list peers with compozy__agent_instance_list and `peers: true`.\n"
 	// standingEmpty withdraws an earlier block: without it a removed rule would keep
 	// binding a session that already read it.
 	standingEmpty = "No operator rules or peer agents are in force. " +
@@ -100,6 +103,7 @@ type standingView struct {
 	rulesUnavailable bool
 	peers            []contract.AgentInstancePeer
 	more             bool
+	peersUnavailable bool
 	// compaction is the session's last completed compaction boundary. It is part of
 	// the block, so the block differs from the one delivered before a compaction and
 	// is resent in full until a send succeeds, however many attempts fail first.
@@ -129,10 +133,11 @@ func (a *standingContextAugmenter) Augment(
 		view.rulesUnavailable = true
 	}
 	view.rules = rules
-	view.peers, view.more = a.peers(ctx, info, scope)
+	view.peers, view.more, view.peersUnavailable = a.peers(ctx, info, scope)
 	content := renderStandingContext(view)
 	acp.RegisterPromptSection(ctx, acp.PromptSection{
 		Key: string(HarnessAugmenterStanding), Content: content, UnchangedContent: standingContextUnchanged,
+		OperatorAuthored: true,
 	})
 	if strings.TrimSpace(message) == "" {
 		return content, nil
@@ -190,13 +195,13 @@ func (a *standingContextAugmenter) peers(
 	ctx context.Context,
 	info *session.Info,
 	scope string,
-) ([]contract.AgentInstancePeer, bool) {
+) (peers []contract.AgentInstancePeer, more, unavailable bool) {
 	if a.instances == nil || info.InstanceID == "" {
-		return nil, false
+		return nil, false, false
 	}
 	api := a.instances()
 	if api == nil {
-		return nil, false
+		return nil, false, false
 	}
 	var revision int64
 	if a.catalog != nil {
@@ -211,7 +216,7 @@ func (a *standingContextAugmenter) peers(
 	generation := a.generation
 	a.mu.Unlock()
 	if ok && cached.revision == revision && now.Before(cached.expires) {
-		return cached.peers, cached.more
+		return cached.peers, cached.more, false
 	}
 	var access workspaceaccess.Policy
 	if a.access != nil {
@@ -226,21 +231,11 @@ func (a *standingContextAugmenter) peers(
 		ProfileID: info.ProfileID, AllWorkspaces: true, Limit: standingRosterLimit + 1,
 	}, actor, access)
 	if err != nil {
-		return cached.peers, cached.more
+		// With no earlier roster the block says so; it never reads as "no peers".
+		return cached.peers, cached.more, !ok
 	}
-	// The same agent placed in another workspace is a peer; only this placement is self.
-	own := []string{info.WorkspaceID, scope}
-	if info.WorkspaceID == "" {
-		own = append(own, extensionInstallationScopeGlobal)
-	}
-	peers := make([]contract.AgentInstancePeer, 0, len(page.Peers))
-	for _, peer := range page.Peers {
-		if peer.Name == info.AgentName && slices.Contains(own, peer.Scope) {
-			continue
-		}
-		peers = append(peers, peer)
-	}
-	more := page.NextCursor != "" || len(peers) > standingRosterLimit
+	peers = standingPeersWithoutSelf(page.Peers, info, scope)
+	more = page.NextCursor != "" || len(peers) > standingRosterLimit
 	if len(peers) > standingRosterLimit {
 		peers = peers[:standingRosterLimit]
 	}
@@ -255,7 +250,26 @@ func (a *standingContextAugmenter) peers(
 		}
 	}
 	a.mu.Unlock()
-	return peers, more
+	return peers, more, false
+}
+
+// standingPeersWithoutSelf drops the calling placement. The same agent placed in
+// another workspace is a peer.
+func standingPeersWithoutSelf(
+	page []contract.AgentInstancePeer, info *session.Info, scope string,
+) []contract.AgentInstancePeer {
+	own := []string{info.WorkspaceID, scope}
+	if info.WorkspaceID == "" {
+		own = append(own, extensionInstallationScopeGlobal)
+	}
+	peers := make([]contract.AgentInstancePeer, 0, len(page))
+	for _, peer := range page {
+		if peer.Name == info.AgentName && slices.Contains(own, peer.Scope) {
+			continue
+		}
+		peers = append(peers, peer)
+	}
+	return peers
 }
 
 // forgetRosters drops every cached roster after an instance is created, paused,
@@ -331,6 +345,13 @@ func renderStandingContext(view standingView) string {
 		if more {
 			write(standingPeersOverflow, 0)
 		}
+	}
+	if view.peersUnavailable {
+		separator := ""
+		if body.Len() > 0 {
+			separator = "\n"
+		}
+		write(separator+standingPeersUnavailable, 0)
 	}
 	if body.Len() == 0 {
 		body.WriteString(standingEmpty)
