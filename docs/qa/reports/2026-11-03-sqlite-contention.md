@@ -873,3 +873,66 @@ suite adds the invariant that telemetry needs its exact signature and own valid
 storage pair; callback holds, different operations/databases and head-only sync
 pauses remain failures. Seventeen focused decision tests pass. CI still owns the
 two consecutive successful runs on the final head.
+
+## Unusable transcript controls and absolute-budget proof (2026-11-12)
+
+The historical decision above rejected the whole experiment when a baseline
+transcript control failed, even if its head independently met the original
+one-second budget. [Run 43162767413](https://github.com/compozy/compozy/actions/runs/43162767413/job/130997667189)
+isolates that defect without changing the workload: artifact 13919751814 has
+zero head operation failures, no invalid head trial, no throughput regression,
+and four successful retention sweeps (17.153–18.672 seconds, 43,169 rows each).
+The only rejection is the incomplete baseline transcript control in pair 1:
+ten deadlines, while that pair's head maximum is 901.140154 ms.
+
+An unusable control still cannot calibrate or exempt a COMMIT warning. Its pair
+now uses the absolute 1,000 ms budget and requires its individual head maximum
+to meet that ceiling, even if the median passes. Missing or invalid head samples
+remain failures. All four ratios remain in the median. Valid baseline controls
+retain their existing decision exactly; `budget_basis` identifies the source
+of each budget.
+
+This correction assumes the most restrictive possible valid control. Every
+valid baseline budget is at least 1,000 ms, so a head that meets this absolute
+ceiling would meet any valid paired budget. Rejecting it would reject a result
+that every possible valid baseline budget would accept. This
+changes the invalid-control decision; it does not increase any threshold,
+extend any deadline, exempt a core hold, or discard a failed sample.
+
+[CI replay 43165507841](https://github.com/compozy/compozy/actions/runs/43165507841)
+reevaluates the unchanged recorded samples, without another workload run.
+Artifact 13919936553 preserves both decisions. Pair 1 changes from a missing
+ratio to 0.901140154 against the absolute floor; all four ratios produce median
+0.6019772794156284. The false tail rejection clears; the existing head
+correctness and throughput decisions do not change.
+
+| Retained evidence                                         | Disposition under the corrected rule                                                                                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original run 42710409599, attempt 1, artifact 13716188062 | Still rejected: uncalibrated head maxima above 1,000 ms and ineligible warning records.                                                                                                                       |
+| Original run 42710409599, attempt 2, artifact 13717033637 | Still rejected: core state-update hold, 1,039 ms elapsed / 9 ms callback / 1,030 ms COMMIT.                                                                                                                   |
+| Run 43141054510, artifact 13910975853                     | Still rejected: head-0 retention is 31,881.290 ms; head-3 telemetry warning lacks a complete paired control. Head-0's telemetry warning itself fits its complete pair, contrary to the initial issue comment. |
+| Uninstrumented run 43162767413, artifact 13919751814      | Its sole invalid-control rejection clears, as the unchanged-input CI receipt demonstrates. This is decision validation, not a new performance measurement.                                                    |
+
+The original-trial traced [run 43162055138](https://github.com/compozy/compozy/actions/runs/43162055138)
+has zero head errors or warnings, transcript maxima 359.253 / 291.211 /
+250.182 / 475.863 ms, and complete baseline transcript pairs. It did not
+reproduce the historical core pause. It is diagnostic only and does not count
+as an uninstrumented acceptance pass. The trace buffer changes heap/GC behavior
+and an abrupt kill loses it. [Run 43164794524](https://github.com/compozy/compozy/actions/runs/43164794524)
+generates syscall, scheduling and synchronization profiles from those same
+recordings in CI. Aggregate goroutine delays are not individual wall times.
+
+The old core COMMIT's exact syscall or scheduling cause cannot be recovered
+from a different execution. Its timestamp clustering with session COMMITs is
+consistent with shared storage delay, without proving that attribution or
+excluding an intermittent current-storage defect. No storage implementation
+change or core-warning exemption is justified by these observations. The
+unattributed historical core hold remains a residual for issue #1433.
+
+Two consecutive uninstrumented green SQLite jobs on the final head remain
+required. A green run with four complete paired controls also satisfies the
+old decision rule literally; a green using an absolute-floor pair relies on
+the narrowly proved correction above. No such final-head results are claimed
+by this section. The existing decision suite owns coverage; validation runs
+only in CI. User data, schema, migration, public surfaces, Web and scenario
+contracts remain unchanged.

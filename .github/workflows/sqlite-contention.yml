@@ -21,16 +21,12 @@ on:
         description: "Record the original trials for syscall/scheduling diagnosis (not final acceptance evidence)"
         type: boolean
         default: false
-      trace_run_id:
-        description: "Analyze retained traces from this workflow run instead of running another experiment (0 disables)"
-        type: number
-        default: 0
 
 permissions:
   contents: read
 
 concurrency:
-  group: sqlite-contention-${{ github.ref }}-${{ inputs.trace_run_id && 'analysis' || inputs.runtime_trace_trials && 'traced' || 'acceptance' }}
+  group: sqlite-contention-${{ github.ref }}-${{ inputs.runtime_trace_trials && 'traced' || 'acceptance' }}
   cancel-in-progress: true
 
 env:
@@ -40,7 +36,6 @@ env:
 
 jobs:
   paired-load:
-    if: ${{ !inputs.trace_run_id }}
     name: ${{ inputs.runtime_trace_trials && 'SQLite traced diagnostic (not acceptance)' || 'SQLite paired load and 1 GB upgrade' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -111,7 +106,6 @@ jobs:
           if-no-files-found: error
 
   daemon-load:
-    if: ${{ !inputs.trace_run_id }}
     name: SQLite real daemon thirty-session exercise
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -145,72 +139,3 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-  trace-analysis:
-    name: SQLite retained trace analysis (not acceptance)
-    if: ${{ inputs.trace_run_id > 0 }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Set up Go
-        uses: ./.github/actions/setup-go
-      - name: Download retained experiment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN: ${{ inputs.trace_run_id }}
-        run: |
-          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'sqlite-contention-*' --dir "$RUNNER_TEMP/retained-traces"
-      - name: Summarize recorded scheduling and syscalls
-        run: |
-          mkdir "$RUNNER_TEMP/trace-analysis"
-          find "$RUNNER_TEMP/retained-traces" -name '*.trace' -print0 |
-          while IFS= read -r -d '' trace; do
-            name="$(basename "$trace" .trace)"
-            for kind in syscall sched sync; do
-              profile="$RUNNER_TEMP/trace-analysis/$name-$kind.pprof"
-              go tool trace -pprof="$kind" "$trace" > "$profile"
-              go tool pprof -top -nodecount=40 "$profile" > "$profile.txt"
-              go tool pprof -top -cum -nodecount=40 "$profile" > "$profile-cumulative.txt"
-            done
-          done
-      - name: Reevaluate retained decisions without rerunning the workload
-        env:
-          PYTHONPATH: ${{ github.workspace }}/scripts/sqlite-contention
-          TRACE_ROOT: ${{ runner.temp }}/retained-traces
-          ANALYSIS_ROOT: ${{ runner.temp }}/trace-analysis
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          from run import acceptance_failures
-
-          for path in Path(os.environ["TRACE_ROOT"]).rglob("results.json"):
-              recorded = json.loads(path.read_text())
-              before = json.loads((path.parent / "upgrade-before.json").read_text())
-              _, regressions, invalid, tails = acceptance_failures(
-                  recorded["trials"], before["retention_eligible_rows"])
-              receipt = {"source_head": recorded["environment"]["head"],
-                         "runtime_trace_trials": recorded.get("runtime_trace_trials", False),
-                         "recorded": {key: recorded[key] for key in (
-                             "invalid_head_trials", "throughput_regressions", "transcript_tail_comparison")},
-                         "reevaluated": {"invalid_head_trials": invalid,
-                                         "throughput_regressions": regressions,
-                                         "transcript_tail_comparison": tails}}
-              target = Path(os.environ["ANALYSIS_ROOT"]) / (path.parent.name + "-decisions.json")
-              target.write_text(json.dumps(receipt, indent=2) + "\n")
-          PY
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: sqlite-trace-analysis-${{ github.run_id }}
-          path: ${{ runner.temp }}/trace-analysis/*
-          retention-days: 14
-          if-no-files-found: error
