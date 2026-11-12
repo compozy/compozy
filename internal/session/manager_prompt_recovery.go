@@ -174,7 +174,7 @@ func (m *Manager) exhaustPromptRecovery(
 	if reason == store.SessionRuntimeRecoveryProviderAuth {
 		session.setAuthRecoveryExhausted(true)
 	}
-	return m.settleStoppedPromptRecovery(ctx, session, reason)
+	return m.settleStoppedPromptRecovery(ctx, session, reason, trigger)
 }
 
 func (m *Manager) persistPromptRecoveryFailure(ctx context.Context, session *Session, recoveryErr error) error {

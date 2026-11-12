@@ -99,12 +99,17 @@ func (m *Manager) settleStoppedPromptRecovery(
 	ctx context.Context,
 	session *Session,
 	reason store.SessionRuntimeRecoveryReason,
+	terminal acp.AgentEvent,
 ) error {
-	if reason != store.SessionRuntimeRecoveryProviderAuth || !session.abandonAutomaticRecovery(m.now()) {
+	canceled := terminal.Type == acp.EventTypeDone && terminal.StopReason == string(acp.PromptStopReasonCancelled)
+	if reason != store.SessionRuntimeRecoveryProviderAuth && !canceled || !session.abandonAutomaticRecovery(m.now()) {
 		return nil
 	}
-	if proc := session.processHandle(); proc != nil && isProcessDone(proc) {
-		return m.releaseBoundRuntime(ctx, session)
+	// Fatal replacement failures keep the dead binding for stop finalization.
+	if canceled || terminal.ProviderError != nil && terminal.ProviderError.Code == acp.ProviderErrorAuthRequired {
+		if proc := session.processHandle(); proc != nil && isProcessDone(proc) {
+			return m.releaseBoundRuntime(ctx, session)
+		}
 	}
 	return m.persistSessionLifecycleState(ctx, session, false)
 }
@@ -152,7 +157,7 @@ func (m *Manager) stoppedPromptRecovery(
 		m.daemonShuttingDown() {
 		trigger = promptCancellationTerminalEvent()
 	}
-	return false, &trigger, m.settleStoppedPromptRecovery(ctx, session, reason)
+	return false, &trigger, m.settleStoppedPromptRecovery(ctx, session, reason, trigger)
 }
 
 func (m *Manager) publishPromptRecoveryAttempt(

@@ -20,12 +20,14 @@ negotiation, rather than proving that the full ID must be replaced by an alias.
 
 ## Matrix
 
-| Journey                                                                  | Status  | Evidence                                                           |
-| ------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------ |
-| Baseline: full model, offline list, sign-in restored                     | Pass    | Baseline stream, status and final snapshot in isolated lab scratch |
-| Corrected: loss during work, native login wait, probe wake, continuation | Pass |                                                                    |
-| Exhaustion, explicit retry and proactive probe recovery                  | Pass |                                                                    |
-| Genuine unavailable model after login                                    | Pass |                                                                    |
+| Journey | Status | Evidence |
+| --- | --- | --- |
+| Baseline: full model, offline list, sign-in restored | Pass | [Baseline facts](../evidence/2026-11-12-issue-1557-recovery.json) |
+| Corrected: loss during work, native login wait, probe wake, continuation | Pass | [Continuation receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
+| Exhaustion, explicit retry and proactive probe recovery | Pass | [Expiry and proactive probe receipts](../evidence/2026-11-12-issue-1557-recovery.json) |
+| Genuine unavailable model after login, live runtime | Pass | [Configuration rejection receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
+| Runtime exit, sign-in recovery, then genuine model rejection | Pass | [Corrective finalization receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
+| Cancellation during runtime-exit backoff | Pass | [Cancellation receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
 
 ## Implementation
 
@@ -50,7 +52,6 @@ and the complete final-build daemon walks passed; the final continuation finishe
 conversation ID survived the final-build revoke/restore cycles. Full tests, race suites and repository gates remain CI-owned. No live
 OAuth account switch, real Usage endpoint, or rendered Web evidence is claimed.
 
-
 ## Review repairs
 
 The first Opus review found cancellation losing its canceled terminal after a
@@ -59,8 +60,19 @@ and final failure ownership being lost to the old process watcher. Canonical
 regressions now cover cancellation, mismatch-then-success, bounded final
 configuration failure, and auth exhaustion after the old watcher callback runs.
 The production path preserves the retry budget and detaches only already-dead
-runtimes before settling a login wait. The second Opus review is in progress.
-
+runtimes before settling a login wait. The second Opus review and Greptile
+independently found a fourth route: auth-window
+exhaustion after a dead runtime and genuine model rejection released the binding
+before fatal finalization. The corrective change releases a dead binding only for
+a real auth-required or canceled terminal; protocol failures keep it until finalization owns
+the stopped/failed state. The existing rejection regression now covers both live
+and dead starting runtimes, failing before the correction and passing after it.
+CodeRabbit also identified stale recovery state when canceling runtime-exit
+backoff. Its regression failed before the fix; cancellation now clears recovery
+and derives readiness from process liveness before delivering the terminal. The
+model retry regression explicitly pins and verifies `claude-opus-5-5` on every
+replacement. Final independent-review dispositions and current-head CI belong to
+the PR discussion.
 
 ## Final targeted walk
 
@@ -73,9 +85,15 @@ never replaced by a family alias. The strict targeted audit passed with zero
 blockers and zero warnings. Raw streams, snapshots, manifest and focused-check
 receipts remain in the isolated lab scratch evidence.
 
+The corrective daemon walk independently passed runtime exit, sign-in loss, and
+a genuine model rejection after sign-in: the session ended stopped with a failed
+badge and `protocol_failure`. A reviewed-build cancellation walk confirmed the
+public cancel outcome, unbound runtime, cleared recovery, and no failure. Its
+strict targeted audit also passed with zero blockers and warnings.
+
 Early lab setup/script attempts are not product results: an invalid fixture agent
 frontmatter was corrected before startup; response-envelope, idempotency-key,
-managed-CLI identity, and script bookkeeping mistakes were corrected and the full
+managed-CLI identity, public stream-envelope, and script bookkeeping mistakes were corrected and the full
 final-build walk was repeated. A real product defect exposed by the intermediate
 walk (configuration failure read as done) was repaired before that final walk.
 
@@ -84,7 +102,6 @@ ACP start/helper and config files retain exactly the baseline findings (16, 1 an
 16 respectively); no new heuristic finding was introduced. Broad/race/E2E checks
 remain current-head CI responsibilities.
 
-
-Targeted teardown completed with `clean: true`: only this lab's registered daemon
+Both targeted lab teardowns completed with `clean: true`: only each lab's registered daemon
 and its verified lab-owned child processes were stopped. No surviving lab process
 or copied provider resource remains.

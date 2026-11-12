@@ -16,6 +16,7 @@ import (
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -315,6 +316,51 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 
 func TestPromptRuntimeRecovery(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: canceling runtime-exit backoff settles recovery without advertising a dead runtime as ready.
+	// Owner: session manager; existing runtime recovery lifetime suite.
+	t.Run("Should settle cancellation during runtime exit backoff", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{time.Hour}
+		session := createSession(t, h)
+		previous := session.processHandle()
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			proc.crash(errors.New("runtime dropped"), "runtime dropped")
+			stream := make(chan acp.AgentEvent, 1)
+			stream <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "runtime dropped"}}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "runtime-exit recovery", func() bool {
+			r := session.Info().RuntimeRecovery
+			return r != nil && r.Reason == store.SessionRuntimeRecoveryRuntimeExit
+		})
+		if _, err := h.manager.CancelPrompt(t.Context(), session.ID); err != nil {
+			t.Fatal(err)
+		}
+		events := collectEvents(t, stream)
+		if countAgentEvents(events, acp.EventTypeError) != 0 || countAgentEvents(events, acp.EventTypeDone) != 1 {
+			t.Fatalf("cancel events=%#v", events)
+		}
+		atDelivery := session.Info()
+		if atDelivery.RuntimeRecovery != nil || atDelivery.RuntimeStatus == RuntimeStatusReady ||
+			atDelivery.RuntimeStatus == RuntimeStatusRecovering {
+			t.Fatalf("canceled terminal delivered stale runtime state: %#v", atDelivery)
+		}
+		if err := h.manager.handleProcessExit(t.Context(), session, previous, previous.Wait()); err != nil {
+			t.Fatal(err)
+		}
+		info := session.Info()
+		if info.RuntimeRecovery != nil || info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("canceled recovery runtime=%s recovery=%#v", info.RuntimeStatus, info.RuntimeRecovery)
+		}
+	})
 
 	t.Run("Should preserve maintenance and pending context after runtime recovery", func(t *testing.T) {
 		t.Parallel()
@@ -814,9 +860,32 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 
 	t.Run("Should keep retrying the pinned model while the offline catalog recovers", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t)
+		const pinnedModel = "claude-opus-5-5"
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{
+			{
+				ProviderID:        "claude",
+				ModelID:           pinnedModel,
+				AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+				TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: pinnedModel}},
+				Sources: []modelcatalog.SourceRef{
+					{
+						SourceID:   modelcatalog.SourceKindProviderLiveID("claude"),
+						SourceKind: modelcatalog.SourceKindProviderLive,
+					},
+				},
+			},
+		}}))
 		h.manager.authRecoveryDelays = []time.Duration{0, 0}
-		session := createSession(t, h)
+		session, err := h.manager.Create(
+			t.Context(),
+			new(CreateOpts{
+				AgentName: "coder", Name: "session", Workspace: h.workspaceID,
+				Provider: "claude", Model: pinnedModel,
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
 		var prompts, starts atomic.Int64
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
@@ -830,6 +899,9 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 			return stream, nil
 		}
 		h.driver.startHook = func(opts acp.StartOpts, attempt int) (*fakeProcess, error) {
+			if opts.PreferredModel != pinnedModel {
+				t.Errorf("recovery model = %q, want exact pinned model %q", opts.PreferredModel, pinnedModel)
+			}
 			if starts.Add(1) == 1 {
 				return nil, acp.WrapFailure(
 					store.FailureProtocol,
@@ -841,7 +913,7 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 							Kind:     acp.SessionConfigOptionKindSelect,
 							Values:   []acp.SessionConfigOptionValue{{Value: "default"}, {Value: "opus"}},
 						},
-					}, "claude-opus-5-5"),
+					}, pinnedModel),
 				)
 			}
 			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("recovered-%d", attempt)), nil
@@ -851,6 +923,9 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		events := collectEvents(t, stream)
+		if session.Info().Model != pinnedModel {
+			t.Fatalf("completed model = %q", session.Info().Model)
+		}
 		if starts.Load() != 2 || countAgentEvents(events, acp.EventTypeError) != 0 ||
 			countAgentEvents(events, acp.EventTypeDone) != 1 {
 			t.Fatalf("recovery starts=%d events=%#v", starts.Load(), events)
@@ -904,21 +979,40 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run(
-		"Should report a genuine recovery model rejection instead of retaining sign in attention",
-		func(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		runtimeExit bool
+	}{
+		{name: "Should persist a genuine recovery rejection from a live runtime"},
+		{name: "Should persist a genuine recovery rejection after runtime exit and sign in", runtimeExit: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
 			h.manager.authRecoveryDelays = []time.Duration{0, 0}
+			h.manager.promptRecoveryDelays = []time.Duration{0}
+			var starts atomic.Int64
 			session := createSession(t, h)
 			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
 			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 				stream := make(chan acp.AgentEvent, 1)
-				stream <- authLostEvent(proc, req.TurnID)
+				if tc.runtimeExit {
+					proc.crash(errors.New("runtime dropped"), "runtime dropped")
+					stream <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "runtime dropped"}}
+				} else {
+					stream <- authLostEvent(proc, req.TurnID)
+				}
 				close(stream)
 				return stream, nil
 			}
 			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+				if starts.Add(1) == 1 && tc.runtimeExit {
+					return nil, acp.WrapFailure(
+						store.FailureProviderAuth,
+						"provider sign-in required",
+						errors.New("not logged in"),
+					)
+				}
 				return nil, acp.WrapFailure(
 					store.FailureProtocol,
 					"model negotiation failed",
@@ -937,8 +1031,12 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			events := collectEvents(t, stream)
+			wantAttempts := len(h.manager.authRecoveryDelays)
+			if tc.runtimeExit {
+				wantAttempts++
+			}
 			if countAgentEvents(events, acp.EventTypeError) != 1 ||
-				countAgentEvents(events, acp.EventTypeRuntimeRecoveryStarted) != len(h.manager.authRecoveryDelays) {
+				countAgentEvents(events, acp.EventTypeRuntimeRecoveryStarted) != wantAttempts {
 				t.Fatalf("events = %#v", events)
 			}
 			for _, event := range events {
@@ -952,8 +1050,8 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 				info.Failure.Kind != store.FailureProtocol {
 				t.Fatalf("rejection must retain truthful failed state: %#v", info)
 			}
-		},
-	)
+		})
+	}
 
 	t.Run("Should rebuild a stale authenticated process on the next prompt after exhaustion", func(t *testing.T) {
 		t.Parallel()
