@@ -149,6 +149,7 @@ type Manager struct {
 	metadataCache              map[string]cachedSessionMetadata
 	restartInputsHeld          sync.Map
 	daemonShutdown             atomic.Pointer[daemonShutdownStop]
+	daemonShutdownTurnGrace    time.Duration
 	pullRequestReader          PullRequestReader
 	branchSnapshots            BranchSnapshotReader
 	branchSnapshotSaver        BranchSnapshotSaver
@@ -236,6 +237,8 @@ type Manager struct {
 	attachmentScopeLease       attachmentScopeLease
 	managedInputLifecycle      ManagedInputLifecycle
 	workAdmission              admission.Checker
+	transportsListening        chan struct{}
+	transportsListeningOnce    sync.Once
 	goalCommandHandler         GoalCommandHandler
 	startupOverlay             StartupPromptOverlay
 	hooks                      HookSet

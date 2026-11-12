@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
@@ -14,6 +15,8 @@ type bootStep struct {
 }
 
 func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	bootStarted := time.Now()
+	d.serving.Store(false)
 	steps := []bootStep{
 		{name: "bootConfig", run: func() error { return d.bootConfig(state, cleanup) }},
 		{name: "bootPromptProviders", run: func() error { return d.bootPromptProviders(ctx, state) }},
@@ -54,7 +57,9 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		{name: "bootProviderAuthStartup",
 			run: func() error { return d.bootProviderAuthStartup(ctx, state, cleanup) },
 		},
-		// Instance reconciliation can resume providers whose hosted MCP proxies need the listeners.
+		// Everything below runs in the serving phase: the read model is reachable, and only now may
+		// recovery start providers, whose hosted MCP proxies need the listeners.
+		{name: "enterServingPhase", run: func() error { return d.enterServingPhase(ctx, state, bootStarted) }},
 		{name: "reconcileBootInstances", run: func() error { return reconcileBootInstances(ctx, state) }},
 		{name: "recoverBootDelegatedSessions", run: func() error { return recoverBootDelegatedSessions(ctx, state) }},
 		{name: "resumeBootInterruptedSessions",
@@ -74,11 +79,28 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("daemon: boot canceled: %w", err)
 		}
+		phase := contract.DaemonReadinessStarting
+		if d.serving.Load() {
+			phase = contract.DaemonReadinessServing
+		}
 		// state.logger exists only after bootConfig; earlier steps log through the default logger.
-		err := d.timeLifecycleStep(ctx, state.logger, contract.DaemonReadinessStarting, step.name, step.run)
+		err := d.timeLifecycleStep(ctx, state.logger, phase, step.name, step.run)
 		if err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+// enterServingPhase marks the point where HTTP and UDS listen and the read model (session catalog,
+// transcripts, status) is served while recovery is still running. `status` stays `draining` and
+// new-work admission stays closed until boot publishes readiness, so an older app keeps waiting
+// for `running` exactly as before; newer clients read `readiness.phase`.
+func (d *Daemon) enterServingPhase(ctx context.Context, state *bootState, bootStarted time.Time) error {
+	d.serving.Store(true)
+	if marker, ok := state.sessions.(interface{ MarkTransportsListening() }); ok {
+		marker.MarkTransportsListening()
+	}
+	state.logger.InfoContext(ctx, "daemon: serving", "since_boot_ms", time.Since(bootStarted).Milliseconds())
 	return nil
 }
