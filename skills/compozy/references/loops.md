@@ -981,9 +981,8 @@ The same rules apply to a tool node's own `produces`: declaring a field that onl
 fails with `result_view_field_requires_full`; declaring a field neither view has fails with
 `unresolvable_path`.
 
-A run pins the contract of the view each node selected. A run started before the upgrade keeps the
-contract it pinned and its nodes return the full record.
-
-The pre-view snapshot translation is removed in the first release after result views ship
-([#1462](https://github.com/compozy/compozy/issues/1462)). Newly started runs pin their
-selected view. Review edits cannot change the view after validation.
+A run pins the contract of the view each node selected. Review edits cannot change the view after
+validation. Starting with v0.6.1, runs started before v0.6.0 (which introduced result views) fail
+with `ActionContractStale` (`action_contract_stale`) when their next tool action encounters a stale
+pin. Start a new run from the definition with `compozy loop run <name>`; resuming the old run does
+not refresh its pins. Definitions and completed runs are unchanged.

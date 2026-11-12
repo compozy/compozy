@@ -9,10 +9,6 @@ import (
 const resultViewDescription = ` Returns the compact result; pass result_view "full" for the complete record.`
 
 func withResultViews(d toolspkg.Descriptor, compact, full string) toolspkg.Descriptor {
-	digest, err := toolspkg.SchemaDigest(d.InputSchema)
-	if err != nil {
-		panic("invariant: invalid native input schema: " + err.Error())
-	}
 	var schema map[string]json.RawMessage
 	if err := json.Unmarshal(d.InputSchema, &schema); err != nil {
 		panic("invariant: invalid native input schema: " + err.Error())
@@ -29,9 +25,8 @@ func withResultViews(d toolspkg.Descriptor, compact, full string) toolspkg.Descr
 	d.InputSchemaDigest = ""
 	d.OutputSchemaDigest = ""
 	d.SetResultViews(&toolspkg.ResultViews{
-		Compact:                  toolspkg.ResultViewContract{Schema: json.RawMessage(compact)},
-		Full:                     toolspkg.ResultViewContract{Schema: json.RawMessage(full)},
-		PreViewInputSchemaDigest: digest,
+		Compact: toolspkg.ResultViewContract{Schema: json.RawMessage(compact)},
+		Full:    toolspkg.ResultViewContract{Schema: json.RawMessage(full)},
 	})
 	d.OutputSchema = json.RawMessage(compact)
 	d.Description += resultViewDescription

@@ -406,6 +406,8 @@ Compact session records also preserve `stop_cause`, `permission_mode_degraded` a
 criterion prompts. Skill list/search omit diagnostics only when every diagnostic is valid,
 verified, and has no warning, failure or activation reason; otherwise they retain the entire list.
 
-Pre-view Loop snapshots are translated to full for one release. The translation and the
-superseded schema digest table are removed in the next release
-([#1462](https://github.com/compozy/compozy/issues/1462)).
+Starting with v0.6.1, the one-release translation for Loop runs started before v0.6.0 is removed,
+including the superseded output-schema digest table. Their next tool action fails with
+`ActionContractStale` (`action_contract_stale`) when its pinned contract differs from the selected
+live view. Start a new run from the definition with `compozy loop run <name>` to pin current
+contracts. Definitions and completed runs are unchanged.
