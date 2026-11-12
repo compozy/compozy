@@ -47,6 +47,10 @@ func provisionBootstrapRuntime(cmd *cobra.Command, request *bootstrapProvisionRe
 	if request.resolution != bootstrapResolutionProvision {
 		return nil
 	}
+	if request.fromVersion == "" {
+		// A stopped desktop-owned runtime names the release it held; a first install stays empty.
+		request.fromVersion = compozyupdate.DesktopRuntimeVersion(request.homePaths, request.installedPath)
+	}
 	if err := writeBootstrapEvent(cmd, bootstrapEvent{
 		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusStarted,
 		Resolution: request.resolution, Message: "Provisioning the bundled CompozyOS runtime.",

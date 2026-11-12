@@ -69,8 +69,11 @@ export function bootstrapSnapshot(
   if (event.status === "failed" || event.phase === "failed") {
     const skew = skewSnapshot(event);
     if (skew) return skew;
+    // A terminal failure omits the attempt; the window keeps the one the start reached.
+    const attempt = event.attempt ?? previous?.attempt;
     return {
       state: "error",
+      ...(attempt === undefined ? {} : { attempt }),
       ...versions(event, previous),
       error: {
         code: failureCode(event),

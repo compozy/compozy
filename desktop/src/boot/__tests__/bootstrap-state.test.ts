@@ -143,6 +143,11 @@ describe("bootstrapSnapshot", () => {
       started
     );
     expect(ready).toEqual({ state: "starting", stage: "ready", attempt: 3 });
+    // The terminal failure event omits the attempt; the error keeps the one the start reached.
+    expect(bootstrapSnapshot(failed("failed", "start"), "log", started)).toMatchObject({
+      state: "error",
+      attempt: 3,
+    });
   });
 
   it("Should map determinate session upgrade progress to counts in sessions", () => {

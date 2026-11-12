@@ -500,7 +500,8 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
-		cmd.SetOut(&bytes.Buffer{})
+		var events bytes.Buffer
+		cmd.SetOut(&events)
 		if err := provisionBootstrapRuntime(cmd, &bootstrapProvisionRequest{
 			resolution:    bootstrapResolutionProvision,
 			homePaths:     homePaths,
@@ -510,6 +511,8 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("provisionBootstrapRuntime(replacement) error = %v", err)
 		}
+		// A stopped runtime has no status to ask; its recorded release names the transition.
+		assertBootstrapProvisionVersions(t, events.String(), "0.3.0-beta.20")
 		installed, err := os.ReadFile(installedPath)
 		if err != nil {
 			t.Fatalf("ReadFile(replaced runtime) error = %v", err)

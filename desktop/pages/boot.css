@@ -175,6 +175,8 @@ body {
   line-height: 21px;
   overflow-wrap: anywhere;
   text-wrap: pretty;
+  max-block-size: 10lh;
+  overflow-y: auto;
 }
 .boot[data-layout="center"] .boot__detail {
   max-inline-size: 44ch;

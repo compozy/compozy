@@ -82,6 +82,7 @@ const diagnostics = byId("boot-diagnostics");
 const diagnose = byId<HTMLButtonElement>("boot-diagnose");
 const copy = byId<HTMLButtonElement>("boot-copy");
 const exportButton = byId<HTMLButtonElement>("boot-export");
+const backToProgress = byId<HTMLButtonElement>("boot-back");
 const result = byId("boot-result");
 
 // The center pulse never knows a total: its band of light keeps crossing.
@@ -118,6 +119,13 @@ function addDiagnostic(label: string, value: unknown): void {
   description.textContent = text;
   row.append(term, description);
   diagnostics.append(row);
+}
+
+/** A report belongs to one outcome: entering or leaving a failure drops it and its open panel. */
+function resetDiagnostics(): void {
+  diagnosticsLoaded = false;
+  diagnosticsRequested = false;
+  diagnostics.replaceChildren();
 }
 
 /** Before diagnostics load, technical details show what the snapshot already knows. */
@@ -245,7 +253,15 @@ exportButton.addEventListener(
 function showDiagnosticsPanel(): void {
   show(work, false);
   show(technical, true);
+  show(backToProgress, true);
 }
+
+backToProgress.addEventListener("click", () => {
+  diagnosticsRequested = false;
+  show(technical, false);
+  show(backToProgress, false);
+  paint(journey.view(performance.now()));
+});
 
 function renderVersions(): void {
   const to = publicSafeText(snapshot.to_version, "");
@@ -290,7 +306,14 @@ function renderWork(view: JourneyView): void {
     done.textContent = NUMBER.format(counted.completed);
     workCount.replaceChildren(done, ` of ${NUMBER.format(counted.total)} ${unit}`);
   }
-  const fraction = counted && counted.total > 0 ? counted.completed / counted.total : null;
+  // Counts are exact; a stage that reports only a percentage still fills the field by it.
+  const percentOnly = counted !== null && counted.total <= 0 && counted.percent !== null;
+  const fraction =
+    counted && counted.total > 0
+      ? counted.completed / counted.total
+      : percentOnly && counted.percent !== null
+        ? counted.percent / 100
+        : null;
   field.paint(fraction);
   if (counted?.percent === null || counted === null) {
     progress.removeAttribute("aria-valuenow");
@@ -299,14 +322,18 @@ function renderWork(view: JourneyView): void {
     progress.setAttribute("aria-valuenow", String(counted.percent));
     progress.setAttribute(
       "aria-valuetext",
-      `${NUMBER.format(counted.completed)} of ${NUMBER.format(counted.total)} ${unit}`
+      percentOnly
+        ? `${counted.percent}%`
+        : `${NUMBER.format(counted.completed)} of ${NUMBER.format(counted.total)} ${unit}`
     );
   }
-  workHint.textContent = counted
-    ? estimateFor(counted.minutesLeft, counted.total, view.stalled)
-    : view.stalled
-      ? "Waiting for the runtime"
-      : "";
+  workHint.textContent = view.stalled
+    ? "Waiting for the runtime"
+    : percentOnly
+      ? "Estimating time left"
+      : counted
+        ? estimateFor(counted.minutesLeft, counted.total, view.stalled)
+        : "";
   show(workPercent, counted?.percent !== null && counted !== null);
   workPercent.textContent = counted?.percent === null || !counted ? "" : `${counted.percent}%`;
   show(notice, view.notice !== null);
@@ -377,13 +404,17 @@ function paint(view: JourneyView): void {
 
 function render(payload: unknown): void {
   const input = payload && typeof payload === "object" ? (payload as ShellSnapshot) : null;
+  const wasFailed = snapshot.state === "error";
   snapshot = input && STATES.has(input.state) ? input : { ...input, state: "error" };
   const failed = snapshot.state === "error";
+  // A retry or a new failure must not show the previous outcome's report.
+  if (failed !== wasFailed) resetDiagnostics();
   show(retry, failed);
   show(openLogs, failed || snapshot.state === "skew" || snapshot.state === "disconnected");
   show(quit, failed || snapshot.state === "skew" || snapshot.state === "disconnected");
   show(controls, retry.hidden !== true || openLogs.hidden !== true);
   show(technical, failed || diagnosticsRequested);
+  show(backToProgress, !failed && diagnosticsRequested);
   show(diagnose, !diagnosticsLoaded);
   show(copy, diagnosticsLoaded);
   show(exportButton, diagnosticsLoaded);

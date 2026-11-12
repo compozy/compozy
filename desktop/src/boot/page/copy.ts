@@ -113,6 +113,7 @@ export function statusWordFor(snapshot: ShellSnapshot, view: JourneyView): strin
     case "error":
       return "Failed";
     default:
-      return view.stalled ? "No progress" : "Working";
+      // The clock beside the word is total boot time, so a stall reads as waiting, not a duration.
+      return view.stalled ? "Waiting" : "Working";
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ShellSnapshot } from "../../state/app-state";
+import { bootstrapSnapshot } from "../bootstrap-state";
 import { BootJourney, LONG_AFTER_MS, STALL_AFTER_MS, formatDuration } from "../page/journey";
 
 const UP = { from_version: "0.5.4", to_version: "0.6.0" } as const;
@@ -87,15 +88,21 @@ describe("boot journey", () => {
   it("Should mark the failed step with the attempt it reached", () => {
     const journey = new BootJourney(0);
     journey.observe({ state: "provisioning", stage: "install" }, 0);
-    journey.observe({ state: "starting", stage: "start", attempt: 5 }, 1000);
-    const failed = journey.observe(
-      {
-        state: "error",
-        attempt: 5,
-        error: { code: "runtime_start_failed", safe_message: "x", log_path: "x" },
-      },
-      2000
+    const starting = bootstrapSnapshot({
+      type: "bootstrap",
+      phase: "start",
+      status: "started",
+      message: "Starting",
+      attempt: 5,
+    });
+    journey.observe(starting, 1000);
+    // The real failure event carries no attempt; the projection keeps the one the start reached.
+    const failure = bootstrapSnapshot(
+      { type: "bootstrap", phase: "start", status: "failed", message: "x" },
+      "x",
+      starting
     );
+    const failed = journey.observe(failure, 2000);
     expect(failed.layout).toBe("journey");
     expect(failed.steps.find(step => step.id === "start")).toEqual({
       id: "start",
@@ -104,6 +111,56 @@ describe("boot journey", () => {
       meta: "5 of 5",
     });
     expect(failed.notice).toBeNull();
+  });
+
+  it("Should start a new journey when a failed boot is retried", () => {
+    const journey = new BootJourney(0);
+    journey.observe({ state: "provisioning", stage: "install" }, 0);
+    journey.observe({ state: "starting", stage: "start", attempt: 5 }, 1000);
+    journey.observe(
+      {
+        state: "error",
+        error: { code: "runtime_start_failed", safe_message: "x", log_path: "x" },
+      },
+      2000
+    );
+    const retry = journey.observe(
+      { state: "starting", stage: "start", attempt: 1 },
+      2000 + STALL_AFTER_MS
+    );
+    expect(retry).toMatchObject({ layout: "center", steps: [], elapsed: 0, stalled: false });
+    expect(retry.notice).toBeNull();
+  });
+
+  it("Should move a stalled plain start to the journey layout with its notice", () => {
+    const journey = new BootJourney(0);
+    journey.observe({ state: "starting", stage: "start", attempt: 1 }, 0);
+    expect(journey.view(STALL_AFTER_MS)).toMatchObject({
+      layout: "journey",
+      stalled: true,
+      notice: { tone: "warning", diagnostics: true },
+    });
+  });
+
+  it("Should show a percentage-only stage and treat a new percentage as progress", () => {
+    const journey = new BootJourney(0);
+    const pct = (value: number): ShellSnapshot => ({
+      state: "provisioning",
+      stage: "migrate",
+      pct: value,
+    });
+    expect(journey.observe(pct(42), 0).work).toMatchObject({ total: 0, percent: 42 });
+    expect(journey.observe(pct(43), STALL_AFTER_MS - 1).work?.percent).toBe(43);
+    expect(journey.view(STALL_AFTER_MS + 1).stalled).toBe(false);
+  });
+
+  it("Should restart the estimate when a second migration counts from zero", () => {
+    const journey = new BootJourney(0);
+    journey.observe(migrate(0, 100), 0);
+    journey.observe(migrate(100, 100), 600_000);
+    journey.observe(migrate(0, 100), 600_001);
+    // 50 records in 20 seconds: the other 50 take about 20 seconds more, not the earlier run's pace.
+    expect(journey.observe(migrate(50, 100), 620_001).work?.minutesLeft).toBeCloseTo(1 / 3, 2);
   });
 
   it("Should follow an app-driven update through its download", () => {

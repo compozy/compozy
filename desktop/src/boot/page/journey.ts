@@ -13,7 +13,7 @@ export interface JourneyStep {
 
 export interface JourneyWork {
   readonly completed: number;
-  /** 0 while the runtime is still counting the stage's work. */
+  /** 0 while the runtime is still counting the stage's work or reports only a percentage. */
   readonly total: number;
   readonly unit: "sessions" | "records";
   readonly percent: number | null;
@@ -35,7 +35,7 @@ export interface JourneyView {
   readonly current: StepId | null;
   readonly work: JourneyWork | null;
   readonly notice: JourneyNotice | null;
-  /** Whole seconds since the window started observing this boot. */
+  /** Whole seconds since the window started observing this boot or its latest retry. */
   readonly elapsed: number;
   readonly stalled: boolean;
 }
@@ -100,7 +100,7 @@ interface Sample {
  * so the window never claims a step or a number the runtime did not report.
  */
 export class BootJourney {
-  readonly #startedAt: number;
+  #startedAt: number;
   #flow: "boot" | "update" | null = null;
   #migrated = false;
   #current: StepId | null = null;
@@ -108,6 +108,8 @@ export class BootJourney {
   #lastAdvance: number;
   #first: Sample | null = null;
   #last: Sample | null = null;
+  /** A stage that reports only a percentage still shows it and still counts as advancing. */
+  #pct: number | null = null;
   #durations = new Map<StepId, number>();
   #snapshot: ShellSnapshot = { state: "resolving" };
 
@@ -118,6 +120,8 @@ export class BootJourney {
   }
 
   observe(snapshot: ShellSnapshot, now: number): JourneyView {
+    // A retry after a failure is a new boot: its clock, steps and samples exclude the failed one.
+    if (this.#snapshot.state === "error" && snapshot.state !== "error") this.#restart(now);
     this.#snapshot = snapshot;
     const step = stepOf(snapshot);
     if (snapshot.state === "updating") this.#flow = "update";
@@ -130,20 +134,42 @@ export class BootJourney {
       this.#lastAdvance = now;
       this.#first = null;
       this.#last = null;
+      this.#pct = null;
     }
     this.#sample(snapshot, now);
     return this.view(now);
   }
 
+  #restart(now: number): void {
+    this.#startedAt = now;
+    this.#flow = null;
+    this.#migrated = false;
+    this.#current = null;
+    this.#stepStartedAt = now;
+    this.#lastAdvance = now;
+    this.#first = null;
+    this.#last = null;
+    this.#pct = null;
+    this.#durations.clear();
+  }
+
   #sample(snapshot: ShellSnapshot, now: number): void {
-    if (snapshot.completed === undefined || snapshot.total === undefined) return;
+    if (snapshot.completed === undefined || snapshot.total === undefined) {
+      if (snapshot.pct !== undefined && snapshot.pct !== this.#pct) {
+        this.#pct = snapshot.pct;
+        this.#lastAdvance = now;
+      }
+      return;
+    }
     const sample = { completed: snapshot.completed, total: snapshot.total, at: now };
     const last = this.#last;
+    // A count that drops is a new run of the stage: its estimate must not span the earlier run.
+    const restarted = last !== null && sample.completed < last.completed;
     if (!last || last.completed !== sample.completed || last.total !== sample.total) {
       this.#lastAdvance = now;
       this.#last = sample;
     }
-    if (!this.#first || (this.#first.total !== sample.total && sample.total > 0)) {
+    if (!this.#first || restarted || (this.#first.total !== sample.total && sample.total > 0)) {
       this.#first = sample;
     }
   }
@@ -153,13 +179,14 @@ export class BootJourney {
     const snapshot = this.#snapshot;
     const failed = snapshot.state === "error";
     const running = ["provisioning", "starting", "updating", "attaching"].includes(snapshot.state);
-    const layout =
-      failed || (this.#flow !== null && running) || snapshot.state === "updating"
-        ? "journey"
-        : "center";
     const work = running ? this.#work(now) : null;
     const idle = now - this.#lastAdvance;
     const stalled = running && this.#current !== null && idle >= STALL_AFTER_MS;
+    // A stalled plain start leaves the centered layout so its notice can offer logs and diagnostics.
+    const layout =
+      failed || stalled || (this.#flow !== null && running) || snapshot.state === "updating"
+        ? "journey"
+        : "center";
     return {
       layout,
       steps: this.#flow ? this.#steps(failed) : [],
@@ -193,7 +220,11 @@ export class BootJourney {
 
   #work(now: number): JourneyWork | null {
     const last = this.#last;
-    if (!last) return null;
+    if (!last) {
+      if (this.#pct === null) return null;
+      const unit = this.#snapshot.work ?? "records";
+      return { completed: 0, total: 0, unit, percent: this.#pct, minutesLeft: null };
+    }
     const percent =
       last.total > 0 ? Math.min(100, Math.floor((last.completed * 100) / last.total)) : null;
     return {

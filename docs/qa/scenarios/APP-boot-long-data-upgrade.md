@@ -42,8 +42,9 @@ Walk:
    face and the next agent takes over, and reduced motion leaves it still.
 6. Stall check (separate run): suspend the replacement daemon during the upgrade. After two
    minutes the window turns amber with "No progress for 2 minutes", Open logs and Diagnostics.
-   Diagnostics loads the report in the panel without an error. Resume the daemon and the notice
-   clears once counts advance. Left suspended past the CLI's 5-minute window, the boot ends in the
+   The status line reads "Waiting" beside the total boot clock. Diagnostics loads the report in the
+   panel without an error, and Back to progress returns to the counts and the notice. Resume the
+   daemon and the notice clears once counts advance. Left suspended past the CLI's 5-minute window, the boot ends in the
    error layout with the Upgrade data step failed.
 7. The upgrade ends in the product window. `compozy app status -o json` validates against the
    schema, and every seeded session opens with its transcript.
