@@ -26,8 +26,8 @@ const (
 	standingRosterLimit      = 12
 	standingPeerDescription  = 160
 	standingStateMaxSessions = 2048
-	// standingRosterTTL bounds how long an instance created, paused or archived
-	// outside the definition catalog stays invisible to a cached roster.
+	// standingRosterTTL bounds how long a change that reaches neither the definition
+	// catalog nor the instance service (a workspace access change) stays invisible.
 	standingRosterTTL = 30 * time.Second
 
 	standingPeerActiveState = "active"
@@ -203,6 +203,17 @@ func (a *standingContextAugmenter) peers(
 	}
 	a.mu.Unlock()
 	return peers, more, nil
+}
+
+// forgetRosters drops every cached roster after an instance is created, paused,
+// resumed or archived, so the next turn of each peer reads the new state.
+func (a *standingContextAugmenter) forgetRosters() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.rosters = nil
+	a.mu.Unlock()
 }
 
 // compactedSinceLastTurn reports a provider compaction completed since this

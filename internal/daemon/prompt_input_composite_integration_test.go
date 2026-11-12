@@ -849,6 +849,11 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 2 {
 			t.Fatalf("refreshed roster = %+v err=%v", peers, err)
 		}
+		admit("allowed", "watcher")
+		standing.forgetRosters()
+		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 3 {
+			t.Fatalf("roster after an instance change = %+v err=%v", peers, err)
+		}
 		outsider := &session.Info{ID: "sess-plain", AgentName: "lead", ProfileID: store.DefaultProfileID}
 		if peers, _, err = standing.peers(t.Context(), outsider); err != nil || len(peers) != 0 {
 			t.Fatalf("session outside an instance got a roster: %+v err=%v", peers, err)
