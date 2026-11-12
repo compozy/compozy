@@ -1,20 +1,37 @@
 ---
-title: Remove expired compatibility shims
+title: Compatibility shims scheduled for v0.6.1 are removed
 type: fix
+breaking: true
 ---
 
-Removed the compatibility shims scheduled for v0.6.1 after their final v0.6.0 migration window.
+v0.6.0 was the last release that migrated or silently ignored the retired declarations below
+(#1518). v0.6.1 removes those compatibility shims (#1593). Most old declarations now fail the
+normal validation for their file instead of being migrated or ignored, and CompozyOS no longer
+rewrites them. The table notes the exceptions. Current declarations behave as before.
 
-Migration notes: run v0.6.0 before upgrading if persisted retired agent-kind files/config tables or retired
-memory/compaction settings still need migration. Resolve deferred writes there, and remove retired
-SOUL, hook, manifest and automation declarations. v0.6.1 rejects these declarations
-without rewriting their files. Existing inactive archives, SQL migrations, memory files and permanent
-session-catalog recovery remain. Bundled `dev-cycle` state no longer transfers automatically to
-`spec-cycle`; retained state stays available for operator migration and doctor diagnostics.
-Remove `permissions.provider_full_access` and use `permissions.mode`. ACP adapters must send
-`cachedReadTokens` / `cachedWriteTokens`; removed aliases no longer contribute cache counts.
-Take-over no longer translates pre-v0.4.8 canceled-launch process failures; recover those sessions
-with v0.6.0 first. Marketplace source management remains experimental.
+## Migration notes
 
-Retired toolsets fail catalog validation. Exact retired tool IDs remain inert policy atoms that
-match no tool; explicit allow-lists remain enforced. Remove these references from authored policies.
+**Upgrade through v0.6.0 first** if you skipped it. Start v0.6.0 once with every user, profile,
+workspace and workspace-profile configuration in place so it migrates old files, resolve any
+deferred-migration warning, and remove anything below that is still left over before you
+upgrade; v0.6.1 refuses to load configuration that still contains it. Existing archived comments, SQL migration history, memory files, transcripts and
+retained extension registrations are not deleted.
+
+| Removed in v0.6.1                                                                                                                                                                                                                                                                                                                                                              | Use instead                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The agent kind renamed to always-on in v0.5.1, in a persisted `AGENT.md` `kind`, decoded and rewritten on load                                                                                                                                                                                                                                                                 | `kind: always_on`. Files v0.6.0 could not rewrite (read-only, or shipped in an extension) must be edited at their source; extension authors publish a new version.                        |
+| `config.toml` agent tables under that renamed kind, migrated on load                                                                                                                                                                                                                                                                                                           | `[agents.always_on]`                                                                                                                                                                      |
+| Archiving retired memory and compaction settings from `config.toml` on start: `[memory]` and its sub-tables, `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, `[[automation.triggers]]` with `event = "memory.consolidated"`, and hook matcher keys `compaction_reason` / `compaction_strategy` | Delete them. They now fail configuration validation.                                                                                                                                      |
+| Ignoring the hook matcher keys `compaction_reason` and `compaction_strategy` in `config.toml` hooks, extension manifest hooks, `AGENT.md` and `SKILL.md`                                                                                                                                                                                                                       | `compaction_trigger` in config, extension or skill hooks. `AGENT.md` hooks cannot target context events.                                                                                  |
+| Dropping `memory.backend` from an extension manifest's `capabilities.provides`, and `memory/recall`, `memory/store`, `memory/forget`, `memory.read` and `memory.write` from its `permissions.requires`                                                                                                                                                                         | Remove them from the extension source and publish a new version. Installed packages are never edited.                                                                                     |
+| Skipping extension automation resources triggered by `memory.consolidated`                                                                                                                                                                                                                                                                                                     | Remove the resource.                                                                                                                                                                      |
+| Ignoring `memory_policy` in `SOUL.md`                                                                                                                                                                                                                                                                                                                                          | Delete the field. It now gets the normal unsupported-field diagnostic.                                                                                                                    |
+| Dropping retired memory tool IDs and the `compozy__memory` / `compozy__memory_admin` toolsets from agent, profile and session tool policies                                                                                                                                                                                                                                    | Remove them. Retired toolsets fail catalog validation. Exact retired `compozy__memory_*` IDs are still accepted but match no tool, and an explicit allow-list stays restricted.           |
+| The `permissions.provider_full_access` key, a no-op with a warning in v0.6.0                                                                                                                                                                                                                                                                                                   | `permissions.mode` (`approve-all` for **Full access**). The old key is now unknown.                                                                                                       |
+| Agent Client Protocol (ACP) usage aliases `cacheReadTokens` / `cacheWriteTokens`                                                                                                                                                                                                                                                                                               | ACP adapters must send `cachedReadTokens` / `cachedWriteTokens`. The aliases are no longer counted toward cache usage; nothing fails.                                                     |
+| Automatic transfer of bundled `dev-cycle` extension state to `spec-cycle`                                                                                                                                                                                                                                                                                                      | Re-enter its inputs and credentials on `spec-cycle`, then run the removal command `compozy doctor` suggests for each `dev-cycle` installation. The old state stays in place until you do. |
+| Treating a launch that a stop canceled before v0.4.8 as canceled instead of failed when you take over the session, so it could resume                                                                                                                                                                                                                                          | Take over those sessions while still on v0.6.0. Normal session recovery is unchanged.                                                                                                     |
+
+Marketplace source management (`compozy marketplace sources`) is still experimental. Only the
+expired "through v0.6.0" date was removed from its help text. The full upgrade steps are in the
+migration guide.
