@@ -162,10 +162,11 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 			err,
 			ErrValidation,
 		) {
-			t.Fatalf("empty policy widened: %v", err)
+			t.Fatalf("retired-only restriction widened: %v", err)
 		}
+		// Delegation ceilings retain exact policy atoms; the tool registry owns availability.
 		ids, err := concreteDelegationTools(resolved, catalog, []toolspkg.ToolID{toolspkg.ToolIDTaskRead})
-		if err != nil || len(ids) != 0 {
+		if err != nil || !slices.Equal(ids, []string{"compozy__memory_list"}) {
 			t.Fatalf("concreteDelegationTools() = %#v, %v", ids, err)
 		}
 	})

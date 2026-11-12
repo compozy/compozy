@@ -1141,7 +1141,7 @@ func nativeExtensionTarGzWithGateway(
 	t.Helper()
 
 	integrationManifestSections := ""
-	runtimeCapabilities := `provides = ["memory.backend"]`
+	runtimeCapabilities := `provides = []`
 	runtimePermissions := `requires = ["sessions/list"]`
 	if strings.TrimSpace(permission) != "" {
 		runtimeCapabilities = "provides = []"
@@ -1224,7 +1224,7 @@ description = "Native local tool test extension"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+provides = []
 
 [permissions]
 requires = ["sessions/list"]
