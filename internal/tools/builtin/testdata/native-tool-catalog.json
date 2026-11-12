@@ -559,6 +559,21 @@
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__automation_runs_cancel",
+    "native_name": "automation_runs_cancel",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "acf72109a6aa993a6302de18ed87c6bced5bf77a625d021060ffb4a9f445e946",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
+  },
+  {
     "tool_id": "compozy__automation_runs_get",
     "native_name": "automation_runs_get",
     "toolsets": [

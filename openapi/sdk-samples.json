@@ -239,6 +239,13 @@
             "resource": "tasks",
             "app_access": "denied"
         },
+        "cancelAutomationRun": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.automation.cancelAutomationRun({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CancelAutomationRun(ctx, client.CancelAutomationRunParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "automation",
+            "app_access": "allowed"
+        },
         "cancelLoopNode": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.cancelLoopNode({ path: { \"workspace_id\": \"workspace_id\", \"run_id\": \"run_id\", \"node_id\": \"node_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CancelLoopNode(ctx, client.CancelLoopNodeParams{WorkspaceID: \"workspace_id\", RunID: \"run_id\", NodeID: \"node_id\"}, client.LoopNodeMutationRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",

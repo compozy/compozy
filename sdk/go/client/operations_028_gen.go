@@ -9,6 +9,42 @@ import (
 	"strings"
 )
 
+// PutProfileSelection Remember a profile selection
+func (c *Client) PutProfileSelection(ctx context.Context, body ProfileSelection) (*ProfileSelection, error) {
+	path := "/api/profiles/selection"
+	var out ProfileSelection
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutResourceParams carries the path, query, and header parameters.
+type PutResourceParams struct {
+	Kind string `url:"kind"`
+	ID   string `url:"id"`
+}
+
+// PutResource Create or replace one desired-state resource on the local operator control plane
+func (c *Client) PutResource(ctx context.Context, params PutResourceParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/resources/{kind}/{id}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsHookParams carries the path, query, and header parameters.
+type PutSettingsHookParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // PutSettingsHook Create or replace one settings-backed hook declaration
 func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookParams, body PutSettingsHookRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/hooks/{name}"
@@ -407,44 +443,4 @@ func (c *Client) ReadToolArtifact(ctx context.Context, params ReadToolArtifactPa
 type RecordCmdPaletteUsageParams struct {
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// RecordCmdPaletteUsage Record command palette usage
-func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
-	path := "/api/cmd-palette/usage"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// RecoverTaskParams carries the path, query, and header parameters.
-type RecoverTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// RecoverTask Recover one task from needs_attention
-func (c *Client) RecoverTask(ctx context.Context, params RecoverTaskParams, body RecoverTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/recover"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

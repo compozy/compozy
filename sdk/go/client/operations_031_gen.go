@@ -8,6 +8,32 @@ import (
 	"strings"
 )
 
+// RequestTaskRunReview Request review for one terminal task run
+func (c *Client) RequestTaskRunReview(ctx context.Context, params RequestTaskRunReviewParams, body RunReviewRequest) (*TaskRunReviewRequestResponse, error) {
+	path := "/api/task-runs/{id}/reviews"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewRequestResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RequeueLoopNodeParams carries the path, query, and header parameters.
+type RequeueLoopNodeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Profile     *string `url:"profile"`
+}
+
 // RequeueLoopNode Requeue one Loop node
 func (c *Client) RequeueLoopNode(ctx context.Context, params RequeueLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue"
@@ -414,23 +440,4 @@ func (c *Client) RevokeGatewayDevice(ctx context.Context, params RevokeGatewayDe
 type RevokeToolApprovalGrantParams struct {
 	ID          string `url:"id"`
 	WorkspaceID string `url:"workspace_id"`
-}
-
-// RevokeToolApprovalGrant Revoke one remembered native-tool approval decision in one workspace
-func (c *Client) RevokeToolApprovalGrant(ctx context.Context, params RevokeToolApprovalGrantParams) error {
-	path := "/api/tool-approval-grants/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RewindSessionConversationParams carries the path, query, and header parameters.
-type RewindSessionConversationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

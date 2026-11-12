@@ -11,6 +11,40 @@ import (
 	"strings"
 )
 
+// InspectTaskParams carries the path, query, and header parameters.
+type InspectTaskParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// InspectTask Inspect one task with diagnostics
+func (c *Client) InspectTask(ctx context.Context, params InspectTaskParams) (*TaskInspectResponse, error) {
+	path := "/api/tasks/{id}/inspect"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectWorktreeParams carries the path, query, and header parameters.
+type InspectWorktreeParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
 // InspectWorktree Inspect one worktree
 func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreeParams) (*WorktreeInspectionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
@@ -394,45 +428,4 @@ type ListAgentSkillReviewsParams struct {
 	Cursor     *string `url:"cursor"`
 	Limit      *int    `url:"limit"`
 	Profile    *string `url:"profile"`
-}
-
-// ListAgentSkillReviews List agent skill reviews (experimental)
-func (c *Client) ListAgentSkillReviews(ctx context.Context, params ListAgentSkillReviewsParams) (*AgentSkillReviewsResponse, error) {
-	path := "/api/agent-skill-reviews"
-	query := url.Values{}
-	if params.InstanceID != nil {
-		query.Set("instance_id", *params.InstanceID)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentSoulHistoryParams carries the path, query, and header parameters.
-type ListAgentSoulHistoryParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
 }

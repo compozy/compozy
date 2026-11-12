@@ -10,6 +10,31 @@ import (
 	"strings"
 )
 
+// ExportWindowManagerLayout Export one declarative window layout
+func (c *Client) ExportWindowManagerLayout(ctx context.Context, params ExportWindowManagerLayoutParams) (*WindowManagerLayoutDocument, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerLayoutDocument
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExposeSkillParams carries the path, query, and header parameters.
+type ExposeSkillParams struct {
+	Name     string  `url:"name"`
+	Profile  *string `url:"profile"`
+	ForAgent *string `url:"for_agent"`
+}
+
 // ExposeSkill Expose one user- or workspace-owned skill to provider roots
 func (c *Client) ExposeSkill(ctx context.Context, params ExposeSkillParams, body SkillExposureRequest) (*SkillExposeResponse, error) {
 	path := "/api/skills/{name}/expose"
@@ -404,34 +429,6 @@ func (c *Client) GetAgentCoordinatorConfig(ctx context.Context, params GetAgentC
 
 // GetAgentDefinitionSoulParams carries the path, query, and header parameters.
 type GetAgentDefinitionSoulParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// GetAgentDefinitionSoul Inspect the resolved Soul read model for an agent definition
-func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefinitionSoulParams) (*AgentSoulPayload, error) {
-	path := "/api/agents/{name}/soul"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentHeartbeatParams carries the path, query, and header parameters.
-type GetAgentHeartbeatParams struct {
 	Name        string  `url:"name"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`

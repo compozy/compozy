@@ -112,6 +112,9 @@ import type {
   BulkForceReleaseTaskRunsData,
   BulkForceReleaseTaskRunsErrors,
   BulkForceReleaseTaskRunsResponses,
+  CancelAutomationRunData,
+  CancelAutomationRunErrors,
+  CancelAutomationRunResponses,
   CancelLoopNodeData,
   CancelLoopNodeErrors,
   CancelLoopNodeResponses,
@@ -3623,6 +3626,24 @@ export class automation extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/automation/runs/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel an orphaned automation run
+   */
+  public cancelAutomationRun<ThrowOnError extends boolean = true>(
+    options: Options<CancelAutomationRunData, ThrowOnError>
+  ): RequestResult<CancelAutomationRunResponses, CancelAutomationRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CancelAutomationRunResponses,
+      CancelAutomationRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/automation/runs/{id}/cancel",
       ...options,
     });
   }

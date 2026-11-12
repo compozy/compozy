@@ -248,6 +248,13 @@ var automationTools = []toolspkg.Descriptor{
 		[]string{automationAutomationKey, automationRunsKey},
 		[]string{"automation run details", "run record"},
 	),
+	nativeAutomationDescriptor(
+		toolspkg.ToolIDAutomationRunsCancel, "automation_runs_cancel", "Automation Runs Cancel",
+		"Cancel an orphaned run whose session is missing or stopped, preserving history. Live sessions, delegated executions and admissions without a session are refused; stop them through their owning lifecycle first. Terminal runs are unchanged.",
+		automationRunIDInputSchema, toolspkg.RiskMutating, false, false,
+		[]string{automationAutomationKey, automationRunsKey, automationMutationKey},
+		[]string{"cancel automation run", "recover stuck run"},
+	),
 }
 
 func automationDescriptors() []toolspkg.Descriptor {

@@ -6,8 +6,49 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// RecordCmdPaletteUsage Record command palette usage
+func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
+	path := "/api/cmd-palette/usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
+// RecoverTaskParams carries the path, query, and header parameters.
+type RecoverTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RecoverTask Recover one task from needs_attention
+func (c *Client) RecoverTask(ctx context.Context, params RecoverTaskParams, body RecoverTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/recover"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // RecoverTaskRunParams carries the path, query, and header parameters.
 type RecoverTaskRunParams struct {
@@ -393,44 +434,4 @@ type RemoveExtensionParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// RemoveExtension Remove one managed extension
-func (c *Client) RemoveExtension(ctx context.Context, params RemoveExtensionParams) (*ExtensionRemoveResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionRemoveResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RemoveMarketplaceSourceParams carries the path, query, and header parameters.
-type RemoveMarketplaceSourceParams struct {
-	Name string `url:"name"`
-}
-
-// RemoveMarketplaceSource Remove a custom source without removing installed extensions Experimental: pin the exact SDK version.
-func (c *Client) RemoveMarketplaceSource(ctx context.Context, params RemoveMarketplaceSourceParams) error {
-	path := "/api/marketplace/sources/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RemoveSessionWorkLinkParams carries the path, query, and header parameters.
-type RemoveSessionWorkLinkParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

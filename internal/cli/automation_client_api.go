@@ -46,6 +46,7 @@ type automationClientAPI interface {
 	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) (AutomationRunListRecord, error)
 	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) (AutomationRunListRecord, error)
 	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
+	CancelAutomationRun(ctx context.Context, id string) (RunRecord, error)
 }
 
 // AutomationSuggestionListRecord wraps one exact-workspace suggestion list.

@@ -370,6 +370,7 @@ type stubClient struct {
 	deleteAutomationTriggerFn func(context.Context, string) error
 	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) (AutomationRunListRecord, error)
 	listAutomationRunsFn      func(context.Context, AutomationRunQuery) (AutomationRunListRecord, error)
+	cancelAutomationRunFn     func(context.Context, string) (RunRecord, error)
 	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
 	listTasksFn               func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error)
 	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
@@ -3835,4 +3836,11 @@ func (s *stubClient) HeartbeatAuthority(
 }
 func (s *stubClient) MutateHeartbeatAuthority(context.Context, string, AgentQuery, string, bool) error {
 	return nil
+}
+
+func (s *stubClient) CancelAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+	if s.cancelAutomationRunFn != nil {
+		return s.cancelAutomationRunFn(ctx, id)
+	}
+	return RunRecord{}, errors.New("unexpected CancelAutomationRun call")
 }

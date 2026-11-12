@@ -2142,6 +2142,7 @@ func newAutomationCoreTestRouter(
 	engine.GET("/automation/triggers/:id/runs", handlers.AutomationTriggerRuns)
 	engine.GET("/automation/runs", handlers.ListAutomationRuns)
 	engine.GET("/automation/runs/:id", handlers.GetAutomationRun)
+	engine.POST("/automation/runs/:id/cancel", handlers.CancelAutomationRun)
 	engine.GET("/workspaces/:workspace_id/automation/suggestions", handlers.ListAutomationSuggestions)
 	engine.POST(
 		"/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
@@ -2224,6 +2225,7 @@ type stubAutomationManager struct {
 	DeleteTriggerFn     func(context.Context, string) error
 	ListRunsFn          func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	GetRunFn            func(context.Context, string) (automationpkg.Run, error)
+	CancelRunFn         func(context.Context, string) (automationpkg.Run, error)
 	StatusFn            func(context.Context) (automationpkg.ManagerStatus, error)
 	SetJobEnabledFn     func(context.Context, string, bool) (automationpkg.Job, error)
 	SetTriggerEnabledFn func(context.Context, string, bool) (automationpkg.Trigger, error)
@@ -2717,6 +2719,55 @@ func TestTriggerAutomationJobWaitOptions(t *testing.T) {
 				}
 			} else if !strings.Contains(response.Body.String(), "error") {
 				t.Fatalf("missing validation error: %s", response.Body.String())
+			}
+		})
+	}
+}
+
+func (s stubAutomationManager) CancelRun(ctx context.Context, id string) (automationpkg.Run, error) {
+	if s.CancelRunFn != nil {
+		return s.CancelRunFn(ctx, id)
+	}
+	return automationpkg.Run{}, automationpkg.ErrRunNotFound
+}
+
+func TestCancelAutomationRunContract(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		profile    string
+		cancelErr  error
+		wantStatus int
+		wantBody   string
+	}{
+		{"Should return the canceled run", store.DefaultProfileID, nil, http.StatusOK, `"status":"canceled"`},
+		{"Should return conflict for a live execution", store.DefaultProfileID, automationpkg.ErrRunActive, http.StatusConflict, "run may still be executing"},
+		{"Should hide another profile run before mutation", "profile-other", nil, http.StatusNotFound, "run not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			run := automationpkg.Run{ID: "run-cancel", ProfileID: tc.profile, JobID: "job", Status: automationpkg.RunRunning}
+			router := newAutomationCoreTestRouter(t, stubAutomationManager{
+				GetRunFn: func(context.Context, string) (automationpkg.Run, error) { return run, nil },
+				CancelRunFn: func(_ context.Context, id string) (automationpkg.Run, error) {
+					calls++
+					if id != run.ID {
+						t.Fatalf("cancel id = %q", id)
+					}
+					if tc.cancelErr != nil {
+						return automationpkg.Run{}, tc.cancelErr
+					}
+					run.Status = automationpkg.RunCancelled
+					return run, nil
+				},
+			})
+			response := performAutomationCoreRequest(t, router, http.MethodPost, "/automation/runs/run-cancel/cancel", nil, nil)
+			if response.Code != tc.wantStatus || !strings.Contains(response.Body.String(), tc.wantBody) {
+				t.Fatalf("cancel response = %d %s", response.Code, response.Body.String())
+			}
+			if tc.wantStatus == http.StatusNotFound && calls != 0 {
+				t.Fatalf("foreign run mutated %d times", calls)
 			}
 		})
 	}

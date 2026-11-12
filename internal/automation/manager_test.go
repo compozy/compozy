@@ -3212,3 +3212,177 @@ func TestManagerStartJob(t *testing.T) {
 		}
 	})
 }
+
+func TestManagerReconcilesUnfinishedRunsBeforeScheduling(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		status       RunStatus
+		sessionID    string
+		sessionState session.State
+		orphan       bool
+	}{
+		{"Should recover a running run with a missing session", RunRunning, "missing", "", true},
+		{"Should recover a running run with a stopped session", RunRunning, "stopped", session.StateStopped, true},
+		{"Should recover a scheduled admission without a session", RunScheduled, "", "", true},
+		{"Should preserve a live running session and self overlap", RunRunning, "live", session.StateActive, false},
+		{"Should preserve a starting session and self overlap", RunRunning, "starting", session.StateStarting, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newManagerHarness(t)
+			job := testJob(AutomationScopeGlobal, "restart", "")
+			job.Enabled = false
+			job, err := h.db.CreateJob(h.ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first := h.newManager(t, compozyconfig.AutomationConfig{})
+			if err := first.Start(h.ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := first.Shutdown(h.ctx); err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC)
+			old, err := h.db.CreateRun(h.ctx, Run{
+				ID: "run-before-restart", JobID: job.ID, ProfileID: store.DefaultProfileID,
+				SessionID: tc.sessionID, Status: tc.status, Attempt: 1, StartedAt: &at,
+				Metadata: map[string]any{"retained": "history"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.sessionState != "" {
+				h.sessions.setStatus(&session.Info{ID: tc.sessionID, State: tc.sessionState})
+			}
+			restarted := h.newManager(t, compozyconfig.AutomationConfig{}, WithManagerNow(func() time.Time { return at.Add(time.Minute) }))
+			if err := restarted.Start(h.ctx); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := restarted.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			saved, err := restarted.GetRun(h.ctx, old.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.orphan {
+				if saved.Status != RunFailed || saved.Error != "orphaned_after_restart" || saved.EndedAt == nil ||
+					!saved.EndedAt.Equal(at.Add(time.Minute)) || saved.Metadata["retained"] != "history" || saved.SessionID != old.SessionID {
+					t.Fatalf("reconciled run = %#v", saved)
+				}
+			} else if saved.Status != tc.status || saved.EndedAt != nil {
+				t.Fatalf("live run changed: %#v", saved)
+			}
+			claim, err := h.db.ClaimScheduledRun(h.ctx, SchedulerClaim{
+				JobID: job.ID, ProfileID: job.ProfileID, RunID: "run-after-restart", FireID: "fire-after-restart",
+				ScheduledAt: at.Add(2 * time.Minute), ClaimedAt: at.Add(2 * time.Minute),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.orphan {
+				if !claim.Skipped || claim.SkipReason != SchedulerSkipReasonSelfOverlap {
+					t.Fatalf("live claim = %#v", claim)
+				}
+				return
+			}
+			if claim.Skipped {
+				t.Fatalf("orphan blocked next fire: %#v", claim)
+			}
+			job.Enabled = true
+			run, err := restarted.dispatcher.Dispatch(h.ctx, DispatchRequest{
+				Kind: DispatchKindSchedule, Job: &job, ReservedRun: &claim.Run,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if run.Status != RunCompleted || h.sessions.promptCount() != 1 {
+				t.Fatalf("next fire = %#v", run)
+			}
+		})
+	}
+}
+
+func TestManagerCancelRun(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		sessionID string
+		state     session.State
+		status    RunStatus
+		refused   bool
+	}{
+		{"Should cancel a run whose session is missing", "missing", "", RunRunning, false},
+		{"Should cancel a run whose session stopped", "stopped", session.StateStopped, RunRunning, false},
+		{"Should refuse a live session without changing its row", "live", session.StateActive, RunRunning, true},
+		{"Should refuse an admission without a session", "", "", RunScheduled, true},
+		{"Should refuse delegated execution", "", "", RunDelegated, true},
+		{"Should preserve completed history", "done", session.StateStopped, RunCompleted, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newManagerHarness(t)
+			job, err := h.db.CreateJob(h.ctx, testJob(AutomationScopeGlobal, "cancel", ""))
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC)
+			run := Run{ID: "run-cancel", JobID: job.ID, ProfileID: job.ProfileID,
+				SessionID: tc.sessionID, Status: tc.status, Attempt: 1, StartedAt: &at}
+			if tc.status == RunDelegated {
+				run.TaskID, run.TaskRunID = "task-delegated", "task-run-delegated"
+			}
+			run, err = h.db.CreateRun(h.ctx, run)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.state != "" {
+				h.sessions.setStatus(&session.Info{ID: tc.sessionID, State: tc.state})
+			}
+			m := h.newManager(t, compozyconfig.AutomationConfig{}, WithManagerNow(func() time.Time { return at.Add(time.Minute) }))
+			got, err := m.CancelRun(h.ctx, run.ID)
+			if tc.refused {
+				if !errors.Is(err, ErrRunActive) {
+					t.Fatalf("CancelRun error = %v", err)
+				}
+				saved, err := m.GetRun(h.ctx, run.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if saved.Status != tc.status || saved.EndedAt != nil {
+					t.Fatalf("refused run changed: %#v", saved)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.status == RunCompleted {
+				if got.Status != RunCompleted || got.Error != "" {
+					t.Fatalf("terminal run changed: %#v", got)
+				}
+				return
+			}
+			if got.Status != RunCancelled || got.Error != "operator_canceled" || got.EndedAt == nil ||
+				!got.EndedAt.Equal(at.Add(time.Minute)) {
+				t.Fatalf("canceled run = %#v", got)
+			}
+			again, err := m.CancelRun(h.ctx, run.ID)
+			if err != nil || again.Status != RunCancelled || again.Error != got.Error {
+				t.Fatalf("repeat cancel = %#v, %v", again, err)
+			}
+			run.Status = RunCompleted
+			if _, err := h.db.UpdateRun(h.ctx, run); err == nil {
+				t.Fatal("stale dispatcher overwrote cancellation")
+			}
+			saved, err := m.GetRun(h.ctx, run.ID)
+			if err != nil || saved.Status != RunCancelled {
+				t.Fatalf("cancellation lost: %#v, %v", saved, err)
+			}
+		})
+	}
+}

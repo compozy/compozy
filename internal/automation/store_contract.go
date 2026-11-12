@@ -18,6 +18,7 @@ const (
 // Store is the persistence surface consumed by the composed automation manager.
 type Store interface {
 	RunStore
+	SettleRun(ctx context.Context, expected Run, status RunStatus, reason string, endedAt time.Time) (Run, error)
 	LatestRunsByOwner(ctx context.Context, owner RunOwnerKind, ids []string) (map[string]Run, error)
 	GetRun(ctx context.Context, id string) (Run, error)
 	CreateJob(ctx context.Context, job Job) (Job, error)

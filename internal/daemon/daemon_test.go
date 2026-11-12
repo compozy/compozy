@@ -11613,3 +11613,7 @@ func TestReadWorkspaceWorkLogReplacement(t *testing.T) {
 		})
 	}
 }
+
+func (f *fakeAutomationManager) CancelRun(ctx context.Context, id string) (automationpkg.Run, error) {
+	return f.GetRun(ctx, id)
+}

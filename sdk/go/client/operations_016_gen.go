@@ -10,6 +10,43 @@ import (
 	"strings"
 )
 
+// GetTaskRunReviewParams carries the path, query, and header parameters.
+type GetTaskRunReviewParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTaskRunReview Get one task-run review
+func (c *Client) GetTaskRunReview(ctx context.Context, params GetTaskRunReviewParams) (*TaskRunReviewResponse, error) {
+	path := "/api/task-reviews/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTaskTimelineParams carries the path, query, and header parameters.
+type GetTaskTimelineParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetTaskTimeline Get one task timeline
 func (c *Client) GetTaskTimeline(ctx context.Context, params GetTaskTimelineParams) (*TaskTimelineResponse, error) {
 	path := "/api/tasks/{id}/timeline"
@@ -408,38 +445,4 @@ func (c *Client) InspectSession(ctx context.Context, params InspectSessionParams
 		return nil, err
 	}
 	return &out, nil
-}
-
-// InspectTaskParams carries the path, query, and header parameters.
-type InspectTaskParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// InspectTask Inspect one task with diagnostics
-func (c *Client) InspectTask(ctx context.Context, params InspectTaskParams) (*TaskInspectResponse, error) {
-	path := "/api/tasks/{id}/inspect"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskInspectResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InspectWorktreeParams carries the path, query, and header parameters.
-type InspectWorktreeParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
 }

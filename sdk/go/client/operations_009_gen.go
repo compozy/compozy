@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// GetAgentDefinitionSoul Inspect the resolved Soul read model for an agent definition
+func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefinitionSoulParams) (*AgentSoulPayload, error) {
+	path := "/api/agents/{name}/soul"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentHeartbeatParams carries the path, query, and header parameters.
+type GetAgentHeartbeatParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetAgentHeartbeat Inspect the resolved Heartbeat policy for an agent definition
 func (c *Client) GetAgentHeartbeat(ctx context.Context, params GetAgentHeartbeatParams) (*HeartbeatPolicyPayload, error) {
 	path := "/api/agents/{name}/heartbeat"
@@ -409,34 +437,6 @@ func (c *Client) GetCmdPalettePersonalization(ctx context.Context, params GetCmd
 		path += "?" + query.Encode()
 	}
 	var out CmdPalettePersonalizationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPaletteRankSignalsParams carries the path, query, and header parameters.
-type GetCmdPaletteRankSignalsParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPaletteRankSignals Get command palette rank signals
-func (c *Client) GetCmdPaletteRankSignals(ctx context.Context, params GetCmdPaletteRankSignalsParams) (*CmdPaletteRankSignalsResponse, error) {
-	path := "/api/cmd-palette/rank-signals"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteRankSignalsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

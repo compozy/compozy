@@ -529,6 +529,46 @@ func (q *Queries) ListAutomationTriggerOverlays(ctx context.Context) ([]Automati
 	return items, nil
 }
 
+const settleAutomationRun = `-- name: SettleAutomationRun :execrows
+UPDATE automation_runs SET status = ?1, error = ?2, ended_at = ?3
+WHERE id = ?4 AND status = ?5
+ AND status IN ('scheduled', 'running')
+ AND COALESCE(session_id, '') = ?6
+ AND COALESCE(task_id, '') = ?7
+ AND COALESCE(task_run_id, '') = ?8
+ AND COALESCE(loop_run_id, '') = ?9
+`
+
+type SettleAutomationRunParams struct {
+	Status            string         `json:"status"`
+	Error             sql.NullString `json:"error"`
+	EndedAt           sql.NullString `json:"ended_at"`
+	ID                string         `json:"id"`
+	ExpectedStatus    string         `json:"expected_status"`
+	ExpectedSessionID sql.NullString `json:"expected_session_id"`
+	ExpectedTaskID    sql.NullString `json:"expected_task_id"`
+	ExpectedTaskRunID sql.NullString `json:"expected_task_run_id"`
+	ExpectedLoopRunID sql.NullString `json:"expected_loop_run_id"`
+}
+
+func (q *Queries) SettleAutomationRun(ctx context.Context, arg SettleAutomationRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, settleAutomationRun,
+		arg.Status,
+		arg.Error,
+		arg.EndedAt,
+		arg.ID,
+		arg.ExpectedStatus,
+		arg.ExpectedSessionID,
+		arg.ExpectedTaskID,
+		arg.ExpectedTaskRunID,
+		arg.ExpectedLoopRunID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateAutomationJob = `-- name: UpdateAutomationJob :execrows
 UPDATE automation_jobs SET
  grant_ceiling = CASE WHEN CAST(?1 AS BOOLEAN) THEN ?2 WHEN grant_ceiling = 'unrestricted' AND ?2 = 'unrestricted' THEN 'unrestricted' ELSE '' END,
@@ -604,7 +644,7 @@ UPDATE automation_runs SET
   ended_at = ?11, error = ?12,
   delivery_error = ?13, delivery_error_at = ?14,
 	loop_run_id = ?15, metadata_json = ?16
-WHERE id = ?17
+WHERE id = ?17 AND NOT (status = 'canceled' AND COALESCE(error, '') = 'operator_canceled')
 `
 
 type UpdateAutomationRunParams struct {

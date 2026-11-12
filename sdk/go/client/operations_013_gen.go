@@ -9,6 +9,49 @@ import (
 	"strings"
 )
 
+// GetSession Get one session snapshot
+func (c *Client) GetSession(ctx context.Context, params GetSessionParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.IncludeHealth != nil {
+		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionAttentionSummary Get exact session attention counts
+func (c *Client) GetSessionAttentionSummary(ctx context.Context) (*SessionAttentionSummaryPayload, error) {
+	path := "/api/sessions/attention-summary"
+	var out SessionAttentionSummaryPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionByIDParams carries the path, query, and header parameters.
+type GetSessionByIDParams struct {
+	SessionID     string  `url:"session_id"`
+	IncludeHealth *bool   `url:"include_health"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetSessionByID Get one session snapshot by id
 func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams) (*SessionResponse, error) {
 	path := "/api/sessions/{session_id}"
@@ -391,36 +434,4 @@ type GetSessionStatusParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionStatus Read compact session status and wake eligibility
-func (c *Client) GetSessionStatus(ctx context.Context, params GetSessionStatusParams) (*SessionStatusResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/status"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionTranscriptParams carries the path, query, and header parameters.
-type GetSessionTranscriptParams struct {
-	WorkspaceID    string  `url:"workspace_id"`
-	SessionID      string  `url:"session_id"`
-	Limit          *int    `url:"limit"`
-	BeforeSequence *int64  `url:"before_sequence"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

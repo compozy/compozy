@@ -69,6 +69,9 @@ func (n *daemonNativeTools) automationToolBindings(
 		toolspkg.ToolIDAutomationRunsList: {
 			call: n.automationRunsList, availability: availability,
 		},
+		toolspkg.ToolIDAutomationRunsCancel: {
+			call: n.automationRunsCancel, availability: availability,
+		},
 		toolspkg.ToolIDAutomationRunsGet: {
 			call: n.automationRunsGet, availability: availability,
 		},

@@ -439,10 +439,8 @@ func (c *Client) BulkForceReleaseTaskRuns(ctx context.Context, params BulkForceR
 	return &out, nil
 }
 
-// CancelLoopNodeParams carries the path, query, and header parameters.
-type CancelLoopNodeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
+// CancelAutomationRunParams carries the path, query, and header parameters.
+type CancelAutomationRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
 }

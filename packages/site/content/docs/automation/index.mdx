@@ -138,6 +138,19 @@ compozy automation jobs trigger <id> --wait --timeout 5m -o json
 Waiting is explicit. `--timeout` bounds only the completion wait (default `1m`, maximum `24h`);
 it does not cancel the run. If that budget expires, the command returns the running admission
 receipt. Read `compozy automation runs get <run-id> -o json` for its current status.
+
+After a restart, unfinished runs whose sessions are missing or stopped are marked `failed`
+with `orphaned_after_restart`. Their history remains available, and the next scheduled fire
+can proceed. Runs with live sessions continue to prevent overlapping execution.
+
+To cancel a stuck run whose session is missing or stopped, use
+`compozy automation runs cancel <run-id> -o json` or `compozy__automation_runs_cancel`.
+HTTP and UDS expose `POST /api/automation/runs/{id}/cancel` and return the run receipt.
+Cancellation records `operator_canceled` and preserves history; terminal runs stay unchanged.
+Live sessions, delegated executions and admissions without a session return a conflict.
+Stop them through their session, Loop or Task lifecycle first; startup recovers admissions
+left without a session. No database edits or separate finish command are required.
+
 Daemon shutdown still cancels and joins in-flight manual runs. A request canceled before
 prompt admission cancels that unaccepted attempt; cancellation after admission ends only the wait.
 
@@ -200,7 +213,7 @@ common fields without replacing the target union. Read and lifecycle verbs opera
 | Suggestions | `compozy__automation_suggestions_list`                                                                          | `compozy__automation_suggestions_accept`, `compozy__automation_suggestions_dismiss`                                                                                                                                | List, create the proposed Job, or dismiss          |
 | Jobs        | `compozy__automation_jobs_list`, `compozy__automation_jobs_get`, `compozy__automation_jobs_history`             | `compozy__automation_jobs_create`, `compozy__automation_jobs_update`, `compozy__automation_jobs_delete`, `compozy__automation_jobs_trigger`, `compozy__automation_jobs_enable`, `compozy__automation_jobs_disable` | Agent/Loop creation; common updates; all lifecycle |
 | Triggers    | `compozy__automation_triggers_list`, `compozy__automation_triggers_get`, `compozy__automation_triggers_history` | `compozy__automation_triggers_create`, `compozy__automation_triggers_update`, `compozy__automation_triggers_delete`, `compozy__automation_triggers_enable`, `compozy__automation_triggers_disable`                 | Agent/Loop creation; common updates; all lifecycle |
-| Runs        | `compozy__automation_runs_list`, `compozy__automation_runs_get`                                                 | —                                                                                                                                                                                                                  | `compozy automation runs ...`                      |
+| Runs        | `compozy__automation_runs_list`, `compozy__automation_runs_get`                                                 | `compozy__automation_runs_cancel`                                                                                                                                                                                                                  | `compozy automation runs ...`                      |
 
 List and get results carry `last_run`. The list tools use the Web UI nouns in their descriptions:
 `compozy__automation_jobs_list` lists "scheduled automations" and

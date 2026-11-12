@@ -115,3 +115,19 @@ func listAutomationTriggerRunsOperationSpec() OperationSpec {
 		},
 	}
 }
+
+func cancelAutomationRunOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: "/api/automation/runs/{id}/cancel", AppAccess: AppAccessAllowed,
+		OperationID: "cancelAutomationRun", Summary: "Cancel an orphaned automation run",
+		Tags: []string{specAutomationKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{pathParam("id", "Automation run id")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Canceled run or unchanged terminal run", Body: contract.RunResponse{}},
+			{Status: 404, Description: "Automation run not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Run may still be executing or changed concurrently", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specAutomationManagerIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
