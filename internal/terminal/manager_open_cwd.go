@@ -164,10 +164,14 @@ func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested st
 		}
 	}
 	return "", &Error{
-		Code:    ErrorCodeInvalidCwd,
-		Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace; use the worktree option to select a managed worktree in this project and profile", displayPath),
-		Path:    displayPath,
-		Err:     ErrInvalidCwd,
+		Code: ErrorCodeInvalidCwd,
+		Message: fmt.Sprintf(
+			"invalid terminal cwd %q: outside workspace; choose a cwd inside the current root, "+
+				"or use the worktree option from an unbound session to select a managed worktree in this project and profile",
+			displayPath,
+		),
+		Path: displayPath,
+		Err:  ErrInvalidCwd,
 	}
 }
 

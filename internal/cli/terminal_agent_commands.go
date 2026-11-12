@@ -56,7 +56,8 @@ func newTerminalExecCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			result, err := client.ExecTerminal(cmd.Context(), workspaceID, TerminalExecRequest{
-				Worktree: strings.TrimSpace(worktree), Command: args[0], Args: args[1:], Cwd: cwd, Env: environment, YieldMs: yieldMS, Visible: visible,
+				Worktree: strings.TrimSpace(worktree), Command: args[0], Args: args[1:], Cwd: cwd,
+				Env: environment, YieldMs: yieldMS, Visible: visible,
 				Output: terminalpkg.OutputShape{Grep: grep},
 			})
 			if err != nil {
