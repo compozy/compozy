@@ -47,3 +47,10 @@ receiving standing content. The existing
 `TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP` requires the exact event
 sequence and each augmenter's metadata over both real transports. Validation runs
 only in CI under the parallel-dispatch operator rule; no local walk was performed.
+
+CI fixture repair 2026-11-12 (#1565): the standing-context budget check supplies a
+full supported roster alongside overflowing rules so that both overflow paths are
+actually exercised. Two peers fit in the remaining budget and do not justify a
+peer-overflow pointer. The existing budget, envelope and both pointer assertions
+remain unchanged in `TestPromptInputCompositeIntegrationStandingContext`; no
+production truncation policy changed. CI owns execution; no local suite was run.

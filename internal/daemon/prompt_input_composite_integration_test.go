@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -911,7 +912,13 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 		for range 60 {
 			rules = append(rules, strings.Repeat("r", 900))
 		}
-		bounded := renderStandingContext(standingView{rules: rules, peers: peers})
+		// A full roster overflows the budget left after rules; the two-peer roster fits.
+		boundedPeers := make([]contract.AgentInstancePeer, standingRosterLimit)
+		for index := range boundedPeers {
+			boundedPeers[index] = peers[index%len(peers)]
+			boundedPeers[index].Name = fmt.Sprintf("peer-%d", index)
+		}
+		bounded := renderStandingContext(standingView{rules: rules, peers: boundedPeers})
 		if size := utf8.RuneCountInString(bounded); size+2 > standingAugmenterBudget {
 			t.Fatalf("standing context is %d runes, budget %d", size, standingAugmenterBudget)
 		}
