@@ -48,6 +48,7 @@ import {
   useSessionListView,
 } from "@/systems/session";
 import { useProductUpdate, useReloadOnProductVersionChange } from "@/systems/settings";
+import { DaemonRecoveryNoticeHost, useRuntimeReconnectRefresh } from "@/systems/status";
 import { selectWorktreeForScope, type WorkspaceSetupDefaultsModel } from "@/systems/workspace";
 
 /**
@@ -62,6 +63,8 @@ export function DesktopShell() {
   // Same cached read and apply key the Updates section uses — one truth.
   const update = useProductUpdate();
   useReloadOnProductVersionChange(update.query.data);
+  // A restarted runtime on the same version refreshes this page's data instead of reloading it.
+  useRuntimeReconnectRefresh();
   const firstRun = onboarding.data?.completed === false;
 
   return (
@@ -317,6 +320,7 @@ function DesktopShellScopedBody({
         )}
       >
         <OsWallpaper wallpaper={desktop.wallpaper} />
+        <DaemonRecoveryNoticeHost className="absolute top-3 left-1/2 z-30 w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 shadow-pop" />
         {model.activeWorkspaceId !== null ? (
           <WorkspaceProfilesHint
             hints={model.workspaceProfileHints}

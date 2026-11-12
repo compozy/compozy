@@ -78,3 +78,16 @@ export const WithDescription: Story = {
     dismissLabel: "Not now",
   },
 };
+
+/**
+ * SessionsResuming — after a restart the runtime answers while it still resumes sessions: info
+ * tone, spinner, the current step as the title and what works meanwhile on the second line.
+ */
+export const SessionsResuming: Story = {
+  args: {
+    tone: "info",
+    busy: true,
+    message: "Resuming interrupted sessions",
+    description: "You can read your sessions now. Sending opens again when this finishes.",
+  },
+};

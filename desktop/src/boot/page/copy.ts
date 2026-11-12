@@ -1,6 +1,7 @@
 import type { ShellSnapshot, ShellStateName } from "../../state/app-state";
 import { publicSafeText } from "../../state/public-safe-text";
 import type { JourneyView, StepId } from "./journey";
+import { readinessLine, waitLine } from "./readiness-copy";
 
 const TITLES: Record<ShellStateName, string> = {
   resolving: "Looking for CompozyOS",
@@ -59,6 +60,8 @@ export function detailFor(
     default:
       break;
   }
+  const waiting = waitLine(snapshot.boot);
+  if (waiting) return waiting;
   if (view.current === "migrate") {
     return snapshot.work === "sessions"
       ? `Upgrading your session history${target}. This runs once.`
@@ -69,6 +72,8 @@ export function detailFor(
       ? "Putting the new runtime in place. Your data stays where it is."
       : "Putting the runtime in place. Nothing else on your computer changes.";
   }
+  const step = readinessLine(snapshot.boot);
+  if (step) return step;
   if (view.layout === "journey" && (view.current === "start" || view.current === "connect")) {
     return "Starting the runtime with your data.";
   }
@@ -114,6 +119,6 @@ export function statusWordFor(snapshot: ShellSnapshot, view: JourneyView): strin
       return "Failed";
     default:
       // The clock beside the word is total boot time, so a stall reads as waiting, not a duration.
-      return view.stalled ? "Waiting" : "Working";
+      return view.stalled || snapshot.boot?.wait ? "Waiting" : "Working";
   }
 }

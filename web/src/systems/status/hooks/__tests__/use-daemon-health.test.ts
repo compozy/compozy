@@ -4,12 +4,16 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runtimeIdentityFixture, statusFixture } from "../../mocks/fixtures";
+import { daemonRecovery } from "../../lib/daemon-readiness";
 import { statusKeys } from "../../lib/query-keys";
+import type { StatusPayload } from "../../types";
 import { deriveDaemonConnectionStatus, useDaemonHealth } from "../use-daemon-health";
 import { useDaemonStatus } from "../use-daemon-status";
 import { useStatus } from "../use-status";
 import { useDaemonConnectionStatus } from "../use-daemon-connection-status";
 import { useRuntimeIdentity } from "../use-runtime-identity";
+import { useDaemonRecovery } from "../use-daemon-recovery";
+import { useRuntimeReconnectRefresh } from "../use-runtime-reconnect-refresh";
 
 vi.mock("../../adapters/daemon-api", () => ({
   fetchStatus: vi.fn(),
@@ -188,6 +192,102 @@ describe("daemon status query projections", () => {
     } finally {
       unmount();
       vi.useRealTimers();
+    }
+  });
+});
+
+/** A status answer from a runtime that reports its lifecycle phase. */
+function statusInPhase(phase: string, step?: string): StatusPayload {
+  const readiness = { phase, step, since: "2026-11-12T00:00:00Z" };
+  const daemon = { ...statusFixture.daemon, readiness };
+  // `readiness` joins the generated contract with the next codegen; the cast holds on both sides.
+  return { ...statusFixture, daemon } as StatusPayload;
+}
+
+// Invariant: after a restart the shell says sessions are resuming exactly while the runtime is in
+// its serving phase, names the step it knows, and returns to normal when the runtime is ready,
+// without a page reload. Runtimes that report no phase never show it.
+describe("daemon recovery after a restart", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Should name the recovery step it knows and fall back for the rest", () => {
+    const resuming = statusInPhase("serving", "resumeBootInterruptedSessions").daemon;
+    expect(daemonRecovery(resuming)).toEqual({ label: "Resuming interrupted sessions" });
+    const unnamed = statusInPhase("serving", "bootNewStep").daemon;
+    expect(daemonRecovery(unnamed)).toEqual({ label: "Resuming your sessions" });
+    expect(daemonRecovery(statusInPhase("serving").daemon)).toEqual({
+      label: "Resuming your sessions",
+    });
+  });
+
+  it.each(["starting", "ready", "stopping"])("Should show no recovery in the %s phase", phase => {
+    expect(daemonRecovery(statusInPhase(phase, "bootFinalize").daemon)).toBeNull();
+  });
+
+  it("Should show no recovery for a runtime that reports no lifecycle phase", () => {
+    expect(daemonRecovery(statusFixture.daemon)).toBeNull();
+    expect(daemonRecovery(undefined)).toBeNull();
+  });
+
+  it("Should clear the recovery once the runtime is ready, without remounting", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue(statusInPhase("serving", "recoverBootMonitors"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result, unmount } = renderHook(() => useDaemonRecovery(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    try {
+      await waitFor(() => {
+        expect(result.current).toEqual({ label: "Restoring monitors" });
+      });
+      vi.mocked(fetchStatus).mockResolvedValue(statusInPhase("ready"));
+      await act(() => queryClient.invalidateQueries({ queryKey: statusKeys.current() }));
+      await waitFor(() => {
+        expect(result.current).toBeNull();
+      });
+    } finally {
+      unmount();
+    }
+  });
+});
+
+// Invariant: a runtime restart on the same origin refreshes the page's server state in place.
+// Cached reads go stale when, and only when, a different runtime process answers.
+describe("runtime reconnect refresh", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Should mark cached reads stale only when another runtime process answers", async () => {
+    vi.mocked(fetchRuntimeIdentity).mockResolvedValue(runtimeIdentityFixture);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cached = ["sessions", "list"];
+    queryClient.setQueryData(cached, []);
+    const stale = () => queryClient.getQueryState(cached)?.isInvalidated;
+    const { unmount } = renderHook(() => useRuntimeReconnectRefresh(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    try {
+      await waitFor(() => {
+        expect(fetchRuntimeIdentity).toHaveBeenCalledTimes(1);
+      });
+      // The same process answering again is not a restart.
+      await act(() => queryClient.refetchQueries({ queryKey: statusKeys.identity() }));
+      expect(stale()).toBe(false);
+
+      vi.mocked(fetchRuntimeIdentity).mockResolvedValue({
+        ...runtimeIdentityFixture,
+        daemon: { ...runtimeIdentityFixture.daemon, pid: 5252 },
+      });
+      await act(() => queryClient.refetchQueries({ queryKey: statusKeys.identity() }));
+      await waitFor(() => {
+        expect(stale()).toBe(true);
+      });
+    } finally {
+      unmount();
     }
   });
 });

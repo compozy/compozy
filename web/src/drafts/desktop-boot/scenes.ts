@@ -213,6 +213,40 @@ export const SCENES: Record<string, BootScene> = {
     elapsed: 9,
     activity: "attempt 2 of 5",
   },
+  "starting-waiting": {
+    state: "starting",
+    stage: "start",
+    tone: "progress",
+    layout: "center",
+    title: "Starting CompozyOS",
+    detail:
+      "Another update or restart is in progress (process 4242). CompozyOS continues when it finishes.",
+    ring: null,
+    elapsed: 38,
+  },
+  "starting-resuming": {
+    state: "starting",
+    stage: "start",
+    tone: "progress",
+    layout: "center",
+    title: "Starting CompozyOS",
+    detail: "Resuming interrupted sessions.",
+    ring: null,
+    elapsed: 12,
+  },
+  "error-update-running": {
+    state: "error",
+    tone: "danger",
+    layout: "center",
+    title: "CompozyOS could not start",
+    ring: "still",
+    error: {
+      message:
+        "Another CompozyOS update or restart is still running. Wait for it to finish, then try again.",
+      code: "update_lock_held",
+    },
+    actions: ["retry", "logs", "quit"],
+  },
   attaching: {
     state: "attaching",
     tone: "progress",

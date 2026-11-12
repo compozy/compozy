@@ -1,6 +1,10 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeHealthMonitor } from "../runtime-health-monitor";
+import { processAlive, recordedRuntimePids, runtimeProcessAlive } from "../runtime-liveness";
 import { monitorProductRuntime, type ProductRuntimeShell } from "../runtime-reconnect";
 
 const ORIGIN = "http://127.0.0.1:2123";
@@ -137,6 +141,124 @@ describe("runtime health monitor", () => {
       expect(probes).toBe(settled);
     } finally {
       monitor.stop();
+    }
+  });
+
+  // Invariant: no clock alone abandons a runtime whose process is alive. The reconnect window only
+  // decides when liveness is asked; a dead process, or the maximum wait, reports the runtime lost.
+  it("Should keep waiting past the reconnect window while a runtime process is alive", async () => {
+    vi.useFakeTimers();
+    let alive = true;
+    const events: string[] = [];
+    const monitor = new RuntimeHealthMonitor({
+      origin: ORIGIN,
+      intervalMs: 2,
+      failureThreshold: 2,
+      reconnectTimeoutMs: 10,
+      runtimeAlive: async () => alive,
+      fetcher: runtimeFetcher(() => false),
+      onDisconnected: async () => void events.push("disconnected"),
+      onReconnected: async () => void events.push("reconnected"),
+      onLost: async () => void events.push("lost"),
+    });
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(200);
+      expect(events).toEqual(["disconnected"]);
+      alive = false;
+      await vi.advanceTimersByTimeAsync(2);
+      expect(events).toEqual(["disconnected", "lost"]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should reconnect to a live runtime that answers after the reconnect window", async () => {
+    vi.useFakeTimers();
+    let up = false;
+    const events: string[] = [];
+    const monitor = new RuntimeHealthMonitor({
+      origin: ORIGIN,
+      intervalMs: 2,
+      failureThreshold: 2,
+      reconnectTimeoutMs: 10,
+      runtimeAlive: async () => true,
+      fetcher: runtimeFetcher(() => up),
+      onDisconnected: async () => void events.push("disconnected"),
+      onReconnected: async () => void events.push("reconnected"),
+      onLost: async () => void events.push("lost"),
+    });
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(200);
+      up = true;
+      await vi.advanceTimersByTimeAsync(2);
+      expect(events).toEqual(["disconnected", "reconnected"]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  it("Should report a live process that never answers as lost after the maximum wait", async () => {
+    vi.useFakeTimers();
+    const events: string[] = [];
+    const monitor = new RuntimeHealthMonitor({
+      origin: ORIGIN,
+      intervalMs: 2,
+      failureThreshold: 2,
+      reconnectTimeoutMs: 10,
+      maximumWaitMs: 50,
+      runtimeAlive: async () => true,
+      fetcher: runtimeFetcher(() => false),
+      onDisconnected: async () => void events.push("disconnected"),
+      onReconnected: async () => void events.push("reconnected"),
+      onLost: async () => void events.push("lost"),
+    });
+    monitor.start();
+    try {
+      await vi.advanceTimersByTimeAsync(40);
+      expect(events).toEqual(["disconnected"]);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(events).toEqual(["disconnected", "lost"]);
+    } finally {
+      monitor.stop();
+    }
+  });
+});
+
+// Invariant: a runtime counts as alive while the process bound to the window, a daemon holding
+// the daemon lock, or the process driving a restart or update exists. Owner: runtime liveness.
+describe("runtime liveness", () => {
+  it("Should read the daemon and mutation-lock pids the runtime records in its home", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-runtime-liveness-"));
+    try {
+      expect(await recordedRuntimePids(home, "linux")).toEqual([]);
+      await writeFile(join(home, "daemon.lock"), "4242\n");
+      await writeFile(join(home, "update.lock"), '{"pid":777,"started_at":"2026-11-12T00:00:00Z"}');
+      expect(await recordedRuntimePids(home, "linux")).toEqual([4242, 777]);
+      // Windows locks the files exclusively, so the runtime records the pids beside them.
+      expect(await recordedRuntimePids(home, "win32")).toEqual([]);
+      await writeFile(join(home, "daemon.lock.pid"), "4243");
+      await writeFile(join(home, "update.lock.owner"), '{"pid":778}');
+      expect(await recordedRuntimePids(home, "win32")).toEqual([4243, 778]);
+      // A released mutation lock is truncated: it names no process.
+      await writeFile(join(home, "update.lock"), "");
+      expect(await recordedRuntimePids(home, "linux")).toEqual([4242]);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("Should count any recorded or bound runtime process that exists", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-runtime-liveness-"));
+    try {
+      expect(await runtimeProcessAlive(home, 42, () => false)).toBe(false);
+      expect(await runtimeProcessAlive(home, 42, pid => pid === 42)).toBe(true);
+      expect(await runtimeProcessAlive(home, undefined, () => true)).toBe(false);
+      expect(processAlive(process.pid)).toBe(true);
+      expect(processAlive(0)).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
     }
   });
 });
@@ -365,6 +487,54 @@ describe("product runtime follower", () => {
       up = true;
       await vi.advanceTimersByTimeAsync(2);
       expect(steps).toEqual(["publish:disconnected", "reload"]);
+    } finally {
+      monitor.stop();
+    }
+  });
+
+  // Invariant: a reconnect keeps the loaded page, which refreshes its own data, only when that
+  // page is still this runtime version's own and the runtime's web can refresh itself. Anything
+  // else reloads the window, as every reconnect did before.
+  function runtimeAPI(isUp: () => boolean, answer: { version: string; phases: boolean }) {
+    return async (input: string) => {
+      if (!isUp()) throw new Error("runtime unavailable");
+      const status = answer.phases ? { readiness: { phase: "serving" } } : {};
+      const identity = { pid: 43, version: answer.version };
+      const daemon = input.endsWith("/api/status/identity") ? identity : status;
+      return { ok: true, json: async () => ({ daemon }) } as unknown as Response;
+    };
+  }
+
+  it.each([
+    ["keep the page when the same runtime version answers", "1.0.0", true, true, false],
+    ["reload when the runtime serves another version", "1.1.0", true, true, true],
+    ["reload when the runtime predates lifecycle phases", "1.0.0", false, true, true],
+    ["reload when the page did not load", "1.0.0", true, false, true],
+  ] as const)("Should %s", async (_name, version, phases, loaded, reloads) => {
+    vi.useFakeTimers();
+    let up = true;
+    const steps: string[] = [];
+    const monitor = monitorProductRuntime(
+      { origin: ORIGIN, owned: true, version: "v1.0.0", pid: 42 },
+      shell(steps, { productLoaded: () => loaded }),
+      {
+        intervalMs: 2,
+        failureThreshold: 2,
+        reconnectTimeoutMs: 100,
+        fetcher: runtimeAPI(() => up, { version, phases }),
+      }
+    );
+    monitor.start();
+    try {
+      up = false;
+      await vi.advanceTimersByTimeAsync(4);
+      up = true;
+      await vi.advanceTimersByTimeAsync(2);
+      expect(steps).toEqual([
+        "publish:disconnected",
+        "publish:product",
+        ...(reloads ? ["reload"] : []),
+      ]);
     } finally {
       monitor.stop();
     }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ShellSnapshot } from "../../state/app-state";
 import { bootstrapSnapshot } from "../bootstrap-state";
+import { detailFor, statusWordFor } from "../page/copy";
 import { BootJourney, LONG_AFTER_MS, STALL_AFTER_MS, formatDuration } from "../page/journey";
 
 const UP = { from_version: "0.5.4", to_version: "0.6.0" } as const;
@@ -183,5 +184,43 @@ describe("boot journey", () => {
     [3_720_000, "1h 02m"],
   ])("Should format %i ms as %s", (milliseconds, text) => {
     expect(formatDuration(milliseconds)).toBe(text);
+  });
+});
+
+// Invariant: the boot window says what the runtime is doing in plain words: a named step when it
+// knows one, the phase otherwise, and a wait as a wait. Runtime step identifiers are never shown.
+// Owner: boot page copy. Canonical suite: boot-journey.test.ts.
+describe("boot page lifecycle copy", () => {
+  function shown(snapshot: ShellSnapshot) {
+    const view = new BootJourney(0).observe(snapshot, 0);
+    return { detail: detailFor(snapshot, view), word: statusWordFor(snapshot, view) };
+  }
+
+  it("Should name the runtime step it knows and fall back to the phase for the rest", () => {
+    const starting = { state: "starting", stage: "start", attempt: 1 } as const;
+    const named = shown({
+      ...starting,
+      boot: { readiness: "serving", step: "resumeBootInterruptedSessions" },
+    });
+    expect(named).toEqual({ detail: "Resuming interrupted sessions.", word: "Working" });
+    const unnamed = shown({ ...starting, boot: { readiness: "serving", step: "bootNewStep" } });
+    expect(unnamed.detail).toBe("Resuming your sessions.");
+    const phaseOnly = shown({ ...starting, boot: { readiness: "starting" } });
+    expect(phaseOnly.detail).toBe("Starting the runtime with your data.");
+    const unknown = shown({ ...starting, boot: { readiness: "warming", step: "bootNewStep" } });
+    expect(unknown).toEqual({ detail: null, word: "Working" });
+  });
+
+  it("Should say another update or restart is running, with its process when known", () => {
+    const starting = { state: "starting", stage: "start", attempt: 1 } as const;
+    const owned = shown({ ...starting, boot: { wait: "runtime_mutation", owner_pid: 4242 } });
+    expect(owned.word).toBe("Waiting");
+    expect(owned.detail).toBe(
+      "Another update or restart is in progress (process 4242). CompozyOS continues when it finishes."
+    );
+    const unowned = shown({ ...starting, boot: { wait: "runtime_mutation" } });
+    expect(unowned.detail).toBe(
+      "Another update or restart is in progress. CompozyOS continues when it finishes."
+    );
   });
 });

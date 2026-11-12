@@ -234,6 +234,13 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `hook`: typed lifecycle dispatch. Do not call hooks a generic event bus.
 - `extension`: package that can provide resources, capabilities, and Host API actions.
 
+### Restart & Reconnect Terms
+
+- Desktop notice while the runtime answers and still resumes sessions after a restart: title is the current step, "Resuming your sessions" (default) · "Resuming interrupted sessions" · "Reconnecting subagents" · "Restoring monitors" · "Restoring your agents" · "Checking the session list"; second line "You can read your sessions now. Sending opens again when this finishes." Never show the runtime's step identifier.
+- Boot window, waiting on another process: "Another update or restart is in progress (process {pid}). CompozyOS continues when it finishes." (drop the parenthesis when the process is unknown), status word "Waiting". It is a wait, never an "attempt".
+- Boot window, the wait gave up: "Another CompozyOS update or restart is still running. Wait for it to finish, then try again."
+- Boot window, runtime step lines: "Checking your sessions." · "Opening connections." · "Restoring your agents." · "Reconnecting subagents." · "Resuming interrupted sessions." · "Restoring monitors." · "Checking the session list."; phase lines "Starting the runtime with your data." · "Resuming your sessions."
+
 ### Session Environment Terms
 
 - “Use worktree…” selects a ready checkout for the existing idle session. “Change worktree…” changes an existing binding; “Use workspace root” removes it. All preserve the conversation and window.

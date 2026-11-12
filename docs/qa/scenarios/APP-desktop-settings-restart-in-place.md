@@ -41,3 +41,31 @@ Walk, in an isolated home (never the operator's default home or port):
 A session started from a daemon that a restart helper launched inherits
 `COMPOZY_INTERNAL_RESTART_OPERATION_ID`; unset it before starting a lab daemon from such a shell,
 or the lab daemon exits with `restart operation not found`.
+
+## Issue 1614 requirement 7: liveness-based wait and soft reconnect
+
+QA impact 2026-11-12 (#1614): this section replaces the 45 s cutoff and the reload described
+above. Validation for this change is CI-only; the walk has not been run.
+
+- The 45 s reconnect window no longer abandons a runtime by itself. After it, the shell keeps
+  the product window for as long as a runtime process is alive: the pid it was connected to, the
+  pid recorded in `daemon.lock`, or the owner recorded in `update.lock` (the restart or update in
+  progress). It hands off to the boot window only when none is alive, or after 10 minutes.
+- On reconnect the shell keeps the loaded page when the answering runtime has the same version,
+  the page is loaded, and the runtime reports `daemon.readiness`; the page then refreshes its own
+  data. `logs/desktop.log` reads `runtime reconnected; product window refreshes its data`.
+  Otherwise the window reloads and the log reads `runtime reconnected; reloading product window`:
+  a runtime update that changed the version, a page that failed to load during the outage, or a
+  runtime without lifecycle phases.
+
+Walk:
+
+1. Step 2 of the walk above with the slow branch held for 90 s (past the 45 s window). Expect
+   one product window throughout, no boot window, and the soft-reconnect log line. Text typed in
+   an open composer before the restart is still there after it.
+2. While the replacement daemon is in its serving phase, expect the desktop notice "Resuming
+   interrupted sessions" (or the current step); it clears when the daemon is ready.
+3. Lost runtime: `compozy daemon stop` with the app open. With no runtime process left, the boot
+   window appears after about 50 s, as before.
+4. Runtime update that changes the version: expect the reload log line and the new web bundle.
+
