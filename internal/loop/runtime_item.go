@@ -81,10 +81,15 @@ func appliedResolvedRuntime(
 	if strings.TrimSpace(string(intent.Runtime.Speed)) == "" && resolved.Runtime.Speed != "" {
 		resolved.Source.Speed = RuntimeSourceAgent
 	}
-	if len(intent.Runtime.ACPOptions) == 0 && len(resolved.Runtime.ACPOptions) > 0 {
+	resolved.Source.ACPOptions = nil
+	if len(resolved.Runtime.ACPOptions) > 0 {
 		resolved.Source.ACPOptions = make(map[string]RuntimeSource, len(resolved.Runtime.ACPOptions))
 		for _, option := range resolved.Runtime.ACPOptions {
-			resolved.Source.ACPOptions[option.ID] = RuntimeSourceAgent
+			source, exists := intent.Source.ACPOptions[option.ID]
+			if !exists {
+				source = RuntimeSourceAgent
+			}
+			resolved.Source.ACPOptions[option.ID] = source
 		}
 	}
 	return resolved

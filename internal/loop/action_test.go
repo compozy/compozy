@@ -1011,6 +1011,80 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name    string
+		intent  []loop.ACPOptionSelection
+		applied []loop.ACPOptionSelection
+		sources map[string]loop.RuntimeSource
+	}{
+		{
+			name:   "Should retain node provenance and attribute an added option to the agent",
+			intent: []loop.ACPOptionSelection{{ID: "fast_mode", BoolValue: new(false)}},
+			applied: []loop.ACPOptionSelection{
+				{ID: "fast_mode", BoolValue: new(false)},
+				{ID: "mode", ValueID: "agent-full-access"},
+			},
+			sources: map[string]loop.RuntimeSource{"fast_mode": loop.RuntimeSourceNode, "mode": loop.RuntimeSourceAgent},
+		},
+		{
+			name: "Should prune skipped option provenance and preserve a surviving node option",
+			intent: []loop.ACPOptionSelection{
+				{ID: "fast_mode", BoolValue: new(false)},
+				{ID: "mode", ValueID: "bypassPermissions"},
+			},
+			applied: []loop.ACPOptionSelection{{ID: "fast_mode", BoolValue: new(false)}},
+			sources: map[string]loop.RuntimeSource{"fast_mode": loop.RuntimeSourceNode},
+		},
+		{
+			name:   "Should omit option provenance when every requested option is skipped",
+			intent: []loop.ACPOptionSelection{{ID: "mode", ValueID: "bypassPermissions"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			binder := &fakeActionSessionBinder{
+				binding: loop.ActionSessionBinding{
+					SessionID: "sess-options", Handle: "main",
+					AppliedRuntime: loop.RuntimeSpec{Provider: "mock", Model: "agent-model", ACPOptions: tc.applied},
+				},
+				promptResults: []loop.ActionPromptResult{{Text: "done"}},
+			}
+			actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunAgent))
+			if err != nil {
+				t.Fatalf("Resolve(run-agent) error = %v", err)
+			}
+			runtimeValue, err := json.Marshal(loop.RuntimeSpec{ACPOptions: tc.intent})
+			if err != nil {
+				t.Fatalf("json.Marshal(runtime) error = %v", err)
+			}
+			var runtimeParams map[string]any
+			if err := json.Unmarshal(runtimeValue, &runtimeParams); err != nil {
+				t.Fatalf("json.Unmarshal(runtime) error = %v", err)
+			}
+			raw, err := executor.Execute(t.Context(), dsl.Node{
+				ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{"agent": "planner", "prompt": "Work", "runtime": runtimeParams},
+			}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !reflect.DeepEqual(raw.ResolvedRuntime.Runtime.ACPOptions, tc.applied) ||
+				!maps.Equal(raw.ResolvedRuntime.Source.ACPOptions, tc.sources) {
+				t.Fatalf(
+					"applied runtime = %#v, want options %#v with sources %#v",
+					raw.ResolvedRuntime,
+					tc.applied,
+					tc.sources,
+				)
+			}
+			if got := binder.mustSingleBind(t).Runtime.ACPOptions; !reflect.DeepEqual(got, tc.intent) {
+				t.Fatalf("requested options = %#v, want unchanged intent %#v", got, tc.intent)
+			}
+		})
+	}
+
 	t.Run("Should mark runtime fields completed by the agent definition", func(t *testing.T) {
 		t.Parallel()
 
