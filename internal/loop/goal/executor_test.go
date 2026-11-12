@@ -3893,7 +3893,9 @@ func TestAppliedGoalRuntime(t *testing.T) {
 			t.Parallel()
 			intent := loop.ResolvedRuntime{Source: loop.RuntimeProvenance{ACPOptions: maps.Clone(tc.sources)}}
 			for id := range tc.sources {
-				intent.Runtime.ACPOptions = append(intent.Runtime.ACPOptions, dsl.ACPOptionSelection{ID: id, ValueID: "requested"})
+				intent.Runtime.ACPOptions = append(
+					intent.Runtime.ACPOptions, dsl.ACPOptionSelection{ID: id, ValueID: "requested"},
+				)
 			}
 			resolved := appliedGoalRuntime(intent, loop.RuntimeSpec{ACPOptions: tc.applied}, nil)
 			if !maps.Equal(resolved.Source.ACPOptions, tc.want) {
