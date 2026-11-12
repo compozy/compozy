@@ -810,8 +810,8 @@ func TestProvider(t *testing.T) {
 				Base:    "main",
 				HeadSHA: "reviewed-sha",
 			})
-			if err != nil || status.Head != "feature/exit" || status.Base != "main" || status.HeadSHA != "reviewed-sha" ||
-				status.Draft == nil || !*status.Draft {
+			if err != nil || status.Head != "feature/exit" || status.Base != "main" ||
+				status.HeadSHA != "reviewed-sha" || status.Draft == nil || !*status.Draft {
 				t.Fatalf("exact candidate status = %#v, %v", status, err)
 			}
 			request := createRequest()
