@@ -259,8 +259,10 @@ export function useWindowManagerStream({
       ) {
         return;
       }
-      lifecycleStore.trigger.presentationObserved({ revision: client.presentationRevision });
+      // Record the revision only once the subscriber took it: a throw leaves it
+      // unrecorded, so the reconnect snapshot replays the same client view.
       publishClient(client);
+      lifecycleStore.trigger.presentationObserved({ revision: client.presentationRevision });
     };
 
     const currentTopologyRevision = () =>
@@ -293,7 +295,16 @@ export function useWindowManagerStream({
           );
           if (stopped) return;
           if (snapshot.revision > before) {
-            applySnapshot(snapshot);
+            try {
+              applySnapshot(snapshot);
+            } catch (cause) {
+              // Applying, not reading, failed: reconnect for a fresh fence (#1543).
+              retryNeeded = true;
+              recoverStream(
+                cause instanceof Error ? cause : new Error("Unable to apply the window layout.")
+              );
+              return;
+            }
             refreshRetryAttempt = 0;
             continue;
           }

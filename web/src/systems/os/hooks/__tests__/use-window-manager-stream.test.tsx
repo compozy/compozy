@@ -1115,13 +1115,65 @@ describe("useWindowManagerStream", () => {
       "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb&profile=marketing"
     );
     act(() => sockets[1]?.open());
-    act(() => sockets[1]?.message(rawSnapshotFrame(5)));
+    // The fence replays the client view whose subscriber failed; it is delivered again.
+    act(() => sockets[1]?.message({ ...rawSnapshotFrame(5), client: rawClientFrame(2).client }));
 
+    expect(onClient).toHaveBeenCalledTimes(2);
+    expect(onClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ clientId: "client:web", presentationRevision: 2 })
+    );
     expect(runtime.getState().loadError).toBeNull();
     expect(runtime.getState().hydration).toBe("live");
     expect(runtime.getState().connectionStatus).toBe("connected");
     expect(windowManagerCommandsAvailable(runtime.getState())).toBe(true);
     runtime.stop();
+  });
+
+  it("Should reconnect when applying a refreshed snapshot fails after the cache advanced [#1543]", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(snapshot(6));
+    const subscriberFailure = new Error("Subscriber failed to apply the snapshot.");
+    const onError = vi.fn();
+    // The stream fence applies cleanly; the refreshed snapshot's subscriber throws.
+    let snapshots = 0;
+    const onSnapshot = vi.fn(() => {
+      snapshots += 1;
+      if (snapshots === 2) throw subscriberFailure;
+    });
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot,
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError,
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 6 })
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(onError).toHaveBeenCalledExactlyOnceWith(subscriberFailure);
+    expect(sockets[0]?.close).toHaveBeenCalledOnce();
+    await act(() => vi.advanceTimersByTimeAsync(windowManagerReconnectDelay(0)));
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
   });
 
   it("Should stay idle before the first stream attempt and report a later stop as disconnected", () => {
