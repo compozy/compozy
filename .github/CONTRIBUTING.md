@@ -43,8 +43,14 @@ docs: document workspace scoping for native tools
 
 ### Investigating Go docstring coverage warnings
 
-CodeRabbit's Docstring Coverage check remains enabled in warning mode with an 80% threshold.
-An aggregate percentage is not a list of undocumented functions. Expand **Full details:
+The [CodeRabbit configuration schema](https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json)
+marks `reviews.pre_merge_checks.docstrings` as deprecated: the Docstring Coverage check
+has been retired and that setting has no effect. Historical reports used an 80% threshold;
+do not interpret retirement as evidence that an earlier warning passed. The Go path
+instructions still request evidence for documentation findings during ordinary review.
+
+For a historical warning, an aggregate percentage is not a list of undocumented functions.
+Expand **Full details:
 Docstring Coverage** and **Review info** in the walkthrough, and retain the review URL,
 reviewed head, compared commits, analyzed count and any tool failures.
 
@@ -67,20 +73,11 @@ Request an explanation of the existing result on the unchanged reviewed head whe
 supported. Preserve that evidence before comparing a later assessment: a different diff
 can change the denominator. If the service cannot recover its analyzed set, record that
 limitation explicitly and keep the warning unresolved rather than claiming it repaired.
-Path instructions guide review explanations; they do not change the built-in analyzer.
+Path instructions guide review explanations; they cannot restore the retired check or
+recover its historical analyzer inventory.
 
-For a concrete example, the [unchanged-head investigation for #1413](https://github.com/compozy/compozy/pull/1412#issuecomment-6813311775)
-revisited head `a6ab284a2c711af2a2a601b84c46c5ed84df6e82`, analyzer run
-`8309afaf-c5a3-44be-8ee1-f2b306e25ea6`. CodeRabbit confirmed that its retained result
-does not identify the two analyzed functions. Fresh inspection found attached comments
-on `(*daemonNativeTools).nativeTerminalActor`, `(*toolApprovalBridge).RequestToolApproval`,
-`(*toolApprovalBridge).logToolApprovalApplied` and `(*RuntimeRegistry).normalizeDispatchCallRequest`.
-It also found uncommented test entries `TestTerminalApprovalPreservesRunRestrictions`
-and `TestTerminalExecAllowOnceActiveRun`, and helper `assertTerminalApprovalCorrelation`.
-Those are source observations, not the analyzer's selected inventory. Receiver-comment
-matching and test inclusion remain unknown. Resolving that warning requires the service's
-per-function artifacts, or a controlled reproduction with the same analyzer version;
-the available evidence does not justify adding comments or declaring a false positive.
+See [#1413](https://github.com/compozy/compozy/issues/1413) for the historical investigation,
+the service's unchanged-head response and the remaining evidence limitations.
 
 ## Reporting bugs
 

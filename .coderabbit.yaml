@@ -9,10 +9,6 @@ reviews:
   collapse_walkthrough: false
   sequence_diagrams: true
   profile: "chill"
-  pre_merge_checks:
-    docstrings:
-      mode: "warning"
-      threshold: 80
   auto_review:
     base_branches:
       - "stack/.*"
