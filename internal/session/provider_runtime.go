@@ -168,7 +168,7 @@ func providerProbeEnvForStart(
 	if session != nil {
 		info := session.Info()
 		probe.BypassCache = info.Failure != nil && info.Failure.Kind == store.FailureProviderAuth ||
-			info.RuntimeRecovery != nil && info.RuntimeRecovery.Reason == store.SessionRuntimeRecoveryProviderAuth
+			info.RuntimeRecovery != nil
 	}
 	probe.LookPath = providerLookPath(probe.CommandEnv, probe.CommandDir)
 	probe.ResolveCommand = authproviders.DefaultProviderAuthCommandResolver

@@ -193,6 +193,13 @@ func TestProviderFailureDiagnosticFromErrorClassifiesProviderRecoveryActions(t *
 			wantAction: ProviderFailureActionLogin,
 		},
 		{
+			name: "Should classify a quoted full model missing from the picker as configuration",
+			err: ValidateModelConfigValue([]SessionConfigOption{
+				{ID: "model", Kind: SessionConfigOptionKindSelect, Values: []SessionConfigOptionValue{{Value: "opus"}}},
+			}, "claude-opus-5-5"),
+			wantKind: ProviderFailureModelUnavailable, wantAction: ProviderFailureActionChangeModel,
+		},
+		{
 			name: "Should prioritize the auth-required code over model wording",
 			err: fmt.Errorf("wrapped: %w", &acpsdk.RequestError{
 				Code: -32000, Message: "model not available",

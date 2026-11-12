@@ -309,24 +309,22 @@ func TestProviderAuthStartup(t *testing.T) {
 		stale := nativeStatusProvider("acme")
 		applied := stale
 		applied.AuthStatusCmd = "acme auth status --json"
-		var reads atomic.Int32
-		f.check.config = func(context.Context) (compozyconfig.Config, error) {
-			// Read 2 is the probe's settings read: settings apply and a manual probe land right after it.
-			switch reads.Add(1) {
-			case 1:
-				return *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": stale}), nil
-			case 2:
+		live := &liveConfig{cfg: *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": stale})}
+		f.check.config = live.read
+		envFor := f.check.envFor
+		f.check.envFor = func(name string, provider compozyconfig.ProviderConfig) (providers.ProbeEnv, error) {
+			// Apply only after acme captured its settings; other providers may read config concurrently.
+			if name == "acme" {
+				live.setProvider(name, applied)
 				f.verdicts.Record(
-					"acme",
+					name,
 					applied,
 					nil,
 					providers.Classification{State: providers.ProviderAuthStateNeedsLogin},
 					time.Now(),
 				)
-				return *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": stale}), nil
-			default:
-				return *startupConfig(map[string]compozyconfig.ProviderConfig{"acme": applied}), nil
 			}
+			return envFor(name, provider)
 		}
 		f.check.run(t.Context())
 		verdict, ok := f.verdicts.Lookup("acme", applied, nil)

@@ -226,6 +226,9 @@ func (s *Session) abandonAutomaticRecovery(now time.Time) bool {
 		return false
 	}
 	s.RuntimeStatus = RuntimeStatusReady
+	if s.process == nil || isProcessDone(s.process) {
+		s.RuntimeStatus = RuntimeStatusUnbound
+	}
 	s.RuntimeFailure = ""
 	s.RuntimeRecovery = nil
 	if !now.IsZero() {

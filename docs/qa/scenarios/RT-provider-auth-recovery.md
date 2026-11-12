@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: When session/prompt fails with provider_auth_required (ACP -32000 or auth wording) the turn does not fail. The session stays active, reads runtime.status "recovering" with runtime.recovery.reason "provider_auth", and the web notice reads "Waiting for the provider sign-in…". Retries back off 15s, 30s, then every minute for session.auth_recovery.window (10m). Each retry starts a fresh provider process and reloads the session. Once the sign-in returns, an untouched turn is resent and a turn that already produced output or tool calls gets a continuation, with no duplicated user message or tool call. When the window ends, the session shows waiting-for-auth with login guidance. After credentials return, the next prompt replaces the stale process and reloads the conversation. A successful auth probe or Usage collection also recovers matching auth-failed sessions in the same profile, provider and account route; healthy sessions stay intact. Rate-limit and other failures are unchanged.
 entry_points: compozy session prompt <id> "…"; compozy session status <id> -o json; compozy session events <id> -o json; compozy config set session.auth_recovery.window <d>; web session window
-qa_status: pass
+qa_status: partial
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: pending
 fix_commits:
 evidence: docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
-last_report: docs/qa/reports/2026-11-11-issue-1481-provider-reauth.md
+last_report: docs/qa/reports/2026-11-12-issue-1557-recovery-model-list.md
 overlaps: RT-provider-error-handoff; RT-session-fallback-chain
 ---
 
@@ -91,3 +91,41 @@ A verified successful Usage collection must signal the same recovery; a refused 
 must not. Keep a healthy session and a different provider/profile/account route as isolation controls.
 The owning `TestPromptProviderAuthRecovery` uses a provider that retains invalid credentials until
 process replacement, covering the failure that a file-presence-only mock cannot reproduce.
+
+Pinned-model sign-out regression (#1557): keep the full Claude model ID pinned.
+While the synthetic login is absent, make the resumed adapter advertise only its
+offline aliases. Native `auth status` must report a login wait before model
+negotiation, preserving the auth window rather than reporting model unavailability.
+Restore the login and account model list, then run the provider auth probe; the
+matching recovery must retry promptly, retain the conversation, and finish without
+a daemon restart. A runtime drop that discovers missing login receives the auth
+window as well. Verified Usage publication uses the same wake path; an unverified
+ownership-change log alone is not proof of a valid login.
+
+After a successful login, deliberately request a genuinely unavailable model.
+After its bounded retries, recovery must emit the configuration rejection once, without native sign-in or
+permission guidance. Child attention must distinguish provider sign-in from a
+pending permission. Do not substitute a family alias for the pinned full ID.
+
+Authenticated stale-picker regression (#1557): keep native auth status successful
+and pin `claude-opus-5-5` or `claude-fable-5-2`. Rebuild the lab session runtime while
+the adapter's built-in picker contains only older versions and family aliases.
+The exact pin must be available through the session-local Claude startup option
+and confirmed by ACP before work resumes. Repeat with a loaded current value that
+already equals the pin but is absent from the picker: no model setter is needed.
+Refused, ignored or unconfirmed selections must remain configuration failures,
+without a login/permission badge or a silently substituted alias.
+
+This additional case was observed on the signed-in operator runtime after the
+earlier synthetic walks. Its corrective regression runs in the existing ACP
+start/resume suite through CI. The operator's subsequent CI-only rule prohibits
+another local lab walk; the earlier pass below covers restoration of both login
+and the full model list, not this additional case.
+
+
+Verification 2026-11-12 (#1557): the complete isolated final-build walk passed
+mid-work loss and automatic continuation, expiry, immediate refusal, explicit
+retry, proactive probe reload, and bounded genuine model rejection with failed
+attention. The full pinned model and conversation stayed unchanged; the auth-probe
+wake completed in 0.202 seconds. Strict targeted audit: zero blockers/warnings.
+Synthetic login and ACP subprocesses establish the daemon flow, not live OAuth.

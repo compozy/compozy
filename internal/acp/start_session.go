@@ -157,7 +157,7 @@ func (d *Driver) applySessionConfiguration(
 	}
 
 	stageStartedAt = time.Now()
-	applied, err = d.applySessionModel(ctx, process, normalized.PreferredModel)
+	applied, err = d.applyStartupSessionModel(ctx, process, normalized)
 	d.logStartStage(normalized, process, "set_model", stageOutcome(err, !applied), stageStartedAt)
 	if err != nil {
 		return WrapFailure(
@@ -203,6 +203,18 @@ func (d *Driver) applySessionConfiguration(
 		return err
 	}
 	return nil
+}
+
+func (d *Driver) applyStartupSessionModel(ctx context.Context, process *AgentProcess, opts StartOpts) (bool, error) {
+	if opts.ResumeSessionID != "" {
+		option, ok := ModelConfigOption(process.CapsSnapshot().ConfigOptions)
+		// The loaded current value is a provider observation even when its picker
+		// omits that exact model. Re-setting it can unnecessarily reject the pin.
+		if ok && strings.TrimSpace(option.CurrentValueID) == strings.TrimSpace(opts.PreferredModel) {
+			return false, nil
+		}
+	}
+	return d.applySessionModel(ctx, process, opts.PreferredModel)
 }
 
 // providerSignInRequiredFailure classifies an ACP authentication-required

@@ -99,9 +99,17 @@ func (m *Manager) settleStoppedPromptRecovery(
 	ctx context.Context,
 	session *Session,
 	reason store.SessionRuntimeRecoveryReason,
+	terminal acp.AgentEvent,
 ) error {
-	if reason != store.SessionRuntimeRecoveryProviderAuth || !session.abandonAutomaticRecovery(m.now()) {
+	canceled := terminal.Type == acp.EventTypeDone && terminal.StopReason == string(acp.PromptStopReasonCancelled)
+	if reason != store.SessionRuntimeRecoveryProviderAuth && !canceled || !session.abandonAutomaticRecovery(m.now()) {
 		return nil
+	}
+	// Fatal replacement failures keep the dead binding for stop finalization.
+	if canceled || terminal.ProviderError != nil && terminal.ProviderError.Code == acp.ProviderErrorAuthRequired {
+		if proc := session.processHandle(); proc != nil && isProcessDone(proc) {
+			return m.releaseBoundRuntime(ctx, session)
+		}
 	}
 	return m.persistSessionLifecycleState(ctx, session, false)
 }
@@ -115,4 +123,53 @@ func (m *Manager) maxPromptRecoveryWait() time.Duration {
 		total += m.authRecoveryWindow
 	}
 	return total
+}
+
+func (m *Manager) recoverPromptPumpEvent(
+	ctx context.Context,
+	session *Session,
+	state *promptTurnDispatchState,
+	loop *promptPumpLoopState,
+	event acp.AgentEvent,
+) (bool, *acp.AgentEvent, error) {
+	event = promptErrorForExitedProcess(session.processHandle(), m.normalizeEvent(session, state.turnID, event))
+	if event.Type == acp.EventTypeError {
+		if err := m.failDispatchedReports(ctx, session, state); err != nil {
+			return false, nil, err
+		}
+	}
+	reason, ok := promptRecoveryReasonFor(event)
+	if !ok || !promptRecoveryAllowed(loop) || m.daemonShuttingDown() {
+		return false, nil, nil
+	}
+	return m.attemptPromptRecovery(ctx, session, state, loop, event, reason)
+}
+
+func runtimeRecoveryNeedsSignIn(reason store.SessionRuntimeRecoveryReason, err error) bool {
+	return reason != store.SessionRuntimeRecoveryProviderAuth && recoveryNeedsSignIn(err)
+}
+
+func (m *Manager) stoppedPromptRecovery(
+	ctx context.Context, session *Session, state *promptTurnDispatchState, trigger acp.AgentEvent,
+	reason store.SessionRuntimeRecoveryReason,
+) (bool, *acp.AgentEvent, error) {
+	if session.promptCancellationRequested(state.turnID) || state.recovery.executionCtx.Err() != nil ||
+		m.daemonShuttingDown() {
+		trigger = promptCancellationTerminalEvent()
+	}
+	return false, &trigger, m.settleStoppedPromptRecovery(ctx, session, reason, trigger)
+}
+
+func (m *Manager) publishPromptRecoveryAttempt(
+	ctx context.Context, session *Session, state *promptTurnDispatchState, loop *promptPumpLoopState,
+	trigger acp.AgentEvent, attempt automaticRecoveryAttempt,
+) error {
+	if err := session.beginAutomaticRecovery(attempt, m.now()); err != nil {
+		return err
+	}
+	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+		return err
+	}
+	return m.recordPromptRecoveryEvent(ctx, session, state, loop, acp.EventTypeRuntimeRecoveryStarted,
+		trigger, attempt.reason, attempt.attempt, attempt.maxAttempts)
 }
