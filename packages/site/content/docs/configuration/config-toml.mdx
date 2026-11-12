@@ -15,8 +15,8 @@ audit row.
 | `<workspace>/.compozy/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.compozy/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
-Unknown TOML keys are errors. Use the supported sections below. Retired tables are the one exception:
-CompozyOS archives them on load instead of failing; see
+Unknown TOML keys are errors. Use the supported sections below. Retired skill-acquisition settings
+retain a dedicated archive-on-load migration; other expired settings fail validation. See
 [Archived retired settings](#archived-retired-settings).
 
 <OperatorNote>
@@ -120,6 +120,10 @@ CompozyOS-side compaction settings, and removed memory-consolidation triggers an
 hook matchers fail validation. Files remain unchanged when rejected.
 Run v0.6.0 first to archive old config losslessly and resolve deferred writes before upgrading.
 Previously archived comments remain inactive. See the [migration guide](/docs/migration#memory-removal).
+
+The separate archive for retired `skills.marketplace` and `skills.allowed_marketplace_mcp` settings
+remains supported. These entries become inactive comments. If the archive cannot be written, loading
+fails and the original file remains unchanged.
 
 ## Complete Annotated Example
 

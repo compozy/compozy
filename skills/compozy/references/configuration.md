@@ -373,7 +373,9 @@ them. Claude sessions accept `providers.claude.auto_compact_window` (100000–10
 capped at the model window and always forwarded as a full token count,
 with `auto_compact_window` in an agent definition taking precedence. Omission preserves the provider
 default; the value is forwarded on new, load and resume. This is independent of retired
-`session.compaction` keys, which remain archived on load. Manual compaction is requested through the surfaces in
+`session.compaction` keys, which fail validation from v0.6.1 without rewriting the file. Existing
+comment archives remain inactive; run v0.6.0 first if these settings still need migration. Manual
+compaction is requested through the surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 
