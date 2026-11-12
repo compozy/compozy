@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-// OutputSchemaFor selects the node's contract; pre-view snapshots keep their original full result.
+// OutputSchemaFor selects the node's output contract.
 func (s ToolSchemaSnapshot) OutputSchemaFor(view tools.ResultView) (json.RawMessage, string) {
 	if view == tools.ResultViewFull && s.FullOutputSchemaDigest != "" {
 		return s.FullOutputSchema, s.FullOutputSchemaDigest
@@ -25,13 +25,10 @@ func nodeResultView(node dsl.Node) tools.ResultView {
 }
 
 func pinnedActionResultView(
-	expected *ToolSchemaSnapshot, descriptor tools.Descriptor, view tools.ResultView, pinned bool,
+	descriptor tools.Descriptor, view tools.ResultView, pinned bool,
 ) tools.ResultView {
 	if !pinned || descriptor.ResultViews() == nil {
 		return ""
-	}
-	if expected != nil && expected.FullOutputSchemaDigest == "" {
-		return tools.ResultViewFull
 	}
 	if view == "" {
 		return tools.ResultViewCompact
@@ -48,23 +45,18 @@ func validatePinnedActionContract(
 	}
 	if views := descriptor.ResultViews(); views != nil {
 		current.FullOutputSchemaDigest = views.Full.Digest
-		current.PreViewInputSchemaDigest = views.PreViewInputSchemaDigest
 	}
-	if pinnedView := pinnedActionResultView(expected, descriptor, view, true); pinnedView != "" {
+	if pinnedView := pinnedActionResultView(descriptor, view, true); pinnedView != "" {
 		view = pinnedView
 	}
 	_, currentOutput := current.OutputSchemaFor(view)
 	currentInput := current.InputSchemaDigest
-	// Remove this translation and supersededActionOutputDigests in the first release after shipping views (issue #1462).
-	if expected != nil && expected.FullOutputSchemaDigest == "" && current.FullOutputSchemaDigest != "" {
-		currentInput = current.PreViewInputSchemaDigest
-	}
 	meta := map[string]string{actionKindMetaKey: kind}
 	if expected != nil {
 		_, expectedOutput := expected.OutputSchemaFor(view)
 		if strings.TrimSpace(expected.ToolID) == kind &&
 			strings.TrimSpace(expected.InputSchemaDigest) == strings.TrimSpace(currentInput) &&
-			pinnedOutputDigestMatches(kind, expected, expectedOutput, currentOutput) {
+			strings.TrimSpace(expectedOutput) == strings.TrimSpace(currentOutput) {
 			return nil
 		}
 		meta["expected_input_schema_digest"] = strings.TrimSpace(expected.InputSchemaDigest)
@@ -88,16 +80,4 @@ func reviewToolInputSchema(snapshot ToolSchemaSnapshot) (json.RawMessage, error)
 		delete(properties, tools.ResultViewInputKey)
 	}
 	return json.Marshal(schema)
-}
-
-func pinnedOutputDigestMatches(kind string, expected *ToolSchemaSnapshot, pinned, current string) bool {
-	pinned, current = strings.TrimSpace(pinned), strings.TrimSpace(current)
-	if pinned == current {
-		return true
-	}
-	if expected.FullOutputSchemaDigest != "" {
-		return false
-	}
-	correction, ok := supersededActionOutputDigests[kind]
-	return ok && pinned == correction.old && current == correction.corrected
 }
