@@ -17001,8 +17001,10 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 				scope,
 				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
 			)
-			if err == nil || !strings.Contains(err.Error(), "agent_memory_rule_protected") {
-				t.Fatalf("%s changed an operator rule: %v", item.id, err)
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+				!strings.HasPrefix(toolErr.PublicMessage, "agent_memory_rule_protected: operator rules") {
+				t.Fatalf("%s rule refusal hides its reason: %v", item.id, err)
 			}
 		}
 		if rules, err := memory.Rules(memoryKey); err != nil || len(rules) != 1 {

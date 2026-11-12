@@ -148,8 +148,15 @@ func (n *daemonNativeTools) agentMemoryCall(
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, errors.New("unknown agent memory operation"))
 	}
 	if errors.Is(err, agentmemory.ErrRuleProtected) {
-		err = fmt.Errorf("%w: operator rules are changed only by the operator "+
-			"(compozy agent memory add|replace|remove, or the agent's Memory tab)", err)
+		// A generic invalid-input message would hide why the write failed and who can make it.
+		message := agentmemory.ErrRuleProtected.Error() + ": operator rules are changed only by the " +
+			"operator (compozy agent memory add|replace|remove, or the agent's Memory editor)"
+		toolErr := toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied, req.ToolID, message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err), toolspkg.ReasonPolicyDenied,
+		)
+		toolErr.PublicMessage = message
+		return toolspkg.ToolResult{}, toolErr
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
