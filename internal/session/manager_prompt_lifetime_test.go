@@ -398,11 +398,18 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		h := newHarness(t)
 		h.manager.promptRecoveryDelays = []time.Duration{0}
 		parent := createSession(t, h)
-		child := createSession(t, h)
+		child, err := h.manager.Create(t.Context(), new(CreateOpts{
+			AgentName: "coder", Name: "child", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID, RootSessionID: parent.ID, Kind: store.LineageKindProvenance,
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
 		enableSyntheticQueue(t, h, parent)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID); reportSessionStop(t, h, child.ID) })
 		child.mu.Lock()
-		child.Lineage = &store.SessionLineage{ParentSessionID: parent.ID, RootSessionID: parent.ID}
 		child.EndedEarlyTurnID = "child-turn"
 		child.mu.Unlock()
 		wakeID := spawnWakeEventID(child.Info(), SpawnWakeReasonNeedsAttention)
