@@ -5996,7 +5996,11 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 	// Invariant: a creator steer is answered even when its receipt follows the provider's output.
 	t.Run("Should recognize a creator answer stored before its steering receipt", func(t *testing.T) {
 		t.Parallel()
-		f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{}, []Option{
+			func(manager *Manager) {
+				WithSessionCatalog(manager.inputQueueStore.(*globaldb.GlobalDB))(manager)
+			},
+		})
 		creator := createSession(t, f.h)
 		t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
 		f.sess.mu.Lock()
@@ -6043,6 +6047,18 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		}
 		if answerSequence == 0 || receiptSequence <= answerSequence {
 			t.Fatalf("answer seq=%d receipt seq=%d, want output before the receipt", answerSequence, receiptSequence)
+		}
+		unanswered, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, SendPromptOpts{
+			Message: "Another review request.", MessageID: "next-creator-input", IdempotencyKey: "next-creator-input",
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: creator.ID,
+				WorkspaceID: f.h.workspaceID, Hop: 1},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, unanswered.Events)
+		if info := f.sess.Info(); info.EndedEarlyTurnID == "" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("earlier steering answer masked the next unanswered turn: %#v", info)
 		}
 	})
 
