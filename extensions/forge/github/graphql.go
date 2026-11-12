@@ -316,7 +316,7 @@ func (p *Provider) selectGraphPull(
 		for attempt := range 2 {
 			for _, pull := range page.Nodes {
 				if pull.HeadRepository != nil &&
-					strings.EqualFold(pull.HeadRepository.NameWithOwner, repo.owner+"/"+repo.name) {
+					matchesHeadRepository(repo, branch, pull.HeadRepository.NameWithOwner) {
 					if incomplete {
 						return nil, true, nil
 					}
@@ -334,7 +334,11 @@ func (p *Provider) selectGraphPull(
 				break
 			}
 			variables := graphPageVariables(repo, &page.PageInfo.EndCursor)
-			variables["branch"], variables["states"] = branch, states
+			_, headBranch, qualified := strings.Cut(branch, ":")
+			if !qualified {
+				headBranch = branch
+			}
+			variables["branch"], variables["states"] = headBranch, states
 			result, err := p.graphRequest(ctx, token, pullQuery, variables)
 			if err != nil {
 				return nil, false, err

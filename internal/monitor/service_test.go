@@ -304,7 +304,7 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("Cancel(other session) error = %v, want ErrNotFound", err)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested {
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested || !canceled.FiredAt.IsZero() {
 				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			terminals.results <- Outcome{Reason: ReasonExit}
@@ -313,7 +313,7 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("notifications = %d, want 0", got)
 			}
 			listed := onlyMonitor(t, service, "sess-a")
-			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested {
+			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested || !listed.FiredAt.IsZero() {
 				t.Fatalf("listed monitor = %+v, want canceled by request", listed)
 			}
 		})
@@ -335,7 +335,7 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("monitor after refusal = %+v, want delivering", got)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested {
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested || !canceled.FiredAt.IsZero() {
 				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			time.Sleep(deliveryRetryInitial*3 + time.Second)
@@ -344,7 +344,7 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("wake attempts = %d, want only the refused one", got)
 			}
 			listed := onlyMonitor(t, service, "sess-a")
-			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested {
+			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested || !listed.FiredAt.IsZero() {
 				t.Fatalf("listed monitor = %+v, want canceled by request", listed)
 			}
 		})

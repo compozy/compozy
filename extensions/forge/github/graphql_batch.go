@@ -129,7 +129,11 @@ func pullBatchQuery(repo repository, branches []string) (string, map[string]any)
 	delete(variables, "after")
 	for i, branch := range branches {
 		variable := fmt.Sprintf("branch%d", i)
-		variables[variable] = branch
+		_, headBranch, qualified := strings.Cut(branch, ":")
+		if !qualified {
+			headBranch = branch
+		}
+		variables[variable] = headBranch
 		fmt.Fprintf(&declarations, ",$%s:String!", variable)
 		open, terminal := pullBatchAliases(i, len(branches))
 		for group, alias := range []string{open, terminal} {
