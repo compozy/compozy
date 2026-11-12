@@ -495,7 +495,8 @@ You are a code agent.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, agent.Tools) || !slices.Equal(resolved.Toolsets, agent.Toolsets) {
+		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, agent.Tools) ||
+			!slices.Equal(resolved.Toolsets, agent.Toolsets) {
 			t.Fatalf("authored policy was translated: %#v", resolved)
 		}
 	})

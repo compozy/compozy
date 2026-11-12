@@ -64,7 +64,8 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 		if err := applySessionToolPolicy(&inputs, info); err != nil {
 			t.Fatal(err)
 		}
-		if !inputs.Session.Enforced || len(inputs.Session.Tools) != 1 || inputs.Session.Tools[0] != "compozy__memory_list" {
+		if !inputs.Session.Enforced || len(inputs.Session.Tools) != 1 ||
+			inputs.Session.Tools[0] != "compozy__memory_list" {
 			t.Fatalf("retired lineage policy = %#v", inputs.Session)
 		}
 		if len(info.Lineage.PermissionPolicy.Tools) != 1 {

@@ -2532,8 +2532,9 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 				if format == "toml" {
 					content, err = encodeManifestTOML(&manifest)
 					if strings.HasPrefix(field, "compaction_") {
-						content = append(content, []byte("\n[[resources.hooks]]\nname='compact'\nevent='context.pre_compact'\n"+
-							"command='echo'\n[resources.hooks.matcher]\n"+field+"='old'\n")...)
+						hook := "\n[[resources.hooks]]\nname='compact'\nevent='context.pre_compact'\n" +
+							"command='echo'\n[resources.hooks.matcher]\n" + field + "='old'\n"
+						content = append(content, []byte(hook)...)
 					}
 				} else {
 					content, err = json.Marshal(manifest)
@@ -2555,7 +2556,8 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 					t.Fatal(err)
 				}
 				dir := t.TempDir()
-				if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
+				path := filepath.Join(dir, "extension."+format)
+				if err := os.WriteFile(path, content, 0o600); err != nil {
 					t.Fatal(err)
 				}
 				want := field
@@ -2579,7 +2581,7 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 					canonical = strings.ReplaceAll(canonical, "'old'", "'requested'")
 					canonical = strings.ReplaceAll(canonical, `"old"`, `"requested"`)
 				}
-				if err := os.WriteFile(filepath.Join(dir, "extension."+format), []byte(canonical), 0o600); err != nil {
+				if err := os.WriteFile(path, []byte(canonical), 0o600); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := LoadManifest(dir); err != nil {

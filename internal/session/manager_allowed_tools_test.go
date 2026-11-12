@@ -149,7 +149,8 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		if err := spec.applyAllowedToolsOverride(&resolved, catalog); err != nil {
 			t.Fatal(err)
 		}
-		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, []string{"compozy__memory_list"}) || spec.lineage == nil ||
+		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, []string{"compozy__memory_list"}) ||
+			spec.lineage == nil ||
 			!slices.Equal(spec.lineage.PermissionPolicy.Tools, []string{"compozy__memory_list"}) {
 			t.Fatalf("retired override lost restriction: %#v, %#v", resolved, spec.lineage)
 		}

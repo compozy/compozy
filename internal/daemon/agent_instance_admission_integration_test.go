@@ -2053,9 +2053,9 @@ func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
 	t.Fatal("session_prompt descriptor is missing")
 }
 
-// Invariant: boot and discovery migrate persisted definitions without changing unrelated bytes.
-func TestAgentKindAliasBootIntegration(t *testing.T) {
-	t.Run("Should migrate persisted definitions on boot and discovery", func(t *testing.T) {
+// Invariant: boot and discovery diagnose retired definitions without changing their files.
+func TestAgentKindRetirementBootIntegration(t *testing.T) {
+	t.Run("Should diagnose retired definitions on boot and discovery", func(t *testing.T) {
 		var paths []string
 		seed := func(path string) {
 			t.Helper()
@@ -2086,18 +2086,32 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		})
 		for _, path := range paths {
 			body, err := os.ReadFile(path)
-			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
-				t.Fatalf("boot did not migrate %s: %q %v", path, body, err)
+			if err != nil || string(body) != "---\nname: retired\nkind: stays_on\n---\nWatch.\n" {
+				t.Fatalf("boot changed rejected definition %s: %q %v", path, body, err)
 			}
 		}
 
 		root := t.TempDir()
 		seed(filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"))
 		seed(filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"))
-		resolveDaemonWorkspace(t, d.workspaceResolver, root)
+		resolved := resolveDaemonWorkspace(t, d.workspaceResolver, root)
+		for _, agent := range resolved.Agents {
+			if agent.Name == "retired" {
+				t.Fatal("retired definition entered the agent catalog")
+			}
+		}
+		found := false
+		for _, diagnostic := range resolved.AgentDiagnostics {
+			if diagnostic.Name == "retired" && strings.Contains(diagnostic.Message, "always_on") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing retired-kind diagnostic: %#v", resolved.AgentDiagnostics)
+		}
 		for _, path := range paths {
 			body, err := os.ReadFile(path)
-			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+			if err != nil || string(body) != "---\nname: retired\nkind: stays_on\n---\nWatch.\n" {
 				t.Fatalf("definition changed: %q %v", body, err)
 			}
 		}

@@ -4922,7 +4922,7 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 	})
 }
 
-func TestBootConfigRoutesConfigAliasWarningToDaemonLog(t *testing.T) {
+func TestBootConfigRejectsRemovedAgentKindTable(t *testing.T) {
 	t.Run("Should enforce the current input contract", func(t *testing.T) {
 		t.Parallel()
 		homePaths := testHomePaths(t)
@@ -4939,11 +4939,12 @@ func TestBootConfigRoutesConfigAliasWarningToDaemonLog(t *testing.T) {
 		if err := d.bootConfig(
 			state,
 			&bootCleanup{},
-		); err != nil {
-			t.Fatalf("boot error = %v", err)
+		); err == nil || !strings.Contains(err.Error(), "agents.always_on") {
+			t.Fatalf("boot error = %v, want removed config guidance", err)
 		}
-		if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
-			t.Fatalf("timeout lost: %v", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
+		after, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil || string(after) != "[agents.stays_on]\napproval_timeout = \"2h\"\n" {
+			t.Fatalf("rejected config changed: %q, %v", after, err)
 		}
 	})
 }

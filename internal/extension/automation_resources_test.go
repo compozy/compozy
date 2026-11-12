@@ -282,7 +282,6 @@ event = "memory.consolidated"
 			t.Fatalf("canonical triggers = %#v, %v", triggers, err)
 		}
 	})
-
 }
 
 func writeAutomationResource(t *testing.T, rootDir, relativePath, body string) {
