@@ -912,6 +912,84 @@ describe("useSessionLiveTail", () => {
     expect(result.current.messages).toHaveLength(6);
   });
 
+  it("Should keep every loaded message object when a live entry rolls the page boundaries", async () => {
+    const messages = Array.from({ length: 5 }, (_, index) =>
+      textMessage(`rolled-${index + 1}`, `Rolled message ${index + 1}`)
+    );
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+      seededTranscriptData(
+        transcriptPage(messages.slice(2, 4), {
+          firstSequence: 3,
+          hasOlder: true,
+          nextBeforeSequence: 3,
+          limit: 2,
+        }),
+        transcriptPage(messages.slice(0, 2), { firstSequence: 1, limit: 2 })
+      )
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(result.current.messages).toHaveLength(4));
+    const loaded = [...result.current.messages];
+
+    // The first tool call of a turn opens its entry: the full head passes its
+    // oldest entry on, and every full page shifts by one.
+    act(() => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          cursor: 5,
+          entries: [{ message: messages[4]!, sequence: 5, start_sequence: 5 }],
+          epoch: 1,
+          generation: 1,
+          has_more: false,
+          max_sequence: 5,
+          session_id: SESSION_ID,
+        },
+        "5"
+      );
+    });
+    await waitFor(() => expect(result.current.messages).toHaveLength(5));
+
+    const data = queryClient.getQueryData<SessionTranscriptData>(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID)
+    );
+    expect(data?.pages.map(page => page.entries.length)).toEqual([2, 2, 1]);
+    loaded.forEach((message, index) => {
+      expect(result.current.messages[index]).toBe(message);
+    });
+
+    // Later tool calls update that entry in place: only it gets a new object.
+    const appended = result.current.messages[4];
+    act(() => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          cursor: 6,
+          entries: [
+            {
+              message: textMessage("rolled-5", "Rolled message 5 revised"),
+              sequence: 6,
+              start_sequence: 5,
+            },
+          ],
+          epoch: 1,
+          generation: 1,
+          has_more: false,
+          max_sequence: 6,
+          session_id: SESSION_ID,
+        },
+        "6"
+      );
+    });
+    await waitFor(() => expect(result.current.messages[4]).not.toBe(appended));
+    loaded.forEach((message, index) => {
+      expect(result.current.messages[index]).toBe(message);
+    });
+  });
+
   it("Should advance the cache cursor for an empty delta and reconnect from cache fences", async () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
