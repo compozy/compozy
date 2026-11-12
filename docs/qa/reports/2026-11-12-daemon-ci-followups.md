@@ -127,3 +127,14 @@ observed auth backoff, full daemon shutdown and durable restart-intent assertion
 The original failure's exact terminal event is unavailable; no production recovery
 regression is inferred from that missing observation. CI must establish the actual
 recovery path before this item is accepted.
+
+CodeRabbit review 5869566379 identified the recovery fixture's remaining invalid
+precondition: its auth-free provider mode maps an auth-required diagnostic to
+`Inspect` in `AgentProcess.providerAuthRecovery`, whereas automatic sign-in
+recovery requires `Login`. The recovering case now configures `native_cli` in
+both the in-memory config and persisted fixture TOML. The provider validator
+accepts that mode without credential slots or an ACP auth-method requirement;
+`bootConfig` performs the real config validation before the tested prompt. Other
+fixture users retain `none` and its local-transport rationale. The subprocess and
+HOME remain test-owned; no real provider login is involved. Full backoff, shutdown
+and durable-intent assertions are unchanged and await the new CI head.

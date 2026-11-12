@@ -1969,9 +1969,16 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 			if recovering {
 				command = shellquote.Join("env", daemonSessionRecoveryHelperEnvKey+"=1") + " " + command
 			}
+			provider := acpmock.ProviderConfig(command)
+			if recovering {
+				provider.AuthMode = compozyconfig.ProviderAuthModeNativeCLI
+				provider.NoneSecurity = ""
+			}
 			cfg.Defaults.Provider = acpmock.ProviderName
-			cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-			writeDaemonIntegrationProviderConfig(t, homePaths, acpmock.ProviderName, command)
+			cfg.Providers[acpmock.ProviderName] = provider
+			writeDaemonIntegrationProviderConfig(
+				t, homePaths, acpmock.ProviderName, command, provider.AuthMode,
+			)
 			writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
 
 			workspaceRoot := filepath.Join(t.TempDir(), "workspace")
@@ -3421,10 +3428,11 @@ func writeDaemonIntegrationProviderConfig(
 	homePaths compozyconfig.HomePaths,
 	providerName string,
 	command string,
+	authMode compozyconfig.ProviderAuthMode,
 ) {
 	t.Helper()
 
-	content := strings.Join([]string{
+	lines := []string{
 		"[defaults]",
 		"agent = \"coder\"",
 		"provider = " + fmt.Sprintf("%q", providerName),
@@ -3432,10 +3440,12 @@ func writeDaemonIntegrationProviderConfig(
 		"[providers." + providerName + "]",
 		"command = " + fmt.Sprintf("%q", command),
 		"harness = \"acp\"",
-		"auth_mode = \"none\"",
-		"none_security = \"local_transport\"",
-		"",
-	}, "\n")
+		"auth_mode = " + fmt.Sprintf("%q", authMode),
+	}
+	if authMode == compozyconfig.ProviderAuthModeNone {
+		lines = append(lines, "none_security = \"local_transport\"")
+	}
+	content := strings.Join(append(lines, ""), "\n")
 	if err := os.WriteFile(homePaths.ConfigFile, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.ConfigFile, err)
 	}
@@ -4103,7 +4113,9 @@ func TestBootRecoversInstanceReports(t *testing.T) {
 		command := daemonSessionStopHelperCommand(t)
 		cfg.Defaults.Provider = acpmock.ProviderName
 		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationProviderConfig(
+			t, home, acpmock.ProviderName, command, compozyconfig.ProviderAuthModeNone,
+		)
 		writeDaemonIntegrationAgentDef(t, home, "coder", command)
 		d := newTestDaemon(t, home, &cfg)
 		t.Cleanup(func() {
@@ -4169,7 +4181,9 @@ func TestInstancePayloadIntegration(t *testing.T) {
 		command := daemonSessionStopHelperCommand(t)
 		cfg.Defaults.Provider = acpmock.ProviderName
 		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationProviderConfig(
+			t, home, acpmock.ProviderName, command, compozyconfig.ProviderAuthModeNone,
+		)
 		writeDaemonIntegrationAgentDef(t, home, "coder", command)
 		d := newTestDaemon(t, home, &cfg)
 		if err := d.boot(t.Context()); err != nil {
