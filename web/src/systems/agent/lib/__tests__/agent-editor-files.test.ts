@@ -478,6 +478,17 @@ Prefer short status updates.
       file.replace("- 2026-11-01 · you · Ana is out. · until 2026-11-10", "Ana is out.")
     );
     expect(countMemoryChanges(asRule, parsed.notes)).toBe(1);
+    // Back to a note it has lost its date and end, so the file still differs from the saved one.
+    expect(countMemoryChanges(back, parsed.notes)).toBe(1);
+    const broken = {
+      id: "new",
+      kind: "rule" as const,
+      text: "Ask before deploying.\n  Never publish secrets. ",
+      gap: 0,
+    };
+    expect(composeMemoryFile({ notes: [broken], tail: "\n" })).toBe(
+      "- [rule] Ask before deploying. Never publish secrets.\n"
+    );
   });
 
   it("Should count a rule as the person's, and show it alone under Rules", () => {

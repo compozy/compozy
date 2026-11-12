@@ -219,29 +219,3 @@ func (a *AgentDef) SetAccepts(accepts []string) {
 	a.Accepts = normalized
 	clearEmptyAgentRuntimeDefaults(&a.AgentRuntimeDefaults)
 }
-
-// AcceptedInputs returns the input forms peers should use for this agent: the
-// authored accepts list, or, when the definition declares none, the lines of the
-// first fenced block under a "## Input" heading of its prompt. The fallback keeps
-// definitions readable by releases that predate the accepts key.
-func (a AgentDef) AcceptedInputs() []string {
-	if accepts := a.AcceptsValue(); len(accepts) > 0 {
-		return accepts
-	}
-	var forms []string
-	inSection, inFence := false, false
-	for line := range strings.SplitSeq(a.Prompt, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case inFence && strings.HasPrefix(trimmed, "```"):
-			return NormalizeAgentAccepts(forms)
-		case inFence:
-			forms = append(forms, trimmed)
-		case strings.HasPrefix(trimmed, "#"):
-			inSection = strings.EqualFold(strings.TrimSpace(strings.TrimLeft(trimmed, "#")), "Input")
-		case inSection && strings.HasPrefix(trimmed, "```"):
-			inFence = true
-		}
-	}
-	return nil
-}

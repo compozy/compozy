@@ -110,6 +110,11 @@ Prompt.
 		if got := prose.AcceptedInputs(); len(got) != 2 || got[0] != "intake: <text>" || got[1] != "sweep:" {
 			t.Fatalf("accepted inputs from the Input section = %#v", got)
 		}
+		nested := AgentDef{Prompt: "## Example\n\n````markdown\n## Input\n```text\nexample: <text>\n```\n````\n\n" +
+			"## Input\n\n```text\nreal: <text>\n```\n"}
+		if got := nested.AcceptedInputs(); len(got) != 1 || got[0] != "real: <text>" {
+			t.Fatalf("accepted inputs with a fenced example = %#v", got)
+		}
 		if got := (AgentDef{Prompt: "## Input\n\nFree text."}).AcceptedInputs(); got != nil {
 			t.Fatalf("accepted inputs without a block = %#v", got)
 		}

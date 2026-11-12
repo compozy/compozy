@@ -2076,9 +2076,12 @@ tells the agent to hand work that matches a peer's role to that peer through
 session and re-read when the agent definition catalog changes or after 30 seconds.
 
 The block is bounded to 12,000 characters and sent in full only when needed: on the first turn of a
-provider session, when the rules or roster change, and on the first turn after a completed provider
-compaction. Other turns carry a one-line marker stating that the earlier block still binds, so the
-standing rules never depend on a compaction summary. Rotation starts a new provider session and
+provider session, when the rules or roster change, and after a completed provider compaction (its
+opening tag then carries `compaction="<n>"`) until a turn delivers it. Other turns carry a one-line
+marker stating that the earlier block is still current, so the standing rules never depend on a
+compaction summary. An agent with no rules and no peers receives a block saying none are in force,
+which also withdraws rules removed mid-session. A failed roster read keeps the last roster; rules
+that cannot be read are reported in the block instead of dropping it. Rotation starts a new provider session and
 therefore delivers the full block again.
 
 ## Daemon profiles (experimental)

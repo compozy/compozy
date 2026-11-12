@@ -770,11 +770,24 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 
 		boundary.Store(7)
 		compacted := standingSection(prompt("after compaction"))
-		if compacted.UnchangedContent != "" || compacted.Content != changed.Content {
-			t.Fatalf("compaction did not force full rules: %+v", compacted)
+		if compacted.Content == changed.Content ||
+			!strings.HasPrefix(compacted.Content, `<compozy-standing-context compaction="7">`) ||
+			!strings.Contains(compacted.Content, "2. Delegate read-only digs") {
+			t.Fatalf("compaction did not change the delivered block: %+v", compacted)
 		}
-		if settled := standingSection(prompt("settled")); settled.UnchangedContent != standingContextUnchanged {
-			t.Fatalf("stub not restored after redelivery: %+v", settled)
+		if settled := standingSection(prompt("settled")); settled.Content != compacted.Content {
+			t.Fatalf("block changed again without a new compaction: %+v", settled)
+		}
+
+		for _, text := range []string{"File issues", "Delegate read-only"} {
+			if _, _, err := memory.Remove(key, text); err != nil {
+				t.Fatal(err)
+			}
+		}
+		withdrawn := standingSection(prompt("rules removed"))
+		if !strings.Contains(withdrawn.Content, "delivered earlier in this session is withdrawn") ||
+			strings.Contains(withdrawn.Content, "# Operator rules") {
+			t.Fatalf("removed rules were not withdrawn: %q", withdrawn.Content)
 		}
 	})
 
@@ -835,28 +848,31 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 			ID: "sess-lead", InstanceID: "lead-instance", AgentName: "lead",
 			ProfileID: store.DefaultProfileID, WorkspaceID: "allowed",
 		}
-		peers, more, err := standing.peers(t.Context(), info)
-		if err != nil || more || len(peers) != 1 || peers[0].Name != "writer" ||
-			peers[0].Accepts[0] != "intake: <text>" {
-			t.Fatalf("roster = %+v more=%t err=%v", peers, more, err)
+		peers, more := standing.peers(t.Context(), info, "")
+		if more || len(peers) != 1 || peers[0].Name != "writer" || peers[0].Accepts[0] != "intake: <text>" {
+			t.Fatalf("roster = %+v more=%t", peers, more)
 		}
 		admit("allowed", "cleaner")
 		firstReads := reads
-		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 1 || reads != firstReads {
-			t.Fatalf("cached roster = %+v reads=%d->%d err=%v", peers, firstReads, reads, err)
+		if peers, _ = standing.peers(t.Context(), info, ""); len(peers) != 1 || reads != firstReads {
+			t.Fatalf("cached roster = %+v reads=%d->%d", peers, firstReads, reads)
 		}
 		now = now.Add(standingRosterTTL)
-		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 2 {
-			t.Fatalf("refreshed roster = %+v err=%v", peers, err)
+		if peers, _ = standing.peers(t.Context(), info, ""); len(peers) != 2 {
+			t.Fatalf("refreshed roster = %+v", peers)
 		}
 		admit("allowed", "watcher")
 		standing.forgetRosters()
-		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 3 {
-			t.Fatalf("roster after an instance change = %+v err=%v", peers, err)
+		if peers, _ = standing.peers(t.Context(), info, ""); len(peers) != 3 {
+			t.Fatalf("roster after an instance change = %+v", peers)
+		}
+		standing.forgetRosters()
+		if peers, _ = standing.peers(t.Context(), info, "other-placement"); len(peers) != 3 {
+			t.Fatalf("own placement listed as a peer: %+v", peers)
 		}
 		outsider := &session.Info{ID: "sess-plain", AgentName: "lead", ProfileID: store.DefaultProfileID}
-		if peers, _, err = standing.peers(t.Context(), outsider); err != nil || len(peers) != 0 {
-			t.Fatalf("session outside an instance got a roster: %+v err=%v", peers, err)
+		if peers, _ = standing.peers(t.Context(), outsider, ""); len(peers) != 0 {
+			t.Fatalf("session outside an instance got a roster: %+v", peers)
 		}
 	})
 
@@ -869,7 +885,7 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 			},
 			{Name: "cleaner", Scope: "compozy", State: "paused", Description: strings.Repeat("long ", 80)},
 		}
-		rendered := renderStandingContext(nil, peers, true)
+		rendered := renderStandingContext(standingView{peers: peers, more: true})
 		for _, want := range []string{
 			"- report-writer (compozy): Turns raw reports into issues. Accepts: `intake: <text>` | `sweep:`",
 			"- cleaner (compozy) [paused]: long ",
@@ -887,15 +903,20 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 		for range 60 {
 			rules = append(rules, strings.Repeat("r", 900))
 		}
-		bounded := renderStandingContext(rules, peers, false)
-		if size := utf8.RuneCountInString(bounded); size > standingAugmenterBudget {
+		bounded := renderStandingContext(standingView{rules: rules, peers: peers})
+		if size := utf8.RuneCountInString(bounded); size+2 > standingAugmenterBudget {
 			t.Fatalf("standing context is %d runes, budget %d", size, standingAugmenterBudget)
 		}
-		if !strings.HasSuffix(bounded, standingContextClose) || !strings.Contains(bounded, "More rules exist") {
-			t.Fatalf("bounded context lost its envelope or overflow pointer")
+		if !strings.HasSuffix(bounded, standingContextClose) || !strings.Contains(bounded, "More rules exist") ||
+			!strings.Contains(bounded, "More peers exist") {
+			t.Fatalf("bounded context lost its envelope or an overflow pointer")
 		}
-		if renderStandingContext(nil, nil, false) != "" {
-			t.Fatal("empty standing context rendered")
+		unavailable := renderStandingContext(standingView{rulesUnavailable: true, peers: peers})
+		if !strings.Contains(unavailable, "could not be loaded") || !strings.Contains(unavailable, "- report-writer") {
+			t.Fatalf("unreadable rules hid the failure or the roster: %q", unavailable)
+		}
+		if empty := renderStandingContext(standingView{}); !strings.Contains(empty, "is withdrawn") {
+			t.Fatalf("empty standing context = %q", empty)
 		}
 		onDemand := &standingContextAugmenter{}
 		if got, err := onDemand.Augment(t.Context(), nil, "message"); err != nil || got != "message" {

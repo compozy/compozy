@@ -26,6 +26,8 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 8. Call `compozy__agent_instance_list` with `peers: true`. Each peer carries `accepts`. Pause the second instance and send a turn: its roster line shows `[paused]`.
 9. Send a turn from a session of the same agent that does not belong to an instance. It receives the rules and no roster.
 10. Start an on-demand agent. It receives no standing context.
+13. Remove every rule from an agent with no peers while its session runs. The next turn carries a block saying no rules or peers are in force and that earlier standing context is withdrawn.
+14. With the agent's session identity (`X-Compozy-Session-ID` and `X-Compozy-Agent`), call the HTTP memory routes: adding `kind: "rule"`, editing or removing a rule, and a whole-file write or rollback that changes the rules all return 403 `agent_memory_rule_protected`; note writes succeed.
 11. Claude provider: start the always-on agent with `lean_environment` unset on a host whose Claude setup has its own MCP servers or claude.ai connectors. The session lists only CompozyOS-provided MCP tools. With `lean_environment: false` the operator's servers return. An on-demand agent is unchanged.
 12. Upgrade check: load a `MEMORY.md` written before rules existed. Every line stays a note, the digest is unchanged by reading, and no rule appears.
 
@@ -34,3 +36,5 @@ Implementation evidence: `TestPromptInputCompositeIntegrationStandingContext` dr
 Walked 2026-11-12 in two isolated labs with real Claude and Codex sessions; step 11 was measured as
 331 foreign MCP tool names before and 0 after. The Web editor steps are covered by the web suite and
 were not walked in a browser.
+
+2026-11-12 review repair (not re-walked in a lab; owned by `TestAgentMemoryRoutes`, `TestStore` and `TestPromptInputCompositeIntegrationStandingContext` in CI): steps 13 and 14, the `compaction="<n>"` attribute on the block after a compaction, and the reworded unchanged marker.

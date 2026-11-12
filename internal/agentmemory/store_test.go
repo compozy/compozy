@@ -352,8 +352,8 @@ func TestStore(t *testing.T) {
 		if _, n, err := s.Remove(key, "File issues"); err != nil || n != 1 {
 			t.Fatalf("operator rule removal = %d, %v", n, err)
 		}
-		if _, err := FormatRule("two\nlines"); err == nil {
-			t.Fatal("multiline rule accepted")
+		if _, err := FormatRule("two\nlines"); err == nil || !strings.Contains(err.Error(), "invalid memory entry") {
+			t.Fatalf("multiline rule error = %v", err)
 		}
 	})
 	t.Run("Should retain only fifty revisions and reject path escape", func(t *testing.T) {

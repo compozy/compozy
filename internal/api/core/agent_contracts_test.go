@@ -528,41 +528,48 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			t.Fatalf("Global memory: status=%d body=%s", response.Code, response.Body.String())
 		}
 		for _, item := range []struct {
-			method, path, body string
+			name, method, body string
 			asAgent            bool
 			code               int
 			want               string
 		}{
-			{http.MethodPost, "/entries", `{"text":"File issues through report-writer","kind":"rule"}`, true,
+			{"Should refuse a rule added by the agent", http.MethodPost,
+				`{"text":"File issues through report-writer","kind":"rule"}`, true,
 				http.StatusForbidden, "agent_memory_rule_protected"},
-			{http.MethodPost, "/entries", `{"text":"File issues through report-writer","kind":"rule"}`, false,
+			{"Should add a rule for the operator", http.MethodPost,
+				`{"text":"File issues through report-writer","kind":"rule"}`, false,
 				http.StatusOK, "- [rule] File issues through report-writer"},
-			{http.MethodPost, "/entries", `{"text":"Expiring rule","kind":"rule","until":"2027-01-01"}`, false,
+			{"Should refuse an expiring rule", http.MethodPost,
+				`{"text":"Expiring rule","kind":"rule","until":"2027-01-01"}`, false,
 				http.StatusUnprocessableEntity, "expiry"},
-			{http.MethodPost, "/entries", `{"text":"Typo","kind":"rules"}`, false,
-				http.StatusUnprocessableEntity, "note or rule"},
-			{http.MethodPost, "/entries", `{"text":"Plain note"}`, true, http.StatusOK, "Global · Plain note"},
-			{http.MethodPatch, "/entries", `{"match":"report-writer","text":"anyone"}`, true,
+			{"Should refuse an unknown kind", http.MethodPost,
+				`{"text":"Typo","kind":"rules"}`, false, http.StatusUnprocessableEntity, "note or rule"},
+			{"Should add a note for the agent", http.MethodPost,
+				`{"text":"Plain note"}`, true, http.StatusOK, "Global · Plain note"},
+			{"Should refuse a rule edit by the agent", http.MethodPatch,
+				`{"match":"report-writer","text":"anyone"}`, true,
 				http.StatusForbidden, "agent_memory_rule_protected"},
-			{http.MethodDelete, "/entries", `{"match":"File issues"}`, true,
-				http.StatusForbidden, "agent_memory_rule_protected"},
-			{http.MethodPatch, "/entries", `{"match":"Plain note","text":"Edited note"}`, true,
-				http.StatusOK, "Edited note"},
+			{"Should refuse a rule removal by the agent", http.MethodDelete,
+				`{"match":"File issues"}`, true, http.StatusForbidden, "agent_memory_rule_protected"},
+			{"Should edit a note for the agent", http.MethodPatch,
+				`{"match":"Plain note","text":"Edited note"}`, true, http.StatusOK, "Edited note"},
 		} {
-			write := httptest.NewRequestWithContext(
-				t.Context(), item.method, "/agents/triage/memory"+item.path, strings.NewReader(item.body),
-			)
-			write.Header.Set("Content-Type", "application/json")
-			if item.asAgent {
-				write.Header.Set("X-Compozy-Session-ID", "global-caller")
-				write.Header.Set("X-Compozy-Agent", "triage")
-			}
-			response = httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, write)
-			if response.Code != item.code || !strings.Contains(response.Body.String(), item.want) {
-				t.Fatalf("%s %s as agent=%t: status=%d body=%s",
-					item.method, item.body, item.asAgent, response.Code, response.Body.String())
-			}
+			// The cases share one memory file and run in order.
+			t.Run(item.name, func(t *testing.T) {
+				write := httptest.NewRequestWithContext(
+					t.Context(), item.method, "/agents/triage/memory/entries", strings.NewReader(item.body),
+				)
+				write.Header.Set("Content-Type", "application/json")
+				if item.asAgent {
+					write.Header.Set("X-Compozy-Session-ID", "global-caller")
+					write.Header.Set("X-Compozy-Agent", "triage")
+				}
+				recorder := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(recorder, write)
+				if recorder.Code != item.code || !strings.Contains(recorder.Body.String(), item.want) {
+					t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+				}
+			})
 		}
 		reader.caller.InstanceID = ""
 		response = httptest.NewRecorder()

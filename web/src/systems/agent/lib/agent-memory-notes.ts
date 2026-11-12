@@ -79,7 +79,8 @@ export function parseMemoryFile(content: string): MemoryFile {
 
 function composeLine(note: MemoryNote) {
   if (note.line !== undefined) return note.line;
-  if (isMemoryRule(note)) return `${RULE_PREFIX}${note.text}`;
+  // A rule is one line: a break would leave the rest of it behind as an ordinary note.
+  if (isMemoryRule(note)) return `${RULE_PREFIX}${note.text.trim().replace(/\s*\n\s*/g, " ")}`;
   if (!note.date) return note.text;
   const until = note.until ? ` · until ${note.until}` : "";
   return `- ${note.date} · ${note.learnedIn ?? OPERATOR_SCOPE} · ${note.text}${until}`;
@@ -101,9 +102,15 @@ export function withMemoryKind(note: MemoryNote, kind: MemoryKind): MemoryNote {
   return kind === "rule" ? { id, kind, text, gap } : { id, text, gap };
 }
 
-/** Same words under the same kind: what the saved file already says. */
+/** Same words, kind, date, place and end: what the saved file already says. */
 export function sameMemoryNote(a: MemoryNote, b: MemoryNote) {
-  return a.text === b.text && isMemoryRule(a) === isMemoryRule(b);
+  return (
+    a.text === b.text &&
+    isMemoryRule(a) === isMemoryRule(b) &&
+    a.date === b.date &&
+    a.learnedIn === b.learnedIn &&
+    a.until === b.until
+  );
 }
 
 export function countMemoryChanges(notes: readonly MemoryNote[], saved: readonly MemoryNote[]) {

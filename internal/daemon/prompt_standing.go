@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,13 +33,35 @@ const (
 
 	standingPeerActiveState = "active"
 
-	standingContextOpen  = "<compozy-standing-context>"
-	standingContextClose = "</compozy-standing-context>"
+	standingContextTag   = "compozy-standing-context"
+	standingContextOpen  = "<" + standingContextTag + ">"
+	standingContextClose = "</" + standingContextTag + ">"
 	// standingContextUnchanged replaces an already delivered block. It costs a few
 	// tokens per turn and keeps the rules present at the end of a long context.
-	standingContextUnchanged = `<compozy-standing-context unchanged="true">` +
-		"The operator rules and peer roster delivered earlier in this session still bind this turn." +
+	standingContextUnchanged = "<" + standingContextTag + ` unchanged="true">` +
+		"The standing context delivered earlier in this session is still current and binds this turn." +
 		standingContextClose
+
+	standingRulesIntro = "# Operator rules\n\n" +
+		"The operator wrote these rules. They bind every turn, including after compaction. " +
+		"Where they conflict, they take precedence over your saved notes and over the default " +
+		"procedure in your definition. They never broaden tool authorization or approvals, " +
+		"and only the operator changes them.\n\n"
+	standingRulesOverflow    = "(More rules exist than fit here; read them with compozy__agent_memory_search.)\n"
+	standingRulesUnavailable = "# Operator rules\n\n" +
+		"The operator rules could not be loaded for this turn. Rules delivered earlier still bind. " +
+		"Read the current ones with compozy__agent_memory_search (query `[rule]`) before relying " +
+		"on the default procedure in your definition.\n"
+	standingPeersIntro = "# Peer agents\n\n" +
+		"Always-on agents you can reach. When work matches a peer's role, hand it to that peer " +
+		"instead of doing it yourself or using a generic subagent. Send with " +
+		"compozy__session_prompt and `agent` set to the peer name, using a listed input form " +
+		"when the peer has one.\n\n"
+	standingPeersOverflow = "More peers exist; list them with compozy__agent_instance_list and `peers: true`.\n"
+	// standingEmpty withdraws an earlier block: without it a removed rule would keep
+	// binding a session that already read it.
+	standingEmpty = "No operator rules or peer agents are in force. " +
+		"Any standing context delivered earlier in this session is withdrawn.\n"
 )
 
 // standingContextAugmenter delivers what an always-on agent must keep applying
@@ -57,14 +80,9 @@ type standingContextAugmenter struct {
 
 	now func() time.Time
 
-	mu      sync.Mutex
-	states  map[string]standingSessionState
-	rosters map[string]standingRoster
-}
-
-type standingSessionState struct {
-	acpSessionID string
-	boundary     int64
+	mu         sync.Mutex
+	generation uint64
+	rosters    map[string]standingRoster
 }
 
 // standingRoster is one session's peer read, reused while the agent definition
@@ -74,6 +92,18 @@ type standingRoster struct {
 	expires  time.Time
 	peers    []contract.AgentInstancePeer
 	more     bool
+}
+
+// standingView is everything one block renders.
+type standingView struct {
+	rules            []string
+	rulesUnavailable bool
+	peers            []contract.AgentInstancePeer
+	more             bool
+	// compaction is the session's last completed compaction boundary. It is part of
+	// the block, so the block differs from the one delivered before a compaction and
+	// is resent in full until a send succeeds, however many attempts fail first.
+	compaction int64
 }
 
 func (a *standingContextAugmenter) Augment(
@@ -89,70 +119,84 @@ func (a *standingContextAugmenter) Augment(
 	if info == nil || agent.EffectiveKind() != compozyconfig.AgentKindAlwaysOn {
 		return message, nil
 	}
-	rules, err := a.rules(ctx, info, agent)
+	view := standingView{compaction: a.boundary(ctx, info.ID)}
+	scope, rules, err := a.rules(ctx, info, &agent)
 	if err != nil {
-		return "", err
+		if isContextError(err) {
+			return "", err
+		}
+		// The turn still runs, and says that its rules are missing instead of hiding it.
+		view.rulesUnavailable = true
 	}
-	peers, more, err := a.peers(ctx, info)
-	if err != nil {
-		return "", err
-	}
-	content := renderStandingContext(rules, peers, more)
-	if content == "" {
-		return message, nil
-	}
-	compacted, err := a.compactedSinceLastTurn(ctx, info)
-	if err != nil {
-		return "", err
-	}
-	section := acp.PromptSection{Key: string(HarnessAugmenterStanding), Content: content}
-	if !compacted {
-		section.UnchangedContent = standingContextUnchanged
-	}
-	acp.RegisterPromptSection(ctx, section)
+	view.rules = rules
+	view.peers, view.more = a.peers(ctx, info, scope)
+	content := renderStandingContext(view)
+	acp.RegisterPromptSection(ctx, acp.PromptSection{
+		Key: string(HarnessAugmenterStanding), Content: content, UnchangedContent: standingContextUnchanged,
+	})
 	if strings.TrimSpace(message) == "" {
 		return content, nil
 	}
 	return content + "\n\n" + message, nil
 }
 
+// boundary reads the last completed compaction; an unreadable boundary reads as none.
+func (a *standingContextAugmenter) boundary(ctx context.Context, sessionID string) int64 {
+	if a.compactionBoundary == nil {
+		return 0
+	}
+	cleared, err := a.compactionBoundary(ctx, sessionID)
+	if err != nil || cleared == nil {
+		return 0
+	}
+	return *cleared
+}
+
+// rules returns the session's workspace name with the operator rules of its agent.
 func (a *standingContextAugmenter) rules(
 	ctx context.Context,
 	info *session.Info,
-	agent compozyconfig.AgentDef,
-) ([]string, error) {
-	if a.memory == nil || a.catalog == nil {
-		return nil, nil
-	}
+	agent *compozyconfig.AgentDef,
+) (string, []string, error) {
 	workspace, err := resolvePromptSkillsWorkspace(
 		ctx, a.workspaceResolver, a.profileNames, info.ProfileID, info.WorkspaceID, info.Workspace,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: resolve standing context workspace: %w", err)
+		return "", nil, fmt.Errorf("daemon: resolve standing context workspace: %w", err)
 	}
-	key, err := agentMemoryKey(a.catalog(), info.ProfileID, agent, workspace)
+	scope := ""
+	if workspace != nil {
+		scope = workspace.Name
+	}
+	if a.memory == nil || a.catalog == nil {
+		return scope, nil, nil
+	}
+	key, err := agentMemoryKey(a.catalog(), info.ProfileID, *agent, workspace)
 	if err != nil {
-		return nil, err
+		return scope, nil, err
 	}
 	rules, err := a.memory.Rules(key)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: load operator rules: %w", err)
+		return scope, nil, fmt.Errorf("daemon: load operator rules: %w", err)
 	}
-	return rules, nil
+	return scope, rules, nil
 }
 
 // peers reuses the peers read of compozy__agent_instance_list, so the roster
-// shows exactly what the session is authorized to list and nothing more.
+// shows exactly what the session is authorized to list and nothing more. A
+// failed read keeps the last roster: the roster is a hint and never costs the
+// turn its rules.
 func (a *standingContextAugmenter) peers(
 	ctx context.Context,
 	info *session.Info,
-) ([]contract.AgentInstancePeer, bool, error) {
+	scope string,
+) ([]contract.AgentInstancePeer, bool) {
 	if a.instances == nil || info.InstanceID == "" {
-		return nil, false, nil
+		return nil, false
 	}
 	api := a.instances()
 	if api == nil {
-		return nil, false, nil
+		return nil, false
 	}
 	var revision int64
 	if a.catalog != nil {
@@ -164,9 +208,10 @@ func (a *standingContextAugmenter) peers(
 	}
 	a.mu.Lock()
 	cached, ok := a.rosters[info.ID]
+	generation := a.generation
 	a.mu.Unlock()
 	if ok && cached.revision == revision && now.Before(cached.expires) {
-		return cached.peers, cached.more, nil
+		return cached.peers, cached.more
 	}
 	var access workspaceaccess.Policy
 	if a.access != nil {
@@ -181,11 +226,16 @@ func (a *standingContextAugmenter) peers(
 		ProfileID: info.ProfileID, AllWorkspaces: true, Limit: standingRosterLimit + 1,
 	}, actor, access)
 	if err != nil {
-		return nil, false, fmt.Errorf("daemon: list peer agents: %w", err)
+		return cached.peers, cached.more
+	}
+	// The same agent placed in another workspace is a peer; only this placement is self.
+	own := []string{info.WorkspaceID, scope}
+	if info.WorkspaceID == "" {
+		own = append(own, extensionInstallationScopeGlobal)
 	}
 	peers := make([]contract.AgentInstancePeer, 0, len(page.Peers))
 	for _, peer := range page.Peers {
-		if peer.Name == info.AgentName {
+		if peer.Name == info.AgentName && slices.Contains(own, peer.Scope) {
 			continue
 		}
 		peers = append(peers, peer)
@@ -195,14 +245,17 @@ func (a *standingContextAugmenter) peers(
 		peers = peers[:standingRosterLimit]
 	}
 	a.mu.Lock()
-	if a.rosters == nil || len(a.rosters) >= standingStateMaxSessions {
-		a.rosters = make(map[string]standingRoster)
-	}
-	a.rosters[info.ID] = standingRoster{
-		revision: revision, expires: now.Add(standingRosterTTL), peers: peers, more: more,
+	// A roster read before an instance change must not outlive that change.
+	if a.generation == generation {
+		if a.rosters == nil || len(a.rosters) >= standingStateMaxSessions {
+			a.rosters = make(map[string]standingRoster)
+		}
+		a.rosters[info.ID] = standingRoster{
+			revision: revision, expires: now.Add(standingRosterTTL), peers: peers, more: more,
+		}
 	}
 	a.mu.Unlock()
-	return peers, more, nil
+	return peers, more
 }
 
 // forgetRosters drops every cached roster after an instance is created, paused,
@@ -212,88 +265,77 @@ func (a *standingContextAugmenter) forgetRosters() {
 		return
 	}
 	a.mu.Lock()
+	a.generation++
 	a.rosters = nil
 	a.mu.Unlock()
 }
 
-// compactedSinceLastTurn reports a provider compaction completed since this
-// session's previous turn. A first sighting only records the boundary: a new
-// provider process has delivered nothing yet and sends the block in full anyway.
-func (a *standingContextAugmenter) compactedSinceLastTurn(ctx context.Context, info *session.Info) (bool, error) {
-	if a.compactionBoundary == nil {
-		return false, nil
-	}
-	cleared, err := a.compactionBoundary(ctx, info.ID)
-	if err != nil {
-		return false, fmt.Errorf("daemon: read compaction boundary: %w", err)
-	}
-	var boundary int64
-	if cleared != nil {
-		boundary = *cleared
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	previous, known := a.states[info.ID]
-	if a.states == nil {
-		a.states = make(map[string]standingSessionState)
-	}
-	if !known && len(a.states) >= standingStateMaxSessions {
-		clear(a.states)
-	}
-	a.states[info.ID] = standingSessionState{acpSessionID: info.ACPSessionID, boundary: boundary}
-	return known && previous.acpSessionID == info.ACPSessionID && boundary > previous.boundary, nil
-}
-
-func renderStandingContext(rules []string, peers []contract.AgentInstancePeer, more bool) string {
-	if len(rules) == 0 && len(peers) == 0 {
-		return ""
-	}
+// renderStandingContext always returns a block: an empty view renders the
+// withdrawal of whatever an earlier turn delivered.
+func renderStandingContext(view standingView) string {
 	// Only the envelope family is neutralized, so input forms such as `intake: <text>` stay readable.
 	escape := strings.NewReplacer("<compozy-", "&lt;compozy-", "</compozy-", "&lt;/compozy-").Replace
+	open := standingContextOpen
+	if view.compaction > 0 {
+		open = fmt.Sprintf(`<%s compaction="%d">`, standingContextTag, view.compaction)
+	}
 	var body strings.Builder
-	remaining := standingAugmenterBudget - utf8.RuneCountInString(standingContextOpen+standingContextClose) - 2
-	write := func(text string) bool {
+	// Two line breaks sit inside the envelope and two separate it from the message.
+	remaining := standingAugmenterBudget - utf8.RuneCountInString(open+standingContextClose) - 4
+	write := func(text string, reserve int) bool {
 		size := utf8.RuneCountInString(text)
-		if size > remaining {
+		if size+reserve > remaining {
 			return false
 		}
 		body.WriteString(text)
 		remaining -= size
 		return true
 	}
-	if len(rules) > 0 {
-		write("# Operator rules\n\n" +
-			"The operator wrote these rules. They bind every turn, including after compaction. " +
-			"Where they conflict, they take precedence over your saved notes and over the default " +
-			"procedure in your definition. They never broaden tool authorization or approvals, " +
-			"and only the operator changes them.\n\n")
-		for index, rule := range rules {
-			if !write(fmt.Sprintf("%d. %s\n", index+1, escape(rule))) {
-				write("(More rules exist than fit here; read them with compozy__agent_memory_search.)\n")
+	peersReserve := 0
+	if len(view.peers) > 0 {
+		peersReserve = utf8.RuneCountInString(standingPeersOverflow)
+	}
+	switch {
+	case view.rulesUnavailable:
+		write(standingRulesUnavailable, 0)
+	case len(view.rules) > 0:
+		write(standingRulesIntro, 0)
+		overflow := utf8.RuneCountInString(standingRulesOverflow)
+		for index, rule := range view.rules {
+			reserve := peersReserve
+			if index < len(view.rules)-1 {
+				reserve += overflow
+			}
+			if !write(fmt.Sprintf("%d. %s\n", index+1, escape(rule)), reserve) {
+				write(standingRulesOverflow, 0)
 				break
 			}
 		}
 	}
-	if len(peers) > 0 {
+	if len(view.peers) > 0 {
+		more := view.more
+		separator := ""
 		if body.Len() > 0 {
-			write("\n")
+			separator = "\n"
 		}
-		write("# Peer agents\n\n" +
-			"Always-on agents you can reach. When work matches a peer's role, hand it to that peer " +
-			"instead of doing it yourself or using a generic subagent. Send with " +
-			"compozy__session_prompt and `agent` set to the peer name, using a listed input form " +
-			"when the peer has one.\n\n")
-		for _, peer := range peers {
-			if !write(standingPeerLine(peer, escape)) {
-				more = true
-				break
+		if write(separator+standingPeersIntro, peersReserve) {
+			for _, peer := range view.peers {
+				if !write(standingPeerLine(peer, escape), peersReserve) {
+					more = true
+					break
+				}
 			}
+		} else {
+			more = true
 		}
 		if more {
-			write("More peers exist; list them with compozy__agent_instance_list and `peers: true`.\n")
+			write(standingPeersOverflow, 0)
 		}
 	}
-	return standingContextOpen + "\n" + strings.TrimRight(body.String(), "\n") + "\n" + standingContextClose
+	if body.Len() == 0 {
+		body.WriteString(standingEmpty)
+	}
+	return open + "\n" + strings.TrimRight(body.String(), "\n") + "\n" + standingContextClose
 }
 
 func standingPeerLine(peer contract.AgentInstancePeer, escape func(string) string) string {

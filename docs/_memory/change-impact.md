@@ -7,7 +7,8 @@ and the 2026-11-12 impact note in `docs/qa/scenarios/RT-agent-memory-startup.md`
 
 - **Native tools.** No new tool ID. `compozy__agent_memory_replace` and `compozy__agent_memory_remove`
   refuse a change that would create, alter or delete an operator rule (`agent_memory_rule_protected`);
-  `compozy__agent_memory_add` still writes dated notes only. `compozy__agent_instance_list` with
+  `compozy__agent_memory_add` still writes dated notes only. The same guard applies to HTTP/UDS/CLI memory
+  calls made with an agent session identity (403 `agent_memory_rule_protected`). `compozy__agent_instance_list` with
   `peers: true` returns an additive `accepts` array per peer. Descriptions state the note/rule split.
 - **CLI/HTTP/UDS.** `compozy agent memory add --kind note|rule`. `AgentMemoryAddRequest.kind`
   (`note` default, `rule`), `AgentInstancePeer.accepts` and `AgentPayload.accepts` are additive
