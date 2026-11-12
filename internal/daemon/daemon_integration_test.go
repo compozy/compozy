@@ -3880,7 +3880,9 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 				}
 			}
 			db := d.registry.(*globaldb.GlobalDB)
-			ceiling, err := json.Marshal(main.Info().Lineage.PermissionPolicy)
+			policy := main.Info().Lineage.PermissionPolicy
+			policy.MaterializedTools, policy.MaterializedMCPServers = false, false
+			ceiling, err := json.Marshal(policy)
 			if err != nil {
 				t.Fatal(err)
 			}

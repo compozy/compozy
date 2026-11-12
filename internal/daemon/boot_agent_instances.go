@@ -107,16 +107,8 @@ func reconcileBootInstances(ctx context.Context, state *bootState) error {
 	}
 	service := state.agentInstances.Service
 	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
-	if state.toolProjectionEpoch != nil {
-		state.toolProjectionEpoch.Advance()
-	}
 	if err := service.Reconcile(ctx); err != nil {
 		state.logger.ErrorContext(ctx, "daemon: reconcile instances at startup", "error", err)
-	}
-	if checks := state.runtimeWorkers.proactiveChecks; checks != nil {
-		if err := checks.RecoverConfiguration(ctx, nil); err != nil {
-			state.logger.ErrorContext(ctx, "daemon: recover checks at startup", "error", err)
-		}
 	}
 	return publishInstanceReports(ctx, state, "daemon: publish instance reports at startup")
 }
