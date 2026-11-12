@@ -135,16 +135,17 @@ func (o *goTestObservation) recordEvent(event gotestsumEvent) {
 	if event.Elapsed <= 0 {
 		return
 	}
-	if event.Package == goSplitTestPackage || (o.lane == "integration" &&
-		(event.Package == compozyModulePath+"internal/daemon" || event.Package == compozyModulePath+"internal/store")) {
-		if event.Test == "" || strings.Contains(event.Test, "/") {
-			return
+	if o.lane == "integration" && event.Test != "" {
+		if !strings.Contains(event.Test, "/") {
+			key := event.Package + "#" + event.Test
+			o.splitTests[key] = max(o.splitTests[key], event.Elapsed)
 		}
-		key := event.Test
-		if o.lane == "integration" {
-			key = event.Package + "#" + event.Test
+		return
+	}
+	if event.Package == goSplitTestPackage && o.lane != "integration" {
+		if event.Test != "" && !strings.Contains(event.Test, "/") {
+			o.splitTests[event.Test] = max(o.splitTests[event.Test], event.Elapsed)
 		}
-		o.splitTests[key] = max(o.splitTests[key], event.Elapsed)
 		return
 	}
 	if event.Test != "" {
@@ -202,44 +203,33 @@ func (c *goTestCensus) pruneMissingSource(root string) error {
 			delete(c.Packages, packagePath)
 		}
 	}
-	splitDir := strings.TrimPrefix(goSplitTestPackage, compozyModulePath)
-	files, err := filepath.Glob(filepath.Join(root, splitDir, "*_test.go"))
-	if err != nil {
-		return fmt.Errorf("find census split-test sources: %w", err)
-	}
-	tests := make(map[string]struct{})
-	for _, file := range files {
-		names, err := topLevelTestsInFile(file)
-		if err != nil {
-			return err
+	// Parse each package once, even when every integration test has a weight.
+	sourceTests := make(map[string]map[string]struct{})
+	for key := range c.SplitTests {
+		packagePath, testName, qualified := strings.Cut(key, "#")
+		if !qualified {
+			packagePath, testName = goSplitTestPackage, key
 		}
-		for _, name := range names {
-			tests[name] = struct{}{}
-		}
-	}
-	for name := range c.SplitTests {
-		if packagePath, testName, qualified := strings.Cut(name, "#"); qualified {
-			files, err := filepath.Glob(
-				filepath.Join(root, strings.TrimPrefix(packagePath, compozyModulePath), "*_test.go"),
-			)
+		tests, loaded := sourceTests[packagePath]
+		if !loaded {
+			files, err := filepath.Glob(filepath.Join(root, strings.TrimPrefix(packagePath, compozyModulePath), "*_test.go"))
 			if err != nil {
 				return fmt.Errorf("find census sources %q: %w", packagePath, err)
 			}
-			exists := false
+			tests = make(map[string]struct{})
 			for _, file := range files {
 				names, err := topLevelTestsInFile(file)
 				if err != nil {
 					return err
 				}
-				exists = exists || slices.Contains(names, testName)
+				for _, name := range names {
+					tests[name] = struct{}{}
+				}
 			}
-			if !exists {
-				delete(c.SplitTests, name)
-			}
-			continue
+			sourceTests[packagePath] = tests
 		}
-		if _, exists := tests[name]; !exists {
-			delete(c.SplitTests, name)
+		if _, exists := tests[testName]; !exists {
+			delete(c.SplitTests, key)
 		}
 	}
 	c.DefaultPackageSeconds = censusMedian(c.Packages, c.DefaultPackageSeconds)

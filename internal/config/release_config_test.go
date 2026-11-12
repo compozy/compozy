@@ -1151,7 +1151,12 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 
 		const sharedVersion = "${{ needs.dry-run-identity.outputs.release_version }}"
 		dryRunJob := workflowJobSection(t, workflow, "dry-run", "desktop-dry-run")
-		assertContainsText(t, "release dry-run dependency", dryRunJob, "needs: dry-run-identity")
+		assertContainsText(
+			t,
+			"release dry-run identity and integration dependencies",
+			dryRunJob,
+			"needs: [dry-run-identity, integration]",
+		)
 		assertContainsText(t, "release dry-run version", dryRunJob, "DRY_RUN_VERSION: "+sharedVersion)
 		assertContainsText(t, "release dry-run plan version", dryRunJob, `--version "${DRY_RUN_VERSION}"`)
 

@@ -53,30 +53,45 @@ jobs:
         if: env.CENSUS_RUN_ID != ''
         run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/gotest-json
 
-      - name: Download trusted integration timing receipts
+      - name: Download completed integration shard receipts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/integration-json
           run_id=""
-          candidates=$(gh run list --workflow release.yml --branch main --event push --status success --limit 40 --json databaseId --jq '.[].databaseId')
+          # A failed run or an incomplete matrix still contains useful completed
+          # tests. Same-repository PRs (ci:full and release included) are eligible;
+          # foreign fork artifacts never enter the committed timing census.
+          for workflow in ci.yml release.yml; do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?status=completed&per_page=40" \
+              > "/tmp/census-${workflow}.json"
+          done
           while read -r candidate; do
-            [[ -z "$candidate" ]] && continue
             names=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate}/artifacts?per_page=100" --jq '.artifacts[] | select(.expired == false) | .name')
-            complete=true
-            for shard in 0 1 2 3 4 5 6 7; do
-              if ! grep -qx "integration-artifacts-$shard" <<<"$names"; then complete=false; break; fi
-            done
-            if [[ "$complete" == true ]]; then run_id="$candidate"; break; fi
-          done <<<"$candidates"
+            if grep -q '^integration-artifacts-' <<<"$names"; then
+              run_id="$candidate"
+              break
+            fi
+          done < <(jq -s -r --arg repo "$GITHUB_REPOSITORY" '
+            [.[].workflow_runs[] | select(.head_repository.full_name == $repo)] |
+            sort_by(.created_at) | reverse | .[].id' /tmp/census-*.yml.json)
           if [[ -z "$run_id" ]]; then
-            echo "::notice::No complete unexpired integration receipts in the last 40 successful main push Release runs."
+            echo "::notice::No unexpired integration shard receipts in recent completed CI/Release runs."
           else
             gh run download "$run_id" --pattern 'integration-artifacts-*' --dir /tmp/integration-json
             mkdir -p /tmp/integration-census
-            find /tmp/integration-json -name 'gotest-shard*.json' -exec cp {} /tmp/integration-census/ \;
-            echo "INTEGRATION_CENSUS_RUN_ID=$run_id" >> "$GITHUB_ENV"
+            # Keep artifact directories so per-group shard filenames cannot collide.
+            find /tmp/integration-json -name 'gotest-shard*.json' | while read -r receipt; do
+              relative="${receipt#/tmp/integration-json/}"
+              mkdir -p "/tmp/integration-census/$(dirname "$relative")"
+              cp "$receipt" "/tmp/integration-census/$relative"
+            done
+            if find /tmp/integration-census -name '*.json' -print -quit | grep -q .; then
+              echo "INTEGRATION_CENSUS_RUN_ID=$run_id" >> "$GITHUB_ENV"
+            else
+              echo "::notice::Run $run_id uploaded no timing JSON; preserving the integration census."
+            fi
           fi
 
       - name: Fold integration timing data
@@ -119,7 +134,7 @@ jobs:
               --base main \
               --head "$branch" \
               --title "ci: refresh go test shard census" \
-              --body "Automated weekly refresh of magefiles/gotest_census.json from trusted main-push timing artifacts. Unit CI run: ${CENSUS_RUN_ID:-none}. Integration Release run: ${INTEGRATION_CENSUS_RUN_ID:-none}."
+              --body "Automated weekly refresh of magefiles/gotest_census.json from completed same-repository shard timing artifacts. Unit CI run: ${CENSUS_RUN_ID:-none}. Integration CI/Release run: ${INTEGRATION_CENSUS_RUN_ID:-none}."
             exit 0
           fi
           compare_url="https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"

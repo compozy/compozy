@@ -94,7 +94,8 @@ require_lanes() {
       "go-static": $backend, "go-test": $backend, "sdk-go-test": $backend,
       "go-build": $backend, "go-peer-darwin": $backend,
       desktop: ($desktop or $web),
-      "go-integration": ($heavy and $backend),
+      # Release owns the identical reusable lane and gates its dry-run on it.
+      "go-integration": ($heavy and $backend and ($o.release_pr != "true")),
       "go-terminal-windows": ($heavy and $backend),
       "e2e-runtime": ($heavy and ($backend or $web)),
       "e2e-web": ($heavy and ($backend or $web)),
@@ -195,6 +196,8 @@ EOF
   if jq '."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy; then
     echo "required integration skip was accepted" >&2; return 1
   fi
+  # Release PRs run the same integration shards through Release's thin call.
+  jq '.changes.outputs.release_pr = "true" | ."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy
   local scenario expected job skipped
   while IFS='|' read -r scenario expected; do
     projection=$(jq --arg scenario "$scenario" '

@@ -3,12 +3,13 @@ name: CI
 # Lanes:
 # - Fast lane (preflight, lint, typecheck, unit, build) gates every pull request
 #   through `Verify (fmt, lint, unit, build)`, limited to the changed areas.
-# - Heavy lane (Go integration contracts, Windows, runtime/web/desktop E2E) gates
+# - Heavy lane (full Go integration, Windows, runtime/web/desktop E2E) gates
 #   through `E2E (combined lane)` on main pushes and nightly. Pull requests
 #   opt in with `ci:full` or by changing the CI pipeline itself.
 # - The nightly schedule runs every lane on main.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches:
       - main
@@ -77,6 +78,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       heavy: ${{ steps.filter.outputs.heavy }}
+      release_pr: ${{ steps.filter.outputs.release_pr }}
       workspaces: ${{ steps.filter.outputs.workspaces }}
       frontend_lanes: ${{ steps.filter.outputs.frontend_lanes }}
     steps:
@@ -92,6 +94,8 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BASE_REF: ${{ github.base_ref }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -129,10 +133,15 @@ jobs:
 
           # Main pushes, nightly and manual runs select heavy lanes. PRs opt
           # in through CI changes or a live label read (also honored on re-run).
+          release_pr=false
+          if [[ "$EVENT_NAME" == "pull_request" ]] &&
+             [[ "$PR_TITLE" == 'build: release '* || "$PR_BASE_REF" == release/v* ]]; then
+            release_pr=true
+          fi
           heavy=true
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             heavy=false
-            if grep -qx 'ci_infra=true' <<<"$areas"; then
+            if [[ "$release_pr" == true ]] || grep -qx 'ci_infra=true' <<<"$areas"; then
               heavy=true
             else
               labels=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name')
@@ -143,6 +152,7 @@ jobs:
           {
             grep -E '^(backend|web|desktop)=' <<<"$areas"
             echo "heavy=$heavy"
+            echo "release_pr=$release_pr"
             echo "workspaces=$workspaces"
             echo "frontend_lanes=$(python3 scripts/ci-workspaces.py --lanes <<<"$workspaces")"
           } | tee -a "$GITHUB_OUTPUT"
@@ -297,6 +307,14 @@ jobs:
           make source-size
           make go-lint
 
+      - name: Verify integration selection and census contracts
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          go test -race -tags=mage ./magefiles
+          -run '^Test(Integration|GlobalDBIntegration|GoTest|LoadGoTestCensus|Census|Partition|MissingPackage)'
+          -count=1 -timeout=5m
+
       - name: Save golangci-lint cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v6
@@ -389,87 +407,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Main, nightly and ci:full PRs own the full integration lane here.
+  # Release PRs call the same reusable workflow from Release, gating dry-run.
   go-integration:
-    # Fixed integration contracts run beside the duration-balanced unit shards
-    # instead of stretching the shards they used to ride on.
-    name: Go integration contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    name: Go integration
     needs: changes
-    if: needs.changes.outputs.heavy == 'true' && needs.changes.outputs.backend == 'true'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          save-cache: ${{ env.SAVE_CACHE }}
-
-      - name: Build ACP mock fixture driver
-        timeout-minutes: 5
-        env:
-          CGO_ENABLED: "1"
-          COMPOZY_TEST_ACPMOCK_DRIVER_BIN: ${{ runner.temp }}/acpmock-driver
-        run: |
-          go build -o "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" ./internal/testutil/acpmock/cmd/acpmock-driver
-          printf 'COMPOZY_TEST_ACPMOCK_DRIVER_BIN=%s\n' "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" >> "$GITHUB_ENV"
-
-      - *install-terminal-scenario-shell
-
-      - name: Verify zsh startup contracts
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -count=1 -timeout=2m -v ./internal/terminal/pty -run '^TestShellIntegrationContract$'
-
-      - name: Verify background role configuration through CLI HTTP and UDS
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_status_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
-
-      - name: Verify instance boot recovery after HTTP and UDS startup
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestBootResumesInstancesAfterServersStart$'
-
-      - name: Verify overlay catalog with ACP subprocesses and SQLite
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -tags=integration -count=1 -timeout=5m ./internal/modelcatalog
-
-      - name: Verify Marketplace publication and acquisition with real SQLite
-        env:
-          CGO_ENABLED: "1"
-        run: >-
-          go test -race -tags=integration -count=1 -timeout=5m
-          ./internal/daemon ./internal/extension
-          -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
-
-      - name: Verify Goal cancellation and stopped-session deletion with real SQLite
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/store/globaldb/global_db_goal_turn_runtime_integration_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/loop_goal_managed_runtime_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m \
-            ./internal/store/globaldb ./internal/daemon \
-            -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
-
-      - name: Verify managed delivery recovery with real Git and forge HTTP
-        env:
-          CGO_ENABLED: "1"
-        run: >-
-          go test -race -tags=integration -count=1 -timeout=5m -v
-          ./internal/worktree
-          -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
-
-      - name: Verify disposable frozen executor recovery
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -tags=integration -count=1 -timeout=5m -v ./internal/session -run '^TestManagerIntegrationSupervisedWorkRecovery$'
+    if: needs.changes.outputs.heavy == 'true' && needs.changes.outputs.backend == 'true' && needs.changes.outputs.release_pr != 'true'
+    uses: ./.github/workflows/go-integration.yml
+    with:
+      save-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   sdk-go-test:
     name: Go SDK (race test)

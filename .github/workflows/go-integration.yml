@@ -1,0 +1,94 @@
+name: Go full integration
+
+on:
+  workflow_call:
+    inputs:
+      save-cache:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.27.3"
+
+jobs:
+  integration:
+    name: Full Integration Suite (${{ matrix.group }} ${{ matrix.shard_index }})
+    runs-on: ubuntu-latest
+    # Keep the original ceiling until PR timing receipts justify reducing it.
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { group: daemon, shard_index: 0, shard_total: 3 }
+          - { group: daemon, shard_index: 1, shard_total: 3 }
+          - { group: daemon, shard_index: 2, shard_total: 3 }
+          - { group: globaldb, shard_index: 0, shard_total: 2 }
+          - { group: globaldb, shard_index: 1, shard_total: 2 }
+          - { group: other, shard_index: 0, shard_total: 3 }
+          - { group: other, shard_index: 1, shard_total: 3 }
+          - { group: other, shard_index: 2, shard_total: 3 }
+    env:
+      COMPOZY_GO_INTEGRATION_GROUP: ${{ matrix.group }}
+      COMPOZY_GO_TEST_P: "1"
+      COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
+      COMPOZY_GO_TEST_SHARD_TOTAL: ${{ matrix.shard_total }}
+      COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/integration-results
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install ripgrep
+        run: |
+          # Only Ubuntu supplies this dependency; unrelated runner repositories
+          # must not block preflight when their indexes are inconsistent.
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          bash .github/scripts/apt-mirror-fallback.sh
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install --yes ripgrep zsh
+          rg --version
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-gotestsum: "true"
+          cache-key-suffix: -${{ matrix.group }}-${{ matrix.shard_index }}
+          save-cache: ${{ inputs.save-cache }}
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Build integration fixture dependencies
+        run: bun run turbo run build --filter=@compozy/extension-react --filter=@compozy/client
+
+      - name: Run full integration suite
+        env:
+          CI: "true"
+          CGO_ENABLED: 0
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: make test-integration
+
+      - name: Upload integration timing and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-artifacts-${{ matrix.group }}-${{ matrix.shard_index }}
+          path: |
+            /tmp/integration-results
+            coverage.out
+            test-results.xml
+            /tmp/compozy-e2e-*
+          if-no-files-found: ignore
+          retention-days: 14

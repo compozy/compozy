@@ -79,6 +79,20 @@ Inspect these checks on the current head:
 
 Both gates always run and fail when `Detect changes` fails. The fast lane selects affected areas. Heavy lanes (integration, Windows and E2E) run on main pushes and nightly, plus manual runs; pull requests opt in with the `ci:full` label and a CI re-run, or by changing the CI pipeline itself. `E2E (combined lane)` succeeds when heavy lanes are not selected. Pending, cancelled or missing is not green, and success on an earlier head does not count. Other check results inform repair; `PR body` blocks the merge-gate criterion until successful.
 
+The full Go integration lane uses `go-integration.yml`: CI calls it for main,
+nightly, manual and `ci:full` runs; Release makes the sole call for release PRs and
+requires its success before the release dry-run. Its eight shards reserve three
+runners for daemon, two for globaldb and three for other packages. Go's selected
+source files with and without `integration` determine exact test run lists; unit
+tests and functions owned by the E2E plan run in their existing lanes. Race checks
+stay enabled, with the unit lane's modernc-only checkptr exception and four parallel
+tests; the weekly `go-checkptr.yml` retains full pointer checks. Main CI runs are
+not cancelled and save a separate build/test cache for each integration group/shard.
+Census refresh accepts completed same-repository shard receipts from failed or
+successful CI/Release runs, including opt-in and release PRs, and preserves missing
+observations. Compare actual shard wall times and runner-minutes before reducing
+integration timeouts; invocation wall time includes compilation and setup.
+
 Diagnose finished failures while other jobs run. Wait through a monitor, never a shell loop. A watch command can exit non-zero on a network error, so read the real conclusion with `gh run view`.
 
 ## Reviewers

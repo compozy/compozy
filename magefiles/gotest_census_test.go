@@ -346,7 +346,7 @@ func TestIntegrationObservationIdentity(t *testing.T) {
 		t.Parallel()
 		observed := newGoTestObservation()
 		observed.lane = "integration"
-		for index, pkg := range []string{goSplitTestPackage, compozyModulePath + "internal/daemon", compozyModulePath + "internal/store"} {
+		for index, pkg := range []string{goSplitTestPackage, compozyModulePath + "internal/daemon", compozyModulePath + "internal/store", compozyModulePath + "internal/session"} {
 			observed.recordEvent(
 				gotestsumEvent{Action: "pass", Package: pkg, Test: "TestSame", Elapsed: float64(index + 1)},
 			)
@@ -354,7 +354,12 @@ func TestIntegrationObservationIdentity(t *testing.T) {
 				t.Fatalf("%s weight = %v", pkg, got)
 			}
 		}
-		if len(observed.splitTests) != 3 {
+		observed.recordEvent(gotestsumEvent{Action: "fail", Package: goSplitTestPackage, Elapsed: 12})
+		observed.recordEvent(gotestsumEvent{Action: "fail", Package: goSplitTestPackage, Test: "TestSame", Elapsed: 5})
+		if observed.packages[goSplitTestPackage] != 12 || observed.splitTests[goSplitTestPackage+"#TestSame"] != 5 {
+			t.Fatalf("failed shard timings lost: %+v / %+v", observed.packages, observed.splitTests)
+		}
+		if len(observed.splitTests) != 4 {
 			t.Fatalf("weights = %v", observed.splitTests)
 		}
 	})
