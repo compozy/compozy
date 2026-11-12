@@ -10371,8 +10371,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
 			t.Fatalf("invalid source = %v, want input validation error", err)
 		}
+		sourceErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || sourceErr.Operator == nil {
+			t.Fatalf("invalid source = %v, want structured operator cause", err)
+		}
 		for _, source := range []string{"timer", "instance_check", "scheduler", "manual", "harness_reentry"} {
-			if !strings.Contains(err.Error(), source) {
+			if !strings.Contains(sourceErr.Operator.Cause, source) {
 				t.Fatalf("invalid source = %v, missing %s", err, source)
 			}
 		}

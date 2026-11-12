@@ -171,7 +171,9 @@ scheduler/manual/harness ──► HeartbeatWakeService
 
 Wake guarantees:
 
-1. Manual wake resolves the current `HEARTBEAT.md` through the same policy loader as status, including repository edits without an authoring revision. A real wake persists its snapshot; a dry run evaluates without writing one. Scheduler and harness wakes use persisted snapshots.
+1. Manual wake resolves the current `HEARTBEAT.md` through the same policy loader as status,
+   including repository edits without an authoring revision. A real wake persists its snapshot; a
+   dry run evaluates without writing one. Scheduler and harness wakes use persisted snapshots.
 2. Wake never calls `ClaimNextRun`, never creates `task_runs`, never renews leases, and never
    issues raw claim tokens.
 3. Wake serializes with the session prompt gate. If a user/model prompt starts concurrently, wake
@@ -240,7 +242,7 @@ Common deterministic codes:
 | `heartbeat_conflict`                                   | `expected_digest` did not match.                                          |
 | `heartbeat_if_match_header_unsupported`                | HTTP `If-Match` header was sent; use `expected_digest` instead.           |
 | `heartbeat_rate_limited`                               | The agent exceeded `max_wakes_per_cycle` for the current scheduler cycle. |
-| `heartbeat_no_policy`                                  | No policy exists for manual wake, or no valid snapshot exists for a scheduler/harness wake.                                   |
+| `heartbeat_no_policy`                                  | No current manual policy or stored scheduler/harness snapshot exists.     |
 | `cooldown_active`                                      | The session is inside `wake_cooldown` from a prior wake.                  |
 | `quiet_window`                                         | Wake fell inside an authored quiet window.                                |
 | `session_not_found`                                    | The target session id was not resolved.                                   |
@@ -583,4 +585,5 @@ events and unattended-turn counts are preserved.
 Instance status and list responses explain the last runtime rejection in the next check's
 description. Use `agent_instance_check` to retry manually after correcting configuration.
 
-Manual wake `source` accepts `timer`, `instance_check`, `scheduler`, `manual`, or `harness_reentry` (default: `manual`). Unknown values return a validation error listing these values.
+Manual wake `source` accepts `timer`, `instance_check`, `scheduler`, `manual`, or `harness_reentry`
+(default: `manual`). Unknown values return a validation error listing these values.
