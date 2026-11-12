@@ -47,10 +47,10 @@ Independent issues get separate worktrees; several symptoms of one defect stay t
 
 ## Pull request
 
-Write everything in English, from `.github/PULL_REQUEST_TEMPLATE.md`. Do not keep its historical comment.
+Write everything in English, from `.github/PULL_REQUEST_TEMPLATE.md`. Keep its exact three headings and checklist, fill every section, and leave no HTML comments.
 
 - Title: `<type>: <description>` or `<type>!: <description>`, describing the result. Squash subjects become release notes, so if the title mentions the product, it says `CompozyOS`, never bare `Compozy`.
-- Link the issue with `Closes #<n>`, or `Refs #<n>` when closing needs a check you cannot make.
+- Link the issue with `Closes #<n>`, or `Refs #<n>` when closing needs a check you cannot make. For work without an issue, include an explicit `No issue: <reason>` line.
 - Cover the trigger, root cause, observable before and after, tradeoffs, verification, and cross-surface, compatibility and QA impact, for a reader without this conversation. Keep it current as remediation changes the work.
 - Omit private identifiers, host paths and credentials.
 - A draft PR or first push is a checkpoint, not delivery.
@@ -68,20 +68,22 @@ curl -sI https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/<key>
 
 ## CI
 
-There is no merge queue. Merge-train merges directly once its CodeRabbit rounds or fallback criterion and zero unresolved threads hold, with the target, title, head and mergeability verified. CI may be pending or red; `main` may go red briefly and is fixed right after. List every non-green check on the merged head for immediate repair. Report any remaining branch rule that blocks a direct merge; never bypass it with `--admin`.
+The latest `PR body` check must be `completed/success` on the current head before `ready:` or merge; body edits rerun this lightweight workflow. It enforces nonempty template sections, no HTML comments, an issue link or `No issue: <reason>`, no host paths or GitHub-hosted images, and CompozyOS title naming. Release branches `release/v*` and dependency bots pass explicitly. pr-watcher also reviews concrete verification, the cross-surface impact audit and R2 screenshot responses for UI changes.
+
+There is no merge queue. Merge-train merges directly once its CodeRabbit rounds or fallback criterion and zero unresolved threads hold, with the target, title, head and mergeability verified. Other CI may be pending or red; `main` may go red briefly and is fixed right after. List every non-green check on the merged head for immediate repair. Report any remaining branch rule that blocks a direct merge; never bypass it with `--admin`.
 
 Inspect these checks on the current head:
 
-- `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `React Doctor`
+- `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `PR body`, `React Doctor`
 - Every other reported check, recording any result that is not successful or legitimately skipped; [Reviewers](#reviewers) owns the CodeRabbit criterion
 
-Both gates always run and fail when `Detect changes` fails. The fast lane selects affected areas. Heavy lanes (integration, Windows and E2E) run on main pushes and nightly, plus manual runs; pull requests opt in with the `ci:full` label and a CI re-run, or by changing the CI pipeline itself. `E2E (combined lane)` succeeds when heavy lanes are not selected. Pending, cancelled or missing is not green, and success on an earlier head does not count. These results inform repair; they do not block the merge-gate criterion.
+Both gates always run and fail when `Detect changes` fails. The fast lane selects affected areas. Heavy lanes (integration, Windows and E2E) run on main pushes and nightly, plus manual runs; pull requests opt in with the `ci:full` label and a CI re-run, or by changing the CI pipeline itself. `E2E (combined lane)` succeeds when heavy lanes are not selected. Pending, cancelled or missing is not green, and success on an earlier head does not count. Other check results inform repair; `PR body` blocks the merge-gate criterion until successful.
 
 Diagnose finished failures while other jobs run. Wait through a monitor, never a shell loop. A watch command can exit non-zero on a network error, so read the real conclusion with `gh run view`.
 
 ## Reviewers
 
-CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive; pending or red checks do not block merging. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
+CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commits, a third after a heavy second round, or the fallback below. Every review thread must be resolved. Inspect Greptile and React Doctor results and address actionable findings as they arrive; other pending or red checks do not block merging. Elapsed time or silence proves no CodeRabbit coverage. Do not install or configure a reviewer.
 
 - Every push restarts CI and the reviewers, so remediation works in rounds: one push per round, never one per finding.
 - CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Do not request a re-review of an unchanged head.
@@ -92,7 +94,7 @@ CodeRabbit must meet merge-gate HEARTBEAT.md step 2: two distinct reviewed commi
   3. Fix or answer every finding like any other reviewer's.
   4. Dismiss a stale CodeRabbit `CHANGES_REQUESTED` review with a message linking that comment.
 
-  Inspect Greptile, React Doctor and CI results and report non-green checks; they do not block the merge-gate criterion.
+  Inspect Greptile, React Doctor and CI results and report non-green checks; only `PR body` blocks the merge-gate criterion.
 
 A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then inspect CI and satisfy the review criterion on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head without the required CodeRabbit rounds or fallback is not delivered.
 
