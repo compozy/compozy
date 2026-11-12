@@ -3613,22 +3613,7 @@ func waitForRuntimeCondition(
 	fn func() bool,
 ) {
 	t.Helper()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	ticker := time.NewTicker(20 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		if fn() {
-			return
-		}
-		select {
-		case <-timer.C:
-			t.Fatalf("timed out waiting for %s", label)
-		case <-ticker.C:
-		}
-	}
+	testutil.Eventually(t, label, timeout, fn)
 }
 
 func copyDirectory(sourceDir string, targetDir string) error {

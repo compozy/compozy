@@ -19,6 +19,27 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 	if m == nil || m.inputQueue == nil || session == nil {
 		return
 	}
+	// One pass runs at a time, but a request that arrives while a pass runs is never dropped: that pass
+	// listed the queue before the new entry was admitted, so it runs again once it ends.
+	session.inputPromotionRerun.Store(true)
+	if !session.inputPromotionActive.CompareAndSwap(false, true) {
+		return
+	}
+	for {
+		session.inputPromotionRerun.Store(false)
+		m.promoteLongTurnQueuedInputsOnce(ctx, session)
+		if session.inputPromotionRerun.Load() {
+			continue
+		}
+		session.inputPromotionActive.Store(false)
+		// A request that raced the release saw the pass still active and returned; take it over.
+		if !session.inputPromotionRerun.Load() || !session.inputPromotionActive.CompareAndSwap(false, true) {
+			return
+		}
+	}
+}
+
+func (m *Manager) promoteLongTurnQueuedInputsOnce(ctx context.Context, session *Session) {
 	after := m.messagingConfig().QueuePromoteAfter
 	if after <= 0 {
 		return
@@ -27,10 +48,6 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 	if !ok || m.now().Sub(startedAt) < after {
 		return
 	}
-	if !session.inputPromotionActive.CompareAndSwap(false, true) {
-		return
-	}
-	defer session.inputPromotionActive.Store(false)
 	entries, err := m.inputQueue.List(ctx, session.ID)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: list queued input for promotion failed", "error", err)

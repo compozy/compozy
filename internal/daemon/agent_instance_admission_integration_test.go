@@ -1217,7 +1217,9 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 			}
 			t.Fatalf("child monitor turn did not settle: %v; child: %+v", ctx.Err(), child.Info())
 		}
-		waitForCondition(t, "child wake and peer delivered", func() bool {
+		// The released peer and takeover inputs still run as real ACP turns after the wake settles,
+		// so their delivery shares the race-scaled turn budget rather than the 2s state-poll default.
+		testutil.Eventually(t, "child wake and peer delivered", 15*time.Second, func() bool {
 			for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
 				row, err := db.GetSessionInputQueueEntry(ctx, child.ID, id)
 				if err != nil || row.Status != store.SessionInputQueueStatusSent {
@@ -1290,9 +1292,10 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 					}
 				}()
 			}
-			waitForCondition(
+			testutil.Eventually(
 				t,
 				"parent work started",
+				15*time.Second,
 				func() bool { return main.IsPrompting() && main.CurrentTurnID() != "" },
 			)
 			caller := session.SubagentCaller{
@@ -1310,7 +1313,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				Task:    "child work",
 				Title:   "First child prompt",
 				Mode:    "wait",
-				Timeout: 10 * time.Second,
+				Timeout: testutil.Scaled(t, 10*time.Second),
 			})
 			if err != nil || child.ChildSessionID == nil {
 				t.Fatalf("child=%+v error=%v", child, err)
@@ -1328,7 +1331,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 					t.Fatalf("held child=%+v error=%v", rows, err)
 				}
 			}
-			waitForRuntimeCondition(
+			testutil.Eventually(
 				t,
 				"in-flight parent finished after pause",
 				10*time.Second,
@@ -1415,15 +1418,18 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 				if t.Failed() {
 					wake, _ := db.Instances().WakeState(context.Background(), instance.ID)
 					occurrence, _ := db.Instances().Occurrence(context.Background(), instance.ID, check.OccurrenceID)
+					captured, captureErr := os.ReadFile(pauseHookCapture)
 					t.Logf(
-						"failed check: wake=%+v occurrence=%+v prompting=%v",
+						"failed check: wake=%+v occurrence=%+v prompting=%v pause hooks=%q (%v)",
 						wake,
 						occurrence,
 						manager.IsPrompting(triageID),
+						captured,
+						captureErr,
 					)
 				}
 			})
-			waitForRuntimeCondition(t, "real ACP check started", 15*time.Second, func() bool {
+			testutil.Eventually(t, "real ACP check started", 15*time.Second, func() bool {
 				wake, err := db.Instances().WakeState(t.Context(), instance.ID)
 				triageID = wake.TriageSessionID
 				return err == nil && triageID != "" && manager.IsPrompting(triageID)
@@ -1454,7 +1460,7 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 					t.Fatalf("pause=%d %s", status, raw)
 				}
 			}
-			waitForRuntimeCondition(t, "check cancelled and settled", 15*time.Second, func() bool {
+			testutil.Eventually(t, "check cancelled and settled", 15*time.Second, func() bool {
 				occurrence, err := db.Instances().Occurrence(t.Context(), instance.ID, check.OccurrenceID)
 				return err == nil && occurrence.Result == "cancelled" && !manager.IsPrompting(triageID)
 			})
@@ -1467,7 +1473,7 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 				t.Fatalf("instance=%+v error=%v", paused, err)
 			}
 			// IT-029: the pause dispatches its lifecycle hook exactly once and raises exactly one report.
-			waitForRuntimeCondition(t, "one pause hook", 10*time.Second, func() bool {
+			testutil.Eventually(t, "one pause hook", 10*time.Second, func() bool {
 				raw, err := os.ReadFile(pauseHookCapture)
 				return err == nil && bytes.Count(raw, []byte("\n")) >= 1
 			})
@@ -1921,7 +1927,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
 			t.Fatal(err)
 		}
-		waitForRuntimeCondition(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
+		testutil.Eventually(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
 			runs, err := db.Instances().ManagedRuns(t.Context(), instance.ID, "")
 			if err != nil || len(runs) != 1 {
 				return false
@@ -1955,7 +1961,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("instance resume=%d %s", status, raw)
 		}
-		waitForRuntimeCondition(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
+		testutil.Eventually(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
 			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
 			if err != nil || own.Status != looppkg.StatusRunning || own.PauseRequested {
 				return false
@@ -1963,7 +1969,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 			other, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(operatorChild.runID))
 			return err == nil && (other.Status == looppkg.StatusPaused || other.PauseRequested)
 		})
-		waitForRuntimeCondition(t, "resumed Goal claimed a new managed turn", 15*time.Second, func() bool {
+		testutil.Eventually(t, "resumed Goal claimed a new managed turn", 15*time.Second, func() bool {
 			turns, err := db.ListGoalTurns(t.Context(), turnQuery)
 			return err == nil && len(turns.Turns) > 0 && manager.IsPrompting(children[0].sessionID)
 		})
@@ -1981,11 +1987,11 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("immediate instance resume=%d %s", status, raw)
 		}
-		waitForRuntimeCondition(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
+		testutil.Eventually(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
 			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
 			return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
 		})
-		waitForRuntimeCondition(
+		testutil.Eventually(
 			t,
 			"operator-owned Goal remains paused after racing resume",
 			20*time.Second,
