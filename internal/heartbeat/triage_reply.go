@@ -299,7 +299,6 @@ func unwrapTriageFence(reply string) (string, error) {
 		if !found {
 			return "", errTriageFraming
 		}
-
 	} else {
 		decoder := jsontext.NewDecoder(strings.NewReader(candidate))
 		value, err := decoder.ReadValue()

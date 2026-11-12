@@ -1425,7 +1425,8 @@ func TestTriageReplyOutcome(t *testing.T) {
 		if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") || !strings.Contains(payload.Detail, "Validation: framing.") ||
+		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") ||
+			!strings.Contains(payload.Detail, "Validation: framing.") ||
 			strings.Contains(payload.Detail, secret) || strings.Contains(payload.Detail, oauthCode) ||
 			strings.Contains(payload.Detail, punctuationCode) ||
 			!strings.Contains(payload.Detail, "[REDACTED]") ||
