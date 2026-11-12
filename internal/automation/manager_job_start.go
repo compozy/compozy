@@ -5,11 +5,18 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // DefaultJobWaitTimeout bounds an explicit completion wait.
 const DefaultJobWaitTimeout = time.Minute
+
+const (
+	admissionPending int32 = iota
+	admissionAccepted
+	admissionCanceled
+)
 
 // ParseJobWaitTimeout validates the optional completion-wait budget.
 func ParseJobWaitTimeout(wait bool, raw string) (time.Duration, error) {
@@ -79,7 +86,7 @@ func (m *Manager) StartJob(ctx context.Context, id string, waitTimeout time.Dura
 	case <-timer.C:
 		return receipt, nil
 	case <-ctx.Done():
-		return receipt, ctx.Err()
+		return receipt, nil
 	}
 }
 
@@ -98,10 +105,22 @@ func (m *Manager) startManualDispatch(
 		defer cancel()
 		stop := context.AfterFunc(runtimeCtx, cancel)
 		defer stop()
+		var admissionState atomic.Int32
+		stopCaller := context.AfterFunc(ctx, func() {
+			if admissionState.CompareAndSwap(admissionPending, admissionCanceled) {
+				cancel()
+			}
+		})
+		defer stopCaller()
 		var once sync.Once
 		run, err := m.dispatcher.Dispatch(dispatchCtx, DispatchRequest{
-			Kind: DispatchKindManual, Job: &job,
-			onAdmitted: func(run Run) { once.Do(func() { admitted <- run }) },
+			Kind: DispatchKindManual, Job: &job, retainRunID: true,
+			onAdmitted: func(run Run) {
+				if admissionState.CompareAndSwap(admissionPending, admissionAccepted) {
+					stopCaller()
+				}
+				once.Do(func() { admitted <- run })
+			},
 		})
 		if err != nil {
 			m.logger.Error("automation.manual_dispatch.failed", "job_id", job.ID, "error", err)

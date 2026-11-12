@@ -1726,7 +1726,10 @@ func TestNativeAutomationJobTriggerAdmission(t *testing.T) {
 		wait        time.Duration
 	}{
 		{name: "Should return admission by default", input: `{"job_id":"job-1"}`},
-		{name: "Should wait only with an explicit budget", input: `{"job_id":"job-1","wait":true,"timeout":"2m"}`, wait: 2 * time.Minute},
+		{
+			name:  "Should wait only with an explicit budget",
+			input: `{"job_id":"job-1","wait":true,"timeout":"2m"}`, wait: 2 * time.Minute,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1738,7 +1741,9 @@ func TestNativeAutomationJobTriggerAdmission(t *testing.T) {
 						if id != job.ID || wait != tc.wait {
 							t.Fatalf("StartJob(%s, %s)", id, wait)
 						}
-						return automationpkg.Run{ID: "run-admitted", JobID: job.ID, Status: automationpkg.RunRunning}, nil
+						return automationpkg.Run{
+							ID: "run-admitted", JobID: job.ID, Status: automationpkg.RunRunning,
+						}, nil
 					},
 				},
 			}, nativeApproveAllPolicyInputs())

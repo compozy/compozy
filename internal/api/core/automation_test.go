@@ -2316,7 +2316,9 @@ func (s stubAutomationManager) DeleteJob(ctx context.Context, id string) error {
 	return s.DeleteJobFn(ctx, id)
 }
 
-func (s stubAutomationManager) StartJob(ctx context.Context, id string, timeout time.Duration) (automationpkg.Run, error) {
+func (s stubAutomationManager) StartJob(
+	ctx context.Context, id string, timeout time.Duration,
+) (automationpkg.Run, error) {
 	if s.StartJobFn != nil {
 		return s.StartJobFn(ctx, id, timeout)
 	}
@@ -2699,7 +2701,9 @@ func TestTriggerAutomationJobWaitOptions(t *testing.T) {
 				},
 			})
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/automation/jobs/job-1/trigger"+tc.query, nil))
+			router.ServeHTTP(response, httptest.NewRequest(
+				http.MethodPost, "/automation/jobs/job-1/trigger"+tc.query, http.NoBody,
+			))
 			if response.Code != tc.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}

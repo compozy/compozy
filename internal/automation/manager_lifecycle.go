@@ -20,6 +20,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	if m.running {
 		return nil
 	}
+	if m.shutdownDone != nil {
+		select {
+		case <-m.shutdownDone:
+		default:
+			return fmt.Errorf("%w: shutdown is still in progress", ErrManagerNotRunning)
+		}
+	}
 
 	syncStats, err := m.syncConfigDefinitions(ctx)
 	if err != nil {
@@ -95,9 +102,12 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 	m.mu.Lock()
 	if !m.running {
+		done := m.shutdownDone
 		m.mu.Unlock()
-		return nil
+		return waitForManualShutdown(ctx, done)
 	}
+	done := make(chan struct{})
+	m.shutdownDone = done
 
 	cancel := m.runtimeCancel
 	manualRuns := m.manualRuns
@@ -113,11 +123,6 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if cancel != nil {
 		cancel()
 	}
-	manualDone := make(chan struct{})
-	go func() {
-		manualRuns.Wait()
-		close(manualDone)
-	}()
 
 	var errs []error
 	if triggerEngine != nil {
@@ -130,12 +135,31 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			errs = append(errs, err)
 		}
 	}
-	select {
-	case <-manualDone:
-	case <-ctx.Done():
-		errs = append(errs, ctx.Err())
+	go func() {
+		manualRuns.Wait()
+		close(done)
+	}()
+	if err := waitForManualShutdown(ctx, done); err != nil {
+		errs = append(errs, err)
 	}
 
 	m.logger.Info("automation.manager.shutdown")
 	return errors.Join(errs...)
+}
+
+func waitForManualShutdown(ctx context.Context, done <-chan struct{}) error {
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	default:
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

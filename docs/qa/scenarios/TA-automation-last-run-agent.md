@@ -57,5 +57,4 @@ With an agent job whose turn lasts longer than the trigger client's request time
    are canceled and joined; their final run state is persisted.
 
 Regression coverage belongs to the automation manager, shared handler, CLI transport
-and native-tool suites. Local execution is intentionally unrun for the parallel issue
-push; exact-head CI owns verification.
+and native-tool suites, plus the daemon/ACP integration journey.

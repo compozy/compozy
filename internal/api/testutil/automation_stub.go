@@ -146,7 +146,9 @@ func (s StubAutomationManager) DeleteJob(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s StubAutomationManager) StartJob(ctx context.Context, id string, timeout time.Duration) (automationpkg.Run, error) {
+func (s StubAutomationManager) StartJob(
+	ctx context.Context, id string, timeout time.Duration,
+) (automationpkg.Run, error) {
 	if s.StartJobFn != nil {
 		return s.StartJobFn(ctx, id, timeout)
 	}

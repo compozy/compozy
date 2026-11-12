@@ -113,6 +113,7 @@ type DispatchRequest struct {
 	CatchUp       bool                   `json:"catch_up,omitzero"`
 	CatchUpPolicy SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
 	onAdmitted    func(Run)
+	retainRunID   bool
 }
 
 // Validate ensures the request can be executed by the shared dispatcher.
@@ -380,7 +381,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 	}
 
 	attempt := 1
-	reservedDispatch := req.ReservedRun != nil
+	reservedDispatch := req.ReservedRun != nil || req.retainRunID
 	var lastRun *Run
 	for {
 		run, err := d.dispatchAttempt(ctx, req, attempt)

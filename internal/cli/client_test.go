@@ -5761,7 +5761,10 @@ func TestTriggerAutomationJobWaitBudget(t *testing.T) {
 		defer server.Close()
 		transport := server.Client()
 		transport.Timeout = time.Millisecond
-		client := &daemonClient{httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL}}
+		client := &daemonClient{
+			httpClient: transport,
+			target:     ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
+		}
 		run, err := client.TriggerAutomationJob(t.Context(), "job-1", time.Second)
 		if err != nil || run.ID != "run-long" || run.Status != automationpkg.RunCompleted {
 			t.Fatalf("trigger = %#v, %v", run, err)

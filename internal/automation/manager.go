@@ -235,6 +235,7 @@ type Manager struct {
 	triggerRevision   int64
 	resourceOverlayMu sync.Mutex
 	manualRuns        *sync.WaitGroup
+	shutdownDone      chan struct{}
 
 	taskActorMu       sync.RWMutex
 	sessionTaskActors map[string]taskpkg.ActorContext
