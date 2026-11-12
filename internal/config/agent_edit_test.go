@@ -102,6 +102,17 @@ Prompt.
 				t.Fatalf("accepts = %#v", got)
 			}
 		}
+		if got := reloaded.AcceptedInputs(); len(got) != MaxAgentAccepts || got[0] != "intake: <text>" {
+			t.Fatalf("declared accepted inputs = %#v", got)
+		}
+		prose := AgentDef{Prompt: "Intro.\n\n## Rules\n\n```text\nnot: input\n```\n\n## Input\n\n" +
+			"Send one of:\n\n```text\nintake: <text>\nsweep:\n```\n\n```text\nlater: block\n```\n"}
+		if got := prose.AcceptedInputs(); len(got) != 2 || got[0] != "intake: <text>" || got[1] != "sweep:" {
+			t.Fatalf("accepted inputs from the Input section = %#v", got)
+		}
+		if got := (AgentDef{Prompt: "## Input\n\nFree text."}).AcceptedInputs(); got != nil {
+			t.Fatalf("accepted inputs without a block = %#v", got)
+		}
 	})
 }
 
