@@ -178,8 +178,8 @@ If the forge cannot be reached, those failed reads are never treated as check re
 minutes of failures, one wake says the forge is unavailable and the monitor stays armed. If only reviews
 fail to load, checks keep working and reviews that arrive meanwhile are still reported once they can be
 read. Rate limits are respected, and sessions watching the same pull request share one read. A forge
-extension that does not report reviews still supports checks, and each wake says what it could not observe. Pull requests
-from forks are not visible to the monitor.
+extension that does not report reviews still supports checks, and each wake says what it could not observe. GitHub pull requests from forks require an explicit
+`owner:branch` selector.
 
 A pull request monitor keeps its slot for its whole life, and an always-on agent's session does not
 rotate while one is active.
