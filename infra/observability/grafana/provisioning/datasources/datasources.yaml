@@ -1,0 +1,51 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - { name: trace_id, datasourceUid: tempo }
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    url: http://tempo:3200
+    jsonData:
+      serviceMap: { datasourceUid: prometheus }
+      nodeGraph: { enabled: true }
+      search: { hide: false }
+      streamingEnabled: { search: true, metrics: true }
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -5m
+        spanEndTimeShift: 5m
+        filterByTraceID: false
+        customQuery: true
+        query: '{service_name="$${__span.tags["service.name"]}"} | session_id="$${__span.tags["compozy.session_id"]}"'
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: -5m
+        spanEndTimeShift: 5m
+        tags: [{ key: service.name, value: service }]
+        queries:
+          - name: Span p95
+            query: histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{$$__tags, span_name="$${__span.name}"}[5m])))
+          - name: Span errors/s
+            query: sum(rate(traces_spanmetrics_calls_total{$$__tags, span_name="$${__span.name}", status_code="STATUS_CODE_ERROR"}[5m]))
+
+  - name: Loki
+    uid: loki
+    type: loki
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: "$${__value.raw}"
+          urlDisplayLabel: Open trace
