@@ -690,6 +690,35 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should validate requested reasoning independently of provider observation", func(t *testing.T) {
+		t.Parallel()
+		profile := store.SessionCreationProfile{Provider: "claude", Model: "opus"}
+		binding := actionBindingFromGoal(looppkg.ActionSessionBindRequest{}, goalpkg.SessionBinding{
+			SessionID: "session", Ownership: goalpkg.BindingOwnershipRunOwned,
+		}, looppkg.RuntimeSpec{Provider: profile.Provider, Model: profile.Model})
+		binder := &loopActionSessionBinder{sessions: &loopActionBinderSessionManager{
+			statusInfo: &session.Info{Provider: "claude", ACPCapsKnown: true,
+				ACPCaps: acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+					{ID: "reasoning_effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "medium"},
+				}},
+			},
+		}}
+		binding, err := binder.projectActionBindingSpeed(t.Context(), binding, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if binding.RequestedRuntime.Reasoning != "" || binding.AppliedRuntime.Reasoning != "medium" {
+			t.Fatalf("binding runtime = %#v, want empty intent and observed medium", binding)
+		}
+		if err := validatePinnedRuntime(binding.RequestedRuntime, profile); err != nil {
+			t.Fatalf("validatePinnedRuntime(requested) error = %v", err)
+		}
+		err = validatePinnedRuntime(binding.AppliedRuntime, profile)
+		if !errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("validatePinnedRuntime(observed) error = %v, want intent mismatch", err)
+		}
+	})
+
 	profile := store.SessionCreationProfile{
 		ProfileID: store.DefaultProfileID,
 		Provider:  "claude", Model: "opus", ReasoningEffort: "high",

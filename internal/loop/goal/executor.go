@@ -299,6 +299,9 @@ func (e *Executor) actionSessionBindRequest(
 		policySpecDigest = strings.TrimSpace(provenance.OriginPolicySpecDigest)
 	}
 	runtimeRequest := segment.resolvedRuntime.Runtime
+	if segment.binding.Ownership == string(BindingOwnershipRunOwned) {
+		runtimeRequest.Reasoning = segment.binding.RequestedRuntime.Reasoning
+	}
 	if len(segment.binding.RequestedRuntime.ACPOptions) > 0 {
 		runtimeRequest.ACPOptions = dsl.CloneACPOptionSelections(segment.binding.RequestedRuntime.ACPOptions)
 	}
