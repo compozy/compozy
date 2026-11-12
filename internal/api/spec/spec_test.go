@@ -3292,6 +3292,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
 		addNativeReadPagingSchemas(t, baseline)
+		addManualJobWaitParameters(t, baseline)
 		if addNativeResultViewSchemas(baseline) == 0 {
 			t.Fatal("approved output_views addition: no historical tool descriptors found")
 		}
@@ -6586,4 +6587,28 @@ func addNativeResultViewSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	operation := paths["/api/automation/jobs/{id}/trigger"].(map[string]any)["post"].(map[string]any)
+	parameters := operation["parameters"].([]any)
+	idIndex := -1
+	for index, raw := range parameters {
+		parameter := raw.(map[string]any)
+		if parameter["in"] == "path" && parameter["name"] == "id" {
+			idIndex = index
+		}
+		if parameter["name"] == "wait" || parameter["name"] == "timeout" {
+			t.Fatal("historical trigger already defines completion wait parameters")
+		}
+	}
+	if idIndex < 0 {
+		t.Fatal("historical trigger has no job id parameter")
+	}
+	operation["parameters"] = slices.Insert(parameters, idIndex+1,
+		any(map[string]any{"in": "query", "name": "wait", "schema": map[string]any{"type": "boolean"}}),
+		any(map[string]any{"in": "query", "name": "timeout", "schema": map[string]any{"type": "string"}}),
+	)
 }
