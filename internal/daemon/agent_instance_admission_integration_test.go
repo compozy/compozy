@@ -2126,13 +2126,24 @@ func TestAgentKindRetirementBootIntegration(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		root := t.TempDir()
+		root := canonicalDaemonRoot(t, t.TempDir())
 		paths := []string{
 			filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"),
 			filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"),
 		}
 		seed(t, paths)
-		resolved := resolveDaemonWorkspace(t, d.workspaceResolver, root)
+		resolver, ok := d.workspaceResolver.(workspacepkg.ProfileRegistrationResolver)
+		if !ok {
+			t.Fatal("workspace resolver does not support profile registration")
+		}
+		resolved, err := resolver.ResolveOrRegisterForProfile(
+			t.Context(),
+			root,
+			compozyconfig.DefaultProfileDirName,
+		)
+		if err != nil {
+			t.Fatalf("resolve workspace with default profile: %v", err)
+		}
 		for _, agent := range resolved.Agents {
 			if agent.Name == "retired" {
 				t.Fatal("retired definition entered the agent catalog")
