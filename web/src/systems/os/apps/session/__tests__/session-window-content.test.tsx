@@ -80,9 +80,8 @@ vi.mock("../session-window-right-panel", () => ({
 }));
 
 vi.mock("../use-session-window-controller", async () => {
-  const { useSessionInspectorState } = await import(
-    "@/systems/session/hooks/use-session-inspector-state"
-  );
+  const { useSessionInspectorState } =
+    await import("@/systems/session/hooks/use-session-inspector-state");
   const { deriveSessionContext } = await import("@/systems/session/lib/session-context");
   const { sessionContextFixture } = await import("@/systems/session/mocks/context-fixtures");
   return {
