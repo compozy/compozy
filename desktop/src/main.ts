@@ -317,7 +317,7 @@ async function start(): Promise<void> {
       startUpdateConsumer(statePublisher);
       const runtime = await runner.run(async event => {
         if (bootstrapAbort.signal.aborted) return;
-        await statePublisher.publish(bootstrapSnapshot(event, paths.bootstrapLog));
+        await statePublisher.publish(bootstrapSnapshot(event, paths.bootstrapLog, statePublisher.snapshot().attempt));
       }, bootstrapAbort.signal);
       if (bootstrapAbort.signal.aborted) return;
       applyDefaultDenyPermissions(session.defaultSession, runtime.origin);
