@@ -5880,6 +5880,103 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		}
 	}
 
+	t.Run("Should deliver four child replies alongside monitor wakes in the live turn", func(t *testing.T) {
+		t.Parallel()
+		logs := &mentionLogSink{}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, []Option{
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{QueueCap: 32}),
+			WithLogger(slog.New(slog.NewJSONHandler(logs, nil))),
+		})
+		turnID := f.sess.CurrentTurnID()
+		var ids []string
+		var staleIDs []string
+		for child := range 4 {
+			id := fmt.Sprintf("child-%d", child)
+			childSession, err := f.h.manager.Create(t.Context(), &CreateOpts{
+				AgentName: "coder", Name: id, Workspace: f.h.workspaceID,
+				Lineage: &store.SessionLineage{ParentSessionID: f.sess.ID, RootSessionID: f.sess.ID,
+					Kind: store.LineageKindProvenance},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, f.h, childSession.ID) })
+			for revision := range 2 {
+				childSession.mu.Lock()
+				childSession.PendingClarifyCount = 1
+				childSession.AttentionRevision = int64(revision + 1)
+				childSession.mu.Unlock()
+				info := childSession.Info()
+				wakeID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+				wake, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+					MessageID: wakeID, Message: fmt.Sprintf("attention %s revision %d", id, revision),
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: info.ID,
+						Reason: string(SpawnWakeReasonNeedsAttention), WakeEventID: wakeID},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if revision == 0 {
+					staleIDs = append(staleIDs, wake.ID)
+				}
+			}
+			entry, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+				MessageID: "prompt-reply:" + id, Message: "reply " + id,
+				Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
+					ChildSessionID: id, Reason: "completed", WakeEventID: id, Hop: 2},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, entry.ID)
+			if _, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake(id)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForCondition(t, "initial promotion passes settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		f.advance(2 * time.Minute)
+		f.h.manager.schedulePromoteLongTurnQueuedInputs(f.sess)
+		replies := map[string]int{}
+		for range 9 {
+			select {
+			case text := <-f.steered:
+				replies[text]++
+			case <-time.After(5 * time.Second):
+				t.Fatal("child replies or monitor wake starved in the live turn")
+			}
+		}
+		for _, id := range staleIDs {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
+			if err != nil || entry.Status != store.SessionInputQueueStatusFailed {
+				t.Fatalf("obsolete attention = %#v, %v", entry, err)
+			}
+		}
+		for child := range 4 {
+			if replies[fmt.Sprintf("attention child-%d revision 1", child)] != 1 ||
+				replies[fmt.Sprintf("attention child-%d revision 0", child)] != 0 {
+				t.Fatalf("attention injections = %#v, want only each child's current revision", replies)
+			}
+		}
+		for child, id := range ids {
+			waitForCondition(t, "reply injected with its identity", func() bool {
+				entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
+				return err == nil && entry.Status == store.SessionInputQueueStatusSent &&
+					entry.TurnID == turnID && entry.SteerDelivery == store.SteerDeliveryInjected
+			})
+			if replies[fmt.Sprintf("reply child-%d", child)] != 1 {
+				t.Fatalf("injections = %#v, want one reply per child", replies)
+			}
+		}
+		if hop, err := f.h.manager.CurrentTurnEffectiveHop(t.Context(), f.sess.ID); err != nil || hop != 2 {
+			t.Fatalf("reply hop floor = %d, %v; want 2", hop, err)
+		}
+		if !strings.Contains(logs.String(), `"oldest_queued_synthetic_age_ms":120000`) ||
+			!strings.Contains(logs.String(), `"session_id":"`+f.sess.ID+`"`) {
+			t.Fatalf("missing oldest synthetic age and session correlation: %s", logs.String())
+		}
+		drain(t, f)
+	})
+
 	t.Run("Should inject a coalesced monitor wake into a long turn as a daemon wake", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

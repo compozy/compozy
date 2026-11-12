@@ -33,8 +33,8 @@ const (
 )
 
 var (
-	errSpawnWakeStale  = errors.New("session: stale early-stop wake")
-	errSpawnWakeLookup = errors.New("session: early-stop wake lookup can be retried")
+	errSpawnWakeStale  = errors.New("session: stale child wake")
+	errSpawnWakeLookup = errors.New("session: child wake lookup can be retried")
 	// ErrSpawnWakeValidation reports structurally invalid child wake input.
 	ErrSpawnWakeValidation = errors.New("session: spawn wake validation failed")
 	// ErrSpawnWakeSessionNotLive reports that the creator cannot accept a wake prompt.
@@ -259,7 +259,7 @@ func spawnWakeEventID(info *Info, reason SpawnWakeReason) string {
 
 // validateSpawnWake drops an alarm whose child has advanced while the creator was busy.
 func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta *acp.PromptSyntheticMeta) error {
-	if meta == nil || meta.Kind != SpawnWakeKindEndedEarly {
+	if !isSpawnWakeMeta(meta) || meta.Reason != string(SpawnWakeReasonNeedsAttention) {
 		return nil
 	}
 	var info *Info
@@ -268,7 +268,7 @@ func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta 
 		info = child.infoLocked()
 		currentTurnID := child.currentTurnID
 		child.mu.RUnlock()
-		if currentTurnID != "" && currentTurnID != info.EndedEarlyTurnID {
+		if meta.Kind == SpawnWakeKindEndedEarly && currentTurnID != "" && currentTurnID != info.EndedEarlyTurnID {
 			return fmt.Errorf("%w: child started a newer turn", errSpawnWakeStale)
 		}
 	} else {
@@ -284,13 +284,21 @@ func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta 
 			return fmt.Errorf("%w: %w", errSpawnWakeLookup, err)
 		}
 	}
-	if !EndedEarlyAttention(info, BadgeForInfo(info)) ||
+	badge := BadgeForInfo(info)
+	reason, attention := spawnWakeReasonForBadge(badge)
+	if !attention || reason != SpawnWakeReasonNeedsAttention ||
+		(meta.Kind == SpawnWakeKindEndedEarly && !EndedEarlyAttention(info, badge)) ||
 		store.NormalizeSessionLineage(info.ID, info.Lineage).ParentSessionID != creatorID ||
 		spawnWakeEventID(info, SpawnWakeReasonNeedsAttention) != meta.WakeEventID ||
-		m.spawnWakeCovered(creatorID, info, BadgeNeedsAttention) {
+		m.spawnWakeCovered(creatorID, info, badge) {
 		return fmt.Errorf("%w: child attention changed or a session monitor covers it", errSpawnWakeStale)
 	}
 	return nil
+}
+
+func isSpawnWakeMeta(meta *acp.PromptSyntheticMeta) bool {
+	return meta != nil && (meta.Kind == "" || meta.Kind == SpawnWakeKindEndedEarly) &&
+		meta.ChildSessionID != "" && meta.WakeEventID != "" && SpawnWakeReason(meta.Reason).valid()
 }
 
 func (m *Manager) reserveSpawnWakeEvent(wakeEventID string) bool {

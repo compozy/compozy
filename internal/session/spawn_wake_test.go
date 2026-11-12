@@ -636,6 +636,45 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		collectEvents(t, events)
 	}
 
+	// Invariant: only the current, uncovered attention revision reaches the creator.
+	for _, covered := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should discard obsolete attention and honor monitor coverage %t", covered), func(t *testing.T) {
+			t.Parallel()
+			h, _, _, parent, child := newEarlyStopHarness(t, "", true, nil)
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			h.manager.ConfigureSpawnWakeCoverage(func(string, *Info, Badge) bool { return covered })
+			var ids []string
+			for revision := range 2 {
+				child.mu.Lock()
+				child.PendingClarifyCount = 1
+				child.AttentionRevision = int64(revision + 1)
+				child.mu.Unlock()
+				wakeID := spawnWakeEventID(child.Info(), SpawnWakeReasonNeedsAttention)
+				entry, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+					MessageID: wakeID, Message: "Child needs input.",
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: child.ID, WakeEventID: wakeID,
+						Reason: string(SpawnWakeReasonNeedsAttention)},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids = append(ids, entry.ID)
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			for index, id := range ids {
+				want := store.SessionInputQueueStatusFailed
+				if index == 1 && !covered {
+					want = store.SessionInputQueueStatusSent
+				}
+				waitForCondition(t, "attention wake settled", func() bool {
+					entry, err := h.manager.inputQueue.Get(t.Context(), parent.ID, id)
+					return err == nil && entry.Status == want
+				})
+			}
+		})
+	}
+
 	t.Run("Should flag the early stop durably and wake the parent with the final answer", func(t *testing.T) {
 		t.Parallel()
 		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)

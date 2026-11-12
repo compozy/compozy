@@ -267,3 +267,16 @@ Viewing the child while its alarm waits must advance the operator's seen revisio
 the creator's alarm for that same ended-early turn. The alarm identity is fenced by transcript epoch
 and ended-early turn, rather than the operator's seen revision. The canonical spawn-wake suite
 covers presence acknowledgement before queued delivery as well as actual child advancement.
+
+## Child wake fairness regression
+
+Keep a parent busy beyond `session.messaging.queue_promote_after`, with four children.
+Queue a reply from every child and two successive needs-attention revisions per child
+while terminal monitors fire. With injection support, every reply and only the current
+attention revision reaches the live turn. Otherwise they dispatch at the next boundary.
+A waiting operator input retains precedence. Add a covering session monitor and confirm
+its child's queued attention wake is discarded. Inspect `session.input_queue.synthetic_age`
+for `oldest_queued_synthetic_age_ms` and the session correlation fields.
+
+Verification: covered by the owning session queue/promotion and spawn-wake regressions;
+execution is pending CI. Local tests and scenario labs are prohibited for this dispatch.

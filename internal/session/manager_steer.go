@@ -110,12 +110,16 @@ func (m *Manager) injectSteeringInput(
 		session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
-		origin, originErr := decodePromptOrigin(entry.Origin)
-		if originErr != nil {
-			cancel()
-			return "", nil, originErr
+		request, err := m.injectedSteerInputRequest(session, entry)
+		if err == nil {
+			err = m.validateSpawnWake(ctx, session.ID, request.meta.Synthetic)
 		}
-		session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
+		if err != nil {
+			cancel()
+			return "", nil, err
+		}
+		origin := request.meta.Origin
+		session.raiseTurnHop(entry.TargetTurnID, promptMetaHop(request.meta))
 		text := entry.Text
 		if providerText != "" {
 			text = providerText

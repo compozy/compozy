@@ -81,6 +81,7 @@ func (m *Manager) PromptSynthetic(
 		}
 	}
 	m.startNextQueuedInputPrompt(session.ID)
+	m.schedulePromoteLongTurnQueuedInputs(session)
 	return delivery.events, nil
 }
 
