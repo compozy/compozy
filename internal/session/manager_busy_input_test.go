@@ -6002,7 +6002,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
 			f.sess.mu.Lock()
 			f.sess.Lineage = &store.SessionLineage{ParentSessionID: creator.ID, RootSessionID: creator.ID,
-				Kind: store.LineageKindProvenance}
+				SpawnDepth: 1, Kind: store.LineageKindProvenance}
 			recorder := f.sess.recorder
 			f.sess.mu.Unlock()
 			turnID := f.sess.CurrentTurnID()
@@ -6066,7 +6066,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
 		f.sess.mu.Lock()
 		f.sess.Lineage = &store.SessionLineage{ParentSessionID: creator.ID, RootSessionID: creator.ID,
-			Kind: store.LineageKindProvenance}
+			SpawnDepth: 1, Kind: store.LineageKindProvenance}
 		f.sess.mu.Unlock()
 		f.h.manager.SetWorkSignalSources(earlyStopWorkSources("")...)
 		turnID := f.sess.CurrentTurnID()
