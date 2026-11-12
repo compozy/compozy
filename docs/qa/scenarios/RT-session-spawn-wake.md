@@ -284,3 +284,8 @@ execution is pending CI. Local tests and scenario labs are prohibited for this d
 While the parent is busy, open two permission requests (repeat with clarifications),
 then resolve just one. Confirm each advancing attention revision queues a replacement
 wake even though the badge stays unchanged; only the latest revision reaches the parent.
+
+Attention is validated immediately before handing steering to the provider. A provider-accepted
+asynchronous injection is no longer a queued wake; later attention changes enqueue a new revision.
+For promoted `PromptSynthetic` calls, the admission stream stays open during pending injection
+and closes without a projection failure after confirmation.

@@ -5976,8 +5976,71 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			!strings.Contains(logs.String(), `"session_id":"`+f.sess.ID+`"`) {
 			t.Fatalf("missing oldest synthetic age and session correlation: %s", logs.String())
 		}
+		waitForCondition(t, "promotion settled", func() bool { return !f.sess.inputPromotionActive.Load() })
 		drain(t, f)
+		select {
+		case extra := <-f.steered:
+			t.Fatalf("duplicate live injection: %q", extra)
+		default:
+		}
+		f.h.driver.mu.Lock()
+		defer f.h.driver.mu.Unlock()
+		for _, call := range f.h.driver.promptCalls {
+			if call.TurnID != turnID && (strings.Contains(call.Message, "reply child-") ||
+				strings.Contains(call.Message, "attention child-")) {
+				t.Fatalf("injected child wake dispatched again: %q", call.Message)
+			}
+		}
 	})
+
+	// Invariant: promoted synthetic streams close successfully only after confirmed live delivery.
+	for _, pending := range []bool{false, true} {
+		name := fmt.Sprintf("Should complete a promoted synthetic stream with pending injection %t", pending)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+			completion := make(chan error, 1)
+			if pending {
+				f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver, completion: completion,
+					steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+						f.steered <- text
+						return acp.SteerAttemptPendingInjection, nil
+					},
+				}
+			}
+			f.advance(2 * time.Minute)
+			events, err := f.h.manager.PromptSynthetic(t.Context(), f.sess.ID, SyntheticPromptOpts{
+				MessageID: "reply-stream", Message: "child reply",
+				Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
+					Reason: "completed", WakeEventID: "reply-stream"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-f.steered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("synthetic stream was not offered for injection")
+			}
+			if pending {
+				select {
+				case event, open := <-events:
+					t.Fatalf("pending injection closed or emitted an event: %#v, %t", event, open)
+				default:
+				}
+				completion <- nil
+			}
+			select {
+			case event, open := <-events:
+				if open {
+					t.Fatalf("promoted admission emitted a projection failure or unrelated output: %#v", event)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("confirmed promoted admission stream did not close")
+			}
+			drain(t, f)
+		})
+	}
 
 	t.Run("Should inject a coalesced monitor wake into a long turn as a daemon wake", func(t *testing.T) {
 		t.Parallel()

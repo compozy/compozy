@@ -67,8 +67,11 @@ func (m *Manager) PromptSynthetic(
 		return nil, err
 	}
 	m.startTrackedPromptTask(func() {
-		defer close(delivery.persistenceDone)
-		m.waitSyntheticPromptPersistence(session, &entry)
+		if m.waitSyntheticPromptPersistence(session, &entry) {
+			delivery.cancel()
+			return
+		}
+		close(delivery.persistenceDone)
 	})
 	if interrupt {
 		cancelCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), m.supervision.TimeoutCancelGrace)
