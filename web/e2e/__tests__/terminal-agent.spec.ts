@@ -328,7 +328,10 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
       );
       return journal.entries.find(entry => entry.command_id === execution.command_id);
     };
-    await expect.poll(journalEntry).toMatchObject({ approval: "approved_once", terminal_id: terminalId });
+    await expect.poll(journalEntry).toMatchObject({
+      approval: "approved_once",
+      terminal_id: terminalId,
+    });
     const row = await journalEntry();
     if (!row) throw new Error("Approved terminal exec was absent from the journal.");
     const journalWindow = await ensureAppWindow(appPage, "Terminal", "terminal");

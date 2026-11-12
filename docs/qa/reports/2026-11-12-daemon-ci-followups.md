@@ -259,3 +259,17 @@ remains excluded under #1433: no invalid head trial and no throughput regression
 were recorded, but baseline transcript-tail pair 0 is incomplete, so acceptance
 correctly fails rather than averaging away that missing pair. No SQLite harness
 or threshold is changed.
+
+
+## Main integration after #1576
+
+Rebased onto `c80892f71`. Main now forwards the boot attempt explicitly through
+`bootstrapSnapshot`, including readiness; this incorporates the earlier R2-N1
+follow-up while the app-state writer still guarantees the existing required field.
+Main's result-view/catalog/reply-watch changes remain intact. The terminal journal
+read now retains main's eventual-publication poll while selecting the exact exec
+`command_id` and asserting both approval and terminal ownership. The approved
+branch's generic Terminal journal open, verified exit and output assertions are
+preserved. Main's visible-terminal check before re-selection is retained. No
+assertion or timeout is weakened. Current-head CI/review must validate integration;
+prior-head passes remain historical evidence.
