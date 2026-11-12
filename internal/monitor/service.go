@@ -290,7 +290,7 @@ func (s *Service) List(sessionID string) []Monitor {
 	s.pruneSessionLocked(sessionID, s.now())
 	items := make([]Monitor, 0, len(s.sessions[sessionID]))
 	for _, item := range s.sessions[sessionID] {
-		items = append(items, item.state)
+		items = append(items, item.state.observable())
 	}
 	slices.SortFunc(items, compareMonitors)
 	return items

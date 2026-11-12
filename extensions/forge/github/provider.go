@@ -277,6 +277,7 @@ func (p *Provider) listPulls(
 }
 
 func exactPull(pulls []pullPayload, head, base, headSHA string, draft *bool) (pullPayload, error) {
+	head = pullHeadBranch(head)
 	var match *pullPayload
 	for i := range pulls {
 		pull := &pulls[i]
