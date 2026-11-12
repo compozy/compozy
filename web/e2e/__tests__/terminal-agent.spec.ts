@@ -318,9 +318,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const journalWindow = terminalWindowFor(appPage, journalTerminalId);
     await expect(journalWindow).toBeVisible({ timeout: 20_000 });
     await journalWindow.getByTestId("terminal-journal-toggle").click();
-    await expect(
-      journalWindow.getByTestId(`terminal-journal-row-${row.command_id}`)
-    ).toBeVisible();
+    await expect(journalWindow.getByTestId(`terminal-journal-row-${row.command_id}`)).toBeVisible();
   } finally {
     await teardownHostedMcp(harness.connection, activeCall);
   }
