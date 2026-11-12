@@ -984,5 +984,5 @@ fails with `result_view_field_requires_full`; declaring a field neither view has
 A run pins the contract of the view each node selected. Review edits cannot change the view after
 validation. Starting with v0.6.1, runs started before v0.6.0 (which introduced result views) fail
 with `ActionContractStale` (`action_contract_stale`) when their next tool action encounters a stale
-pin. Start a new run from the definition with `compozy loop run <name>`; resuming the old run does
+pin. Start a new run from the definition with `compozy loop run --name <name>`; resuming the old run does
 not refresh its pins. Definitions and completed runs are unchanged.

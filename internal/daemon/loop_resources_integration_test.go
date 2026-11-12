@@ -914,20 +914,3 @@ func loopResultViewDowngradeHook(t *testing.T, db *globaldb.GlobalDB, workspaceI
 	}
 	return &nativeToolHookRunner{hooks: h.notifier, binder: &nativeWorkspaceInputBinder{}}
 }
-
-func supersededNativeOutputSchema(t *testing.T, id toolspkg.ToolID) json.RawMessage {
-	t.Helper()
-	data, err := os.ReadFile("../tools/builtin/testdata/superseded-output-schemas.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var schemas map[string]json.RawMessage
-	if err := json.Unmarshal(data, &schemas); err != nil {
-		t.Fatal(err)
-	}
-	schema, ok := schemas[id.String()]
-	if !ok {
-		t.Fatalf("missing old contract for %s", id)
-	}
-	return schema
-}
