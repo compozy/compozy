@@ -248,6 +248,16 @@ describe("TerminalAggregateLocation", () => {
       )
     );
 
+    // The context row stays unselectable, but its fold control still answers the pointer.
+    const user = userEvent.setup();
+    const fold = screen.getByTestId("terminal-launcher-fold-ws-atlas");
+    expect(fold.className).toContain("pointer-events-auto");
+    await user.click(fold);
+    expect(project).toHaveAttribute("aria-expanded", "false");
+    await user.click(fold);
+    expect(project).toHaveAttribute("aria-expanded", "true");
+    expect(createTerminal).not.toHaveBeenCalled();
+
     // Words combine across a worktree's name and its project's.
     fireEvent.change(screen.getByPlaceholderText("Open a terminal in…"), {
       target: { value: "login atlas" },
@@ -272,7 +282,6 @@ describe("TerminalAggregateLocation", () => {
 
     // While searching, the arrows keep the caret: the fold control is reached with Tab instead,
     // and its Enter folds without opening a terminal.
-    const user = userEvent.setup();
     screen.getByPlaceholderText("Open a terminal in…").focus();
     await user.tab();
     expect(screen.getByTestId("terminal-launcher-fold-ws-beacon")).toHaveFocus();

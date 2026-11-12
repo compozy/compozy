@@ -196,9 +196,10 @@ function TerminalLauncherProjectRows({
         {count > 0 ? (
           // The fold control: a pointer click, or Tab then Enter/Space (a search keeps ←/→ for
           // the caret). Its Enter folds here and never reaches the list, which would open a terminal.
+          // It takes pointer events even when a search leaves its project row as disabled context.
           <button
             aria-label={`${expanded ? "Hide" : "Show"} ${count} ${count === 1 ? "worktree" : "worktrees"} of ${destination.label}`}
-            className="ms-auto inline-flex h-5 shrink-0 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-subtle tabular-nums transition-colors duration-fast ease-out outline-none hover:bg-line-strong hover:text-fg focus-visible:shadow-focus-ring motion-reduce:transition-none"
+            className="pointer-events-auto ms-auto inline-flex h-5 shrink-0 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-subtle tabular-nums transition-colors duration-fast ease-out outline-none hover:bg-line-strong hover:text-fg focus-visible:shadow-focus-ring motion-reduce:transition-none"
             data-testid={`terminal-launcher-fold-${destination.value}`}
             onClick={event => {
               event.stopPropagation();
