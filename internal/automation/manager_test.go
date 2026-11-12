@@ -3089,7 +3089,9 @@ func TestManagerStartJob(t *testing.T) {
 		if err := manager.Shutdown(h.ctx); err != nil {
 			t.Fatal(err)
 		}
-		runs, err := manager.ListRuns(h.ctx, RunQuery{JobID: job.ID, ReadScope: store.ReadScope{ProfileID: job.ProfileID}})
+		runs, err := manager.ListRuns(h.ctx, RunQuery{
+			JobID: job.ID, ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		})
 		if err != nil || len(runs) != 1 || runs[0].Status != RunCancelled || runs[0].EndedAt == nil {
 			t.Fatalf("unaccepted runs after cancellation = %#v, %v", runs, err)
 		}
@@ -3123,7 +3125,9 @@ func TestManagerStartJob(t *testing.T) {
 		if err != nil || run.Status != RunCompleted || run.Attempt != 2 {
 			t.Fatalf("retried run = %#v, %v", run, err)
 		}
-		runs, err := manager.ListRuns(h.ctx, RunQuery{JobID: job.ID, ReadScope: store.ReadScope{ProfileID: job.ProfileID}})
+		runs, err := manager.ListRuns(h.ctx, RunQuery{
+			JobID: job.ID, ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		})
 		if err != nil || len(runs) != 1 || runs[0].ID != run.ID || runs[0].Attempt != 2 {
 			t.Fatalf("retry history = %#v, %v", runs, err)
 		}

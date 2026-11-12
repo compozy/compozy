@@ -20,12 +20,8 @@ func (m *Manager) Start(ctx context.Context) error {
 	if m.running {
 		return nil
 	}
-	if m.shutdownDone != nil {
-		select {
-		case <-m.shutdownDone:
-		default:
-			return fmt.Errorf("%w: shutdown is still in progress", ErrManagerNotRunning)
-		}
+	if err := m.ensureShutdownCompleteLocked(); err != nil {
+		return err
 	}
 
 	syncStats, err := m.syncConfigDefinitions(ctx)
@@ -161,5 +157,17 @@ func waitForManualShutdown(ctx context.Context, done <-chan struct{}) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (m *Manager) ensureShutdownCompleteLocked() error {
+	if m.shutdownDone == nil {
+		return nil
+	}
+	select {
+	case <-m.shutdownDone:
+		return nil
+	default:
+		return fmt.Errorf("%w: shutdown is still in progress", ErrManagerNotRunning)
 	}
 }

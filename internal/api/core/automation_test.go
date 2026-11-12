@@ -2701,8 +2701,8 @@ func TestTriggerAutomationJobWaitOptions(t *testing.T) {
 				},
 			})
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, httptest.NewRequest(
-				http.MethodPost, "/automation/jobs/job-1/trigger"+tc.query, http.NoBody,
+			router.ServeHTTP(response, httptest.NewRequestWithContext(
+				t.Context(), http.MethodPost, "/automation/jobs/job-1/trigger"+tc.query, http.NoBody,
 			))
 			if response.Code != tc.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
