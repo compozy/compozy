@@ -138,6 +138,9 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	creatorSteerTurnID string
+	creatorSteerInputs map[string]creatorSteerInput
+
 	checkInToolsStatus           string
 	interactionLifecycleMu       sync.Mutex
 	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.

@@ -298,3 +298,7 @@ After its answer, confirm no `ended_early` attention badge or needs-attention wa
 Then send another creator message and end the child turn without an answer: this turn
 must still raise `ended_early`; the earlier answers cannot satisfy the new message.
 Owning regression: `TestManagerEarlyStopSupervision`. Execution pending CI.
+
+Also inject an unwatched creator follow-up into an active child turn and persist its
+answer before the steering input receipt. It still counts as delivered: the daemon
+uses the handoff sequence, not the later receipt order, to locate the answer.

@@ -112,7 +112,7 @@ func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState
 	if m.creatorAwaitsChildReply(ctx, parentID, info.ID, turnState.turnID) {
 		return false
 	}
-	answered, err := m.turnAnsweredCreator(ctx, info.ID, parentID, turnState.turnID)
+	answered, err := m.turnAnsweredCreator(ctx, target, parentID, turnState.turnID)
 	if err != nil {
 		m.sessionLogger(target).WarnContext(ctx, "session: creator answer lookup failed",
 			"turn_id", turnState.turnID, "error", err)
@@ -126,14 +126,24 @@ func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState
 }
 
 // turnAnsweredCreator requires output after the latest creator input consumed by this turn.
-func (m *Manager) turnAnsweredCreator(ctx context.Context, sessionID, creatorID, turnID string) (bool, error) {
+func (m *Manager) turnAnsweredCreator(ctx context.Context, target *Session, creatorID, turnID string) (bool, error) {
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyAnswerTimeout)
 	defer cancel()
 	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true,
 		Types: []string{acp.EventTypeUserMessage, acp.EventTypeAgentMessage}}
-	awaiting, answered := false, false
+	target.mu.RLock()
+	inputs := make(map[string]int64, len(target.creatorSteerInputs))
+	var latestInput, latestAnswer int64
+	if target.creatorSteerTurnID == turnID {
+		for _, input := range target.creatorSteerInputs {
+			inputs[input.messageID] = input.afterSequence
+			latestInput = max(latestInput, input.afterSequence)
+		}
+	}
+	target.mu.RUnlock()
+	consumed := len(inputs) > 0
 	for {
-		page, err := m.Events(readCtx, sessionID, query)
+		page, err := m.Events(readCtx, target.ID, query)
 		if err != nil {
 			return false, err
 		}
@@ -146,18 +156,64 @@ func (m *Manager) turnAnsweredCreator(ctx context.Context, sessionID, creatorID,
 				continue
 			}
 			if event.Type == acp.EventTypeUserMessage {
-				if origin := decoded.PromptOrigin(); origin != nil && origin.Kind == "session" && origin.SessionID == creatorID {
-					awaiting, answered = true, false
+				origin := decoded.PromptOrigin()
+				if origin != nil && origin.Kind == "session" && origin.SessionID == creatorID {
+					consumed = true
+					sequence := event.Sequence
+					if fence, ok := inputs[decoded.MessageIDValue()]; ok {
+						sequence = fence
+					}
+					latestInput = max(latestInput, sequence)
 				}
-			} else if awaiting && strings.TrimSpace(decoded.Text) != "" {
-				answered = true
+			} else if strings.TrimSpace(decoded.Text) != "" {
+				latestAnswer = max(latestAnswer, event.Sequence)
 			}
 		}
 		if len(page) < query.Limit {
-			return answered, nil
+			return consumed && latestAnswer > latestInput, nil
 		}
 		query.AfterSequence = page[len(page)-1].Sequence
 	}
+}
+
+type creatorSteerInput struct {
+	messageID     string
+	afterSequence int64
+}
+
+// trackCreatorSteerInput fences output before provider handoff because its receipt may persist later.
+func (m *Manager) trackCreatorSteerInput(
+	ctx context.Context, target *Session, entry *store.SessionInputQueueEntry, origin *acp.PromptOriginMeta,
+) error {
+	if origin == nil || origin.Kind != "session" ||
+		store.NormalizeSessionLineage(target.ID, target.Info().Lineage).ParentSessionID != origin.SessionID {
+		return nil
+	}
+	recorder := target.recorderHandle()
+	if recorder == nil {
+		return errors.New("session: creator steering requires an event recorder")
+	}
+	sequence, err := recorder.MaxEventSequence(ctx)
+	if err != nil {
+		return err
+	}
+	target.mu.Lock()
+	defer target.mu.Unlock()
+	if target.currentTurnID != entry.TargetTurnID {
+		return acp.ErrSteerTurnMismatch
+	}
+	if target.creatorSteerTurnID != entry.TargetTurnID {
+		target.creatorSteerTurnID = entry.TargetTurnID
+		target.creatorSteerInputs = make(map[string]creatorSteerInput)
+	}
+	target.creatorSteerInputs[entry.ID] = creatorSteerInput{messageID: entry.MessageID, afterSequence: sequence}
+	return nil
+}
+
+func (s *Session) forgetCreatorSteerInput(entryID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.creatorSteerInputs, entryID)
 }
 
 // endedEarlyCandidate limits the trigger to live sessions with a parent session.

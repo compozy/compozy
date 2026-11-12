@@ -5993,6 +5993,59 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		}
 	})
 
+	// Invariant: a creator steer is answered even when its receipt follows the provider's output.
+	t.Run("Should recognize a creator answer stored before its steering receipt", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+		creator := createSession(t, f.h)
+		t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
+		f.sess.mu.Lock()
+		f.sess.Lineage = &store.SessionLineage{ParentSessionID: creator.ID, RootSessionID: creator.ID,
+			Kind: store.LineageKindProvenance}
+		f.sess.mu.Unlock()
+		f.h.manager.SetWorkSignalSources(earlyStopWorkSources("")...)
+		turnID := f.sess.CurrentTurnID()
+		f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver,
+			steer: func(ctx context.Context, _ *AgentProcess, _ string, _ string) (acp.SteerAttempt, error) {
+				err := f.h.manager.recordEvent(ctx, f.sess, acp.AgentEvent{
+					Type: acp.EventTypeAgentMessage, TurnID: turnID, Text: "Review answer before receipt.",
+					Timestamp: f.h.manager.now(),
+				})
+				return acp.SteerAttemptInjected, err
+			},
+		}
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, SendPromptOpts{
+			Message: "Review this follow-up.", MessageID: "creator-steer", IdempotencyKey: "creator-steer",
+			Mode: BusyInputModeSteer,
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: creator.ID,
+				WorkspaceID: f.h.workspaceID, Hop: 1},
+		})
+		if err != nil || result.SteerDelivery != store.SteerDeliveryInjected {
+			t.Fatalf("creator steer = %#v, %v", result, err)
+		}
+		drain(t, f)
+		info := f.sess.Info()
+		if info.EndedEarlyTurnID != "" || BadgeForInfo(info) == BadgeNeedsAttention {
+			t.Fatalf("answered steer falsely marked abandoned: %#v", info)
+		}
+		var answerSequence, receiptSequence int64
+		for _, event := range readStoredEvents(t, f.sess) {
+			if event.Type == acp.EventTypeAgentMessage {
+				answerSequence = event.Sequence
+			}
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if event.Type == acp.EventTypeUserMessage && decoded.MessageIDValue() == "creator-steer" {
+				receiptSequence = event.Sequence
+			}
+		}
+		if answerSequence == 0 || receiptSequence <= answerSequence {
+			t.Fatalf("answer seq=%d receipt seq=%d, want output before the receipt", answerSequence, receiptSequence)
+		}
+	})
+
 	// Invariant: promoted synthetic streams close successfully only after confirmed live delivery.
 	for _, pending := range []bool{false, true} {
 		name := fmt.Sprintf("Should complete a promoted synthetic stream with pending injection %t", pending)

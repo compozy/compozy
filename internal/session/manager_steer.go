@@ -119,6 +119,10 @@ func (m *Manager) injectSteeringInput(
 			return "", nil, err
 		}
 		origin := request.meta.Origin
+		if err := m.trackCreatorSteerInput(steerCtx, session, entry, origin); err != nil {
+			cancel()
+			return "", nil, err
+		}
 		session.raiseTurnHop(entry.TargetTurnID, promptMetaHop(request.meta))
 		text := entry.Text
 		if providerText != "" {
@@ -143,6 +147,9 @@ func (m *Manager) injectSteeringInput(
 		} else if !errors.Is(steerErr, acp.ErrSteerTurnMismatch) {
 			m.sessionLogger(session).
 				Warn("session: live steer failed; falling back", "entry_id", entry.ID, "error", steerErr)
+		}
+		if delivery == store.SteerDeliveryInterruptFallback {
+			session.forgetCreatorSteerInput(entry.ID)
 		}
 	}
 	return delivery, completion, nil

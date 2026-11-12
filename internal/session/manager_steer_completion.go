@@ -22,6 +22,7 @@ func (m *Manager) watchSteerCompletion(
 		}
 		delivery := store.SteerDeliveryInjected
 		if deliveryErr != nil {
+			session.forgetCreatorSteerInput(entryID)
 			delivery = store.SteerDeliveryInterruptFallback
 		}
 		ctx := m.fallbackLifecycleContext()
