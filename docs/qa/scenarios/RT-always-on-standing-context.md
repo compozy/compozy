@@ -26,6 +26,7 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 8. Call `compozy__agent_instance_list` with `peers: true`. Each peer carries `accepts`. Pause the second instance and send a turn: its roster line shows `[paused]`.
 9. Send a turn from a session of the same agent that does not belong to an instance. It receives the rules and no roster.
 10. Start an on-demand agent. It receives no standing context.
+    Read its session-filtered logs through HTTP and UDS after a user turn. Both return identical harness lifecycle events, including `skills`, `situation`, and `standing` augmenter observations; `standing` reports `outcome=unchanged` without injecting a block.
 11. Claude provider: start the always-on agent with `lean_environment` unset on a host whose Claude setup has its own MCP servers or claude.ai connectors. The session lists only CompozyOS-provided MCP tools. With `lean_environment: false` the operator's servers return. An on-demand agent is unchanged.
 12. Upgrade check: load a `MEMORY.md` written before rules existed. Every line stays a note, the digest is unchanged by reading, and no rule appears.
 13. Remove every rule from an agent with no peers while its session runs. The next turn carries a block saying no rules or peers are in force and that earlier standing context is withdrawn.
