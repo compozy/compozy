@@ -21,11 +21,14 @@ true:
 - a long-running process may need supervision or human intervention;
 - the task uses a full-screen program or demo.
 
-Every interactive terminal you open (`terminal_open`, or `terminal_exec` with `visible: true`)
-appears as a Terminal window on the operator's CompozyOS desktop without stealing their focus. The
+Interactive terminals you open (`terminal_open`, or `terminal_exec` with `visible: true`) remain
+available in the Terminal catalog. They do not automatically open desktop windows; the operator
+can open one explicitly from Terminal or a transcript affordance. An agent terminal's window is
+removed when its process exits, and pruned terminals leave no window or reopen history. The
 operator and authorized agents in the same profile can interact with it concurrently. The operator's window Close asks for confirmation before terminating a running terminal and its work,
 then removes the managed window. Cancel preserves both. An exited terminal closes without the running
-warning; Stop ends the terminal without closing its window. Shared viewers observe the same exit.
+warning; Stop ends the terminal. Human-opened terminal windows retain their exit screen until closed
+or pruned; agent terminal windows retire on exit. Shared viewers observe the same exit.
 Closing a group confirms its affected running terminals together; a failure retains the windows for
 retry, including any terminals already stopped. Normal journal and recording retention is unchanged.
 

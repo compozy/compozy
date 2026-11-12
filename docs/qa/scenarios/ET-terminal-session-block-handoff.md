@@ -29,8 +29,8 @@ Walk:
    output while the command is running.
 2. Let the command finish and confirm the block shows the exit outcome, including a non-zero exit
    rendered as a plain code rather than an alarm.
-3. Use the block's open affordance and confirm it focuses the terminal window the daemon already
-   materialized for this run rather than opening a second one.
+3. Use the block's open affordance and confirm it opens the terminal on demand or focuses its
+   existing window; opening the agent terminal alone does not materialize a desktop window.
 4. Start a command that outlives the yield window and confirm the transcript hands over the running
    terminal's identity instead of claiming completion.
 5. Read the same output back through the agent's read and wait paths and confirm every model-facing

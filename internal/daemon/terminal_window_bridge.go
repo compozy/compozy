@@ -1,163 +1,107 @@
 package daemon
 
 import (
-	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
-	"net/url"
 	"time"
 
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
-const (
-	terminalWindowApp            = "terminal"
-	sessionWindowApp             = "session"
-	terminalWindowOpenOrigin     = "terminal.open"
-	terminalWindowOpenTimeout    = 5 * time.Second
-	terminalWindowOpenMaxRetries = 3
-)
-
-// attachTerminalWindowBridge materializes a desktop Terminal window for every
-// agent-opened interactive terminal. One-shot per opened event: a window the
-// human later closes is never reopened for the same terminal.
+// Agent terminals stay in the catalog until the operator explicitly opens a window.
 func attachTerminalWindowBridge(
+	ctx context.Context,
 	terminals *terminalpkg.Service,
 	windows windowManagerProvider,
 	logger *slog.Logger,
-) {
+) *ownedWorkerGroup {
 	if terminals == nil || windows == nil {
-		return
+		return nil
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	worker := newOwnedWorkerGroup(cancelWorker)
 	terminals.Observe(func(ctx context.Context, event terminalpkg.Event) {
-		if !terminalWindowBridgeApplies(event) {
+		retire := event.Kind == terminalpkg.EventKindDeleted ||
+			(event.Kind == terminalpkg.EventKindClosed && event.Origin.Kind == terminalpkg.ActorKindAgent)
+		if !retire {
 			return
 		}
-		openCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), terminalWindowOpenTimeout)
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := openTerminalWindow(openCtx, windows, event); err != nil {
-			logger.Warn(
-				"daemon: open terminal window",
-				"terminal_id", event.TerminalID,
-				"workspace_id", event.WorkspaceID,
-				"actor_kind", event.Actor.Kind,
-				"actor_id", event.Actor.ID,
-				"error", err,
-			)
+		if err := retireTerminalWindow(cleanupCtx, windows, event); err != nil {
+			logger.Warn("daemon: retire terminal window", "terminal_id", event.TerminalID,
+				"workspace_id", event.WorkspaceID, "profile_id", event.ProfileID, "error", err)
+			if complete, ok := worker.Begin(); ok {
+				go func() {
+					defer complete()
+					retryTerminalWindowRetirement(workerCtx, windows, event, logger)
+				}()
+			}
 		}
 	})
+	return worker
 }
 
-func terminalWindowBridgeApplies(event terminalpkg.Event) bool {
-	return event.Kind == terminalpkg.EventKindOpened &&
-		event.Actor.Kind == terminalpkg.ActorKindAgent &&
-		event.DetailValue().Mode == terminalpkg.ModePTY
-}
-
-func openTerminalWindow(
-	ctx context.Context,
-	windows windowManagerProvider,
-	event terminalpkg.Event,
-) error {
+func retireTerminalWindow(ctx context.Context, windows windowManagerProvider, event terminalpkg.Event) error {
 	manager, err := windows.For(event.ProfileID)
-	if err != nil {
-		if errors.Is(err, errWindowManagerProfileDeleted) {
-			return nil
-		}
-		return fmt.Errorf("resolve window manager for profile %q: %w", event.ProfileID, err)
-	}
-	workspaceID := windowmanager.WorkspaceID(event.WorkspaceID)
-	terminalID := string(event.TerminalID)
-	for range terminalWindowOpenMaxRetries {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		snapshot, err := manager.Snapshot(ctx, workspaceID)
-		if err != nil {
-			if errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
-				return nil
-			}
-			return fmt.Errorf("load workspace %q snapshot: %w", event.WorkspaceID, err)
-		}
-		if terminalWindowExists(snapshot, terminalID) {
-			return nil
-		}
-		sessionWindow := boundSessionWindow(snapshot, event)
-		_, err = manager.Execute(ctx, windowmanager.CommandRequest{
-			WorkspaceID:      workspaceID,
-			ExpectedRevision: snapshot.Revision,
-			Actor: windowmanager.Actor{
-				Kind: string(event.Actor.Kind),
-				ID:   cmp.Or(event.Actor.ID, event.Actor.SessionID),
-			},
-			Origin: terminalWindowOpenOrigin,
-			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
-				App:         terminalWindowApp,
-				InstanceKey: &terminalID,
-				Route: windowmanager.RouteIntent{
-					Pathname: "/terminal/" + url.PathEscape(terminalID),
-					Search:   windowmanager.RouteSearch{},
-				},
-				DesktopID:      sessionWindowDesktop(sessionWindow),
-				BesideWindowID: sessionWindowID(sessionWindow),
-			}},
-		})
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, windowmanager.ErrRevisionConflict) {
-			return fmt.Errorf("open terminal window for %q: %w", terminalID, err)
-		}
-	}
-	return fmt.Errorf("open terminal window for %q: %w", terminalID, windowmanager.ErrRevisionConflict)
-}
-
-func terminalWindowExists(snapshot windowmanager.Snapshot, terminalID string) bool {
-	for _, window := range snapshot.Windows {
-		if window.App == terminalWindowApp && window.InstanceKey != nil && *window.InstanceKey == terminalID {
-			return true
-		}
-	}
-	return false
-}
-
-// boundSessionWindow is the window already showing the terminal's bound
-// session. The terminal lands on its desktop and, under the tab or
-// beside_focus policy, tiles right after it — the agent's shell belongs next
-// to the agent, and the open carries no client, so nothing takes focus.
-// Without one the reducer default applies.
-func boundSessionWindow(
-	snapshot windowmanager.Snapshot,
-	event terminalpkg.Event,
-) *windowmanager.Window {
-	if event.Info == nil || event.Info.BoundRun == nil {
+	if errors.Is(err, errWindowManagerProfileDeleted) {
 		return nil
 	}
-	sessionID := event.Info.BoundRun.SessionID
-	for _, window := range snapshot.Windows {
-		if window.App == sessionWindowApp && window.InstanceKey != nil && *window.InstanceKey == sessionID {
-			return &window
+	if err != nil {
+		return err
+	}
+	ids := map[string]bool{string(event.TerminalID): true}
+	// Terminal windows can be opened on the project, All projects, or User desktop.
+	for _, partition := range []windowmanager.WorkspaceID{
+		windowmanager.WorkspaceID(event.WorkspaceID),
+		windowmanager.GlobalDesktopWorkspaceID,
+		windowmanager.UserDesktopWorkspaceID,
+	} {
+		if err := manager.RetireTerminals(
+			ctx,
+			partition,
+			ids,
+		); err != nil &&
+			!errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
+			return err
 		}
 	}
 	return nil
 }
 
-func sessionWindowDesktop(window *windowmanager.Window) windowmanager.DesktopID {
-	if window == nil {
-		return ""
-	}
-	return window.DesktopID
+// Terminal processes never survive daemon startup, so every stored terminal binding is stale at boot.
+func (r *windowManagerRegistry) reconcileBootTerminals(ctx context.Context) error {
+	return r.reconcilePartitions(ctx, func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+		return manager.RetireTerminals(ctx, partition, nil)
+	})
 }
 
-func sessionWindowID(window *windowmanager.Window) *windowmanager.WindowID {
-	if window == nil {
-		return nil
+func retryTerminalWindowRetirement(
+	ctx context.Context,
+	windows windowManagerProvider,
+	event terminalpkg.Event,
+	logger *slog.Logger,
+) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err := retireTerminalWindow(attemptCtx, windows, event)
+			cancel()
+			if err == nil {
+				return
+			}
+			logger.Warn("daemon: retry terminal window retirement", "terminal_id", event.TerminalID,
+				"workspace_id", event.WorkspaceID, "profile_id", event.ProfileID, "error", err)
+		}
 	}
-	return new(window.ID)
 }

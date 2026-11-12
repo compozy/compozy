@@ -26,9 +26,12 @@ type daemonRuntimeWorkers struct {
 	managedDeliveries     *ownedWorkerGroup
 	providerAuthStartup   *ownedWorkerGroup
 	mcpDeclarations       *ownedWorkerGroup
+	terminalWindows       *ownedWorkerGroup
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	appendWrappedError(errs, "daemon: stop terminal window retirement",
+		stopOwnedWorker(ctx, "terminal window retirement", w.terminalWindows))
 	appendWrappedError(errs, "daemon: stop MCP declarations watcher",
 		stopOwnedWorker(ctx, mcpDeclarationWatcherLabel, w.mcpDeclarations))
 	if w.proactiveChecks != nil {
