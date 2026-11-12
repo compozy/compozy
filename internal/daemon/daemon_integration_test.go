@@ -1953,65 +1953,138 @@ func requestDaemonIntegrationRestart(t *testing.T, d *Daemon) {
 }
 
 func TestShutdownPersistsShutdownStopReason(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	command := daemonSessionStopHelperCommand(t)
-	cfg.Defaults.Provider = acpmock.ProviderName
-	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-	writeDaemonIntegrationProviderConfig(t, homePaths, acpmock.ProviderName, command)
-	writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
-
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
-	}
-
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	shutdown := false
-	t.Cleanup(func() {
-		if shutdown {
-			return
+	for _, recovering := range []bool{false, true} {
+		name := "Should persist shutdown classification for an idle provider"
+		if recovering {
+			name = "Should preserve restart intent through full shutdown during provider recovery backoff"
 		}
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("cleanup Shutdown() error = %v", err)
-		}
-	})
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			homePaths := integrationHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			command := daemonSessionStopHelperCommand(t)
+			cfg.Defaults.Provider = acpmock.ProviderName
+			cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+			writeDaemonIntegrationProviderConfig(t, homePaths, acpmock.ProviderName, command)
+			writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
+			workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+			if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
+			}
 
-	sess, err := d.sessions.Create(testutil.Context(t), new(session.CreateOpts{
-		AgentName:     "coder",
-		WorkspacePath: workspaceRoot,
-	}))
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
+			d, err := New(
+				WithHomePaths(homePaths),
+				WithConfig(&cfg),
+				WithLogger(discardLogger()),
+			)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
 
-	requestDaemonIntegrationRestart(t, d)
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	shutdown = true
+			shutdown := false
+			t.Cleanup(func() {
+				if shutdown {
+					return
+				}
+				if err := d.Shutdown(testutil.Context(t)); err != nil {
+					t.Errorf("cleanup Shutdown() error = %v", err)
+				}
+			})
 
-	meta, err := store.ReadSessionMeta(sess.MetaPath())
-	if err != nil {
-		t.Fatalf("ReadSessionMeta(%q) error = %v", sess.MetaPath(), err)
-	}
-	if meta.StopReason == nil {
-		t.Fatal("meta.StopReason = nil, want non-nil")
-	}
-	if *meta.StopReason != store.StopShutdown {
-		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopShutdown)
+			if err := d.boot(testutil.Context(t)); err != nil {
+				t.Fatalf("boot() error = %v", err)
+			}
+
+			sess, err := d.sessions.Create(testutil.Context(t), new(session.CreateOpts{
+				AgentName:     "coder",
+				WorkspacePath: workspaceRoot,
+			}))
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+
+			var interruptedTurn string
+			if recovering {
+				stream, err := d.sessions.Prompt(
+					testutil.Context(t), sess.ID, "shutdown during provider recovery",
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx := testutil.Context(t)
+			recovery:
+				for {
+					select {
+					case event, ok := <-stream:
+						if !ok {
+							t.Fatal("prompt completed before entering provider recovery")
+						}
+						if event.Type == acp.EventTypeRuntimeRecoveryStarted {
+							interruptedTurn = event.TurnID
+							break recovery
+						}
+					case <-ctx.Done():
+						t.Fatal("provider recovery did not start")
+					}
+				}
+				info := sess.Info()
+				if interruptedTurn == "" || info.RuntimeRecovery == nil ||
+					info.RuntimeRecovery.Reason != "provider_auth" {
+					t.Fatalf("recovery state = %+v, turn = %q", info.RuntimeRecovery, interruptedTurn)
+				}
+			}
+			requestDaemonIntegrationRestart(t, d)
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+			shutdown = true
+
+			meta, err := store.ReadSessionMeta(sess.MetaPath())
+			if err != nil {
+				t.Fatalf("ReadSessionMeta(%q) error = %v", sess.MetaPath(), err)
+			}
+			if meta.StopReason == nil {
+				t.Fatal("meta.StopReason = nil, want non-nil")
+			}
+			if *meta.StopReason != store.StopShutdown {
+				t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopShutdown)
+			}
+			if recovering {
+				history, err := sessiondb.OpenSessionDB(testutil.Context(t), store.SessionDBOwner{
+					SessionID: sess.ID, WorkspaceID: meta.WorkspaceID,
+				}, store.SessionDBFile(sess.SessionDir()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := history.Close(testutil.Context(t)); err != nil {
+						t.Error(err)
+					}
+				})
+				rows, err := history.Query(
+					testutil.Context(t), store.EventQuery{Type: "session.restart_interrupted", Limit: 10},
+				)
+				if err != nil || len(rows) != 1 || rows[0].TurnID != interruptedTurn {
+					t.Fatalf("persisted restart intent = %+v, error = %v", rows, err)
+				}
+				var event struct {
+					Raw store.SessionRestartCheckpoint `json:"raw"`
+				}
+				if err := json.Unmarshal([]byte(rows[0].Content), &event); err != nil {
+					t.Fatal(err)
+				}
+				if event.Raw.TurnID != interruptedTurn || event.Raw.Reason != "" {
+					t.Fatalf("restart checkpoint = %+v", event.Raw)
+				}
+				skipped, err := history.Query(
+					testutil.Context(t), store.EventQuery{Type: "session.restart_skipped", Limit: 10},
+				)
+				if err != nil || len(skipped) != 0 {
+					t.Fatalf("restart skips = %+v, error = %v", skipped, err)
+				}
+			}
+		})
 	}
 }
 
@@ -3482,7 +3555,14 @@ func (daemonSessionStopACPAgent) LoadSession(
 	return acpsdk.LoadSessionResponse{}, nil
 }
 
-func (daemonSessionStopACPAgent) Prompt(context.Context, acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
+func (daemonSessionStopACPAgent) Prompt(
+	_ context.Context, params acpsdk.PromptRequest,
+) (acpsdk.PromptResponse, error) {
+	for _, block := range params.Prompt {
+		if block.Text != nil && strings.Contains(block.Text.Text, "shutdown during provider recovery") {
+			return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+		}
+	}
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }
 

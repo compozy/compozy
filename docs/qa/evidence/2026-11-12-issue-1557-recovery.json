@@ -58,13 +58,27 @@
     "state": "stopped",
     "badge": "failed",
     "failure_kind": "protocol_failure",
-    "full_model_detail_preserved": true
+    "full_model_detail_preserved": true,
+    "build_provenance": {
+      "binary_sha256": "857221bfc7fdf4e17e1d9ddfde00e4ac4086e51416f8380bd48ab665099d5dfd",
+      "vcs_modified": true,
+      "vcs_revision_note": "The binary reported the previous commit; the exact VCS revision was not retained in the review comment.",
+      "source_relationship": "After the B4 repair and before the final cancellation change.",
+      "evidence": "https://github.com/compozy/compozy/pull/1560#issuecomment-6812346714"
+    }
   },
   "cancellation": {
     "public_outcome": "canceled",
     "runtime_status": "unbound",
     "recovery_cleared": true,
-    "failure_absent": true
+    "failure_absent": true,
+    "build_provenance": {
+      "binary_sha256": "8f6bd49663b21d996845e93513df8f7320f8b0c50f9ecb8ae2220c39d3f5496a",
+      "vcs_modified": true,
+      "vcs_revision_note": "The binary reported the previous commit; the exact VCS revision was not retained in the review comment.",
+      "source_relationship": "Final production source tree later committed as 76d08f05f7b05f5d5ea5b52f52531a82caa14542.",
+      "evidence": "https://github.com/compozy/compozy/pull/1560#issuecomment-6812346714"
+    }
   },
   "corrective_strict_audit": {
     "verdict": "PASS",

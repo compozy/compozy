@@ -25,7 +25,7 @@ boot and Usage items remain unchecked until CI evidence supports a disposition.
 
 ## Provider recovery evidence follow-ups
 
-PR #1560 is still open and its corrective receipt is absent from this base.
+PR #1560 merged as `84874c0f5` and is included after the main rebase.
 Its independent review, comment 6812346714, establishes the following provenance:
 
 | Walk | Binary SHA-256 | Source attribution |
@@ -33,12 +33,18 @@ Its independent review, comment 6812346714, establishes the following provenance
 | Corrective finalization | `857221bfc7fdf4e17e1d9ddfde00e4ac4086e51416f8380bd48ab665099d5dfd` | After B4 repair, before final cancellation change; previous VCS commit, `vcs.modified=true` |
 | Cancellation | `8f6bd49663b21d996845e93513df8f7320f8b0c50f9ecb8ae2220c39d3f5496a` | Final production tree later committed as `76d08f05f7b05f5d5ea5b52f52531a82caa14542`; previous VCS commit, `vcs.modified=true` |
 
-These are retained historical receipts, not clean-head executions. Updating that
-unmerged receipt and its scenario metadata awaits the upstream documentation;
-this PR must not copy in unrelated recovery implementation. D1 still requires
-an orderly full-daemon shutdown during recovery backoff and persisted restart
-intent read-back. The temporary-overlay probe on both base and head is not
-proof of a regression. No local runtime walk is authorized in this assignment.
+These are retained historical receipts, not clean-head executions. The corrective
+receipt now records the per-walk binary hashes, dirty VCS attribution and source
+ordering; the unknown exact previous VCS revision is explicit. Scenario frontmatter
+links the #1557 receipt and fix commits while preserving older evidence and its
+partial/pending status. No new local walk is claimed.
+
+The existing full-daemon shutdown integration suite now includes a real ACP
+subprocess authentication failure, observes recovery backoff, requests the normal
+restart transition, completes `Daemon.Shutdown`, and reopens durable session
+history to check resumable intent, absence of a skip and shutdown metadata.
+CI must execute this case before D1 receives a verified disposition. The earlier
+temporary-overlay observation is still not attributed as a regression.
 
 ## Product decision
 

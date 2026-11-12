@@ -10,8 +10,8 @@ qa_status: partial
 bug_ids:
 fix_status:
 retest_status: pending
-fix_commits:
-evidence: docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
+fix_commits: a4d7d1abff9175200bf757dde5fdffe590d25cf6; 76d08f05f7b05f5d5ea5b52f52531a82caa14542; 84874c0f5
+evidence: docs/qa/evidence/2026-11-12-issue-1557-recovery.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
 last_report: docs/qa/reports/2026-11-12-issue-1557-recovery-model-list.md
 overlaps: RT-provider-error-handoff; RT-session-fallback-chain
 ---
@@ -122,10 +122,18 @@ start/resume suite through CI. The operator's subsequent CI-only rule prohibits
 another local lab walk; the earlier pass below covers restoration of both login
 and the full model list, not this additional case.
 
-
 Verification 2026-11-12 (#1557): the complete isolated final-build walk passed
 mid-work loss and automatic continuation, expiry, immediate refusal, explicit
 retry, proactive probe reload, and bounded genuine model rejection with failed
 attention. The full pinned model and conversation stayed unchanged; the auth-probe
 wake completed in 0.202 seconds. Strict targeted audit: zero blockers/warnings.
 Synthetic login and ACP subprocesses establish the daemon flow, not live OAuth.
+
+Shutdown-backoff regression (#1547): while the isolated provider reports authentication
+required and the turn is in recovery backoff, request a daemon restart through the normal
+restart operation and complete the full daemon shutdown. Reopen the session database:
+exactly one `session.restart_interrupted` event must retain the interrupted turn and an
+empty skip reason, no `session.restart_skipped` event may cancel it, and metadata must
+retain the shutdown stop classification. The existing
+`TestShutdownPersistsShutdownStopReason` integration suite owns this scan, using a real
+ACP subprocess. CI execution is required; no local walk is claimed.
