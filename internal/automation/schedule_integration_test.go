@@ -240,7 +240,13 @@ func TestSchedulerIntegrationHostSleepCatchUp(t *testing.T) {
 					db := openAutomationIntegrationDB(t, ctx)
 					base := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 					clock := clockwork.NewFakeClockAt(base)
-					creator := newRecordingSessionCreator()
+					var plans []sessionAttemptPlan
+					if policy == SchedulerCatchUpPolicyReplay {
+						for i := range 5 {
+							plans = append(plans, sessionAttemptPlan{sessionID: fmt.Sprintf("missed-%d", i+1)})
+						}
+					}
+					creator := newRecordingSessionCreator(plans...)
 					dispatcher := newTestDispatcher(t, creator, db, WithDispatcherNow(clock.Now))
 					scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(clock), WithSchedulerStore(db))
 					job, err := db.CreateJob(ctx, testJob(AutomationScopeGlobal, "host-sleep", ""))
@@ -281,6 +287,15 @@ func TestSchedulerIntegrationHostSleepCatchUp(t *testing.T) {
 						t.Fatalf("runs = %d, want %d", len(runs), want)
 					}
 					for _, run := range runs {
+						if policy == SchedulerCatchUpPolicyReplay {
+							if run.ScheduledAt == nil {
+								t.Fatal("replayed run has no scheduled instant")
+							}
+							ordinal := int(run.ScheduledAt.Sub(base) / time.Minute)
+							if ordinal < 1 || ordinal > 5 || run.SessionID != fmt.Sprintf("missed-%d", ordinal) {
+								t.Fatalf("replay order: scheduled_at=%v session=%s", run.ScheduledAt, run.SessionID)
+							}
+						}
 						if policy == SchedulerCatchUpPolicySkipMissed && grace == 0 {
 							if run.Status != RunCancelled ||
 								run.Metadata[SchedulerSkipReasonMetadataKey] != string(

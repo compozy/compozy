@@ -71,7 +71,7 @@ QA impact — host sleep with the daemon still running:
   dispatches all five in order; `skip_missed` creates one canceled history row with
   `misfire_grace_exceeded` and creates no session. Within configured grace, `skip_missed` dispatches the latest missed
   instant once. Each job resumes its original cadence.
-- Preserve an already deferred reservation across the gap; capacity retry must retain its
+- Manual host-sleep check: preserve an already deferred reservation across the gap; capacity retry must retain its
   original fire identity rather than replace it with a newly coalesced fire.
 
 Automated owning check: `go test -tags integration ./internal/automation -run
