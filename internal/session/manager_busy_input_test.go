@@ -5249,7 +5249,8 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 				if req.Message == "hold" {
 					<-release
 				}
-				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID,
+					PromptStopReason: acp.PromptStopReasonEndTurn}
 			}()
 			return events, nil
 		}
