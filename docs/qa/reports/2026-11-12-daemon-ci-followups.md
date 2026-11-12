@@ -3,6 +3,21 @@
 Refs #1547. Source inspection and retained CI logs only; no local test, lint,
 build, daemon or QA execution is claimed. CI on the PR head owns validation.
 
+## Main integration after the boundary diagnostic round
+
+The branch rebased onto `a8af28f80`, retaining the nineteen scoped commits.
+Main's #1594 now owns the same standing-augmenter parity correction and a full
+twelve-peer overflow fixture. Those accepted implementations and their scenario
+notes are preserved rather than duplicated; historical branch evidence below
+still describes the heads on which it was collected. The current fixture uses
+alternating original peer descriptions with unique names. All budget, envelope
+and overflow assertions remain unchanged. Terminal journey resolutions retain
+the exact pre-rebase branch source, including command-ID journal correlation,
+verified exit and tab-remount selection, alongside main's shared navigation
+helper improvements. Both heartbeat scenario additions are retained. Main also
+includes the separate #1592 SQLite acceptance repair; only new-head CI can
+establish its result. No local test, lint, build or runtime execution occurred.
+
 ## Boundary steering drain timeout
 
 [Full integration shard 5, job 131045669959](https://github.com/compozy/compozy/actions/runs/43177532728/job/131045669959)
