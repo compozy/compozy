@@ -82,6 +82,36 @@ func TestPromptTurnTrace(t *testing.T) {
 		},
 	)
 
+	// Invariant: Goal, continuation and compaction turns dispatch through the managed input path and still
+	// export one session.turn with its outcome and write totals. Owner: session manager.
+	t.Run("Should trace a managed Goal turn as one session turn with its write totals", func(t *testing.T) {
+		collector := exportTurnTraces(t)
+		h := newHarness(t)
+		session := createTraceSession(t, h)
+		lifecycle := newRecordingManagedInputLifecycle()
+		h.manager.SetManagedInputLifecycle(lifecycle)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() { defer close(events); emitDonePromptEvents(events, session.ID, req.TurnID) }()
+			return events, nil
+		}
+
+		entry := managedInputQueueEntry(session.ID, "goalq-trace")
+		h.manager.startManagedInputPrompt(session, managedInputFromQueueEntry(&entry))
+		lifecycle.waitTerminal(t)
+		// The span ends after the lifecycle records the terminal outcome.
+		waitForCondition(t, "the managed turn span", func() bool {
+			return len(turnSpans(collector.Flush(t), session.ID)) > 0
+		})
+
+		turn := onlyTurnSpan(t, collector.Spans(), session.ID)
+		assertTurnAttributes(t, turn, session, telemetry.OutcomeOK)
+		flushes, ok := turn.Attributes[string(telemetry.AttrDBFlushes)].(int64)
+		if _, totalOK := turn.Attributes[string(telemetry.AttrDBWriteMSTotal)].(int64); !ok || !totalOK || flushes < 1 {
+			t.Fatalf("session.turn write counters = %v, want the managed turn's flushes and total", turn.Attributes)
+		}
+	})
+
 	// UT-030
 	t.Run("Should mark a turn that ends with a provider error with an empty error status", func(t *testing.T) {
 		collector := exportTurnTraces(t)
@@ -285,15 +315,16 @@ func TestPromptTurnTrace(t *testing.T) {
 		h := newHarness(t)
 		session := createTraceSession(t, h)
 		session.markRuntimeUnbound(time.Now().UTC())
+		startErr := errors.New("exec: \"/home/ana/bin/agent\": executable file not found in $PATH")
 		h.driver.mu.Lock()
 		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
-			return nil, errors.New("exec: \"/home/ana/bin/agent\": executable file not found in $PATH")
+			return nil, startErr
 		}
 		h.driver.mu.Unlock()
 
 		ctx, request := startRequestSpan(t)
-		if _, err := h.manager.Prompt(ctx, session.ID, "hello"); err == nil {
-			t.Fatal("Prompt() error = nil, want the runtime start failure")
+		if _, err := h.manager.Prompt(ctx, session.ID, "hello"); !errors.Is(err, startErr) {
+			t.Fatalf("Prompt() error = %v, want the runtime start failure %v", err, startErr)
 		}
 		request.End()
 

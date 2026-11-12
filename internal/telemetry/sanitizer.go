@@ -3,6 +3,7 @@ package telemetry
 import (
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/redact"
 	"go.opentelemetry.io/otel/attribute"
@@ -55,6 +56,7 @@ type sanitizer struct {
 	secrets    func(string) bool
 	resource   *resource.Resource
 	version    string
+	agents     stickyMembership
 }
 
 func newSanitizer(reg Registries, res *resource.Resource, version string) *sanitizer {
@@ -70,6 +72,7 @@ func newSanitizer(reg Registries, res *resource.Resource, version string) *sanit
 		secrets:    secrets,
 		resource:   res,
 		version:    version,
+		agents:     stickyMembership{member: reg.Agents},
 	}
 }
 
@@ -141,7 +144,7 @@ func (s *sanitizer) attribute(kv attribute.KeyValue, provider string) (attribute
 	case AttrProfileID, AttrWorkspaceID, AttrSessionID, AttrTurnID, AttrRunID, AttrLoopID, AttrAutomationID:
 		return s.matching(kv, s.reg.IDs[kv.Key])
 	case AttrAgent:
-		return s.member(kv, s.reg.Agents), true
+		return s.member(kv, s.agents.has), true
 	case AttrGenAISystem:
 		return s.member(kv, s.reg.Providers), true
 	case AttrTool:
@@ -238,4 +241,35 @@ func (s *sanitizer) finalString(value string) string {
 		return ValueInvalid
 	}
 	return value
+}
+
+// maxStickyAgents bounds the agent labels a sanitizer remembers.
+const maxStickyAgents = 1024
+
+// stickyMembership fixes the first membership answer for each agent name. Cumulative metric series keep their
+// label when an agent joins or leaves the catalog at runtime; a relabel would merge one agent's running total into
+// "other". ponytail: past maxStickyAgents names the answer is live again, so relabels return only for those.
+type stickyMembership struct {
+	member func(string) bool
+	mu     sync.Mutex
+	seen   map[string]bool
+}
+
+func (m *stickyMembership) has(name string) bool {
+	if m.member == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if known, ok := m.seen[name]; ok {
+		return known
+	}
+	known := m.member(name)
+	if len(m.seen) < maxStickyAgents {
+		if m.seen == nil {
+			m.seen = make(map[string]bool)
+		}
+		m.seen[name] = known
+	}
+	return known
 }

@@ -80,8 +80,13 @@ targets, no shim).
   `forward_to_providers`) and `[observability.otel.headers]` (`env:` / `vault:observability/`
   refs only). All `restart-required` (existing `observability.*` lifecycle row) and global-only:
   workspace files fail to load, workspace-scope writes are rejected, profile overlays deny
-  `observability`. Standard `OTEL_*` variables fill unset values only and are validated only while
-  export is enabled.
+  `observability`. Standard `OTEL_*` variables fill unset values only, from the process environment
+  only (never a workspace `.env`), in both daemon boot and config inspection (`config get`, settings
+  reload diff); they are validated only while export can run (parent `observability.enabled`,
+  `otel.enabled`, and at least one signal).
+- **Repository infra.** New `infra/observability/` Compose stack (OTel Collector, Tempo, Loki,
+  Prometheus, Grafana with a provisioned daemon dashboard), classified `meta` by `scripts/gate.sh` and
+  `scripts/ci-changes.sh`; not shipped in releases.
 - **Workspace data isolation.** Exports carry owner IDs (session, turn, run, workspace, profile,
   loop, automation) and registered names only, through a sanitizing exporter that omits or
   replaces anything outside the registries (`other`, `custom`, `compozy.unknown`, `invalid`).

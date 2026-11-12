@@ -170,6 +170,9 @@ func startFootprintSession(b *testing.B, driverPath, fixture string) (*harness, 
 		acp.WithProviderPreStarter(providers.NewPreStarter()),
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	))
+	if err := h.manager.Shutdown(b.Context()); err != nil {
+		b.Fatalf("Manager.Shutdown() first manager error = %v", err)
+	}
 	h.manager = newManagerWithHarness(b, h, WithDriver(driver), WithHostedMCPLauncher(hosted),
 		WithNotifier(discardNotifier{}))
 	b.Cleanup(func() {

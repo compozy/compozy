@@ -17,6 +17,9 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/ginutil"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -28,6 +31,7 @@ import (
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/testutil/otlptest"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	colmetricpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -306,6 +310,7 @@ func waitForTurnSpans(ctx context.Context, t *testing.T, collector *otlptest.Col
 // value its key's registry or owner validator admits.
 type exportPolicy struct {
 	values map[string]func(string) bool
+	routes []string
 }
 
 func newExportPolicy(agents []e2etest.MockAgentSpec) exportPolicy {
@@ -321,7 +326,8 @@ func newExportPolicy(agents []e2etest.MockAgentSpec) exportPolicy {
 		hookEvents = append(hookEvents, event.String())
 	}
 	key := func(k attribute.Key) string { return string(k) }
-	return exportPolicy{values: map[string]func(string) bool{
+	routes := mountedRouteTemplates()
+	return exportPolicy{routes: routes, values: map[string]func(string) bool{
 		key(telemetry.AttrProfileID):    profile.IsProfileID,
 		key(telemetry.AttrWorkspaceID):  workspacepkg.IsWorkspaceIdentifier,
 		key(telemetry.AttrSessionID):    sessionid.IsSessionID,
@@ -348,13 +354,11 @@ func newExportPolicy(agents []e2etest.MockAgentSpec) exportPolicy {
 		key(telemetry.AttrDBOperation): func(value string) bool {
 			return value != "" && !strings.ContainsAny(value, " \t\n")
 		},
-		key(telemetry.AttrHookEvent): oneOf(hookEvents...),
-		key(telemetry.AttrRPCSystem): oneOf(telemetry.RPCSystemJSONRPC),
-		key(telemetry.AttrRPCMethod): oneOf(acp.TracedMethods()...),
-		key(telemetry.AttrHTTPRoute): func(value string) bool { return strings.HasPrefix(value, "/") },
-		key(telemetry.AttrHTTPMethod): oneOf(
-			"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH",
-		),
+		key(telemetry.AttrHookEvent):  oneOf(hookEvents...),
+		key(telemetry.AttrRPCSystem):  oneOf(telemetry.RPCSystemJSONRPC),
+		key(telemetry.AttrRPCMethod):  oneOf(acp.TracedMethods()...),
+		key(telemetry.AttrHTTPRoute):  oneOf(routes...),
+		key(telemetry.AttrHTTPMethod): oneOf(privacyHTTPMethods...),
 		key(telemetry.AttrErrorType): oneOf(
 			telemetry.ErrorCanceled, telemetry.ErrorDeadlineExceeded, telemetry.ErrorProvider,
 			telemetry.ErrorPermissionDenied, telemetry.ErrorNotFound, telemetry.ErrorInvalidInput,
@@ -380,6 +384,7 @@ var (
 		telemetry.SpanMCPHostedCall, telemetry.SpanToolExecute, telemetry.SpanDBWrite, telemetry.SpanHookDispatch,
 		telemetry.SpanLoopRun, telemetry.SpanAutomationRun, telemetry.SpanSchedulerTick, telemetry.UnknownName,
 	}
+	privacyHTTPMethods = []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"}
 	privacyMetricNames = []string{
 		telemetry.MetricSessionTurnDuration, telemetry.MetricSessionTTFT, telemetry.MetricACPRPCDuration,
 		telemetry.MetricToolCallDuration, telemetry.MetricHTTPServerDuration, telemetry.MetricDBWriteDuration,
@@ -435,7 +440,7 @@ func (p exportPolicy) checkTraces(t *testing.T, payload []byte) {
 		for _, scopeSpans := range resourceSpans.GetScopeSpans() {
 			p.checkScope(t, scopeSpans.GetScope())
 			for _, span := range scopeSpans.GetSpans() {
-				if !registeredSpanName(span.GetName()) {
+				if !p.registeredSpanName(span.GetName()) {
 					t.Errorf("span name %q is not registered", span.GetName())
 				}
 				if span.GetTraceState() != "" || span.GetStatus().GetMessage() != "" || len(span.GetLinks()) != 0 {
@@ -457,16 +462,31 @@ func (p exportPolicy) checkTraces(t *testing.T, payload []byte) {
 	}
 }
 
-// registeredSpanName admits catalog span names, traced ACP methods, and HTTP method plus route names.
-func registeredSpanName(name string) bool {
+// registeredSpanName admits catalog span names, traced ACP methods, "HTTP <METHOD>" for unmatched requests, and an
+// HTTP method plus a mounted route template: the names the production sanitizer keeps.
+func (p exportPolicy) registeredSpanName(name string) bool {
 	if slices.Contains(privacySpanNames, name) {
 		return true
 	}
 	if method, ok := strings.CutPrefix(name, "acp "); ok {
 		return slices.Contains(acp.TracedMethods(), method)
 	}
-	method, route, _ := strings.Cut(name, " ")
-	return method == strings.ToUpper(method) && (route == "" || strings.HasPrefix(route, "/"))
+	if method, ok := strings.CutPrefix(name, "HTTP "); ok {
+		return slices.Contains(privacyHTTPMethods, method)
+	}
+	method, route, ok := strings.Cut(name, " ")
+	return ok && slices.Contains(privacyHTTPMethods, method) && slices.Contains(p.routes, route)
+}
+
+// mountedRouteTemplates returns the route templates the daemon mounts on its local HTTP and UDS servers, the set the
+// telemetry sanitizer admits in span names and http.route values.
+func mountedRouteTemplates() []string {
+	httpEngine, udsEngine := gin.New(), gin.New()
+	ginutil.QuietDebug(func() {
+		httpapi.RegisterSurfaceRoutes(httpEngine, &httpapi.Handlers{}, httpapi.SurfaceSetLocal)
+		udsapi.RegisterRoutes(udsEngine, &udsapi.Handlers{})
+	})
+	return slices.Concat(ginutil.RouteTemplates(httpEngine), ginutil.RouteTemplates(udsEngine))
 }
 
 func (p exportPolicy) checkMetrics(t *testing.T, payload []byte) {

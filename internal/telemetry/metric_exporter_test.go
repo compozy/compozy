@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -282,6 +283,52 @@ func TestSanitizingMetricExporterAppliesPerKeyFallbackPolicy(t *testing.T) {
 		}
 		if got := histogram.DataPoints[0].Attributes.ToSlice(); !slices.Equal(got, want) {
 			t.Fatalf("point attributes = %v, want %v", got, want)
+		}
+	})
+
+	// Invariant: a cumulative series keeps its agent label while the agent catalog changes, so no agent's running
+	// total is merged into "other". Owner: metric sanitizer.
+	t.Run("Should keep each agent label stable when the agent catalog changes between collections", func(t *testing.T) {
+		t.Parallel()
+
+		var catalog atomic.Value
+		catalog.Store([]string{"leaving-agent"})
+		reg := testRegistries(nil)
+		reg.Agents = func(name string) bool { return slices.Contains(catalog.Load().([]string), name) }
+		harness := newMetricHarness(t, reg)
+		tokens, err := harness.provider.Meter(telemetry.ScopeSession).Int64Counter(telemetry.MetricTokens)
+		if err != nil {
+			t.Fatalf("Int64Counter() error = %v", err)
+		}
+		record := func() {
+			for _, agent := range []string{"leaving-agent", "joining-agent"} {
+				tokens.Add(context.Background(), 10, metric.WithAttributes(telemetry.AttrAgent.String(agent)))
+			}
+		}
+		labels := func() map[string]int64 {
+			_, exported := harness.collect(t)
+			sum, ok := findMetric(t, exported, telemetry.MetricTokens).Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("compozy.tokens data = %#v, want an int64 sum", sum)
+			}
+			got := make(map[string]int64, len(sum.DataPoints))
+			for _, point := range sum.DataPoints {
+				agent, _ := point.Attributes.Value(telemetry.AttrAgent)
+				got[agent.AsString()] = point.Value
+			}
+			return got
+		}
+
+		record()
+		first := map[string]int64{"leaving-agent": 10, telemetry.ValueOther: 10}
+		if got := labels(); !maps.Equal(got, first) {
+			t.Fatalf("first collection = %v, want %v", got, first)
+		}
+		catalog.Store([]string{"joining-agent"})
+		record()
+		cumulative := map[string]int64{"leaving-agent": 20, telemetry.ValueOther: 20}
+		if got := labels(); !maps.Equal(got, cumulative) {
+			t.Fatalf("collection after the catalog change = %v, want the first labels with totals %v", got, cumulative)
 		}
 	})
 

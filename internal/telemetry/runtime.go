@@ -139,7 +139,8 @@ func initRuntime(ctx context.Context, cfg config.ObservabilityConfig, opts runti
 	noop := func() { opts.install(tracenoop.NewTracerProvider(), metricnoop.NewMeterProvider()) }
 	otelCfg := cfg.OTel
 	switch {
-	case !otelCfg.Enabled || otelCfg.EnvDisabled():
+	// Both signals off exports nothing, so it installs no classifier and reports disabled.
+	case !otelCfg.Enabled || otelCfg.EnvDisabled() || (!otelCfg.Traces && !otelCfg.Metrics):
 		noop()
 		return newRuntime(Status{State: StateDisabled}, opts.logger), nil
 	case !cfg.Enabled:

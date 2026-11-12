@@ -57,6 +57,7 @@ func (t exportTarget) spanExporter(ctx context.Context, tracker *signalTracker) 
 		options := []otlptracegrpc.Option{
 			otlptracegrpc.WithEndpointURL(t.endpoint.String()),
 			otlptracegrpc.WithHeaders(t.headers),
+			otlptracegrpc.WithTimeout(exportRequestTimeout),
 		}
 		if t.transport.dial != nil {
 			options = append(options, otlptracegrpc.WithDialOption(grpc.WithContextDialer(t.transport.dial)))
@@ -75,6 +76,7 @@ func (t exportTarget) metricExporter(ctx context.Context, tracker *signalTracker
 		options := []otlpmetricgrpc.Option{
 			otlpmetricgrpc.WithEndpointURL(t.endpoint.String()),
 			otlpmetricgrpc.WithHeaders(t.headers),
+			otlpmetricgrpc.WithTimeout(exportRequestTimeout),
 		}
 		if t.transport.dial != nil {
 			options = append(options, otlpmetricgrpc.WithDialOption(grpc.WithContextDialer(t.transport.dial)))

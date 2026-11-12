@@ -15,6 +15,10 @@ func TestTelemetryForwarding(t *testing.T) {
 		"OTEL_EXPORTER_OTLP_ENDPOINT=http://inherited:4318",
 		"OTEL_EXPORTER_OTLP_HEADERS=api-key=daemon-secret",
 		"TRACEPARENT=00-11111111111111111111111111111111-2222222222222222-01",
+		// Windows environment names are case-insensitive.
+		"otel_exporter_otlp_endpoint=http://inherited-lower:4318",
+		"Otel_Exporter_Otlp_Headers=api-key=daemon-secret",
+		"traceparent=00-33333333333333333333333333333333-4444444444444444-01",
 	}
 
 	// UT-070

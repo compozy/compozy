@@ -124,6 +124,12 @@ samples; send a second prompt within the 5-minute window to get a value.
 `[observability] enabled` must stay `true`; with it off, status reports
 `inactive (observability.enabled = false)` and nothing is exported.
 
+For a fuller setup, the repository ships a Grafana OSS stack in
+[`infra/observability`](https://github.com/compozy/compozy/tree/main/infra/observability): Tempo, Loki,
+Prometheus and Grafana, with a provisioned CompozyOS daemon dashboard and cross-linked data sources. Start it
+with `docker compose up -d` in that directory and point `observability.otel.endpoint` at
+`http://localhost:4318`.
+
 ## Configure export
 
 ```toml
@@ -187,8 +193,10 @@ the file wins even when it equals the default; an empty `endpoint` counts as not
 | `OTEL_SDK_DISABLED=true`      | Forces export off.                                                                |
 | `OTEL_RESOURCE_ATTRIBUTES`    | Ignored.                                                                          |
 
-Their values are checked only while export is enabled, so variables set for other tools never block
-a daemon that exports nothing.
+Their values are checked only while export can run (`[observability] enabled`, `observability.otel.enabled`,
+and at least one of `traces` or `metrics`), so variables set for other tools never block a daemon that exports
+nothing. Only the daemon's process environment counts; a workspace `.env` file never sets them.
+`compozy config get` resolves them the same way, from the environment of the shell that runs it.
 
 ### Header secrets
 
@@ -228,6 +236,9 @@ every `env:`/`vault:` ref in agent-facing output. The operator reads the ref wit
 | `ok`, metrics off                 | `OTel:               ok · http/protobuf → localhost:4318 · traces ok, metrics off · sample 1.0`                      |
 | `degraded`                        | `OTel:               degraded · grpc → collector.local:4317 · traces ok, metrics http_401 (12 failed) · sample 0.25` |
 | forwarding on                     | the line ends with ` · forwarding to providers`                                                                      |
+
+Export reads `disabled` when `observability.otel.enabled` is `false`, when `OTEL_SDK_DISABLED=true`, or when both
+`traces` and `metrics` are `false`.
 
 `compozy status --json` and `GET /api/status` (HTTP and UDS) carry the same data in `otel`:
 
@@ -383,7 +394,10 @@ Means of 10 runs of 10 turns each:
 - Elapsed time is dominated by the mock agent's streaming, so it includes provider I/O.
 - CPU is the benchmark process's user and system time from `getrusage`, around the measured turns and their
   final export. Individual runs ranged from 82 ms to 197 ms in both modes, so the CPU difference is within
-  run-to-run noise. Allocations, which do not depend on machine load, grow by 563 per turn.
+  run-to-run noise. Allocations, which do not depend on machine load, grow by 563 per turn. The receiver runs in
+  the same process, so the enabled CPU and allocation figures also include its decoding work; measuring with
+  the receiver in a separate process is tracked in
+  [#1622](https://github.com/compozy/compozy/issues/1622).
 - OTLP bytes are the serialized trace requests per turn plus one full metric push, counted as if
   every turn triggered a push.
 - The spans are `session.turn`, `acp session/prompt`, and `db.write` spans for the turn's store

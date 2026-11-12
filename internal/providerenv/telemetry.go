@@ -14,6 +14,8 @@ import (
 func ApplyTelemetryForwarding(env []string, forward []string, sessionID string, agent string) []string {
 	env = slices.DeleteFunc(env, func(entry string) bool {
 		key, _, _ := strings.Cut(entry, "=")
+		// Case-insensitive: Windows reads otel_exporter_otlp_endpoint as OTEL_EXPORTER_OTLP_ENDPOINT.
+		key = strings.ToUpper(key)
 		return strings.HasPrefix(key, "OTEL_") || key == "TRACEPARENT"
 	})
 	if len(forward) == 0 {

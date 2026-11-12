@@ -3,14 +3,17 @@ package ginutil
 import (
 	"context"
 	"crypto/rand"
+	"log/slog"
 	"net"
 	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/telemetry"
 	"github.com/compozy/compozy/internal/testutil/otlptest"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -41,8 +44,11 @@ func TestRequestTracingHonorsTraceParentOverHTTPAndUDS(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			collector := otlptest.NewCollector(t)
+			var disabled telemetry.Runtime
 			if tc.export {
 				collector.Export(t, tc.ratio, telemetry.Registries{RouteTemplates: []string{probeRoute}})
+			} else {
+				disabled = initDisabledExport(t, collector.URL)
 			}
 			transports := probeTransports(t, probeEngine())
 			for transport, client := range transports {
@@ -72,8 +78,13 @@ func TestRequestTracingHonorsTraceParentOverHTTPAndUDS(t *testing.T) {
 				}
 				assertServerSpan(t, transport, spans[0], parent)
 			}
-			if !tc.export && len(collector.Spans()) != 0 {
-				t.Fatalf("collector received %d spans while export was disabled, want none", len(collector.Spans()))
+			if !tc.export {
+				if err := disabled.Shutdown(t.Context()); err != nil {
+					t.Fatalf("telemetry Runtime.Shutdown() error = %v", err)
+				}
+				if got := len(collector.Payloads(otlptest.TracesPath)); got != 0 {
+					t.Fatalf("collector received %d trace requests while export was disabled, want none", got)
+				}
 			}
 		})
 	}
@@ -93,6 +104,30 @@ func TestRequestTracingHonorsTraceParentOverHTTPAndUDS(t *testing.T) {
 			}
 		}
 	})
+}
+
+// initDisabledExport installs the telemetry runtime with export switched off but pointed at endpoint, so a
+// regression that exports anyway reaches the collector.
+func initDisabledExport(t *testing.T, endpoint string) telemetry.Runtime {
+	t.Helper()
+	cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}).Observability
+	cfg.Enabled = true
+	cfg.OTel.Enabled = false
+	cfg.OTel.Endpoint = endpoint
+	cfg.OTel.Protocol = compozyconfig.OTelProtocolHTTPProtobuf
+	cfg.OTel.SampleRatio = 1
+	runtime, err := telemetry.Init(
+		t.Context(),
+		cfg,
+		nil,
+		telemetry.Registries{RouteTemplates: []string{probeRoute}},
+		version.Info{Version: "test"},
+		slog.New(slog.DiscardHandler),
+	)
+	if err != nil {
+		t.Fatalf("telemetry.Init() error = %v", err)
+	}
+	return runtime
 }
 
 func probeEngine() *gin.Engine {

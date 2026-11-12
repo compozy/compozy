@@ -92,7 +92,7 @@ func TestObservabilityOTelConfigDefaultsAndValidation(t *testing.T) {
 
 				cfg := defaultObservabilityConfig().OTel
 				tt.mutate(&cfg)
-				if err := cfg.Validate(); err != nil {
+				if err := cfg.Validate(true); err != nil {
 					t.Fatalf("Validate() error = %v, want nil", err)
 				}
 			})
@@ -234,7 +234,7 @@ func TestObservabilityOTelConfigDefaultsAndValidation(t *testing.T) {
 
 				cfg := defaultObservabilityConfig().OTel
 				tt.mutate(&cfg)
-				err := cfg.Validate()
+				err := cfg.Validate(true)
 				if err == nil || err.Error() != tt.want {
 					t.Fatalf("Validate() error = %v, want %q", err, tt.want)
 				}
@@ -259,7 +259,7 @@ func TestObservabilityOTelConfigDefaultsAndValidation(t *testing.T) {
 
 				cfg := defaultObservabilityConfig().OTel
 				cfg.Headers = map[string]string{"api-key": tt.ref}
-				err := cfg.Validate()
+				err := cfg.Validate(true)
 				if want := `observability.otel.headers."api-key" is invalid: `; err == nil ||
 					!strings.HasPrefix(err.Error(), want) {
 					t.Fatalf("Validate() error = %v, want prefix %q", err, want)
@@ -349,7 +349,7 @@ func TestApplyOTelEnvironment(t *testing.T) {
 					map[string]string{tt.variable: tt.value},
 					"[observability.otel]\nenabled = true\n",
 				)
-				err := otel.Validate()
+				err := otel.Validate(true)
 				if err == nil || err.Error() != tt.want {
 					t.Fatalf("Validate() error = %v, want %q", err, tt.want)
 				}
@@ -361,15 +361,26 @@ func TestApplyOTelEnvironment(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name        string
-			file        string
-			sdkDisabled string
+			name                 string
+			file                 string
+			sdkDisabled          string
+			observabilityEnabled bool
 		}{
-			{name: "Should ignore them while export is disabled"},
+			{name: "Should ignore them while export is disabled", observabilityEnabled: true},
 			{
-				name:        "Should ignore them while OTEL_SDK_DISABLED forces export off",
-				file:        "[observability.otel]\nenabled = true\n",
-				sdkDisabled: "true",
+				name:                 "Should ignore them while OTEL_SDK_DISABLED forces export off",
+				file:                 "[observability.otel]\nenabled = true\n",
+				sdkDisabled:          "true",
+				observabilityEnabled: true,
+			},
+			{
+				name: "Should ignore them while the parent observability switch is off",
+				file: "[observability.otel]\nenabled = true\n",
+			},
+			{
+				name:                 "Should ignore them while traces and metrics are both off",
+				file:                 "[observability.otel]\nenabled = true\ntraces = false\nmetrics = false\n",
+				observabilityEnabled: true,
 			},
 		}
 		for _, tt := range tests {
@@ -383,7 +394,7 @@ func TestApplyOTelEnvironment(t *testing.T) {
 					"OTEL_EXPORTER_OTLP_HEADERS":  "api-key:secret-token",
 					"OTEL_SDK_DISABLED":           tt.sdkDisabled,
 				}, tt.file)
-				if err := otel.Validate(); err != nil {
+				if err := otel.Validate(tt.observabilityEnabled); err != nil {
 					t.Fatalf("Validate() error = %v, want OTEL variables for other tools ignored", err)
 				}
 				if got, want := otel.EnvDisabled(), tt.sdkDisabled != ""; got != want {
@@ -435,7 +446,7 @@ func TestApplyOTelEnvironment(t *testing.T) {
 					t.Parallel()
 
 					file := fmt.Sprintf("[observability.otel]\nenabled = %t\n%s = %q\n", enabled, tt.key, tt.value)
-					err := applyOTelLayers(t, map[string]string{tt.variable: tt.envValue}, file).Validate()
+					err := applyOTelLayers(t, map[string]string{tt.variable: tt.envValue}, file).Validate(true)
 					if err == nil || err.Error() != tt.want {
 						t.Fatalf("Validate() error = %v, want %q", err, tt.want)
 					}
@@ -452,7 +463,7 @@ func TestApplyOTelEnvironment(t *testing.T) {
 			map[string]string{"OTEL_EXPORTER_OTLP_HEADERS": "api-key:secret-token"},
 			"[observability.otel]\nenabled = true\n\n[observability.otel.headers]\n\"api-key\" = \"env:NR_KEY\"\n",
 		)
-		if err := otel.Validate(); err != nil {
+		if err := otel.Validate(true); err != nil {
 			t.Fatalf("Validate() error = %v, want malformed environment headers replaced by the file table", err)
 		}
 	})
@@ -508,7 +519,7 @@ func TestApplyOTelEnvironment(t *testing.T) {
 					if otel.Endpoint != tt.want {
 						t.Fatalf("Endpoint = %q, want %q", otel.Endpoint, tt.want)
 					}
-					if err := otel.Validate(); err != nil {
+					if err := otel.Validate(true); err != nil {
 						t.Fatalf("Validate() error = %v, want nil", err)
 					}
 				})
@@ -723,4 +734,48 @@ func applyOTelLayers(t *testing.T, env map[string]string, file string) Observabi
 		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 	}
 	return cfg.Observability.OTel
+}
+
+// Not parallel: t.Setenv. Invariant: config inspection resolves the OTEL_* layer the daemon boots with, from the
+// process environment only. Owner: config loader.
+func TestLoadForHomeAppliesOTelProcessEnvironment(t *testing.T) {
+	t.Run("Should report the protocol from OTEL_EXPORTER_OTLP_PROTOCOL when config.toml sets none", func(t *testing.T) {
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		t.Setenv(otelEnvProtocol, OTelProtocolGRPC)
+
+		cfg, err := LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got := cfg.Observability.OTel.Protocol; got != OTelProtocolGRPC {
+			t.Fatalf("LoadForHome() otel protocol = %q, want %q from the process environment", got, OTelProtocolGRPC)
+		}
+	})
+
+	t.Run("Should ignore OTEL_* variables from a workspace dotenv file", func(t *testing.T) {
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		workspaceRoot := t.TempDir()
+		writeFile(t, WorkspaceDotEnvFile(workspaceRoot), otelEnvProtocol+"="+OTelProtocolGRPC+"\n")
+		t.Setenv(otelEnvProtocol, "")
+
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got := cfg.Observability.OTel.Protocol; got != OTelProtocolHTTPProtobuf {
+			t.Fatalf("LoadForHome() otel protocol = %q, want the default; a workspace dotenv must not set it", got)
+		}
+	})
 }

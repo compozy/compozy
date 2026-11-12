@@ -4845,41 +4845,45 @@ func TestShutdownRuntimeWorkersDrainsFinalizationsBeforeSessionManager(t *testin
 func TestShutdownServersAndHooksDrainsSupportAfterServers(t *testing.T) {
 	t.Parallel()
 
-	order := make([]string, 0, 4)
-	d := &Daemon{}
-	var flushWindow time.Duration
-	telemetrySlot := &telemetrySlot{}
-	telemetrySlot.publish(&stubTelemetryRuntime{shutdownFn: func(ctx context.Context) error {
-		order = append(order, "telemetry")
-		if deadline, ok := ctx.Deadline(); ok {
-			flushWindow = time.Until(deadline)
-		}
-		return context.DeadlineExceeded
-	}})
-	var shutdownErrs []error
-	d.shutdownServersAndHooks(testutil.Context(t), &shutdownTargets{
-		httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
-		udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
-		supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
-			order = append(order, "support")
-			return nil
-		}),
-		telemetry: telemetrySlot,
-	}, &shutdownErrs)
+	t.Run("Should drain support bundles after servers and bound a timed-out telemetry flush", func(t *testing.T) {
+		t.Parallel()
 
-	if err := errors.Join(shutdownErrs...); err != nil {
-		t.Fatalf(
-			"shutdownServersAndHooks() error = %v, want a timed-out telemetry flush to stay out of shutdown errors",
-			err,
-		)
-	}
-	want := []string{"http", "uds", "support", "telemetry"}
-	if !slices.Equal(order, want) {
-		t.Fatalf("shutdown order = %v, want %v", order, want)
-	}
-	if flushWindow <= 0 || flushWindow > telemetryShutdownTimeout {
-		t.Fatalf("telemetry flush window = %s, want at most %s", flushWindow, telemetryShutdownTimeout)
-	}
+		order := make([]string, 0, 4)
+		d := &Daemon{}
+		var flushWindow time.Duration
+		telemetrySlot := &telemetrySlot{}
+		telemetrySlot.publish(&stubTelemetryRuntime{shutdownFn: func(ctx context.Context) error {
+			order = append(order, "telemetry")
+			if deadline, ok := ctx.Deadline(); ok {
+				flushWindow = time.Until(deadline)
+			}
+			return context.DeadlineExceeded
+		}})
+		var shutdownErrs []error
+		d.shutdownServersAndHooks(testutil.Context(t), &shutdownTargets{
+			httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
+			udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
+			supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
+				order = append(order, "support")
+				return nil
+			}),
+			telemetry: telemetrySlot,
+		}, &shutdownErrs)
+
+		if err := errors.Join(shutdownErrs...); err != nil {
+			t.Fatalf(
+				"shutdownServersAndHooks() error = %v, want a timed-out telemetry flush to stay out of shutdown errors",
+				err,
+			)
+		}
+		want := []string{"http", "uds", "support", "telemetry"}
+		if !slices.Equal(order, want) {
+			t.Fatalf("shutdown order = %v, want %v", order, want)
+		}
+		if flushWindow <= 0 || flushWindow > telemetryShutdownTimeout {
+			t.Fatalf("telemetry flush window = %s, want at most %s", flushWindow, telemetryShutdownTimeout)
+		}
+	})
 }
 
 func orphanTestSessions(t *testing.T, started time.Time) []*session.Info {

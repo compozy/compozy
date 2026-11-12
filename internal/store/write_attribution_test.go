@@ -47,9 +47,9 @@ func TestWriteObservation(t *testing.T) {
 		}
 	})
 
-	// Invariant: a write counts toward its turn only once it passes admission; failed executed writes count, and a
+	// Invariant: a write counts toward its turn only once its transaction begins; failed executed writes count, and a
 	// coalesced attribution reaches the observer. Owner: store executor.
-	t.Run("Should count admitted writes toward the attributed turn only", func(t *testing.T) {
+	t.Run("Should count only writes that began a transaction toward the attributed turn", func(t *testing.T) {
 		observed := recordWriteObservations(t)
 		ctx := t.Context()
 		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "attributed.db"))
@@ -84,6 +84,28 @@ func TestWriteObservation(t *testing.T) {
 		}
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("admission-blocked write error = %v, want the caller deadline", err)
+		}
+
+		// Admitted but the pool has no free connection: no transaction begins, so the turn must not count it.
+		db.SetMaxOpenConns(1)
+		held, err := db.Conn(ctx)
+		if err != nil {
+			t.Fatalf("db.Conn() error = %v", err)
+		}
+		poolCtx, cancelPool := context.WithTimeout(attributed, 20*time.Millisecond)
+		defer cancelPool()
+		poolErr := ExecuteWriteOperation(poolCtx, db, "turn.pool", func(context.Context, *WriteTx) error {
+			t.Error("write without a connection must not execute")
+			return nil
+		})
+		if closeErr := held.Close(); closeErr != nil {
+			t.Fatalf("held.Close() error = %v", closeErr)
+		}
+		if !errors.Is(poolErr, context.DeadlineExceeded) {
+			t.Fatalf("pool-blocked write error = %v, want the caller deadline", poolErr)
+		}
+		if pooled := observed.named("turn.pool"); len(pooled) != 1 || pooled[0].AdmissionWait >= pooled[0].Duration {
+			t.Fatalf("turn.pool observations = %+v, want one admitted write that never began", pooled)
 		}
 
 		failed := observed.named("turn.failed")

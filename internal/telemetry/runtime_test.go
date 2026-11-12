@@ -55,6 +55,14 @@ func TestInitInstallsNoopProvidersWhenExportCannotRun(t *testing.T) {
 			),
 			want: telemetry.StateDisabled,
 		},
+		{
+			name: "Should stay disabled when traces and metrics are both off",
+			cfg: exportConfig(func(otel *config.ObservabilityOTelConfig) {
+				otel.Traces = false
+				otel.Metrics = false
+			}),
+			want: telemetry.StateDisabled,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

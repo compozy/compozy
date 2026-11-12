@@ -470,6 +470,7 @@ func TestTelemetryModelClassesFollowTheCatalog(t *testing.T) {
 		if err := classes.rebuild(t.Context()); err != nil {
 			t.Fatalf("rebuild() error = %v", err)
 		}
+		<-catalog.listed
 		catalog.set([]modelcatalog.Model{row("claude", "claude-opus-5", modelcatalog.SourceKindBuiltin)})
 
 		if got := classes.Classify("claude", "claude-opus-5"); got != telemetry.ModelUnknown {

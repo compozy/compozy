@@ -87,44 +87,48 @@ func TestObserverEventMetrics(t *testing.T) {
 			wantCurr   string
 		}{
 			{
-				name: "actual USD", authMode: compozyconfig.ProviderAuthModeBoundSecret,
+				name: "Should carry an actual USD cost as actual", authMode: compozyconfig.ProviderAuthModeBoundSecret,
 				usage:      &acp.TokenUsage{OutputTokens: new(int64(1)), CostAmount: new(0.25), CostCurrency: new("USD")},
 				wantStatus: modelcatalog.CostStatusActual, wantAmount: 0.25, wantCurr: "USD",
 			},
 			{
-				name: "actual EUR", authMode: compozyconfig.ProviderAuthModeBoundSecret,
+				name: "Should carry an actual EUR cost as actual", authMode: compozyconfig.ProviderAuthModeBoundSecret,
 				usage:      &acp.TokenUsage{OutputTokens: new(int64(1)), CostAmount: new(0.5), CostCurrency: new("EUR")},
 				wantStatus: modelcatalog.CostStatusActual, wantAmount: 0.5, wantCurr: "EUR",
 			},
 			{
-				name: "estimated", authMode: compozyconfig.ProviderAuthModeBoundSecret,
+				name: "Should estimate a cost from the catalog rate", authMode: compozyconfig.ProviderAuthModeBoundSecret,
 				usage:      &acp.TokenUsage{InputTokens: new(int64(1_000_000))},
 				wantStatus: modelcatalog.CostStatusEstimated, wantAmount: 1, wantCurr: "USD",
 			},
 			{
-				name: "included", authMode: compozyconfig.ProviderAuthModeNativeCLI,
+				name: "Should mark native CLI usage as included", authMode: compozyconfig.ProviderAuthModeNativeCLI,
 				usage:      &acp.TokenUsage{OutputTokens: new(int64(1))},
 				wantStatus: modelcatalog.CostStatusIncluded,
 			},
 		} {
-			h, metrics := newMetricsHarness(t)
-			h.observer.costCatalog = &stubCostCatalog{models: []modelcatalog.Model{{
-				ProviderID: "claude", ModelID: "claude-test",
-				CostInputPerMillion: &rate, CostInputSource: modelcatalog.SourceKindConfig,
-			}}}
-			h.observer.resolveProviderAuth = fixedProviderAuthMode(tc.authMode)
-			sess := newSession("sess-metric-cost", session.StateActive, h.workspace, h.now)
-			sess.Model = "claude-test"
-			h.observeSessionCreated(t, sess)
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			h.recordUsage(t, sess.ID, tc.usage)
+				h, metrics := newMetricsHarness(t)
+				h.observer.costCatalog = &stubCostCatalog{models: []modelcatalog.Model{{
+					ProviderID: "claude", ModelID: "claude-test",
+					CostInputPerMillion: &rate, CostInputSource: modelcatalog.SourceKindConfig,
+				}}}
+				h.observer.resolveProviderAuth = fixedProviderAuthMode(tc.authMode)
+				sess := newSession("sess-metric-cost", session.StateActive, h.workspace, h.now)
+				sess.Model = "claude-test"
+				h.observeSessionCreated(t, sess)
 
-			got := metrics.usageSnapshot()
-			if len(got) != 1 || got[0].CostStatus != tc.wantStatus || got[0].CostAmount != tc.wantAmount ||
-				got[0].CostCurrency != tc.wantCurr {
-				t.Fatalf("%s: RecordUsage calls = %+v, want status %s amount %v %s",
-					tc.name, got, tc.wantStatus, tc.wantAmount, tc.wantCurr)
-			}
+				h.recordUsage(t, sess.ID, tc.usage)
+
+				got := metrics.usageSnapshot()
+				if len(got) != 1 || got[0].CostStatus != tc.wantStatus || got[0].CostAmount != tc.wantAmount ||
+					got[0].CostCurrency != tc.wantCurr {
+					t.Fatalf("RecordUsage calls = %+v, want status %s amount %v %s",
+						got, tc.wantStatus, tc.wantAmount, tc.wantCurr)
+				}
+			})
 		}
 	})
 

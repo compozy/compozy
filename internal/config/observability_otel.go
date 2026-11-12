@@ -110,8 +110,9 @@ func (c ObservabilityOTelConfig) EnvDisabled() bool {
 
 // Validate checks [observability.otel] after every layer is applied. A value from an OTEL_*
 // variable is checked only while export can run, so variables set for other tools cannot block
-// a daemon that exports nothing.
-func (c ObservabilityOTelConfig) Validate() error {
+// a daemon that exports nothing. observabilityEnabled is the parent [observability] switch.
+func (c ObservabilityOTelConfig) Validate(observabilityEnabled bool) error {
+	c.Enabled = c.Enabled && observabilityEnabled
 	if err := c.validateSourcedValues(); err != nil {
 		return err
 	}
@@ -163,7 +164,7 @@ func (c ObservabilityOTelConfig) valueSubject(envVar, key string) (string, bool)
 }
 
 func (c ObservabilityOTelConfig) exportCanRun() bool {
-	return c.Enabled && !c.env.disabled
+	return c.Enabled && !c.env.disabled && (c.Traces || c.Metrics)
 }
 
 func (c ObservabilityOTelConfig) clone() ObservabilityOTelConfig {

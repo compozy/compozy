@@ -707,7 +707,8 @@ overlays deny the `observability` block. Export also needs `observability.enable
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, and
 `OTEL_SERVICE_NAME` fill only values `config.toml` does not set (a written value wins even when it
 equals the default; an empty `endpoint` is not set; a non-empty headers table replaces env headers).
-They are validated only while export is enabled. `OTEL_SDK_DISABLED=true` forces export off;
+Only the process environment counts, never a workspace `.env`. They are validated only while export can run
+(`observability.enabled`, `otel.enabled`, and a signal on). `OTEL_SDK_DISABLED=true` or both signals off reads `disabled`;
 `OTEL_RESOURCE_ATTRIBUTES` is ignored.
 
 Operator-only: `compozy__config_set` refuses every `observability.otel.*` key with

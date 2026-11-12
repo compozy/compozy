@@ -120,7 +120,8 @@ func TestDriverTurnSpans(t *testing.T) {
 		ctx, turn := telemetry.Tracer(telemetry.ScopeSession).Start(testutil.Context(t), telemetry.SpanSessionTurn)
 		defer turn.End()
 		launchedEnv := func(forward bool) []string {
-			launcher := &recordingLauncher{err: errors.New("stop after launch")}
+			launchErr := errors.New("stop after launch")
+			launcher := &recordingLauncher{err: launchErr}
 			if _, err := New().Start(ctx, StartOpts{
 				AgentName:          "helper",
 				Command:            "agent --acp",
@@ -129,8 +130,8 @@ func TestDriverTurnSpans(t *testing.T) {
 				Permissions:        compozyconfig.PermissionModeApproveAll,
 				Launcher:           launcher,
 				ForwardTraceParent: forward,
-			}); err == nil {
-				t.Fatal("Start() error = nil, want the launcher failure")
+			}); !errors.Is(err, launchErr) {
+				t.Fatalf("Start() error = %v, want the launcher failure %v", err, launchErr)
 			}
 			spec, called := launcher.lastSpec()
 			if !called {

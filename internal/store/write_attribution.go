@@ -91,13 +91,15 @@ func SetWriteObserver(observer WriteObserver) {
 	writeObserver.Store(&observer)
 }
 
-// observeWrite updates the turn account of a write that passed admission and reports the write to the observer.
-func observeWrite(ctx context.Context, operation string, started, admitted time.Time, err error) {
+// observeWrite updates the turn account of a write whose transaction began and reports the write to the observer.
+func observeWrite(ctx context.Context, operation string, started, admitted time.Time, began bool, err error) {
 	duration := time.Since(started)
 	attribution, _ := WriteAttributionFrom(ctx)
 	wait := duration
 	if !admitted.IsZero() {
 		wait = admitted.Sub(started)
+	}
+	if began {
 		attribution.Turn.Add(duration)
 	}
 	observer := writeObserver.Load()
