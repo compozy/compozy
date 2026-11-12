@@ -3,6 +3,22 @@
 Refs #1547. Source inspection and retained CI logs only; no local test, lint,
 build, daemon or QA execution is claimed. CI on the PR head owns validation.
 
+## Standing-context overflow fixture after #1572 integration
+
+[Full integration shard 5, job 131023234338](https://github.com/compozy/compozy/actions/runs/43170690094/job/131023234338)
+on `8d7e32afb` failed the existing bounded-roster case from #1572. Its fixture
+contains sixty long rules but only two peers and `more: false`. Static budget
+inspection confirms the remaining space fits both peers: the renderer correctly
+has no reason to emit the peer-overflow pointer. The assertion nevertheless
+requires that pointer. This is a fixture/contract mismatch, not evidence of
+dropped peer information in production.
+
+The owning `TestPromptInputCompositeIntegrationStandingContext` case now supplies
+a full roster of twelve described peers for the bounded rendering branch. It
+must actually omit peers as well as rules. The budget, envelope and both overflow
+pointer assertions remain unchanged; the small-roster/input-form case is intact.
+No renderer behavior, public contract or timeout changes. CI owns execution.
+
 ## Historical failures
 
 - Late boot reconciliation: job 130360806209 timed out at five seconds before
