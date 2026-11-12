@@ -10,6 +10,26 @@ import unittest
 HEADINGS = ("What & why", "How you verified it", "Impact")
 
 
+def section_headings(body):
+    """Find section boundaries outside fenced examples, retaining body offsets."""
+    sections = []
+    fence = None
+    offset = 0
+    for line in body.splitlines(keepends=True):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\n"))
+        if fence:
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
+                fence = None
+        elif marker and (marker[1][0] == "~" or "`" not in marker[2]):
+            fence = marker[1]
+        else:
+            heading = re.match(r"^#{1,2} [^\n]+", line)
+            if heading:
+                sections.append((heading[0], offset, offset + heading.end()))
+        offset += len(line)
+    return sections
+
+
 def violations(pr):
     """Return fixed messages only: never echo untrusted PR text as annotations."""
     if pr.get("head", {}).get("ref", "").startswith("release/v") or pr.get(
@@ -18,17 +38,15 @@ def violations(pr):
         return []
     body = (pr.get("body") or "").replace("\r\n", "\n")
     errors = []
-    # Fenced examples cannot supply the required Markdown sections.
-    sections_body = re.sub(r"(?ms)^(`{3,}|~{3,})[^\n]*\n.*?^\1[^\n]*(?:\n|$)", "", body)
-    sections = list(re.finditer(r"(?m)^#{1,2} [^\n]+$", sections_body))
+    sections = section_headings(body)
     for heading in HEADINGS:
         matches = [i for i, match in enumerate(sections) if match[0] == "## " + heading]
         if not matches:
             errors.append(f"Missing required heading: ## {heading}")
             continue
         for i in matches:
-            end = sections[i + 1].start() if i + 1 < len(sections) else len(sections_body)
-            content = sections_body[sections[i].end():end]
+            end = sections[i + 1][1] if i + 1 < len(sections) else len(body)
+            content = body[sections[i][2]:end]
             content = re.sub(r"(?m)^\s*(?:---+|[-*] \[[ xX]\].*)\s*$", "", content)
             if not content.strip():
                 errors.append(f"Empty required section: ## {heading}")
@@ -73,6 +91,20 @@ class PRBodyTests(unittest.TestCase):
         self.assertIn("Empty required section: ## Impact", violations(pr))
         pr["body"] = "```md\n" + self.pr()["body"] + "\n```"
         self.assertEqual(3, len(violations(pr)))
+
+    def test_fenced_evidence_and_headings(self):
+        for marker in ("```", "~~~", "   ```", "  ~~~~"):
+            for closed in (True, False):
+                with self.subTest(marker=marker, closed=closed):
+                    pr = self.pr()
+                    pr["body"] = marker + "md\n" + pr["body"] + ("\n" + marker if closed else "")
+                    self.assertEqual(3, len(violations(pr)))
+            pr = self.pr()
+            pr["body"] = pr["body"].replace(
+                "## How you verified it\nConcrete evidence.",
+                "## How you verified it\n" + marker + "sh\nmake focused-check\npassed\n## example\n" + marker,
+            )
+            self.assertEqual([], violations(pr))
 
     def test_rejected_metadata(self):
         for text in ("<!-- comment -->", "/Users/example/project", "/home/example/project",
