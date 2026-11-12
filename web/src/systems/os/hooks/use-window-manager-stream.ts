@@ -195,6 +195,8 @@ export function useWindowManagerStream({
     let refresh: Promise<void> | null = null;
     let refreshRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshRetryAttempt = 0;
+    // Set once this socket is being replaced: the reconnect fence, not a refresh, clears the error.
+    let recovering = false;
     let pendingMinimumRevision = -1;
     const refreshController = new AbortController();
     const cachedAtOpen = queryClient.getQueryData<WindowManagerSnapshot>(
@@ -272,7 +274,7 @@ export function useWindowManagerStream({
 
     let refreshSnapshot: (minimumRevision: LayoutRevision) => void;
     const scheduleRefreshRetry = () => {
-      if (stopped || refreshRetryTimer !== null) return;
+      if (stopped || recovering || refreshRetryTimer !== null) return;
       const delay = Math.min(8_000, 500 * 2 ** Math.min(refreshRetryAttempt, 4));
       refreshRetryAttempt += 1;
       refreshRetryTimer = setTimeout(() => {
@@ -283,7 +285,7 @@ export function useWindowManagerStream({
 
     refreshSnapshot = (minimumRevision: LayoutRevision) => {
       pendingMinimumRevision = Math.max(pendingMinimumRevision, minimumRevision);
-      if (refresh !== null || refreshRetryTimer !== null) return;
+      if (recovering || refresh !== null || refreshRetryTimer !== null) return;
       let retryNeeded = false;
       refresh = (async () => {
         while (!stopped && currentTopologyRevision() < pendingMinimumRevision) {
@@ -359,6 +361,9 @@ export function useWindowManagerStream({
     const recoverStream = (cause: Error) => {
       if (stopped) return;
       publishError(cause);
+      recovering = true;
+      if (refreshRetryTimer !== null) clearTimeout(refreshRetryTimer);
+      refreshRetryTimer = null;
       const attempt = recoveryAttemptRef.current;
       recoveryAttemptRef.current = attempt + 1;
       liveness.restart(windowManagerReconnectDelay(attempt));
