@@ -2826,13 +2826,7 @@ func (s *catalogReadRefreshService) waitForRefresh(
 	t *testing.T,
 ) modelcatalog.RefreshOptions {
 	t.Helper()
-	select {
-	case refresh := <-s.refreshes:
-		return refresh
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for catalog read refresh")
-		return modelcatalog.RefreshOptions{}
-	}
+	return testutil.Receive(t, "catalog read refresh", time.Second, s.refreshes)
 }
 
 type configReloadACPProbe struct {

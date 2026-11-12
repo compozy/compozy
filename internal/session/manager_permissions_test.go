@@ -1973,52 +1973,43 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		if err := service.Tick(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		select {
-		case opts := <-starts:
-			if opts.ExecutionPolicyValue() != "triage" ||
-				opts.Permissions != compozyconfig.PermissionModeApproveReads ||
-				len(opts.MCPServers) != 0 ||
-				opts.ActivateMCPServers != nil {
-				t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicyValue(), opts.Permissions)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("due check did not start")
+		opts := testutil.Receive(t, "due check start", 5*time.Second, starts)
+		if opts.ExecutionPolicyValue() != "triage" ||
+			opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+			len(opts.MCPServers) != 0 ||
+			opts.ActivateMCPServers != nil {
+			t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicyValue(), opts.Permissions)
 		}
-		deadline := time.Now().Add(5 * time.Second)
-		for {
-			reports, err := db.InstanceReports().
+		var reports []agentinstance.Report
+		testutil.Eventually(t, "unsupported triage settled", 5*time.Second, func() bool {
+			var err error
+			reports, err = db.InstanceReports().
 				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(reports) == 1 {
-				var payload struct {
-					Reason       string               `json:"reason"`
-					Detail       string               `json:"detail"`
-					PicksTracked bool                 `json:"picks_tracked"`
-					Picks        []agentinstance.Pick `json:"picks"`
-					ToolCalls    *struct {
-						Total int `json:"total"`
-					} `json:"tool_calls"`
-				}
-				if err := json.Unmarshal(reports[0].Payload, &payload); err != nil {
-					t.Fatal(err)
-				}
-				if payload.Reason != "triage_unsupported" ||
-					payload.Detail != "The provider does not support read-only triage." ||
-					!payload.PicksTracked ||
-					payload.Picks == nil ||
-					len(payload.Picks) != 0 ||
-					payload.ToolCalls == nil ||
-					payload.ToolCalls.Total != 0 {
-					t.Fatalf("report=%s", reports[0].Payload)
-				}
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("unsupported triage did not settle")
-			}
-			time.Sleep(time.Millisecond)
+			return len(reports) == 1
+		})
+		var payload struct {
+			Reason       string               `json:"reason"`
+			Detail       string               `json:"detail"`
+			PicksTracked bool                 `json:"picks_tracked"`
+			Picks        []agentinstance.Pick `json:"picks"`
+			ToolCalls    *struct {
+				Total int `json:"total"`
+			} `json:"tool_calls"`
+		}
+		if err := json.Unmarshal(reports[0].Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Reason != "triage_unsupported" ||
+			payload.Detail != "The provider does not support read-only triage." ||
+			!payload.PicksTracked ||
+			payload.Picks == nil ||
+			len(payload.Picks) != 0 ||
+			payload.ToolCalls == nil ||
+			payload.ToolCalls.Total != 0 {
+			t.Fatalf("report=%s", reports[0].Payload)
 		}
 		if err := service.Shutdown(t.Context()); err != nil {
 			t.Fatal(err)

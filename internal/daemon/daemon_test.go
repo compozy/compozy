@@ -587,11 +587,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 		}
 		bootResult := make(chan error, 1)
 		go func() { bootResult <- d.boot(testutil.Context(t)) }()
-		select {
-		case <-registry.neutralizeStarted:
-		case <-time.After(time.Second):
-			t.Fatal("daemon did not enter the Loop neutralization barrier")
-		}
+		testutil.Receive(t, "daemon to enter the Loop neutralization barrier", time.Second, registry.neutralizeStarted)
 		select {
 		case runID := <-registry.claimAttempts:
 			t.Fatalf("claim %q started before Loop neutralization completed", runID)
@@ -608,7 +604,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 			if err != nil {
 				t.Fatalf("boot() error = %v", err)
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(testutil.Scaled(t, 5*time.Second)):
 			stacks := make([]byte, 1<<20)
 			stacks = stacks[:runtime.Stack(stacks, true)]
 			t.Logf("boot timeout goroutines:\n%s", stacks)
@@ -690,11 +686,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 				t.Fatalf("Shutdown() error = %v", err)
 			}
 		})
-		select {
-		case <-backfillDone:
-		case <-time.After(time.Second):
-			t.Fatal("post-readiness provenance backfill did not run")
-		}
+		testutil.Receive(t, "post-readiness provenance backfill", time.Second, backfillDone)
 		mu.Lock()
 		gotOrder := slices.Clone(order)
 		mu.Unlock()
@@ -6028,15 +6020,7 @@ func waitForCondition(t *testing.T, label string, fn func() bool) {
 
 func waitForConditionWithin(t *testing.T, label string, timeout time.Duration, fn func() bool) {
 	t.Helper()
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", label)
+	testutil.Eventually(t, label, timeout, fn)
 }
 
 func testHomePaths(t *testing.T) compozyconfig.HomePaths {

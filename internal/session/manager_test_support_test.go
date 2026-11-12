@@ -1428,15 +1428,7 @@ func assertContextRebuiltMarkerCount(t *testing.T, events []store.SessionEvent, 
 
 func waitForCondition(t *testing.T, label string, condition func() bool) {
 	t.Helper()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", label)
+	testutil.Eventually(t, label, 10*time.Second, condition)
 }
 
 func (d *fakeDriver) Kill(_ context.Context, proc *AgentProcess) error {

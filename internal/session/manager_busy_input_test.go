@@ -5728,12 +5728,21 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 
 	t.Run("Should inject the input hook's rewrite and never promote a message the hook refuses", func(t *testing.T) {
 		t.Parallel()
+		// Hold the refusal review until the second message is admitted, so its promotion request always
+		// lands while the first pass runs and must not be dropped.
+		rewriteQueued := make(chan struct{})
+		admitRewrite := sync.OnceFunc(func() { close(rewriteQueued) })
+		t.Cleanup(admitRewrite)
 		dispatcher := &spyHookDispatcher{}
 		dispatcher.dispatchInputPreSubmitFn = func(
-			_ context.Context, payload hookspkg.InputPreSubmitPayload,
+			ctx context.Context, payload hookspkg.InputPreSubmitPayload,
 		) (hookspkg.InputPreSubmitPayload, error) {
 			switch payload.Message {
 			case "status refused":
+				select {
+				case <-rewriteQueued:
+				case <-ctx.Done():
+				}
 				return payload, errors.New("policy refused")
 			case "status rewrite":
 				payload.Message = "status rewritten by policy"
@@ -5750,13 +5759,10 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("rewrite", "sess-b", false)); err != nil {
 			t.Fatal(err)
 		}
-		select {
-		case text := <-f.steered:
-			if !strings.Contains(text, "status rewritten by policy") || strings.Contains(text, "refused") {
-				t.Fatalf("injected text = %q, want only the hook's rewrite", text)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("the allowed message was not injected")
+		admitRewrite()
+		text := testutil.Receive(t, "the allowed message injected", 5*time.Second, f.steered)
+		if !strings.Contains(text, "status rewritten by policy") || strings.Contains(text, "refused") {
+			t.Fatalf("injected text = %q, want only the hook's rewrite", text)
 		}
 		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
 		select {
@@ -7579,7 +7585,7 @@ func TestManagerBoundarySteer(t *testing.T) {
 				go func() { <-release; emitDonePromptEvents(source, sess.ID, req.TurnID); close(source) }()
 				return source, nil
 			}
-			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.Scaled(t, 5*time.Second))
 			defer cancel()
 			if tc.knownTools {
 				prior, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "prior tool turn"})

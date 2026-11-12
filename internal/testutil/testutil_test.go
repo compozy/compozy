@@ -189,3 +189,128 @@ func TestFreeTCPPort(t *testing.T) {
 		}
 	})
 }
+
+// recordingTB captures wait failures so the timeout paths can be asserted
+// without failing the enclosing test.
+type recordingTB struct {
+	testing.TB
+	deadline    time.Time
+	hasDeadline bool
+	failures    []string
+}
+
+func (*recordingTB) Helper() {}
+
+func (r *recordingTB) Fatalf(format string, args ...any) {
+	r.failures = append(r.failures, fmt.Sprintf(format, args...))
+}
+
+type deadlineTB struct {
+	*recordingTB
+}
+
+func (d deadlineTB) Deadline() (time.Time, bool) {
+	return d.deadline, d.hasDeadline
+}
+
+func TestScaled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should multiply the budget by the race-aware time scale", func(t *testing.T) {
+		t.Parallel()
+
+		budget := 2 * time.Second
+		if got, want := Scaled(&recordingTB{}, budget), budget*time.Duration(TimeScale()); got != want {
+			t.Fatalf("Scaled(%v) = %v, want %v", budget, got, want)
+		}
+	})
+
+	t.Run("Should cap a scaled budget at the remaining test deadline", func(t *testing.T) {
+		t.Parallel()
+
+		budget := time.Second
+		tb := deadlineTB{recordingTB: &recordingTB{
+			deadline:    time.Now().Add(deadlineReserve + 2*time.Second),
+			hasDeadline: true,
+		}}
+		got := Scaled(tb, budget)
+		if got < budget || got > 2*time.Second {
+			t.Fatalf("Scaled(%v) near deadline = %v, want within [%v, %v]", budget, got, budget, 2*time.Second)
+		}
+	})
+
+	t.Run("Should never shrink below the requested budget", func(t *testing.T) {
+		t.Parallel()
+
+		budget := 3 * time.Second
+		tb := deadlineTB{recordingTB: &recordingTB{deadline: time.Now(), hasDeadline: true}}
+		if got := Scaled(tb, budget); got != budget {
+			t.Fatalf("Scaled(%v) past deadline = %v, want %v", budget, got, budget)
+		}
+	})
+}
+
+func TestEventually(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return once the condition holds", func(t *testing.T) {
+		t.Parallel()
+
+		var calls int
+		tb := &recordingTB{}
+		Eventually(tb, "third poll", time.Minute, func() bool {
+			calls++
+			return calls == 3
+		})
+		if len(tb.failures) != 0 || calls != 3 {
+			t.Fatalf("Eventually() failures = %v calls = %d, want none after 3 calls", tb.failures, calls)
+		}
+	})
+
+	t.Run("Should fail with the label once the budget elapses", func(t *testing.T) {
+		t.Parallel()
+
+		tb := &recordingTB{}
+		Eventually(tb, "never", 20*time.Millisecond, func() bool { return false })
+		if want := []string{"timed out waiting for never"}; !EqualStringSlices(tb.failures, want) {
+			t.Fatalf("Eventually() failures = %v, want %v", tb.failures, want)
+		}
+	})
+}
+
+func TestReceive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the delivered value", func(t *testing.T) {
+		t.Parallel()
+
+		ch := make(chan int, 1)
+		ch <- 7
+		tb := &recordingTB{}
+		if got := Receive(tb, "value", time.Minute, ch); got != 7 || len(tb.failures) != 0 {
+			t.Fatalf("Receive() = %d failures = %v, want 7 and none", got, tb.failures)
+		}
+	})
+
+	t.Run("Should observe a closed done channel", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		tb := &recordingTB{}
+		Receive(tb, "done", time.Minute, done)
+		if len(tb.failures) != 0 {
+			t.Fatalf("Receive(closed) failures = %v, want none", tb.failures)
+		}
+	})
+
+	t.Run("Should fail with the label when nothing arrives", func(t *testing.T) {
+		t.Parallel()
+
+		tb := &recordingTB{}
+		Receive(tb, "silence", 20*time.Millisecond, make(chan int))
+		if want := []string{"timed out waiting for silence"}; !EqualStringSlices(tb.failures, want) {
+			t.Fatalf("Receive() failures = %v, want %v", tb.failures, want)
+		}
+	})
+}
