@@ -9,6 +9,10 @@ reviews:
   collapse_walkthrough: false
   sequence_diagrams: true
   profile: "chill"
+  pre_merge_checks:
+    docstrings:
+      mode: "warning"
+      threshold: 80
   auto_review:
     base_branches:
       - "stack/.*"
@@ -42,6 +46,18 @@ reviews:
     - "!**/*.stories.tsx"
     - "!web/e2e/**"
   path_instructions:
+    - path: "**/*.go"
+      instructions: |-
+        For Go documentation findings, name each affected function with its file,
+        line and receiver (for methods), and quote any existing attached Go comment.
+        Distinguish production functions, test entry points, benchmarks and helpers.
+        Explain why the existing comment is insufficient before suggesting a change.
+        When explaining Docstring Coverage, list the analyzed functions and their
+        covered/uncovered classification if analyzer evidence is available. Otherwise
+        state that the analyzed set is unavailable; label manual estimates separately
+        and do not infer an analyzer false positive from the aggregate percentage.
+        Prefer concise comments explaining contracts, invariants or lifecycle intent;
+        do not add boilerplate that merely restates a function name to raise coverage.
     - path: "**/*_test.go"
       instructions: |-
         # Test Review Requirements
