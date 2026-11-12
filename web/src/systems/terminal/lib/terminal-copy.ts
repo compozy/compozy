@@ -126,6 +126,11 @@ export const TERMINAL_ERROR_COPY: Record<string, { title: string; detail: string
     title: "This connection pass was already used.",
     detail: "Each attach needs its own — reconnecting gets a fresh one.",
   },
+  // Client-side: attempts kept stalling before the daemon's first frame.
+  attach_timeout: {
+    title: "Couldn't connect to the terminal.",
+    detail: "The connection never finished opening. The terminal is still running — reconnect to try again.",
+  },
   subscriber_limit_reached: {
     title: "This terminal is full.",
     detail: "Someone has to leave before you can watch.",

@@ -247,12 +247,13 @@ describe("TerminalWindowApp — S1 states", () => {
     });
     await screen.findByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`);
 
-    for (const code of ["ticket_expired", "ticket_invalid"]) {
+    for (const code of ["ticket_expired", "ticket_invalid", "attach_timeout"]) {
       await socket.deliver(TERMINAL_SERVER_OP.error, {
         error: { code, message: `refused: ${code}` },
       });
       const notice = await screen.findByTestId(`terminal-notice-${code}`);
-      // A pass can be minted again, so reconnecting is a real remedy.
+      // A pass can be minted again (and a stalled open retried), so
+      // reconnecting is a real remedy.
       expect(within(notice).getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
     }
 
