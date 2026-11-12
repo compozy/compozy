@@ -261,12 +261,7 @@ func (r *modelCatalogRuntime) refresh(
 		} else {
 			r.failureCauses.clear(modelCatalogFailureScope(refreshOpts))
 		}
-		r.afterRefreshMu.RLock()
-		callback := r.afterRefresh
-		r.afterRefreshMu.RUnlock()
-		if err == nil && callback != nil {
-			callback(refreshCtx, refreshOpts)
-		}
+		r.notifyCheckConfigRecovery(refreshCtx, refreshOpts, err)
 		resultCh <- modelCatalogRefreshResult{statuses: statuses, err: err}
 	}(releaseGeneration)
 

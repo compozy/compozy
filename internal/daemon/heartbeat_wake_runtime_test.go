@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,6 +28,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/providers"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
@@ -2223,42 +2225,121 @@ func TestHeartbeatSourceOperatorRuntime(t *testing.T) {
 // persistent source failure reports once and disappears from the digest on recovery.
 // Owning layer: daemon heartbeat runtime and its real SQLite recovery transactions.
 func TestHeartbeatSourceRecovery(t *testing.T) {
-	t.Run("Should recover a config rejected timer within the resolved cadence", func(t *testing.T) {
+	t.Run("Should keep policy and check settings readable with an invalid runtime", func(t *testing.T) {
 		t.Parallel()
 		h := newHeartbeatSourceRuntime(t, true, false)
-		repo, now := h.db.Instances(), h.now()
-		if admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
-			InstanceID: h.instance.ID, OccurrenceID: "config-rejected", ManualCheck: true,
-			Now: now, MaxConcurrent: 1,
-		}); err != nil || !admitted {
-			t.Fatalf("admit=%v error=%v", admitted, err)
+		original := h.env.definitions.agents
+		h.env.definitions.agents = stubSessionCommandAgentResolver(func(name string, workspace *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+			agent, err := original.ResolveAgent(name, workspace)
+			agent.Provider = "missing-provider"
+			return agent, err
+		})
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil || target.Gate != "" || target.TriageProvider != "" || !target.Policy.Enabled {
+			t.Fatalf("policy=%+v error=%v", target, err)
 		}
-		if result, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
-			InstanceID: h.instance.ID, OccurrenceID: "config-rejected", Source: "timer",
-			Result: "failed", Reason: heartbeat.ReasonTriageConfigUnavailable,
-			Interval: time.Hour, MaxInterval: 24 * time.Hour, Now: now, ExpiresAt: now.Add(48 * time.Hour),
-		}); err != nil || !result.Changed {
-			t.Fatalf("finish=%+v error=%v", result, err)
-		}
-		if err := h.checks.RecoverConfiguration(t.Context(), func(heartbeat.CheckTarget) bool { return false }); err != nil {
+		if _, err := h.checks.SetChecks(t.Context(), h.instance.ID, true); err != nil {
 			t.Fatal(err)
-		}
-		before, err := repo.WakeState(t.Context(), h.instance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := h.checks.RecoverConfiguration(t.Context(), nil); err != nil {
-			t.Fatal(err)
-		}
-		after, err := repo.WakeState(t.Context(), h.instance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		next, err := store.ParseTimestamp(after.NextWakeAt)
-		if err != nil || !next.Before(now.Add(24*time.Hour)) || before.NextWakeAt == after.NextWakeAt {
-			t.Fatalf("before=%+v after=%+v error=%v", before, after, err)
 		}
 	})
+
+	for _, mode := range []string{"config", "agent", "live", "other_workspace", "other_profile", "stale", "unknown", "other_model"} {
+		t.Run("Should recover rejected configuration through "+mode, func(t *testing.T) {
+			t.Parallel()
+			h := newHeartbeatSourceRuntime(t, true, false)
+			repo, now := h.db.Instances(), h.now()
+			if admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+				InstanceID: h.instance.ID, OccurrenceID: "config-rejected", ManualCheck: true,
+				Now: now, MaxConcurrent: 1,
+			}); err != nil || !admitted {
+				t.Fatalf("admit=%v error=%v", admitted, err)
+			}
+			if result, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+				InstanceID: h.instance.ID, OccurrenceID: "config-rejected", Source: "timer",
+				Result: "failed", Reason: heartbeat.ReasonTriageConfigUnavailable,
+				Interval: time.Hour, MaxInterval: 24 * time.Hour, Now: now, ExpiresAt: now.Add(48 * time.Hour),
+			}); err != nil || !result.Changed {
+				t.Fatalf("finish=%+v error=%v", result, err)
+			}
+			before, err := repo.WakeState(t.Context(), h.instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+			state := &bootState{cfg: previous, logger: slog.Default(),
+				runtimeWorkers: daemonRuntimeWorkers{proactiveChecks: h.checks}}
+			switch mode {
+			case "config":
+				next := previous
+				next.Agents.Heartbeat.TriageModels = map[string]string{acpmock.ProviderName: "fixed-model"}
+				if failures := (daemonSettingsRuntimeApplier{daemon: &Daemon{config: previous}, state: state}).ApplyActiveConfig(t.Context(), &next); len(failures) != 0 {
+					t.Fatalf("apply failures=%+v", failures)
+				}
+			case "agent":
+				state.agentCatalog = newResourceCatalog(cloneAgentDef)
+				bindInstanceCatalogReconciliation(t.Context(), state, func(context.Context) error { return nil })
+				state.agentCatalog.Replace(1, nil)
+			default:
+				target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model := modelcatalog.Model{ProviderID: target.TriageProvider, ModelID: target.TriageModel,
+					AvailabilityState: modelcatalog.AvailabilityStateAvailableLive}
+				scope := modelcatalog.CatalogExecutionContext{Scope: modelcatalog.ExecutionScopeWorkspace,
+					ProfileID: h.instance.ProfileID, WorkspaceID: h.instance.WorkspaceID}
+				switch mode {
+				case "other_workspace":
+					scope.WorkspaceID = "other"
+				case "other_profile":
+					scope.ProfileID = "other"
+				case "stale":
+					model.Stale = true
+				case "unknown":
+					model.AvailabilityState = modelcatalog.AvailabilityStateUnknown
+				case "other_model":
+					model.ModelID = "other"
+				}
+				catalog, err := newModelCatalogRuntime(t.Context(), &recordingModelCatalogService{models: []modelcatalog.Model{model}}, slog.Default(), h.now, time.Second)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := catalog.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				state.modelCatalog = catalog
+				bindCheckConfigRecovery(state, h.checks)
+				if _, err := catalog.Refresh(t.Context(), modelcatalog.RefreshOptions{ProviderID: target.TriageProvider, ExecutionContext: scope}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			after, err := repo.WakeState(t.Context(), h.instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantRecovery := mode == "config" || mode == "agent" || mode == "live"
+			if !wantRecovery {
+				if after.NextWakeAt != before.NextWakeAt {
+					t.Fatalf("unmatched recovery changed deadline: before=%+v after=%+v", before, after)
+				}
+				return
+			}
+			target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cadence := target.Policy.Preferences.MinInterval
+			if cadence <= 0 {
+				cadence = h.config.Interval
+			}
+			if after.NextWakeAt != store.FormatTimestamp(now.Add(cadence)) {
+				t.Fatalf("before=%+v after=%+v want cadence=%v", before, after, cadence)
+			}
+		})
+	}
+
 	t.Run("Should recover an interrupted bound triage and repeat its input [IT-004]", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, true)
 		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":7}`)})

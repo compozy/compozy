@@ -189,6 +189,19 @@ func (q *Queries) GetInstanceOccurrence(ctx context.Context, arg GetInstanceOccu
 	return i, err
 }
 
+const getInstanceWakeDiagnostic = `-- name: GetInstanceWakeDiagnostic :one
+SELECT reason FROM agent_heartbeat_wake_events
+WHERE instance_id=? AND NOT (source='instance_check' AND result IN ('skipped','cancelled'))
+ORDER BY created_at DESC,id DESC LIMIT 1
+`
+
+func (q *Queries) GetInstanceWakeDiagnostic(ctx context.Context, instanceID string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getInstanceWakeDiagnostic, instanceID)
+	var reason string
+	err := row.Scan(&reason)
+	return reason, err
+}
+
 const getInstanceWakeState = `-- name: GetInstanceWakeState :one
 SELECT instance_id, next_wake_at, last_wake_at, last_digest, last_digest_at, automation_cursor, unattended_turns, engaged_at, events_omitted, quiet_streak, failure_streak, occurrence_id, triage_session_id, occurrence_started_at, rotation_due_session, occurrence_cancelled FROM agent_instance_wake_state WHERE instance_id = ?
 `
@@ -436,6 +449,7 @@ next_wake_at=CASE WHEN next_wake_at>?1 THEN ?1 ELSE next_wake_at END
 WHERE agent_instance_wake_state.instance_id=?2 AND occurrence_id=''
 AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id=agent_instance_wake_state.instance_id AND i.state='active' AND i.archived_at IS NULL AND i.checks_enabled=1)
 AND (SELECT reason FROM agent_heartbeat_wake_events e WHERE e.instance_id=agent_instance_wake_state.instance_id
+AND NOT (e.source='instance_check' AND e.result IN ('skipped','cancelled'))
 ORDER BY e.created_at DESC,e.id DESC LIMIT 1)='triage_config_unavailable'
 `
 

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"time"
@@ -75,7 +76,11 @@ func (d *Daemon) bootMCPDeclarationWatcher(ctx context.Context, state *bootState
 		paths: mcpDeclarationPaths(d.homePaths, state.registry, bootProfileCatalog{state: state}),
 		sync: func(refreshCtx context.Context) error {
 			state.workspaceResolver.InvalidateAll()
-			return state.toolMCPResources.Sync(refreshCtx)
+			err := state.toolMCPResources.Sync(refreshCtx)
+			if checks := state.runtimeWorkers.proactiveChecks; checks != nil {
+				err = errors.Join(err, checks.RecoverConfiguration(refreshCtx, nil))
+			}
+			return err
 		},
 	}
 	if syncer, ok := state.toolMCPResources.(*toolMCPSourceSyncer); ok {

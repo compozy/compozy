@@ -66,13 +66,12 @@ func resolveInstanceCheckPolicy(
 	if err != nil {
 		return err
 	}
-	runtime, err := workspace.Config.ResolveAgent(agent)
-	if err != nil {
-		return err
-	}
-	target.TriageProvider, target.TriageModel = runtime.Provider, runtime.Model
-	if model := workspace.Config.Agents.Heartbeat.TriageModels[runtime.Provider]; model != "" {
-		target.TriageModel = model
+	// Runtime validation belongs to triage startup, not policy or report-action reads.
+	if runtime, runtimeErr := workspace.Config.ResolveAgent(agent); runtimeErr == nil {
+		target.TriageProvider, target.TriageModel = runtime.Provider, runtime.Model
+		if model := workspace.Config.Agents.Heartbeat.TriageModels[runtime.Provider]; model != "" {
+			target.TriageModel = model
+		}
 	}
 	target.ReadOnlyTools = heartbeat.AuthorityOverrides(agent.MCPServers)
 	target.DefinitionDir = filepath.Dir(agent.SourcePath)

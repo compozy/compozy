@@ -46,7 +46,8 @@ func (s *CheckService) RecoverConfiguration(ctx context.Context, matches func(Ch
 				continue
 			}
 			// Recovery has no jitter so the retry is due within one resolved cadence.
-			if err := storage.RecoverConfigRejectedWake(ctx, instance.ID, s.now().Add(s.checkInterval(&target.Policy))); err != nil {
+			next := s.now().Add(s.checkInterval(&target.Policy))
+			if err := storage.RecoverConfigRejectedWake(ctx, instance.ID, next); err != nil {
 				failures = append(failures, err)
 			}
 		}

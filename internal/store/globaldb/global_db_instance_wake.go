@@ -22,9 +22,9 @@ func (r *InstanceRepo) WakeState(ctx context.Context, id string) (heartbeat.Inst
 		return heartbeat.InstanceWakeState{}, err
 	}
 	state := instanceWakeState(row)
-	checks, err := r.readQueries.ListInstanceCheckIns(ctx, sqlcgen.ListInstanceCheckInsParams{InstanceID: id, Cursor: "", PageLimit: 1})
-	if len(checks) > 0 {
-		state.LastReason = checks[0].Reason
+	state.LastReason, err = r.readQueries.GetInstanceWakeDiagnostic(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return state, nil
 	}
 	return state, err
 }

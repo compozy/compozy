@@ -94,7 +94,8 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 		a.state.toolProjectionEpoch.Advance()
 	}
 	// Infrequent config application compares values rather than cloned pointer identities.
-	if previous.Defaults != next.Defaults || !reflect.DeepEqual(previous.Agents, next.Agents) || !reflect.DeepEqual(previous.Providers, next.Providers) {
+	if previous.Defaults != next.Defaults || !reflect.DeepEqual(previous.Agents, next.Agents) ||
+		!reflect.DeepEqual(previous.Providers, next.Providers) {
 		if checks := a.state.runtimeWorkers.proactiveChecks; checks != nil {
 			if err := checks.RecoverConfiguration(ctx, nil); err != nil {
 				a.state.logger.ErrorContext(ctx, "daemon: recover config rejected checks", "error", err)
