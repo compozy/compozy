@@ -703,6 +703,258 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 	}
 
+	// Invariant: runtime loss that discovers a signed-out provider gets the auth window and verified wake.
+	// Owner: session manager; canonical provider-auth recovery suite.
+	t.Run(
+		"Should switch runtime exit recovery to sign in recovery and wake on verified credentials",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager.promptRecoveryDelays = []time.Duration{0}
+			h.manager.authRecoveryDelays = []time.Duration{time.Hour}
+			h.manager.authRecoveryWindow = 2 * time.Hour
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			var signedIn atomic.Bool
+			h.driver.startHook = func(opts acp.StartOpts, attempt int) (*fakeProcess, error) {
+				if !signedIn.Load() {
+					return nil, acp.WrapFailure(
+						store.FailureProviderAuth,
+						"provider sign-in required",
+						errors.New("not logged in"),
+					)
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("signed-in-%d", attempt)), nil
+			}
+			var prompts atomic.Int64
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				stream := make(chan acp.AgentEvent, 1)
+				if prompts.Add(1) == 1 {
+					proc.crash(errors.New("runtime dropped"), "runtime dropped")
+					stream <- acp.AgentEvent{Type: acp.EventTypeError, Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "runtime dropped"}}
+				} else {
+					stream <- doneEvent(proc, req.TurnID)
+				}
+				close(stream)
+				return stream, nil
+			}
+			stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var delivered []acp.AgentEvent
+			for event := range stream {
+				delivered = append(delivered, event)
+				if event.Type == acp.EventTypeRuntimeRecoveryStarted && infoProviderAuthRecovery(session.Info()) {
+					signedIn.Store(true)
+					info := session.Info()
+					if err := h.manager.RecoverProviderAuthentication(
+						t.Context(),
+						info.ProfileID,
+						info.Provider,
+						authproviders.AuthenticationRouteFingerprint(
+							info.Provider,
+							providerConfigFromResolvedAgent(session.providerRoutingSnapshot()),
+						),
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if countAgentEvents(delivered, acp.EventTypeError) != 0 ||
+				countAgentEvents(delivered, acp.EventTypeDone) != 1 {
+				t.Fatalf("events = %#v, want automatic completion after native sign in", delivered)
+			}
+			if !signedIn.Load() || BadgeForInfo(session.Info()) == BadgeWaitingForAuth {
+				t.Fatal("verified sign in did not clear the wait")
+			}
+		},
+	)
+
+	t.Run("Should cancel after runtime exit switches to sign in recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0}
+		h.manager.authRecoveryDelays = []time.Duration{time.Hour}
+		h.manager.authRecoveryWindow = 2 * time.Hour
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, acp.WrapFailure(
+				store.FailureProviderAuth,
+				"provider sign-in required",
+				errors.New("not logged in"),
+			)
+		}
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			proc.crash(errors.New("runtime dropped"), "runtime dropped")
+			stream := make(chan acp.AgentEvent, 1)
+			stream <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "runtime dropped"}}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "native sign-in recovery", func() bool { return infoProviderAuthRecovery(session.Info()) })
+		if _, err := h.manager.CancelPrompt(t.Context(), session.ID); err != nil {
+			t.Fatal(err)
+		}
+		events := collectEvents(t, stream)
+		if countAgentEvents(events, acp.EventTypeError) != 0 || countAgentEvents(events, acp.EventTypeDone) != 1 {
+			t.Fatalf("cancel events = %#v", events)
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeDone && event.StopReason != string(acp.PromptStopReasonCancelled) {
+				t.Fatalf("cancel stop reason = %q", event.StopReason)
+			}
+		}
+	})
+
+	t.Run("Should keep retrying the pinned model while the offline catalog recovers", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{0, 0}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		var prompts, starts atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			stream := make(chan acp.AgentEvent, 1)
+			if prompts.Add(1) == 1 {
+				stream <- authLostEvent(proc, req.TurnID)
+			} else {
+				stream <- doneEvent(proc, req.TurnID)
+			}
+			close(stream)
+			return stream, nil
+		}
+		h.driver.startHook = func(opts acp.StartOpts, attempt int) (*fakeProcess, error) {
+			if starts.Add(1) == 1 {
+				return nil, acp.WrapFailure(
+					store.FailureProtocol,
+					"model negotiation failed",
+					acp.ValidateModelConfigValue([]acp.SessionConfigOption{
+						{
+							ID:       "model",
+							Category: "model",
+							Kind:     acp.SessionConfigOptionKindSelect,
+							Values:   []acp.SessionConfigOptionValue{{Value: "default"}, {Value: "opus"}},
+						},
+					}, "claude-opus-5-5"),
+				)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("recovered-%d", attempt)), nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := collectEvents(t, stream)
+		if starts.Load() != 2 || countAgentEvents(events, acp.EventTypeError) != 0 ||
+			countAgentEvents(events, acp.EventTypeDone) != 1 {
+			t.Fatalf("recovery starts=%d events=%#v", starts.Load(), events)
+		}
+	})
+
+	t.Run("Should retain login guidance when runtime exit exhausts the sign in window", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0}
+		h.manager.authRecoveryDelays = []time.Duration{0}
+		session := createSession(t, h)
+		previous := session.processHandle()
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, acp.WrapFailure(
+				store.FailureProviderAuth,
+				"provider sign-in required",
+				errors.New("not logged in"),
+			)
+		}
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			proc.crash(errors.New("runtime dropped"), "runtime dropped")
+			stream := make(chan acp.AgentEvent, 1)
+			stream <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "runtime dropped"}}
+			close(stream)
+			return stream, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "original request")
+		if err != nil {
+			t.Fatal(err)
+		}
+		events := collectEvents(t, stream)
+		if countAgentEvents(events, acp.EventTypeError) != 1 {
+			t.Fatalf("events = %#v", events)
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeError &&
+				(event.ProviderError == nil || event.ProviderError.NextAction != acp.ProviderFailureActionLogin) {
+				t.Fatalf("terminal error = %#v, want login", event)
+			}
+		}
+		if session.processHandle() != nil {
+			t.Fatal("exhausted sign-in wait retained the dead process binding")
+		}
+		if err := h.manager.handleProcessExit(t.Context(), session, previous, previous.Wait()); err != nil {
+			t.Fatal(err)
+		}
+		if got := BadgeForInfo(session.Info()); got != BadgeWaitingForAuth {
+			t.Fatalf("badge = %s, want waiting for sign in", got)
+		}
+	})
+
+	t.Run(
+		"Should report a genuine recovery model rejection instead of retaining sign in attention",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager.authRecoveryDelays = []time.Duration{0, 0}
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				stream := make(chan acp.AgentEvent, 1)
+				stream <- authLostEvent(proc, req.TurnID)
+				close(stream)
+				return stream, nil
+			}
+			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+				return nil, acp.WrapFailure(
+					store.FailureProtocol,
+					"model negotiation failed",
+					acp.ValidateModelConfigValue([]acp.SessionConfigOption{
+						{
+							ID:       "model",
+							Category: "model",
+							Kind:     acp.SessionConfigOptionKindSelect,
+							Values:   []acp.SessionConfigOptionValue{{Value: "another-model"}},
+						},
+					}, "claude-opus-5-5"),
+				)
+			}
+			stream, err := h.manager.Prompt(t.Context(), session.ID, "needs recovery")
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := collectEvents(t, stream)
+			if countAgentEvents(events, acp.EventTypeError) != 1 ||
+				countAgentEvents(events, acp.EventTypeRuntimeRecoveryStarted) != len(h.manager.authRecoveryDelays) {
+				t.Fatalf("events = %#v", events)
+			}
+			for _, event := range events {
+				if event.Type == acp.EventTypeError &&
+					(event.Failure == nil || event.Failure.Kind != store.FailureProtocol || event.ProviderError != nil && event.ProviderError.Code == acp.ProviderErrorAuthRequired) {
+					t.Fatalf("terminal error = %#v", event)
+				}
+			}
+			info := session.Info()
+			if BadgeForInfo(info) != BadgeFailed || info.RuntimeRecovery != nil || info.Failure == nil ||
+				info.Failure.Kind != store.FailureProtocol {
+				t.Fatalf("rejection must retain truthful failed state: %#v", info)
+			}
+		},
+	)
+
 	t.Run("Should rebuild a stale authenticated process on the next prompt after exhaustion", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

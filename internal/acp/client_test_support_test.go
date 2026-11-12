@@ -527,7 +527,7 @@ func (a *helperACPAgent) Initialize(
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
-				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" ||
+				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" || a.scenario == "load_claude_models" ||
 				a.scenario == "fork_session" || a.scenario == "stall_load",
 			SessionCapabilities: sessionCaps,
 			PromptCapabilities: acpsdk.PromptCapabilities{
@@ -753,8 +753,18 @@ func (a *helperACPAgent) LoadSession(
 			Modes: helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 		}, nil
 	}
-	if a.scenario == "load_config_options" {
+	if a.scenario == "load_config_options" || a.scenario == "load_claude_models" {
 		configOptions := helperConfigOptions("loaded-model", "high")
+		if a.scenario == "load_claude_models" {
+			configOptions = []acpsdk.SessionConfigOption{
+				helperSelectConfigOption("model", "Model", "default", "default", "opus"),
+			}
+			if _, err := os.Stat(a.filePath); err == nil {
+				configOptions = []acpsdk.SessionConfigOption{
+					helperSelectConfigOption("model", "Model", "default", "default", "claude-opus-5-5"),
+				}
+			}
+		}
 		a.setHelperConfigOptions(configOptions)
 		return acpsdk.LoadSessionResponse{
 			Modes:         helperModeState("loaded-mode"),

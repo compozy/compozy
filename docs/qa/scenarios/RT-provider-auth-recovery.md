@@ -12,7 +12,7 @@ fix_status:
 retest_status: pass
 fix_commits:
 evidence: docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
-last_report: docs/qa/reports/2026-11-11-issue-1481-provider-reauth.md
+last_report: docs/qa/reports/2026-11-12-issue-1557-recovery-model-list.md
 overlaps: RT-provider-error-handoff; RT-session-fallback-chain
 ---
 
@@ -91,3 +91,18 @@ A verified successful Usage collection must signal the same recovery; a refused 
 must not. Keep a healthy session and a different provider/profile/account route as isolation controls.
 The owning `TestPromptProviderAuthRecovery` uses a provider that retains invalid credentials until
 process replacement, covering the failure that a file-presence-only mock cannot reproduce.
+
+Pinned-model sign-out regression (#1557): keep the full Claude model ID pinned.
+While the synthetic login is absent, make the resumed adapter advertise only its
+offline aliases. Native `auth status` must report a login wait before model
+negotiation, preserving the auth window rather than reporting model unavailability.
+Restore the login and account model list, then run the provider auth probe; the
+matching recovery must retry promptly, retain the conversation, and finish without
+a daemon restart. A runtime drop that discovers missing login receives the auth
+window as well. Verified Usage publication uses the same wake path; an unverified
+ownership-change log alone is not proof of a valid login.
+
+After a successful login, deliberately request a genuinely unavailable model.
+After its bounded retries, recovery must emit the configuration rejection once, without native sign-in or
+permission guidance. Child attention must distinguish provider sign-in from a
+pending permission. Do not substitute a family alias for the pinned full ID.

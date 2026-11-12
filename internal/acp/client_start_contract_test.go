@@ -313,6 +313,56 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 	t.Parallel()
 	// Invariant: a resume-only ACP agent retains its native conversation without transcript replay.
 	// Owner: ACP driver; canonical start negotiation suite with a subprocess at the protocol boundary.
+	// Invariant: a native sign-out is classified before the resume adapter's offline model list.
+	// Owner: ACP driver; existing subprocess start/resume contract suite.
+	t.Run("Should resume the pinned full Claude model after sign in restores its model list", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+		credential := filepath.Join(t.TempDir(), "signed-in")
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Command = helperCommand(t)
+		probe := &providers.ProbeEnv{
+			ProviderName:   "claude",
+			BypassCache:    true,
+			LookPath:       func(string) (string, error) { return os.Executable() },
+			ResolveCommand: func(context.Context, string, []string, string) (string, error) { return os.Executable() },
+			RunCommand: func(context.Context, providers.ProviderAuthCommandSpec) (providers.ProviderAuthCommandResult, error) {
+				if _, err := os.Stat(credential); err == nil {
+					return providers.ProviderAuthCommandResult{Stdout: `{"loggedIn":true}`}, nil
+				}
+				return providers.ProviderAuthCommandResult{ExitCode: 1, Stdout: `{"loggedIn":false}`}, nil
+			},
+		}
+		opts := StartOpts{AgentName: "helper", ProviderName: "claude", ProviderConfig: &provider,
+			ProviderAuthEnv: probe, Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("load_claude_models", credential), ResumeSessionID: "existing-claude",
+			PreferredModel: "claude-opus-5-5"}
+		proc, err := driver.Start(t.Context(), opts)
+		if proc != nil {
+			stopProcess(t, driver, proc)
+			t.Fatal("signed-out provider started")
+		}
+		diagnostic, ok := ProviderFailureDiagnosticFromError(err)
+		if !ok || diagnostic.Action != ProviderFailureActionLogin {
+			t.Fatalf("signed-out resume = %v, want native login guidance before model negotiation", err)
+		}
+		if err := os.WriteFile(credential, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		proc, err = driver.Start(t.Context(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		if proc.SessionID != opts.ResumeSessionID {
+			t.Fatalf("conversation = %q", proc.SessionID)
+		}
+		option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
+		if !ok || option.CurrentValueID != opts.PreferredModel {
+			t.Fatalf("resumed model = %#v", option)
+		}
+	})
+
 	t.Run("Should use session resume when load is unsupported", func(t *testing.T) {
 		t.Parallel()
 		driver := New()
