@@ -203,8 +203,25 @@ The baseline job wall times (including setup) are 41.40 / 50.34 / 97.43 minutes
 (minimum / median / maximum), totaling 490.85 runner-minutes. This uses the complete
 job durations rather than the analysis's approximate execution-only estimate.
 
-Validation is CI-only by operator direction. The implementation PR records its own
-before/after shard wall-time distribution and runner-minutes against main run
-43245729994. Timeout reductions require those receipts first. Native tools, hooks,
+The first complete PR run, [43293868078](https://github.com/compozy/compozy/actions/runs/43293868078),
+on `9e59a1bcde14d9e1393cf033cef7fd8bb2ad4f2e` passed all eight shards:
+
+| Full job wall time, including setup | Minimum | Median | Maximum | Runner-minutes |
+| --- | ---: | ---: | ---: | ---: |
+| Main baseline 43245729994 | 41.40 min | 50.34 min | 97.43 min | 490.85 |
+| PR 43293868078 | 13.07 min | 22.23 min | 29.03 min | 174.20 |
+
+This single completed sample reduces total runner time by 64.5% and the slowest
+shard by 70.2%; it is not a repeated benchmark or a forecast for main cache hits.
+The 75 package invocations report total wall time separately from test
+execution time: the slowest invocation took 21m45s in total, with 13m28s reported
+for test execution. `go test -timeout` applies to the test binary, not compilation.
+Those receipts support a 60-minute job ceiling and a 20-minute integration test
+binary timeout. The E2E runner retains its separate 45-minute timeout. Per-test
+operation deadlines, race detection and preservation assertions are unchanged.
+
+Validation is CI-only by operator direction. PR #1617 records current-head CI
+and reviewer evidence; the timeout reduction requires a new full CI run. Native
+tools, hooks,
 configuration, public APIs/CLI, user/workspace data, the official product skill and
 product UI/QA scenarios are unaffected; delivery instructions change with the lane.

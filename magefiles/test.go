@@ -163,7 +163,7 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		goIntegrationPackageLimit,
 		"-parallel=4",
 		"-timeout",
-		goIntegrationTestTimeout,
+		goE2ETestTimeout,
 		"-count=1",
 		"-artifacts",
 		"-outputdir",

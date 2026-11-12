@@ -17,8 +17,8 @@ jobs:
   integration:
     name: Full Integration Suite (${{ matrix.group }} ${{ matrix.shard_index }})
     runs-on: ubuntu-latest
-    # Keep the original ceiling until PR timing receipts justify reducing it.
-    timeout-minutes: 150
+    # PR run 43293868078: slowest complete shard 29.03 minutes.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
