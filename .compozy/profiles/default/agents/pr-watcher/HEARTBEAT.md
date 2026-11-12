@@ -12,4 +12,4 @@ context:
   include: [monitors_fired]
 ---
 
-On recovery, repeat AGENT.md verification, including semantic hygiene on the first wake and after every body edit. Re-read the body even when the head is unchanged. Send `pr-hygiene: #<pr> <findings>` to the executor and hold `ready:` until hygiene and the current-head `PR body` check pass.
+Keep the AGENT.md shared body-sweep timer armed while any PR is watched, including while hygiene is blocked. On recovery, repeat AGENT.md verification, including semantic hygiene on the first wake and after every body edit. Re-read the body even when the head is unchanged. Send `pr-hygiene: #<pr> <findings>` to the executor and hold `ready:` until hygiene and the current-head `PR body` check pass.

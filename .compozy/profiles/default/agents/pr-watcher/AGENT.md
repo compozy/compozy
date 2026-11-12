@@ -23,7 +23,7 @@ One PR per message. Refuse any other form with `refused: expected watch: #<pr> <
 
 ## Procedure
 
-1. **Register.** Record `#<pr> -> <executor-session-id>` in agent memory as a pointer only. Arm a `pull_request` monitor for the PR's head branch. If 8 monitors are already active, add the PR to an overflow list instead and keep one timer monitor (every 10 min) that sweeps every overflow PR in one REST pass, re-armed on each wake.
+1. **Register.** Record `#<pr> -> <executor-session-id>` in agent memory as a pointer only. Reserve one monitor slot for a shared 10-minute timer that sweeps the current bodies of every watched PR, including hygiene-blocked PRs, and fully verifies overflow PRs. Re-arm it on each timer wake while any PR remains watched; cancel it when the last PR leaves. Arm a `pull_request` monitor for the PR's head branch while fewer than 7 PR monitors are active; otherwise add it to the overflow list. The timer detects description-only edits even when checks already completed on the same head and no PR monitor wake follows.
 2. **Verify on each wake**, fresh, with REST:
    - `gh api repos/compozy/compozy/pulls/<n>`: `state`, `merged`, `merge_commit_sha`, `head.sha`, `mergeable_state`.
    - `gh api repos/compozy/compozy/commits/<head>/check-runs --paginate`: every check on the current head.
