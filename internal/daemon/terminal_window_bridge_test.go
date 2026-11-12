@@ -35,7 +35,11 @@ func newBridgeTestManager(t *testing.T) *windowmanager.Manager {
 	t.Helper()
 	manager, err := windowmanager.NewService(
 		windowmanager.NewMemoryRepository(),
-		windowmanager.NewMemoryWorkspaceResolver(bridgeTestWorkspace),
+		windowmanager.NewMemoryWorkspaceResolver(
+			bridgeTestWorkspace,
+			windowmanager.GlobalDesktopWorkspaceID,
+			windowmanager.UserDesktopWorkspaceID,
+		),
 		nil,
 		windowmanager.DefaultConfig(),
 	)
