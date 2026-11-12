@@ -276,7 +276,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const callResult = await pending;
     activeCall = undefined;
     expect(callResult.isError).toBeFalsy();
-    const execution = readToolResult<TerminalToolResult>(callResult);
+    const execution = readToolResult<TerminalToolResult & { command_id: string }>(callResult);
     expect(execution).toMatchObject({ still_running: true });
     const terminalId = execution.terminal_id;
 
@@ -326,9 +326,9 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
           harness.workspace.id
         )}/terminals/journal?profile=default`
       );
-      return journal.entries.find(entry => entry.terminal_id === terminalId);
+      return journal.entries.find(entry => entry.command_id === execution.command_id);
     };
-    await expect.poll(journalEntry).toMatchObject({ approval: "approved_once" });
+    await expect.poll(journalEntry).toMatchObject({ approval: "approved_once", terminal_id: terminalId });
     const row = await journalEntry();
     if (!row) throw new Error("Approved terminal exec was absent from the journal.");
     const journalWindow = await ensureAppWindow(appPage, "Terminal", "terminal");

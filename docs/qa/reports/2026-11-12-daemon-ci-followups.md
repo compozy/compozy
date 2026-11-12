@@ -138,3 +138,13 @@ accepts that mode without credential slots or an ACP auth-method requirement;
 fixture users retain `none` and its local-transport rationale. The subprocess and
 HOME remain test-owned; no real provider login is involved. Full backoff, shutdown
 and durable-intent assertions are unchanged and await the new CI head.
+
+The subsequent [Web shard 6 job 130995361828](https://github.com/compozy/compozy/actions/runs/43161958417/job/130995361828)
+on `0245f05a0` passes E2E-008 and reaches E2E-003's journal assertion after
+observing live output, successful exit and window retirement. Its remaining
+failure selects a row with approval `none`: the stdin-release write is itself
+a promptless journal command on the same terminal. The execution tool's public
+result requires a `command_id`; the owning E2E now selects that exact command's
+row and still requires both `approved_once` and the expected terminal ID. It
+does not select by the expected approval value or weaken the approval invariant.
+Current-head CI must confirm the repaired correlation and remaining UI walk.
