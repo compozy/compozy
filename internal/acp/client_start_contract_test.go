@@ -377,7 +377,8 @@ func TestStartClaudeStaleModelPicker(t *testing.T) {
 			if tc.response == "ignored" {
 				wantSetters = 0
 			}
-			if setters := len(captureRequestParamsForMethod(t, capture, acpsdk.AgentMethodSessionSetConfigOption)); setters != wantSetters {
+			setters := len(captureRequestParamsForMethod(t, capture, acpsdk.AgentMethodSessionSetConfigOption))
+			if setters != wantSetters {
 				t.Fatalf("model setters = %d, want %d", setters, wantSetters)
 			}
 			if tc.response != "" {

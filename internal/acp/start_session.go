@@ -163,8 +163,7 @@ func (d *Driver) applySessionConfiguration(
 		return WrapFailure(
 			store.FailureProtocol,
 			"ACP session model negotiation failed",
-			fmt.Errorf("acp: set session model for provider %q agent %q: %w",
-				normalized.ProviderName, normalized.AgentName, err),
+			fmt.Errorf("acp: provider %q agent %q model: %w", normalized.ProviderName, normalized.AgentName, err),
 		)
 	}
 
