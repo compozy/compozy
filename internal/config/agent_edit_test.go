@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -65,6 +66,57 @@ Prompt.
 			reloadedOptions[0].ValueID != "1m" || reloadedOptions[1].ID != "thinking" ||
 			reloadedOptions[1].BoolValue == nil || !*reloadedOptions[1].BoolValue {
 			t.Fatalf("LoadAgentDefFile() runtime defaults = %#v", reloaded)
+		}
+	})
+
+	t.Run("Should keep bounded input forms across edits, drafts and clones", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), agentDefName)
+		forms := "accepts:\n  - \"intake:   <text>\"\n  - \"  \"\n  - " + strings.Repeat(
+			"x",
+			MaxAgentAcceptRunes+40,
+		) + "\n"
+		for index := range MaxAgentAccepts {
+			forms += fmt.Sprintf("  - \"extra-%d:\"\n", index)
+		}
+		writeFile(t, path, "---\nname: writer\nprovider: codex\nkind: always_on\n"+forms+"---\n\nPrompt.\n")
+
+		agent, err := EditAgentDefFile(path, func(agent *AgentDef) error {
+			agent.Description = "Files issues"
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("EditAgentDefFile() error = %v", err)
+		}
+		reloaded, err := LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile() error = %v", err)
+		}
+		for _, got := range [][]string{
+			agent.AcceptsValue(), reloaded.AcceptsValue(), CloneAgentDef(reloaded).AcceptsValue(),
+			AgentDefinitionDraftFromDef(reloaded).Accepts,
+		} {
+			if len(got) != MaxAgentAccepts || got[0] != "intake: <text>" ||
+				len([]rune(got[1])) != MaxAgentAcceptRunes || got[2] != "extra-0:" {
+				t.Fatalf("accepts = %#v", got)
+			}
+		}
+		if got := reloaded.AcceptedInputs(); len(got) != MaxAgentAccepts || got[0] != "intake: <text>" {
+			t.Fatalf("declared accepted inputs = %#v", got)
+		}
+		prose := AgentDef{Prompt: "Intro.\n\n## Rules\n\n```text\nnot: input\n```\n\n## Input\n\n" +
+			"Send one of:\n\n```text\nintake: <text>\nsweep:\n```\n\n```text\nlater: block\n```\n"}
+		if got := prose.AcceptedInputs(); len(got) != 2 || got[0] != "intake: <text>" || got[1] != "sweep:" {
+			t.Fatalf("accepted inputs from the Input section = %#v", got)
+		}
+		nested := AgentDef{Prompt: "## Example\n\n````markdown\n## Input\n```text\nexample: <text>\n```\n````\n\n" +
+			"## Input\n\n```text\nreal: <text>\n```\n"}
+		if got := nested.AcceptedInputs(); len(got) != 1 || got[0] != "real: <text>" {
+			t.Fatalf("accepted inputs with a fenced example = %#v", got)
+		}
+		if got := (AgentDef{Prompt: "## Input\n\nFree text."}).AcceptedInputs(); got != nil {
+			t.Fatalf("accepted inputs without a block = %#v", got)
 		}
 	})
 }

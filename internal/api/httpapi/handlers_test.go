@@ -4291,8 +4291,8 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		}
 		var canceled contract.SessionMonitorResponse
 		decodeJSONResponse(t, response, &canceled)
-		if canceled.Monitor.Status != string(monitorpkg.StatusCanceled) || canceled.Monitor.FiredAt == nil {
-			t.Fatalf("canceled=%#v", canceled.Monitor)
+		if canceled.Monitor.Status != string(monitorpkg.StatusCanceled) || canceled.Monitor.FiredAt != nil {
+			t.Fatalf("canceled=%#v, want canceled without a firing timestamp", canceled.Monitor)
 		}
 		if counts := monitors.ActiveCounts([]string{"sess-123"}); len(counts) != 0 {
 			t.Fatalf("active after cancel=%v", counts)

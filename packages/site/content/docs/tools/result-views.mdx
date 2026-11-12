@@ -284,8 +284,10 @@ The same rules apply to a tool node's own `produces`: declaring a field that onl
 fails with `result_view_field_requires_full`; declaring a field neither view has fails with
 `unresolvable_path`.
 
-A run pins the contract of the view each node selected. A run started before the upgrade keeps the
-contract it pinned and its nodes return the full record.
+A run pins the contract of the view each node selected. Starting with v0.6.1, a run started before
+v0.6.0 fails its next affected tool action with `ActionContractStale` (`action_contract_stale`),
+because the pre-view translation has ended. Start a new run with
+`compozy loop run --name <name>` to pin current contracts; Resume does not refresh old pins.
 
 ## Hooks
 
@@ -406,6 +408,8 @@ Compact session records also preserve `stop_cause`, `permission_mode_degraded` a
 criterion prompts. Skill list/search omit diagnostics only when every diagnostic is valid,
 verified, and has no warning, failure or activation reason; otherwise they retain the entire list.
 
-Pre-view Loop snapshots are translated to full for one release. The translation and the
-superseded schema digest table are removed in the next release
-([#1462](https://github.com/compozy/compozy/issues/1462)).
+Starting with v0.6.1, the one-release translation for Loop runs started before v0.6.0 is removed,
+including the superseded output-schema digest table. Their next tool action fails with
+`ActionContractStale` (`action_contract_stale`) when its pinned contract differs from the selected
+live view. Start a new run from the definition with `compozy loop run --name <name>` to pin current
+contracts. Definitions and completed runs are unchanged.

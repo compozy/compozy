@@ -4,12 +4,16 @@ import "slices"
 
 // ReconcileRegisteredApps removes retired apps and repairs their durable topology without mutating its input.
 func ReconcileRegisteredApps(snapshot Snapshot, registered func(app string) bool) (Snapshot, bool) {
+	return reconcileWindows(snapshot, func(window Window) bool { return registered(window.App) })
+}
+
+func reconcileWindows(snapshot Snapshot, keep func(Window) bool) (Snapshot, bool) {
 	reconciled := cloneSnapshot(snapshot)
-	changed := reconcileAppWindows(reconciled.Windows, registered)
+	changed := reconcileAppWindows(reconciled.Windows, keep)
 	for _, entries := range [][]HistoryEntry{reconciled.History.Undo, reconciled.History.Redo} {
 		for index := range entries {
 			for _, state := range []*State{&entries[index].Before, &entries[index].After} {
-				if reconcileAppWindows(state.Windows, registered) {
+				if reconcileAppWindows(state.Windows, keep) {
 					changed = true
 					normalized := NormalizeSnapshot(Snapshot{Desktops: state.Desktops, Windows: state.Windows})
 					state.Desktops, state.Windows = normalized.Desktops, normalized.Windows
@@ -21,7 +25,7 @@ func ReconcileRegisteredApps(snapshot Snapshot, registered func(app string) bool
 	for _, entry := range reconciled.ClosedEntries {
 		windows := entry.Windows[:0]
 		for _, window := range entry.Windows {
-			if !registered(window.App) {
+			if !keep(window) {
 				changed = true
 				continue
 			}
@@ -47,10 +51,10 @@ func ReconcileRegisteredApps(snapshot Snapshot, registered func(app string) bool
 	return NormalizeSnapshot(reconciled), true
 }
 
-func reconcileAppWindows(windows map[WindowID]Window, registered func(app string) bool) bool {
+func reconcileAppWindows(windows map[WindowID]Window, keep func(Window) bool) bool {
 	changed := false
 	for id, window := range windows {
-		if !registered(window.App) {
+		if !keep(window) {
 			delete(windows, id)
 			changed = true
 			continue

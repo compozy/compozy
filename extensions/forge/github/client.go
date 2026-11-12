@@ -176,10 +176,30 @@ func repositoryAPIPath(repo repository, suffix string) string {
 }
 
 func pullListPath(repo repository, branch, state string) string {
+	head := branch
+	if !strings.Contains(head, ":") {
+		head = repo.owner + ":" + branch
+	}
 	query := url.Values{
-		"head":     []string{repo.owner + ":" + branch},
+		"head":     []string{head},
 		"state":    []string{state},
 		"per_page": []string{strconv.Itoa(100)},
 	}
 	return repositoryAPIPath(repo, "/pulls?") + query.Encode()
+}
+
+func matchesHeadRepository(repo repository, branch, fullName string) bool {
+	owner, _, qualified := strings.Cut(branch, ":")
+	if !qualified {
+		return strings.EqualFold(fullName, repo.owner+"/"+repo.name)
+	}
+	headOwner, _, valid := strings.Cut(fullName, "/")
+	return valid && strings.EqualFold(headOwner, owner)
+}
+
+func pullHeadBranch(selector string) string {
+	if _, branch, qualified := strings.Cut(selector, ":"); qualified {
+		return branch
+	}
+	return selector
 }

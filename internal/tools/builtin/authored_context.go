@@ -95,7 +95,7 @@ const agentHeartbeatWakeInputSchema = `{
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"session_id":{"type":"string"},
-		"source":{"type":"string"},
+		"source":{"type":"string","enum":["timer","instance_check","scheduler","manual","harness_reentry"]},
 		"dry_run":{"type":"boolean"}
 	},
 	"additionalProperties":false

@@ -392,9 +392,10 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 	}
 	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "turn-exec", ApprovalToken: "approval-token",
-		Input: json.RawMessage(`{"command":"bun","args":["test"]}`),
+		Input: json.RawMessage(`{"command":"bun","args":["test"],"worktree":"wt-ready"}`),
 	}))
 	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" ||
+		manager.execRequest.Worktree != "wt-ready" ||
 		manager.execRequest.Actor.RunID != "run-a" || manager.execRequest.Actor.Generation != 4 {
 		t.Fatalf("terminalExec(approved) error/calls/request = %v/%d/%#v", err, manager.execCalls, manager.execRequest)
 	}
@@ -3241,11 +3242,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					{path: "references/loops.md", wantOffload: true},
 					{path: "references/tools-and-skills.md", wantOffload: true},
 					{path: "references/native-tools.md", wantOffload: true},
-				}
-				if target.wantOffload {
-					references = append(references, resourceExpectation{
-						path: "references/runtime-operations.md", wantOffload: true,
-					})
+					{path: "references/runtime-operations.md", wantOffload: true},
 				}
 				for _, reference := range references {
 					t.Run("Should read the complete "+reference.path+" resource", func(t *testing.T) {
@@ -3292,7 +3289,7 @@ func TestDaemonNativeTools(t *testing.T) {
 							t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
 						}
 						if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
-							viewResult.Content[0].Text != diagnostics.Redact(expectedContent) {
+							viewResult.Content[0].Text != "Skill content" {
 							t.Fatalf(
 								"skill_view(%s) resource mismatch: expected=%d structured=%d text_blocks=%d truncated=%t artifacts=%d redactions=%v",
 								resource,
@@ -3304,8 +3301,20 @@ func TestDaemonNativeTools(t *testing.T) {
 								viewResult.Redactions,
 							)
 						}
-						if diagnostics.Redact(expectedContent) != expectedContent && len(viewResult.Redactions) == 0 {
-							t.Fatalf("skill_view(%s) omitted display redaction metadata", resource)
+						if len(viewResult.Redactions) != 0 {
+							t.Fatalf("skill_view(%s) altered verified content: %v", resource, viewResult.Redactions)
+						}
+						encodedContent, err := json.Marshal(expectedContent)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if viewResult.Bytes > int64(len(encodedContent)+(16<<10)) {
+							t.Fatalf(
+								"skill_view(%s) envelope = %d bytes for %d encoded document bytes",
+								resource,
+								viewResult.Bytes,
+								len(encodedContent),
+							)
 						}
 						t.Logf(
 							"%s: full structured bytes=%d, display redactions=%d",
@@ -3366,7 +3375,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
 			policy,
 			toolspkg.WithResultProcessor(
-				toolspkg.NewResultProcessor(compozyconfig.DefaultToolsMaxResultBytes, artifactStore),
+				toolspkg.NewResultProcessor(32<<10, artifactStore),
 			),
 		)
 		for _, tc := range []struct{ name, input, resource string }{
@@ -3386,8 +3395,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Registry.Call(skill_view) error = %v", err)
 				}
-				if tc.resource == "references/runtime-operations.md" {
-					if !result.Truncated || len(result.Artifacts) != 1 {
+				if tc.resource == "references/runtime-operations.md" && !result.Truncated {
+					t.Fatal("large User resource was not offloaded")
+				}
+				if result.Truncated {
+					if len(result.Artifacts) != 1 {
 						t.Fatal("large User resource was not offloaded with one artifact")
 					}
 					artifactURI := result.Artifacts[0].URI
@@ -3954,8 +3966,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extension skill_view) error = %v", err)
 		}
-		if len(viewResult.Content) != 1 || viewResult.Content[0].Text != skillContent {
-			t.Fatalf("extension skill_view content = %#v, want %q", viewResult.Content, skillContent)
+		var viewPayload struct {
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
+			t.Fatal(err)
+		}
+		if viewPayload.Content != skillContent {
+			t.Fatalf("extension skill_view content = %q, want %q", viewPayload.Content, skillContent)
 		}
 	})
 
@@ -4262,12 +4280,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_view command_id) error = %v", err)
 		}
 		if !strings.Contains(string(result.Structured), commandID) || len(result.Content) != 1 ||
-			result.Content[0].Text != skillContent || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
+			result.Content[0].Text != "Skill content" || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
 			t.Fatalf("skill_view command_id result = %#v", result)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(skill_view command_id) error = %v", err)
+		}
+		if payload["content"] != skillContent {
+			t.Fatalf("skill_view command_id content = %q, want %q", payload["content"], skillContent)
 		}
 		viewedSkill, ok := payload["skill"].(map[string]any)
 		if !ok {
@@ -10329,6 +10350,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		if status.last.Target.AgentPath != "/workspace/compozy/.compozy/agents/coder/AGENT.md" {
 			t.Fatalf("heartbeat status target path = %q, want managed agent path", status.last.Target.AgentPath)
 		}
+		if wake.last.PolicyTarget == nil || wake.last.PolicyTarget.AgentPath != status.last.Target.AgentPath {
+			t.Fatalf("wake policy target = %+v, want status target", wake.last.PolicyTarget)
+		}
 		if wake.last.SessionID != "sess-heartbeat" ||
 			wake.last.WorkspaceID != "ws-1" ||
 			wake.last.AgentName != "coder" ||
@@ -10340,6 +10364,27 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if wake.calls != 1 {
 			t.Fatalf("heartbeat wake calls = %d, want 1 after owned session wake", wake.calls)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+			Input: json.RawMessage(
+				`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":"unknown"}`,
+			),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("invalid source = %v, want input validation error", err)
+		}
+		sourceErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || sourceErr.Operator == nil {
+			t.Fatalf("invalid source = %v, want structured operator cause", err)
+		}
+		for _, source := range []string{"timer", "instance_check", "scheduler", "manual", "harness_reentry"} {
+			if !strings.Contains(sourceErr.Operator.Cause, source) {
+				t.Fatalf("invalid source = %v, missing %s", err, source)
+			}
+		}
+		if wake.calls != 1 {
+			t.Fatal("invalid source reached wake backend")
 		}
 
 		_, err = registry.Call(
@@ -16984,6 +17029,34 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 		}
 		if doc.Content != "" {
 			t.Fatalf("remove left notes: %s", doc.Content)
+		}
+		memoryKey := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: "coder"}
+		if _, err := memory.AddRule(memoryKey, "File issues through report-writer"); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"report-writer","text":"anyone"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"File issues"}`},
+		} {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+			)
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+				!strings.HasPrefix(toolErr.PublicMessage, "agent_memory_rule_protected: operator rules") {
+				t.Fatalf("%s rule refusal hides its reason: %v", item.id, err)
+			}
+		}
+		if rules, err := memory.Rules(memoryKey); err != nil || len(rules) != 1 {
+			t.Fatalf("operator rule after agent writes = %v, %v", rules, err)
+		}
+		if _, _, err := memory.Remove(memoryKey, "File issues"); err != nil {
+			t.Fatal(err)
 		}
 		caller.caller.InstanceID = ""
 		_, err = registry.Call(

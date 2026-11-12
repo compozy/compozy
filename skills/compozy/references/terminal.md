@@ -21,11 +21,14 @@ true:
 - a long-running process may need supervision or human intervention;
 - the task uses a full-screen program or demo.
 
-Every interactive terminal you open (`terminal_open`, or `terminal_exec` with `visible: true`)
-appears as a Terminal window on the operator's CompozyOS desktop without stealing their focus. The
+Interactive terminals you open (`terminal_open`, or `terminal_exec` with `visible: true`) remain
+available in the Terminal catalog. They do not automatically open desktop windows; the operator
+can open one explicitly from Terminal or a transcript affordance. An agent terminal's window is
+removed when its process exits, and pruned terminals leave no window or reopen history. The
 operator and authorized agents in the same profile can interact with it concurrently. The operator's window Close asks for confirmation before terminating a running terminal and its work,
 then removes the managed window. Cancel preserves both. An exited terminal closes without the running
-warning; Stop ends the terminal without closing its window. Shared viewers observe the same exit.
+warning; Stop ends the terminal. Human-opened terminal windows retain their exit screen until closed
+or pruned; agent terminal windows retire on exit. Shared viewers observe the same exit.
 Closing a group confirms its affected running terminals together; a failure retains the windows for
 retry, including any terminals already stopped. Normal journal and recording retention is unchanged.
 
@@ -56,17 +59,17 @@ worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned p
 their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
 ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
 `add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
-session and run; callers cannot supply another execution root, and a `terminal_open` `worktree`
+session and run; callers cannot supply another execution root, and a terminal `worktree`
 other than the bound one fails with `invalid_cwd`. A session without a worktree may pass
-`worktree` to `terminal_open` to start in a ready worktree of its workspace and profile. Sessions
+`worktree` to `terminal_open` or `terminal_exec` to start in a ready worktree of its workspace and profile. Sessions
 without a worktree and human terminal launches otherwise keep the workspace directory rules. This validates the launch directory;
 it does not add filesystem sandboxing or change shared terminal access.
 
 ## Worktree Terminals
 
-`terminal_open` accepts an optional `worktree` (ID or name) to start the shell in a ready managed
+`terminal_open` and `terminal_exec` accept an optional `worktree` (ID or name) to start the shell in a ready managed
 worktree of the current workspace owned by the acting profile; operators use
-`compozy terminal open --worktree` or the create body's `worktree` field. The daemon resolves the
+`compozy terminal open --worktree`, `compozy terminal exec --worktree`, or the create/exec body's `worktree` field. The daemon resolves the
 reference, so never pass a worktree path as `cwd` instead. `cwd` then resolves inside the worktree.
 Refusals are structured: `worktree_not_found` (another workspace or profile, or unknown),
 `worktree_not_ready` (pending, failed, or removing), and `worktree_missing` (removed or folder

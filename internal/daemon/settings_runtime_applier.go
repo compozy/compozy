@@ -93,6 +93,7 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	if a.state.toolProjectionEpoch != nil {
 		a.state.toolProjectionEpoch.Advance()
 	}
+	a.recoverHeartbeatConfig(ctx, &previous, &next)
 	return nil
 }
 

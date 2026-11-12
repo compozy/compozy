@@ -93,6 +93,7 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 				return workspaceResolver
 			}, nil),
 			daemonInstance.situationContext.Augment,
+			daemonInstance.standingContext.Augment,
 		)...,
 	)
 	if err != nil {
@@ -201,11 +202,12 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		userResolved.Policy.EnableAugmenters,
 		[]HarnessAugmenter{
 			HarnessAugmenterSkills,
+			HarnessAugmenterStanding,
 			HarnessAugmenterSituation,
 		},
 	) {
 		t.Fatalf(
-			"user EnableAugmenters = %#v, want skills and situation",
+			"user EnableAugmenters = %#v, want skills, standing and situation",
 			userResolved.Policy.EnableAugmenters,
 		)
 	}
@@ -615,6 +617,7 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			defaultPromptInputAugmenterDescriptors(
 				skillsAugmenter,
 				daemonInstance.situationContext.Augment,
+				daemonInstance.standingContext.Augment,
 			)...)
 		if err != nil {
 			t.Fatal(err)

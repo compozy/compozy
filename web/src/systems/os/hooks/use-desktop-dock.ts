@@ -39,8 +39,8 @@ export interface UseDesktopDockOptions {
   onNewSession: () => void;
   onPreload?: DockPreload;
   /**
-   * Catalog truth for the Terminal launcher. When omitted, Terminal follows
-   * the same open-window rule as every other app (isolated dock tests).
+   * Catalog truth for the Terminal launcher. When omitted, Terminal stays
+   * idle until live catalog data is available; saved windows alone never imply a live terminal.
    */
   terminalLive?: boolean;
   /**
@@ -106,11 +106,9 @@ export function useDesktopDock(
       name: app.id === sessionApp.id ? "Sessions" : app.title,
       icon: dockIconForApp(app),
       running:
-        app.id === "terminal" && terminalLive !== undefined
-          ? terminalLive
-          : state === "open" || state === "focused",
-      active: state === "focused",
-      minimized: state === "minimized",
+        app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
+      active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
+      minimized: state === "minimized" && (app.id !== "terminal" || terminalLive === true),
       badge: dockBadgeFor(app, badges),
     };
   });

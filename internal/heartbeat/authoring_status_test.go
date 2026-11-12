@@ -1641,6 +1641,78 @@ Wake gently.
 	})
 }
 
+func TestManagedHeartbeatDiskWake(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: manual wake uses the same current disk policy as status, without an authoring revision.
+	t.Run("Should resolve disk edits and persist only real wake snapshots", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		fixture.target.Config.WakeCooldown = 90 * time.Second
+		registerManagedHeartbeatSession(t, fixture, "sess-disk")
+		prompter := &recordingHeartbeatPrompter{}
+		service, err := heartbeat.NewManagedWakeService(fixture.db,
+			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-disk")},
+			prompter, compozyconfig.DefaultHeartbeatConfig(),
+			heartbeat.WithWakeClock(deterministicHeartbeatClock(fixture.now)),
+			heartbeat.WithWakeIDGenerator(deterministicHeartbeatIDGenerator()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := heartbeat.WakeRequest{PolicyTarget: &fixture.target, WorkspaceID: fixture.workspaceID,
+			AgentName: "coder", SessionID: "sess-disk", Source: heartbeat.WakeSourceManual, DryRun: true}
+		for _, summary := range []string{"Initial disk policy", "Edited disk policy"} {
+			if err := os.WriteFile(
+				fixture.heartbeatPath,
+				[]byte(validHeartbeatBody(summary, "Inspect context.")),
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			status, err := fixture.status.Status(fixture.ctx, heartbeat.StatusRequest{Target: fixture.target})
+			if err != nil || !status.Active || status.SnapshotID != "" {
+				t.Fatalf("disk status = %+v, %v", status, err)
+			}
+			decision, err := service.Wake(fixture.ctx, req)
+			if err != nil || decision.Result != heartbeat.WakeResultSent || decision.PolicyDigest != status.Digest {
+				t.Fatalf("disk wake = %+v, %v", decision, err)
+			}
+			assertHeartbeatRevisionCount(t, fixture, 0)
+			assertHeartbeatSnapshotCount(t, fixture, 0)
+		}
+		req.DryRun = false
+		decision, err := service.Wake(fixture.ctx, req)
+		if err != nil || decision.Result != heartbeat.WakeResultSent || decision.PolicySnapshotID == "" {
+			t.Fatalf("real disk wake = %+v, %v", decision, err)
+		}
+		assertHeartbeatSnapshotCount(t, fixture, 1)
+		assertHeartbeatRevisionCount(t, fixture, 0)
+		status, err := fixture.status.Status(fixture.ctx, heartbeat.StatusRequest{Target: fixture.target})
+		if err != nil || status.SnapshotID != decision.PolicySnapshotID {
+			t.Fatalf("persisted status = %+v, %v", status, err)
+		}
+		requests := prompter.requestsSnapshot()
+		if len(requests) != 1 || !strings.Contains(requests[0].Message, "Edited disk policy") {
+			t.Fatalf("prompts = %+v", requests)
+		}
+		req.DryRun = true
+		if err := os.WriteFile(fixture.heartbeatPath, []byte("---\nsummary: [\n---\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		decision, err = service.Wake(fixture.ctx, req)
+		if err != nil || decision.Reason != heartbeat.WakeReasonHeartbeatInvalid {
+			t.Fatalf("invalid disk wake = %+v, %v", decision, err)
+		}
+		if err := os.Remove(fixture.heartbeatPath); err != nil {
+			t.Fatal(err)
+		}
+		decision, err = service.Wake(fixture.ctx, req)
+		if err != nil || decision.Reason != heartbeat.WakeReasonHeartbeatNoPolicy {
+			t.Fatalf("removed disk wake = %+v, %v", decision, err)
+		}
+	})
+}
+
 type heartbeatFixture struct {
 	ctx           context.Context
 	db            *globaldb.GlobalDB

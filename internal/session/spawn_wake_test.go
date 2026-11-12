@@ -188,6 +188,32 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		})
 	}
 
+	// Invariant: child attention names native sign-in separately from a permission request.
+	// Owner: session spawn wake; canonical dispatch suite.
+	for _, tc := range []struct {
+		name     string
+		failure  *store.SessionFailure
+		recovery *store.SessionRuntimeRecovery
+		want     string
+	}{
+		{name: "Should describe provider sign in recovery", recovery: &store.SessionRuntimeRecovery{Reason: store.SessionRuntimeRecoveryProviderAuth}, want: "Waiting for the provider sign-in."},
+		{name: "Should describe expired provider sign in", failure: &store.SessionFailure{Kind: store.FailureProviderAuth}, want: "Waiting for the provider sign-in."},
+		{name: "Should retain permission guidance for a pending permission", want: "Waiting for permission."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			notifier := &recordingSpawnWakeNotifier{}
+			manager := spawnWakeTestManager(notifier, nil)
+			info := spawnWakeTestInfo(true)
+			info.Failure, info.RuntimeRecovery = tc.failure, tc.recovery
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForAuth)
+			_, events := notifier.calls()
+			if len(events) != 1 || events[0].Detail != tc.want {
+				t.Fatalf("wakes = %#v, want detail %q", events, tc.want)
+			}
+		})
+	}
+
 	t.Run("Should deliver one wake per cause episode", func(t *testing.T) {
 		t.Parallel()
 

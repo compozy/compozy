@@ -25,7 +25,7 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	}
 	normalized := make([]acp.AgentEvent, 0, len(events))
 	for _, event := range events {
-		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false, fatal)
+		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false, false, fatal)
 		if skip {
 			continue
 		}

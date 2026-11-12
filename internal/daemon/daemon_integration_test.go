@@ -42,6 +42,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -3822,6 +3823,183 @@ func TestBootArchivedWorkspaceIntegration(t *testing.T) {
 	if err != nil || retainedRun.Status != looppkg.StatusFailed {
 		t.Fatalf("recovered archived Loop = %#v, %v", retainedRun, err)
 	}
+}
+
+func TestBootResumesInstancesAfterServersStart(t *testing.T) {
+	t.Run(
+		"Should retain an active main input until both servers start and resume it without startup errors",
+		func(t *testing.T) {
+			t.Parallel()
+			executable := e2etest.BuildCompozyBinary(t)
+			d, manager, workspace := newSubagentDaemonWithSetup(t, nil, executable, func(d *Daemon) {
+				path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+				body, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body = bytes.Replace(body, []byte("name: subagent-test\n"),
+					[]byte("name: subagent-test\nkind: always_on\n"), 1)
+				if err := os.WriteFile(path, body, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				fixturePath := filepath.Join(d.homePaths.HomeDir, "subagents-fixture.json")
+				fixture, err := acpmock.LoadFixture(fixturePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for i := range fixture.Agents[0].Turns {
+					turn := &fixture.Agents[0].Turns[i]
+					if turn.Name == "child" || turn.Name == "attributed-child" {
+						turn.Steps = append([]acpmock.Step{{
+							Kind: acpmock.StepKindNativeToolCall, ToolID: "compozy__tool_search",
+							ToolCallID: "boot-tools", RawInput: []byte(`{"query":"skill_view"}`),
+						}}, turn.Steps...)
+					}
+				}
+				data, err := json.Marshal(fixture)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			})
+			main, err := manager.Create(t.Context(), new(session.CreateOpts{
+				AgentName: "subagent-test", Workspace: workspace,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			stream, err := manager.Prompt(t.Context(), main.ID, "child work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event := range stream {
+				if event.Type == acp.EventTypeError || event.ToolError() {
+					t.Fatalf("initial prompt: %+v", event)
+				}
+			}
+			db := d.registry.(*globaldb.GlobalDB)
+			policy := main.Info().Lineage.PermissionPolicy
+			policy.MaterializedTools, policy.MaterializedMCPServers = false, false
+			ceiling, err := json.Marshal(policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+				PermissionCeiling: string(ceiling), CreatedByKind: "human",
+			}, main.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.Stop(t.Context(), main.ID); err != nil {
+				t.Fatal(err)
+			}
+			held, err := manager.SendPrompt(t.Context(), main.ID, session.SendPromptOpts{
+				Message: "child work", MessageID: "boot-held", IdempotencyKey: "boot-held",
+				Origin: &acp.PromptOriginMeta{
+					Kind: acp.PromptOriginKindSession, SessionID: "peer", WorkspaceID: workspace, Hop: 1,
+				},
+			})
+			if err != nil || held.Delivery != "held" {
+				t.Fatalf("held input = %+v, %v", held, err)
+			}
+			if err := d.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			db, err = globaldb.OpenGlobalDB(t.Context(), d.homePaths.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, resumeErr := db.Instances().Resume(t.Context(), instance.ID, 10, true)
+			if err := errors.Join(resumeErr, db.Close(t.Context())); err != nil {
+				t.Fatal(err)
+			}
+
+			restarted := newTestDaemon(t, d.homePaths, &d.config)
+			restarted.executable = func() (string, error) { return executable, nil }
+			var logs bytes.Buffer
+			t.Cleanup(func() {
+				if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+				if t.Failed() {
+					t.Log(logs.String())
+				}
+			})
+			restarted.logger = slog.New(slog.NewTextHandler(&logs, nil))
+			factory := restarted.udsFactory
+			checkedBeforeUDS := false
+			restarted.udsFactory = func(ctx context.Context, deps RuntimeDeps) (Server, error) {
+				checkedBeforeUDS = true
+				if deps.AgentInstances == nil || deps.AgentInstances.Checks == nil {
+					t.Fatal("instance API and checks must be wired before server creation")
+				}
+				info, err := deps.Sessions.Status(ctx, main.ID)
+				if err != nil || info.RuntimeStatus == store.SessionRuntimeReady {
+					t.Fatalf("main resumed before UDS startup: %+v, %v", info, err)
+				}
+				queued, err := deps.Registry.(*globaldb.GlobalDB).GetSessionInputQueueEntry(
+					ctx,
+					main.ID,
+					held.QueueEntryID,
+				)
+				if err != nil || queued.Status != store.SessionInputQueueStatusQueued {
+					t.Fatalf("input dispatched before UDS startup: %+v, %v", queued, err)
+				}
+				return factory(ctx, deps)
+			}
+			if err := restarted.boot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if !checkedBeforeUDS {
+				t.Fatal("boot never reached the UDS factory")
+			}
+			waitForCondition(t, "main input delivered after boot", func() bool {
+				row, err := restarted.registry.(*globaldb.GlobalDB).
+					GetSessionInputQueueEntry(t.Context(), main.ID, held.QueueEntryID)
+				return err == nil && row.Status == store.SessionInputQueueStatusSent
+			})
+			diagnostics := filepath.Join(d.homePaths.LogsDir, "acpmock", "subagent-test.jsonl")
+			waitForCondition(t, "resumed main prompt completed", func() bool {
+				records, err := acpmock.ReadDiagnostics(diagnostics)
+				return err == nil && len(acpmock.PromptDiagnostics(records)) == 2
+			})
+			if err := restarted.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			records, err := acpmock.ReadDiagnostics(diagnostics)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loads := 0
+			for _, record := range records {
+				if record.LifecycleEvent == "session_load" {
+					loads++
+				}
+				for _, step := range record.Steps {
+					if step.Error != "" {
+						t.Fatalf("ACP fixture step failed: %+v", step)
+					}
+				}
+			}
+			if loads != 1 || len(acpmock.PromptDiagnostics(records)) != 2 {
+				t.Fatalf("expected one resume and two total prompts: %+v", records)
+			}
+			for _, failure := range []string{
+				"hosted MCP bind did not establish before the launch deadline",
+				"daemon: reconcile instances at startup", "session.start.driver_start_failed",
+			} {
+				if strings.Contains(logs.String(), failure) {
+					t.Fatalf("clean boot logged %q: %s", failure, logs.String())
+				}
+			}
+		},
+	)
 }
 
 func TestBootRecoversInstanceReports(t *testing.T) {

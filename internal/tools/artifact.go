@@ -18,8 +18,8 @@ const (
 	ToolArtifactMIMEType = "application/vnd.compozy.tool-result+json"
 	// ToolArtifactName is the stable display name for retained result envelopes.
 	ToolArtifactName = "tool-result.json"
-	// DefaultToolArtifactPageBytes is the default artifact read size.
-	DefaultToolArtifactPageBytes int64 = 64 << 10
+	// DefaultToolArtifactPageBytes keeps base64 plus duplicated MCP payloads below 128 KiB.
+	DefaultToolArtifactPageBytes int64 = 32 << 10
 	// MaxToolArtifactPageBytes is the largest public artifact read size.
 	MaxToolArtifactPageBytes int64 = 64 << 10
 )

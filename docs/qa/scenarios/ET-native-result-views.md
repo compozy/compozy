@@ -66,10 +66,18 @@ compatibility comparison includes single-result, compact and full tool producers
 
 M1 integration with bounded native reads: tool search retains `offset`, `count`, `total`,
 `has_more` and `next_offset` in both views, omitting optional zero fields identically.
-`TestActionRegistryResultViewPins` verifies translation of current-main pre-view pins for
-`tool_search` and `worktree_list`. Pins predating the bounded-read input changes remain stale,
-as documented in `docs/release/native-read-defaults.md`; result-view translation does not
-waive an unrelated input-contract change. Automation histories remain single-result pages.
+`TestActionRegistryResultViewPins` verifies selected-view enforcement, compact defaults, and
+`action_contract_stale` for snapshots predating v0.6.0, including an explicit full selection.
+v0.6.1 removes the pre-view translation and superseded output-schema digest table (#1462).
+Pins predating the bounded-read input changes also remain stale, as documented in
+`docs/release/native-read-defaults.md`. Automation histories remain single-result pages.
+
+For v0.6.1, start a current Loop, pause it at a generation boundary, restart its isolated daemon,
+and resume it into the next generation. Its current tool pins must remain valid. Reuse
+`TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume/Should resume a paused Loop into its next generation after restart`
+for the restart boundary and `TestLoopResultViewsIntegration` for real persisted tool-view
+execution and hook-pin refusals. These checks run only in CI for #1462; the historical pass
+above is evidence for v0.6.0, not verification of this removal.
 
 P1 regression checks: external MCP and extension tools retain their advertised output schemas,
 including continuation and error envelopes. Schema updates must re-register the tool through

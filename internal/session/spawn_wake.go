@@ -382,6 +382,9 @@ func spawnWakeDetail(info *Info, badge Badge) string {
 		}
 		return "Waiting for input."
 	case BadgeWaitingForAuth:
+		if infoProviderAuthRecovery(info) || info.Failure != nil && info.Failure.Kind == store.FailureProviderAuth {
+			return "Waiting for the provider sign-in."
+		}
 		return "Waiting for permission."
 	case BadgeFailed:
 		if info.Failure != nil {

@@ -51,6 +51,11 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/", []string{"unattended_turns", "unattended_turn_limit", "held_wakes", "next_wake"}},
 	// Provider summaries: the reviewer mode the `auto` level selects.
 	{"#/", []string{"reviewer_mode"}},
+	// Agent definitions and reachable peers: the input forms an always-on agent declares.
+	{"#/", []string{"accepts"}},
+	// Agent memory add: note (default) or operator rule.
+	{"#/components/schemas/AgentMemoryAddRequest", []string{"kind"}},
+	{"#/paths/~1api~1agents~1{name}~1memory~1entries", []string{"kind"}},
 	// Session catalog stream notifications carry the permission request they announce.
 	{"#/paths/~1api~1sessions~1catalog-stream", []string{"action", "kind", "resource"}},
 }

@@ -50,10 +50,13 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	if err != nil {
 		return nil, err
 	}
-	cwd, workspaceID, err := m.resolveActorWorkspace(ctx, request.WS, request.Cwd, request.Actor)
+	cwd, workspaceID, releaseWorktree, err := m.resolveOpenWorkspace(
+		ctx, request.WS, strings.TrimSpace(request.Worktree), request.Cwd, request.Actor.ProfileID, &request.Actor,
+	)
 	if err != nil {
 		return nil, err
 	}
+	defer func() { releaseWorktreeNow(releaseWorktree) }()
 	request.WS, request.Cwd = workspaceID, cwd
 	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
@@ -71,7 +74,9 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	if err != nil {
 		return nil, err
 	}
-	run, err := m.startExec(ctx, request, argv)
+	lease := releaseWorktree
+	releaseWorktree = nil
+	run, err := m.startExec(ctx, request, argv, lease)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +93,15 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		m.trackUnpublishedExec(run)
 	}
 	m.startExecLifecycle(run, request, argv)
+	return m.awaitExecResult(ctx, run, request, yield)
+}
+
+func (m *Service) awaitExecResult(
+	ctx context.Context,
+	run *execRun,
+	request ExecRequest,
+	yield time.Duration,
+) (*ExecResult, error) {
 	timer := time.NewTimer(yield)
 	defer timer.Stop()
 	select {
@@ -190,8 +204,15 @@ func ValidateExecYieldDuration(duration time.Duration) error {
 }
 
 // startExec reserves command ownership and starts an exec process with the validated actor environment.
-func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []string) (*execRun, error) {
-	cwd, workspaceID := request.Cwd, request.WS
+func (m *Service) startExec(
+	ctx context.Context,
+	request ExecRequest,
+	argv []string,
+	releaseWorktree func(),
+) (*execRun, error) {
+	var startedProc Proc
+	defer func() { m.releaseWorktreeAfterExit(startedProc, releaseWorktree) }()
+	workspaceID := request.WS
 	var err error
 	request.Capabilities, err = m.Capabilities(ctx, workspaceID)
 	if err != nil {
@@ -222,18 +243,9 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if err != nil {
 		return nil, err
 	}
-	mode, ptyMode, err := execModes(request.Visible, request.Capabilities)
+	spec, mode, err := execProcessSpec(request, argv, nonce)
 	if err != nil {
 		return nil, err
-	}
-	spec := ProcSpec{
-		Argv:        argv,
-		Cwd:         cwd,
-		Env:         request.Env,
-		Cols:        80,
-		Rows:        24,
-		Mode:        ptyMode,
-		MarkerNonce: nonce,
 	}
 	release, err := m.prepareEnvironment(ctx, workspaceID, request.Actor, &spec)
 	if err != nil {
@@ -249,6 +261,7 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start exec %q: %w", argv[0], err)
 	}
+	startedProc = proc
 	info := m.execInfo(id, mode, request, argv)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(ctx, m, proc, info, request.Actor, settings, nonce, profileName, 80, 24, true)
@@ -259,6 +272,8 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 		return nil, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
 	}
 	item.processRecord = processRecord
+	item.worktreeRelease = releaseWorktree
+	releaseWorktree = nil
 	run := &execRun{
 		journalFinished: make(chan struct{}),
 		item:            item, key: terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id},
@@ -270,6 +285,17 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	releaseCommandID = false
 	transferred = true
 	return run, nil
+}
+
+func execProcessSpec(request ExecRequest, argv []string, nonce string) (ProcSpec, Mode, error) {
+	mode, ptyMode, err := execModes(request.Visible, request.Capabilities)
+	if err != nil {
+		return ProcSpec{}, "", err
+	}
+	return ProcSpec{
+		Argv: argv, Cwd: request.Cwd, Env: request.Env,
+		Cols: 80, Rows: 24, Mode: ptyMode, MarkerNonce: nonce,
+	}, mode, nil
 }
 
 func (m *Service) execInfo(id ID, mode Mode, request ExecRequest, argv []string) Info {
@@ -430,6 +456,9 @@ func cleanupExecRun(ctx context.Context, run *execRun, cause error) error {
 	}
 	cleanupCtx, cancelCleanup := boundedCleanupContext(ctx, processCleanupTimeout)
 	cleanupErr := cleanupProcess(cleanupCtx, item.proc)
+	if !run.lifecycleStarted {
+		item.manager.releaseWorktreeAfterExit(item.proc, item.worktreeRelease)
+	}
 	cancelCleanup()
 	var completeErr error
 	if item.processRecord != nil {

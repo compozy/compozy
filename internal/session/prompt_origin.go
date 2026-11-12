@@ -40,6 +40,27 @@ func decodePromptOrigin(raw json.RawMessage) (*acp.PromptOriginMeta, error) {
 	return acp.ClonePromptOriginMeta(&origin), nil
 }
 
+// promptOriginMessageAfter attributes a message to its agent sender while leaving
+// a leading operator-authored section above the attribution. The sender's text
+// cannot open that section's envelope: its tag is neutralized below the header.
+func promptOriginMessageAfter(origin *acp.PromptOriginMeta, message string, sections []acp.PromptSection) string {
+	if origin == nil {
+		return message
+	}
+	for _, section := range sections {
+		if !section.OperatorAuthored || section.Content == "" || !strings.HasPrefix(message, section.Content) {
+			continue
+		}
+		rest := strings.TrimLeft(strings.TrimPrefix(message, section.Content), "\n")
+		if end := strings.IndexAny(section.Content, " >"); end > 1 && section.Content[0] == '<' {
+			name := section.Content[1:end]
+			rest = strings.NewReplacer("<"+name, "&lt;"+name, "</"+name, "&lt;/"+name).Replace(rest)
+		}
+		return section.Content + "\n\n" + promptOriginMessage(origin, rest)
+	}
+	return promptOriginMessage(origin, message)
+}
+
 func promptOriginMessage(origin *acp.PromptOriginMeta, message string) string {
 	origin = acp.ClonePromptOriginMeta(origin)
 	if origin == nil {

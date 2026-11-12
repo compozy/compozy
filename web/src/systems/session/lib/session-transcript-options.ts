@@ -16,6 +16,7 @@ import {
   type SessionTranscriptData,
   type SessionTranscriptPageParam,
 } from "./session-transcript-query";
+import { shareTranscriptData } from "./session-transcript-sharing";
 
 /**
  * The transcript as an infinite query: the head page is the latest window, older
@@ -52,6 +53,8 @@ export function sessionTranscriptOptions(workspace: string, id: string) {
     },
     initialPageParam: undefined as SessionTranscriptPageParam,
     getNextPageParam: nextTranscriptPageParam,
+    // Live entries re-bound the pages; share unchanged entries by sequence, not position.
+    structuralSharing: shareTranscriptData,
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     refetchOnMount: shouldRefetch,
     refetchOnWindowFocus: shouldRefetch,

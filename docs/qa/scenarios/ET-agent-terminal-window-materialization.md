@@ -1,44 +1,43 @@
 ---
 id: ET-agent-terminal-window-materialization
 area: ET
-title: Watch an agent-opened terminal materialize as a desktop window
+title: Open agent terminals on demand without stale desktop windows
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: When an agent opens an interactive terminal (terminal_open, or terminal_exec with visible true), a Terminal window for that exact terminal appears on the desktop without stealing focus; closing the window leaves the process running and the window does not reopen; agent-internal commands never materialize anything.
+expected: Agent terminals stay in the catalog until explicitly opened; exit or pruning removes their windows and restore history; startup retires stale terminal bindings; the Terminal rail only marks live terminals.
 entry_points: Session composer; compozy__terminal_open; compozy__terminal_exec with visible true; Web desktop window deck; Web dock Terminal app
-qa_status: pass
+qa_status: partial
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: partial
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa;docs/qa/reports/2026-09-01-terminal-rework.md;/Users/pedronauck/dev/qa-labs/compozy-skill-terminal-recovery-20260902-205559-939126-lab/qa-artifacts/qa/test-cases/terminal-prompt-replay.md;dev-session:sess-795e2e3bb8afc603
 last_report: docs/qa/reports/2026-09-02-skill-terminal-recovery.md
 overlaps: ET-terminal-session-block-handoff; ET-terminal-window-native-flow
 ---
 
-Added by ADR-019: agent-opened interactive PTY terminals materialize as managed Terminal windows in
-the daemon window model, one-shot per terminal, unfocused, on the desktop showing the bound session
-when one exists.
+Agent terminals remain outside the desktop layout until the operator opens one.
 
-Walk:
+Walk in an isolated home, never against the operator's existing windows:
 
-1. In a session, ask the agent to open a terminal and start a watchable process (for example a dev
-   server) using its terminal tools.
-2. Confirm a Terminal window for that exact terminal id appears on the desktop without moving
-   keyboard focus away from the session, and that the window streams the live output.
-3. Confirm the window landed on the desktop that shows this session's window.
-4. Close the Terminal window and confirm the process keeps running (catalog and dock still show it)
-   and the window does not reopen on its own.
-5. Ask the agent to run several routine internal commands and confirm they render as plain command
-   output in the transcript — no terminal blocks, no windows, no catalog entries.
-6. Ask the agent to run a hidden pipe execution that outlives the yield window and confirm it lists
-   as a pipe terminal without materializing a window.
+1. Open several agent PTY terminals in one session. Confirm no desktop windows appear and the live
+   catalog remains available from Terminal.
+2. Explicitly open one terminal. Confirm live output streams, then exit it and confirm its window
+   disappears. Undo and Reopen must not restore the dead terminal.
+3. Prune a retained terminal and confirm no desktop references remain.
+4. Persist a terminal window, restart only the isolated daemon, and confirm stale terminal windows
+   disappear across project, All projects and User desktops while other apps remain.
+5. Confirm the rail is idle for an exited/missing terminal even if a stale minimized window exists;
+   a running terminal lights the rail even with no window open.
 
-QA impact 2026-09-02: reset because the official Compozy skill now permits a bounded descriptor-based
-recovery after repeated reference-read failures. Re-walk the original ordinary-language prompt and
-confirm the agent reaches a visible terminal instead of stopping on the missing-reference branch.
-Charter: `CH-terminal-reference-recovery`.
+Targeted validation: daemon bridge event tests; real SQLite partition cleanup and real PTY lifecycle
+in the owning daemon runtime suite; window-manager topology/history suite; rendered dock regression
+suite and Storybook terminal rail captures. Full E2E remains CI-owned.
 
-Retest 2026-09-02: pass. The exact `/agents:compozy` prompt loaded the current bundled terminal
-reference despite a stale physical workspace copy, opened `term-2b7ed0bb80ea`, ran two safe command
-sequences, waited for idle, and yielded the visible terminal to the operator.
+CI repair 2026-11-12 (#1565 integration): the existing terminal-agent E2E journey now
+checks the on-demand contract introduced by #1570: no automatic agent window, explicit
+opening while the process is held on stdin, removal after controlled exit, and retained
+journal access from another live terminal. Approval navigation activates a hidden session
+tab before asserting its permission dock; session close uses the canonical tab-aware helper.
+The prior CI artifacts showed an obsolete automatic-window expectation and hidden-tab controls.
+Validation remains CI-only under the operator's parallel-execution restriction.

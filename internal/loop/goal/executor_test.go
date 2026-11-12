@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -3856,4 +3857,65 @@ func TestExecutorShouldDeferCompactionDuringWait(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestAppliedGoalRuntime(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		sources map[string]loop.RuntimeSource
+		applied []dsl.ACPOptionSelection
+		want    map[string]loop.RuntimeSource
+	}{
+		{
+			name:    "Should attribute binder defaults to the agent without intent options",
+			applied: []dsl.ACPOptionSelection{{ID: "mode", ValueID: "agent-full-access"}},
+			want:    map[string]loop.RuntimeSource{"mode": loop.RuntimeSourceAgent},
+		},
+		{
+			name:    "Should preserve surviving origins and attribute binder additions with other intent options",
+			sources: map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode, "effort": loop.RuntimeSourceInput, "style": loop.RuntimeSourceRun},
+			applied: []dsl.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}, {ID: "effort", ValueID: "high"}, {ID: "style", ValueID: "concise"}, {ID: "mode", ValueID: "agent-full-access"}},
+			want:    map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode, "effort": loop.RuntimeSourceInput, "style": loop.RuntimeSourceRun, "mode": loop.RuntimeSourceAgent},
+		},
+		{
+			name:    "Should prune skipped options while retaining surviving provenance",
+			sources: map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode, "mode": loop.RuntimeSourceInput},
+			applied: []dsl.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+			want:    map[string]loop.RuntimeSource{"thinking": loop.RuntimeSourceNode},
+		},
+		{
+			name:    "Should omit provenance when all options are skipped",
+			sources: map[string]loop.RuntimeSource{"mode": loop.RuntimeSourceInput},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			intent := loop.ResolvedRuntime{Source: loop.RuntimeProvenance{ACPOptions: maps.Clone(tc.sources)}}
+			for id := range tc.sources {
+				intent.Runtime.ACPOptions = append(
+					intent.Runtime.ACPOptions, dsl.ACPOptionSelection{ID: id, ValueID: "requested"},
+				)
+			}
+			resolved := appliedGoalRuntime(intent, loop.RuntimeSpec{ACPOptions: tc.applied}, nil)
+			if !maps.Equal(resolved.Source.ACPOptions, tc.want) {
+				t.Fatalf("applied ACP origins = %#v, want %#v", resolved.Source.ACPOptions, tc.want)
+			}
+			if len(tc.applied) == 0 && resolved.Source.ACPOptions != nil {
+				t.Fatalf("empty applied origins = %#v, want nil", resolved.Source.ACPOptions)
+			}
+			if len(resolved.Source.ACPOptions) > 0 {
+				resolved.Source.ACPOptions[tc.applied[0].ID] = loop.RuntimeSourceAgent
+			}
+			if !maps.Equal(intent.Source.ACPOptions, tc.sources) {
+				t.Fatalf("intent origins mutated = %#v, want %#v", intent.Source.ACPOptions, tc.sources)
+			}
+			if intent.Source.ACPOptions != nil {
+				intent.Source.ACPOptions["caller-only"] = loop.RuntimeSourceInput
+				if _, exists := resolved.Source.ACPOptions["caller-only"]; exists {
+					t.Fatal("caller mutation leaked into applied origins")
+				}
+			}
+		})
+	}
 }

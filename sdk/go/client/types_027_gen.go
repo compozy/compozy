@@ -167,13 +167,14 @@ type TerminalDeliveredResponse struct {
 
 // TerminalExecRequest is a daemon API value.
 type TerminalExecRequest struct {
-	Command string              `json:"command"`
-	Args    []string            `json:"args,omitempty"`
-	Cwd     string              `json:"cwd,omitempty"`
-	Env     map[string]string   `json:"env,omitempty"`
-	YieldMs int                 `json:"yield_ms,omitzero"`
-	Visible bool                `json:"visible,omitzero"`
-	Output  TerminalOutputShape `json:"output,omitzero"`
+	Worktree string              `json:"worktree,omitempty"`
+	Command  string              `json:"command"`
+	Args     []string            `json:"args,omitempty"`
+	Cwd      string              `json:"cwd,omitempty"`
+	Env      map[string]string   `json:"env,omitempty"`
+	YieldMs  int                 `json:"yield_ms,omitzero"`
+	Visible  bool                `json:"visible,omitzero"`
+	Output   TerminalOutputShape `json:"output,omitzero"`
 }
 
 // TerminalExecResponse is a daemon API value.

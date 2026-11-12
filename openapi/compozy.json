@@ -1229,6 +1229,12 @@
       },
       "AgentInstancePeer": {
         "properties": {
+          "accepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "description": {
             "type": "string"
           },
@@ -1809,6 +1815,9 @@
       },
       "AgentMemoryAddRequest": {
         "properties": {
+          "kind": {
+            "type": "string"
+          },
           "text": {
             "type": "string"
           },
@@ -2079,6 +2088,12 @@
       },
       "AgentPayload": {
         "properties": {
+          "accepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "acp_options": {
             "items": {
               "$ref": "#/components/schemas/AgentACPOptionSelection"
@@ -41125,6 +41140,9 @@
           },
           "visible": {
             "type": "boolean"
+          },
+          "worktree": {
+            "type": "string"
           },
           "yield_ms": {
             "type": "integer"

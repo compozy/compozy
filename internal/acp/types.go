@@ -121,6 +121,10 @@ type StartOpts struct {
 	InputOnly bool
 	// LeanEnvironment excludes unrelated Claude MCP servers, connectors and auto-memory.
 	LeanEnvironment bool
+	// IsolateProviderMCP excludes the operator's own Claude MCP servers and claude.ai
+	// connectors, so the session sees only the servers CompozyOS passes and governs.
+	// It keeps auto-memory, which LeanEnvironment also turns off.
+	IsolateProviderMCP bool
 	// ShellWaitGuard marks a session that can call compozy__terminal_exec and
 	// compozy__monitor_create, so a provider hook may refuse a foreground shell
 	// wait and redirect it. It stays false when policy withholds either tool.

@@ -430,6 +430,11 @@ jobs:
           python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
           go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
 
+      - name: Verify instance boot recovery after HTTP and UDS startup
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestBootResumesInstancesAfterServersStart$'
+
       - name: Verify overlay catalog with ACP subprocesses and SQLite
         env:
           CGO_ENABLED: "1"

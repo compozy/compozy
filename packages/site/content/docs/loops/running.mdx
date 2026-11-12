@@ -147,7 +147,10 @@ human decision. A finished run's duration in Runs still includes the elapsed wai
 - **Pause** is a **generation-boundary** operation, not a mid-node cancellation. The daemon records a pause
   intent; the in-flight generation's already-claimed nodes finish; the status flips `running →
 paused` only at the boundary. Pause is hidden or disabled outside `running`.
-- **Resume** continues a paused (or pause-requested) run.
+- **Resume** continues a paused (or pause-requested) run. In v0.6.1, runs started before v0.6.0
+  can fail their next tool action with `ActionContractStale` (`action_contract_stale`): the
+  one-release translation for pre-result-view pins has ended. Start a new run from the definition
+  with `compozy loop run --name <name>` to pin current contracts; Resume does not refresh the old pins.
 - **Cancel run** immediately fences new work and commits `canceled` with cause `operator_cancel`.
   After that commit, the daemon concurrently stops every session owned by the run. A stop that does
   not complete is kept in a durable cleanup queue and retried after transient failures or a daemon

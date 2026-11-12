@@ -266,3 +266,18 @@ walks are not claimed.
     and timer calls carrying a child `agent_id` and emitted no decision for the same parent calls.
     The ACP start/load/resume contract and owning-session wake suite passed. A live-model background
     Agent walk and the Windows runtime walk remain unrun; CI owns E2E under this assignment.
+
+### Explicit GitHub fork selection
+
+Register a pull request monitor with `branch: "contributor:topic"` against a base
+repository containing both a same-repository `topic` PR and a fork `topic` PR.
+Verify the fork PR is selected, completed checks and new reviews wake its owner,
+and merge or close after an open observation ends the monitor. Repeat with an
+unqualified `topic` and verify only the base repository PR is selected. Cancel
+an active monitor before it fires: the cancel response and monitor list must omit
+`fired_at`. Cancel after a repeating wake: `last_fired_at` remains the actual wake
+time and no cancellation time appears as `fired_at`.
+
+Validation: regression coverage is in the existing GitHub provider and monitor
+service suites. Local execution and live GitHub walks are forbidden for this
+parallel delivery; CI results are recorded in the PR.

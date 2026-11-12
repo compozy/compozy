@@ -16,12 +16,20 @@ const (
 	MaxBytes           = 24 * 1024
 	MaxEntryCharacters = 1000
 	TruncationMarker   = "[Memory truncated: undated notes exceed the load budget.]"
+	// RulePrefix marks an operator rule. Lines without it are notes, so files
+	// written before rules existed load unchanged.
+	RulePrefix = "- [rule] "
+
+	KindNote = "note"
+	KindRule = "rule"
 )
 
 var (
 	ErrBudgetExceeded = errors.New("agent_memory_budget_exceeded")
 	ErrEntryTooLarge  = errors.New("agent_memory_entry_too_large")
 	ErrConflict       = errors.New("agent_memory_conflict")
+	// ErrRuleProtected refuses an agent write that would create, change or delete an operator rule.
+	ErrRuleProtected = errors.New("agent_memory_rule_protected")
 )
 
 type Budget struct {
@@ -134,6 +142,9 @@ func Snapshot(content string) string {
 }
 
 func entryCharacters(line string) int {
+	if IsRule(line) {
+		return utf8.RuneCountInString(strings.TrimSpace(line[len(RulePrefix):]))
+	}
 	parts := strings.SplitN(line, " · ", 3)
 	if len(parts) == 3 && strings.HasPrefix(parts[0], "- ") {
 		if _, err := time.Parse(time.DateOnly, strings.TrimPrefix(parts[0], "- ")); err == nil {
@@ -146,4 +157,37 @@ func entryCharacters(line string) int {
 		}
 	}
 	return utf8.RuneCountInString(line)
+}
+
+// IsRule reports whether a memory line is an operator rule.
+func IsRule(line string) bool {
+	return strings.HasPrefix(line, RulePrefix) && strings.TrimSpace(line[len(RulePrefix):]) != ""
+}
+
+// FormatRule builds an operator rule line. Rules carry no date: they stay in
+// force until the operator removes them and are never archived by overflow.
+func FormatRule(text string) (string, error) {
+	text = strings.TrimSpace(redact.String(text))
+	if utf8.RuneCountInString(text) > MaxEntryCharacters {
+		return "", ErrEntryTooLarge
+	}
+	if text == "" || strings.ContainsAny(text, "\r\n") {
+		return "", errors.New("invalid memory entry")
+	}
+	return RulePrefix + text, nil
+}
+
+// Split separates operator rules (text only, in file order) from the notes
+// document, which keeps every other line byte for byte.
+func Split(content string) ([]string, string) {
+	rules := make([]string, 0)
+	notes := make([]string, 0)
+	for _, line := range lines(content) {
+		if IsRule(line) {
+			rules = append(rules, strings.TrimSpace(line[len(RulePrefix):]))
+			continue
+		}
+		notes = append(notes, line)
+	}
+	return rules, join(notes)
 }

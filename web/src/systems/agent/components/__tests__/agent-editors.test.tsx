@@ -1532,6 +1532,40 @@ describe("Memory", () => {
     expect(screen.getByRole("button", { name: "Keep updates short" })).toBeTruthy();
   });
 
+  it("Should save a note made into a rule as a rule line, and show rules alone under Rules", async () => {
+    seedAgentMemoryMock(`- [rule] Ask before deploying.\n${MEMORY}`);
+    const saved = vi.fn();
+    // Records the write and falls through to the memory route.
+    server.use(
+      http.put("*/api/agents/:name/memory", async ({ request }) => {
+        saved(await request.clone().json());
+      })
+    );
+    const user = userEvent.setup();
+    renderEditor(<AgentMemoryEditor {...props()} />);
+    expect(await screen.findByText("Ask before deploying.")).toBeTruthy();
+    expect(screen.getAllByText("Rule")).toHaveLength(1);
+    expect(screen.getByText("2 yours")).toBeTruthy();
+
+    const convert = screen.getAllByRole("button", { name: "Make it a rule" });
+    await user.click(convert[convert.length - 1]!);
+    expect(screen.getAllByText("Rule")).toHaveLength(2);
+    expect(screen.getByText("1 unsaved change")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Rules" }));
+    expect(screen.getByText("Prefer short status updates.")).toBeTruthy();
+    expect(screen.queryByText(/Dispatch one executor/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+    expect(saved.mock.calls[0]![0]).toMatchObject({
+      content: `- [rule] Ask before deploying.\n${MEMORY.replace(
+        "Prefer short status updates.",
+        "- [rule] Prefer short status updates."
+      )}`,
+    });
+  });
+
   it("Should stay editable when an extension owns the agent", async () => {
     seedAgentMemoryMock(MEMORY);
     renderEditor(<AgentMemoryEditor {...props({ readOnly: true })} />);

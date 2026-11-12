@@ -521,7 +521,6 @@ func TestLoopToolSchemaSourceResultViews(t *testing.T) {
 		}
 		views := descriptor.ResultViews()
 		if snapshot.FullOutputSchemaDigest != views.Full.Digest ||
-			snapshot.PreViewInputSchemaDigest != views.PreViewInputSchemaDigest ||
 			string(snapshot.FullOutputSchema) != string(views.Full.Schema) {
 			t.Fatalf("snapshot = %#v", snapshot)
 		}
@@ -529,13 +528,6 @@ func TestLoopToolSchemaSourceResultViews(t *testing.T) {
 		snapshot, ok = source.Snapshot(descriptor.ID.String())
 		if !ok || snapshot.FullOutputSchema[0] != '{' {
 			t.Fatal("mutated cached schema")
-		}
-		encoded, err := json.Marshal(snapshot)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.Contains(string(encoded), snapshot.PreViewInputSchemaDigest) {
-			t.Fatal("pre-view input digest leaked into persisted snapshot")
 		}
 		for _, view := range []string{"compact", "full"} {
 			for _, produces := range []bool{false, true} {

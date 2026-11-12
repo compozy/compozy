@@ -19,6 +19,8 @@ type AgentRuntimeDefaults struct {
 	LeanEnvironment   *bool                `json:"lean_environment,omitempty"    yaml:"lean_environment,omitempty"    toml:"lean_environment,omitempty"`
 	Speed             speedpkg.Speed       `json:"speed,omitempty"               yaml:"speed,omitempty"               toml:"speed,omitempty"`
 	ACPOptions        []ACPOptionSelection `json:"acp_options,omitempty"         yaml:"acp_options,omitempty"         toml:"acp_options,omitempty"`
+	// Accepts lists the input forms an agent answers, shown to peers in the roster.
+	Accepts []string `json:"accepts,omitempty" yaml:"accepts,omitempty" toml:"accepts,omitempty"`
 }
 
 // NormalizeACPOptionSelections validates, copies, and sorts ACP option defaults by ID.
@@ -137,7 +139,7 @@ func setAgentRuntimeACPOptions(state **AgentRuntimeDefaults, selections []ACPOpt
 
 func clearEmptyAgentRuntimeDefaults(state **AgentRuntimeDefaults) {
 	if *state != nil && (*state).Speed == "" && len((*state).ACPOptions) == 0 && (*state).AutoCompactWindow == nil &&
-		(*state).LeanEnvironment == nil {
+		(*state).LeanEnvironment == nil && len((*state).Accepts) == 0 {
 		*state = nil
 	}
 }
@@ -194,5 +196,26 @@ func (a *AgentDef) SetLeanEnvironment(value *bool) {
 		a.AgentRuntimeDefaults = &AgentRuntimeDefaults{}
 	}
 	a.LeanEnvironment = cloneBoolRef(value)
+	clearEmptyAgentRuntimeDefaults(&a.AgentRuntimeDefaults)
+}
+
+// AcceptsValue returns a copy of the input forms the definition advertises to peers.
+func (a AgentDef) AcceptsValue() []string {
+	if a.AgentRuntimeDefaults == nil {
+		return nil
+	}
+	return cloneStrings(a.Accepts)
+}
+
+// SetAccepts stores a normalized, bounded copy of the advertised input forms.
+func (a *AgentDef) SetAccepts(accepts []string) {
+	normalized := NormalizeAgentAccepts(accepts)
+	if a.AgentRuntimeDefaults == nil {
+		if len(normalized) == 0 {
+			return
+		}
+		a.AgentRuntimeDefaults = &AgentRuntimeDefaults{}
+	}
+	a.Accepts = normalized
 	clearEmptyAgentRuntimeDefaults(&a.AgentRuntimeDefaults)
 }

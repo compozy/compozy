@@ -108,6 +108,14 @@ func ProviderFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, b
 			Action: authproviders.ProviderFailureActionLogin,
 		})
 	}
+	if negotiation, ok := errors.AsType[*NegotiationError](err); ok &&
+		negotiation.Code == NegotiationCodeModelUnavailable && IsConfigurationRejection(err) {
+		return providerFailureDiagnostic(
+			ProviderFailureModelUnavailable,
+			ProviderFailureActionChangeModel,
+			"choose an available model or refresh the provider model catalog",
+		), true
+	}
 	text := err.Error()
 	if reqErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		text = requestErrorDiagnosticText(reqErr)

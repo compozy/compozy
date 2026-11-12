@@ -13,12 +13,13 @@ import (
 
 func terminalExecRequestContract(request TerminalExecRequest) contract.TerminalExecRequest {
 	return contract.TerminalExecRequest{
-		Command: request.Command,
-		Args:    slices.Clone(request.Args),
-		Cwd:     request.Cwd,
-		Env:     maps.Clone(request.Env),
-		YieldMs: request.YieldMs,
-		Visible: request.Visible,
+		Worktree: strings.TrimSpace(request.Worktree),
+		Command:  request.Command,
+		Args:     slices.Clone(request.Args),
+		Cwd:      request.Cwd,
+		Env:      maps.Clone(request.Env),
+		YieldMs:  request.YieldMs,
+		Visible:  request.Visible,
 		Output: contract.TerminalOutputShape{
 			MaxBytes: request.Output.MaxBytes,
 			Strategy: request.Output.Strategy,

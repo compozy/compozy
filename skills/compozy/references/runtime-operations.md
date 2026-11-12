@@ -2058,9 +2058,33 @@ without resuming the instance. A peer message never grants operator approval.
 
 Read reachable peers with `compozy agent instance list --peers` or
 `compozy__agent_instance_list` with `peers:true`. HTTP/UDS use `GET /api/agent-instances?peers=true`.
-The `peers` array carries only the addressable `name`, `description`, `scope` and `state`.
-Workspace access filters rows before pagination. Omit workspace to inspect reachable scopes in the
-current profile, and retain filters with each `next_cursor`. No roster is injected into prompts.
+The `peers` array carries only the addressable `name`, `description`, `scope`, `state` and the
+`accepts` input forms the peer's definition declares. Workspace access filters rows before
+pagination. Omit workspace to inspect reachable scopes in the current profile, and retain filters
+with each `next_cursor`.
+
+### Standing context of always-on agents
+
+Every turn of an always-on agent session, whatever its origin (operator, peer message, wake or
+check-in pick), carries a `<compozy-standing-context>` block with two parts: the operator rules
+from agent memory (`references/agent-memory.md`) and a peer roster. The roster is the same
+authorization-filtered read as `peers: true`, limited to 12 peers of the session's profile: name,
+scope, a non-active state, the description cut to 160 characters and the accepted input forms. It
+tells the agent to hand work that matches a peer's role to that peer through
+`compozy__session_prompt` with `agent`. When more peers exist the block says so; list them with
+`peers: true`. A session that does not belong to an instance gets rules but no roster. The roster is cached per
+session and re-read when the agent definition catalog changes or after 30 seconds.
+
+The block is bounded to 12,000 characters and sent in full only when needed: on the first turn of a
+provider session, when the rules or roster change, and after a completed provider compaction (its
+opening tag then carries `compaction="<n>"`) until a turn delivers it. Other turns carry a one-line
+marker stating that the earlier block is still current, so the standing rules never depend on a
+compaction summary. An agent with no rules and no peers receives a block saying none are in force,
+which also withdraws rules removed mid-session. A failed roster read keeps the last roster, or says
+the roster could not be read when there is none; rules that cannot be read are reported in the block
+instead of dropping it. On a turn sent by another agent the block stays above the sender's
+attribution header, and the same tag inside the sender's text is neutralized. Rotation starts a new provider session and
+therefore delivers the full block again.
 
 ## Daemon profiles (experimental)
 

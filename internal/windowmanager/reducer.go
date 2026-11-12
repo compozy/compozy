@@ -22,6 +22,13 @@ type reduction struct {
 
 func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error) {
 	lifted := liftedZoomDesktops(snapshot)
+	if payload, ok := command.(terminalRetirementCommand); ok {
+		changed := r.retireTerminalWindows(snapshot, payload.ids)
+		if changed {
+			r.releaseVacatedZoomDesktops(snapshot, lifted)
+		}
+		return r.completeReduction(changed, changed), nil
+	}
 	changed, reportsApplied, handled, err := r.reduceTopologyCommand(snapshot, command)
 	if handled && err == nil && changed {
 		r.releaseVacatedZoomDesktops(snapshot, lifted)

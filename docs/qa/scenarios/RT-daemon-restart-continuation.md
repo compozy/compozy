@@ -7,7 +7,7 @@ journey: J-daemon-restart-continuation
 expected: Eligible interrupted sessions preserve partial work, resume once, and finish without falsely reporting an agent failure; unsafe or explicitly stopped work waits for review.
 entry_points: compozy daemon restart; compozy session events; session permalink; HTTP/UDS session reads
 qa_status: untested
-bug_ids:
+bug_ids: GH-1580
 fix_status:
 retest_status:
 fix_commits:
@@ -54,3 +54,13 @@ bundle install leaves the live daemon untouched; failure to request coordinated 
 falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
 remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
 Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).
+
+QA impact 2026-11-12 (#1580): repeat the restart with one or more active always-on instances
+whose main sessions have queued input and need their provider resumed. Instance service setup
+still precedes the listeners, while reconciliation and its catalog-change callback are activated
+only after HTTP and UDS start. Expect the retained input to run on the first resume attempt, with
+no hosted MCP bind-deadline delay, `session.start.driver_start_failed`, or
+`daemon: reconcile instances at startup` error. Record time-to-ready and the instance resume count.
+`TestBootResumesInstancesAfterServersStart` in the daemon integration suite checks the pending
+input and unbound runtime before UDS creation, then delivery without startup errors after boot.
+Validation for this change is CI-only; the desktop restart walk has not been rerun locally.

@@ -192,7 +192,9 @@ targets that did not settle. A state that could not be read is reported as last 
 fires at once.
 `kind="pull_request"` is the wait for a pull request's checks and reviews. The daemon reads the forge about
 once a minute, with the forge extension's own credential, and runs no command or URL of yours. `branch`
-defaults to the session's branch; a default branch, or a session with no branch, is refused. A missing pull
+defaults to the session's branch; GitHub fork heads use `owner:branch` to select the contributor
+explicitly. An unqualified branch selects the base repository. A default branch, or a session with no
+branch, is refused. A missing pull
 request is a wait, so you can register before opening it, and so is one that had already merged or closed
 when the monitor first read it: a reused branch's old pull request is history, and only a pull request this
 monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at
