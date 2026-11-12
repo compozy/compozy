@@ -9,6 +9,7 @@ import (
 )
 
 type compactSessionRecord struct {
+	ReplyWatches           []contract.ReplyWatchPayload         `json:"reply_watches,omitempty"`
 	PermissionModeDegraded bool                                 `json:"permission_mode_degraded"`
 	Branch                 string                               `json:"branch,omitempty"`
 	PullRequest            *contract.SessionPullRequestPayload  `json:"pull_request"`
@@ -60,6 +61,7 @@ type compactSessionLineage struct {
 
 func compactSession(p *contract.SessionPayload) compactSessionRecord {
 	result := compactSessionRecord{
+		ReplyWatches:           p.ReplyWatches,
 		PermissionModeDegraded: p.PermissionModeDegraded,
 		Branch:                 p.Branch,
 		PullRequest:            p.PullRequest,

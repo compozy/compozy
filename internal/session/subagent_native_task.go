@@ -442,12 +442,15 @@ func (s *subagentService) replayNativeCall(
 	return nil
 }
 
-// groupNativeTurns splits native rows by parent turn, in first-seen order.
-func groupNativeTurns(rows []store.SessionSubagent) [][]store.SessionSubagent {
+// groupNativeReplayRows preserves first-seen order, grouping result-only replay across turns.
+func groupNativeReplayRows(rows []store.SessionSubagent, perTurn bool) [][]store.SessionSubagent {
 	index := make(map[[2]string]int)
 	var groups [][]store.SessionSubagent
 	for _, row := range rows {
-		key := [2]string{row.ParentSessionID, row.ParentTurnID}
+		key := [2]string{row.ParentSessionID, ""}
+		if perTurn {
+			key[1] = row.ParentTurnID
+		}
 		at, ok := index[key]
 		if !ok {
 			at = len(groups)
@@ -462,7 +465,7 @@ func groupNativeTurns(rows []store.SessionSubagent) [][]store.SessionSubagent {
 // recoverNativeResults replays committed summaries into recently settled
 // native rows, including saved resumes with an older result. Candidates are
 // paged with a stable cursor so older recoverable rows are never starved, and
-// each page reads a parent turn's transcript once for all of its rows.
+// each page reads a parent's transcript once for all of its rows.
 func (s *subagentService) recoverNativeResults(ctx context.Context) error {
 	since := s.now().UTC().Add(-nativeTaskReplayResultSince)
 	var after store.NativeReplayCursor
@@ -471,7 +474,7 @@ func (s *subagentService) recoverNativeResults(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		for _, turn := range groupNativeTurns(rows) {
+		for _, turn := range groupNativeReplayRows(rows, false) {
 			unlock := s.lock(turn[0].ParentSessionID)
 			err := s.replayNativeTurn(ctx, turn, false)
 			unlock()
