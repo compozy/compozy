@@ -25,7 +25,11 @@ func (m *Manager) reconcileRuns(ctx context.Context) error {
 		for _, run := range runs {
 			live, err := m.runSessionLive(ctx, run)
 			if err != nil {
-				return err
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				m.logger.Warn("automation.run.reconciliation_skipped", "run_id", run.ID, "error", err)
+				continue
 			}
 			if live {
 				continue

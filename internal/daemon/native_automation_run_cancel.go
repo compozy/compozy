@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/core"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -24,7 +25,14 @@ func (n *daemonNativeTools) automationRunsCancel(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	run, err := n.nativeAutomationRunForWorkspace(ctx, input.WorkspaceID, runID, readScope)
+	workspaceID := strings.TrimSpace(input.WorkspaceID)
+	if callerWorkspace := strings.TrimSpace(scope.WorkspaceID); callerWorkspace != "" && !scope.Operator {
+		if workspaceID != "" && workspaceID != callerWorkspace {
+			return toolspkg.ToolResult{}, nativeScopeMismatchError(req.ToolID, "workspace")
+		}
+		workspaceID = callerWorkspace
+	}
+	run, err := n.nativeAutomationRunForWorkspace(ctx, workspaceID, runID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}

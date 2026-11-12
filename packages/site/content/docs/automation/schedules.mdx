@@ -212,6 +212,8 @@ On startup, unfinished runs whose sessions are missing or stopped become `failed
 `error: "orphaned_after_restart"` and an end time, preserving their history. These recovered
 runs no longer block self-overlap; runs with live sessions remain blocking. To settle a stuck
 run whose session is missing or stopped, use `compozy automation runs cancel <run-id>`.
+If session metadata cannot be read, startup logs a warning and preserves that run while
+continuing recovery of other runs.
 Live sessions and sessionless admissions are refused; stop live executions through their
 owning lifecycle first.
 

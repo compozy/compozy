@@ -2544,9 +2544,10 @@ func (h *managerHarness) assertWebhookSecretMissing(t testing.TB, ref string) {
 }
 
 type managerSessionStub struct {
-	mu       sync.Mutex
-	creator  *recordingSessionCreator
-	statuses map[string]*session.Info
+	mu           sync.Mutex
+	creator      *recordingSessionCreator
+	statuses     map[string]*session.Info
+	statusErrors map[string]error
 }
 
 func newManagerSessionStub(plans ...sessionAttemptPlan) *managerSessionStub {
@@ -2613,6 +2614,9 @@ func (s *managerSessionStub) Status(_ context.Context, id string) (*session.Info
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := s.statusErrors[id]; err != nil {
+		return nil, err
+	}
 	info, ok := s.statuses[id]
 	if !ok {
 		return nil, session.ErrSessionNotFound
@@ -3256,7 +3260,11 @@ func TestManagerReconcilesUnfinishedRunsBeforeScheduling(t *testing.T) {
 			if tc.sessionState != "" {
 				h.sessions.setStatus(&session.Info{ID: tc.sessionID, State: tc.sessionState})
 			}
-			restarted := h.newManager(t, compozyconfig.AutomationConfig{}, WithManagerNow(func() time.Time { return at.Add(time.Minute) }))
+			restarted := h.newManager(
+				t,
+				compozyconfig.AutomationConfig{},
+				WithManagerNow(func() time.Time { return at.Add(time.Minute) }),
+			)
 			if err := restarted.Start(h.ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -3271,7 +3279,9 @@ func TestManagerReconcilesUnfinishedRunsBeforeScheduling(t *testing.T) {
 			}
 			if tc.orphan {
 				if saved.Status != RunFailed || saved.Error != "orphaned_after_restart" || saved.EndedAt == nil ||
-					!saved.EndedAt.Equal(at.Add(time.Minute)) || saved.Metadata["retained"] != "history" || saved.SessionID != old.SessionID {
+					!saved.EndedAt.Equal(
+						at.Add(time.Minute),
+					) || saved.Metadata["retained"] != "history" || saved.SessionID != old.SessionID {
 					t.Fatalf("reconciled run = %#v", saved)
 				}
 			} else if saved.Status != tc.status || saved.EndedAt != nil {
@@ -3305,6 +3315,40 @@ func TestManagerReconcilesUnfinishedRunsBeforeScheduling(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should preserve uncertain history and recover other runs without blocking startup", func(t *testing.T) {
+		t.Parallel()
+		h := newManagerHarness(t)
+		job := testJob(AutomationScopeGlobal, "uncertain-history", "")
+		job.Enabled = false
+		job, err := h.db.CreateJob(h.ctx, job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"unreadable", "missing"} {
+			if _, err := h.db.CreateRun(h.ctx, Run{ID: id, JobID: job.ID, ProfileID: job.ProfileID,
+				SessionID: id, Status: RunRunning, Attempt: 1}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		h.sessions.statusErrors = map[string]error{"unreadable": errors.New("decode session metadata")}
+		m := h.newManager(t, compozyconfig.AutomationConfig{})
+		if err := m.Start(h.ctx); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := m.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		uncertain, err := m.GetRun(h.ctx, "unreadable")
+		if err != nil || uncertain.Status != RunRunning || uncertain.EndedAt != nil || uncertain.Error != "" {
+			t.Fatalf("uncertain history = %#v, %v", uncertain, err)
+		}
+		recovered, err := m.GetRun(h.ctx, "missing")
+		if err != nil || recovered.Status != RunFailed || recovered.Error != "orphaned_after_restart" {
+			t.Fatalf("other orphan = %#v, %v", recovered, err)
+		}
+	})
 }
 
 func TestManagerCancelRun(t *testing.T) {
@@ -3343,7 +3387,11 @@ func TestManagerCancelRun(t *testing.T) {
 			if tc.state != "" {
 				h.sessions.setStatus(&session.Info{ID: tc.sessionID, State: tc.state})
 			}
-			m := h.newManager(t, compozyconfig.AutomationConfig{}, WithManagerNow(func() time.Time { return at.Add(time.Minute) }))
+			m := h.newManager(
+				t,
+				compozyconfig.AutomationConfig{},
+				WithManagerNow(func() time.Time { return at.Add(time.Minute) }),
+			)
 			got, err := m.CancelRun(h.ctx, run.ID)
 			if tc.refused {
 				if !errors.Is(err, ErrRunActive) {
@@ -3376,8 +3424,8 @@ func TestManagerCancelRun(t *testing.T) {
 				t.Fatalf("repeat cancel = %#v, %v", again, err)
 			}
 			run.Status = RunCompleted
-			if _, err := h.db.UpdateRun(h.ctx, run); err == nil {
-				t.Fatal("stale dispatcher overwrote cancellation")
+			if _, err := h.db.UpdateRun(h.ctx, run); !errors.Is(err, ErrRunReservationConflict) {
+				t.Fatalf("UpdateRun() error = %v, want reservation conflict", err)
 			}
 			saved, err := m.GetRun(h.ctx, run.ID)
 			if err != nil || saved.Status != RunCancelled {

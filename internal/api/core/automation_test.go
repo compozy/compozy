@@ -2741,14 +2741,23 @@ func TestCancelAutomationRunContract(t *testing.T) {
 		wantBody   string
 	}{
 		{"Should return the canceled run", store.DefaultProfileID, nil, http.StatusOK, `"status":"canceled"`},
+		{"Should retain an inferred profile in the canceled receipt", "", nil, http.StatusOK, `"status":"canceled"`},
 		{"Should return conflict for a live execution", store.DefaultProfileID, automationpkg.ErrRunActive, http.StatusConflict, "run may still be executing"},
 		{"Should hide another profile run before mutation", "profile-other", nil, http.StatusNotFound, "run not found"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			calls := 0
-			run := automationpkg.Run{ID: "run-cancel", ProfileID: tc.profile, JobID: "job", Status: automationpkg.RunRunning}
+			run := automationpkg.Run{
+				ID:        "run-cancel",
+				ProfileID: tc.profile,
+				JobID:     "job",
+				Status:    automationpkg.RunRunning,
+			}
 			router := newAutomationCoreTestRouter(t, stubAutomationManager{
+				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+					return automationpkg.Job{ID: "job", ProfileID: store.DefaultProfileID}, nil
+				},
 				GetRunFn: func(context.Context, string) (automationpkg.Run, error) { return run, nil },
 				CancelRunFn: func(_ context.Context, id string) (automationpkg.Run, error) {
 					calls++
@@ -2762,9 +2771,25 @@ func TestCancelAutomationRunContract(t *testing.T) {
 					return run, nil
 				},
 			})
-			response := performAutomationCoreRequest(t, router, http.MethodPost, "/automation/runs/run-cancel/cancel", nil, nil)
+			response := performAutomationCoreRequest(
+				t,
+				router,
+				http.MethodPost,
+				"/automation/runs/run-cancel/cancel",
+				nil,
+				nil,
+			)
 			if response.Code != tc.wantStatus || !strings.Contains(response.Body.String(), tc.wantBody) {
 				t.Fatalf("cancel response = %d %s", response.Code, response.Body.String())
+			}
+			if tc.wantStatus == http.StatusOK {
+				var receipt contract.RunResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &receipt); err != nil {
+					t.Fatal(err)
+				}
+				if receipt.Run.ProfileID != store.DefaultProfileID {
+					t.Fatalf("receipt profile = %q", receipt.Run.ProfileID)
+				}
 			}
 			if tc.wantStatus == http.StatusNotFound && calls != 0 {
 				t.Fatalf("foreign run mutated %d times", calls)

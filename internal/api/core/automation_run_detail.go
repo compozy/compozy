@@ -66,10 +66,14 @@ func (h *BaseHandlers) CancelAutomationRun(c *gin.Context) {
 		h.respondError(c, http.StatusNotFound, automationpkg.ErrRunNotFound)
 		return
 	}
+	profileID := run.ProfileID
 	run, err = manager.CancelRun(c.Request.Context(), run.ID)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
+	}
+	if run.ProfileID == "" {
+		run.ProfileID = profileID
 	}
 	payload := RunPayloadFromRun(run)
 	if err := h.decorateAutomationRunOwner(c.Request.Context(), &payload); err != nil {

@@ -41,12 +41,11 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
-	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
 	scheduler, triggerEngine, err := m.buildRuntimes(ctx)
 	if err != nil {
-		runtimeCancel()
 		return err
 	}
+	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
 
 	if err := m.loadSchedulerRegistrations(ctx, jobs, scheduler); err != nil {
 		return errors.Join(
