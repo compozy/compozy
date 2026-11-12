@@ -113,6 +113,11 @@ func (s *Session) activateWithProcess(
 			s.failure = nil
 		}
 	}
+	if proc != nil {
+		// A bound runtime supersedes every retained failure. A preserved crash
+		// classification keeps its stop reason and detail, not the stale failure.
+		s.failure = nil
+	}
 	s.updateFromProcessLocked(proc, now, adoptCurrentModel)
 	return nil
 }
