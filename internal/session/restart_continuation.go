@@ -13,24 +13,19 @@ import (
 
 var ErrRestartContinuationSkipped = errors.New("session: restart continuation requires operator input")
 
-// ResumeInterruptedSessions admits ordinary sessions; delegated and task sessions keep their owning recovery path.
+// ResumeInterruptedSessions admits ordinary sessions through a bounded pool; delegated and task
+// sessions keep their owning recovery path.
 func (m *Manager) ResumeInterruptedSessions(ctx context.Context) error {
 	infos, err := m.ListAll(ctx)
 	if err != nil {
 		return err
 	}
-	for _, info := range infos {
-		if info.Type != SessionTypeUser || info.StopReason != store.StopShutdown {
-			continue
-		}
-		if _, err := m.ResumeInterruptedSession(ctx, info.ID); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+	return runRestartResumes(ctx, planRestartResumes(infos), restartResumeConcurrency,
+		func(ctx context.Context, id string) {
+			if _, err := m.ResumeInterruptedSession(ctx, id); err != nil && ctx.Err() == nil {
+				m.logger.WarnContext(ctx, "session: restart continuation unavailable", "session_id", id, "error", err)
 			}
-			m.logger.WarnContext(ctx, "session: restart continuation unavailable", "session_id", info.ID, "error", err)
-		}
-	}
-	return nil
+		})
 }
 
 // ResumeInterruptedSession consumes a durable interruption through the existing prompt admission owner.
