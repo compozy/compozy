@@ -56,6 +56,7 @@
 
 - Cover the composer context toggle and pin process fixture identities (#1577)
 - Expect the boot window font-src CSP in E2E-034
+- Wait for obsolete attention wake settlement
 
 ### Release Notes
 

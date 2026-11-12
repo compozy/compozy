@@ -63,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cover the composer context toggle and pin process fixture identities (#1577)
 - Expect the boot window font-src CSP in E2E-034
+- Wait for obsolete attention wake settlement
 
 ## 0.6.0 - 2026-11-11
 

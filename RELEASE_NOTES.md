@@ -56,6 +56,7 @@
 
 - Cover the composer context toggle and pin process fixture identities (#1577)
 - Expect the boot window font-src CSP in E2E-034
+- Wait for obsolete attention wake settlement
 
 ### Release Notes
 
@@ -158,6 +159,120 @@ while the run kept going, and you never got its run id.
 
 The HTTP/UDS trigger route and the `compozy__automation_jobs_trigger` native tool return the
 running run the same way.
+
+## Migration notes
+
+A successful trigger now confirms that the run started, not that it finished. Scripts that
+treated it as completion must ask to wait or follow the returned run id:
+
+- CLI: `compozy automation jobs trigger <id> --wait --timeout 5m -o json`
+- HTTP/UDS: `POST /api/automation/jobs/{id}/trigger?wait=true&timeout=5m`
+- Native tool: `{"job_id":"<id>","wait":true,"timeout":"5m"}`
+
+The wait defaults to one minute and accepts any positive duration up to 24 hours. If the run
+finishes in time, you get its final result; a run that fails within the wait returns its error
+and exits nonzero, as before. If the wait runs out, you get the running run and the CLI still
+exits 0; the run is not canceled, and you can read its outcome later by run id. Invalid input,
+errors before the run starts, and daemon or connection errors still exit nonzero. A timeout
+without wait is rejected (`--timeout` requires `--wait`).
+
+Task and Loop targets return their delegated receipts immediately, as before, even with
+`--wait`. Extension host trigger calls still wait for completion. The `wait` and `timeout`
+inputs are additive: no route, command, tool id, response field or stored data is removed or
+renamed, and a retried manual run keeps its run id.
+
+##### Compatibility shims scheduled for v0.6.1 are removed
+
+v0.6.0 was the last release that migrated or silently ignored the retired declarations below
+(#1518). v0.6.1 removes those compatibility shims (#1593). Most old declarations now fail the
+normal validation for their file instead of being migrated or ignored, and CompozyOS no longer
+rewrites them. The table notes the exceptions. Current declarations behave as before.
+
+## Migration notes
+
+**Upgrade through v0.6.0 first** if you skipped it. Start v0.6.0 once with every user, profile,
+workspace and workspace-profile configuration in place so it migrates old files, resolve any
+deferred-migration warning, and remove anything below that is still left over before you
+upgrade; v0.6.1 refuses to load configuration that still contains it. Existing archived comments, SQL migration history, memory files, transcripts and
+retained extension registrations are not deleted.
+
+| Removed in v0.6.1                                                                                                                                                                                                                                                                                                                                                              | Use instead                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The agent kind renamed to always-on in v0.5.1, in a persisted `AGENT.md` `kind`, decoded and rewritten on load                                                                                                                                                                                                                                                                 | `kind: always_on`. Files v0.6.0 could not rewrite (read-only, or shipped in an extension) must be edited at their source; extension authors publish a new version.                        |
+| `config.toml` agent tables under that renamed kind, migrated on load                                                                                                                                                                                                                                                                                                           | `[agents.always_on]`                                                                                                                                                                      |
+| Archiving retired memory and compaction settings from `config.toml` on start: `[memory]` and its sub-tables, `[roles.dream]`, `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, `[[automation.triggers]]` with `event = "memory.consolidated"`, and hook matcher keys `compaction_reason` / `compaction_strategy` | Delete them. They now fail configuration validation.                                                                                                                                      |
+| Ignoring the hook matcher keys `compaction_reason` and `compaction_strategy` in `config.toml` hooks, extension manifest hooks, `AGENT.md` and `SKILL.md`                                                                                                                                                                                                                       | `compaction_trigger` in config, extension or skill hooks. `AGENT.md` hooks cannot target context events.                                                                                  |
+| Dropping `memory.backend` from an extension manifest's `capabilities.provides`, and `memory/recall`, `memory/store`, `memory/forget`, `memory.read` and `memory.write` from its `permissions.requires`                                                                                                                                                                         | Remove them from the extension source and publish a new version. Installed packages are never edited.                                                                                     |
+| Skipping extension automation resources triggered by `memory.consolidated`                                                                                                                                                                                                                                                                                                     | Remove the resource.                                                                                                                                                                      |
+| Ignoring `memory_policy` in `SOUL.md`                                                                                                                                                                                                                                                                                                                                          | Delete the field. It now gets the normal unsupported-field diagnostic.                                                                                                                    |
+| Dropping retired memory tool IDs and the `compozy__memory` / `compozy__memory_admin` toolsets from agent, profile and session tool policies                                                                                                                                                                                                                                    | Remove them. Retired toolsets fail catalog validation. Exact retired `compozy__memory_*` IDs are still accepted but match no tool, and an explicit allow-list stays restricted.           |
+| The `permissions.provider_full_access` key, a no-op with a warning in v0.6.0                                                                                                                                                                                                                                                                                                   | `permissions.mode` (`approve-all` for **Full access**). The old key is now unknown.                                                                                                       |
+| Agent Client Protocol (ACP) usage aliases `cacheReadTokens` / `cacheWriteTokens`                                                                                                                                                                                                                                                                                               | ACP adapters must send `cachedReadTokens` / `cachedWriteTokens`. The aliases are no longer counted toward cache usage; nothing fails.                                                     |
+| Automatic transfer of bundled `dev-cycle` extension state to `spec-cycle`                                                                                                                                                                                                                                                                                                      | Re-enter its inputs and credentials on `spec-cycle`, then run the removal command `compozy doctor` suggests for each `dev-cycle` installation. The old state stays in place until you do. |
+| Treating a launch that a stop canceled before v0.4.8 as canceled instead of failed when you take over the session, so it could resume                                                                                                                                                                                                                                          | Take over those sessions while still on v0.6.0. Normal session recovery is unchanged.                                                                                                     |
+
+Marketplace source management (`compozy marketplace sources`) is still experimental. Only the
+expired "through v0.6.0" date was removed from its help text. The full upgrade steps are in the
+migration guide.
+
+##### Loop tool pins use only their selected result view
+
+v0.6.1 removes the one-release compatibility translation for Loop tool pins created before native
+tool result views shipped in v0.6.0 (#1432). Tool actions compare their pinned input and selected
+output contract directly with the live tool. The automatic full-result fallback, pre-view input
+digest translation, and table translating superseded output-schema digests have been removed.
+
+## Migration notes
+
+Unfinished Loop runs started before v0.6.0 can no longer resume actions using pre-view tool pins.
+The next affected action fails with `ActionContractStale` (`action_contract_stale`). Start a new
+run from the existing definition with `compozy loop run --name <name>` to pin current tool contracts.
+Resuming the old run does not refresh its pins. Review definitions that read full-only fields
+and add literal `result_view: full` to those nodes before starting the replacement run.
+
+Definitions, completed runs, and their history are preserved. Runs started with current per-view
+pins continue to use their selected contract, including after a daemon restart. No database,
+configuration, CLI, HTTP/UDS, native tool ID, or hook shape changes in this removal.
+
+##### Scheduled jobs follow their catch-up policy after your computer sleeps
+
+When your computer sleeps through several runs of a recurring job, the job now follows its `catch_up_policy` when your computer wakes up. Before, a daemon that kept running through the sleep replayed every missed run regardless of policy. `coalesce` and `run_once_on_catchup` run once for the latest missed time, `replay` runs each missed time in order, and `skip_missed` checks the earliest missed run against the grace period: outside it, the backlog is recorded as one skipped run; within it, the latest missed time runs once. The job keeps its original schedule afterwards.
+
+Migration notes: no action needed.
+
+##### Reading a skill reference returns it once
+
+`compozy__skill_view` now returns a skill document once, in the result's structured content, with a short summary as display text. Before, it returned the full document twice, so a large reference could exceed the result size budget and come back as an artifact to page through instead of inline text. Clients that read only text still receive the complete document.
+
+`compozy__tool_artifact_read` now returns 32 KiB pages by default so each page fits comfortably in one response. You can still request up to 64 KiB per page.
+
+Migration notes: no action needed.
+
+##### Long transcripts stay steady when a turn starts
+
+In a long session, the transcript no longer flickers or stutters when the first tool call of a turn appears. Before, once a session held more than a page of history, each new entry made the app treat the whole loaded transcript as changed and redraw every message. Messages that did not change now keep their place and are not redrawn.
+
+Migration notes: no action needed.
+
+##### Terminal windows no longer hang on "Connecting…"
+
+A **Terminal** window in the Web UI could stay on "Connecting…" forever, with no prompt and no error, most often with the daemon in WSL2 and the browser on Windows. Each connection attempt now has a 10-second deadline. A stalled attempt is retried automatically and the window shows "Reconnecting…". After three stalled attempts in a row, the window says it couldn't connect to the terminal and offers **Reconnect**.
+
+Migration notes: no action needed.
+
+##### Terminal commands can run in a managed worktree
+
+`compozy__terminal_exec` now accepts a managed worktree by ID or name, the same way opening a terminal does. Use the native tool's `worktree` input, the HTTP/UDS request field, or `compozy terminal exec --worktree <id-or-name>`. Before, a session not bound to a worktree could open a terminal there but could not run a command in it: exec rejected the checkout as `invalid_cwd`.
+
+Relative working directories resolve inside the selected worktree, and the worktree cannot be removed while the command is still running.
+
+Migration notes: no action needed.
+
+##### Window layout saving recovers without a reload
+
+If the app hit an error while syncing the window layout, it now reconnects on its own. Before, the menubar kept showing "Can't save window layout — retrying" with no detail, every dock item stayed disabled, and window commands did nothing until you reloaded the app. The message now shows the underlying error, the app reconnects with increasing delays, and the dock works again as soon as the layout syncs.
+
+Migration notes: no action needed.
 
 ## Migration notes
 
