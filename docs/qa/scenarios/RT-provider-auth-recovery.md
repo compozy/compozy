@@ -106,3 +106,11 @@ After a successful login, deliberately request a genuinely unavailable model.
 After its bounded retries, recovery must emit the configuration rejection once, without native sign-in or
 permission guidance. Child attention must distinguish provider sign-in from a
 pending permission. Do not substitute a family alias for the pinned full ID.
+
+
+Verification 2026-11-12 (#1557): the complete isolated final-build walk passed
+mid-work loss and automatic continuation, expiry, immediate refusal, explicit
+retry, proactive probe reload, and bounded genuine model rejection with failed
+attention. The full pinned model and conversation stayed unchanged; the auth-probe
+wake completed in 0.202 seconds. Strict targeted audit: zero blockers/warnings.
+Synthetic login and ACP subprocesses establish the daemon flow, not live OAuth.

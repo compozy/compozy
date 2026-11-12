@@ -23,9 +23,9 @@ negotiation, rather than proving that the full ID must be replaced by an alias.
 | Journey                                                                  | Status  | Evidence                                                           |
 | ------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------ |
 | Baseline: full model, offline list, sign-in restored                     | Pass    | Baseline stream, status and final snapshot in isolated lab scratch |
-| Corrected: loss during work, native login wait, probe wake, continuation | Pending |                                                                    |
-| Exhaustion, explicit retry and proactive probe recovery                  | Pending |                                                                    |
-| Genuine unavailable model after login                                    | Pending |                                                                    |
+| Corrected: loss during work, native login wait, probe wake, continuation | Pass |                                                                    |
+| Exhaustion, explicit retry and proactive probe recovery                  | Pass |                                                                    |
+| Genuine unavailable model after login                                    | Pass |                                                                    |
 
 ## Implementation
 
@@ -43,9 +43,11 @@ owns the terminal diagnostic and persisted badge instead of the original auth fa
 
 ## Validation and limits
 
-Focused ACP subprocess and session recovery regressions passed. The baseline used
-the unmodified daemon; corrected real-daemon walks and final scoped lint are in
-progress. Full tests, race suites and repository gates remain CI-owned. No live
+Focused ACP subprocess, recovery and child-attention regressions passed on the
+implementation commit. Scoped lint passed with zero issues. The unmodified baseline
+and the complete final-build daemon walks passed; the final continuation finished
+0.202 seconds after the verified native-login probe. The same daemon PID and native
+conversation ID survived the final-build revoke/restore cycles. Full tests, race suites and repository gates remain CI-owned. No live
 OAuth account switch, real Usage endpoint, or rendered Web evidence is claimed.
 
 
@@ -58,3 +60,31 @@ regressions now cover cancellation, mismatch-then-success, bounded final
 configuration failure, and auth exhaustion after the old watcher callback runs.
 The production path preserves the retry budget and detaches only already-dead
 runtimes before settling a login wait. The second Opus review is in progress.
+
+
+## Final targeted walk
+
+The final build passed loss of login after a tool result, automatic continuation,
+window exhaustion, immediate follow-up refusal (HTTP 422), explicit restored-login
+retry, proactive probe reload, and a genuinely unavailable model after local login
+returned. The genuine rejection spent the bounded retries, emitted one protocol
+error, and persisted a failed badge with the model detail. The exact full model was
+never replaced by a family alias. The strict targeted audit passed with zero
+blockers and zero warnings. Raw streams, snapshots, manifest and focused-check
+receipts remain in the isolated lab scratch evidence.
+
+Early lab setup/script attempts are not product results: an invalid fixture agent
+frontmatter was corrected before startup; response-envelope, idempotency-key,
+managed-CLI identity, and script bookkeeping mistakes were corrected and the full
+final-build walk was repeated. A real product defect exposed by the intermediate
+walk (configuration failure read as done) was repaired before that final walk.
+
+The test-shape heuristic passes the changed recovery and child-wake suites. The
+ACP start/helper and config files retain exactly the baseline findings (16, 1 and
+16 respectively); no new heuristic finding was introduced. Broad/race/E2E checks
+remain current-head CI responsibilities.
+
+
+Targeted teardown completed with `clean: true`: only this lab's registered daemon
+and its verified lab-owned child processes were stopped. No surviving lab process
+or copied provider resource remains.
