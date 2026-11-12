@@ -93,6 +93,15 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		m.trackUnpublishedExec(run)
 	}
 	m.startExecLifecycle(run, request, argv)
+	return m.awaitExecResult(ctx, run, request, yield)
+}
+
+func (m *Service) awaitExecResult(
+	ctx context.Context,
+	run *execRun,
+	request ExecRequest,
+	yield time.Duration,
+) (*ExecResult, error) {
 	timer := time.NewTimer(yield)
 	defer timer.Stop()
 	select {
@@ -203,7 +212,7 @@ func (m *Service) startExec(
 ) (*execRun, error) {
 	var startedProc Proc
 	defer func() { m.releaseWorktreeAfterExit(startedProc, releaseWorktree) }()
-	cwd, workspaceID := request.Cwd, request.WS
+	workspaceID := request.WS
 	var err error
 	request.Capabilities, err = m.Capabilities(ctx, workspaceID)
 	if err != nil {
@@ -234,18 +243,9 @@ func (m *Service) startExec(
 	if err != nil {
 		return nil, err
 	}
-	mode, ptyMode, err := execModes(request.Visible, request.Capabilities)
+	spec, mode, err := execProcessSpec(request, argv, nonce)
 	if err != nil {
 		return nil, err
-	}
-	spec := ProcSpec{
-		Argv:        argv,
-		Cwd:         cwd,
-		Env:         request.Env,
-		Cols:        80,
-		Rows:        24,
-		Mode:        ptyMode,
-		MarkerNonce: nonce,
 	}
 	release, err := m.prepareEnvironment(ctx, workspaceID, request.Actor, &spec)
 	if err != nil {
@@ -285,6 +285,17 @@ func (m *Service) startExec(
 	releaseCommandID = false
 	transferred = true
 	return run, nil
+}
+
+func execProcessSpec(request ExecRequest, argv []string, nonce string) (ProcSpec, Mode, error) {
+	mode, ptyMode, err := execModes(request.Visible, request.Capabilities)
+	if err != nil {
+		return ProcSpec{}, "", err
+	}
+	return ProcSpec{
+		Argv: argv, Cwd: request.Cwd, Env: request.Env,
+		Cols: 80, Rows: 24, Mode: ptyMode, MarkerNonce: nonce,
+	}, mode, nil
 }
 
 func (m *Service) execInfo(id ID, mode Mode, request ExecRequest, argv []string) Info {

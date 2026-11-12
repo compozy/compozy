@@ -394,7 +394,8 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "turn-exec", ApprovalToken: "approval-token",
 		Input: json.RawMessage(`{"command":"bun","args":["test"],"worktree":"wt-ready"}`),
 	}))
-	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" || manager.execRequest.Worktree != "wt-ready" ||
+	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" ||
+		manager.execRequest.Worktree != "wt-ready" ||
 		manager.execRequest.Actor.RunID != "run-a" || manager.execRequest.Actor.Generation != 4 {
 		t.Fatalf("terminalExec(approved) error/calls/request = %v/%d/%#v", err, manager.execCalls, manager.execRequest)
 	}
