@@ -61,22 +61,10 @@ vi.mock("../session-window-module-loader", () => ({
       return (props.contextControl as ReactNode) ?? null;
     },
   }),
-}));
-
-// The Context rail itself is the inspector suite's; here it only marks that the window opened it.
-vi.mock("../session-window-right-panel", () => ({
-  SessionWindowRightRegion: ({
-    children,
-    inspector,
-  }: {
-    children: ReactNode;
-    inspector: { open: boolean };
-  }) => (
-    <>
-      {children}
-      {inspector.open ? <aside data-testid="session-context-rail" /> : null}
-    </>
-  ),
+  // The Context rail's content is the inspector suite's; here it only marks that the rail opened.
+  loadSessionInspector: async () => ({
+    SessionInspector: () => <aside data-testid="session-context-rail" />,
+  }),
 }));
 
 vi.mock("../use-session-window-controller", async () => {
@@ -138,6 +126,8 @@ vi.mock("@/systems/session", async importOriginal => ({
     session.failure?.kind === "process_exit" && session.health?.health === "dead",
   SessionEnvironmentControl: () => null,
   SessionComposerSubagents: () => null,
+  // The rail's activity reads the transcript the stubbed thread would provide.
+  useSessionContextActivity: () => null,
   SessionComposerMonitors: () => null,
   SessionPromptRuntimeSelector: () => null,
   SessionResumeFailure: ({ onRetry, retryLabel }: { onRetry: () => void; retryLabel?: string }) => (
@@ -173,6 +163,7 @@ vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
 import { SessionWindowContent } from "../session-window-content";
 import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
+import { sessionInspectorStore } from "@/systems/session/hooks/use-session-inspector-state";
 import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const deadSession: SessionPayload = {
@@ -489,6 +480,8 @@ describe("SessionWindowContent", () => {
 
   it("Should open and close the Context rail from the composer's context control (#1487)", async () => {
     const session = { ...quietSession, id: "sess-context-toggle" } satisfies SessionPayload;
+    // The per-session preference is a module store: start closed even on a retried attempt.
+    sessionInspectorStore.trigger.inspectorClosed({ sessionId: session.id });
     render(renderContent(session));
 
     const control = await screen.findByTestId("composer-context-button");
@@ -497,7 +490,7 @@ describe("SessionWindowContent", () => {
 
     fireEvent.click(control);
     await waitFor(() => expect(control).toHaveAttribute("aria-pressed", "true"));
-    expect(screen.getByTestId("session-context-rail")).toBeInTheDocument();
+    expect(await screen.findByTestId("session-context-rail")).toBeInTheDocument();
 
     fireEvent.click(control);
     await waitFor(() => expect(control).toHaveAttribute("aria-pressed", "false"));
