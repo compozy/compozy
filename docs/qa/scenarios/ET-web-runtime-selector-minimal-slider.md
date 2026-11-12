@@ -58,6 +58,13 @@ QA 2026-09-16, issue #655: Rendered full/recent/favorite Fable selection, valid/
 QA impact 2026-10-31, #1107: the session composer selector now applies same-provider changes to the live session and shows an apply note derived from the provider's runtime_live_apply capability; see RT-session-runtime-live-apply. Flag only.
 
 
+QA impact 2026-11-11 (runtime selector polish): hovering a truncated model name or an OpenCode
+upstream provider label reveals the full text through the shared tooltip without adding a tab stop
+inside the listbox; provider chips now use a 28px target and replace the native rail scrollbar with
+edge fades plus pointer-only paging chevrons. Verify hover on a long name and an OpenCode sub-label,
+then overflow the rail with many providers and page it with the chevrons while keeping search focus.
+Provider enable/disable and filter behavior are unchanged.
+
 QA impact 2026-11-01 (responsiveness audit): closed runtime selectors defer popup row projection.
 Verify the selected model and valid advertised controls remain visible while closed; update the
 catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keyboard selection and
