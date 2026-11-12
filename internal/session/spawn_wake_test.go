@@ -636,6 +636,162 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		collectEvents(t, events)
 	}
 
+	// Invariant: advancing an open attention revision replaces the creator wake even with the same badge.
+	for _, kind := range []string{
+		store.PendingInteractionKindPermission, store.PendingInteractionKindClarify,
+	} {
+		t.Run("Should replace queued attention after another "+kind, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+			child.mu.Lock()
+			child.Lineage.NotifyCreator = true
+			child.mu.Unlock()
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			var entries []store.SessionInputQueueEntry
+			notifier.deliver = func(ctx context.Context, creatorID string, event SpawnWakeEvent) error {
+				entry, err := h.manager.EnqueueSyntheticWake(ctx, creatorID, SyntheticPromptOpts{
+					MessageID: event.WakeEventID, Message: "Child needs input.",
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: child.ID, WakeEventID: event.WakeEventID,
+						Reason: string(event.Reason)},
+				})
+				if err == nil {
+					entries = append(entries, entry)
+				}
+				return err
+			}
+			for _, id := range []string{"first", "second"} {
+				if _, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: child.ID, InteractionID: id, ProviderRequestID: id, Kind: kind,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := h.manager.transitionPendingInteraction(
+				t.Context(), child.ID, store.PendingInteractionTransition{
+					InteractionID: "first", Status: store.PendingInteractionStatusResolved,
+					Resolution: "allow", ResolvedBy: "operator",
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 3 {
+				t.Fatalf("queued wakes = %d, want a replacement for each of three revisions", len(entries))
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			for index, entry := range entries {
+				want := store.SessionInputQueueStatusFailed
+				if index == len(entries)-1 {
+					want = store.SessionInputQueueStatusSent
+				}
+				waitForCondition(t, "revision wake settled", func() bool {
+					row, err := h.manager.inputQueue.Get(t.Context(), parent.ID, entry.ID)
+					return err == nil && row.Status == want
+				})
+			}
+		})
+	}
+
+	// Invariant: only the current, uncovered attention revision reaches the creator.
+	for _, covered := range []bool{false, true} {
+		name := fmt.Sprintf("Should discard obsolete attention and honor monitor coverage %t", covered)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h, _, _, parent, child := newEarlyStopHarness(t, "", true, nil)
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			h.manager.ConfigureSpawnWakeCoverage(func(string, *Info, Badge) bool { return covered })
+			var ids []string
+			for revision := range 2 {
+				child.mu.Lock()
+				child.PendingClarifyCount = 1
+				child.AttentionRevision = int64(revision + 1)
+				child.mu.Unlock()
+				wakeID := spawnWakeEventID(child.Info(), SpawnWakeReasonNeedsAttention)
+				entry, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+					MessageID: wakeID, Message: "Child needs input.",
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: child.ID, WakeEventID: wakeID,
+						Reason: string(SpawnWakeReasonNeedsAttention)},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids = append(ids, entry.ID)
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			for index, id := range ids {
+				want := store.SessionInputQueueStatusFailed
+				if index == 1 && !covered {
+					want = store.SessionInputQueueStatusSent
+				}
+				waitForCondition(t, "attention wake settled", func() bool {
+					entry, err := h.manager.inputQueue.Get(t.Context(), parent.ID, id)
+					return err == nil && entry.Status == want
+				})
+			}
+		})
+	}
+
+	// Invariant: answering the creator's current input delivers a review turn without requiring a PR.
+	name := "Should deliver a watched brief and an unwatched creator follow-up but flag an unanswered turn"
+	t.Run(name, func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		service, err := NewReplyWatchService(db, h.manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.manager.SetReplyWatchService(service)
+		h.manager.restartInputsHeld.Store(parent.ID, true)
+		for _, watched := range []bool{true, false} {
+			id := fmt.Sprintf("creator-message-%t", watched)
+			result, err := h.manager.SendPrompt(t.Context(), child.ID, SendPromptOpts{
+				Message: "Review and answer the creator.", MessageID: id, IdempotencyKey: id,
+				NotifyOnComplete: watched,
+				Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: parent.ID,
+					WorkspaceID: h.workspaceID, Hop: 1},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, result.Events)
+			if watched {
+				if _, err := db.GetReplyWatch(t.Context(), store.ReplyWatchID(child.ID, id)); err != nil {
+					t.Fatalf("initial brief has no reply watch: %v", err)
+				}
+			}
+			info := child.Info()
+			if info.EndedEarlyTurnID != "" || BadgeForInfo(info) == BadgeNeedsAttention {
+				t.Fatalf("answered creator input marked abandoned: %#v", info)
+			}
+		}
+		if _, wakes := notifier.calls(); len(wakes) != 0 {
+			t.Fatalf("answered review turns emitted attention wakes: %#v", wakes)
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			out := make(chan acp.AgentEvent, 1)
+			out <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID,
+				PromptStopReason: acp.PromptStopReasonEndTurn}
+			close(out)
+			return out, nil
+		}
+		result, err := h.manager.SendPrompt(t.Context(), child.ID, SendPromptOpts{
+			Message: "Review this follow-up too.", MessageID: "unanswered", IdempotencyKey: "unanswered",
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: parent.ID,
+				WorkspaceID: h.workspaceID, Hop: 1},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, result.Events)
+		if info := child.Info(); info.EndedEarlyTurnID == "" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("unanswered creator input was not flagged: %#v", info)
+		}
+		if _, wakes := notifier.calls(); len(wakes) != 1 || !wakes[0].EndedEarly {
+			t.Fatalf("unanswered turn wakes = %#v, want one early-stop alarm", wakes)
+		}
+	})
+
 	t.Run("Should flag the early stop durably and wake the parent with the final answer", func(t *testing.T) {
 		t.Parallel()
 		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)

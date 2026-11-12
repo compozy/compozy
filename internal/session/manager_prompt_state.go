@@ -93,6 +93,8 @@ func clearPromptState(session *Session, turnID string) {
 		session.currentPromptCancelTurn = ""
 	}
 	session.currentTurnID = ""
+	session.creatorSteerTurnID = ""
+	session.creatorSteerInputs = nil
 	session.currentPromptRecovery = nil
 	session.openToolCalls = nil
 	session.hasBoundarySteer = false

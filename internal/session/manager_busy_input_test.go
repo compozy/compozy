@@ -5249,7 +5249,8 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 				if req.Message == "hold" {
 					<-release
 				}
-				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID,
+					PromptStopReason: acp.PromptStopReasonEndTurn}
 			}()
 			return events, nil
 		}
@@ -5878,6 +5879,298 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			CoalesceKey: "monitor",
 			Coalesce:    &store.SessionInputCoalesce{MaxFullBytes: 1 << 10, MaxMembers: 64},
 		}
+	}
+
+	t.Run("Should deliver four child replies alongside monitor wakes in the live turn", func(t *testing.T) {
+		t.Parallel()
+		logs := &mentionLogSink{}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, []Option{
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{QueueCap: 32}),
+			WithLogger(slog.New(slog.NewJSONHandler(logs, nil))),
+		})
+		turnID := f.sess.CurrentTurnID()
+		var ids []string
+		var staleIDs []string
+		for child := range 4 {
+			id := fmt.Sprintf("child-%d", child)
+			childSession, err := f.h.manager.Create(t.Context(), &CreateOpts{
+				AgentName: "coder", Name: id, Workspace: f.h.workspaceID,
+				Lineage: &store.SessionLineage{ParentSessionID: f.sess.ID, RootSessionID: f.sess.ID,
+					Kind: store.LineageKindProvenance},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, f.h, childSession.ID) })
+			for revision := range 2 {
+				childSession.mu.Lock()
+				childSession.PendingClarifyCount = 1
+				childSession.AttentionRevision = int64(revision + 1)
+				childSession.mu.Unlock()
+				info := childSession.Info()
+				wakeID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+				wake, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+					MessageID: wakeID, Message: fmt.Sprintf("attention %s revision %d", id, revision),
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: info.ID,
+						Reason: string(SpawnWakeReasonNeedsAttention), WakeEventID: wakeID},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if revision == 0 {
+					staleIDs = append(staleIDs, wake.ID)
+				}
+			}
+			entry, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+				MessageID: "prompt-reply:" + id, Message: "reply " + id,
+				Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
+					ChildSessionID: id, Reason: "completed", WakeEventID: id, Hop: 2},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, entry.ID)
+			if _, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake(id)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForCondition(t, "initial promotion passes settled", func() bool {
+			return !f.sess.inputPromotionActive.Load()
+		})
+		f.advance(2 * time.Minute)
+		f.h.manager.schedulePromoteLongTurnQueuedInputs(f.sess)
+		replies := map[string]int{}
+		for range 9 {
+			select {
+			case text := <-f.steered:
+				replies[text]++
+			case <-time.After(5 * time.Second):
+				t.Fatal("child replies or monitor wake starved in the live turn")
+			}
+		}
+		for _, id := range staleIDs {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
+			if err != nil || entry.Status != store.SessionInputQueueStatusFailed {
+				t.Fatalf("obsolete attention = %#v, %v", entry, err)
+			}
+		}
+		for child := range 4 {
+			if replies[fmt.Sprintf("attention child-%d revision 1", child)] != 1 ||
+				replies[fmt.Sprintf("attention child-%d revision 0", child)] != 0 {
+				t.Fatalf("attention injections = %#v, want only each child's current revision", replies)
+			}
+		}
+		for child, id := range ids {
+			waitForCondition(t, "reply injected with its identity", func() bool {
+				entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
+				return err == nil && entry.Status == store.SessionInputQueueStatusSent &&
+					entry.TurnID == turnID && entry.SteerDelivery == store.SteerDeliveryInjected
+			})
+			if replies[fmt.Sprintf("reply child-%d", child)] != 1 {
+				t.Fatalf("injections = %#v, want one reply per child", replies)
+			}
+		}
+		if hop, err := f.h.manager.CurrentTurnEffectiveHop(t.Context(), f.sess.ID); err != nil || hop != 2 {
+			t.Fatalf("reply hop floor = %d, %v; want 2", hop, err)
+		}
+		if !strings.Contains(logs.String(), `"oldest_queued_synthetic_age_ms":120000`) ||
+			!strings.Contains(logs.String(), `"session_id":"`+f.sess.ID+`"`) {
+			t.Fatalf("missing oldest synthetic age and session correlation: %s", logs.String())
+		}
+		waitForCondition(t, "promotion settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		drain(t, f)
+		select {
+		case extra := <-f.steered:
+			t.Fatalf("duplicate live injection: %q", extra)
+		default:
+		}
+		f.h.driver.mu.Lock()
+		defer f.h.driver.mu.Unlock()
+		for _, call := range f.h.driver.promptCalls {
+			if call.TurnID != turnID && (strings.Contains(call.Message, "reply child-") ||
+				strings.Contains(call.Message, "attention child-")) {
+				t.Fatalf("injected child wake dispatched again: %q", call.Message)
+			}
+		}
+	})
+
+	// Invariant: failures before creator-steer handoff release the reservation into normal delivery.
+	for _, fault := range []string{"history read", "turn ended"} {
+		t.Run("Should deliver reserved creator steering after "+fault, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, compozyconfig.SessionMessagingConfig{})
+			creator := createSession(t, f.h)
+			t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
+			f.sess.mu.Lock()
+			f.sess.Lineage = &store.SessionLineage{ParentSessionID: creator.ID, RootSessionID: creator.ID,
+				SpawnDepth: 1, Kind: store.LineageKindProvenance}
+			recorder := f.sess.recorder
+			f.sess.mu.Unlock()
+			turnID := f.sess.CurrentTurnID()
+			var triggered atomic.Bool
+			wrapped := &maxSequenceHookRecorder{EventRecorder: recorder}
+			wrapped.read = func(ctx context.Context) (int64, error) {
+				entries, err := f.h.manager.inputQueue.List(ctx, f.sess.ID)
+				if err != nil {
+					return 0, err
+				}
+				for _, entry := range entries {
+					if entry.MessageID != "creator-fallback" ||
+						entry.Status != store.SessionInputQueueStatusDispatching ||
+						!triggered.CompareAndSwap(false, true) {
+						continue
+					}
+					if fault == "history read" {
+						return 0, errors.New("creator history unavailable")
+					}
+					f.release()
+					waitForCondition(t, "original turn ended during handoff", func() bool {
+						return f.sess.CurrentTurnID() != turnID
+					})
+				}
+				return recorder.MaxEventSequence(ctx)
+			}
+			f.sess.mu.Lock()
+			f.sess.recorder = wrapped
+			f.sess.mu.Unlock()
+			result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, SendPromptOpts{
+				Message: "Retain creator follow-up.", MessageID: "creator-fallback", IdempotencyKey: "creator-fallback",
+				Mode: BusyInputModeSteer,
+				Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: creator.ID,
+					WorkspaceID: f.h.workspaceID, Hop: 1},
+			})
+			if err != nil || !triggered.Load() {
+				t.Fatalf("creator fallback = %#v, %v; fault triggered=%t", result, err, triggered.Load())
+			}
+			drain(t, f)
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, result.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent || entry.TurnID == turnID {
+				t.Fatalf("creator entry = %#v, %v; want delivery in a later turn", entry, err)
+			}
+			select {
+			case text := <-f.steered:
+				t.Fatalf("pre-handoff failure still injected text: %q", text)
+			default:
+			}
+		})
+	}
+
+	// Invariant: a creator steer is answered even when its receipt follows the provider's output.
+	t.Run("Should recognize a creator answer stored before its steering receipt", func(t *testing.T) {
+		t.Parallel()
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{}, []Option{
+			func(manager *Manager) {
+				WithSessionCatalog(manager.inputQueueStore.(*globaldb.GlobalDB))(manager)
+			},
+		})
+		creator := createSession(t, f.h)
+		t.Cleanup(func() { reportSessionStop(t, f.h, creator.ID) })
+		f.sess.mu.Lock()
+		f.sess.Lineage = &store.SessionLineage{ParentSessionID: creator.ID, RootSessionID: creator.ID,
+			SpawnDepth: 1, Kind: store.LineageKindProvenance}
+		f.sess.mu.Unlock()
+		f.h.manager.SetWorkSignalSources(earlyStopWorkSources("")...)
+		turnID := f.sess.CurrentTurnID()
+		f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver,
+			steer: func(ctx context.Context, _ *AgentProcess, _ string, _ string) (acp.SteerAttempt, error) {
+				err := f.h.manager.recordEvent(ctx, f.sess, acp.AgentEvent{
+					Type: acp.EventTypeAgentMessage, TurnID: turnID, Text: "Review answer before receipt.",
+					Timestamp: f.h.manager.now(),
+				})
+				return acp.SteerAttemptInjected, err
+			},
+		}
+		result, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, SendPromptOpts{
+			Message: "Review this follow-up.", MessageID: "creator-steer", IdempotencyKey: "creator-steer",
+			Mode: BusyInputModeSteer,
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: creator.ID,
+				WorkspaceID: f.h.workspaceID, Hop: 1},
+		})
+		if err != nil || result.SteerDelivery != store.SteerDeliveryInjected {
+			t.Fatalf("creator steer = %#v, %v", result, err)
+		}
+		drain(t, f)
+		info := f.sess.Info()
+		if info.EndedEarlyTurnID != "" || BadgeForInfo(info) == BadgeNeedsAttention {
+			t.Fatalf("answered steer falsely marked abandoned: %#v", info)
+		}
+		var answerSequence, receiptSequence int64
+		for _, event := range readStoredEvents(t, f.sess) {
+			if event.Type == acp.EventTypeAgentMessage {
+				answerSequence = event.Sequence
+			}
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if event.Type == acp.EventTypeUserMessage && decoded.MessageIDValue() == "creator-steer" {
+				receiptSequence = event.Sequence
+			}
+		}
+		if answerSequence == 0 || receiptSequence <= answerSequence {
+			t.Fatalf("answer seq=%d receipt seq=%d, want output before the receipt", answerSequence, receiptSequence)
+		}
+		unanswered, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, SendPromptOpts{
+			Message: "Another review request.", MessageID: "next-creator-input", IdempotencyKey: "next-creator-input",
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: creator.ID,
+				WorkspaceID: f.h.workspaceID, Hop: 1},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, unanswered.Events)
+		if info := f.sess.Info(); info.EndedEarlyTurnID == "" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("earlier steering answer masked the next unanswered turn: %#v", info)
+		}
+	})
+
+	// Invariant: promoted synthetic streams close successfully only after confirmed live delivery.
+	for _, pending := range []bool{false, true} {
+		name := fmt.Sprintf("Should complete a promoted synthetic stream with pending injection %t", pending)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+			completion := make(chan error, 1)
+			if pending {
+				f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver, completion: completion,
+					steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
+						f.steered <- text
+						return acp.SteerAttemptPendingInjection, nil
+					},
+				}
+			}
+			f.advance(2 * time.Minute)
+			events, err := f.h.manager.PromptSynthetic(t.Context(), f.sess.ID, SyntheticPromptOpts{
+				MessageID: "reply-stream", Message: "child reply",
+				Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
+					Reason: "completed", WakeEventID: "reply-stream"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-f.steered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("synthetic stream was not offered for injection")
+			}
+			if pending {
+				select {
+				case event, open := <-events:
+					t.Fatalf("pending injection closed or emitted an event: %#v, %t", event, open)
+				default:
+				}
+				completion <- nil
+			}
+			select {
+			case event, open := <-events:
+				if open {
+					t.Fatalf("promoted admission emitted a projection failure or unrelated output: %#v", event)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("confirmed promoted admission stream did not close")
+			}
+			drain(t, f)
+		})
 	}
 
 	t.Run("Should inject a coalesced monitor wake into a long turn as a daemon wake", func(t *testing.T) {
@@ -7534,4 +7827,14 @@ func (s *boundaryInputQueueFaultStore) SettlePendingSessionSteer(
 		}
 	}
 	return entry, changed, err
+}
+
+// maxSequenceHookRecorder injects an event-history read boundary failure.
+type maxSequenceHookRecorder struct {
+	EventRecorder
+	read func(context.Context) (int64, error)
+}
+
+func (r *maxSequenceHookRecorder) MaxEventSequence(ctx context.Context) (int64, error) {
+	return r.read(ctx)
 }

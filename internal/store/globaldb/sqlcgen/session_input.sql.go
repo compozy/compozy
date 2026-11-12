@@ -1572,7 +1572,12 @@ WHERE session_input_queue.session_id = ?3 AND session_input_queue.id = ?4
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
     OR (session_input_queue.owner_kind = 'synthetic'
-      AND json_extract(session_input_queue.synthetic_prompt_json, '$.coalesce_key') IS NOT NULL))
+      AND (json_extract(session_input_queue.synthetic_prompt_json, '$.coalesce_key') IS NOT NULL
+        OR json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.kind') = 'session_reply'
+        OR (COALESCE(json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.kind'), '') IN ('', 'session_ended_early')
+          AND COALESCE(json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.child_session_id'), '') != ''
+          AND COALESCE(json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.wake_event_id'), '') != ''
+          AND json_extract(session_input_queue.synthetic_prompt_json, '$.metadata.reason') IN ('completed', 'stopped', 'failed', 'needs_attention')))))
   AND session_input_queue.dispatchable = 1
   AND session_input_queue.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?3)
   AND NOT EXISTS (
