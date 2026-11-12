@@ -181,8 +181,9 @@ transport and harness contracts; their package alone does not exclude other test
 Integration keeps race detection and `-parallel=4`, disabling checkptr only for
 modernc as the unit lane already does. The weekly full checkptr audit is unchanged.
 Globaldb already had current-schema copies and historical prefix templates; W1
-reuses the completed package migration seed to initialize the current database
-family and uses its template for the ordinary reopen case. Migration-specific
+uses the current-family template for the ordinary reopen case. Production open
+bootstraps that family once per package, including the telemetry sibling and its
+identity; raw SQL prefix snapshots remain historical fixtures. Migration-specific
 cases still replay their migration tails, including the historical destructive-cut
 case. That full historical replay runs before its parallel sibling upgrades so
 CPU contention cannot consume its five-minute operation budget. No assertion or

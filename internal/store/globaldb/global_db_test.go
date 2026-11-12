@@ -105,7 +105,7 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	}()
 
 	ctx := context.Background()
-	migrationSeed, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
+	_, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
 	if err != nil {
 		reportTestMainError("build global migration seeds error = %v", err)
 		return 1
@@ -113,12 +113,6 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	// Historical SQL prefixes remain migration fixtures. The current family is
 	// created by its production owner, including the cross-file identity.
 	path := filepath.Join(dir, "current-"+GlobalDatabaseName)
-	// Reuse the completed migration replay; production open still owns the
-	// telemetry cutover and establishes the complete current database family.
-	if err := copyGlobalMigrationSeedFile(migrationSeed, path); err != nil {
-		reportTestMainError("copy current global migration seed error = %v", err)
-		return 1
-	}
 	globalDB, err := OpenGlobalDB(ctx, path)
 	if err != nil {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
