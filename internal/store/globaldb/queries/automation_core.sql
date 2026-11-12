@@ -30,7 +30,7 @@ UPDATE automation_runs SET
   ended_at = sqlc.narg(ended_at), error = sqlc.narg(error),
   delivery_error = sqlc.narg(delivery_error), delivery_error_at = sqlc.narg(delivery_error_at),
 	loop_run_id = sqlc.narg(loop_run_id), metadata_json = sqlc.arg(metadata_json)
-WHERE id = sqlc.arg(id);
+WHERE id = sqlc.arg(id) AND NOT (status = 'canceled' AND COALESCE(error, '') = 'operator_canceled');
 
 -- name: DeleteAutomationRun :execrows
 DELETE FROM automation_runs WHERE id = sqlc.arg(id);
@@ -155,3 +155,12 @@ SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, pro
        webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_triggers WHERE id = sqlc.arg(id);
+
+-- name: SettleAutomationRun :execrows
+UPDATE automation_runs SET status = sqlc.arg(status), error = sqlc.arg(error), ended_at = sqlc.arg(ended_at)
+WHERE id = sqlc.arg(id) AND status = sqlc.arg(expected_status)
+ AND status IN ('scheduled', 'running')
+ AND COALESCE(session_id, '') = sqlc.arg(expected_session_id)
+ AND COALESCE(task_id, '') = sqlc.arg(expected_task_id)
+ AND COALESCE(task_run_id, '') = sqlc.arg(expected_task_run_id)
+ AND COALESCE(loop_run_id, '') = sqlc.arg(expected_loop_run_id);

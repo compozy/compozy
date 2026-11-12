@@ -11,6 +11,35 @@ import (
 	"strings"
 )
 
+// GetMarketplaceSections Browse Featured and category sections
+func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
+	path := "/api/marketplace/sections"
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.PerSection != nil {
+		query.Set("per_section", strconv.Itoa(*params.PerSection))
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceSectionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetObserveOverviewParams carries the path, query, and header parameters.
 type GetObserveOverviewParams struct {
 	AllWorkspaces  *bool   `url:"all_workspaces"`
@@ -397,49 +426,6 @@ func (c *Client) GetSchedulerBacklog(ctx context.Context, params GetSchedulerBac
 // GetSessionParams carries the path, query, and header parameters.
 type GetSessionParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	IncludeHealth *bool   `url:"include_health"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetSession Get one session snapshot
-func (c *Client) GetSession(ctx context.Context, params GetSessionParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.IncludeHealth != nil {
-		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionAttentionSummary Get exact session attention counts
-func (c *Client) GetSessionAttentionSummary(ctx context.Context) (*SessionAttentionSummaryPayload, error) {
-	path := "/api/sessions/attention-summary"
-	var out SessionAttentionSummaryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionByIDParams carries the path, query, and header parameters.
-type GetSessionByIDParams struct {
 	SessionID     string  `url:"session_id"`
 	IncludeHealth *bool   `url:"include_health"`
 	Profile       *string `url:"profile"`

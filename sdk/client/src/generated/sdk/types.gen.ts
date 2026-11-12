@@ -18937,6 +18937,54 @@ export type GetAutomationRunResponses = {
 
 export type GetAutomationRunResponse = GetAutomationRunResponses[keyof GetAutomationRunResponses];
 
+export type CancelAutomationRunData = {
+  body?: never;
+  path: {
+    /**
+     * Automation run id
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/automation/runs/{id}/cancel";
+};
+
+export type CancelAutomationRunErrors = {
+  /**
+   * Automation run not found
+   */
+  404: ErrorPayload;
+  /**
+   * Run may still be executing or changed concurrently
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Automation manager is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type CancelAutomationRunError = CancelAutomationRunErrors[keyof CancelAutomationRunErrors];
+
+export type CancelAutomationRunResponses = {
+  /**
+   * Canceled run or unchanged terminal run
+   */
+  200: RunResponse;
+};
+
+export type CancelAutomationRunResponse =
+  CancelAutomationRunResponses[keyof CancelAutomationRunResponses];
+
 export type ListAutomationSuggestionsAggregateData = {
   body?: never;
   path?: never;

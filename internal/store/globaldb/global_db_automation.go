@@ -94,6 +94,13 @@ func (g *AutomationRepo) UpdateRun(ctx context.Context, run automation.Run) (aut
 		)
 	}
 
+	if affected == 0 {
+		if current, lookupErr := g.GetRun(ctx, normalized.ID); lookupErr == nil &&
+			current.Status == automation.RunCancelled && current.Error == "operator_canceled" {
+			return automation.Run{}, automation.ErrRunReservationConflict
+		}
+	}
+
 	if err := requireAutomationAffected(
 		affected,
 		automation.ErrRunNotFound,

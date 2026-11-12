@@ -278,7 +278,9 @@ func StatusForAutomationError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, looppkg.ErrDefinitionNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, automationpkg.ErrJobNameTaken),
+	case errors.Is(err, automationpkg.ErrRunActive),
+		errors.Is(err, automationpkg.ErrRunReservationConflict),
+		errors.Is(err, automationpkg.ErrJobNameTaken),
 		errors.Is(err, automationpkg.ErrSuggestionResolved),
 		errors.Is(err, automationpkg.ErrSuggestionPendingCap),
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),

@@ -1,0 +1,47 @@
+---
+title: "compozy automation runs cancel"
+description: "Cancel an orphaned automation run"
+---
+
+## compozy automation runs cancel
+
+Cancel an orphaned automation run
+
+### Synopsis
+
+Cancel a run whose session is missing or stopped, preserving its history. Stop live sessions through session stop first. Admissions without a session and delegated executions are refused. Terminal runs are unchanged.
+
+```
+compozy automation runs cancel <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for cancel
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy automation runs cancel <id> -o json
+```

@@ -22,6 +22,7 @@ func registryAutomationOperations() []OperationSpec {
 		listAutomationTriggerRunsOperationSpec(),
 		listAutomationRunsOperationSpec(),
 		getAutomationRunOperationSpec(),
+		cancelAutomationRunOperationSpec(),
 		deliverGlobalWebhookOperationSpec(),
 		deliverWorkspaceWebhookOperationSpec(),
 	}

@@ -190,3 +190,12 @@ func (c *daemonClient) GetAutomationRun(ctx context.Context, id string) (RunReco
 	}
 	return response.Run, nil
 }
+
+func (c *daemonClient) CancelAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+	var response contract.RunResponse
+	path := "/api/automation/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/cancel"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return RunRecord{}, err
+	}
+	return response.Run, nil
+}

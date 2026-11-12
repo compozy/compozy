@@ -9,6 +9,36 @@ import (
 	"strings"
 )
 
+// GetHookEvents List supported hook taxonomy metadata
+func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
+	path := "/api/hooks/events"
+	query := url.Values{}
+	if params.Family != nil {
+		query.Set("family", *params.Family)
+	}
+	if params.SyncOnly != nil {
+		query.Set("sync_only", strconv.FormatBool(*params.SyncOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetHookRunsParams carries the path, query, and header parameters.
+type GetHookRunsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Session     string  `url:"session"`
+	Event       *string `url:"event"`
+	Outcome     *string `url:"outcome"`
+	Since       *string `url:"since"`
+	Last        *int    `url:"last"`
+}
+
 // GetHookRuns List hook run history for one session
 func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/hooks/runs"
@@ -414,33 +444,4 @@ type GetMarketplaceSectionsParams struct {
 	Scope       *string `url:"scope"`
 	Profile     *string `url:"profile"`
 	WorkspaceID *string `url:"workspace_id"`
-}
-
-// GetMarketplaceSections Browse Featured and category sections
-func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
-	path := "/api/marketplace/sections"
-	query := url.Values{}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.PerSection != nil {
-		query.Set("per_section", strconv.Itoa(*params.PerSection))
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MarketplaceSectionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

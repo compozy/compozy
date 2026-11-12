@@ -31,6 +31,7 @@ func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
 	runs := automationGroup.Group("/runs")
 	runs.GET("", handlers.ListAutomationRuns)
 	runs.GET("/:id", handlers.GetAutomationRun)
+	runs.POST("/:id/cancel", handlers.CancelAutomationRun)
 }
 
 func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {

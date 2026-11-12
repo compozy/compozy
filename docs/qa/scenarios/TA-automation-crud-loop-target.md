@@ -68,3 +68,14 @@ SQLite audit 2026-10-09: Hold an external writer during scheduled claim and trig
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+QA impact 2026-11-12 (#1608): simulate a daemon restart with `scheduled`/`running` history
+whose sessions are missing or stopped. Confirm each row is retained as `failed` with
+`orphaned_after_restart` and an end time, and the next scheduled fire dispatches instead
+of `self_overlap`. A live session must remain blocking. Cancel an orphan using
+`automation runs cancel`, HTTP/UDS `POST /api/automation/runs/{id}/cancel`, or
+`compozy__automation_runs_cancel`; verify the canceled receipt, retained history and
+idempotent retry. Live sessions, delegated executions and sessionless admissions must be
+refused without mutation; other profiles must remain inaccessible. Owning manager and
+handler/CLI suites cover these contracts with real SQLite at the persistence boundary.
+Local tests and runtime QA are prohibited for this parallel dispatch; CI evidence is pending.

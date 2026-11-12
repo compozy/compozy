@@ -1,4 +1,4 @@
 {
     "title": "Runs",
-    "pages": ["index", "get"]
+    "pages": ["index", "cancel", "get"]
 }

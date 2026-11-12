@@ -54,6 +54,7 @@ type StubAutomationManager struct {
 	ListRunsFn          func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	RunsFn              func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	GetRunFn            func(context.Context, string) (automationpkg.Run, error)
+	CancelRunFn         func(context.Context, string) (automationpkg.Run, error)
 	StatusFn            func(context.Context) (automationpkg.ManagerStatus, error)
 	SetJobEnabledFn     func(context.Context, string, bool) (automationpkg.Job, error)
 	SetTriggerEnabledFn func(context.Context, string, bool) (automationpkg.Trigger, error)
@@ -289,4 +290,11 @@ func (s StubAutomationManager) LatestRunsByOwner(
 		return nil, nil
 	}
 	return s.LatestRunsByOwnerFn(ctx, owner, ids)
+}
+
+func (s StubAutomationManager) CancelRun(ctx context.Context, id string) (automationpkg.Run, error) {
+	if s.CancelRunFn != nil {
+		return s.CancelRunFn(ctx, id)
+	}
+	return automationpkg.Run{}, automationpkg.ErrRunNotFound
 }
