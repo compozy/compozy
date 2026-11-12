@@ -124,10 +124,11 @@ export async function focusWindowThroughPalette(page: Page, win: Locator): Promi
   // Opening the palette can reconcile and rematerialize a window. Resolve its
   // opaque identity only after that transition through its stable app/instance
   // identity, so the tab row and surface share the same authority snapshot.
-  await expect(target).toBeVisible();
+  await expect(target).toBeAttached();
   const id = await windowID(target);
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
   await palette.getByTestId(`os-palette-tab-${id}`).click();
+  await expect(target).toBeVisible();
   await expect(windowFrame(target)).toHaveAttribute("data-focused", "");
 }
 

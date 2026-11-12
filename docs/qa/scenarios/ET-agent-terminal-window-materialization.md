@@ -33,3 +33,11 @@ Walk in an isolated home, never against the operator's existing windows:
 Targeted validation: daemon bridge event tests; real SQLite partition cleanup and real PTY lifecycle
 in the owning daemon runtime suite; window-manager topology/history suite; rendered dock regression
 suite and Storybook terminal rail captures. Full E2E remains CI-owned.
+
+CI repair 2026-11-12 (#1565 integration): the existing terminal-agent E2E journey now
+checks the on-demand contract introduced by #1570: no automatic agent window, explicit
+opening while the process is held on stdin, removal after controlled exit, and retained
+journal access from another live terminal. Approval navigation activates a hidden session
+tab before asserting its permission dock; session close uses the canonical tab-aware helper.
+The prior CI artifacts showed an obsolete automatic-window expectation and hidden-tab controls.
+Validation remains CI-only under the operator's parallel-execution restriction.
