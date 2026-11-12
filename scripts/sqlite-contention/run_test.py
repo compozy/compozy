@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 
 from run import (MAX_RETENTION_SECONDS, MIN_THROUGHPUT_RATIO,
-                 acceptance_failures, load_failed, throughput_comparison, trace_diagnostic)
+                 acceptance_failures, load_failed, run, throughput_comparison, trace_diagnostic)
 
 
 def trial(count=100, seconds=30):
@@ -20,6 +20,33 @@ def trial(count=100, seconds=30):
 
 
 class AcceptanceTests(unittest.TestCase):
+    # Invariant: original-trial diagnostics retain the same workload and receipts.
+    # Owner: experiment subprocess boundary; canonical suite: AcceptanceTests.
+    def test_runtime_trace_retains_original_workload_and_receipts(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                result = {"end": "2026-11-12T05:00:30Z", "warmup_start": "2026-11-12T04:59:55Z",
+                          "seconds": 30, "write_commit_hooks": {"core": 60, "telemetry": 30}}
+
+                def execute(command, **kwargs):
+                    json.dump(result, kwargs["stdout"])
+                    kwargs["stderr"].write(json.dumps({
+                        "time": "2026-11-12T05:00:10Z", "msg": "sqlite write transaction held for at least one second",
+                        "database": "core", "operation": "update session state", "commit_ms": 1030}) + "\n")
+
+                with patch("run.subprocess.run", side_effect=execute) as child:
+                    measured = run(Path("binary"), output / "fixture", "load", output, "head-0",
+                                   runtime_trace=enabled)
+                expected = ["binary", "-mode", "load", "-root", str(output / "fixture"), "-duration", "30s"]
+                if enabled:
+                    expected += ["-runtime-trace", str(output / "head-0.trace")]
+                self.assertEqual(child.call_args.args[0], expected)
+                self.assertEqual(measured["seconds"], 30)
+                self.assertEqual(measured["transactions_per_second"], {"core": 2, "telemetry": 1})
+                self.assertEqual(measured["contention_diagnostics"][0]["commit_ms"], 1030)
+                self.assertEqual(json.loads((output / "head-0.json").read_text()), measured)
+
     # Invariant: shared I/O tails may explain transcript COMMIT warnings only
     # within the same pair; neither the median nor unrelated baseline work may
     # hide a head-only pause. Owner: runner acceptance, canonical suite: this file.

@@ -16,6 +16,11 @@ on:
       - "go.mod"
       - "go.sum"
   workflow_dispatch:
+    inputs:
+      runtime_trace_trials:
+        description: "Record the original trials for syscall/scheduling diagnosis (not final acceptance evidence)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,12 +70,17 @@ jobs:
       - name: Measure on the same runner, sequentially
         env:
           EXPERIMENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUNTIME_TRACE_TRIALS: ${{ inputs.runtime_trace_trials || false }}
         run: |
+          diagnostic_args=()
+          if test "$RUNTIME_TRACE_TRIALS" = true; then
+            diagnostic_args+=(--runtime-trace-trials)
+          fi
           python3 scripts/sqlite-contention/run.py \
             --baseline "$RUNNER_TEMP/contention-baseline" \
             --head "$RUNNER_TEMP/contention-head" \
             --baseline-sha "$BASELINE_SHA" --head-sha "$EXPERIMENT_HEAD" \
-            --output "$RUNNER_TEMP/sqlite-contention"
+            --output "$RUNNER_TEMP/sqlite-contention" "${diagnostic_args[@]}"
       - name: Publish experiment summary
         if: always()
         run: |

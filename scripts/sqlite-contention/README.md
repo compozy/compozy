@@ -212,6 +212,14 @@ is uploaded as `head-diagnostic.trace`; `go tool trace` can inspect it or produc
 `-pprof=sync`, `-pprof=syscall` and `-pprof=sched` profiles. This replay never
 replaces a measurement or turns the original failure into a passing job.
 
+For pauses that do not recur in a replay, manually dispatch the same workflow
+with `runtime_trace_trials=true`. Both binaries record Go traces during each
+original trial, buffered in memory and written only after the workload drains.
+The per-trial `.trace`, JSON and log files then describe the same execution.
+`results.json` identifies these diagnostic timings with `runtime_trace_trials`;
+they cannot replace the required uninstrumented acceptance runs. All failed
+samples and the unchanged acceptance decisions remain in the artifact.
+
 For a dedicated Linux lab, build the harness in each checkout, then run:
 
 ```sh

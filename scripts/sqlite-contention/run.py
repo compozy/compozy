@@ -190,6 +190,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--baseline-sha", required=True)
     parser.add_argument("--head-sha", required=True)
+    parser.add_argument("--runtime-trace-trials", action="store_true",
+                        help="Record Go scheduling/syscalls in the original trials; diagnostic timings only")
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
@@ -224,7 +226,8 @@ def main():
             root = args.output / "trial-data"
             copy_fixture(source, root)
             try:
-                trials[label].append(run(getattr(args, label), root, "load", args.output, f"{label}-{trial}"))
+                trials[label].append(run(getattr(args, label), root, "load", args.output, f"{label}-{trial}",
+                                         runtime_trace=args.runtime_trace_trials))
             finally:
                 shutil.rmtree(root)
     traced = {}
@@ -235,7 +238,8 @@ def main():
                    "go": subprocess.check_output(["go", "version"], text=True).strip(),
                    "disk": subprocess.check_output(["df", "-h", str(args.output)], text=True),
                    "cpu": Path("/proc/cpuinfo").read_text(), "memory": Path("/proc/meminfo").read_text()}
-    result = {"environment": environment, "seed": seed, "upgrade": {"rows": before["rows"], "sha256": before["sha256"],
+    result = {"environment": environment, "runtime_trace_trials": args.runtime_trace_trials,
+              "seed": seed, "upgrade": {"rows": before["rows"], "sha256": before["sha256"],
               "baseline_open_ms": baseline_view["open_ms"], "upgrade_ms": head_view["open_ms"], "reopen_ms": reopened["open_ms"]},
               "trials": trials, "traced": traced}
     comparison, regressions, invalid, tails = acceptance_failures(trials, retention_rows)
@@ -249,6 +253,7 @@ def main():
                                      for run in traced.values())
     save(args.output / "results.json", result)
     lines = ["# SQLite contention paired experiment", "", f"Baseline `{args.baseline_sha}`; head `{args.head_sha}`.", "",
+             f"Original-trial Go tracing: {args.runtime_trace_trials}. Traced timings are diagnostic, not final acceptance evidence.", "",
              "30 sessions; 1,000 completed turns each; 20 Hz transcript chunks, 5 Hz transcript reads,",
              "4 Hz health and 2 Hz summaries/state per session; 20 Hz catalog reads; 1,500 model rows",
              "and 90 process observations refreshed every two seconds. Each measured phase also",
