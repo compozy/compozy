@@ -40,6 +40,7 @@ function buildClient(
     autoParse?: boolean;
     screen?: () => TerminalScreenFixture;
     deferScreen?: boolean;
+    deferTicket?: boolean;
     ticketResponse?: () => { body: unknown; status: number };
     attachDeadline?: (run: () => void, delayMs: number) => () => void;
   } = {}
@@ -47,6 +48,7 @@ function buildClient(
   const stub = stubTerminalFetch({
     screen: options.screen,
     deferScreen: options.deferScreen,
+    deferTicket: options.deferTicket,
     ...(options.ticketResponse ? { ticketResponse: options.ticketResponse } : {}),
   });
   restoreFetch = stub.restore;
@@ -206,6 +208,39 @@ describe("TerminalProtocolClient", () => {
     // Attached in time: this attempt's deadline can no longer fire.
     expect(deadlines.armed.at(-1)?.cancelled).toBe(true);
     expect(streamErrors).toEqual([]);
+    client.stop();
+  });
+
+  it("Should cancel a mint that outlives its deadline and ignore its late pass", async () => {
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, fetchStub } = buildClient({
+      attachDeadline: deadlines.schedule,
+      deferTicket: true,
+    });
+    client.start();
+    await vi.waitFor(() => expect(fetchStub.heldTickets()).toHaveLength(1));
+
+    deadlines.expire();
+
+    expect(fetchStub.heldTickets()[0].aborted).toBe(true);
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await vi.waitFor(() => expect(fetchStub.heldTickets()).toHaveLength(2));
+    expect(fetchStub.heldTickets()[1].aborted).toBe(false);
+
+    // The abandoned mint answers anyway: its socket is closed, never adopted.
+    fetchStub.resolveTicket(0, "tkt-late");
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    expect(sockets.sockets[0].path).toContain("ticket=tkt-late");
+    expect(sockets.sockets[0].closed).toBe(true);
+
+    fetchStub.resolveTicket(1, "tkt-retry");
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    const retry = sockets.last();
+    expect(retry.path).toContain("ticket=tkt-retry");
+    retry.open();
+    retry.deliver(attachedFrame());
+    expect(retry.closed).toBe(false);
+    expect(statuses.at(-1)).toBe("connected");
     client.stop();
   });
 

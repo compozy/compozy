@@ -129,7 +129,7 @@ export const TERMINAL_ERROR_COPY: Record<string, { title: string; detail: string
   // Client-side: attempts kept stalling before the daemon's first frame.
   attach_timeout: {
     title: "Couldn't connect to the terminal.",
-    detail: "The connection never finished opening. The terminal is still running — reconnect to try again.",
+    detail: "The connection never finished opening. Reconnect to try again.",
   },
   subscriber_limit_reached: {
     title: "This terminal is full.",
