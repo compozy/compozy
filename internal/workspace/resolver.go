@@ -50,6 +50,7 @@ type Resolver struct {
 	unregister            *unregisterCoordinator
 	mu                    sync.RWMutex
 	cache                 map[string]*cachedEntry
+	snapshotsHeld         bool
 	agentConfigCache      map[string]*cachedAgentConfig
 	agentConfigGeneration uint64
 }

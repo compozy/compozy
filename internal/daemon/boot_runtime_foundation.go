@@ -171,6 +171,9 @@ func (d *Daemon) newBootWorkspaceResolver(state *bootState, registry Registry) (
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
+	// Boot resolves every workspace from many steps that are seconds apart; bootFinalize restores
+	// the snapshot TTL so one discovery pass serves all of them.
+	resolver.HoldSnapshots()
 	return resolver, nil
 }
 

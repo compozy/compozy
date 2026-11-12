@@ -847,3 +847,140 @@ func snapshotRecoveryFiles(t *testing.T, dir string) map[string]recoveryFileSnap
 	}
 	return files
 }
+
+func TestReconciliationReadsOnlyChangedSessions(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: reconcile cost follows change. A session whose files and catalog row are both
+	// identical to the last reconcile stays unread and indexed; a changed metadata document, a
+	// catalog row changed behind its back, and a removed directory are all still reconciled.
+	t.Run("Should leave unchanged sessions unread and still reconcile changes and orphans", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		var logs bytes.Buffer
+		h.observer.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		stopReason := store.StopUserCanceled
+		metaPath := func(id string) string {
+			return store.SessionMetaFile(filepath.Join(h.home.SessionsDir, id))
+		}
+		writeMeta := func(id, name string, age time.Duration) {
+			t.Helper()
+			if err := store.WriteSessionMeta(metaPath(id), &store.SessionMeta{
+				ID:            id,
+				ProfileID:     store.DefaultProfileID,
+				Name:          name,
+				AgentName:     "coder",
+				Provider:      "claude",
+				WorkspaceID:   h.workspaceID,
+				State:         "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				StopReason:    &stopReason,
+				CreatedAt:     h.now,
+				UpdatedAt:     h.now,
+			}); err != nil {
+				t.Fatalf("WriteSessionMeta(%s) error = %v", id, err)
+			}
+			settledAt := time.Now().Add(-age)
+			if err := os.Chtimes(metaPath(id), settledAt, settledAt); err != nil {
+				t.Fatalf("Chtimes(%s) error = %v", id, err)
+			}
+		}
+		reconcile := func() (result store.ReconcileResult, read int, unchanged int) {
+			t.Helper()
+			logs.Reset()
+			result, err := h.observer.Reconcile(ctx)
+			if err != nil {
+				t.Fatalf("Reconcile() error = %v", err)
+			}
+			decoder := json.NewDecoder(&logs)
+			for decoder.More() {
+				var entry map[string]any
+				if err := decoder.Decode(&entry); err != nil {
+					t.Fatalf("decode reconcile log: %v", err)
+				}
+				if entry["msg"] == "observe: session reconcile complete" {
+					readCount, _ := entry["read_sessions"].(float64)
+					unchangedCount, _ := entry["unchanged_sessions"].(float64)
+					return result, int(readCount), int(unchangedCount)
+				}
+			}
+			t.Fatal("Reconcile() did not report its read and unchanged session counts")
+			return store.ReconcileResult{}, 0, 0
+		}
+		catalogName := func(id string) string {
+			t.Helper()
+			rows, err := h.registry.ListSessions(ctx, store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, ID: id,
+			})
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("ListSessions(%s) = %d rows, %v; want one row", id, len(rows), err)
+			}
+			return rows[0].Name
+		}
+
+		writeMeta("sess-idle", "Idle", time.Hour)
+		writeMeta("sess-busy", "Busy", time.Hour)
+		if result, read, _ := reconcile(); read != 2 || !slices.Equal(result.Indexed, []string{"sess-busy", "sess-idle"}) {
+			t.Fatalf("first reconcile read %d sessions and indexed %v, want both", read, result.Indexed)
+		}
+		// The first read may persist a recovery classification; the proof is taken from a settled read.
+		for _, id := range []string{"sess-idle", "sess-busy"} {
+			settledAt := time.Now().Add(-2 * time.Hour)
+			if err := os.Chtimes(metaPath(id), settledAt, settledAt); err != nil {
+				t.Fatalf("Chtimes(%s) error = %v", id, err)
+			}
+		}
+		reconcile()
+		if result, read, unchanged := reconcile(); read != 0 || unchanged != 2 ||
+			len(result.Indexed) != 0 || len(result.Orphaned) != 0 {
+			t.Fatalf("unchanged reconcile read=%d unchanged=%d result=%+v, want nothing read or orphaned",
+				read, unchanged, result)
+		}
+
+		writeMeta("sess-busy", "Renamed", 30*time.Minute)
+		if _, read, unchanged := reconcile(); read != 1 || unchanged != 1 || catalogName("sess-busy") != "Renamed" {
+			t.Fatalf("changed metadata read=%d unchanged=%d name=%q, want only the renamed session read",
+				read, unchanged, catalogName("sess-busy"))
+		}
+
+		if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
+			ID:            "sess-busy",
+			ProfileID:     store.DefaultProfileID,
+			Name:          "Drifted",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   h.workspaceID,
+			State:         "stopped",
+			StopReason:    stopReason,
+			CreatedAt:     h.now,
+			UpdatedAt:     h.now,
+		})); err != nil {
+			t.Fatalf("RegisterSession(drifted) error = %v", err)
+		}
+		if _, read, unchanged := reconcile(); read != 1 || unchanged != 1 || catalogName("sess-busy") != "Renamed" {
+			t.Fatalf("drifted catalog row read=%d unchanged=%d name=%q, want the row reconciled from metadata",
+				read, unchanged, catalogName("sess-busy"))
+		}
+
+		// A timestamp inside the settle window cannot distinguish a later write, so it is never trusted.
+		writeMeta("sess-fresh", "Fresh", -time.Minute)
+		for range 2 {
+			if _, read, unchanged := reconcile(); read != 1 || unchanged != 2 {
+				t.Fatalf("freshly written metadata read=%d unchanged=%d, want it read on every reconcile",
+					read, unchanged)
+			}
+		}
+
+		if err := os.RemoveAll(filepath.Join(h.home.SessionsDir, "sess-busy")); err != nil {
+			t.Fatalf("RemoveAll(sess-busy) error = %v", err)
+		}
+		result, _, unchanged := reconcile()
+		if !slices.Equal(result.Orphaned, []string{"sess-busy"}) || unchanged != 1 {
+			t.Fatalf("removed directory orphaned=%v unchanged=%d, want only the removed session orphaned",
+				result.Orphaned, unchanged)
+		}
+	})
+}

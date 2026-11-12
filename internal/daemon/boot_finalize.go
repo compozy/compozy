@@ -18,6 +18,8 @@ import (
 )
 
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
+	// Boot is past its discovery-heavy steps: workspace snapshots go back to their normal age bound.
+	defer state.workspaceResolver.ReleaseSnapshots()
 	if state.resourceReconcile != nil {
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			return fmt.Errorf("daemon: boot resource reconcile: %w", err)
