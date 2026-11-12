@@ -111,11 +111,16 @@ export interface TerminalLauncherProjectView extends TerminalLauncherProject {
 export function terminalLauncherProjects(
   destinations: readonly TerminalLauncherDestination[]
 ): TerminalLauncherProject[] {
-  const projects: { destination: TerminalLauncherDestination; worktrees: TerminalLauncherDestination[] }[] =
-    [];
+  const projects: {
+    destination: TerminalLauncherDestination;
+    worktrees: TerminalLauncherDestination[];
+  }[] = [];
   for (const destination of destinations) {
     const parent = projects.at(-1);
-    if (destination.worktreeId !== null && parent?.destination.workspaceId === destination.workspaceId) {
+    if (
+      destination.worktreeId !== null &&
+      parent?.destination.workspaceId === destination.workspaceId
+    ) {
       parent.worktrees.push(destination);
     } else {
       projects.push({ destination, worktrees: [] });
@@ -137,7 +142,9 @@ export function terminalLauncherSearching(query: string): boolean {
 export function terminalLauncherMatches(query: string, fields: readonly string[]): boolean {
   const needle = normalizeRankingText(query).compact;
   if (needle === "") return true;
-  return fields.some(field => subsequenceMatch(needle, normalizeRankingText(field).compact) !== null);
+  return fields.some(
+    field => subsequenceMatch(needle, normalizeRankingText(field).compact) !== null
+  );
 }
 
 /**
@@ -159,12 +166,16 @@ export function terminalLauncherProjectViews(
     const matching = searching
       ? project.worktrees.filter(worktree => terminalLauncherMatches(query, [worktree.label]))
       : [];
-    if (searching && matching.length === 0 && !terminalLauncherMatches(query, [project.destination.label])) {
+    if (
+      searching &&
+      matching.length === 0 &&
+      !terminalLauncherMatches(query, [project.destination.label])
+    ) {
       continue;
     }
     const flipped = toggled.has(project.destination.value);
     const expanded =
-      project.worktrees.length > 0 && (searching ? (matching.length > 0) !== flipped : flipped);
+      project.worktrees.length > 0 && (searching ? matching.length > 0 !== flipped : flipped);
     const shown = !expanded ? [] : matching.length > 0 ? matching : project.worktrees;
     views.push({ ...project, expanded, shown });
   }

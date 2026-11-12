@@ -1,6 +1,5 @@
 import { Button, TreeBranchNode } from "@compozy/ui";
 
-
 export interface SessionListBranchMoreProps {
   /** Rows the next press reveals; 0 once every row shows. */
   count: number;

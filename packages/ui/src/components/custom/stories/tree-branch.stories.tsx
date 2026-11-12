@@ -47,7 +47,7 @@ export const HeaderArm: Story = {
     docs: {
       description: {
         story:
-          "`arm=\"header\"` lands the elbow on a 28 px header row, such as a project inside a project folder.",
+          '`arm="header"` lands the elbow on a 28 px header row, such as a project inside a project folder.',
       },
     },
   },
