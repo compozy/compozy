@@ -6,6 +6,7 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
+  TreeBranchNode,
   cn,
 } from "@compozy/ui";
 
@@ -26,7 +27,6 @@ import {
   type ProjectGroupTree,
 } from "../../lib/workspace-folders";
 import type { WorkspaceFolderPayload } from "../../types";
-import { BRANCH_NODE, BRANCH_NODE_HEADER_ARM } from "./session-list-branch-rail";
 import type { SessionListGroupArrange } from "./session-list-group-header";
 import { SessionListFolder } from "./session-list-folder";
 
@@ -124,13 +124,9 @@ export function SessionListProjectFolders({
             <p className="px-2 py-1 text-micro text-subtle">Drag a project here.</p>
           ) : (
             groups.map(group => (
-              <div
-                key={group.key}
-                className={cn(BRANCH_NODE, BRANCH_NODE_HEADER_ARM)}
-                data-slot="project-folder-member"
-              >
+              <TreeBranchNode arm="header" key={group.key} data-slot="project-folder-member">
                 {render(group, folder.id)}
-              </div>
+              </TreeBranchNode>
             ))
           )}
         </SessionListFolder>

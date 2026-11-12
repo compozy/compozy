@@ -4,7 +4,7 @@ area: ET
 title: Use persistent terminals from the browser
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project, each followed by its ready managed worktrees owned by the acting profile (read once from `/api/worktrees?all_workspaces=true`), plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope (a worktree row starts the shell in that worktree's checkout, bound to its project), and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
+expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project, each with its ready managed worktrees owned by the acting profile (read once from `/api/worktrees?all_workspaces=true`) folded under it on the branched tree connector until the fold control, → / ←, or a search matching one of them unfolds it, plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope (a worktree row starts the shell in that worktree's checkout, bound to its project), and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
 qa_status: untested
 bug_ids: BUG-20260906-hidden-terminal-pane-minimum-vote
@@ -104,6 +104,19 @@ the project. Then `compozy terminal open --worktree <id> --detach -o json` and n
 workspace fails with typed `worktree_not_found`, the pending one with `worktree_not_ready`. While
 the worktree terminal runs, `compozy worktree remove` refuses with `worktree_operation_in_progress`;
 after the terminal exits the removal succeeds.
+
+2026-11-12 qa-impact (#1598): the launcher folds each project's worktrees under it. Walk: under All
+projects, with one project holding three ready worktrees of the acting profile and another holding
+one, open the launcher; confirm both projects show folded (no worktree rows), the remembered project
+is selected, and Enter on a project row still opens a terminal at the project root. Click a
+project's fold control; confirm its worktrees hang from the same branched connector the session list
+uses for child sessions and a click on the control opens no terminal. With the search empty, select a
+project and press →, ↓ onto a worktree, then ← twice; confirm → unfolds, the first ← returns the
+selection to the project, and the second folds it. Type part of one worktree's name; confirm only the
+projects holding a match show, unfolded to the matching worktrees, with a project that does not match
+itself dimmed as context and the matching worktree selected so Enter opens that checkout; combine a
+worktree word with its project's name and confirm the worktree still matches; clearing the search
+folds them again. Open a terminal from an unfolded worktree row and confirm it starts in that checkout.
 
 2026-10-30 qa-impact (#1071): an open terminal's title carries no live-state mark. Walk: open a
 terminal from the dock (and one from `compozy terminal open --detach` so a non-UI origin is
