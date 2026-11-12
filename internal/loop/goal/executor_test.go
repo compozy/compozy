@@ -1120,6 +1120,37 @@ func TestExecutorShouldFenceBudgetAroundCompaction(t *testing.T) {
 }
 
 func TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		ownership BindingOwnership
+		requested string
+		want      string
+	}{
+		{name: "Should retain empty requested reasoning when rotating a run owned binding", ownership: BindingOwnershipRunOwned},
+		{name: "Should retain explicit requested reasoning when rotating a run owned binding", ownership: BindingOwnershipRunOwned, requested: "high", want: "high"},
+		{name: "Should retain observed reasoning when rotating a borrowed origin", ownership: BindingOwnershipOriginBorrowed, want: "medium"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := newFakeExecutorStore()
+			binder := newFakeManagedBinder(store)
+			executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+			segment := directSegmentForTest(t, store)
+			segment.binding.Ownership = string(tc.ownership)
+			segment.binding.RequestedRuntime.Reasoning = tc.requested
+			segment.resolvedRuntime.Runtime.Reasoning = "medium"
+			if err := executor.rotateBinding(t.Context(), segment); err != nil {
+				t.Fatalf("rotateBinding() error = %v", err)
+			}
+			if len(binder.binds) != 1 || binder.binds[0].TargetBindingEpoch != 2 {
+				t.Fatalf("rotation binds = %#v, want one epoch 2 request", binder.binds)
+			}
+			if got := binder.binds[0].RuntimeValue().Reasoning; got != tc.want {
+				t.Fatalf("rebind reasoning = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
 	t.Run("Should retain requested ACP options when rotating a confirmed subset", func(t *testing.T) {
 		t.Parallel()
 		store := newFakeExecutorStore()
