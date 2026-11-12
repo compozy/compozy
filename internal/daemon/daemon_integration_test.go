@@ -3920,12 +3920,15 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 
 			restarted := newTestDaemon(t, d.homePaths, &d.config)
 			restarted.executable = func() (string, error) { return executable, nil }
+			var logs bytes.Buffer
 			t.Cleanup(func() {
 				if err := restarted.Shutdown(testutil.Context(t)); err != nil {
 					t.Error(err)
 				}
+				if t.Failed() {
+					t.Log(logs.String())
+				}
 			})
-			var logs bytes.Buffer
 			restarted.logger = slog.New(slog.NewTextHandler(&logs, nil))
 			factory := restarted.udsFactory
 			checkedBeforeUDS := false

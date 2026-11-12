@@ -21,7 +21,7 @@ type instanceRepositoryProvider interface {
 	SkillReviews() *globaldb.SkillReviewRepo
 }
 
-func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil
