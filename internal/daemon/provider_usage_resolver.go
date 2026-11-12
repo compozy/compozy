@@ -35,7 +35,8 @@ type providerUsageResolver struct {
 	logger     *slog.Logger
 	// selectorWarned holds the selector key last logged as missing per profile ID and provider, so a
 	// gated alias logs once per change instead of on every resolution. syncProfiles prunes removed profiles.
-	selectorWarned sync.Map
+	selectorWarned   sync.Map
+	unresolvedWarned sync.Map
 }
 
 // Targets skips archived and reserved profiles so they cannot block reconciliation.
@@ -63,12 +64,18 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 	}
 	ids := config.BuiltinProviders()
 	maps.Copy(ids, cfg.Providers)
+	r.pruneUnresolvedWarnings(profileID, ids)
 	targets := make([]providerusage.Target, 0, len(ids))
 	for _, id := range slices.Sorted(maps.Keys(ids)) {
 		provider, err := cfg.ResolveProvider(id)
+		warningKey := profileID + "\x00" + id
 		if err != nil {
-			return nil, fmt.Errorf("provider usage: resolve provider: %w", err)
+			if _, logged := r.unresolvedWarned.LoadOrStore(warningKey, true); !logged && r.logger != nil {
+				r.logger.Warn("provider_usage.provider_unresolved", "profile_id", profileID, "provider", id)
+			}
+			continue
 		}
+		r.unresolvedWarned.Delete(warningKey)
 		target := providerusage.Target{ProfileID: profileID, ProviderID: id, ProviderName: provider.DisplayName}
 		if target.ProviderName == "" {
 			target.ProviderName = id
@@ -219,15 +226,27 @@ func (r *providerUsageResolver) aliasSelectorError(
 	return usageErr
 }
 
-// pruneSelectorWarnings forgets selector warnings of profiles that no longer exist.
-func (r *providerUsageResolver) pruneSelectorWarnings(profileIDs []string) {
-	r.selectorWarned.Range(func(key, _ any) bool {
-		profileID, _, _ := strings.Cut(fmt.Sprint(key), "\x00")
-		if !slices.Contains(profileIDs, profileID) {
-			r.selectorWarned.Delete(key)
+func (r *providerUsageResolver) pruneUnresolvedWarnings(profileID string, providers map[string]config.ProviderConfig) {
+	r.unresolvedWarned.Range(func(key, _ any) bool {
+		owner, id, _ := strings.Cut(fmt.Sprint(key), "\x00")
+		if _, exists := providers[id]; owner == profileID && !exists {
+			r.unresolvedWarned.Delete(key)
 		}
 		return true
 	})
+}
+
+// pruneSelectorWarnings forgets provider warnings of profiles that no longer exist.
+func (r *providerUsageResolver) pruneSelectorWarnings(profileIDs []string) {
+	for _, warnings := range []*sync.Map{&r.selectorWarned, &r.unresolvedWarned} {
+		warnings.Range(func(key, _ any) bool {
+			profileID, _, _ := strings.Cut(fmt.Sprint(key), "\x00")
+			if !slices.Contains(profileIDs, profileID) {
+				warnings.Delete(key)
+			}
+			return true
+		})
+	}
 }
 
 func (r *providerUsageResolver) bindSecrets(

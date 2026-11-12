@@ -140,6 +140,9 @@ func NewLiveProviderSources(cfg *LiveProviderSourcesConfig) ([]Source, error) {
 	for _, providerID := range providerIDs {
 		provider, err := resolver.ResolveProvider(providerID)
 		if err != nil {
+			if resolver.IsProviderDisabled(providerID) {
+				continue
+			}
 			return nil, fmt.Errorf("model catalog: resolve live provider %q: %w", providerID, err)
 		}
 		source, err := NewLiveProviderSource(providerID, provider, cfg)

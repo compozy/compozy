@@ -62,6 +62,31 @@ func TestProviderConfigEffectiveEnabled(t *testing.T) {
 func TestConfigProviderEnabled(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept undefined disabled providers without admitting their sessions", func(t *testing.T) {
+		t.Parallel()
+		cfg, _ := loadEnabledTestConfig(t, "[providers.ghost]\nenabled = false\n")
+		if err := cfg.RequireEnabledProvider("ghost"); !errors.Is(err, ErrProviderDisabled) {
+			t.Fatalf("RequireEnabledProvider(ghost) = %v, want ErrProviderDisabled", err)
+		}
+		if _, err := cfg.ResolveProvider(
+			"ghost",
+		); !errors.Is(err, ErrProviderUnavailable) ||
+			!strings.Contains(err.Error(), `provider "ghost" command is required`) {
+			t.Fatalf("ResolveProvider(ghost) = %v, want unavailable missing command", err)
+		}
+		cfg.Providers["ghost"] = ProviderConfig{Enabled: new(true)}
+		if err := cfg.Validate(); !errors.Is(err, ErrProviderUnavailable) ||
+			!strings.Contains(err.Error(), `provider "ghost" command is required`) {
+			t.Fatalf("Validate() = %v, want unavailable missing command", err)
+		}
+		cfg.Providers["ghost"] = ProviderConfig{Enabled: new(false)}
+		cfg.Defaults.Provider = "ghost"
+		if err := cfg.Validate(); !errors.Is(err, ErrProviderUnavailable) ||
+			!strings.Contains(err.Error(), `provider "ghost" command is required`) {
+			t.Fatalf("Validate() = %v, want unavailable missing default command", err)
+		}
+	})
+
 	t.Run("Should report a disabled built-in loaded from config", func(t *testing.T) {
 		t.Parallel()
 		cfg, _ := loadEnabledTestConfig(t, "[providers.gemini]\nenabled = false\n")

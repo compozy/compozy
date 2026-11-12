@@ -94,6 +94,9 @@ func (c *Config) validateCore() error {
 
 func (c *Config) validateProviders() error {
 	for name := range c.Providers {
+		if c.IsProviderDisabled(name) {
+			continue
+		}
 		if _, err := c.ResolveProvider(name); err != nil {
 			return err
 		}

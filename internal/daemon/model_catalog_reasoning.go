@@ -24,6 +24,9 @@ func effectiveCatalogReasoningApply(cfg *compozyconfig.Config) (map[string]bool,
 	for _, providerID := range ordered {
 		provider, err := cfg.ResolveProvider(providerID)
 		if err != nil {
+			if cfg.IsProviderDisabled(providerID) {
+				continue
+			}
 			return nil, fmt.Errorf("daemon: resolve model catalog provider %q: %w", providerID, err)
 		}
 		result[providerID] = provider.Models.EffectiveReasoningApply() == compozyconfig.ReasoningApplyACPOption

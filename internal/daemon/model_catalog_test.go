@@ -4153,6 +4153,102 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 func TestProviderUsageResolverDisabledProviders(t *testing.T) {
 	t.Parallel()
 
+	for _, usageEnabled := range []bool{true, false} {
+		t.Run(
+			fmt.Sprintf("Should skip incomplete profile providers with usage enabled %t", usageEnabled),
+			func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				cfg := testConfig(t, home)
+				cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+				cfg.ProviderUsage.Enabled = usageEnabled
+				cfg.Providers["valid-alias"] = compozyconfig.ProviderConfig{Command: "custom-acp"}
+				profileDir := filepath.Join(home.ProfilesDir, "default")
+				if err := os.MkdirAll(profileDir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				profileConfig := "[providers.ghost]\nenabled = false\n[providers.ghost-alias]\nenabled = false\nruntime_provider = \"claude\"\n"
+				if err := os.WriteFile(
+					filepath.Join(profileDir, "config.toml"),
+					[]byte(profileConfig),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+				var logs bytes.Buffer
+				resolver := &providerUsageResolver{
+					cfg:    cfg,
+					home:   home,
+					logger: slog.New(slog.NewTextHandler(&logs, nil)),
+				}
+				targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+				if err != nil {
+					t.Fatalf("Targets() error = %v", err)
+				}
+				want := compozyconfig.BuiltinProviders()
+				want["valid-alias"] = cfg.Providers["valid-alias"]
+				if len(targets) != len(want) {
+					t.Fatalf("Targets() count = %d, want %d", len(targets), len(want))
+				}
+				for _, target := range targets {
+					if _, ok := want[target.ProviderID]; !ok {
+						t.Fatalf("unexpected target %q", target.ProviderID)
+					}
+					delete(want, target.ProviderID)
+				}
+				if !strings.Contains(logs.String(), "provider_usage.provider_unresolved") ||
+					!strings.Contains(logs.String(), "provider=ghost") {
+					t.Fatalf("missing unresolved provider warning: %s", logs.String())
+				}
+				if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
+					t.Fatal(err)
+				}
+				if got := strings.Count(logs.String(), "provider_usage.provider_unresolved"); got != 2 {
+					t.Fatalf("warnings after repeated resolution = %d, want one per unresolved provider", got)
+				}
+				repaired := strings.Replace(
+					profileConfig,
+					"[providers.ghost]",
+					"[providers.ghost]\ncommand = 'custom-acp'",
+					1,
+				)
+				if err := os.WriteFile(filepath.Join(profileDir, "config.toml"), []byte(repaired), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(profileDir, "config.toml"),
+					[]byte(profileConfig),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
+					t.Fatal(err)
+				}
+				if got := strings.Count(logs.String(), "provider_usage.provider_unresolved"); got != 3 {
+					t.Fatalf("warnings after recovery and recurrence = %d, want 3", got)
+				}
+				// Boot with collection disabled to avoid reading host provider credentials.
+				if err := compozyconfig.ApplyProviderUsageProfile(home, "default", &cfg); err != nil {
+					t.Fatal(err)
+				}
+				cfg.ProviderUsage.Enabled = false
+				daemon := newTestDaemon(t, home, &cfg)
+				t.Cleanup(func() {
+					if err := daemon.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				if err := daemon.boot(t.Context()); err != nil {
+					t.Fatalf("boot() error = %v", err)
+				}
+			},
+		)
+	}
+
 	t.Run("Should resolve disabled providers to the disabled usage status per alias", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)
