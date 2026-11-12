@@ -5,9 +5,10 @@ from pathlib import Path
 import json
 import subprocess
 import tempfile
+from types import SimpleNamespace
 
 from run import (MAX_RETENTION_SECONDS, MIN_THROUGHPUT_RATIO,
-                 acceptance_failures, load_failed, throughput_comparison, trace_diagnostic)
+                 acceptance_failures, load_failed, paired_trials, run, throughput_comparison, trace_diagnostic)
 
 
 def trial(count=100, seconds=30):
@@ -20,6 +21,55 @@ def trial(count=100, seconds=30):
 
 
 class AcceptanceTests(unittest.TestCase):
+    # Invariant: trace mode retains all four balanced pairs, including failed samples.
+    # Owner: experiment trial orchestration; canonical suite: AcceptanceTests.
+    def test_original_trial_trace_mode_keeps_balanced_pairs_and_failures(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                args = SimpleNamespace(output=output, baseline=Path("baseline"), head=Path("head"),
+                                       runtime_trace_trials=enabled)
+                failed = trial()
+                failed["failures"] = {"transcript_write": ["deadline exceeded"]}
+                with patch("run.copy_fixture"), patch("run.shutil.rmtree"), \
+                        patch("run.run", return_value=failed) as child:
+                    trials = paired_trials(args, output / "fixture", output / "upgraded")
+                calls = child.call_args_list
+                self.assertEqual([call.args[4] for call in calls],
+                                 ["baseline-0", "head-0", "head-1", "baseline-1",
+                                  "baseline-2", "head-2", "head-3", "baseline-3"])
+                self.assertTrue(all(call.kwargs["runtime_trace"] == enabled for call in calls))
+                for label in ("baseline", "head"):
+                    self.assertEqual(len(trials[label]), 4)
+                    self.assertTrue(all(sample["failures"] == failed["failures"] for sample in trials[label]))
+
+    # Invariant: original-trial diagnostics retain the same workload and receipts.
+    # Owner: experiment subprocess boundary; canonical suite: AcceptanceTests.
+    def test_runtime_trace_retains_original_workload_and_receipts(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                result = {"end": "2026-11-12T05:00:30Z", "warmup_start": "2026-11-12T04:59:55Z",
+                          "seconds": 30, "write_commit_hooks": {"core": 60, "telemetry": 30}}
+
+                def execute(command, **kwargs):
+                    json.dump(result, kwargs["stdout"])
+                    kwargs["stderr"].write(json.dumps({
+                        "time": "2026-11-12T05:00:10Z", "msg": "sqlite write transaction held for at least one second",
+                        "database": "core", "operation": "update session state", "commit_ms": 1030}) + "\n")
+
+                with patch("run.subprocess.run", side_effect=execute) as child:
+                    measured = run(Path("binary"), output / "fixture", "load", output, "head-0",
+                                   runtime_trace=enabled)
+                expected = ["binary", "-mode", "load", "-root", str(output / "fixture"), "-duration", "30s"]
+                if enabled:
+                    expected += ["-runtime-trace", str(output / "head-0.trace")]
+                self.assertEqual(child.call_args.args[0], expected)
+                self.assertEqual(measured["seconds"], 30)
+                self.assertEqual(measured["transactions_per_second"], {"core": 2, "telemetry": 1})
+                self.assertEqual(measured["contention_diagnostics"][0]["commit_ms"], 1030)
+                self.assertEqual(json.loads((output / "head-0.json").read_text()), measured)
+
     # Invariant: shared I/O tails may explain transcript COMMIT warnings only
     # within the same pair; neither the median nor unrelated baseline work may
     # hide a head-only pause. Owner: runner acceptance, canonical suite: this file.
@@ -59,6 +109,7 @@ class AcceptanceTests(unittest.TestCase):
             with self.subTest(sample=sample):
                 trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
                 trials["baseline"][0]["latency"]["transcript_write"] = sample
+                trials["head"][0]["latency"]["transcript_write"]["max_ms"] = 1125
                 trials["head"][0]["contention_diagnostics"] = [self.commit_pause()]
                 _, _, invalid, tails = acceptance_failures(trials, 20000)
                 self.assertTrue(tails["regression"])
@@ -66,6 +117,29 @@ class AcceptanceTests(unittest.TestCase):
         trials["baseline"][0]["latency"]["transcript_write"] = {"count": 100, "max_ms": 1500}
         trials["baseline"][0]["failures"] = {"transcript_write": ["deadline exceeded"]}
         self.assertTrue(acceptance_failures(trials, 20000)[3]["regression"])
+
+    # Invariant: an unusable control cannot widen the absolute budget or reject a
+    # head that meets it. Owner: runner acceptance; canonical suite: AcceptanceTests.
+    def test_incomplete_control_requires_absolute_budget_without_commit_exemptions(self):
+        for sample in ({}, {"count": 0, "max_ms": 2000}, {"count": 100, "max_ms": float("nan")},
+                       {"count": 100, "max_ms": float("inf")}, {"count": 100, "max_ms": 0},
+                       {"count": 100, "max_ms": 2000}):
+            for head_max in (901, 1000, 1001):
+                with self.subTest(sample=sample, head_max=head_max):
+                    trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
+                    trials["baseline"][0]["latency"]["transcript_write"] = sample
+                    trials["baseline"][0]["failures"] = {"transcript_write": ["deadline exceeded"]}
+                    trials["head"][0]["latency"]["transcript_write"]["max_ms"] = head_max
+                    _, _, invalid, tails = acceptance_failures(trials, 20000)
+                    self.assertEqual(invalid, [])
+                    self.assertEqual(tails["regression"], head_max > 1000)
+                    self.assertLessEqual(tails["median_ratio"], 1)
+                    self.assertEqual(len([p for p in tails["pairs"] if p["ratio"] is not None]), 4)
+                    self.assertEqual(tails["pairs"][0]["limit_ms"], 1000)
+                    self.assertEqual(tails["pairs"][0]["budget_basis"], "absolute_floor")
+                    self.assertFalse(tails["pairs"][0]["complete"])
+                    trials["head"][0]["contention_diagnostics"] = [self.commit_pause()]
+                    self.assertEqual(acceptance_failures(trials, 20000)[2], [0])
 
     def test_missing_head_tail_fails_even_without_a_warning(self):
         """Require every head trial to supply a transcript tail measurement."""
@@ -79,6 +153,8 @@ class AcceptanceTests(unittest.TestCase):
         """Keep unknown holds, checkpoint diagnostics and operation errors blocking."""
         changes = ({"callback_ms": 1000}, {"callback_ms": -1}, {"commit_ms": 999},
                    {"elapsed_ms": 1501}, {"database": "telemetry"}, {"operation": "other"},
+                   {"database": "core", "operation": "update session state", "elapsed_ms": 1039,
+                    "callback_ms": 9, "commit_ms": 1030},
                    {"msg": "store: passive session wal checkpoint failed"})
         for change in changes:
             with self.subTest(change=change):

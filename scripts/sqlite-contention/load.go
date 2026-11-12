@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,8 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-// Diagnostics run separately from acceptance timings, only after a failed trial.
-// The trace distinguishes scheduling, GC, Go locks and system-call stalls.
+// Buffer traces until drain finishes so recording adds no filesystem I/O to the workload.
 func traceLoad(g *globaldb.GlobalDB, opts options, m *measurements, openMS float64) (err error) {
 	if opts.runtimeTrace == "" {
 		return load(g, opts, m, openMS)
@@ -31,12 +31,14 @@ func traceLoad(g *globaldb.GlobalDB, opts options, m *measurements, openMS float
 	if err != nil {
 		return errors.Join(err, g.Close(context.Background()))
 	}
-	if err := trace.Start(file); err != nil {
+	var recording bytes.Buffer
+	if err := trace.Start(&recording); err != nil {
 		return errors.Join(err, file.Close(), g.Close(context.Background()))
 	}
 	defer func() {
 		trace.Stop()
-		err = errors.Join(err, file.Close())
+		_, writeErr := recording.WriteTo(file)
+		err = errors.Join(err, writeErr, file.Close())
 	}()
 	return load(g, opts, m, openMS)
 }
