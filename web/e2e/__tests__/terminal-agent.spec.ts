@@ -272,8 +272,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     await expect(windowFrame(harness.sessionWin)).toHaveAttribute("data-focused", "");
 
     await ensureProjectWorkspace(appPage, runtime);
-    // The deep link is the deterministic way to this exact terminal; ambient
-    // adoption is covered by E2E-002/018/020.
+    // Explicit opening must restore this exact catalog entry.
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
       waitUntil: "domcontentloaded",
     });
