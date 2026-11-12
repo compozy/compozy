@@ -203,6 +203,14 @@ func (s *ManagedWakeService) Wake(ctx context.Context, req WakeRequest) (WakeDec
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if normalized.PolicyTarget != nil && !normalized.PolicyTarget.Config.IsZero() {
+		scoped := &ManagedWakeService{
+			store: s.store, healthReader: s.healthReader, prompter: s.prompter,
+			policyResolver: s.policyResolver, config: normalized.PolicyTarget.Config,
+			now: s.now, newID: s.newID,
+		}
+		return scoped.wakeLocked(ctx, normalized)
+	}
 	return s.wakeLocked(ctx, normalized)
 }
 

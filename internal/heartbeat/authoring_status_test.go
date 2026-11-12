@@ -1648,11 +1648,12 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 	t.Run("Should resolve disk edits and persist only real wake snapshots", func(t *testing.T) {
 		t.Parallel()
 		fixture := newHeartbeatFixture(t)
+		fixture.target.Config.WakeCooldown = 90 * time.Second
 		registerManagedHeartbeatSession(t, fixture, "sess-disk")
 		prompter := &recordingHeartbeatPrompter{}
 		service, err := heartbeat.NewManagedWakeService(fixture.db,
 			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-disk")},
-			prompter, fixture.target.Config,
+			prompter, compozyconfig.DefaultHeartbeatConfig(),
 			heartbeat.WithWakeClock(deterministicHeartbeatClock(fixture.now)),
 			heartbeat.WithWakeIDGenerator(deterministicHeartbeatIDGenerator()))
 		if err != nil {
