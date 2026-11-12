@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -47,6 +45,9 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	attachTerminalHookBridge(state.terminals, hooks, state.logger)
 	attachTerminalWindowBridge(state.terminals, state.windowManagers, state.logger)
 	if state.windowManagers != nil {
+		if err := state.windowManagers.reconcileBootTerminals(ctx); err != nil {
+			return fmt.Errorf("daemon: reconcile stale terminal windows: %w", err)
+		}
 		if err := state.windowManagers.ReconcileStaleBindings(ctx); err != nil {
 			return fmt.Errorf("daemon: reconcile stale window bindings: %w", err)
 		}

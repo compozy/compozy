@@ -904,7 +904,7 @@ describe("OsDock", () => {
   });
 
   it("Should mark Terminal running from catalog truth rather than an open window", () => {
-    const open = windowFixture("window:terminal", "terminal");
+    const open = { ...windowFixture("window:terminal", "terminal"), minimized: true };
     const { result, rerender } = renderHook(
       (live: boolean) => useDesktopDock({}, { onNewSession: vi.fn(), terminalLive: live }),
       { initialProps: true }
@@ -921,6 +921,8 @@ describe("OsDock", () => {
 
     expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
       running: false,
+      active: false,
+      minimized: false,
     });
   });
 

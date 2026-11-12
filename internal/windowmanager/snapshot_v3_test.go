@@ -447,3 +447,49 @@ func TestRebindWorkspace(t *testing.T) {
 		},
 	)
 }
+
+// Invariant: terminal retirement repairs all durable topology without resurrecting dead runtimes.
+func TestReconcileTerminalWindows(t *testing.T) {
+	t.Parallel()
+	t.Run("Should remove dead terminals from topology and history while preserving live windows", func(t *testing.T) {
+		t.Parallel()
+		snapshot := reconcileSnapshotFixture(t)
+		dead := snapshot.Windows["knowledge"]
+		dead.App = "terminal"
+		dead.InstanceKey = new("dead")
+		snapshot.Windows[dead.ID] = dead
+		live := snapshot.Windows["settings"]
+		live.App = "terminal"
+		live.InstanceKey = new("live")
+		snapshot.Windows[live.ID] = live
+		snapshot.History.Undo = []HistoryEntry{{Before: snapshotState(snapshot), After: snapshotState(snapshot)}}
+		snapshot.History.Redo = []HistoryEntry{{Before: snapshotState(snapshot), After: snapshotState(snapshot)}}
+		snapshot.ClosedEntries = []ClosedEntry{
+			{
+				DesktopID: "desktop",
+				Rect:      NormalizedRect{Width: 1, Height: 1},
+				Windows:   []Window{dead, live},
+				ActiveID:  new(dead.ID),
+			},
+		}
+		got, changed := ReconcileTerminalWindows(snapshot, func(id string) bool { return id == "live" })
+		if !changed || len(got.Windows) != 2 || len(snapshot.Windows) != 3 {
+			t.Fatalf("windows: %+v", got.Windows)
+		}
+		if len(got.ClosedEntries) != 1 || len(got.ClosedEntries[0].Windows) != 1 ||
+			*got.ClosedEntries[0].ActiveID != live.ID {
+			t.Fatal("invalid closed history")
+		}
+		for _, entries := range [][]HistoryEntry{got.History.Undo, got.History.Redo} {
+			for _, entry := range entries {
+				if len(entry.Before.Windows) != 2 || len(entry.After.Windows) != 2 {
+					t.Fatal("dead terminal in history")
+				}
+			}
+		}
+		requireValidSnapshot(t, got)
+		if _, changed := ReconcileTerminalWindows(got, func(id string) bool { return id == "live" }); changed {
+			t.Fatal("not idempotent")
+		}
+	})
+}

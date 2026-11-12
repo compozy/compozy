@@ -1110,3 +1110,166 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: startup cleanup durably removes stale terminal bindings across desktop partitions.
+func TestWindowManagerBootTerminals(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retire persisted terminals once while preserving other apps", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		for _, partition := range []windowmanager.WorkspaceID{windowmanager.WorkspaceID(fixture.workspace.ID), windowmanager.GlobalDesktopWorkspaceID, windowmanager.UserDesktopWorkspaceID} {
+			for _, app := range []string{"terminal", "settings"} {
+				snapshot, err := fixture.manager.Snapshot(ctx, partition)
+				if err != nil {
+					t.Fatal(err)
+				}
+				id := "term-0000000000ab"
+				spec := windowmanager.WindowSpec{
+					App:   app,
+					Route: windowmanager.RouteIntent{Pathname: "/" + app, Search: windowmanager.RouteSearch{}},
+				}
+				if app == "terminal" {
+					spec.InstanceKey = &id
+					spec.Route.Pathname += "/" + id
+				}
+				if _, err := fixture.manager.Execute(
+					ctx,
+					windowmanager.CommandRequest{
+						WorkspaceID:      partition,
+						ExpectedRevision: snapshot.Revision,
+						Actor:            windowmanager.Actor{Kind: "system", ID: "test"},
+						Payload:          windowmanager.OpenWindowCommand{Window: spec},
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if err := fixture.registry.reconcileBootTerminals(ctx); err != nil {
+			t.Fatal(err)
+		}
+		for _, partition := range []windowmanager.WorkspaceID{windowmanager.WorkspaceID(fixture.workspace.ID), windowmanager.GlobalDesktopWorkspaceID, windowmanager.UserDesktopWorkspaceID} {
+			snapshot, err := fixture.repository.Load(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(snapshot.Windows) != 1 {
+				t.Fatalf("persisted windows: %+v", snapshot.Windows)
+			}
+			for _, window := range snapshot.Windows {
+				if window.App != "settings" {
+					t.Fatal("stale terminal persisted")
+				}
+			}
+			revision := snapshot.Revision
+			if err := fixture.registry.reconcileBootTerminals(ctx); err != nil {
+				t.Fatal(err)
+			}
+			again, err := fixture.repository.Load(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if again.Revision != revision {
+				t.Fatal("cleanup is not idempotent")
+			}
+		}
+	})
+}
+
+// Invariant: a real agent PTY exit removes its explicitly opened window from SQLite.
+func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retire the window after a real PTY closes", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		terminals, err := terminalpkg.NewManager(
+			terminalpkg.WithWorkspaceResolver(fixture.resolver),
+			terminalpkg.WithJournal(nativeTerminalJournalStub{}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attachTerminalWindowBridge(terminals, fixture.registry, discardLogger())
+		if err := terminals.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(t.Context()), 3*time.Second)
+			defer cleanupCancel()
+			if err := terminals.Shutdown(cleanupCtx); err != nil {
+				t.Errorf("Shutdown: %v", err)
+			}
+		})
+		handle, err := terminals.Open(
+			ctx,
+			terminalpkg.OpenRequest{
+				WS:   fixture.workspace.ID,
+				Cwd:  fixture.workspace.RootDir,
+				Cols: 80,
+				Rows: 24,
+				Actor: terminalpkg.Actor{
+					Kind:       terminalpkg.ActorKindAgent,
+					ID:         "test-agent",
+					ProfileID:  testWindowManagerProfileID,
+					SessionID:  "test-session",
+					RunID:      "test-run",
+					Generation: 1,
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := fixture.manager.Snapshot(ctx, windowmanager.WorkspaceID(fixture.workspace.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(snapshot.Windows) != 0 {
+			t.Fatal("agent PTY opened a desktop window")
+		}
+		id := string(handle.Info().ID)
+		if _, err := fixture.manager.Execute(
+			ctx,
+			windowmanager.CommandRequest{
+				WorkspaceID:      snapshot.WorkspaceID,
+				ExpectedRevision: snapshot.Revision,
+				Actor:            windowmanager.Actor{Kind: "system", ID: "test"},
+				Payload: windowmanager.OpenWindowCommand{
+					Window: windowmanager.WindowSpec{
+						App:         "terminal",
+						InstanceKey: &id,
+						Route: windowmanager.RouteIntent{
+							Pathname: "/terminal/" + id,
+							Search:   windowmanager.RouteSearch{},
+						},
+					},
+				},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := terminals.Close(
+			ctx,
+			fixture.workspace.ID,
+			handle.Info().ID,
+			terminalpkg.Actor{
+				Kind:      terminalpkg.ActorKindHuman,
+				ID:        terminalpkg.OperatorActorID,
+				ProfileID: testWindowManagerProfileID,
+			},
+			terminalpkg.SignalTERM,
+		); err != nil {
+			t.Fatal(err)
+		}
+		persisted, err := fixture.repository.Load(ctx, snapshot.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(persisted.Windows) != 0 {
+			t.Fatal("exited agent PTY left a persisted window")
+		}
+	})
+}

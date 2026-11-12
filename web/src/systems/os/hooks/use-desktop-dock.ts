@@ -106,11 +106,9 @@ export function useDesktopDock(
       name: app.id === sessionApp.id ? "Sessions" : app.title,
       icon: dockIconForApp(app),
       running:
-        app.id === "terminal" && terminalLive !== undefined
-          ? terminalLive
-          : state === "open" || state === "focused",
-      active: state === "focused",
-      minimized: state === "minimized",
+        app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
+      active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
+      minimized: state === "minimized" && (app.id !== "terminal" || terminalLive === true),
       badge: dockBadgeFor(app, badges),
     };
   });
