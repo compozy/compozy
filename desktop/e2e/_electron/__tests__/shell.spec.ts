@@ -2153,7 +2153,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     .locator('meta[http-equiv="Content-Security-Policy"]')
     .getAttribute("content");
   expect(bootCSP).toBe(
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'"
   );
   expect(
     await failed.boot.evaluate(async () => {
