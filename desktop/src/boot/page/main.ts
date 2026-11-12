@@ -58,6 +58,7 @@ const detail = byId("boot-detail");
 const errorCode = byId("boot-error-code");
 const controls = byId("boot-controls");
 const retry = byId<HTMLButtonElement>("boot-retry");
+const openConfig = byId<HTMLButtonElement>("boot-open-config");
 const openLogs = byId<HTMLButtonElement>("boot-open-logs");
 const quit = byId<HTMLButtonElement>("boot-quit");
 const runnerHost = byId("boot-runner");
@@ -220,6 +221,13 @@ const onDiagnose = (button: HTMLButtonElement) => () =>
 retry.addEventListener(
   "click",
   () => void invoke(retry, "retry", {}, "Retrying…", () => setResult("Retry started.", "success"))
+);
+openConfig.addEventListener(
+  "click",
+  () =>
+    void invoke(openConfig, "open_config", {}, "Opening…", () =>
+      setResult("Config file opened.", "success")
+    )
 );
 openLogs.addEventListener("click", onLogs(openLogs));
 noticeLogs.addEventListener("click", onLogs(noticeLogs));
@@ -410,6 +418,8 @@ function render(payload: unknown): void {
   // A retry or a new failure must not show the previous outcome's report.
   if (failed !== wasFailed) resetDiagnostics();
   show(retry, failed);
+  // Only a config failure is fixed by editing the file, so only it offers to open it.
+  show(openConfig, failed && snapshot.error?.code === "config_invalid");
   show(openLogs, failed || snapshot.state === "skew" || snapshot.state === "disconnected");
   show(quit, failed || snapshot.state === "skew" || snapshot.state === "disconnected");
   show(controls, retry.hidden !== true || openLogs.hidden !== true);

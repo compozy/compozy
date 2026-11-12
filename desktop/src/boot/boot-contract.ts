@@ -4,12 +4,16 @@ export const BOOT_METHOD_VALUES = [
   "copy_diagnostics",
   "export_diagnostics",
   "open_logs",
+  "open_config",
   "open_release_notes",
   "quit",
 ] as const;
 export type BootMethod = (typeof BOOT_METHOD_VALUES)[number];
 export const BOOT_METHODS = new Set<string>(BOOT_METHOD_VALUES);
-export type ForwardedBootMethod = Exclude<BootMethod, "open_logs" | "open_release_notes" | "quit">;
+export type ForwardedBootMethod = Exclude<
+  BootMethod,
+  "open_logs" | "open_config" | "open_release_notes" | "quit"
+>;
 const FORWARDED_BOOT_METHODS = new Set<string>([
   "retry",
   "diagnose",
@@ -35,6 +39,8 @@ const STAGES = new Set(["download", "verify", "install", "migrate", "start", "re
 const TARGETS = new Set(["app", "runtime"]);
 const WORK = new Set(["sessions", "records"]);
 
+const WAITS = new Set(["runtime_mutation"]);
+
 function optionalCount(value: unknown): boolean {
   return (
     value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
@@ -56,6 +62,19 @@ function validError(value: unknown): boolean {
     value.code.trim() !== "" &&
     typeof value.safe_message === "string" &&
     typeof value.log_path === "string"
+  );
+}
+
+function validBootProgress(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.readiness === undefined || typeof value.readiness === "string") &&
+    (value.step === undefined || typeof value.step === "string") &&
+    (value.wait === undefined || (typeof value.wait === "string" && WAITS.has(value.wait))) &&
+    (value.owner_pid === undefined ||
+      (typeof value.owner_pid === "number" &&
+        Number.isSafeInteger(value.owner_pid) &&
+        value.owner_pid >= 1))
   );
 }
 
@@ -108,7 +127,8 @@ export function validState(value: unknown): boolean {
     (value.runtime === undefined || typeof value.runtime === "string") &&
     (value.needed === undefined || typeof value.needed === "string") &&
     (value.newer === undefined || typeof value.newer === "boolean") &&
-    (value.error === undefined || validError(value.error))
+    (value.error === undefined || validError(value.error)) &&
+    (value.boot === undefined || validBootProgress(value.boot))
   );
 }
 
@@ -154,6 +174,7 @@ export function validResponse(method: BootMethod, value: unknown): boolean {
         value.bytes >= 0
       );
     case "open_logs":
+    case "open_config":
     case "open_release_notes":
       return value.opened === true;
     case "quit":

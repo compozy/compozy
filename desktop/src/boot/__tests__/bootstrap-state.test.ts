@@ -212,6 +212,50 @@ describe("bootstrapSnapshot", () => {
   });
 
   it.each([
+    [
+      { path: "/home/dora/.compozy/config.toml", unknown_keys: ["permissions.bogus"] },
+      "Your config file has a setting CompozyOS does not recognize: permissions.bogus. Remove or rename it in /home/dora/.compozy/config.toml, then try again.",
+    ],
+    [
+      { path: "/home/dora/.compozy/config.toml", unknown_keys: ["a", "b", "c", "d", "e", "f"] },
+      "Your config file has settings CompozyOS does not recognize: a, b, c, d, e and 1 more. Remove or rename them in /home/dora/.compozy/config.toml, then try again.",
+    ],
+    [
+      { path: "/home/dora/.compozy/config.toml", line: 3, column: 9 },
+      "Your config file is not valid TOML at line 3, column 9. Fix /home/dora/.compozy/config.toml, then try again.",
+    ],
+    [{}, "cli: config could not be loaded"],
+  ] as const)(
+    "Should report config load failure %# with its cause and no start attempt",
+    (config, safeMessage) => {
+      const starting = bootstrapSnapshot({
+        type: "bootstrap",
+        phase: "start",
+        status: "started",
+        message: "Starting",
+        attempt: 1,
+      });
+      expect(
+        bootstrapSnapshot(
+          {
+            ...failed("cli: config could not be loaded", "failed"),
+            config,
+          },
+          "desktop-bootstrap.jsonl",
+          starting
+        )
+      ).toEqual({
+        state: "error",
+        error: {
+          code: "config_invalid",
+          safe_message: safeMessage,
+          log_path: "desktop-bootstrap.jsonl",
+        },
+      });
+    }
+  );
+
+  it.each([
     ["provision", "permission denied", "provision_permission"],
     ["provision", "network unavailable", "provision_network"],
     ["attach", "unhealthy", "runtime_unhealthy"],
@@ -219,5 +263,84 @@ describe("bootstrapSnapshot", () => {
     ["start", "failed", "runtime_start_failed"],
   ] as const)("Should classify %s failure", (phase, message, code) => {
     expect(bootstrapSnapshot(failed(message, phase))).toMatchObject({ error: { code } });
+  });
+
+  // Invariant: a wait on another process's runtime mutation is shown as a wait, never as a retry,
+  // and giving up on it is a typed failure that names the cause instead of a start attempt.
+  it("Should show a runtime mutation as a wait that keeps the start attempt", () => {
+    expect(
+      bootstrapSnapshot({
+        type: "bootstrap",
+        phase: "start",
+        status: "started",
+        message: "Another CompozyOS update or restart is in progress (pid 4242); waiting.",
+        attempt: 1,
+        classification: "mutation-in-progress",
+        wait: { reason: "runtime_mutation", owner_pid: 4242 },
+      })
+    ).toEqual({
+      state: "starting",
+      stage: "start",
+      attempt: 1,
+      boot: { wait: "runtime_mutation", owner_pid: 4242 },
+    });
+  });
+
+  it("Should fail a runtime mutation that outlasted the wait without counting an attempt", () => {
+    const event: BootstrapEvent = {
+      ...failed("cli: another CompozyOS update or restart did not finish", "failed"),
+      classification: "mutation-in-progress",
+    };
+    const snapshot = bootstrapSnapshot(event, "desktop-bootstrap.jsonl", {
+      state: "starting",
+      stage: "start",
+      attempt: 1,
+      boot: { wait: "runtime_mutation" },
+    });
+    expect(snapshot).not.toHaveProperty("attempt");
+    expect(snapshot.error?.code).toBe("update_lock_held");
+    expect(snapshot.error?.safe_message).toBe(
+      "Another CompozyOS update or restart is still running. Wait for it to finish, then try again."
+    );
+  });
+
+  it("Should fail a runtime that cannot be launched with the bootstrap's reason", () => {
+    const message = "cli: the CompozyOS runtime cannot be launched: permission denied";
+    const event: BootstrapEvent = {
+      ...failed(message, "failed"),
+      classification: "runtime-unlaunchable",
+    };
+    const snapshot = bootstrapSnapshot(event, "desktop-bootstrap.jsonl", {
+      state: "starting",
+      stage: "start",
+      attempt: 1,
+    });
+    expect(snapshot).toEqual({
+      state: "error",
+      attempt: 1,
+      error: {
+        code: "runtime_start_failed",
+        safe_message: message,
+        log_path: "desktop-bootstrap.jsonl",
+      },
+    });
+  });
+
+  it("Should carry the runtime's lifecycle phase and step while it starts", () => {
+    expect(
+      bootstrapSnapshot({
+        type: "bootstrap",
+        phase: "start",
+        status: "started",
+        message: "The CompozyOS runtime is starting.",
+        attempt: 1,
+        readiness: { phase: "serving", step: "resumeBootInterruptedSessions" },
+      })
+    ).toEqual({
+      state: "starting",
+      stage: "start",
+      attempt: 1,
+      boot: { readiness: "serving", step: "resumeBootInterruptedSessions" },
+    });
   });
 });

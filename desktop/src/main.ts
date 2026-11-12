@@ -273,6 +273,7 @@ async function start(): Promise<void> {
   });
   const bootControl = createBootControl({
     openLogs: async () => await shell.openPath(paths.logs),
+    openConfig: async () => await shell.openPath(paths.config),
     openExternal: async url => await shell.openExternal(url),
     targetVersion: () => statePublisher.snapshot().to_version,
     quit: () => void quitCleanly(),
@@ -339,6 +340,8 @@ async function start(): Promise<void> {
             stopped: () => bootstrapAbort.signal.aborted,
             publish: async snapshot => await statePublisher.publish(snapshot),
             reloadProduct: async () => await product?.reload(),
+            productLoaded: () => product?.isLoaded() ?? false,
+            home: paths.home,
             showBoot: showBootWindow,
             renderBoot: snapshot => boot?.render(snapshot),
             closeProduct: async () => {

@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createBootControl, releaseNotesURL } from "../boot-control";
 
-function control(targetVersion: string | undefined) {
+function control(targetVersion: string | undefined, configFailure = "") {
   const openExternal = vi.fn(async (_url: string) => {});
   const forward = vi.fn(async () => ({ accepted: true }));
   const handle = createBootControl({
     openLogs: async () => "",
+    openConfig: async () => configFailure,
     openExternal,
     targetVersion: () => targetVersion,
     quit: () => {},
@@ -35,6 +36,13 @@ describe("boot control", () => {
       expect(openExternal).not.toHaveBeenCalled();
     }
   );
+
+  it("Should open the config file and report why it could not open", async () => {
+    await expect(control("0.6.0").handle("open_config", {})).resolves.toEqual({ opened: true });
+    await expect(
+      control("0.6.0", "No application opens this file.").handle("open_config", {})
+    ).rejects.toThrow("No application opens this file.");
+  });
 
   it("Should forward retry and refuse unknown actions", async () => {
     const { handle, forward } = control("0.6.0");
