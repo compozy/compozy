@@ -1282,6 +1282,12 @@ func TestBootAgentInstances(t *testing.T) {
 		if err := (&Daemon{now: func() time.Time { return now }}).bootAgentInstances(t.Context(), state); err != nil {
 			t.Fatal(err)
 		}
+		if strings.Contains(logs.String(), instance.ID) {
+			t.Fatalf("instance setup reconciled before server startup: %s", logs.String())
+		}
+		if err := reconcileBootInstances(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
 		if state.deps.AgentInstances == nil || !strings.Contains(logs.String(), instance.ID) {
 			t.Fatalf("missing API or reconciliation diagnostic: %s", logs.String())
 		}
@@ -1349,6 +1355,9 @@ func TestBootAgentInstances(t *testing.T) {
 		}
 		if err := (&Daemon{now: func() time.Time { return now }}).bootAgentInstances(t.Context(), state); err != nil {
 			t.Fatalf("bootAgentInstances() error = %v", err)
+		}
+		if err := reconcileBootInstances(t.Context(), state); err != nil {
+			t.Fatal(err)
 		}
 		if !strings.Contains(logs.String(), "publish instance reports at startup") ||
 			!strings.Contains(logs.String(), report.ID) {

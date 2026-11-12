@@ -16,6 +16,13 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
+qa-impact: 2026-11-12 (#1543) a client-side window-manager stream failure (a frame that cannot be
+parsed or applied, a throwing subscriber, a failed socket write or resync) now reconnects the
+stream with backoff instead of leaving the layout degraded while heartbeats keep the socket open.
+The fresh fence snapshot clears the "Can't save window layout — retrying" pill and re-enables the
+dock without a reload; the pill's tooltip names the underlying error. Re-walk dock ⌥-click "Open in
+split" after a forced stream failure. Flag only; the next QA cycle owns live retesting.
+
 qa-impact: 2026-11-03 (#1180) each queued window-manager command now carries an 8 s deadline from
 the click: a command still queued past it resolves unapplied and its in-flight request aborts,
 instead of replaying a stalled backlog at once. Re-walk rapid activations while sessions stream.

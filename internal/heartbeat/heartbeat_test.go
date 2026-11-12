@@ -1246,11 +1246,10 @@ func TestParseTriageReply(t *testing.T) {
 			}
 		}
 	})
-	t.Run("Should reject prose malformed JSON and multiple fenced values", func(t *testing.T) {
+	t.Run("Should reject internal prose malformed JSON and ambiguous values", func(t *testing.T) {
 		t.Parallel()
 		fenced := "```json\n" + validReply + "\n```"
 		for _, reply := range []string{
-			"Explanation\n" + fenced, fenced + "\nExplanation",
 			"```json\nExplanation\n" + validReply + "\n```",
 			"```json\n" + validReply + "\nExplanation\n```",
 			"```json\n" + validReply + "\n" + validReply + "\n```",
@@ -1269,6 +1268,52 @@ func TestParseTriageReply(t *testing.T) {
 			}
 		}
 	})
+	for _, format := range []struct{ name, body string }{
+		{"Should accept bare proposals", validReply},
+		{"Should accept JSON fenced proposals", "```json\n" + validReply + "\n```"},
+		{"Should accept CRLF uppercase JSON fenced proposals", "```JSON\r\n" + validReply + "\r\n```"},
+		{"Should accept untagged fenced proposals", "```\n" + validReply + "\n```"},
+	} {
+		t.Run(format.name, func(t *testing.T) {
+			t.Parallel()
+			for _, commentary := range []struct{ name, prefix, suffix string }{
+				{"Should accept leading commentary", "Candidates follow.\n", ""},
+				{"Should accept trailing commentary", "", "\nSkipped other candidates."},
+				{"Should accept surrounding commentary", "Candidates follow.\n", "\nSkipped other candidates."},
+			} {
+				t.Run(commentary.name, func(t *testing.T) {
+					t.Parallel()
+					reply := commentary.prefix + format.body + commentary.suffix
+					proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
+					if err != nil || len(proposals) != 1 || proposals[0].Title != "Review" {
+						t.Fatalf("proposals=%+v error=%v", proposals, err)
+					}
+					outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
+					if outcome.Result != "reported" {
+						t.Fatalf("outcome=%+v", outcome)
+					}
+				})
+			}
+		})
+	}
+	fenced := "```json\n" + validReply + "\n```"
+	for _, tc := range []struct{ name, reply string }{
+		{"Should reject bare then fenced candidates", validReply + "\n" + fenced},
+		{"Should reject fenced then bare candidates", fenced + "\n" + validReply},
+		{"Should reject an object before a fenced candidate", "{}\n" + fenced},
+		{"Should reject an array after a fenced candidate", fenced + "\n[]"},
+		{"Should reject an object after a bare candidate", validReply + "\n{}"},
+		{"Should reject a trailing quiet sentinel", validReply + "\nNOTHING_TO_REPORT"},
+		{"Should reject a leading quiet sentinel", "NOTHING_TO_REPORT\n" + validReply},
+		{"Should reject multiple candidates with commentary", "Explanation\n" + validReply + "\n" + validReply},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ParseTriageReply(tc.reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
+				t.Fatalf("reply=%q error=%v", tc.reply, err)
+			}
+		})
+	}
 	t.Run("Should honor every supported proposal limit", func(t *testing.T) {
 		t.Parallel()
 		proposals := make([]string, 21)
@@ -1357,6 +1402,34 @@ func TestParseTriageReply(t *testing.T) {
 }
 
 func TestTriageReplyOutcome(t *testing.T) {
+	for _, tc := range []struct{ name, reply, validation string }{
+		{"Should classify an incomplete fence as framing", "```json\n{}", "framing"},
+		{"Should classify an empty reply as framing", "", "framing"},
+		{"Should classify additional objects as ambiguous", `{"proposals":[]} tail {}`, "ambiguous_reply"},
+		{
+			"Should classify unknown proposal members as schema without exposing provider text",
+			"Explanation\n" + `{"proposals":[{"title":"secret","body":"body","item_keys":[],"extra":true}]}`,
+			"schema",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			outcome := TriageReplyOutcome(tc.reply, CheckDigest{}, 2)
+			if outcome.Result != "failed" || outcome.Report == nil {
+				t.Fatalf("outcome=%+v", outcome)
+			}
+			var payload struct {
+				Detail string `json:"detail"`
+			}
+			if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(payload.Detail, "Validation: "+tc.validation+".") ||
+				strings.Contains(payload.Detail, "secret") {
+				t.Fatalf("detail=%s", payload.Detail)
+			}
+		})
+	}
 	t.Run("Should bound and redact rejected output in the failure report", func(t *testing.T) {
 		t.Parallel()
 		secret := "ghp_" + strings.Repeat("a", 36)
@@ -1379,9 +1452,12 @@ func TestTriageReplyOutcome(t *testing.T) {
 			t.Fatal(err)
 		}
 		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") ||
+			!strings.Contains(payload.Detail, "Validation: framing.") ||
 			strings.Contains(payload.Detail, secret) || strings.Contains(payload.Detail, oauthCode) ||
-			strings.Contains(payload.Detail, punctuationCode) || !strings.Contains(payload.Detail, "[REDACTED]") ||
-			strings.Contains(payload.Detail, "token") || len(payload.Detail) > 600 {
+			strings.Contains(payload.Detail, punctuationCode) ||
+			!strings.Contains(payload.Detail, "[REDACTED]") ||
+			strings.Contains(payload.Detail, "token") ||
+			len(payload.Detail) > 600 {
 			t.Fatalf("payload=%+v", payload)
 		}
 		outcome.Report.SourceKey = "occ:test"

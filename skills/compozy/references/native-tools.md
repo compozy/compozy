@@ -309,7 +309,7 @@ rather than deriving it from the session state.
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
 that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
-history or hold `session_wait` just to collect the answer. `compozy__session_status` with `result_view: "full"` lists outstanding
+history or hold `session_wait` just to collect the answer. `compozy__session_status` in both compact and full views lists outstanding
 `reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
 summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
@@ -586,6 +586,8 @@ any other cross-profile write, so it needs the unrestricted grant. Refusals carr
 session in a folder.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
+For heartbeat status, `include_session_health: true` requires a nonblank `session_id`;
+otherwise the tool returns `tool_invalid_input` naming `session_id`.
 
 Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
 `compozy__agent_list`, `compozy__agent_create`. `compozy__workspace_describe` returns sessions owned
@@ -1446,3 +1448,6 @@ A single-result tool has no `output_views` and no `result_view` input:
 Compact session records also retain `stop_cause`, `permission_mode_degraded`,
 `attention_dismissible`, `lineage.ttl_expires_at` and `lineage.spawn_budget`.
 Compact `compozy__agent_heartbeat_status` retains the policy `snapshot_id`.
+
+Compact session records retain outstanding `reply_watches` with watch ID, target session,
+message ID, state and creation time, at the same paths and values as the full record.

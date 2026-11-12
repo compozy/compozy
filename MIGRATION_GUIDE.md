@@ -739,6 +739,9 @@ and typed-error payloads.
 The release note lists every tool whose default changed and the fields that moved to the full view.
 HTTP/UDS session responses did not change. Native tool invocation responses use the selected view.
 
-Existing definitions are not rewritten. Runs already in flight use the full result through
-one-release snapshot translation; it is removed in the next release (#1462). See
-[Result Views](/docs/tools/result-views) for Loop errors, hooks and MCP boundaries.
+Existing definitions are not rewritten. v0.6.0 introduced result views and temporarily translated
+pins from older Loop runs. v0.6.1 removes that translation and the superseded output-schema digest
+table (#1462). Unfinished runs started before v0.6.0 can no longer resume tool actions with those
+stale pins: they fail with `ActionContractStale` (`action_contract_stale`). Start a new run from the
+definition with `compozy loop run --name <name>` to pin current contracts. Completed runs remain readable.
+See [Result Views](/docs/tools/result-views) for Loop errors, hooks and MCP boundaries.

@@ -58,6 +58,10 @@ func nativeResultViewFixturesSession(t *testing.T) []nativeResultViewFixture {
 		Model:      "model",
 		ACPOptions: []contract.AgentACPOptionSelection{{ID: "option", ValueID: "value"}},
 	}
+	payload.ReplyWatches = []contract.ReplyWatchPayload{
+		{ID: "rw-armed", TargetSessionID: "target-1", MessageID: "message-1", State: "armed", CreatedAt: now},
+		{ID: "rw-fired", TargetSessionID: "target-2", MessageID: "message-2", State: "fired", CreatedAt: now},
+	}
 	payload.Queue = &contract.SessionQueueSummaryPayload{Entries: 1, Cap: 10}
 	payload.Children = &contract.SessionChildrenPayload{Total: 2, NeedsYou: 1}
 	payload.SubagentSummary = &contract.SubagentSummaryPayload{
@@ -84,6 +88,11 @@ func nativeResultViewFixturesSession(t *testing.T) []nativeResultViewFixture {
 					return sessionRecordViews.result(view, payload)
 				},
 				MustKeep: []string{
+					"session.reply_watches.0.id",
+					"session.reply_watches.0.target_session_id",
+					"session.reply_watches.0.message_id",
+					"session.reply_watches.0.state",
+					"session.reply_watches.1.state",
 					"session.stop_reason",
 					"session.stop_detail",
 					"session.failure",

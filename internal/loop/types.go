@@ -187,14 +187,13 @@ const (
 
 // ToolSchemaSnapshot is the pure tool-schema view consumed by lint and compile.
 type ToolSchemaSnapshot struct {
-	ToolID                   string          `json:"tool_id"`
-	InputSchema              json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema             json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest        string          `json:"input_schema_digest,omitempty"`
-	OutputSchemaDigest       string          `json:"output_schema_digest,omitempty"`
-	FullOutputSchema         json.RawMessage `json:"full_output_schema,omitempty"`
-	FullOutputSchemaDigest   string          `json:"full_output_schema_digest,omitempty"`
-	PreViewInputSchemaDigest string          `json:"-"`
+	ToolID                 string          `json:"tool_id"`
+	InputSchema            json.RawMessage `json:"input_schema,omitempty"`
+	OutputSchema           json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest      string          `json:"input_schema_digest,omitempty"`
+	OutputSchemaDigest     string          `json:"output_schema_digest,omitempty"`
+	FullOutputSchema       json.RawMessage `json:"full_output_schema,omitempty"`
+	FullOutputSchemaDigest string          `json:"full_output_schema_digest,omitempty"`
 }
 
 // ToolSchemaSource resolves open action ToolIDs without tying lint to runtime IO.

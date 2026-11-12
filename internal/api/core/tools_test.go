@@ -45,9 +45,8 @@ func TestToolDescriptorResultViews(t *testing.T) {
 					`{"type":"object","properties":{"result_view":{"type":"string","enum":["compact","full"]}}}`,
 				)
 				descriptor.SetResultViews(&toolspkg.ResultViews{
-					Compact:                  toolspkg.ResultViewContract{Schema: descriptor.OutputSchema},
-					Full:                     toolspkg.ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
-					PreViewInputSchemaDigest: "internal-only",
+					Compact: toolspkg.ResultViewContract{Schema: descriptor.OutputSchema},
+					Full:    toolspkg.ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
 				})
 			}
 			descriptor, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
@@ -78,9 +77,6 @@ func TestToolDescriptorResultViews(t *testing.T) {
 			if !bytes.Equal(payload.OutputSchema, views.Compact.Schema) ||
 				payload.OutputSchemaDigest != views.Compact.Digest {
 				t.Fatal("default output contract differs from compact")
-			}
-			if bytes.Contains(raw, []byte("internal-only")) {
-				t.Fatal("descriptor exposes internal pre-view digest")
 			}
 			payload.OutputViews.Compact.Schema[0] = 'x'
 			payload.OutputViews.Full.Schema[0] = 'x'

@@ -21,7 +21,7 @@ type instanceRepositoryProvider interface {
 	SkillReviews() *globaldb.SkillReviewRepo
 }
 
-func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil
@@ -100,10 +100,14 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
-	return reconcileBootInstances(ctx, state, service)
+	return nil
 }
 
-func reconcileBootInstances(ctx context.Context, state *bootState, service *agentinstance.Service) error {
+func reconcileBootInstances(ctx context.Context, state *bootState) error {
+	if state.agentInstances == nil {
+		return nil
+	}
+	service := state.agentInstances.Service
 	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
 	if err := service.Reconcile(ctx); err != nil {
 		state.logger.ErrorContext(ctx, "daemon: reconcile instances at startup", "error", err)
@@ -134,7 +138,7 @@ func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, re
 			if err := reconcile(ctx); err != nil {
 				state.logger.ErrorContext(ctx, "daemon: reconcile instances after agent catalog change", "error", err)
 			}
-			if checks := state.runtimeWorkers.proactiveChecks; checks != nil {
+			if checks := state.currentProactiveChecks(); checks != nil {
 				if err := checks.RecoverConfiguration(ctx, nil); err != nil {
 					state.logger.ErrorContext(ctx, "daemon: recover checks after agent catalog change", "error", err)
 				}
@@ -144,10 +148,11 @@ func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, re
 }
 
 func cancelInstanceCheck(ctx context.Context, state *bootState, id string) error {
-	if state.runtimeWorkers.proactiveChecks == nil {
+	checks := state.currentProactiveChecks()
+	if checks == nil {
 		return nil
 	}
-	return state.runtimeWorkers.proactiveChecks.CancelInstance(ctx, id)
+	return checks.CancelInstance(ctx, id)
 }
 
 func instanceStateEffects(

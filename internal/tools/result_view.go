@@ -23,8 +23,6 @@ type ResultViewContract struct {
 type ResultViews struct {
 	Compact ResultViewContract `json:"compact"`
 	Full    ResultViewContract `json:"full"`
-	// Removed with the pre-view Loop pin translation in the release following views (#1462).
-	PreViewInputSchemaDigest string `json:"-"`
 }
 
 func CloneResultViews(src *ResultViews) *ResultViews {

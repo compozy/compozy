@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -50,6 +53,24 @@ func TestNativeResultViewsIntegration(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// Invariant: native status hydrates pending watches from SQLite before projecting either view.
+		db := daemon.registry.(*globaldb.GlobalDB)
+		watchStore := daemon.registry.(store.ReplyWatchStore)
+		replies, err := session.NewReplyWatchService(watchStore, manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.SetReplyWatchService(replies)
+		for _, state := range []string{"armed", "fired", "delivered", "abandoned"} {
+			if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO session_prompt_reply_watches
+				(id, workspace_id, sender_session_id, target_workspace_id, target_session_id,
+				message_id, admission_id, hop, state, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`, "rw-"+state, workspace.ID, parent.ID,
+				workspace.ID, "target-"+state, "message-"+state, "admission-"+state, state,
+				store.FormatTimestamp(time.Date(2099, 1, 1, 12, 0, 0, 0, time.UTC))); err != nil {
+				t.Fatal(err)
+			}
 		}
 		registry := newDaemonNativeRegistry(
 			t,
@@ -93,6 +114,18 @@ func TestNativeResultViewsIntegration(t *testing.T) {
 				toolspkg.ToolIDSessionStatus,
 				fmt.Sprintf(`{"session_id":%q,"result_view":%q}`, parent.ID, view),
 			)
+			var statusPayload struct {
+				Session contract.SessionPayload `json:"session"`
+			}
+			if err := json.Unmarshal(status.Structured, &statusPayload); err != nil {
+				t.Fatal(err)
+			}
+			watches := statusPayload.Session.ReplyWatches
+			if len(watches) != 2 || watches[0].ID != "rw-armed" || watches[0].State != "armed" ||
+				watches[1].ID != "rw-fired" || watches[1].State != "fired" ||
+				watches[0].TargetSessionID != "target-armed" || watches[0].MessageID != "message-armed" {
+				t.Fatalf("native status %s pending watches: %+v", view, watches)
+			}
 			t.Logf("real status %s bytes=%d", view, len(status.Structured))
 			spawn := callNativeResultViewIntegration(
 				t,

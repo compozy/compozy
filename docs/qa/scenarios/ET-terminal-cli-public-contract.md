@@ -81,3 +81,13 @@ relative children, tail output, and rejected root/sibling/symlink escapes. The r
 `TestUDSTerminalWebSocketLifecycle` integration walk passes with a temporary home, database,
 socket, and shell. These checks do not establish the cause of the original unrecorded worktree
 refusal or reproduce a live provider/dev-server failure; they preserve the existing confinement.
+
+QA impact 2026-11-12 (#1565): from an unbound session, run `terminal_exec` with a ready
+managed `worktree` ID/name and a relative child `cwd`; confirm the command starts inside
+that checkout. Repeat through CLI `terminal exec --worktree` and HTTP/UDS exec bodies.
+Confirm foreign-profile, unknown, pending and missing worktrees fail before spawning,
+and that a bound session cannot target a sibling worktree or escape via cwd/symlink.
+An absolute external worktree cwd without `worktree` must return `invalid_cwd` naming
+the worktree option. Hold a yielded exec open and confirm removal stays fenced until
+process exit, for both pipe and visible modes. Verification of this addition is CI-only;
+no local runtime walk was run under the parallel execution restriction.

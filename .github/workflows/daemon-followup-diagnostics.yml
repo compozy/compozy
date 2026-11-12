@@ -1,0 +1,55 @@
+name: Daemon follow-up diagnostics
+
+on:
+  pull_request:
+    paths:
+      - internal/daemon/daemon_test.go
+      - internal/providerusage/service_test.go
+      - internal/cli/cli_integration_test.go
+      - internal/session/manager_busy_input_test.go
+      - .github/workflows/daemon-followup-diagnostics.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daemon-followup-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - name: Repeat boot barriers with original deadlines
+        run: go test -race -gcflags=modernc.org/...=-d=checkptr=0 ./internal/daemon -run '^TestBoot(PublishesInfoOnlyAfterAllFallibleStartupCompletes|LoopReconciliationBarrier)$' -count=10 -parallel=4 -timeout=20m -v
+      - name: Repeat Usage cooldown across CPU counts
+        if: ${{ !cancelled() }}
+        run: go test -race ./internal/providerusage -run '^TestUsageRateLimitBackoff$' -count=100 -cpu=1,2,8 -parallel=4 -timeout=15m -v
+
+  cli-shutdown-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - name: Repeat compact integration with original shutdown deadlines
+        run: go test -race -tags=integration ./internal/cli -run '^TestSessionCompactIntegration$' -count=20 -parallel=4 -timeout=15m -v
+
+  boundary-steer-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - name: Repeat boundary steering with original drain deadlines
+        run: go test -race ./internal/session -run '^TestManagerBoundarySteer$' -count=20 -parallel=4 -timeout=15m -v

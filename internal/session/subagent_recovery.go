@@ -41,7 +41,7 @@ func (s *subagentService) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, turn := range groupNativeTurns(native) {
+	for _, turn := range groupNativeReplayRows(native, true) {
 		s.recoveryResult(ctx, turn[0].ParentTurnID, "native_interrupted", s.recoverNative(ctx, turn))
 	}
 	if err := s.recoverWakes(ctx); err != nil {

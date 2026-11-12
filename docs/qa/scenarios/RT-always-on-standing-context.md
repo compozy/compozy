@@ -26,6 +26,7 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 8. Call `compozy__agent_instance_list` with `peers: true`. Each peer carries `accepts`. Pause the second instance and send a turn: its roster line shows `[paused]`.
 9. Send a turn from a session of the same agent that does not belong to an instance. It receives the rules and no roster.
 10. Start an on-demand agent. It receives no standing context.
+    Read its session-filtered logs through HTTP and UDS after a user turn. Both return identical harness lifecycle events, including `skills`, `situation`, and `standing` augmenter observations; `standing` reports `outcome=unchanged` without injecting a block.
 11. Claude provider: start the always-on agent with `lean_environment` unset on a host whose Claude setup has its own MCP servers or claude.ai connectors. The session lists only CompozyOS-provided MCP tools. With `lean_environment: false` the operator's servers return. An on-demand agent is unchanged.
 12. Upgrade check: load a `MEMORY.md` written before rules existed. Every line stays a note, the digest is unchanged by reading, and no rule appears.
 13. Remove every rule from an agent with no peers while its session runs. The next turn carries a block saying no rules or peers are in force and that earlier standing context is withdrawn.
@@ -39,3 +40,18 @@ Walked 2026-11-12 in two isolated labs with real Claude and Codex sessions; step
 were not walked in a browser.
 
 2026-11-12 review repair (not re-walked in a lab; owned by `TestAgentMemoryRoutes`, `TestStore` and `TestPromptInputCompositeIntegrationStandingContext` in CI): steps 13 to 15, the `compaction="<n>"` attribute on the block after a compaction, and the reworded unchanged marker.
+
+CI integration repair 2026-11-12 (#1565): HTTP and UDS log reads must expose the
+same complete harness lifecycle, including all three selected augmenters: skills,
+situation and standing. An on-demand session reports standing as unchanged without
+receiving standing content. The existing
+`TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP` requires the exact event
+sequence and each augmenter's metadata over both real transports. Validation runs
+only in CI under the parallel-dispatch operator rule; no local walk was performed.
+
+CI fixture repair 2026-11-12 (#1565): the standing-context budget check supplies a
+full supported roster alongside overflowing rules so that both overflow paths are
+actually exercised. Two peers fit in the remaining budget and do not justify a
+peer-overflow pointer. The existing budget, envelope and both pointer assertions
+remain unchanged in `TestPromptInputCompositeIntegrationStandingContext`; no
+production truncation policy changed. CI owns execution; no local suite was run.

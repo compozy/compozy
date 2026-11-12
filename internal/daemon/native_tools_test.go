@@ -392,9 +392,10 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 	}
 	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "turn-exec", ApprovalToken: "approval-token",
-		Input: json.RawMessage(`{"command":"bun","args":["test"]}`),
+		Input: json.RawMessage(`{"command":"bun","args":["test"],"worktree":"wt-ready"}`),
 	}))
 	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" ||
+		manager.execRequest.Worktree != "wt-ready" ||
 		manager.execRequest.Actor.RunID != "run-a" || manager.execRequest.Actor.Generation != 4 {
 		t.Fatalf("terminalExec(approved) error/calls/request = %v/%d/%#v", err, manager.execCalls, manager.execRequest)
 	}
@@ -10331,6 +10332,19 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, statusResult, []byte(`"snapshot_id":"hbs-1"`))
 		requireNativeStructuredContains(t, statusResult, []byte(`"wake_events"`))
+
+		for _, input := range []string{
+			`{"workspace":"ws-1","agent_name":"coder","include_session_health":true}`,
+			`{"workspace":"ws-1","agent_name":"coder","session_id":"  ","include_session_health":true}`,
+		} {
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatStatus, Input: json.RawMessage(input),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+			if !strings.Contains(err.Error(), "session_id") || status.calls != 1 {
+				t.Fatalf("missing session reached backend: error=%v calls=%d", err, status.calls)
+			}
+		}
 
 		wakeResult, err := registry.Call(
 			t.Context(),

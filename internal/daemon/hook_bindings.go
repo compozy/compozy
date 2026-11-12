@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
@@ -32,6 +33,7 @@ func (f hookBindingPublisherFunc) Sync(ctx context.Context) error {
 }
 
 type hookBindingSourceSyncer struct {
+	syncMu    sync.Mutex
 	store     resources.Store[hookspkg.HookDecl]
 	codec     resources.KindCodec[hookspkg.HookDecl]
 	actor     resources.MutationActor
@@ -83,6 +85,9 @@ func (s *hookBindingSourceSyncer) Sync(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: hook binding sync context is required")
 	}
+
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 
 	desired, err := s.desiredBindings(ctx)
 	if err != nil {

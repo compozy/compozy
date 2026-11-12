@@ -115,19 +115,25 @@ async function authorityWindow(page: Page, win: Locator): Promise<Locator> {
 
 /** Focus an obscured window through the user-facing palette's exact tab identity. */
 export async function focusWindowThroughPalette(page: Page, win: Locator): Promise<void> {
-  if ((await windowFrame(win).getAttribute("data-focused")) !== null) return;
+  if ((await windowFrame(win).getAttribute("data-focused")) !== null && (await win.isVisible())) {
+    return;
+  }
   const target = await authorityWindow(page, win);
-  const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
+  const label = (
+    await win.getByRole("heading", { level: 1, includeHidden: true }).textContent()
+  )?.trim();
+  if (!label) throw new Error("window surface must expose a title before palette activation");
   await page.keyboard.press("ControlOrMeta+K");
   const palette = page.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
   // Opening the palette can reconcile and rematerialize a window. Resolve its
   // opaque identity only after that transition through its stable app/instance
   // identity, so the tab row and surface share the same authority snapshot.
-  await expect(target).toBeVisible();
+  await expect(target).toBeAttached();
   const id = await windowID(target);
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
   await palette.getByTestId(`os-palette-tab-${id}`).click();
+  await expect(target).toBeVisible();
   await expect(windowFrame(target)).toHaveAttribute("data-focused", "");
 }
 

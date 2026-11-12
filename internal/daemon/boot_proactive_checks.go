@@ -87,10 +87,10 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	if err := service.Recover(ctx); err != nil {
 		return errors.Join(err, service.Shutdown(ctx))
 	}
-	state.runtimeWorkers.proactiveChecks = service
 	state.agentInstances.Checks = service
 	state.agentInstances.CheckSettings = service
 	bindCheckConfigRecovery(state, service)
+	state.setProactiveChecks(service)
 	cleanup.add(service.Shutdown)
 	return nil
 }
@@ -151,4 +151,17 @@ func bindInstanceReportActions(
 		return provider.InstanceReports().
 			ProjectPicks(ctx, report, actions...)
 	}
+}
+
+// currentProactiveChecks reads the service published while boot-time watchers may already run.
+func (s *bootState) currentProactiveChecks() *heartbeat.CheckService {
+	s.proactiveChecksMu.RLock()
+	defer s.proactiveChecksMu.RUnlock()
+	return s.runtimeWorkers.proactiveChecks
+}
+
+func (s *bootState) setProactiveChecks(service *heartbeat.CheckService) {
+	s.proactiveChecksMu.Lock()
+	defer s.proactiveChecksMu.Unlock()
+	s.runtimeWorkers.proactiveChecks = service
 }

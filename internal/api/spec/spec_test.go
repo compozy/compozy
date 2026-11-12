@@ -3970,6 +3970,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addTerminalCreateWorktree(baseline) == 0 {
 		t.Fatal("approved worktree terminal create: no historical terminal create schemas found")
 	}
+	addTerminalExecWorktree(t, baseline)
 	// #1072: optional inherited marker on MCP auth status; existing fields and required sets stay unchanged.
 	if addMCPAuthStatusInherited(baseline) == 0 {
 		t.Fatal("approved MCP auth inherited addition: no historical MCP auth status schemas found")
@@ -4548,6 +4549,24 @@ func addTerminalErrorCode(value any, code string) int {
 		}
 	}
 	return count
+}
+
+func addTerminalExecWorktree(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	properties := baseline
+	for _, key := range []string{
+		"paths", terminalPath + "/exec", "post", "requestBody", "content", "application/json", "schema", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved terminal exec worktree addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["worktree"]; exists {
+		t.Fatal("approved terminal exec worktree addition: property already exists in historical baseline")
+	}
+	properties["worktree"] = map[string]any{"type": "string"}
 }
 
 // addTerminalCreateWorktree adds the optional worktree reference to every

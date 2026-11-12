@@ -438,6 +438,74 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		}
 	})
 
+	// Owner: runtime recovery; an admitted wake turn remains recoverable after its child advances.
+	t.Run("Should recover an admitted creator alarm after the child moves on", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0}
+		parent := createSession(t, h)
+		child, err := h.manager.Create(t.Context(), new(CreateOpts{
+			AgentName: "coder", Name: "child", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID, RootSessionID: parent.ID, Kind: store.LineageKindProvenance,
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		enableSyntheticQueue(t, h, parent)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID); reportSessionStop(t, h, child.ID) })
+		child.mu.Lock()
+		child.EndedEarlyTurnID = "child-turn"
+		child.mu.Unlock()
+		wakeID := spawnWakeEventID(child.Info(), SpawnWakeReasonNeedsAttention)
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) == 1 {
+				child.mu.Lock()
+				child.EndedEarlyTurnID = ""
+				child.AttentionRevision++
+				child.mu.Unlock()
+				proc.crash(errors.New("provider process exited"), "provider disconnected")
+				events <- acp.AgentEvent{Type: acp.EventTypeError, SessionID: proc.handle.SessionID, TurnID: req.TurnID,
+					Error: "peer disconnected before response",
+					Failure: &store.SessionFailure{
+						Kind: store.FailureTransport, Summary: "peer disconnected before response",
+					},
+				}
+			} else {
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID}
+			}
+			close(events)
+			return events, nil
+		}
+		stream, err := h.manager.PromptSynthetic(t.Context(), parent.ID, SyntheticPromptOpts{
+			MessageID: wakeID, Message: "Review the child's answer.",
+			Metadata: acp.PromptSyntheticMeta{Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+				Reason: string(SpawnWakeReasonNeedsAttention), WakeEventID: wakeID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		completed := collectEvents(t, stream)
+		if countAgentEvents(completed, acp.EventTypeRuntimeRecoverySucceeded) != 1 ||
+			countAgentEvents(completed, acp.EventTypeDone) != 1 ||
+			countAgentEvents(completed, acp.EventTypeError) != 0 {
+			t.Fatalf("events = %#v, want one successful recovery and completion", completed)
+		}
+		h.driver.mu.Lock()
+		requests := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+		h.driver.mu.Unlock()
+		if len(requests) != 2 || requests[0].TurnID != requests[1].TurnID ||
+			requests[1].Meta.Synthetic == nil || requests[1].Meta.Synthetic.Kind != SpawnWakeKindEndedEarly {
+			t.Fatalf("requests = %#v, want the same admitted creator turn replayed", requests)
+		}
+		if parent.Info().State != StateActive {
+			t.Fatal("recovery stopped the creator")
+		}
+	})
+
 	t.Run("Should replace the failed runtime and replay the interrupted turn", func(t *testing.T) {
 		t.Parallel()
 
