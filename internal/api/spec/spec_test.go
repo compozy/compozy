@@ -4551,8 +4551,6 @@ func addTerminalErrorCode(value any, code string) int {
 	return count
 }
 
-// addTerminalCreateWorktree adds the optional worktree reference to every
-// terminal create body, identified by its client_id and shell fields.
 func addTerminalExecWorktree(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	properties := baseline
@@ -4571,6 +4569,8 @@ func addTerminalExecWorktree(t *testing.T, baseline map[string]any) {
 	properties["worktree"] = map[string]any{"type": "string"}
 }
 
+// addTerminalCreateWorktree adds the optional worktree reference to every
+// terminal create body, identified by its client_id and shell fields.
 func addTerminalCreateWorktree(value any) int {
 	count := 0
 	switch node := value.(type) {
