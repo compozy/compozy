@@ -219,13 +219,20 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 	if source == "" {
 		source = heartbeat.WakeSourceManual
 	}
+	if !heartbeat.ValidWakeSource(source) {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, fmt.Errorf(
+			"invalid source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry",
+			source,
+		))
+	}
 	decision, err := n.deps.HeartbeatWake.Wake(ctx, heartbeat.WakeRequest{
-		ProfileID:   target.profileID,
-		WorkspaceID: target.workspaceID,
-		AgentName:   target.agentName,
-		SessionID:   sessionID,
-		Source:      source,
-		DryRun:      input.DryRun,
+		PolicyTarget: new(target.heartbeatAuthoringTarget()),
+		ProfileID:    target.profileID,
+		WorkspaceID:  target.workspaceID,
+		AgentName:    target.agentName,
+		SessionID:    sessionID,
+		Source:       source,
+		DryRun:       input.DryRun,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err

@@ -78,6 +78,9 @@ func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions 
 		sessions,
 		state.cfg.Agents.Heartbeat,
 		state.logger,
+		heartbeat.WithWakePolicyResolver(agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
+		})),
 	)
 	deps.WakeEvents = heartbeatWakeEventReaderDependency(state.registry)
 	deps.SoulAuthoring = hookSoulAuthoringService(deps.SoulAuthoring, state.notifier)
@@ -126,6 +129,7 @@ func heartbeatWakeServiceDependency(
 	sessions SessionManager,
 	config compozyconfig.HeartbeatConfig,
 	logger *slog.Logger,
+	options ...heartbeat.WakeOption,
 ) (core.HeartbeatWakeService, *apiHeartbeatWakePrompter) {
 	if ctx == nil {
 		logAuthoredContextDependencyError(
@@ -155,6 +159,7 @@ func heartbeatWakeServiceDependency(
 		heartbeatWakeHealthReader{reader: healthReader},
 		prompter,
 		config,
+		options...,
 	)
 	if err != nil {
 		prompter.workers.Stop()
