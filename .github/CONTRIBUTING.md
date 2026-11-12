@@ -69,6 +69,19 @@ can change the denominator. If the service cannot recover its analyzed set, reco
 limitation explicitly and keep the warning unresolved rather than claiming it repaired.
 Path instructions guide review explanations; they do not change the built-in analyzer.
 
+For a concrete example, the [unchanged-head investigation for #1413](https://github.com/compozy/compozy/pull/1412#issuecomment-6813311775)
+revisited head `a6ab284a2c711af2a2a601b84c46c5ed84df6e82`, analyzer run
+`8309afaf-c5a3-44be-8ee1-f2b306e25ea6`. CodeRabbit confirmed that its retained result
+does not identify the two analyzed functions. Fresh inspection found attached comments
+on `(*daemonNativeTools).nativeTerminalActor`, `(*toolApprovalBridge).RequestToolApproval`,
+`(*toolApprovalBridge).logToolApprovalApplied` and `(*RuntimeRegistry).normalizeDispatchCallRequest`.
+It also found uncommented test entries `TestTerminalApprovalPreservesRunRestrictions`
+and `TestTerminalExecAllowOnceActiveRun`, and helper `assertTerminalApprovalCorrelation`.
+Those are source observations, not the analyzer's selected inventory. Receiver-comment
+matching and test inclusion remain unknown. Resolving that warning requires the service's
+per-function artifacts, or a controlled reproduction with the same analyzer version;
+the available evidence does not justify adding comments or declaring a false positive.
+
 ## Reporting bugs
 
 Use the bug report form. `compozy version` prints the version line, and `compozy support bundle --yes` produces a secret-redacted diagnostics archive you can attach. Never paste unredacted logs or API keys.
