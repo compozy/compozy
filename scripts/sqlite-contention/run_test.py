@@ -109,6 +109,7 @@ class AcceptanceTests(unittest.TestCase):
             with self.subTest(sample=sample):
                 trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
                 trials["baseline"][0]["latency"]["transcript_write"] = sample
+                trials["head"][0]["latency"]["transcript_write"]["max_ms"] = 1125
                 trials["head"][0]["contention_diagnostics"] = [self.commit_pause()]
                 _, _, invalid, tails = acceptance_failures(trials, 20000)
                 self.assertTrue(tails["regression"])
@@ -116,6 +117,29 @@ class AcceptanceTests(unittest.TestCase):
         trials["baseline"][0]["latency"]["transcript_write"] = {"count": 100, "max_ms": 1500}
         trials["baseline"][0]["failures"] = {"transcript_write": ["deadline exceeded"]}
         self.assertTrue(acceptance_failures(trials, 20000)[3]["regression"])
+
+    # Invariant: an unusable control cannot widen the absolute budget or reject a
+    # head that meets it. Owner: runner acceptance; canonical suite: AcceptanceTests.
+    def test_incomplete_control_requires_absolute_budget_without_commit_exemptions(self):
+        for sample in ({}, {"count": 0, "max_ms": 2000}, {"count": 100, "max_ms": float("nan")},
+                       {"count": 100, "max_ms": float("inf")}, {"count": 100, "max_ms": 0},
+                       {"count": 100, "max_ms": 2000}):
+            for head_max in (901, 1000, 1001):
+                with self.subTest(sample=sample, head_max=head_max):
+                    trials = {"baseline": [trial() for _ in range(4)], "head": [trial() for _ in range(4)]}
+                    trials["baseline"][0]["latency"]["transcript_write"] = sample
+                    trials["baseline"][0]["failures"] = {"transcript_write": ["deadline exceeded"]}
+                    trials["head"][0]["latency"]["transcript_write"]["max_ms"] = head_max
+                    _, _, invalid, tails = acceptance_failures(trials, 20000)
+                    self.assertEqual(invalid, [])
+                    self.assertEqual(tails["regression"], head_max > 1000)
+                    self.assertLessEqual(tails["median_ratio"], 1)
+                    self.assertEqual(len([p for p in tails["pairs"] if p["ratio"] is not None]), 4)
+                    self.assertEqual(tails["pairs"][0]["limit_ms"], 1000)
+                    self.assertEqual(tails["pairs"][0]["budget_basis"], "absolute_floor")
+                    self.assertFalse(tails["pairs"][0]["complete"])
+                    trials["head"][0]["contention_diagnostics"] = [self.commit_pause()]
+                    self.assertEqual(acceptance_failures(trials, 20000)[2], [0])
 
     def test_missing_head_tail_fails_even_without_a_warning(self):
         """Require every head trial to supply a transcript tail measurement."""
@@ -129,6 +153,8 @@ class AcceptanceTests(unittest.TestCase):
         """Keep unknown holds, checkpoint diagnostics and operation errors blocking."""
         changes = ({"callback_ms": 1000}, {"callback_ms": -1}, {"commit_ms": 999},
                    {"elapsed_ms": 1501}, {"database": "telemetry"}, {"operation": "other"},
+                   {"database": "core", "operation": "update session state", "elapsed_ms": 1039,
+                    "callback_ms": 9, "commit_ms": 1030},
                    {"msg": "store: passive session wal checkpoint failed"})
         for change in changes:
             with self.subTest(change=change):

@@ -154,7 +154,14 @@ relative margin. The median of the four head-max/budget ratios must be at most
 COMMIT of at least one second, and its entire elapsed time fits **its own pair's**
 budget. A large baseline in another pair or a favorable median cannot excuse that
 warning. Missing/nonfinite/nonpositive tail samples and baseline transcript
-operation errors fail calibration. Head operation errors, other warnings,
+operation errors fail calibration. When that control is unusable, the pair uses
+the unchanged absolute 1,000 ms budget instead: every such head maximum must
+meet that ceiling, even if the median passes, and no COMMIT warning in that pair
+is eligible for an exemption. Missing or invalid head samples still fail. An
+expired historical control cannot itself prove a regression when the head meets
+the absolute budget without calibration. All four head ratios remain in the
+median; none is dropped. `budget_basis` records the decision for each pair.
+Head operation errors, other warnings,
 retention and upgrade correctness remain strict. `results.json` and `report.md`
 retain every raw warning in JSON and every head warning with its individual
 decision in Markdown, alongside paired maxima, budgets and ratios.

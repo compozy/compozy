@@ -180,6 +180,33 @@ jobs:
               go tool pprof -top -cum -nodecount=40 "$profile" > "$profile-cumulative.txt"
             done
           done
+      - name: Reevaluate retained decisions without rerunning the workload
+        env:
+          PYTHONPATH: ${{ github.workspace }}/scripts/sqlite-contention
+          TRACE_ROOT: ${{ runner.temp }}/retained-traces
+          ANALYSIS_ROOT: ${{ runner.temp }}/trace-analysis
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from run import acceptance_failures
+
+          for path in Path(os.environ["TRACE_ROOT"]).rglob("results.json"):
+              recorded = json.loads(path.read_text())
+              before = json.loads((path.parent / "upgrade-before.json").read_text())
+              _, regressions, invalid, tails = acceptance_failures(
+                  recorded["trials"], before["retention_eligible_rows"])
+              receipt = {"source_head": recorded["environment"]["head"],
+                         "runtime_trace_trials": recorded.get("runtime_trace_trials", False),
+                         "recorded": {key: recorded[key] for key in (
+                             "invalid_head_trials", "throughput_regressions", "transcript_tail_comparison")},
+                         "reevaluated": {"invalid_head_trials": invalid,
+                                         "throughput_regressions": regressions,
+                                         "transcript_tail_comparison": tails}}
+              target = Path(os.environ["ANALYSIS_ROOT"]) / (path.parent.name + "-decisions.json")
+              target.write_text(json.dumps(receipt, indent=2) + "\n")
+          PY
       - uses: actions/upload-artifact@v7
         if: always()
         with:

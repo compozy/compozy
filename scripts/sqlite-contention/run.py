@@ -137,18 +137,21 @@ def transcript_tail_comparison(baseline, head):
     pairs = []
     for b, h in zip(baseline, head):
         samples = [run["latency"].get("transcript_write", {}) for run in (b, h)]
-        complete = all(sample.get("count", 0) > 0
-                       and math.isfinite(sample.get("max_ms", float("inf")))
-                       and sample.get("max_ms", 0) > 0 for sample in samples)
-        complete = complete and not b["failures"].get("transcript_write")
-        limit = max(LONG_HOLD_MS, samples[0].get("max_ms", 0))
+        valid = [sample.get("count", 0) > 0
+                 and math.isfinite(sample.get("max_ms", float("inf")))
+                 and sample.get("max_ms", 0) > 0 for sample in samples]
+        control_complete = valid[0] and not b["failures"].get("transcript_write")
+        limit = max(LONG_HOLD_MS, samples[0]["max_ms"]) if control_complete else LONG_HOLD_MS
         pairs.append({"baseline_max_ms": samples[0].get("max_ms"),
                       "head_max_ms": samples[1].get("max_ms"), "limit_ms": limit,
-                      "complete": complete,
-                      "ratio": samples[1]["max_ms"] / limit if complete else None})
-    ratios = [pair["ratio"] for pair in pairs if pair["complete"]]
+                      "complete": control_complete and valid[1],
+                      "budget_basis": "paired_baseline" if control_complete else "absolute_floor",
+                      "ratio": samples[1]["max_ms"] / limit if valid[1] else None})
+    ratios = [pair["ratio"] for pair in pairs if pair["ratio"] is not None]
     return {"pairs": pairs, "median_ratio": statistics.median(ratios) if ratios else None,
-            "regression": len(ratios) != len(pairs) or not ratios or statistics.median(ratios) > 1}
+            "regression": len(ratios) != len(pairs) or not ratios or statistics.median(ratios) > 1
+            or any(pair["budget_basis"] == "absolute_floor" and pair["ratio"] is not None
+                   and pair["ratio"] > 1 for pair in pairs)}
 
 
 def paired_commit_pause(record, pair):
@@ -287,7 +290,7 @@ def main():
                   if result["trace_comparable"] else "n/a (incomplete)" for label in ("baseline", "head")]
         lines.append(f"| {kind} file-write bytes/min (traced) | {values[0]} | {values[1]} |")
     lines += ["", f"Throughput regressions (median of {trial_mode} paired ratios): " + json.dumps(regressions),
-              "Transcript write tails (paired maxima; median ratio <= 1; each COMMIT warning must fit its own pair): " + json.dumps(tails),
+              "Transcript write tails (median ratio <= 1; unusable controls require each head max <= 1000 ms; each COMMIT warning must fit its own complete pair): " + json.dumps(tails),
               "Paired ratios by operation: " + json.dumps(comparison),
               f"Traced byte comparison valid (both runs error-free, retention complete): {result['trace_comparable']}. "
               "If false, byte rates describe incomplete work and must not support an efficiency claim.",
