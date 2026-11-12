@@ -80,7 +80,7 @@ export function parseMemoryFile(content: string): MemoryFile {
 function composeLine(note: MemoryNote) {
   if (note.line !== undefined) return note.line;
   // A rule is one line: a break would leave the rest of it behind as an ordinary note.
-  if (isMemoryRule(note)) return `${RULE_PREFIX}${note.text.trim().replace(/\s*\n\s*/g, " ")}`;
+  if (isMemoryRule(note)) return `${RULE_PREFIX}${note.text.trim().replace(/\s*[\r\n]+\s*/g, " ")}`;
   if (!note.date) return note.text;
   const until = note.until ? ` · until ${note.until}` : "";
   return `- ${note.date} · ${note.learnedIn ?? OPERATOR_SCOPE} · ${note.text}${until}`;

@@ -81,11 +81,7 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 		return
 	}
 	// A caller acting as the agent itself keeps the operator rules exactly as they are.
-	agentCaller := hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c))
-	var writer agentMemoryWriter = h.AgentMemory
-	if agentCaller {
-		writer = h.AgentMemory.AsAgent()
-	}
+	writer, agentCaller := h.agentMemoryWriterFor(c)
 	var result any
 	switch operation {
 	case "read":
@@ -151,6 +147,15 @@ type agentMemoryWriter interface {
 	Replace(key agentmemory.Key, match, text string) (agentmemory.Document, error)
 	Remove(key agentmemory.Key, match string) (agentmemory.Document, int, error)
 	Rollback(key agentmemory.Key, revision string) (agentmemory.Document, error)
+}
+
+// agentMemoryWriterFor picks the write surface: the guarded agent view for a
+// caller that carries an agent identity, the full store for the operator.
+func (h *BaseHandlers) agentMemoryWriterFor(c *gin.Context) (agentMemoryWriter, bool) {
+	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		return h.AgentMemory.AsAgent(), true
+	}
+	return h.AgentMemory, false
 }
 
 func (h *BaseHandlers) addAgentMemory(

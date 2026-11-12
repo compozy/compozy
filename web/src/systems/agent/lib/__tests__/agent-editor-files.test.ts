@@ -486,6 +486,10 @@ Prefer short status updates.
       text: "Ask before deploying.\n  Never publish secrets. ",
       gap: 0,
     };
+    const carriage = { ...broken, text: "Ask first.\rThen deploy.\r\nReport back." };
+    expect(composeMemoryFile({ notes: [carriage], tail: "\n" })).toBe(
+      "- [rule] Ask first. Then deploy. Report back.\n"
+    );
     expect(composeMemoryFile({ notes: [broken], tail: "\n" })).toBe(
       "- [rule] Ask before deploying. Never publish secrets.\n"
     );
