@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: Operator rules bind an always-on agent on every turn and survive provider compaction. The agent sees an authorized roster of peers with their input forms. Agent tools cannot change a rule. On Claude, the agent no longer lists the operator's own MCP servers and connectors.
 entry_points: agent memory CLI and API; session prompt; agent instance list; provider launch
-qa_status: skipped
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: fixed
+retest_status: pass
+fix_commits: 3dec1b996, 7a5ba52e9
+evidence: docs/qa/reports/2026-11-12-always-on-standing-context.md
+last_report: docs/qa/reports/2026-11-12-always-on-standing-context.md
 overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 ---
 
@@ -22,7 +22,7 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 4. Send a second turn. The block is replaced by the one-line `unchanged="true"` marker; `compozy session usage <id>` shows the `standing` span as unchanged.
 5. Add another rule while the session runs, then send a turn. The full block returns with both rules, with no restart.
 6. Trigger a provider compaction (`/compact`) and send a turn. The full block is delivered again; the following turn returns to the marker.
-7. From the agent, call `compozy__agent_memory_replace` and `compozy__agent_memory_remove` with text matching the rule. Both fail with `agent_memory_rule_protected` and the file is unchanged. `compozy__agent_memory_add` writes a dated note. `compozy__agent_memory_search` returns the rule with its prefix.
+7. From the agent, call `compozy__agent_memory_replace` and `compozy__agent_memory_remove` with text matching the rule. Both are denied with a message starting `agent_memory_rule_protected` and the file is unchanged. `compozy__agent_memory_add` writes a dated note. `compozy__agent_memory_search` returns the rule with its prefix.
 8. Call `compozy__agent_instance_list` with `peers: true`. Each peer carries `accepts`. Pause the second instance and send a turn: its roster line shows `[paused]`.
 9. Send a turn from a session of the same agent that does not belong to an instance. It receives the rules and no roster.
 10. Start an on-demand agent. It receives no standing context.
@@ -30,3 +30,7 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 12. Upgrade check: load a `MEMORY.md` written before rules existed. Every line stays a note, the digest is unchanged by reading, and no rule appears.
 
 Implementation evidence: `TestPromptInputCompositeIntegrationStandingContext` drives a real session manager and file store through first delivery, a live rule edit, a compaction boundary and the restored marker; `TestStore/Should_keep_operator_rules_apart_from_notes_and_closed_to_agent_writes`, `TestAgentMemoryNativeTools`, `TestAgentMemoryRoutes`, `TestClaudeLeanEnvironment` and `TestSessionLeanEnvironment` own the remaining invariants.
+
+Walked 2026-11-12 in two isolated labs with real Claude and Codex sessions; step 11 was measured as
+331 foreign MCP tool names before and 0 after. The Web editor steps are covered by the web suite and
+were not walked in a browser.
