@@ -1268,30 +1268,52 @@ func TestParseTriageReply(t *testing.T) {
 			}
 		}
 	})
-	t.Run("Should accept one proposal envelope with surrounding commentary", func(t *testing.T) {
-		t.Parallel()
-		for _, body := range []string{validReply, "```json\n" + validReply + "\n```", "```JSON\r\n" + validReply + "\r\n```", "```\n" + validReply + "\n```"} {
-			for _, reply := range []string{"Candidates follow.\n" + body, body + "\nSkipped other candidates.", "Candidates follow.\n" + body + "\nSkipped other candidates."} {
-				proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
-				if err != nil || len(proposals) != 1 || proposals[0].Title != "Review" {
-					t.Fatalf("proposals=%+v error=%v", proposals, err)
-				}
-				outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
-				if outcome.Result != "reported" {
-					t.Fatalf("outcome=%+v", outcome)
-				}
+	for _, format := range []struct{ name, body string }{
+		{"Should accept bare proposals", validReply},
+		{"Should accept JSON fenced proposals", "```json\n" + validReply + "\n```"},
+		{"Should accept CRLF uppercase JSON fenced proposals", "```JSON\r\n" + validReply + "\r\n```"},
+		{"Should accept untagged fenced proposals", "```\n" + validReply + "\n```"},
+	} {
+		t.Run(format.name, func(t *testing.T) {
+			t.Parallel()
+			for _, commentary := range []struct{ name, prefix, suffix string }{
+				{"Should accept leading commentary", "Candidates follow.\n", ""},
+				{"Should accept trailing commentary", "", "\nSkipped other candidates."},
+				{"Should accept surrounding commentary", "Candidates follow.\n", "\nSkipped other candidates."},
+			} {
+				t.Run(commentary.name, func(t *testing.T) {
+					t.Parallel()
+					reply := commentary.prefix + format.body + commentary.suffix
+					proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
+					if err != nil || len(proposals) != 1 || proposals[0].Title != "Review" {
+						t.Fatalf("proposals=%+v error=%v", proposals, err)
+					}
+					outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
+					if outcome.Result != "reported" {
+						t.Fatalf("outcome=%+v", outcome)
+					}
+				})
 			}
-		}
-	})
-	t.Run("Should reject additional structured candidates in commentary", func(t *testing.T) {
-		t.Parallel()
-		fenced := "```json\n" + validReply + "\n```"
-		for _, reply := range []string{validReply + "\n" + fenced, fenced + "\n" + validReply, "{}\n" + fenced, fenced + "\n[]", validReply + "\n{}", validReply + "\nNOTHING_TO_REPORT", "NOTHING_TO_REPORT\n" + validReply, "Explanation\n" + validReply + "\n" + validReply} {
-			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
-				t.Fatalf("reply=%q error=%v", reply, err)
+		})
+	}
+	fenced := "```json\n" + validReply + "\n```"
+	for _, tc := range []struct{ name, reply string }{
+		{"Should reject bare then fenced candidates", validReply + "\n" + fenced},
+		{"Should reject fenced then bare candidates", fenced + "\n" + validReply},
+		{"Should reject an object before a fenced candidate", "{}\n" + fenced},
+		{"Should reject an array after a fenced candidate", fenced + "\n[]"},
+		{"Should reject an object after a bare candidate", validReply + "\n{}"},
+		{"Should reject a trailing quiet sentinel", validReply + "\nNOTHING_TO_REPORT"},
+		{"Should reject a leading quiet sentinel", "NOTHING_TO_REPORT\n" + validReply},
+		{"Should reject multiple candidates with commentary", "Explanation\n" + validReply + "\n" + validReply},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ParseTriageReply(tc.reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
+				t.Fatalf("reply=%q error=%v", tc.reply, err)
 			}
-		}
-	})
+		})
+	}
 	t.Run("Should honor every supported proposal limit", func(t *testing.T) {
 		t.Parallel()
 		proposals := make([]string, 21)
@@ -1380,14 +1402,18 @@ func TestParseTriageReply(t *testing.T) {
 }
 
 func TestTriageReplyOutcome(t *testing.T) {
-	t.Run("Should classify rejected replies without exposing provider text", func(t *testing.T) {
-		t.Parallel()
-		for _, tc := range []struct{ reply, validation string }{
-			{"```json\n{}", "framing"},
-			{"", "framing"},
-			{`{"proposals":[]} tail {}`, "ambiguous_reply"},
-			{"Explanation\n" + `{"proposals":[{"title":"secret","body":"body","item_keys":[],"extra":true}]}`, "schema"},
-		} {
+	for _, tc := range []struct{ name, reply, validation string }{
+		{"Should classify an incomplete fence as framing", "```json\n{}", "framing"},
+		{"Should classify an empty reply as framing", "", "framing"},
+		{"Should classify additional objects as ambiguous", `{"proposals":[]} tail {}`, "ambiguous_reply"},
+		{
+			"Should classify unknown proposal members as schema without exposing provider text",
+			"Explanation\n" + `{"proposals":[{"title":"secret","body":"body","item_keys":[],"extra":true}]}`,
+			"schema",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			outcome := TriageReplyOutcome(tc.reply, CheckDigest{}, 2)
 			if outcome.Result != "failed" || outcome.Report == nil {
 				t.Fatalf("outcome=%+v", outcome)
@@ -1402,8 +1428,8 @@ func TestTriageReplyOutcome(t *testing.T) {
 				strings.Contains(payload.Detail, "secret") {
 				t.Fatalf("detail=%s", payload.Detail)
 			}
-		}
-	})
+		})
+	}
 	t.Run("Should bound and redact rejected output in the failure report", func(t *testing.T) {
 		t.Parallel()
 		secret := "ghp_" + strings.Repeat("a", 36)
