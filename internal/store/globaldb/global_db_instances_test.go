@@ -3243,6 +3243,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 			t.Fatalf("instance=%+v err=%v, want active after configuration rejections", current, err)
 		}
 		// A timer rejection waits max_interval even while an automation event stays pending.
+		now = now.Add(time.Minute)
 		due := store.FormatTimestamp(now)
 		if _, err := db.DB().ExecContext(t.Context(),
 			"UPDATE agent_instance_wake_state SET next_wake_at=? WHERE instance_id=?", due, instance.ID); err != nil {
@@ -3275,6 +3276,33 @@ func TestInstanceCheckFatigue(t *testing.T) {
 		next, err := store.ParseTimestamp(timerState.NextWakeAt)
 		if err != nil || next.Before(now.Add(24*time.Hour)) {
 			t.Fatalf("next wake=%q err=%v, want a retry no sooner than max_interval", timerState.NextWakeAt, err)
+		}
+		// Invariant: correcting configuration clears backoff without consuming pending events.
+		fixedAt := now.Add(time.Minute)
+		if changed, err := repo.Skip(t.Context(), heartbeat.SkipRequest{
+			InstanceID: instance.ID, ManualCheck: true, Reason: string(heartbeat.WakeReasonHookCancelled),
+			Now: fixedAt, ExpiresAt: fixedAt.Add(time.Hour),
+		}); err != nil || !changed {
+			t.Fatalf("manual skip=%v error=%v", changed, err)
+		}
+		diagnostic, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || diagnostic.LastReason != heartbeat.ReasonTriageConfigUnavailable {
+			t.Fatalf("manual skip hid timer rejection: %+v error=%v", diagnostic, err)
+		}
+		if err := repo.RecoverConfigRejectedWake(t.Context(), instance.ID, fixedAt.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		recovered, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || recovered.FailureStreak != 0 || recovered.QuietStreak != 0 ||
+			recovered.UnattendedTurns != 1 || recovered.NextWakeAt != store.FormatTimestamp(fixedAt.Add(time.Hour)) {
+			t.Fatalf("recovered=%+v error=%v", recovered, err)
+		}
+		if err := repo.RecoverConfigRejectedWake(t.Context(), instance.ID, fixedAt.Add(2*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		dueStates, err := repo.Due(t.Context(), fixedAt.Add(time.Hour), 10)
+		if err != nil || len(dueStates) != 1 || dueStates[0].InstanceID != instance.ID {
+			t.Fatalf("due after recovery=%+v error=%v", dueStates, err)
 		}
 		finished, err := repo.Occurrence(t.Context(), instance.ID, "occ-config-2")
 		if err != nil || finished.Result != "failed" || finished.Reason != heartbeat.ReasonTriageConfigUnavailable {

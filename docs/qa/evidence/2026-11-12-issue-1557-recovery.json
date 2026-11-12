@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "scenario": "RT-provider-auth-recovery",
+  "credential_type": "synthetic",
+  "provider_transport": "real ACP subprocess",
+  "implementation_commit": "a4d7d1abff9175200bf757dde5fdffe590d25cf6",
+  "baseline": {
+    "source_commit": "17e3f8b41e7638131a7a73f4626ac5efc195c7a7",
+    "offline_choices": [
+      "default",
+      "fable",
+      "haiku",
+      "opus",
+      "sonnet"
+    ],
+    "pinned_model": "claude-opus-5-5",
+    "recovers_after_sign_in": true
+  },
+  "continuation": {
+    "model": "claude-opus-5-5",
+    "conversation_preserved": true,
+    "daemon_pid_unchanged": true,
+    "verified_auth_probe_to_completion_seconds": 0.20217225002124906
+  },
+  "expiry": {
+    "terminal_code": "provider_auth_required",
+    "badge": "waiting-for-auth",
+    "followup_status": 422,
+    "explicit_restored_prompt": "completed"
+  },
+  "proactive_probe": {
+    "runtime_generation_increased": true,
+    "login_attention_cleared": true
+  },
+  "genuine_model_rejection": {
+    "bounded_retries": true,
+    "terminal_errors": 1,
+    "failure_kind": "protocol_failure",
+    "state": "stopped",
+    "badge": "failed"
+  },
+  "strict_audit": {
+    "verdict": "PASS",
+    "blockers": 0,
+    "warnings": 0
+  },
+  "teardown": {
+    "clean": true
+  },
+  "limits": [
+    "No live OAuth account switch",
+    "No real Usage endpoint",
+    "No rendered Web evidence",
+    "Race and repository gates run in CI"
+  ],
+  "corrective_finalization": {
+    "runtime_exit_to_auth_to_model_rejection": true,
+    "state": "stopped",
+    "badge": "failed",
+    "failure_kind": "protocol_failure",
+    "full_model_detail_preserved": true
+  },
+  "cancellation": {
+    "public_outcome": "canceled",
+    "runtime_status": "unbound",
+    "recovery_cleared": true,
+    "failure_absent": true
+  },
+  "corrective_strict_audit": {
+    "verdict": "PASS",
+    "blockers": 0,
+    "warnings": 0
+  },
+  "corrective_teardown": {
+    "clean": true
+  }
+}

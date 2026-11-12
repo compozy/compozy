@@ -47,12 +47,13 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		required        bool
 	}{
 		{
-			name:         "claude",
-			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
-			harness:      ProviderHarnessACP,
-			authMode:     ProviderAuthModeNativeCLI,
-			defaultModel: modelClaudeSonnet5ID,
-			loginCommand: "claude auth login",
+			name:          "claude",
+			command:       "npx -y @agentclientprotocol/claude-agent-acp@latest",
+			harness:       ProviderHarnessACP,
+			authMode:      ProviderAuthModeNativeCLI,
+			defaultModel:  modelClaudeSonnet5ID,
+			loginCommand:  "claude auth login",
+			statusCommand: "claude auth status",
 		},
 		{
 			name:         "codex",

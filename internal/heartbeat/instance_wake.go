@@ -8,6 +8,7 @@ import (
 )
 
 type InstanceWakeState struct {
+	LastReason                                                                     string
 	UnattendedTurns                                                                int64
 	RotationDueSession                                                             string
 	InstanceID, NextWakeAt, LastWakeAt, LastDigest, LastDigestAt, AutomationCursor string

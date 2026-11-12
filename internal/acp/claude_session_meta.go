@@ -4,6 +4,7 @@ import (
 	"maps"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/shellwait"
@@ -106,6 +107,7 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 	}
 	env := make(map[string]string, len(claudeDaemonOwnedBackgroundEnv))
 	maps.Copy(env, claudeDaemonOwnedBackgroundEnv)
+	claudeResumeModelEnv(opts, env)
 	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
 		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
 	}
@@ -156,6 +158,7 @@ var claudeInputOnlyEnv = map[string]string{
 func claudeCodeInputOnlySessionMeta(opts StartOpts) any {
 	env := make(map[string]string, len(claudeInputOnlyEnv))
 	maps.Copy(env, claudeInputOnlyEnv)
+	claudeResumeModelEnv(opts, env)
 	if opts.ProviderConfig != nil && opts.ProviderConfig.AutoCompactWindow != nil {
 		env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = strconv.Itoa(*opts.ProviderConfig.AutoCompactWindow)
 	}
@@ -172,4 +175,17 @@ func claudeCodeInputOnlySessionMeta(opts StartOpts) any {
 			},
 		},
 	}
+}
+
+// claudeResumeModelEnv registers the exact pin with Claude's startup picker.
+// supportedModels can lag a newly released model even with a valid login. This
+// SDK option adds one selectable ID without changing aliases or settings; normal
+// ACP negotiation still requires the provider to advertise and confirm that ID.
+func claudeResumeModelEnv(opts StartOpts, env map[string]string) {
+	model := strings.TrimSpace(opts.PreferredModel)
+	if opts.Inspection || opts.ResumeSessionID == "" ||
+		opts.RuntimeStrategy != RuntimeApplicationSessionConfig || !strings.HasPrefix(model, "claude-") {
+		return
+	}
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = model
 }

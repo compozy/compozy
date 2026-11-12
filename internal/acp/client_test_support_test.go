@@ -527,7 +527,8 @@ func (a *helperACPAgent) Initialize(
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
-				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" ||
+				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options" || a.scenario == "load_claude_models" ||
+				a.scenario == "load_claude_stale_models" || a.scenario == "load_model_current" ||
 				a.scenario == "fork_session" || a.scenario == "stall_load",
 			SessionCapabilities: sessionCaps,
 			PromptCapabilities: acpsdk.PromptCapabilities{
@@ -739,7 +740,7 @@ func (a *helperACPAgent) NewSession(
 
 func (a *helperACPAgent) LoadSession(
 	ctx context.Context,
-	_ acpsdk.LoadSessionRequest,
+	params acpsdk.LoadSessionRequest,
 ) (acpsdk.LoadSessionResponse, error) {
 	if a.scenario == "stall_load" {
 		<-ctx.Done()
@@ -753,8 +754,28 @@ func (a *helperACPAgent) LoadSession(
 			Modes: helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 		}, nil
 	}
-	if a.scenario == "load_config_options" {
+	if a.scenario == "load_model_current" {
+		options := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption("model", "Model", a.filePath, "default", "opus"),
+		}
+		a.setHelperConfigOptions(options)
+		return acpsdk.LoadSessionResponse{ConfigOptions: options}, nil
+	}
+	if a.scenario == "load_claude_stale_models" {
+		return a.loadClaudeStaleModels(params)
+	}
+	if a.scenario == "load_config_options" || a.scenario == "load_claude_models" {
 		configOptions := helperConfigOptions("loaded-model", "high")
+		if a.scenario == "load_claude_models" {
+			configOptions = []acpsdk.SessionConfigOption{
+				helperSelectConfigOption("model", "Model", "default", "default", "opus"),
+			}
+			if _, err := os.Stat(a.filePath); err == nil {
+				configOptions = []acpsdk.SessionConfigOption{
+					helperSelectConfigOption("model", "Model", "default", "default", "claude-opus-5-5"),
+				}
+			}
+		}
 		a.setHelperConfigOptions(configOptions)
 		return acpsdk.LoadSessionResponse{
 			Modes:         helperModeState("loaded-mode"),
@@ -764,6 +785,32 @@ func (a *helperACPAgent) LoadSession(
 	return acpsdk.LoadSessionResponse{
 		Modes: helperModeState("loaded-mode"),
 	}, nil
+}
+
+// loadClaudeStaleModels mirrors the SDK's startup custom-picker entry while its
+// built-in list remains stale. The setter remains responsible for accepting it.
+func (a *helperACPAgent) loadClaudeStaleModels(params acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+	var meta struct {
+		ClaudeCode struct {
+			Options struct {
+				Env map[string]string `json:"env"`
+			} `json:"options"`
+		} `json:"claudeCode"`
+	}
+	data, err := json.Marshal(params.Meta)
+	if err != nil {
+		return acpsdk.LoadSessionResponse{}, err
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return acpsdk.LoadSessionResponse{}, err
+	}
+	values := []string{"default", "opus", "fable", "claude-opus-5", "claude-fable-5-1"}
+	if model := meta.ClaudeCode.Options.Env["ANTHROPIC_CUSTOM_MODEL_OPTION"]; model != "" && a.filePath != "ignored" {
+		values = append(values, model)
+	}
+	options := []acpsdk.SessionConfigOption{helperSelectConfigOption("model", "Model", "opus", values...)}
+	a.setHelperConfigOptions(options)
+	return acpsdk.LoadSessionResponse{ConfigOptions: options}, nil
 }
 
 func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
@@ -1110,6 +1157,14 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	}
 	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+	}
+	if a.scenario == "load_claude_stale_models" {
+		if a.filePath == "reject" {
+			return acpsdk.SetSessionConfigOptionResponse{}, acpsdk.NewInvalidParams("provider refused the pinned model")
+		}
+		if a.filePath == "unconfirmed" {
+			return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
+		}
 	}
 	if request.ValueId != nil {
 		configID := string(request.ValueId.ConfigId)

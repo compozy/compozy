@@ -110,6 +110,21 @@ at config load time.
 CompozyOS overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
 
+Claude uses `claude auth status` as its built-in native status command. Startup and recovery
+check the login before negotiating the model. When the native CLI reports that it is signed out,
+startup waits for sign-in instead of negotiating against the adapter's offline model list.
+The status command checks local credential presence; it does not validate a token with the provider.
+Recovery keeps its bounded retries when a model-list mismatch is temporary, and preserves the last
+failure if that window expires. A custom `auth_status_command` continues to select the status
+command for that route.
+
+A valid login does not guarantee that the Claude adapter's built-in model picker is current.
+When reloading a pinned full Claude model ID, CompozyOS supplies that exact ID through Claude's
+startup custom-model option, then requires the normal ACP advertisement and acknowledgement.
+If the loaded session already reports that exact model, it keeps it without re-setting it.
+No family alias or older model is substituted. A refused or unconfirmed model remains a
+configuration failure with model guidance, rather than a request to sign in.
+
 `auth_acp_method` requires `harness = "acp"` and `auth_mode = "native_cli"`. When switching a built-in
 provider to `pi_acp`, an empty or omitted method no longer inherits the built-in ACP method. An
 explicit nonempty method is still rejected with `pi_acp`; switching harnesses does not change auth ownership.

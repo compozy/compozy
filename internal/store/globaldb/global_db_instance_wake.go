@@ -18,7 +18,15 @@ const instanceManualCheckSource = "instance_check"
 
 func (r *InstanceRepo) WakeState(ctx context.Context, id string) (heartbeat.InstanceWakeState, error) {
 	row, err := r.readQueries.GetInstanceWakeState(ctx, id)
-	return instanceWakeState(row), err
+	if err != nil {
+		return heartbeat.InstanceWakeState{}, err
+	}
+	state := instanceWakeState(row)
+	state.LastReason, err = r.readQueries.GetInstanceWakeDiagnostic(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return state, nil
+	}
+	return state, err
 }
 func (r *InstanceRepo) Due(ctx context.Context, now time.Time, limit int) ([]heartbeat.InstanceWakeState, error) {
 	if limit < 1 {

@@ -38,9 +38,9 @@ func (m *Manager) RecoverProviderAuthentication(
 			len(route.SessionEnv)+len(snapshot.acceptedSessionEnv) > 0 {
 			continue
 		}
-		if info.RuntimeRecovery != nil && info.RuntimeRecovery.Reason == store.SessionRuntimeRecoveryProviderAuth {
+		if info.RuntimeRecovery != nil {
 			select {
-			case target.authRecoverySignal(store.SessionRuntimeRecoveryProviderAuth) <- struct{}{}:
+			case target.authRecoverySignal() <- struct{}{}:
 			default:
 			}
 			continue
@@ -66,10 +66,7 @@ func (m *Manager) RecoverProviderAuthentication(
 	return result
 }
 
-func (s *Session) authRecoverySignal(reason store.SessionRuntimeRecoveryReason) chan struct{} {
-	if reason != store.SessionRuntimeRecoveryProviderAuth {
-		return nil
-	}
+func (s *Session) authRecoverySignal() chan struct{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.currentPromptRecovery == nil {
