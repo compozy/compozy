@@ -17,7 +17,7 @@ overlaps:
 ---
 
 Invoke a deterministic tool whose final post-hook, redacted result exceeds its effective result
-budget and includes a multi-byte character across the 64 KiB page boundary. Confirm the transcript
+budget and includes a multi-byte character across the default 32 KiB page boundary. Confirm the transcript
 keeps the bounded preview and one opaque artifact URI. Open every page in Web, then repeat through
 the native reader, CLI, HTTP, and UDS; concatenate bytes in offset order and require the same
 canonical JSON envelope on every surface.
@@ -76,8 +76,8 @@ late events of the selected turn must remain present even if they occur beyond t
 cursor. The real-SQLite regression follows both cursor directions and checks the full old turn.
 
 QA impact 2026-11-06 (issue #1316): repeat the native walk in a User session with
-`compozy__skill_view` of `compozy` resource `references/runtime-operations.md` at the default
-256 KiB result budget. Require one retained artifact and page `compozy__tool_artifact_read`
+`compozy__skill_view` of `compozy` resource `references/runtime-operations.md` with a reduced
+32 KiB result budget. Require one retained artifact and page `compozy__tool_artifact_read`
 from offset zero through every `next_offset` until `eof`; the decoded envelope must contain
 the complete structured resource and preserve display redactions. Repeat the read through
 `GET /api/workspaces/@user/tool-artifacts/:artifact_id` and the operator CLI with `--workspace
@@ -101,3 +101,12 @@ QA impact 2026-11-09 (User-session event summaries): after the User walk above, 
 `observe: write event summary failed … event summary workspace_id is required`. A summary for a
 session the catalog does not know still requires a workspace. Focused coverage:
 `TestUserEventSummarySelection` (real SQLite) and `TestValidationHelpersAndPathUtilities`.
+
+QA impact 2026-11-12 (issue #1564): at the default 256 KiB result budget, read a bundled
+reference around 168 KB through `compozy__skill_view` and require an inline canonical envelope
+with one complete document in `structured.content`, a short display summary, and unchanged
+verified text. Compare envelope bytes with JSON-encoded document bytes plus bounded metadata.
+Repeat with a reduced 32 KiB result budget to exercise retained-result recovery and the User
+isolation checks above. Default artifact reads must return 32 KiB decoded pages and stay below
+128 KiB after base64 and the hosted MCP JSON-text/structured transport duplication. Explicit
+64 KiB pages remain accepted. CI owns regression verification; no local runtime walk was run.
