@@ -557,10 +557,11 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
 
     await closeAppWindow(appPage, harness.sessionWin);
     await expect(harness.sessionWin).toBeHidden();
+    await expect(terminalWindow).toBeVisible();
     await selectTerminalOutput(appPage, terminalWindow);
     const fallback = terminalWindow.getByTestId("terminal-selection-actions-no-session");
     await expect(fallback.getByRole("button", { name: "Choose a session…" })).toBeVisible();
-    await expect(fallback.getByRole("button", { name: "Copy" })).toBeVisible();
+    await expect(fallback.getByRole("button", { name: "Copy as quoted block" })).toBeVisible();
   } finally {
     await teardownHostedMcp(harness.connection, undefined);
   }
