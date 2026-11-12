@@ -251,6 +251,21 @@ const sessionCompactRecordSchema = `{
     "done"
    ]
   },
+  "reply_watches": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "id": {"type":"string"},
+     "target_session_id": {"type":"string"},
+     "message_id": {"type":"string"},
+     "state": {"type":"string"},
+     "created_at": {"type":"string"}
+    },
+    "required": ["id", "target_session_id", "message_id", "state", "created_at"],
+    "additionalProperties": false
+   }
+  },
   "subagent_summary": {
    "type": "object",
    "properties": {

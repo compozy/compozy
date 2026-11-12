@@ -86,3 +86,10 @@ follow declared union, nullable-array, and local-reference paths for current, pr
 with or without `produces` (`TestLinterBuiltinComposedResultViews`).
 `TestBuiltinResultViewSchemaPaths` proves every declared catalog path to bounded depth;
 `TestNamespaceComposedSchemaProof` checks branch proof and closed-object rejection.
+
+Native supervision regression: arm a reply watch and read the sender with default
+`compozy__session_status`. Its `reply_watches` must retain watch ID, target session,
+message ID, state and creation time, matching the full view. Repeat in `fired` state;
+delivered and abandoned watches remain excluded by the existing sender query.
+The canonical native result-view fixtures cover both pending states. This addition
+requires CI verification; the earlier QA verdict does not cover it.

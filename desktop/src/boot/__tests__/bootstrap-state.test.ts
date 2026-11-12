@@ -103,7 +103,7 @@ describe("bootstrapSnapshot", () => {
     ],
     [
       { type: "bootstrap", phase: "start", status: "started", message: "x" },
-      { state: "starting", stage: "start" },
+      { state: "starting", stage: "start", attempt: 1 },
     ],
     [
       {
@@ -117,10 +117,32 @@ describe("bootstrapSnapshot", () => {
     ],
     [
       { type: "bootstrap", phase: "ready", status: "completed", message: "x", resolution: "start" },
-      { state: "starting", stage: "ready" },
+      { state: "starting", stage: "ready", attempt: 1 },
     ],
   ] as const)("Should map bootstrap event %#", (event, expected) => {
     expect(bootstrapSnapshot(event)).toEqual(expected);
+  });
+
+  it("Should retain the actual start attempt until the product is ready", () => {
+    const started = bootstrapSnapshot({
+      type: "bootstrap",
+      phase: "start",
+      status: "started",
+      message: "Retry",
+      attempt: 3,
+    });
+    const ready = bootstrapSnapshot(
+      {
+        type: "bootstrap",
+        phase: "ready",
+        status: "completed",
+        message: "Ready",
+        resolution: "start",
+      },
+      "desktop-bootstrap.jsonl",
+      started.attempt
+    );
+    expect(ready).toEqual({ state: "starting", stage: "ready", attempt: 3 });
   });
 
   it.each([

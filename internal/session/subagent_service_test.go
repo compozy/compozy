@@ -2840,14 +2840,15 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			}
 		}
 	})
-	// Invariant: result recovery reads a parent turn's transcript once for all of that turn's rows.
-	t.Run("Should read each parent turn once when recovering missing results", func(t *testing.T) {
+	// Invariant: result recovery reads a parent's transcript once per candidate page across distinct turns.
+	t.Run("Should read each parent once across turns when recovering missing results", func(t *testing.T) {
 		t.Parallel()
 		s, db, r := newSubagentTestService(t)
 		calls := []string{"toolu_a", "toolu_b", "toolu_c"}
 		for i, call := range calls {
+			turn := fmt.Sprintf("turn-%d", i)
 			launch := NativeSubagentEvent{
-				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				WorkspaceID: "ws", ParentTurnID: turn, ProviderToolCallID: call, ToolName: "Agent",
 				Status: "in_progress", Background: true,
 			}
 			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
@@ -2858,7 +2859,7 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: turn, ToolCallID: call}.WithNativeTask(
 				&acp.NativeTaskObservation{
 					Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call,
 					Status: acp.NativeTaskStatusCompleted, Summary: new(call + " summary"),
@@ -2869,7 +2870,7 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 				t.Fatal(err)
 			}
 			r.nativeTasks = append(r.nativeTasks,
-				store.SessionEvent{Sequence: int64(i + 1), TurnID: "turn", Type: event.Type, Content: payload})
+				store.SessionEvent{Sequence: int64(i + 1), TurnID: turn, Type: event.Type, Content: payload})
 		}
 		if err := s.Recover(t.Context()); err != nil {
 			t.Fatal(err)

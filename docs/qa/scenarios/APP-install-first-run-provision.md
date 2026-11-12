@@ -95,3 +95,8 @@ Focused filesystem/flow checks cover the install decision, idempotency, conflict
 administrator consent and atomic runtime replacement. The signed DMG/menu/administrator
 prompt and live-daemon upgrade walks still require a packaged candidate in CI/release QA;
 the focused checks do not establish those results.
+
+First-run regression: every persisted `starting` record, including the intermediate
+`stage: ready` record, includes the current positive attempt. Check `app status -o json`
+through startup and after a retry without relaxing schema validation. Bootstrap-state
+projection tests own attempt propagation; Desktop first-run E2E owns real startup.
