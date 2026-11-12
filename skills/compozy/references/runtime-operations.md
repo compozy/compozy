@@ -1552,7 +1552,11 @@ their sessions.
 `session.restart.auto_continue` defaults to `true`; set it to `false` to opt out. The durable breaker
 defaults to `session.restart.max_attempts = 3` within `session.restart.window = "5m"` (ranges 1–10 and
 1s–1h). `daemon.shutdown_grace = "30s"` (0s–5m) allows admitted turns to finish before concurrent
-termination. The total shutdown/relaunch budgets also cover termination and cleanup. These additive
+termination; a restart waits at most the smaller of that value and 5 seconds, returns as soon as no
+turn is running, and never waits on a turn blocked on an approval or a question, because interrupted
+turns are checkpointed and resumed by the next boot. From the moment shutdown begins the daemon starts
+no provider process and no automatic recovery. The total shutdown/relaunch budgets also cover
+termination and cleanup. These additive
 keys retain explicit zero/false values, do not rewrite old user config, and require a daemon restart
 through the existing settings apply lifecycle. Inspect a skipped session before issuing a fresh
 operator prompt; an automatic pause never authorizes replaying an external effect.
@@ -1997,6 +2001,21 @@ In `approve-reads`, instance pause, ensure-main, checks-off (`enabled: false`) a
 dry-run checks (`dry_run: true`) do not require an approval handoff. These calls still
 enforce instance ownership, grants and workspace reach. Real checks, create and archive
 retain approval requirements; `deny-all` still requires approval for every call.
+
+A main session whose provider thread belongs to another provider account or backend
+(Codex after `model_provider` changes: `session/load` answers "This chat uses <a>, but
+your current provider is <b>") recovers on its next wake: CompozyOS starts a fresh
+provider thread under the same session ID and replays the stored transcript. The
+transcript keeps one load failure and one notice naming the backend change; queued
+inputs, agent memory and the instance are untouched, and the queue drains on the new
+thread. Other `session/load` failures keep the provider thread and retry. When a main
+cannot resume for another reason, the operator can run
+`compozy agent instance clear-main <agent-or-instance-id>` (native
+`compozy__agent_instance_clear_main`, operator only). It keeps the instance, the session
+ID, queued inputs and agent memory, but discards the main's conversation and starts a
+fresh one; it is refused while the main is running a turn and has no dry run.
+`session archive` still refuses an instance main, `ensure-main` returns the existing
+main, and `adopt` refuses an agent that already has an instance.
 
 A repeated timer request in the same session with the same description and a
 deadline within one second reuses the active monitor. A successfully admitted

@@ -155,7 +155,7 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 	if !scope.AllProfiles && instance.ProfileID != scope.ProfileID {
 		return agentinstance.ErrNotFound
 	}
-	if (action == "away" || action == "mark_seen") && !scope.Operator {
+	if (action == "away" || action == "mark_seen" || action == nativeInstanceActionClearMain) && !scope.Operator {
 		return agentinstance.ErrForbidden
 	}
 	verb := action

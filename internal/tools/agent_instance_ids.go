@@ -17,5 +17,6 @@ const (
 	ToolIDAgentInstanceResume     ToolID = "compozy__agent_instance_resume"
 	ToolIDAgentInstanceArchive    ToolID = "compozy__agent_instance_archive"
 	ToolIDAgentInstanceEnsureMain ToolID = "compozy__agent_instance_ensure_main"
+	ToolIDAgentInstanceClearMain  ToolID = "compozy__agent_instance_clear_main"
 	ToolIDAgentInstanceReports    ToolID = "compozy__agent_instance_reports"
 )

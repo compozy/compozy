@@ -126,6 +126,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDAgentInstanceResume.String(),
 			toolspkg.ToolIDAgentInstanceArchive.String(),
 			toolspkg.ToolIDAgentInstanceEnsureMain.String(),
+			toolspkg.ToolIDAgentInstanceClearMain.String(),
 			toolspkg.ToolIDAgentInstanceReports.String(),
 			toolspkg.ToolIDAgentActivity.String(),
 			toolspkg.ToolIDAgentInstanceGet.String(),

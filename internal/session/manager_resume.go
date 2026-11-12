@@ -234,7 +234,9 @@ func (m *Manager) recoverFailedResumeStart(
 	meta *store.SessionMeta,
 	startErr error,
 ) (*Session, error) {
-	clearACP := acp.IsLoadSessionResourceMissing(startErr) || errors.Is(startErr, acp.ErrAgentDoesNotSupportSession)
+	// Only a classified load failure clears the stored provider session id: an unsupported
+	// or missing session, or one that belongs to another provider account or backend.
+	clearACP := acp.LoadSessionRequiresFreshThread(startErr)
 	// A provider can reject its native session after a directory change. Match
 	// released-runtime rebinding: preserve the stored transcript through replay.
 	if meta.WorktreeTransition != nil && meta.WorktreeTransition.NoticePending && ctx.Err() == nil &&
@@ -282,9 +284,16 @@ func (m *Manager) resumeWithContextReplay(
 	return session, nil
 }
 
+// providerMismatchReplayReason marks a replay that replaced a provider thread owned by
+// another provider account or backend (see acp.IsLoadSessionProviderMismatch).
+const providerMismatchReplayReason = "load_session_provider_mismatch"
+
 func resumeFallbackReason(err error) string {
 	if errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
 		return "load_session_unsupported"
+	}
+	if acp.IsLoadSessionProviderMismatch(err) {
+		return providerMismatchReplayReason
 	}
 	return "load_session_resource_missing"
 }

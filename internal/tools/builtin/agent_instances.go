@@ -22,6 +22,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		{toolspkg.ToolIDAgentInstanceResume, descriptorKeywordResume, false},
 		{toolspkg.ToolIDAgentInstanceArchive, descriptorKeywordArchive, false},
 		{toolspkg.ToolIDAgentInstanceEnsureMain, "ensure_main", false},
+		{toolspkg.ToolIDAgentInstanceClearMain, agentInstanceClearMainOperation, false},
 		{toolspkg.ToolIDAgentInstanceReports, "reports", true},
 		{toolspkg.ToolIDAgentInstanceGet, "get", true},
 		{toolspkg.ToolIDAgentInstanceAway, "away", true},
@@ -51,6 +52,11 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 				"max_active_instances is per profile. Use peers for reachable agents: both capacity fields are zero (unavailable)."
 		case "ensure_main":
 			description += ". Requires an existing instance; dry_run is not supported. Use agent_instance_get to inspect it."
+		case agentInstanceClearMainOperation:
+			description = "Clear an always-on agent instance's main session: discard its conversation and start a " +
+				"fresh provider thread under the same session id. Queued inputs, agent memory and the instance " +
+				"are kept. Operator only; refused while the main is running a turn; dry_run is not supported. " +
+				"Use it when the main cannot resume, for example after a provider or account change."
 		}
 		result = append(result, withAgentInstanceResultViews(nativeDescriptor(
 			operation.id,
@@ -60,7 +66,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 			schema,
 			risk,
 			operation.read,
-			operation.name == descriptorKeywordArchive,
+			operation.name == descriptorKeywordArchive || operation.name == agentInstanceClearMainOperation,
 			false,
 			[]toolspkg.ToolsetID{
 				toolspkg.ToolsetIDAuthoredContext,
@@ -89,6 +95,9 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 	return result
 }
 
+// agentInstanceClearMainOperation names the operator-only main-session clear.
+const agentInstanceClearMainOperation = "clear_main"
+
 const agentInstanceInputSchema = `{"type":"object","properties":{
 "enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},"occurrence_id":{"type":"string"},
 "agent":{"type":"string"},"workspace":{"type":"string"},"id":{"type":"string"},
@@ -106,7 +115,8 @@ func withAgentInstanceResultViews(descriptor toolspkg.Descriptor) toolspkg.Descr
 		)
 	case toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceCreate,
 		toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume,
-		toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceGet:
+		toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain,
+		toolspkg.ToolIDAgentInstanceClearMain, toolspkg.ToolIDAgentInstanceGet:
 		descriptor = withResultViews(
 			descriptor,
 			agentInstanceRecordCompactOutputSchema,

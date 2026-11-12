@@ -8,6 +8,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__agent_instance_check":           nativeEntry("Checking", " ", false, "🤖", "auto"),
 	"compozy__agent_instance_check_ins":       nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__agent_instance_checks":          nativeEntry("Updating", " ", false, "🤖", "auto"),
+	"compozy__agent_instance_clear_main":      nativeEntry("Clearing", " ", false, "🤖", "auto"),
 	"compozy__agent_instance_create":          nativeEntry("Creating", " ", false, "🤖", "auto"),
 	"compozy__agent_instance_ensure_main":     nativeEntry("Starting", " ", false, "🤖", "auto"),
 	"compozy__agent_instance_get":             nativeEntry("Reading", " ", false, "🤖", "auto"),

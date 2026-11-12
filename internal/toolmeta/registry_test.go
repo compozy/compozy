@@ -85,6 +85,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__agent_instance_check":           expectedNativeEntry("Checking", " ", false, "🤖", "auto"),
 		"compozy__agent_instance_check_ins":       expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__agent_instance_checks":          expectedNativeEntry("Updating", " ", false, "🤖", "auto"),
+		"compozy__agent_instance_clear_main":      expectedNativeEntry("Clearing", " ", false, "🤖", "auto"),
 		"compozy__agent_instance_create":          expectedNativeEntry("Creating", " ", false, "🤖", "auto"),
 		"compozy__agent_instance_ensure_main":     expectedNativeEntry("Starting", " ", false, "🤖", "auto"),
 		"compozy__agent_instance_get":             expectedNativeEntry("Reading", " ", false, "🤖", "auto"),

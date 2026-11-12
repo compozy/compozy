@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -179,6 +180,138 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("resumed counter=%+v %v", wake, err)
 		}
 	})
+
+	// Invariant (#1616): a provider account/backend mismatch on the instance main is a permanent load
+	// failure. Repeated instance maintenance tries the stored provider thread once, leaves one failure
+	// row, and a real ACP process receives the held input once on a fresh thread with replayed context.
+	t.Run("Should rotate the main provider thread once and drain its held input", func(t *testing.T) {
+		home, deps, resolved, diagnostics, daemon := newBoundedRebuildFixture(t, true, false)
+		db := daemon.registry.(*globaldb.GlobalDB)
+		now := time.Now().UTC()
+		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name,
+			RootDir: resolved.RootDir, CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		driver := &providerMismatchLoadDriver{ACPDriverAdapter: session.NewACPDriverAdapter(
+			acp.New(acp.WithProviderPreStarter(daemon.providerPreStarter)),
+		)}
+		manager := newHarnessIntegrationManager(
+			t,
+			home,
+			deps,
+			resolved,
+			driver,
+			session.WithHostedMCPLauncher(deps.HostedMCP),
+			session.WithSessionCatalog(db),
+			session.WithSessionInputQueueStore(db),
+			session.WithEventLedger(db),
+		)
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		main, err := manager.Create(
+			t.Context(),
+			&session.CreateOpts{AgentName: "rebuild-agent", Workspace: resolved.ID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		promptBoundedRebuild(t, manager, main.ID, "bind before provider change")
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: resolved.ID,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Stop(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		held, err := manager.SendPrompt(t.Context(), main.ID, session.SendPromptOpts{
+			InstanceTarget: &store.InstancePromptTarget{
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: resolved.ID,
+				AgentName:   main.AgentName,
+			},
+			Message:        "work after provider change",
+			MessageID:      "held-provider-change",
+			IdempotencyKey: "held-provider-change",
+			Origin: &acp.PromptOriginMeta{
+				Kind:        acp.PromptOriginKindSession,
+				SessionID:   "peer",
+				WorkspaceID: resolved.ID,
+				Hop:         1,
+			},
+		})
+		if err != nil || held.Delivery != "held" {
+			t.Fatalf("held=%+v %v", held, err)
+		}
+		if _, err := db.Instances().Resume(t.Context(), instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{sessions: manager}
+		current, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for wake := range 3 {
+			if err := releaseInstanceInputs(t.Context(), state, db.Instances(), current); err != nil {
+				t.Fatalf("instance maintenance wake %d: %v", wake, err)
+			}
+		}
+		waitForConditionWithin(t, "held input delivered after provider mismatch", 10*time.Second, func() bool {
+			row, err := db.GetSessionInputQueueEntry(t.Context(), main.ID, held.QueueEntryID)
+			return err == nil && row.Status == store.SessionInputQueueStatusSent
+		})
+		waitForConditionWithin(t, "fresh provider thread prompt completed", 10*time.Second, func() bool {
+			records, err := acpmock.ReadDiagnostics(diagnostics)
+			return err == nil && len(acpmock.PromptDiagnostics(records)) == 2
+		})
+		if got := driver.loads.Load(); got != 1 {
+			t.Fatalf("session/load attempts = %d, want 1", got)
+		}
+		records, err := acpmock.ReadDiagnostics(diagnostics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if !strings.Contains(prompts[1].Prompt, "<compozy_context_replay>") ||
+			!strings.Contains(prompts[1].Prompt, "work after provider change") {
+			t.Fatalf("fresh thread prompt lacks replayed context or held work: %q", prompts[1].Prompt)
+		}
+		failures, err := manager.Events(t.Context(), main.ID, store.EventQuery{Type: acp.EventTypeError})
+		if err != nil || len(failures) != 1 {
+			t.Fatalf("load failure rows = %d, %v, want 1", len(failures), err)
+		}
+	})
+}
+
+// providerMismatchLoadDriver refuses every session/load the way codex-acp does after
+// `model_provider` changes; fresh sessions reach the real ACP driver.
+type providerMismatchLoadDriver struct {
+	*session.ACPDriverAdapter
+	loads atomic.Int32
+}
+
+func (d *providerMismatchLoadDriver) Start(ctx context.Context, opts acp.StartOpts) (*session.AgentProcess, error) {
+	if opts.ResumeSessionID == "" {
+		return d.ACPDriverAdapter.Start(ctx, opts)
+	}
+	d.loads.Add(1)
+	return nil, acp.WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+		"%w: load session %q for %q: %w",
+		acp.ErrLoadSessionFailed,
+		opts.ResumeSessionID,
+		opts.AgentName,
+		&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: map[string]any{
+			"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+		}},
+	))
 }
 
 // Invariant (IT-020): a native proposal stays inert until HTTP approval, then a real new session offers it.
