@@ -260,8 +260,9 @@ Remove retired memory tool/toolset entries from agent, profile and session polic
 extension manifests, and remove automation triggers using `memory.consolidated`.
 Replace `compaction_reason` and `compaction_strategy` with `compaction_trigger` in config,
 extension and skill hooks. Agent-definition hooks cannot target context events.
-Exact retired policy atoms now undergo ordinary catalog validation; wildcard patterns are not
-rewritten and match no retired tool. Explicit allow-lists never become unrestricted.
+Retired toolsets fail catalog validation. Exact retired tool IDs remain inert policy atoms that
+match no tool; persisted session lineage remains readable. Wildcards are not rewritten and match no
+retired tool. Explicit allow-lists never become unrestricted.
 
 ### Compatibility shims removed in v0.6.1
 

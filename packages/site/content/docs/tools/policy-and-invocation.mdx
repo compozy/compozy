@@ -178,9 +178,9 @@ treated as sensitive in diagnostic and event surfaces.
 ## Retired tool IDs
 
 The removed memory tool IDs and toolsets remain reserved and are never reused.
-Starting in v0.6.1, policies no longer filter their exact references. Ordinary catalog validation
-rejects unknown toolsets and unavailable exact tools; remove those entries from authored policies.
-Wildcards remain unchanged and match no retired tool. Explicit allow-lists remain enforced.
+Starting in v0.6.1, policies no longer filter their exact references. Catalog validation rejects retired
+toolsets. Exact retired tool IDs remain inert policy atoms that match no tool; remove them from
+authored policies. Wildcards remain unchanged and match no retired tool. Explicit allow-lists remain enforced.
 See the [migration guide](/docs/migration#memory-removal).
 
 ## Common failures

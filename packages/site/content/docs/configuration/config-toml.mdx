@@ -115,8 +115,8 @@ global and workspace MCP sidecars for session and runtime resolution.
 
 ## Archived retired settings
 
-The memory/compaction archive shim ended in v0.6.1. Active `[memory]`, retired memory roles,
-`[session.compaction]`, `memory.consolidated` triggers and `compaction_reason` / `compaction_strategy`
+The memory/compaction archive shim ended in v0.6.1. Active retired memory settings, retired roles,
+CompozyOS-side compaction settings, and removed memory-consolidation triggers and `compaction_reason` / `compaction_strategy`
 hook matchers fail validation. Files remain unchanged when rejected.
 Run v0.6.0 first to archive old config losslessly and resolve deferred writes before upgrading.
 Previously archived comments remain inactive. See the [migration guide](/docs/migration#memory-removal).
@@ -2711,7 +2711,7 @@ Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `worksp
 `tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, and `compaction_trigger`.
 Each event family accepts only some of them. `compaction_trigger` is `requested` or `agent` and
 narrows `context.pre_compact` and `context.post_compact`, which observe real agent compactions;
-`compaction_reason` and `compaction_strategy` are retired and archived on load. See
+`compaction_reason` and `compaction_strategy` are rejected in v0.6.1; use `compaction_trigger`. See
 [Hook declarations](/docs/hooks/declaration#matchers).
 
 Current hook events are:

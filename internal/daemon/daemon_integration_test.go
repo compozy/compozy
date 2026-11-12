@@ -1754,12 +1754,16 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		})
 
 		retiredRegistry := extensionpkg.NewRegistry(d.registry.(extensionDBSource).DB())
-		if _, err := retiredRegistry.Get("dev-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-			t.Fatalf("superseded entry survived boot: %v", err)
+		if _, err := retiredRegistry.Get("dev-cycle"); err != nil {
+			t.Fatalf("retained predecessor lost at boot: %v", err)
+		}
+		oldEnabled, err := retiredRegistry.IsEnabledForProfile("dev-cycle", store.DefaultProfileID)
+		if err != nil || oldEnabled {
+			t.Fatalf("predecessor enablement changed = %v, %v", oldEnabled, err)
 		}
 		enabled, err := retiredRegistry.IsEnabledForProfile("spec-cycle", store.DefaultProfileID)
-		if err != nil || enabled {
-			t.Fatalf("upgraded enablement = %v, %v", enabled, err)
+		if err != nil || !enabled {
+			t.Fatalf("successor default enablement = %v, %v", enabled, err)
 		}
 		if _, err := os.Stat(filepath.Join(retiredDir, "extension.toml")); err != nil {
 			t.Fatalf("retained old package: %v", err)

@@ -151,7 +151,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		}
 		if !resolved.ToolPolicyEnforced || !slices.Equal(resolved.Tools, []string{"compozy__memory_list"}) || spec.lineage == nil ||
 			!slices.Equal(spec.lineage.PermissionPolicy.Tools, []string{"compozy__memory_list"}) {
-			t.Fatalf("empty override lost restriction: %#v, %#v", resolved, spec.lineage)
+			t.Fatalf("retired override lost restriction: %#v, %#v", resolved, spec.lineage)
 		}
 		if err := validateAllowedToolsOverrideSubset(
 			resolved,

@@ -14,37 +14,19 @@ import (
 func TestAgentHookRetiredMatcherCompatibility(t *testing.T) {
 	t.Parallel()
 	for _, format := range []string{"YAML", "TOML"} {
-		for _, matcherCase := range []struct {
-			name, yaml, toml string
-			wantError        bool
-		}{
-			{name: "Should reject retired matcher keys", yaml: "workspace_id: ws-1", toml: "workspace_id = 'ws-1'", wantError: true},
-			{name: "Should reject unknown matcher keys alongside retired keys", yaml: "unknown_matcher: value", toml: "unknown_matcher = 'value'", wantError: true},
-			{name: "Should reject malformed retained matcher values", yaml: "workspace_id: [invalid]", toml: "workspace_id = ['invalid']", wantError: true},
-		} {
-			t.Run(matcherCase.name+" in "+format, func(t *testing.T) {
+		for _, key := range []string{"compaction_reason", "compaction_strategy"} {
+			t.Run("Should reject retired matcher "+key+" in "+format, func(t *testing.T) {
 				t.Parallel()
-				body := "---\nname: coder\nhooks:\n  - name: observer\n    event: session.post_stop\n    command: /bin/echo\n    matcher:\n      compaction_reason: old\n      compaction_strategy: [old]\n      " + matcherCase.yaml + "\n---\nKeep this prompt.\n"
+				body := "---\nname: coder\nhooks:\n  - name: observer\n    event: session.post_stop\n" +
+					"    command: /bin/echo\n    matcher:\n      " + key + ": old\n---\nKeep this prompt.\n"
 				if format == "TOML" {
-					body = "---\nname = 'coder'\n[[hooks]]\nname = 'observer'\nevent = 'session.post_stop'\ncommand = '/bin/echo'\n[hooks.matcher]\ncompaction_reason = 'old'\ncompaction_strategy = ['old']\n" + matcherCase.toml + "\n---\nKeep this prompt.\n"
+					body = "---\nname = 'coder'\n[[hooks]]\nname = 'observer'\nevent = 'session.post_stop'\n" +
+						"command = '/bin/echo'\n[hooks.matcher]\n" + key + " = 'old'\n---\nKeep this prompt.\n"
 				}
 				file := filepath.Join(t.TempDir(), AgentDefinitionFileName)
 				writeFile(t, file, body)
-				agent, err := LoadAgentDefFile(file)
-				if matcherCase.wantError {
-					if err == nil {
-						t.Fatal("LoadAgentDefFile() error = nil, want strict matcher error")
-					}
-				} else {
-					if err != nil {
-						t.Fatalf("LoadAgentDefFile() error = %v", err)
-					}
-					if len(agent.Hooks) != 1 || agent.Hooks[0].Event != hookspkg.HookSessionPostStop ||
-						agent.Hooks[0].Matcher.WorkspaceID != "ws-1" ||
-						agent.Hooks[0].Matcher.AgentName != "coder" ||
-						agent.Prompt != "Keep this prompt." {
-						t.Fatalf("agent = %#v, want retained hook matcher, event and prompt", agent)
-					}
+				if _, err := LoadAgentDefFile(file); err == nil || !strings.Contains(err.Error(), key) {
+					t.Fatalf("load error = %v, want rejected key %s", err, key)
 				}
 				persisted, err := os.ReadFile(file)
 				if err != nil || string(persisted) != body {

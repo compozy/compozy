@@ -105,10 +105,10 @@ Absent surfaces:
   `compozy__session_compact` (risk `mutating`), the `context.pre_compact` / `context.post_compact` hooks, and the
   Web Compact now button in the context rail meter section (owned by `ET-session-compact-now`).
 
-Upgrade leg: a disposable home written by the previous release with retired memory tables, `config.toml` tables,
-SOUL `memory_policy`, retired tool IDs, extension memory entries, and a saved Knowledge window is archived or
-ignored without blocking start, with the Markdown memory files left on disk. Walk it through
-`RT-upgrade-memory-removal-home`; do not duplicate it here.
+Upgrade leg: run a disposable old home through v0.6.0 to archive config, then remove SOUL,
+hook, manifest and automation leftovers before v0.6.1. Confirm migrated state and memory files
+remain intact, exact retired tool IDs remain inert and retired toolsets fail catalog validation.
+Walk it through `RT-upgrade-memory-removal-home`; do not duplicate it here.
 
 Not residue: `daemon.memory_report_interval`, the `runtime.memory` doctor probe and `MS-daemon-memory-reporting`
 (process memory), in-memory stores, approval memory (`CH-approval-grant-memory`), and spec-cycle workflow memory

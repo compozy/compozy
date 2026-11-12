@@ -1839,26 +1839,26 @@ func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
 }
 
 // Invariant: expired config is rejected without mutating persisted user state.
-
 func TestPersistedRetiredConfigRejected(t *testing.T) {
 	t.Parallel()
-	for _, body := range []string{
-		"[agents.stays_on]\nmax_proposals = 7\n",
-		"[memory]\nenabled = true\n",
-		"[roles.memory_extractor]\nenabled = true\n",
-		"[session.compaction]\nenabled = true\n",
-		"[permissions]\nprovider_full_access = true\n",
-		"[[hooks]]\nname = 'old'\nevent = 'context.pre_compact'\ncommand = 'echo'\n[hooks.matcher]\ncompaction_reason = 'token_limit'\n",
+	for _, tc := range []struct{ body, key string }{
+		{"[agents.stays_on]\nmax_proposals = 7\n", "agents.stays_on"},
+		{"[memory]\nenabled = true\n", "memory"},
+		{"[roles.memory_extractor]\nenabled = true\n", "roles.memory_extractor"},
+		{"[session.compaction]\nenabled = true\n", "session.compaction"},
+		{"[permissions]\nprovider_full_access = true\n", "permissions.provider_full_access"},
+		{"[[hooks.declarations]]\nname = 'old'\nevent = 'context.pre_compact'\ncommand = 'echo'\n" +
+			"[hooks.declarations.matcher]\ncompaction_reason = 'token_limit'\n", "compaction_reason"},
 	} {
-		t.Run("Should reject expired config without changing bytes "+body, func(t *testing.T) {
+		t.Run("Should reject expired config without changing bytes "+tc.key, func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), "config.toml")
-			writeFile(t, path, body)
-			if _, err := loadConfigOverlayFile(path); err == nil {
-				t.Fatal("retired config loaded")
+			writeFile(t, path, tc.body)
+			if _, err := loadConfigOverlayFile(path); err == nil || !strings.Contains(err.Error(), tc.key) {
+				t.Fatalf("load error = %v, want rejected key %s", err, tc.key)
 			}
 			after, err := os.ReadFile(path)
-			if err != nil || string(after) != body {
+			if err != nil || string(after) != tc.body {
 				t.Fatalf("retired config changed: %q, %v", after, err)
 			}
 		})

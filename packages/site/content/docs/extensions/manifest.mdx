@@ -329,9 +329,9 @@ The selected Gateway tier must be declared. Workspace-scoped connectivity provid
 
 ## Retired manifest entries
 
-Starting in v0.6.1, manifests reject `memory.backend`, retired memory method/consent entries,
+Starting in v0.6.1, manifests reject the removed memory backend capability, retired memory method/consent entries,
 and `compaction_reason` / `compaction_strategy` hook matchers. Remove those declarations and
-use `compaction_trigger` for context hooks. Automation resources reject `memory.consolidated`
+use `compaction_trigger` for context hooks. Automation resources reject removed memory-consolidation
 triggers instead of skipping them. Invalid package sources remain unchanged.
 A running extension calling a retired memory Host API method receives method-not-found (`-32601`).
 See the [migration guide](/docs/migration#memory-removal).
