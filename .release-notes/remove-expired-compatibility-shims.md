@@ -13,8 +13,8 @@ rewrites them. The table notes the exceptions. Current declarations behave as be
 
 **Upgrade through v0.6.0 first** if you skipped it. Start v0.6.0 once with every user, profile,
 workspace and workspace-profile configuration in place so it migrates old files, resolve any
-deferred-migration warning, and then upgrade. After upgrading, remove anything below that is still
-left over. Existing archived comments, SQL migration history, memory files, transcripts and
+deferred-migration warning, and remove anything below that is still left over before you
+upgrade; v0.6.1 refuses to load configuration that still contains it. Existing archived comments, SQL migration history, memory files, transcripts and
 retained extension registrations are not deleted.
 
 | Removed in v0.6.1                                                                                                                                                                                                                                                                                                                                                              | Use instead                                                                                                                                                                               |
