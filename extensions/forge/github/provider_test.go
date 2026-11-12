@@ -1304,7 +1304,9 @@ func TestProviderGraphQL(t *testing.T) {
 							w,
 							fmt.Sprintf(
 								`{"data":{"repository":{%q:{"nodes":[]},%q:{"nodes":[{"number":2,"state":"OPEN","headRefOid":"base-head","headRepository":{"nameWithOwner":"acme/repo"}},{"number":7,"state":%q,"headRefOid":"fork-head","headRepository":{"nameWithOwner":"contributor/renamed-fork"}}]}}}}`,
-								otherAlias, alias, state,
+								otherAlias,
+								alias,
+								state,
 							),
 						)
 					case strings.Contains(input.Query, "$oid"):
