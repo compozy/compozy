@@ -98,6 +98,9 @@ func (d *Dispatcher) dispatchAgentSession(
 			promptErr,
 		)
 	}
+	if req.onAdmitted != nil {
+		req.onAdmitted(*cloneRun(runningRun))
+	}
 	d.dispatchPostFireHook(ctx, req, *runningRun)
 
 	runErr := collectPromptError(ctx, events)

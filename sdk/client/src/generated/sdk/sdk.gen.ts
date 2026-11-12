@@ -3569,7 +3569,7 @@ export class automation extends HeyApiClient {
   }
 
   /**
-   * Trigger one automation job immediately
+   * Start one automation job and return its admission receipt
    */
   public triggerAutomationJob<ThrowOnError extends boolean = true>(
     options: Options<TriggerAutomationJobData, ThrowOnError>

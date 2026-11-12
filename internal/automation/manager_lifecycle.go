@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // Start synchronizes TOML definitions into persistence, loads effective
@@ -68,6 +69,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.running = true
 	m.runtimeCtx = runtimeCtx
 	m.runtimeCancel = runtimeCancel
+	m.manualRuns = &sync.WaitGroup{}
 	m.scheduler = scheduler
 	m.triggers = triggerEngine
 	m.lastSync = syncStats
@@ -98,6 +100,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 
 	cancel := m.runtimeCancel
+	manualRuns := m.manualRuns
 	scheduler := m.scheduler
 	triggerEngine := m.triggers
 	m.running = false
@@ -110,6 +113,11 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if cancel != nil {
 		cancel()
 	}
+	manualDone := make(chan struct{})
+	go func() {
+		manualRuns.Wait()
+		close(manualDone)
+	}()
 
 	var errs []error
 	if triggerEngine != nil {
@@ -121,6 +129,11 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		if err := scheduler.Shutdown(ctx); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	select {
+	case <-manualDone:
+	case <-ctx.Done():
+		errs = append(errs, ctx.Err())
 	}
 
 	m.logger.Info("automation.manager.shutdown")

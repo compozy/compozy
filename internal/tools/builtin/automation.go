@@ -105,8 +105,10 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDAutomationJobsTrigger,
 		"automation_jobs_trigger",
 		"Automation Jobs Trigger",
-		"Trigger one immediate manual automation job run through the automation manager.",
-		automationJobIDInputSchema,
+		"Start a manual job and return its run id at admission. "+
+			"Set wait=true with an optional timeout (default 1m, maximum 24h) to await completion; "+
+			"timeout returns the running receipt without canceling execution.",
+		automationJobTriggerInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,

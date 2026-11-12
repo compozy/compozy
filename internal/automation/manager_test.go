@@ -2969,3 +2969,104 @@ func TestManagerSyncRetiredLoopTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestManagerStartJob(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		wait time.Duration
+	}{
+		{name: "Should return admission before the client deadline"},
+		{name: "Should bound an explicit wait without canceling the run", wait: time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newManagerHarness(t)
+			release := make(chan struct{})
+			h.sessions = newManagerSessionStub(sessionAttemptPlan{promptRelease: release})
+			manager := h.newManager(t, compozyconfig.AutomationConfig{MaxConcurrentJobs: 1})
+			if err := manager.Start(h.ctx); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Shutdown(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			job, err := manager.CreateJob(h.ctx, testJob(AutomationScopeWorkspace, "manual-admission", h.workspace.ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			clientCtx, cancel := context.WithTimeout(h.ctx, 250*time.Millisecond)
+			defer cancel()
+			run, err := manager.StartJob(clientCtx, job.ID, tc.wait)
+			if err != nil {
+				t.Fatalf("StartJob() error = %v", err)
+			}
+			if run.ID == "" || run.SessionID == "" || run.Status != RunRunning {
+				t.Fatalf("admission receipt = %#v", run)
+			}
+			if _, err := manager.StartJob(h.ctx, job.ID, 0); !errors.Is(err, ErrConcurrencyLimitReached) {
+				t.Fatalf("second StartJob() error = %v, want concurrency limit", err)
+			}
+			// Hold the actual run beyond the client's budget rather than sleeping for a full CLI timeout.
+			<-clientCtx.Done()
+			stored, err := manager.GetRun(h.ctx, run.ID)
+			if err != nil || stored.Status != RunRunning {
+				t.Fatalf("run after client timeout = %#v, %v", stored, err)
+			}
+			close(release)
+			if err := manager.Shutdown(h.ctx); err != nil {
+				t.Fatal(err)
+			}
+			stored, err = manager.GetRun(h.ctx, run.ID)
+			if err != nil || (stored.Status != RunCompleted && stored.Status != RunCancelled) {
+				t.Fatalf("run after shutdown = %#v, %v", stored, err)
+			}
+		})
+	}
+	t.Run("Should return completion when explicitly requested", func(t *testing.T) {
+		t.Parallel()
+		h := newManagerHarness(t)
+		manager := h.newManager(t, compozyconfig.AutomationConfig{})
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		job, err := manager.CreateJob(h.ctx, testJob(AutomationScopeWorkspace, "manual-wait", h.workspace.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := manager.StartJob(h.ctx, job.ID, time.Second)
+		if err != nil || run.Status != RunCompleted || run.EndedAt == nil {
+			t.Fatalf("wait receipt = %#v, %v", run, err)
+		}
+	})
+
+	t.Run("Should return startup failures before admission", func(t *testing.T) {
+		t.Parallel()
+		h := newManagerHarness(t)
+		h.sessions = newManagerSessionStub(sessionAttemptPlan{promptErr: errors.New("prompt refused")})
+		manager := h.newManager(t, compozyconfig.AutomationConfig{})
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		job, err := manager.CreateJob(h.ctx, testJob(AutomationScopeWorkspace, "manual-refusal", h.workspace.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := manager.StartJob(h.ctx, job.ID, 0)
+		if err == nil || run.ID == "" || run.Status != RunFailed {
+			t.Fatalf("StartJob() = %#v, %v", run, err)
+		}
+	})
+}

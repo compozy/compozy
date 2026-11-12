@@ -2215,6 +2215,7 @@ type stubAutomationManager struct {
 	CreateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	UpdateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	DeleteJobFn         func(context.Context, string) error
+	StartJobFn          func(context.Context, string, time.Duration) (automationpkg.Run, error)
 	TriggerJobFn        func(context.Context, string) (automationpkg.Run, error)
 	ListTriggersFn      func(context.Context, automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	GetTriggerFn        func(context.Context, string) (automationpkg.Trigger, error)
@@ -2315,7 +2316,10 @@ func (s stubAutomationManager) DeleteJob(ctx context.Context, id string) error {
 	return s.DeleteJobFn(ctx, id)
 }
 
-func (s stubAutomationManager) TriggerJob(ctx context.Context, id string) (automationpkg.Run, error) {
+func (s stubAutomationManager) StartJob(ctx context.Context, id string, timeout time.Duration) (automationpkg.Run, error) {
+	if s.StartJobFn != nil {
+		return s.StartJobFn(ctx, id, timeout)
+	}
 	if s.TriggerJobFn == nil {
 		return automationpkg.Run{}, nil
 	}
@@ -2660,6 +2664,55 @@ func TestAutomationUserScopeAliases(t *testing.T) {
 			triggers, err := ParseAutomationTriggerListQuery(c, store.ReadScope{ProfileID: store.DefaultProfileID})
 			if err != nil || triggers.Scope != automationpkg.AutomationScopeGlobal {
 				t.Fatalf("triggers = %#v, %v", triggers, err)
+			}
+		})
+	}
+}
+
+func TestTriggerAutomationJobWaitOptions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, query string
+		wait        time.Duration
+		status      int
+	}{
+		{name: "Should return admission by default", status: http.StatusOK},
+		{name: "Should opt in to a bounded completion wait", query: "?wait=true&timeout=2m", wait: 2 * time.Minute, status: http.StatusOK},
+		{name: "Should reject a timeout without waiting", query: "?timeout=2m", status: http.StatusBadRequest},
+		{name: "Should reject an invalid wait", query: "?wait=invalid", status: http.StatusBadRequest},
+		{name: "Should reject an unbounded completion wait", query: "?wait=true&timeout=0s", status: http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			router := newAutomationCoreTestRouter(t, stubAutomationManager{
+				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+					return automationpkg.Job{ID: "job-1", ProfileID: store.DefaultProfileID}, nil
+				},
+				StartJobFn: func(_ context.Context, id string, wait time.Duration) (automationpkg.Run, error) {
+					if tc.status != http.StatusOK {
+						t.Fatal("invalid input reached StartJob")
+					}
+					if id != "job-1" || wait != tc.wait {
+						t.Fatalf("StartJob(%s, %s)", id, wait)
+					}
+					return automationpkg.Run{ID: "run-1", Status: automationpkg.RunRunning}, nil
+				},
+			})
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/automation/jobs/job-1/trigger"+tc.query, nil))
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if tc.status == http.StatusOK {
+				var payload contract.RunResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Run.ID != "run-1" || payload.Run.Status != automationpkg.RunRunning {
+					t.Fatalf("receipt = %#v", payload)
+				}
+			} else if !strings.Contains(response.Body.String(), "error") {
+				t.Fatalf("missing validation error: %s", response.Body.String())
 			}
 		})
 	}

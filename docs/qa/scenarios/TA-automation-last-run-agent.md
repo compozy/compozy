@@ -37,3 +37,25 @@ in `docs/qa/reports/2026-11-03-stays-on-hardening-backend.md`; Web presentation 
 QA verification 2026-11-03 (always-on event delivery, soh/qa 583415ef5, isolated acpmock lab): Partial. A workspace webhook trigger with `--target-instance inbox` accepted one signed delivery (HTTP 200). The completed run had `session_id: null` and metadata naming `instance_event_id`, instance, trigger and `instance_event_check_scheduled: true`. The read-only check produced proposal `arpt-…` whose sources carry `event_id`, `trigger_id` and `run_id`, and the main gained no user message (`webhook-run.json`, `inbox-reports.json`). With checks disabled, the run reported `instance_event_reason: checks_disabled`. Finding: `--target-instance <instance-id>` first demands `--prompt` with an error naming `--agent`; once given a prompt it stores the ID as `agent_name`, and every delivery returns 404 `trigger_target_instance_not_found` (BUG-20261103-target-instance-id-accepted). Not walked: an `ext.*` event, a failed run for a missing target, retention counts, and evidence of the refused edit.
 
 Re-walk 2026-11-03 on 4056dbcc2: the trigger flow passes (other legs remain as recorded above). BUG-20261103-target-instance-id-accepted is verified fixed. `--target-instance ainst-…` is rejected at create time ("is an agent instance id; target an always-on agent by its agent name"). `--target-instance inbox` without `--prompt` creates the trigger. A signed delivery completed with `session_id: null`, and the check produced a proposal whose source summary is readable text (`rewalk-trigger-create.txt`, `rewalk-webhook.txt`).
+
+## Manual job admission and explicit waits
+
+With an agent job whose turn lasts longer than the trigger client's request timeout:
+
+1. Trigger through CLI JSON, HTTP, UDS and `compozy__automation_jobs_trigger`. Each
+   returns the same run envelope with a nonempty id, session id and `running` status
+   after prompt acceptance, before the turn finishes. CLI exits 0.
+2. Let the requesting client disconnect or reach its deadline. Read the returned run:
+   it keeps running and later records its real terminal outcome. Concurrency and
+   fire-limit admission still apply while that turn is active.
+3. Opt in with CLI `--wait --timeout 5m`, HTTP/UDS `?wait=true&timeout=5m`, or native
+   `{wait:true,timeout:"5m"}`. A finished turn returns its final outcome. An expired
+   wait returns the running admission receipt and leaves execution active.
+4. Refuse invalid waits and timeouts before admission. A pre-admission prompt failure
+   returns an error. Task/Loop targets retain their delegated correlation receipt.
+5. Stop the isolated daemon through its supported shutdown flow. Manual dispatches
+   are canceled and joined; their final run state is persisted.
+
+Regression coverage belongs to the automation manager, shared handler, CLI transport
+and native-tool suites. Local execution is intentionally unrun for the parallel issue
+push; exact-head CI owns verification.

@@ -112,6 +112,7 @@ type DispatchRequest struct {
 	ScheduledAt   *time.Time             `json:"scheduled_at,omitempty"`
 	CatchUp       bool                   `json:"catch_up,omitzero"`
 	CatchUpPolicy SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	onAdmitted    func(Run)
 }
 
 // Validate ensures the request can be executed by the shared dispatcher.

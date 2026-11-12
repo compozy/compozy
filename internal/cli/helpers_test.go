@@ -2860,7 +2860,7 @@ func (s *stubClient) DeleteAutomationJob(ctx context.Context, id string) error {
 	return errors.New("unexpected DeleteAutomationJob call")
 }
 
-func (s *stubClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+func (s *stubClient) TriggerAutomationJob(ctx context.Context, id string, _ ...time.Duration) (RunRecord, error) {
 	if s.triggerAutomationJobFn != nil {
 		return s.triggerAutomationJobFn(ctx, id)
 	}

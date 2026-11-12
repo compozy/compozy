@@ -18756,6 +18756,14 @@ export type TriggerAutomationJobData = {
   };
   query?: {
     /**
+     * Wait for completion (default false); execution continues after the wait ends
+     */
+    wait?: boolean;
+    /**
+     * Completion wait budget when wait=true (default 1m; positive duration up to 24h). On expiry returns the running admission receipt
+     */
+    timeout?: string;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -18787,7 +18795,7 @@ export type TriggerAutomationJobError =
 
 export type TriggerAutomationJobResponses = {
   /**
-   * OK
+   * Admitted run with id and running status, or final result when wait=true; task and Loop targets retain delegated status
    */
   200: RunResponse;
 };

@@ -9868,6 +9868,10 @@ func (f *fakeAutomationManager) TriggerJob(ctx context.Context, id string) (auto
 	return f.TriggerJobWithPayload(ctx, id, nil)
 }
 
+func (f *fakeAutomationManager) StartJob(ctx context.Context, id string, _ time.Duration) (automationpkg.Run, error) {
+	return f.TriggerJobWithPayload(ctx, id, nil)
+}
+
 func (f *fakeAutomationManager) TriggerJobWithPayload(
 	_ context.Context,
 	id string,

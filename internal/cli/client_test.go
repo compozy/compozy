@@ -5738,3 +5738,36 @@ func TestDaemonProfileClient(t *testing.T) {
 		}
 	})
 }
+
+func TestTriggerAutomationJobWaitBudget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should let an explicit wait outlive the ordinary client timeout", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("wait") != "true" || r.URL.Query().Get("timeout") != "1s" {
+				t.Errorf("trigger query = %s", r.URL.RawQuery)
+			}
+			timer := time.NewTimer(50 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				if _, err := io.WriteString(w, `{"run":{"id":"run-long","status":"completed"}}`); err != nil {
+					t.Error(err)
+				}
+			case <-r.Context().Done():
+				t.Error("client canceled the explicit wait at its ordinary timeout")
+			}
+		}))
+		defer server.Close()
+		transport := server.Client()
+		transport.Timeout = time.Millisecond
+		client := &daemonClient{httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL}}
+		run, err := client.TriggerAutomationJob(t.Context(), "job-1", time.Second)
+		if err != nil || run.ID != "run-long" || run.Status != automationpkg.RunCompleted {
+			t.Fatalf("trigger = %#v, %v", run, err)
+		}
+		if transport.Timeout != time.Millisecond {
+			t.Fatal("shared client timeout changed")
+		}
+	})
+}

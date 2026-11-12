@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 func (c *daemonClient) ListAutomationJobs(
@@ -65,10 +67,25 @@ func (c *daemonClient) DeleteAutomationJob(ctx context.Context, id string) error
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *daemonClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+func (c *daemonClient) TriggerAutomationJob(
+	ctx context.Context, id string, waitTimeout ...time.Duration,
+) (RunRecord, error) {
 	var response contract.RunResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/trigger"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+	query := url.Values{}
+	client := c.httpClient
+	if len(waitTimeout) > 0 {
+		timeout, err := automationpkg.ParseJobWaitTimeout(true, waitTimeout[0].String())
+		if err != nil {
+			return RunRecord{}, err
+		}
+		query.Set("wait", "true")
+		query.Set("timeout", timeout.String())
+		copied := *client
+		copied.Timeout = timeout + defaultUnixSocketClientTimeout
+		client = &copied
+	}
+	if err := c.doJSONWithClient(ctx, http.MethodPost, path, query, nil, &response, client); err != nil {
 		return RunRecord{}, err
 	}
 	return response.Run, nil

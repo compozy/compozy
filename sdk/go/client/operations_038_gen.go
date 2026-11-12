@@ -4,9 +4,30 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strings"
 )
+
+// ValidateAgentSoul Validate a proposed Soul body or the calling agent's current Soul
+func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoulParams, body AgentSoulValidateRequest) (*AgentSoulPayload, error) {
+	path := "/api/agent/soul/validate"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateLoopParams carries the path, query, and header parameters.
+type ValidateLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
 
 // ValidateLoop Validate one Loop definition without saving
 func (c *Client) ValidateLoop(ctx context.Context, params ValidateLoopParams, body ValidateLoopRequest) (*LoopValidationResponse, error) {

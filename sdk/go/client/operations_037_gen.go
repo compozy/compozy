@@ -4,10 +4,20 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strings"
 )
+
+// UpdateProfile Update profile identity
+func (c *Client) UpdateProfile(ctx context.Context, params UpdateProfileParams, body UpdateProfileRequest) (*Profile, error) {
+	path := "/api/profiles/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out Profile
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // UpdateSessionPresenceParams carries the path, query, and header parameters.
 type UpdateSessionPresenceParams struct {
@@ -427,24 +437,4 @@ func (c *Client) ValidateAgentMemory(ctx context.Context, params ValidateAgentMe
 type ValidateAgentSoulParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// ValidateAgentSoul Validate a proposed Soul body or the calling agent's current Soul
-func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoulParams, body AgentSoulValidateRequest) (*AgentSoulPayload, error) {
-	path := "/api/agent/soul/validate"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateLoopParams carries the path, query, and header parameters.
-type ValidateLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
 }
