@@ -280,3 +280,7 @@ for `oldest_queued_synthetic_age_ms` and the session correlation fields.
 
 Verification: covered by the owning session queue/promotion and spawn-wake regressions;
 execution is pending CI. Local tests and scenario labs are prohibited for this dispatch.
+
+While the parent is busy, open two permission requests (repeat with clarifications),
+then resolve just one. Confirm each advancing attention revision queues a replacement
+wake even though the badge stays unchanged; only the latest revision reaches the parent.

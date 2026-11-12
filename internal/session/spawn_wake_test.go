@@ -636,9 +636,66 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		collectEvents(t, events)
 	}
 
+	// Invariant: advancing an open attention revision replaces the creator wake even with the same badge.
+	for _, kind := range []string{
+		store.PendingInteractionKindPermission, store.PendingInteractionKindClarify,
+	} {
+		t.Run("Should replace queued attention after another "+kind, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+			child.mu.Lock()
+			child.Lineage.NotifyCreator = true
+			child.mu.Unlock()
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			var entries []store.SessionInputQueueEntry
+			notifier.deliver = func(ctx context.Context, creatorID string, event SpawnWakeEvent) error {
+				entry, err := h.manager.EnqueueSyntheticWake(ctx, creatorID, SyntheticPromptOpts{
+					MessageID: event.WakeEventID, Message: "Child needs input.",
+					Metadata: acp.PromptSyntheticMeta{ChildSessionID: child.ID, WakeEventID: event.WakeEventID,
+						Reason: string(event.Reason)},
+				})
+				if err == nil {
+					entries = append(entries, entry)
+				}
+				return err
+			}
+			for _, id := range []string{"first", "second"} {
+				if _, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: child.ID, InteractionID: id, ProviderRequestID: id, Kind: kind,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := h.manager.transitionPendingInteraction(
+				t.Context(), child.ID, store.PendingInteractionTransition{
+					InteractionID: "first", Status: store.PendingInteractionStatusResolved,
+					Resolution: "allow", ResolvedBy: "operator",
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 3 {
+				t.Fatalf("queued wakes = %d, want a replacement for each of three revisions", len(entries))
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			for index, entry := range entries {
+				want := store.SessionInputQueueStatusFailed
+				if index == len(entries)-1 {
+					want = store.SessionInputQueueStatusSent
+				}
+				waitForCondition(t, "revision wake settled", func() bool {
+					row, err := h.manager.inputQueue.Get(t.Context(), parent.ID, entry.ID)
+					return err == nil && row.Status == want
+				})
+			}
+		})
+	}
+
 	// Invariant: only the current, uncovered attention revision reaches the creator.
 	for _, covered := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should discard obsolete attention and honor monitor coverage %t", covered), func(t *testing.T) {
+		name := fmt.Sprintf("Should discard obsolete attention and honor monitor coverage %t", covered)
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			h, _, _, parent, child := newEarlyStopHarness(t, "", true, nil)
 			h.manager.restartInputsHeld.Store(parent.ID, true)

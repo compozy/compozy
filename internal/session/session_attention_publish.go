@@ -98,7 +98,9 @@ func (m *Manager) emitAttentionCommit(
 	applyAttentionToInfo(&before, commit.Before)
 	applyAttentionToInfo(&after, commit.After)
 	to, changed := m.publishAttentionEdge(ctx, &before, &after)
-	if changed {
+	reason, attention := spawnWakeReasonForBadge(to)
+	if changed || (attention && reason == SpawnWakeReasonNeedsAttention &&
+		after.EndedEarlyTurnID == "" && after.AttentionRevision > before.AttentionRevision) {
 		return func() { m.dispatchSpawnWake(ctx, &after, to) }, nil
 	}
 	return nil, nil

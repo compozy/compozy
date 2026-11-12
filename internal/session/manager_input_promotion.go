@@ -36,18 +36,7 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 		m.sessionLogger(session).Warn("session: list queued input for promotion failed", "error", err)
 		return
 	}
-	var oldest *store.SessionInputQueueEntry
-	for index := range entries {
-		entry := &entries[index]
-		if entry.OwnerKind == store.SessionInputOwnerSynthetic && entry.Status == store.SessionInputQueueStatusQueued &&
-			(oldest == nil || entry.EnqueuedAt.Before(oldest.EnqueuedAt)) {
-			oldest = entry
-		}
-	}
-	if oldest != nil {
-		m.sessionLogger(session).InfoContext(ctx, "session.input_queue.synthetic_age",
-			"entry_id", oldest.ID, "oldest_queued_synthetic_age_ms", max(m.now().Sub(oldest.EnqueuedAt).Milliseconds(), 0))
-	}
+	m.logOldestQueuedSyntheticAge(ctx, session, entries)
 	if _, ok := m.injectedSteerer(session.processHandle()); !ok {
 		return
 	}
@@ -72,6 +61,23 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 			// A pending or refused injection settles first; the next pass continues.
 			return
 		}
+	}
+}
+
+func (m *Manager) logOldestQueuedSyntheticAge(
+	ctx context.Context, session *Session, entries []store.SessionInputQueueEntry,
+) {
+	var oldest *store.SessionInputQueueEntry
+	for index := range entries {
+		entry := &entries[index]
+		if entry.OwnerKind == store.SessionInputOwnerSynthetic && entry.Status == store.SessionInputQueueStatusQueued &&
+			(oldest == nil || entry.EnqueuedAt.Before(oldest.EnqueuedAt)) {
+			oldest = entry
+		}
+	}
+	if oldest != nil {
+		m.sessionLogger(session).InfoContext(ctx, "session.input_queue.synthetic_age",
+			"entry_id", oldest.ID, "oldest_queued_synthetic_age_ms", max(m.now().Sub(oldest.EnqueuedAt).Milliseconds(), 0))
 	}
 }
 

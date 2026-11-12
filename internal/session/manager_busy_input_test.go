@@ -5933,7 +5933,9 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		waitForCondition(t, "initial promotion passes settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+		waitForCondition(t, "initial promotion passes settled", func() bool {
+			return !f.sess.inputPromotionActive.Load()
+		})
 		f.advance(2 * time.Minute)
 		f.h.manager.schedulePromoteLongTurnQueuedInputs(f.sess)
 		replies := map[string]int{}
