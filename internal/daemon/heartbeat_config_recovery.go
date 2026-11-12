@@ -2,6 +2,9 @@ package daemon
 
 import (
 	"context"
+	"reflect"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -42,11 +45,30 @@ func bindCheckConfigRecovery(state *bootState, checks *heartbeat.CheckService) {
 	}
 }
 
-func (r *modelCatalogRuntime) notifyCheckConfigRecovery(ctx context.Context, opts modelcatalog.RefreshOptions, err error) {
+func (r *modelCatalogRuntime) notifyCheckConfigRecovery(
+	ctx context.Context,
+	opts modelcatalog.RefreshOptions,
+	err error,
+) {
 	r.afterRefreshMu.RLock()
 	callback := r.afterRefresh
 	r.afterRefreshMu.RUnlock()
 	if err == nil && callback != nil {
 		callback(ctx, opts)
+	}
+}
+
+func (a daemonSettingsRuntimeApplier) recoverHeartbeatConfig(
+	ctx context.Context,
+	previous, next *compozyconfig.Config,
+) {
+	// Infrequent config application compares values rather than cloned pointer identities.
+	if previous.Defaults != next.Defaults || !reflect.DeepEqual(previous.Agents, next.Agents) ||
+		!reflect.DeepEqual(previous.Providers, next.Providers) {
+		if checks := a.state.runtimeWorkers.proactiveChecks; checks != nil {
+			if err := checks.RecoverConfiguration(ctx, nil); err != nil {
+				a.state.logger.ErrorContext(ctx, "daemon: recover config rejected checks", "error", err)
+			}
+		}
 	}
 }

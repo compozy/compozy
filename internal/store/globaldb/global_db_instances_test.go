@@ -3280,7 +3280,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 		// Invariant: correcting configuration clears backoff without consuming pending events.
 		fixedAt := now.Add(time.Minute)
 		if changed, err := repo.Skip(t.Context(), heartbeat.SkipRequest{
-			InstanceID: instance.ID, ManualCheck: true, Reason: "hook_cancelled",
+			InstanceID: instance.ID, ManualCheck: true, Reason: string(heartbeat.WakeReasonHookCancelled),
 			Now: fixedAt, ExpiresAt: fixedAt.Add(time.Hour),
 		}); err != nil || !changed {
 			t.Fatalf("manual skip=%v error=%v", changed, err)

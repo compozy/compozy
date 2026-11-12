@@ -2229,11 +2229,13 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 		t.Parallel()
 		h := newHeartbeatSourceRuntime(t, true, false)
 		original := h.env.definitions.agents
-		h.env.definitions.agents = stubSessionCommandAgentResolver(func(name string, workspace *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
-			agent, err := original.ResolveAgent(name, workspace)
-			agent.Provider = "missing-provider"
-			return agent, err
-		})
+		h.env.definitions.agents = stubSessionCommandAgentResolver(
+			func(name string, workspace *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+				agent, err := original.ResolveAgent(name, workspace)
+				agent.Provider = "missing-provider"
+				return agent, err
+			},
+		)
 		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
 		if err != nil || target.Gate != "" || target.TriageProvider != "" || !target.Policy.Enabled {
 			t.Fatalf("policy=%+v error=%v", target, err)
@@ -2243,7 +2245,9 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 		}
 	})
 
-	for _, mode := range []string{"config", "agent", "live", "other_workspace", "other_profile", "stale", "unknown", "other_model"} {
+	for _, mode := range []string{
+		"config", "agent", "live", "other_workspace", "other_profile", "stale", "unknown", "other_model",
+	} {
 		t.Run("Should recover rejected configuration through "+mode, func(t *testing.T) {
 			t.Parallel()
 			h := newHeartbeatSourceRuntime(t, true, false)
@@ -2272,7 +2276,8 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 			case "config":
 				next := previous
 				next.Agents.Heartbeat.TriageModels = map[string]string{acpmock.ProviderName: "fixed-model"}
-				if failures := (daemonSettingsRuntimeApplier{daemon: &Daemon{config: previous}, state: state}).ApplyActiveConfig(t.Context(), &next); len(failures) != 0 {
+				applier := daemonSettingsRuntimeApplier{daemon: &Daemon{config: previous}, state: state}
+				if failures := applier.ApplyActiveConfig(t.Context(), &next); len(failures) != 0 {
 					t.Fatalf("apply failures=%+v", failures)
 				}
 			case "agent":
@@ -2300,7 +2305,11 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 				case "other_model":
 					model.ModelID = "other"
 				}
-				catalog, err := newModelCatalogRuntime(t.Context(), &recordingModelCatalogService{models: []modelcatalog.Model{model}}, slog.Default(), h.now, time.Second)
+				catalog, err := newModelCatalogRuntime(
+					t.Context(),
+					&recordingModelCatalogService{models: []modelcatalog.Model{model}},
+					slog.Default(), h.now, time.Second,
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -2311,7 +2320,9 @@ func TestHeartbeatSourceRecovery(t *testing.T) {
 				})
 				state.modelCatalog = catalog
 				bindCheckConfigRecovery(state, h.checks)
-				if _, err := catalog.Refresh(t.Context(), modelcatalog.RefreshOptions{ProviderID: target.TriageProvider, ExecutionContext: scope}); err != nil {
+				if _, err := catalog.Refresh(t.Context(), modelcatalog.RefreshOptions{
+					ProviderID: target.TriageProvider, ExecutionContext: scope,
+				}); err != nil {
 					t.Fatal(err)
 				}
 			}

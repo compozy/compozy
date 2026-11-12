@@ -1538,7 +1538,8 @@ func TestAgentInstanceNextWake(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if tc.reason != "" && (payload.NextWake == nil || !strings.Contains(payload.NextWake.Description, "agent_instance_check")) {
+			if tc.reason != "" &&
+				(payload.NextWake == nil || !strings.Contains(payload.NextWake.Description, "agent_instance_check")) {
 				t.Fatalf("missing manual recovery: %+v", payload.NextWake)
 			}
 			if payload.NextWake == nil || payload.NextWake.Kind != tc.want {

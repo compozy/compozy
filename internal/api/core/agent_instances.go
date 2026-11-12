@@ -311,7 +311,8 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 				if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
 					payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: state.NextWakeAt}
 					if state.LastReason == heartbeat.ReasonTriageConfigUnavailable {
-						payload.NextWake.Description = "Last check rejected the heartbeat runtime configuration. Correct it or run agent_instance_check to retry manually."
+						payload.NextWake.Description = "Last check rejected the heartbeat runtime configuration. " +
+							"Correct it or run agent_instance_check to retry manually."
 					}
 				}
 			}
