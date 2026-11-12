@@ -248,17 +248,20 @@ function TerminalLauncherProjectRows({
           </span>
         ) : null}
         {count > 0 ? (
-          // The fold for a pointer; the keyboard folds with ←/→ while focus stays in the search.
+          // The fold control: a pointer click, or Tab then Enter/Space (a search keeps ←/→ for
+          // the caret). Its Enter folds here and never reaches the list, which would open a terminal.
           <button
             aria-label={`${expanded ? "Hide" : "Show"} ${count} ${count === 1 ? "worktree" : "worktrees"} of ${destination.label}`}
-            className="ms-auto inline-flex h-5 shrink-0 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-subtle tabular-nums transition-colors duration-fast ease-out hover:bg-line-strong hover:text-fg motion-reduce:transition-none"
+            className="ms-auto inline-flex h-5 shrink-0 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-subtle tabular-nums transition-colors duration-fast ease-out outline-none hover:bg-line-strong hover:text-fg focus-visible:shadow-focus-ring motion-reduce:transition-none"
             data-testid={`terminal-launcher-fold-${destination.value}`}
             onClick={event => {
               event.stopPropagation();
               onToggle();
             }}
+            onKeyDown={event => {
+              if (event.key === "Enter") event.stopPropagation();
+            }}
             onPointerDown={event => event.preventDefault()}
-            tabIndex={-1}
             type="button"
           >
             <GitBranch aria-hidden="true" className="size-3" />

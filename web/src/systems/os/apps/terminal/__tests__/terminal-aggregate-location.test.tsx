@@ -8,6 +8,7 @@
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { createTerminal } from "@/systems/terminal";
@@ -268,6 +269,20 @@ describe("TerminalAggregateLocation", () => {
       "true"
     );
     expect(screen.getByTestId("terminal-launcher-new-ws-beacon/wt-beacon")).toBeInTheDocument();
+
+    // While searching, the arrows keep the caret: the fold control is reached with Tab instead,
+    // and its Enter folds without opening a terminal.
+    const user = userEvent.setup();
+    screen.getByPlaceholderText("Open a terminal in…").focus();
+    await user.tab();
+    expect(screen.getByTestId("terminal-launcher-fold-ws-beacon")).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("terminal-launcher-new-ws-beacon")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText("Open a terminal in…")).toHaveValue("docs");
 
     // Clearing the search folds every project the search unfolded.
     fireEvent.change(screen.getByPlaceholderText("Open a terminal in…"), {
