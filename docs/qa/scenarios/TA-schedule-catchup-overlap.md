@@ -62,3 +62,20 @@ Focused verification: `go test -tags integration ./internal/automation -count=1`
 production scheduler and dispatcher against real SQLite, with session I/O injected at its boundary.
 The startup regression fails before the fix and passes after it. This is backend integration
 coverage; a live-provider/browser walk and daemon restart were not run for this change.
+
+QA impact — host sleep with the daemon still running:
+
+- Register recurring interval and cron jobs for each catch-up policy, then keep the scheduler
+  running while the host clock advances across five fires beyond the misfire grace window.
+- `coalesce` and `run_once_on_catchup` dispatch only the latest missed instant; `replay`
+  dispatches all five in order; `skip_missed` creates one canceled history row with
+  `misfire_grace_exceeded` and creates no session. Within configured grace, `skip_missed` dispatches the latest missed
+  instant once. Each job resumes its original cadence.
+- Manual host-sleep check: preserve an already deferred reservation across the gap; capacity retry must retain its
+  original fire identity rather than replace it with a newly coalesced fire.
+
+Automated owning check: `go test -tags integration ./internal/automation -run
+TestSchedulerIntegrationHostSleepCatchUp -count=1` uses a fake host clock with a running
+production scheduler/dispatcher and real SQLite. It covers recurring interval and cron policy
+behavior and the next normal tick; physical host suspension and a live provider are separate
+manual checks.

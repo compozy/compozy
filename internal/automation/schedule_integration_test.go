@@ -5,6 +5,7 @@ package automation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -222,6 +223,116 @@ func TestSchedulerIntegrationRestartDowntimeRunsCatchUpExactlyOnce(t *testing.T)
 	}
 	if got, want := len(runs), 1; got != want {
 		t.Fatalf("len(ListRuns()) = %d, want %d", got, want)
+	}
+}
+
+func TestSchedulerIntegrationHostSleepCatchUp(t *testing.T) {
+	for _, mode := range []ScheduleMode{ScheduleModeEvery, ScheduleModeCron} {
+		for _, grace := range []int{0, 600} {
+			for _, policy := range []SchedulerCatchUpPolicy{
+				SchedulerCatchUpPolicySkipMissed, SchedulerCatchUpPolicyCoalesce,
+				SchedulerCatchUpPolicyRunOnce, SchedulerCatchUpPolicyReplay,
+			} {
+				name := fmt.Sprintf("Should honor %s after host sleep for %s with grace %ds", policy, mode, grace)
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t)
+					db := openAutomationIntegrationDB(t, ctx)
+					base := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+					clock := clockwork.NewFakeClockAt(base)
+					var plans []sessionAttemptPlan
+					if policy == SchedulerCatchUpPolicyReplay {
+						for i := range 5 {
+							plans = append(plans, sessionAttemptPlan{sessionID: fmt.Sprintf("missed-%d", i+1)})
+						}
+					}
+					creator := newRecordingSessionCreator(plans...)
+					dispatcher := newTestDispatcher(t, creator, db, WithDispatcherNow(clock.Now))
+					scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(clock), WithSchedulerStore(db))
+					job, err := db.CreateJob(ctx, testJob(AutomationScopeGlobal, "host-sleep", ""))
+					if err != nil {
+						t.Fatal(err)
+					}
+					job.Schedule = &ScheduleSpec{Mode: mode, CatchUpPolicy: policy, MisfireGraceSeconds: grace}
+					if mode == ScheduleModeEvery {
+						job.Schedule.Interval = "1m"
+					} else {
+						job.Schedule.Expr = "* * * * *"
+					}
+					if _, err := scheduler.Register(ctx, job); err != nil {
+						t.Fatal(err)
+					}
+					if err := scheduler.Start(ctx); err != nil {
+						t.Fatal(err)
+					}
+					waitForTimers(t, clock, 1)
+					clock.Advance(5*time.Minute + 30*time.Second)
+					next := base.Add(6 * time.Minute)
+					waitUntil(t, 5*time.Second, 10*time.Millisecond, func() bool {
+						states := scheduler.States()
+						return len(states) == 1 && states[0].NextRun != nil && states[0].NextRun.Equal(next)
+					})
+					runs, err := db.ListRuns(
+						ctx,
+						RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := 1
+					if policy == SchedulerCatchUpPolicyReplay {
+						want = 5
+					}
+					if len(runs) != want {
+						t.Fatalf("runs = %d, want %d", len(runs), want)
+					}
+					for _, run := range runs {
+						if policy == SchedulerCatchUpPolicyReplay {
+							if run.ScheduledAt == nil {
+								t.Fatal("replayed run has no scheduled instant")
+							}
+							ordinal := int(run.ScheduledAt.Sub(base) / time.Minute)
+							if ordinal < 1 || ordinal > 5 || run.SessionID != fmt.Sprintf("missed-%d", ordinal) {
+								t.Fatalf("replay order: scheduled_at=%v session=%s", run.ScheduledAt, run.SessionID)
+							}
+						}
+						if policy == SchedulerCatchUpPolicySkipMissed && grace == 0 {
+							if run.Status != RunCancelled ||
+								run.Metadata[SchedulerSkipReasonMetadataKey] != string(
+									SchedulerSkipReasonGraceExceeded,
+								) {
+								t.Fatalf("skipped run = %#v", run)
+							}
+						} else if run.Status != RunCompleted {
+							t.Fatalf("run status = %s", run.Status)
+						}
+					}
+					wantCreates := want
+					if policy == SchedulerCatchUpPolicySkipMissed && grace == 0 {
+						wantCreates = 0
+					}
+					if got := len(creator.createCalls()); got != wantCreates {
+						t.Fatalf("sessions = %d, want %d", got, wantCreates)
+					}
+					if policy == SchedulerCatchUpPolicyCoalesce || policy == SchedulerCatchUpPolicyRunOnce ||
+						(policy == SchedulerCatchUpPolicySkipMissed && grace > 0) {
+						if runs[0].ScheduledAt == nil || !runs[0].ScheduledAt.Equal(base.Add(5*time.Minute)) {
+							t.Fatalf("scheduled at = %v, want latest missed instant", runs[0].ScheduledAt)
+						}
+					}
+					waitForTimers(t, clock, 1)
+					clock.Advance(30 * time.Second)
+					waitUntil(t, 5*time.Second, 10*time.Millisecond, func() bool {
+						states := scheduler.States()
+						return len(states) == 1 && states[0].NextRun != nil &&
+							states[0].NextRun.Equal(base.Add(7*time.Minute))
+					})
+					if got := len(creator.createCalls()); got != wantCreates+1 {
+						t.Fatalf("sessions after next tick = %d, want %d", got, wantCreates+1)
+					}
+				})
+			}
+		}
 	}
 }
 
