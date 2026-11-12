@@ -1,4 +1,4 @@
-import { useId, useState, type KeyboardEvent } from "react";
+import { useId } from "react";
 import { ChevronRight, GitBranch, Plus, TerminalSquare } from "@compozy/ui/icons";
 
 import {
@@ -16,11 +16,11 @@ import {
 import { terminalDisplayTitle, type TerminalInfo } from "@/systems/terminal";
 import { WorkspaceBadge, workspaceBadgeIdentity } from "@/systems/workspace";
 
+import { useTerminalLauncherTree } from "../hooks/use-terminal-launcher-tree";
 import {
+  terminalLauncherAttachValue,
   terminalLauncherMatches,
-  terminalLauncherProjects,
-  terminalLauncherProjectViews,
-  terminalLauncherSearching,
+  terminalLauncherNewValue,
   type TerminalLauncherDestination,
   type TerminalLauncherProjectView,
 } from "../lib/terminal-launcher-model";
@@ -44,15 +44,6 @@ export interface TerminalLauncherProps {
   className?: string;
 }
 
-const NEW_PREFIX = "new:";
-const ATTACH_PREFIX = "attach:";
-
-const flip = (set: ReadonlySet<string>, value: string) => {
-  const next = new Set(set);
-  if (!next.delete(value)) next.add(value);
-  return next;
-};
-
 /**
  * The Terminal entry point: pick where a new terminal opens, or go back to a
  * running one. Keyboard-first — the default destination is selected, so one
@@ -74,25 +65,13 @@ export function TerminalLauncher({
 }: TerminalLauncherProps) {
   const defaultValue =
     !readOnly && destinations.some(destination => destination.value === defaultDestination)
-      ? `${NEW_PREFIX}${defaultDestination}`
+      ? terminalLauncherNewValue(defaultDestination)
       : running[0]
-        ? `${ATTACH_PREFIX}${running[0].id}`
+        ? terminalLauncherAttachValue(running[0].id)
         : undefined;
-  // `null` follows the default, so a default that settles later (the catalog
-  // arriving) re-selects; a row the operator moves to, or a search, sticks.
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  // Folds the operator flipped: `unfolded` while browsing, `searchFlips` against
-  // a search's own unfolding (cleared as the search changes).
-  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
-  const [searchFlips, setSearchFlips] = useState<ReadonlySet<string>>(() => new Set());
+  const tree = useTerminalLauncherTree({ destinations, defaultValue, readOnly });
+  const { projects, query } = tree;
   const branchIdPrefix = useId();
-  const searching = terminalLauncherSearching(query);
-  const projects = terminalLauncherProjectViews(
-    terminalLauncherProjects(destinations),
-    query,
-    searching ? searchFlips : unfolded
-  );
   const shownRunning = running.filter(terminal =>
     terminalLauncherMatches(query, [
       terminalDisplayTitle(terminal),
@@ -100,52 +79,19 @@ export function TerminalLauncher({
       ...(readOnly ? [terminal.profile_name] : []),
     ])
   );
-  const selected = chosen ?? defaultValue ?? "";
-  const select = (value: string) => setChosen(value === defaultValue ? null : value);
-  const toggle = (project: TerminalLauncherProjectView) => {
-    const value = project.destination.value;
-    if (searching) setSearchFlips(current => flip(current, value));
-    else setUnfolded(current => flip(current, value));
-  };
-
-  // → unfolds the selected project, ← folds it or climbs from a worktree to its
-  // project. Only on an empty search field, where the arrows move no caret.
-  const onTreeKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (readOnly || query !== "" || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) {
-      return;
-    }
-    const opening = event.key === "ArrowRight";
-    for (const project of projects) {
-      if (`${NEW_PREFIX}${project.destination.value}` === selected) {
-        if (project.worktrees.length === 0 || project.expanded === opening) return;
-        event.preventDefault();
-        toggle(project);
-        return;
-      }
-      if (!opening && project.shown.some(row => `${NEW_PREFIX}${row.value}` === selected)) {
-        event.preventDefault();
-        select(`${NEW_PREFIX}${project.destination.value}`);
-        return;
-      }
-    }
-  };
-
   const hasWorktrees = !readOnly && projects.some(project => project.worktrees.length > 0);
   return (
     <Command
       className={cn("h-auto", className)}
       data-testid="terminal-launcher"
-      onKeyDown={onTreeKey}
-      onValueChange={select}
+      onKeyDown={tree.onTreeKey}
+      onValueChange={tree.select}
       shouldFilter={false}
-      value={selected}
+      value={tree.selected}
     >
       <CommandInput
         autoFocus
-        onValueChange={next => {
-          setQuery(next);
-          setSearchFlips(new Set());
-        }}
+        onValueChange={tree.search}
         placeholder="Open a terminal in…"
         value={query}
         variant="quiet"
@@ -160,7 +106,7 @@ export function TerminalLauncher({
                 busy={busy}
                 key={project.destination.value}
                 onOpenNew={onOpenNew}
-                onToggle={() => toggle(project)}
+                onToggle={() => tree.toggle(project)}
                 project={project}
               />
             ))}
@@ -175,7 +121,7 @@ export function TerminalLauncher({
                   data-testid={`terminal-launcher-running-${terminal.id}`}
                   key={terminal.id}
                   onSelect={() => onAttach(terminal)}
-                  value={`${ATTACH_PREFIX}${terminal.id}`}
+                  value={terminalLauncherAttachValue(terminal.id)}
                 >
                   <TerminalSquare aria-hidden="true" className="text-subtle" />
                   <span className="min-w-0 truncate">{terminalDisplayTitle(terminal)}</span>
@@ -238,7 +184,7 @@ function TerminalLauncherProjectRows({
         data-testid={`terminal-launcher-new-${destination.value}`}
         disabled={busy || destination.unavailableReason !== null || !project.matches}
         onSelect={() => onOpenNew(destination)}
-        value={`${NEW_PREFIX}${destination.value}`}
+        value={terminalLauncherNewValue(destination.value)}
       >
         <Plus aria-hidden="true" className="text-subtle" />
         <span className="min-w-0 truncate">{destination.label}</span>
@@ -287,7 +233,7 @@ function TerminalLauncherProjectRows({
                   data-testid={`terminal-launcher-new-${worktree.value}`}
                   disabled={busy}
                   onSelect={() => onOpenNew(worktree)}
-                  value={`${NEW_PREFIX}${worktree.value}`}
+                  value={terminalLauncherNewValue(worktree.value)}
                 />
               }
             >

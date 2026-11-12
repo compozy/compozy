@@ -26,6 +26,12 @@ export interface TerminalLauncherWorktree {
   profile_name: string;
 }
 
+/** A launcher row's cmdk value for a new-terminal destination. */
+export const terminalLauncherNewValue = (destination: string) => `new:${destination}`;
+
+/** A launcher row's cmdk value for a running terminal. */
+export const terminalLauncherAttachValue = (terminalId: string) => `attach:${terminalId}`;
+
 /** Shared with the projects overview: a registered project whose folder no longer exists. */
 export const TERMINAL_LAUNCHER_FOLDER_MISSING = "Folder not found";
 
