@@ -52,6 +52,7 @@ type SyntheticWakePrompter interface {
 
 // WakeRequest identifies one advisory Heartbeat wake decision.
 type WakeRequest struct {
+	PolicyTarget         *AuthoringTarget
 	ProfileID            string
 	WorkspaceID          string
 	AgentName            string
@@ -114,19 +115,27 @@ type SyntheticWakePromptResult struct {
 
 // ManagedWakeService is the production Heartbeat wake decision engine.
 type ManagedWakeService struct {
-	store        WakeStore
-	healthReader SessionHealthReader
-	prompter     SyntheticWakePrompter
-	config       compozyconfig.HeartbeatConfig
-	now          func() time.Time
-	newID        func(prefix string) (string, error)
-	mu           sync.Mutex
+	policyResolver PolicyResolver
+	store          WakeStore
+	healthReader   SessionHealthReader
+	prompter       SyntheticWakePrompter
+	config         compozyconfig.HeartbeatConfig
+	now            func() time.Time
+	newID          func(prefix string) (string, error)
+	mu             sync.Mutex
 }
 
 var _ WakeService = (*ManagedWakeService)(nil)
 
 // WakeOption customizes the managed Heartbeat wake service.
 type WakeOption func(*ManagedWakeService)
+
+// WithWakePolicyResolver shares agent-aware policy resolution with status.
+func WithWakePolicyResolver(resolver PolicyResolver) WakeOption {
+	return func(service *ManagedWakeService) {
+		service.policyResolver = resolver
+	}
+}
 
 // WithWakeClock injects deterministic time for wake decisions.
 func WithWakeClock(clock func() time.Time) WakeOption {

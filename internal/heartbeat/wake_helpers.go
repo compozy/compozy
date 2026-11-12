@@ -20,6 +20,7 @@ func (s *ManagedWakeService) currentTime() time.Time {
 
 func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 	normalized := WakeRequest{
+		PolicyTarget:         req.PolicyTarget,
 		ProfileID:            strings.TrimSpace(req.ProfileID),
 		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
 		AgentName:            strings.TrimSpace(req.AgentName),
@@ -34,7 +35,7 @@ func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 	case normalized.SessionID == "":
 		return WakeRequest{}, errors.New("heartbeat: wake session id is required")
 	case !ValidWakeSource(normalized.Source):
-		return WakeRequest{}, fmt.Errorf("heartbeat: invalid wake source %q", normalized.Source)
+		return WakeRequest{}, fmt.Errorf("%w: invalid wake source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry", ErrInvalid, normalized.Source)
 	default:
 		return normalized, nil
 	}

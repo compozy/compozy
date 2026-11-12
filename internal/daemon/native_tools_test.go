@@ -10349,6 +10349,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		if status.last.Target.AgentPath != "/workspace/compozy/.compozy/agents/coder/AGENT.md" {
 			t.Fatalf("heartbeat status target path = %q, want managed agent path", status.last.Target.AgentPath)
 		}
+		if wake.last.PolicyTarget == nil || wake.last.PolicyTarget.AgentPath != status.last.Target.AgentPath {
+			t.Fatalf("wake policy target = %+v, want status target", wake.last.PolicyTarget)
+		}
 		if wake.last.SessionID != "sess-heartbeat" ||
 			wake.last.WorkspaceID != "ws-1" ||
 			wake.last.AgentName != "coder" ||
@@ -10360,6 +10363,21 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if wake.calls != 1 {
 			t.Fatalf("heartbeat wake calls = %d, want 1 after owned session wake", wake.calls)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+			Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":"unknown"}`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("invalid source = %v, want input validation error", err)
+		}
+		for _, source := range []string{"timer", "instance_check", "scheduler", "manual", "harness_reentry"} {
+			if !strings.Contains(err.Error(), source) {
+				t.Fatalf("invalid source = %v, missing %s", err, source)
+			}
+		}
+		if wake.calls != 1 {
+			t.Fatal("invalid source reached wake backend")
 		}
 
 		_, err = registry.Call(
