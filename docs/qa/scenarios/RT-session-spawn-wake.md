@@ -289,3 +289,12 @@ Attention is validated immediately before handing steering to the provider. A pr
 asynchronous injection is no longer a queued wake; later attention changes enqueue a new revision.
 For promoted `PromptSynthetic` calls, the admission stream stays open during pending injection
 and closes without a projection failure after confirmation.
+
+## Review child follow-up delivery
+
+Send a review-only child its brief with `notify_on_complete: true`, and let it answer
+without opening a PR. Send a follow-up from its creator with `notify_on_complete: false`.
+After its answer, confirm no `ended_early` attention badge or needs-attention wake occurs.
+Then send another creator message and end the child turn without an answer: this turn
+must still raise `ended_early`; the earlier answers cannot satisfy the new message.
+Owning regression: `TestManagerEarlyStopSupervision`. Execution pending CI.

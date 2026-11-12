@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 // EndedEarlyAttentionCode is the stable payload attention code for a child session
@@ -94,7 +95,7 @@ func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID str
 
 // turnEndedEarly applies the early-stop trigger: a child or orchestrated session ended
 // a turn with end_turn, holds no open work signal or pending interaction, its creator
-// is not waiting on this exact reply, and no pull request is linked to its branch.
+// received no answer to its input, is not awaiting this reply, and has no linked pull request.
 func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState *promptTurnDispatchState) bool {
 	if turnState.stopReason != acp.PromptStopReasonEndTurn || promptTurnWasCanceled(target, turnState) {
 		return false
@@ -111,8 +112,52 @@ func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState
 	if m.creatorAwaitsChildReply(ctx, parentID, info.ID, turnState.turnID) {
 		return false
 	}
+	answered, err := m.turnAnsweredCreator(ctx, info.ID, parentID, turnState.turnID)
+	if err != nil {
+		m.sessionLogger(target).WarnContext(ctx, "session: creator answer lookup failed",
+			"turn_id", turnState.turnID, "error", err)
+		return false
+	}
+	if answered {
+		return false
+	}
 	delivered, known := m.sessionHasPullRequest(ctx, info)
 	return known && !delivered
+}
+
+// turnAnsweredCreator requires output after the latest creator input consumed by this turn.
+func (m *Manager) turnAnsweredCreator(ctx context.Context, sessionID, creatorID, turnID string) (bool, error) {
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyAnswerTimeout)
+	defer cancel()
+	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true,
+		Types: []string{acp.EventTypeUserMessage, acp.EventTypeAgentMessage}}
+	awaiting, answered := false, false
+	for {
+		page, err := m.Events(readCtx, sessionID, query)
+		if err != nil {
+			return false, err
+		}
+		for _, event := range page {
+			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				return false, err
+			}
+			if decoded.ParentToolCallID() != "" {
+				continue
+			}
+			if event.Type == acp.EventTypeUserMessage {
+				if origin := decoded.PromptOrigin(); origin != nil && origin.Kind == "session" && origin.SessionID == creatorID {
+					awaiting, answered = true, false
+				}
+			} else if awaiting && strings.TrimSpace(decoded.Text) != "" {
+				answered = true
+			}
+		}
+		if len(page) < query.Limit {
+			return answered, nil
+		}
+		query.AfterSequence = page[len(page)-1].Sequence
+	}
 }
 
 // endedEarlyCandidate limits the trigger to live sessions with a parent session.
