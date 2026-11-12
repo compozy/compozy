@@ -1901,6 +1901,9 @@ enabled = false
   its first enabled fallback; with none left it reports `provider_disabled`.
 - The key belongs to the global and profile layers only. A workspace or workspace-profile overlay
   that sets it is rejected.
+- Disabled providers do not need a runnable command until they are enabled. If a profile only
+  disables an undefined custom provider, startup continues; usage collection skips the unresolved
+  entry and logs `provider_usage.provider_unresolved`. It does not become a usable provider.
 - The default provider (`defaults.provider`) can't be turned off
   (`provider_default_disable_rejected`). Change `defaults.provider` first.
 - Turning a provider back on removes the key, and removes the `[providers.<id>]` block when

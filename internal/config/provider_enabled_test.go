@@ -62,6 +62,26 @@ func TestProviderConfigEffectiveEnabled(t *testing.T) {
 func TestConfigProviderEnabled(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept undefined disabled providers without admitting their sessions", func(t *testing.T) {
+		t.Parallel()
+		cfg, _ := loadEnabledTestConfig(t, "[providers.ghost]\nenabled = false\n")
+		if err := cfg.RequireEnabledProvider("ghost"); !errors.Is(err, ErrProviderDisabled) {
+			t.Fatalf("RequireEnabledProvider(ghost) = %v, want ErrProviderDisabled", err)
+		}
+		if _, err := cfg.ResolveProvider("ghost"); err == nil {
+			t.Fatal("ResolveProvider(ghost) succeeded without a command")
+		}
+		cfg.Providers["ghost"] = ProviderConfig{Enabled: new(true)}
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("Validate() accepted an enabled provider without a command")
+		}
+		cfg.Providers["ghost"] = ProviderConfig{Enabled: new(false)}
+		cfg.Defaults.Provider = "ghost"
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("Validate() accepted an undefined disabled default provider")
+		}
+	})
+
 	t.Run("Should report a disabled built-in loaded from config", func(t *testing.T) {
 		t.Parallel()
 		cfg, _ := loadEnabledTestConfig(t, "[providers.gemini]\nenabled = false\n")

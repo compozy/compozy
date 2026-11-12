@@ -67,7 +67,10 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 	for _, id := range slices.Sorted(maps.Keys(ids)) {
 		provider, err := cfg.ResolveProvider(id)
 		if err != nil {
-			return nil, fmt.Errorf("provider usage: resolve provider: %w", err)
+			if r.logger != nil {
+				r.logger.Warn("provider_usage.provider_unresolved", "profile_id", profileID, "provider", id)
+			}
+			continue
 		}
 		target := providerusage.Target{ProfileID: profileID, ProviderID: id, ProviderName: provider.DisplayName}
 		if target.ProviderName == "" {

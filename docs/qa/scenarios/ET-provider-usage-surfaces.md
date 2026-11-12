@@ -217,3 +217,19 @@ QA impact 2026-11-07 (issue #1326, provider enable toggle): A turned-off provide
 `untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
 
 QA 2026-11-07 (issue #1326): walked in an isolated lab — see `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.
+
+### Incomplete profile provider at startup (#1505)
+
+In an isolated home, add `[providers.ghost]` with `enabled = false` to the default
+profile config, without defining `ghost` globally. Start the daemon with usage
+collection enabled, then repeat with `[provider_usage] enabled = false`. Startup
+must reach readiness, resolvable built-ins and configured aliases must retain their
+usage targets, and `ghost` must be absent. The daemon emits
+`provider_usage.provider_unresolved` with the profile and provider IDs; session
+admission still rejects the undefined provider. Malformed profile TOML remains an
+error. Do not use an operator's real home for this check.
+
+Supporting regression: `TestProviderUsageResolverDisabledProviders` exercises the
+real profile overlay and full daemon boot with collection disabled for credential
+isolation, using temporary homes and dedicated sockets/ports. This is automated runtime
+evidence, not a completed UI walk.
