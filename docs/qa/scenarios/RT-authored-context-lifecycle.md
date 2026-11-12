@@ -56,4 +56,7 @@ The full scenario remains skipped in this provider-free cycle; the linked report
 steps, retained receipts, and excluded upgrade/provider/runtime legs. This is partial scenario coverage,
 not a full-scenario pass.
 
-QA impact 2026-10-07 (memory removal): a `SOUL.md` carrying the retired `memory_policy` frontmatter key stays valid — `compozy agent soul validate` reports it valid with no diagnostic, the key is not rendered, and the file is not rewritten (the Web editor drops it on the next save). The retired workspace-knowledge refresh-on-wake behavior no longer exists. The upgrade leg is walked by RT-upgrade-memory-removal-home; this scenario's verdict is unchanged.
+QA impact v0.6.1: a SOUL.md carrying the retired memory frontmatter key fails validation with
+an unsupported-field diagnostic; the source is not rewritten. The retired workspace-knowledge
+refresh-on-wake behavior remains absent. Run the archival upgrade leg with v0.6.0 before the
+v0.6.1 rejection checks in RT-upgrade-memory-removal-home. Earlier receipts do not cover this change.

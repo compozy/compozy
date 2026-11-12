@@ -150,7 +150,6 @@ func NewEffectivePolicyEvaluator(
 	toolsets ToolsetCatalog,
 	universe []ToolID,
 ) (*EffectivePolicyEvaluator, error) {
-	inputs = dropRetiredPolicyInputs(inputs)
 	normalizedUniverse := normalizeToolUniverse(universe)
 	if err := validatePolicyInputs(inputs); err != nil {
 		return nil, err

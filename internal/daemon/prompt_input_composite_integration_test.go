@@ -271,19 +271,21 @@ func TestPromptInputCompositeIntegrationWorkspaceFilesRemainUserOwned(t *testing
 	})
 }
 
-// Invariant: retired SOUL metadata never prevents session startup or hides active persona.
+// Invariant: startup rejects retired SOUL metadata and succeeds after canonical source recovery.
 // Owner: daemon session startup; canonical suite: prompt_input_composite integration.
 func TestPromptInputCompositeIntegrationSoulRetiredPolicy(t *testing.T) {
-	t.Run("Should start with retained soul content and no retired policy diagnostic [IT-005]", func(t *testing.T) {
+	t.Run("Should reject retired policy and start after canonical source recovery [IT-005]", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
 		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
 		agentPath := filepath.Join(workspace.RootDir, ".compozy", "agents", "coder", "AGENT.md")
 		writePromptKnowledgeFile(t, agentPath, "# Coder")
+		const retiredSoul = "---\nrole: Reviewer\nprinciples: [protect correctness]\n" +
+			"memory_policy: [keep notes]\n---\nKeep the persona."
 		writePromptKnowledgeFile(
 			t,
 			filepath.Join(filepath.Dir(agentPath), "SOUL.md"),
-			"---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: [keep notes]\n---\nKeep the persona.",
+			retiredSoul,
 		)
 		workspace.Agents[0].SourcePath = agentPath
 		daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
@@ -303,6 +305,23 @@ func TestPromptInputCompositeIntegrationSoulRetiredPolicy(t *testing.T) {
 			workspace,
 			driver,
 			session.WithSoulSnapshotStore(deps.SoulStore),
+		)
+		_, err := manager.Create(
+			testutil.Context(t),
+			new(session.CreateOpts{AgentName: "coder", Workspace: workspace.ID}),
+		)
+		if err == nil || !strings.Contains(err.Error(), "memory_policy") {
+			t.Fatalf("retired SOUL startup error = %v", err)
+		}
+		soulPath := filepath.Join(filepath.Dir(agentPath), "SOUL.md")
+		original, err := os.ReadFile(soulPath)
+		if err != nil || string(original) != retiredSoul {
+			t.Fatalf("rejected SOUL changed: %q, %v", original, err)
+		}
+		writePromptKnowledgeFile(
+			t,
+			soulPath,
+			strings.Replace(retiredSoul, "memory_policy: [keep notes]\n", "", 1),
 		)
 		created, err := manager.Create(
 			testutil.Context(t),

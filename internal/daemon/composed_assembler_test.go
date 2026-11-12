@@ -877,11 +877,11 @@ func assertPromptOrder(t *testing.T, value string, tokens []string) {
 	}
 }
 
-// Invariant: legacy persona input retains active content while retired policy stays inert.
+// Invariant: migrated persona content renders without retired policy frames.
 // Owner: daemon prompt rendering. Canonical suite: composed_assembler_test.go.
-func TestSoulPromptIgnoresRetiredMemoryPolicy(t *testing.T) {
+func TestSoulPromptRendersMigratedPersona(t *testing.T) {
 	t.Parallel()
-	t.Run("Should render retained persona from a pre-upgrade document [UT-009]", func(t *testing.T) {
+	t.Run("Should render retained persona from a migrated document [UT-009]", func(t *testing.T) {
 		t.Parallel()
 		resolved, err := soul.Parse(
 			t.Context(),
@@ -889,7 +889,7 @@ func TestSoulPromptIgnoresRetiredMemoryPolicy(t *testing.T) {
 				SourcePath: "SOUL.md",
 				Config:     compozyconfig.DefaultSoulConfig(),
 				Content: []byte(
-					"---\nrole: Reviewer\nprinciples: [protect correctness]\nmemory_policy: [keep notes]\n---\nKeep the persona.",
+					"---\nrole: Reviewer\nprinciples: [protect correctness]\n---\nKeep the persona.",
 				),
 			},
 		)

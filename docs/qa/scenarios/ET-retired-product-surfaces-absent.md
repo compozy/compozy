@@ -94,15 +94,10 @@ Absent surfaces:
   route; `/settings/memory` renders not-found (inside a restored Settings window it lands on the overview);
   Settings lists 18 sections with no Memory; Settings → Roles shows two panels (Coordinator, Auto title);
   Home shows 5 system tiles with no Memory tile; the session context meter has no threshold warning.
-- Retired leftovers are inert, not rejected: a `config.toml` still holding `[memory]`, `[session.compaction]`, a
-  retired role table, a `memory.consolidated` trigger, or a `compaction_reason` / `compaction_strategy` hook matcher
-  loads and is archived as comments (a refused or failed archive only logs `config.retired_keys_archive_failed` and
-  the retired values stay inactive); the same matcher keys in `AGENT.md` and `SKILL.md` hook declarations are
-  ignored with one `agent.retired_entries_ignored` or `skills.retired_entries_ignored` warning per owner and the
-  file stays unchanged; an extension automation resource with a `memory.consolidated` trigger is skipped with
-  `extension.retired_entries_ignored` while the extension's other resources load. Explicit creation (CLI, HTTP, the
-  native tool) of such a trigger or `config set` of such a key is still refused (owned by
-  `RT-upgrade-memory-removal-home`).
+- Starting in v0.6.1, active retired config, SOUL memory_policy, hook matcher keys,
+  extension manifest memory entries and memory.consolidated automation resources fail validation
+  without rewriting files. Policies no longer filter retired atoms. Run v0.6.0 first to archive
+  old config and resolve deferred writes (owned by `RT-upgrade-memory-removal-home`).
 - Prompts and compaction: a new session's first prompt carries no memory startup content and no
   `<workspace-knowledge-snapshot>` block even when `<workspace>/knowledge/` exists; usage at 0.95 of the window
   creates no child session and archives nothing (owned in depth by `RT-pressure-context-compaction`). The surviving
@@ -110,10 +105,10 @@ Absent surfaces:
   `compozy__session_compact` (risk `mutating`), the `context.pre_compact` / `context.post_compact` hooks, and the
   Web Compact now button in the context rail meter section (owned by `ET-session-compact-now`).
 
-Upgrade leg: a disposable home written by the previous release with retired memory tables, `config.toml` tables,
-SOUL `memory_policy`, retired tool IDs, extension memory entries, and a saved Knowledge window is archived or
-ignored without blocking start, with the Markdown memory files left on disk. Walk it through
-`RT-upgrade-memory-removal-home`; do not duplicate it here.
+Upgrade leg: run a disposable old home through v0.6.0 to archive config, then remove SOUL,
+hook, manifest and automation leftovers before v0.6.1. Confirm migrated state and memory files
+remain intact, exact retired tool IDs remain inert and retired toolsets fail catalog validation.
+Walk it through `RT-upgrade-memory-removal-home`; do not duplicate it here.
 
 Not residue: `daemon.memory_report_interval`, the `runtime.memory` doctor probe and `MS-daemon-memory-reporting`
 (process memory), in-memory stores, approval memory (`CH-approval-grant-memory`), and spec-cycle workflow memory

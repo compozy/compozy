@@ -1091,8 +1091,7 @@ func TestResolveAgentAppliesApproveAllProviderMode(t *testing.T) {
 	})
 }
 
-// Invariant: the retired provider_full_access key still loads from every layer for one
-// release and changes nothing; approve-all alone selects the unrestricted mode.
+// Invariant: every config layer rejects the removed provider_full_access key.
 func TestLoadDeprecatedProviderFullAccessKey(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1100,9 +1099,9 @@ func TestLoadDeprecatedProviderFullAccessKey(t *testing.T) {
 		global    string
 		workspace string
 	}{
-		{name: "Should ignore a disabled global key", global: "provider_full_access = false\n"},
-		{name: "Should ignore an enabled global key", global: "provider_full_access = true\n"},
-		{name: "Should accept the key from workspace config", workspace: "provider_full_access = true\n"},
+		{name: "Should reject a disabled global key", global: "provider_full_access = false\n"},
+		{name: "Should reject an enabled global key", global: "provider_full_access = true\n"},
+		{name: "Should reject the key from workspace config", workspace: "provider_full_access = true\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1124,17 +1123,9 @@ func TestLoadDeprecatedProviderFullAccessKey(t *testing.T) {
 				writeFile(t, workspaceConfig, "[permissions]\n"+tc.workspace)
 				opts = append(opts, WithWorkspaceRoot(workspaceRoot))
 			}
-			cfg, err := LoadForHome(homePaths, opts...)
-			if err != nil {
-				t.Fatalf("LoadForHome() error = %v", err)
-			}
-			resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Prompt: "prompt"})
-			if err != nil {
-				t.Fatalf("ResolveAgent() error = %v", err)
-			}
-			options := resolved.ACPOptionsValue()
-			if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" {
-				t.Fatalf("ResolveAgent() ACPOptions = %#v, want agent-full-access mode", options)
+			_, err = LoadForHome(homePaths, opts...)
+			if err == nil || !strings.Contains(err.Error(), "provider_full_access") {
+				t.Fatalf("LoadForHome() error = %v, want removed key error", err)
 			}
 		})
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,15 +56,6 @@ func loadPersistedConfigOverlayWithLockState(
 	if err != nil {
 		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
 	}
-	rendered, archived, err := archiveRetiredMemorySettings(rendered, path)
-	if err != nil {
-		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
-	}
-	rendered, migrated, err := migrateRetiredAlwaysOnTable(rendered, path)
-	if err != nil {
-		return overlay, FileError{Op: configMigrationOperation, Path: path, Err: err}
-	}
-	archived = append(archived, migrated...)
 	overlay, err = decode(rendered, path)
 	if err != nil {
 		return overlay, err
@@ -78,14 +68,7 @@ func loadPersistedConfigOverlayWithLockState(
 			publishErr = publishRetiredConfigArchive(directory, path, original, contents, rendered)
 		}
 		if publishErr != nil {
-			if len(archived) == 0 {
-				return configOverlay{}, publishErr
-			}
-			slog.Warn("config.retired_keys_archive_failed", "path", path, "reason", publishErr.Error())
-			return overlay, nil
-		}
-		if len(archived) > 0 {
-			slog.Warn("config.retired_keys_archived", "path", path, "keys", strings.Join(archived, ","))
+			return configOverlay{}, publishErr
 		}
 	}
 	return overlay, nil

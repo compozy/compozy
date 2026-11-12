@@ -36,10 +36,6 @@ func EditConfigOverlayAndApply(
 	if err != nil {
 		return Config{}, err
 	}
-	contents, _, err = migrateRetiredAlwaysOnTable(contents, target.path)
-	if err != nil {
-		return Config{}, err
-	}
 	editor, err := newOverlayEditor(target.path, contents)
 	if err != nil {
 		return Config{}, err

@@ -618,9 +618,6 @@ func goalCommandRuntimeOptions(
 			Root: workspaceRoot,
 			Files: map[string]string{
 				filepath.Join(compozyconfig.DirName, compozyconfig.ConfigName): `
-[memory]
-enabled = false
-
 [loops.defaults.delivery.runtime_defaults.judge]
 model = "goal-e2e-judge"
 `,

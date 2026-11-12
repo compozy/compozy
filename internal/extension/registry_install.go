@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 
 	"strings"
@@ -279,14 +278,6 @@ func (r *Registry) persistInstalledInfo(
 				store.DefaultProfileID,
 			); err != nil {
 				return fmt.Errorf("extension: persist default-profile enablement for %q: %w", info.Name, err)
-			}
-		}
-		if info.Source == SourceBundled {
-			if err := reconcileSupersededBundledTx(ctx, tx, info.Name, !existed); err != nil {
-				if !errors.Is(err, errBundledMigrationRetained) {
-					return err
-				}
-				slog.Warn("bundled extension migration retained state", "extension", info.Name, "error", err)
 			}
 		}
 

@@ -373,7 +373,9 @@ them. Claude sessions accept `providers.claude.auto_compact_window` (100000–10
 capped at the model window and always forwarded as a full token count,
 with `auto_compact_window` in an agent definition taking precedence. Omission preserves the provider
 default; the value is forwarded on new, load and resume. This is independent of retired
-`session.compaction` keys, which remain archived on load. Manual compaction is requested through the surfaces in
+`session.compaction` keys, which fail validation from v0.6.1 without rewriting the file. Existing
+comment archives remain inactive; run v0.6.0 first if these settings still need migration. Manual
+compaction is requested through the surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 
@@ -480,29 +482,14 @@ provider drops the definition's `command`, `model`, and `reasoning_effort`; a ch
 
 ## Retired Memory And Compaction Settings
 
-A `config.toml` (global, profile, or workspace) that still carries settings of the removed memory and
-CompozyOS-side compaction features loads without failing. On load, CompozyOS archives these settings
-in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoint_summary`,
-`roles.memory_extractor`, `roles.memory_controller`, `session.compaction`, every
-`[[automation.triggers]]` entry whose `event` is `memory.consolidated`, and the hook matcher keys
-`compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
-`# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
-file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
-finds nothing to archive. The archive is a v0.6.1 removal shim. It is non-fatal: if the rewrite is refused
-because the file changed concurrently, or fails because the file or its directory is not writable, the
-loader logs the warning `config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired
-values inactive, leaves the file untouched, and retries on the next load. Treat that warning as work to
-do: fix the permission or finish the edit. (A file whose only retired settings are the older
-`skills.marketplace` values still fails the load when its rewrite cannot publish.) `compozy config set` on
-a retired key is still refused.
+Starting in v0.6.1, retired memory/compaction config and hook matcher keys fail validation;
+the loader no longer archives or ignores them. Run v0.6.0 first to migrate old files,
+resolve deferred writes, then remove leftover declarations from every config scope.
+Existing comment archives remain inactive. The older skill-acquisition archive is unchanged.
 
-The same retirement is ignored, not rejected, in other places: `compaction_reason` and
-`compaction_strategy` in an `AGENT.md` or `SKILL.md` hook matcher are dropped with one
-`agent.retired_entries_ignored` (`agent`, `entries`) or `skills.retired_entries_ignored` warning per
-owner and the file is not rewritten (other invalid fields still fail); an extension manifest entry for
-the removed memory surface, or an extension automation resource whose trigger `event` is
-`memory.consolidated`, is dropped or skipped with `extension.retired_entries_ignored` while the rest of
-the extension loads. Replace the matcher keys with `compaction_trigger` before v0.6.1.
+Remove `compaction_reason` and `compaction_strategy` from AGENT.md and SKILL.md hook matchers
+and extension manifests; declarations now fail validation. Use `compaction_trigger` for context
+hooks. Remove `memory.consolidated` automation triggers and retired memory manifest entries.
 
 ## Auto-Title Role
 

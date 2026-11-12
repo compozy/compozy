@@ -50,19 +50,6 @@ func (p *AgentProcess) validatedUsage(usage TokenUsage) TokenUsage {
 	return validated
 }
 
-func (p *AgentProcess) warnUsageAlias(usage *wireUsage) {
-	if usage == nil || (usage.LegacyCacheReadTokens == nil && usage.LegacyCacheWriteTokens == nil) {
-		return
-	}
-	p.usageAliasWarning.Do(func() {
-		p.usageLogger().Warn(
-			"acp: cacheReadTokens/cacheWriteTokens are deprecated; "+
-				"send cachedReadTokens/cachedWriteTokens (alias removed in v0.6.1)",
-			"session_id", p.SessionID,
-		)
-	})
-}
-
 func (p *AgentProcess) usageLogger() *slog.Logger {
 	if p.logger != nil {
 		return p.logger

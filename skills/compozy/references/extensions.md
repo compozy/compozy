@@ -200,12 +200,11 @@ Plugin sources accept `url` and `git-subdir` source objects and the Codex index
 
 ## Install Trust
 
-Bundled upgrades migrate superseded registrations such as `dev-cycle` to `spec-cycle`, preserving
-compatible installation scopes and profile enablement. Conflicting enablement or untranslatable
-inputs and credentials retain the old registration; inspect `compozy doctor` and migrate that state
-before using its suggested removal command. Doctor names the actual workspace and profile attachment;
-`--global` removes a global attachment or recovers an unattached registration, not every workspace.
-Successor enrollment and scope transfer commit together. The bundled-name translation expires in v0.6.1.
+Starting in v0.6.1, bundled enrollment no longer transfers `dev-cycle` state to `spec-cycle`.
+Existing registrations, files, scopes, enablement, inputs and credentials remain intact.
+Inspect `compozy doctor` and migrate retained predecessor state before using its suggested
+removal command. Doctor names the actual workspace/profile attachment; `--global` does not
+remove every workspace attachment. Run v0.6.0 first if automatic compatible-state transfer is needed.
 
 One extension's startup failure remains visible in status without aborting another package's
 mutation. If a previous failed install left a package with no scoped installations, an operator
@@ -410,10 +409,8 @@ The `context.pre_compact` and `context.post_compact` hooks are observation-only 
 `compaction_trigger` (`requested` or `agent`); see `references/runtime-operations.md`. An `AGENT.md` hook
 cannot target them, because the agent definition adds `matcher.agent_name` and the context family does
 not accept it; declare context hooks in `config.toml`, an extension manifest, or a skill. The retired
-matcher keys `compaction_reason` and `compaction_strategy` are ignored in `AGENT.md`, `SKILL.md`, and
-extension manifest hooks with one `agent.retired_entries_ignored`,
-`skills.retired_entries_ignored`, or `extension.retired_entries_ignored` warning per owner, and archived
-in a `config.toml` (see `references/configuration.md`).
+matcher keys `compaction_reason` and `compaction_strategy` are rejected in v0.6.1 in every
+declaration source. Use `compaction_trigger`; invalid sources remain unchanged.
 
 Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, and `window_manager.*` in `references/window-management.md`.
 

@@ -46,14 +46,13 @@ func TestTokenUsageParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("Should decode canonical adapter cache counters and prefer them over legacy aliases", func(t *testing.T) {
+	t.Run("Should count canonical adapter cache counters only", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
 			name, raw   string
 			read, write int64
 		}{
 			{"Should decode OpenCode buildUsage", `{"inputTokens":10,"outputTokens":2,"totalTokens":12,"cachedReadTokens":4,"cachedWriteTokens":5}`, 4, 5},
-			{"Should preserve decoder aliases", `{"cacheReadTokens":9,"cacheWriteTokens":8}`, 9, 8},
 			{"Should prefer canonical fields", `{"cachedReadTokens":4,"cachedWriteTokens":5,"cacheReadTokens":9,"cacheWriteTokens":8}`, 4, 5},
 			{"Should preserve canonical zero", `{"cachedReadTokens":0,"cachedWriteTokens":0,"cacheReadTokens":9,"cacheWriteTokens":8}`, 0, 0},
 		} {
@@ -71,6 +70,18 @@ func TestTokenUsageParsing(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should ignore removed cache counter aliases", func(t *testing.T) {
+		t.Parallel()
+		var wire wireUsage
+		if err := json.Unmarshal([]byte(`{"cacheReadTokens":9,"cacheWriteTokens":8}`), &wire); err != nil {
+			t.Fatal(err)
+		}
+		got := tokenUsageFromPromptResponse("turn", &wire)
+		if got.CacheReadTokens != nil || got.CacheWriteTokens != nil {
+			t.Fatalf("removed aliases counted: %#v", got)
+		}
+	})
+
 	t.Run("Should retain only sanitized object metadata and overlay reported metadata", func(t *testing.T) {
 		t.Parallel()
 		raw := json.RawMessage(
@@ -139,24 +150,15 @@ func TestTokenUsageParsing(t *testing.T) {
 			t.Fatalf("valid usage changed: %#v / %v", got, dropped)
 		}
 	})
-	t.Run("Should warn once per session for aliases and invalid numbers", func(t *testing.T) {
+	t.Run("Should warn once per session for invalid numbers", func(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer
 		proc := &AgentProcess{SessionID: "session-a", logger: slog.New(slog.NewTextHandler(&logs, nil))}
-		proc.warnUsageAlias(&wireUsage{CachedReadTokens: new(int64(4))})
-		if logs.Len() != 0 {
-			t.Fatal("canonical shape emitted deprecation")
-		}
 		for range 2 {
-			proc.warnUsageAlias(&wireUsage{LegacyCacheReadTokens: new(int64(9))})
 			proc.validatedUsage(TokenUsage{ContextUsed: new(int64(-1))})
 		}
-		text := logs.String()
-		if strings.Count(text, "are deprecated") != 1 || strings.Count(text, "dropped out-of-range") != 1 ||
-			!strings.Contains(text, "cachedReadTokens/cachedWriteTokens") ||
-			!strings.Contains(text, "v0.6.1") ||
-			!strings.Contains(text, "used") {
-			t.Fatalf("warnings: %s", text)
+		if strings.Count(logs.String(), "dropped out-of-range") != 1 || !strings.Contains(logs.String(), "used") {
+			t.Fatalf("warnings: %s", logs.String())
 		}
 		next := &AgentProcess{SessionID: "session-b", logger: proc.logger}
 		next.validatedUsage(TokenUsage{ContextSize: new(int64(0))})

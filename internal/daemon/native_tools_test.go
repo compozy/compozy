@@ -12131,7 +12131,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		},
 	)
 
-	t.Run("Should retain session grants while ignoring retired agent and lineage references", func(t *testing.T) {
+	t.Run("Should reject retired toolsets and retain exact agent and lineage restrictions", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -12168,6 +12168,11 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		}, resolver)
 		rootScope := toolspkg.Scope{SessionID: "sess-root"}
 
+		if _, err := registry.SessionProjection(ctx, rootScope); err == nil ||
+			!strings.Contains(err.Error(), `unknown toolset "compozy__memory"`) {
+			t.Fatalf("retired toolset projection error = %v", err)
+		}
+		agents.agent.Toolsets = []string{toolspkg.ToolsetIDSessions.String()}
 		rootViews, err := registry.SessionProjection(ctx, rootScope)
 		if err != nil {
 			t.Fatalf("SessionProjection(root session) error = %v", err)

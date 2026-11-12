@@ -6,7 +6,7 @@ persona: Rafa
 journey: J-14
 expected: Canonical adapter cache counts reach done events, per-turn projections, transcript usage, and session totals; only sanitized object metadata reaches recorded and live events; invalid context observations are discarded.
 entry_points: ACP provider prompt; session events; prompt SSE; session history; session usage
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260912-context-delivery-details
 fix_status: fixed
 retest_status: pass
@@ -28,8 +28,9 @@ Metadata must not become database columns or counters. Replayed usage carries th
 
 Send an invalid `{used:-5,size:0}` update followed by `{used:80,size:100}`. Only the valid update
 becomes a usage observation. Repeated invalid updates log one field-naming warning per session.
-Send legacy cache names twice and verify one deprecation warning naming canonical replacements and
-v0.6.1; canonical values win when both names are supplied.
+Send removed `cacheReadTokens` / `cacheWriteTokens` names and confirm cache counts stay absent.
+Send canonical values, including zero, alongside aliases and confirm only canonical values count.
+The alias deprecation warning ended with v0.6.1. Current-head CI owns verification; no local walk is authorized.
 
 Upgrade a previous-version database containing token totals. Existing totals and turns survive;
 new cache columns initially read NULL. `token_usage_daily` retains its existing shape.

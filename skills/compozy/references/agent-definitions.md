@@ -355,14 +355,12 @@ install changes face without its file being rewritten. The CLI sets the plate wi
 The release after v0.5.2 removes `stays_on` input compatibility. Use `always_on` in AGENT.md,
 `--kind`, HTTP/UDS create/update/duplicate and native creation. Old input fails with
 `agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
-Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Canonical keys
-win conflicts; original values and source text are retained as inactive comments. Persisted
-AGENT.md files migrate when loaded from any discovery root, including extension roots.
-Writable user-owned scalar layouts update only the kind value. Extension packages are never edited. Read-only files and unsupported edit layouts
-still decode as `always_on` and log guidance to update the source before v0.6.1.
-This single persisted-file shim generation is scheduled for removal in v0.6.1.
-CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
-update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
+Starting in v0.6.1, persisted `[agents.stays_on]` tables and AGENT.md `kind: stays_on`
+are rejected without rewriting their files. Use `[agents.always_on]` and `kind: always_on`.
+The lossless file migration shipped through v0.6.0; run v0.6.0 before v0.6.1 if these files
+have not been migrated, and resolve any deferred-migration warning before upgrading.
+Already archived comments remain inactive. The v0.5.1 database migration is retained.
+CLI/native retired paths keep their replacement guidance.
 
 ## Always-on approval authority
 
@@ -390,7 +388,7 @@ On-demand children resolve their own definition or settings level.
 
 `approve-all` alone selects the unrestricted mode, also Copilot `allow_all = on` and `agy` `yolo`; an agent's explicit
 `mode` or `allow_all` selection wins, and a narrower session level drops it. The deprecated
-`permissions.provider_full_access` key has no effect and is removed in v0.6.1.
+`permissions.provider_full_access` key is rejected in v0.6.1; remove it and use `permissions.mode`.
 If a provider does not uniquely advertise a `mode` config option, Full access skips the unrestricted
 startup selection. Later runtime changes may retain that same skipped intent without applying it;
 new mode selections still require a unique advertisement. Advertised options require supported

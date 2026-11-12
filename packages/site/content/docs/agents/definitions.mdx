@@ -489,9 +489,8 @@ Watch issues and propose the next step.
 Declaring `always_on` in an extension does not start a session or create an instance.
 The release after v0.5.2 rejects `stays_on` with `agent_kind_invalid`:
 "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
-Persisted definitions migrate on load, including repository, workspace-profile, additional-root
-and extension files. Read-only or unsupported edit layouts decode canonically and log guidance
-to update the source before the persisted-file migration shim is removed in v0.6.1.
+Persisted definitions using `stays_on` are rejected in v0.6.1 without rewriting their files.
+Run v0.6.0 to migrate older definitions, then use `always_on` in every discovery root.
 Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless

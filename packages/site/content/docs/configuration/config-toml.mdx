@@ -15,8 +15,8 @@ audit row.
 | `<workspace>/.compozy/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.compozy/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
-Unknown TOML keys are errors. Use the supported sections below. Retired tables are the one exception:
-CompozyOS archives them on load instead of failing; see
+Unknown TOML keys are errors. Use the supported sections below. Retired skill-acquisition settings
+retain a dedicated archive-on-load migration; other expired settings fail validation. See
 [Archived retired settings](#archived-retired-settings).
 
 <OperatorNote>
@@ -115,49 +115,15 @@ global and workspace MCP sidecars for session and runtime resolution.
 
 ## Archived retired settings
 
-A `config.toml` that still carries settings for features CompozyOS removed does not fail on those
-settings. Whenever the loader reads the global file, a profile file, or a workspace file, it archives
-these retired settings in place:
+The memory/compaction archive shim ended in v0.6.1. Active retired memory settings, retired roles,
+CompozyOS-side compaction settings, and removed memory-consolidation triggers and `compaction_reason` / `compaction_strategy`
+hook matchers fail validation. Files remain unchanged when rejected.
+Run v0.6.0 first to archive old config losslessly and resolve deferred writes before upgrading.
+Previously archived comments remain inactive. See the [migration guide](/docs/migration#memory-removal).
 
-- the `memory` table and all of its sub-tables, in any TOML form (table headers, dotted keys, or
-  inline tables);
-- the Dream, memory extractor, memory controller, and checkpoint summary role tables under `roles`;
-- the CompozyOS-side compaction table under `session`;
-- every `[[automation.triggers]]` entry for the removed memory-consolidation event;
-- the `compaction_reason` and `compaction_strategy` keys of a hook `matcher`. The hook declaration
-  and its other matcher keys stay active; see [Hook declarations](/docs/hooks/declaration#matchers).
-
-The [migration guide](/docs/migration#memory-removal) lists the exact keys and the upgrade steps.
-
-For each file that holds any of them, the loader:
-
-1. removes the retired settings from the live file and leaves every other setting and comment as it
-   was;
-2. appends the removed values to the end of the same file as a commented block. A blank line and the
-   line `# Archived retired memory and compaction settings; these values are inactive.` open the
-   block, and every archived TOML line starts with `# `. A retired matcher key is archived next to
-   the `name` of the hook it came from;
-3. rewrites the file atomically, only after the remaining settings decode;
-4. logs a `config.retired_keys_archived` warning once, with the `path` of the file and a `keys` field
-   that lists the archived settings, sorted and comma-separated, for example
-   `keys=hooks.declarations.matcher.compaction_reason,memory,roles.dream`.
-
-The archived values stay in the file as comments and no longer apply. The next load finds nothing to
-archive, leaves the file byte for byte unchanged, and logs nothing. The archive step is a
-compatibility shim that CompozyOS removes in v0.6.1.
-
-Archiving these settings never stops the load. The rewrite is guarded against concurrent edits: just before it
-writes, the loader re-reads the file and requires the same file with the same bytes. If an editor,
-another process, or another daemon changed or replaced the file in between, or the loader cannot
-write the file or its directory (for example a read-only directory), nothing is written and your
-file stays exactly as it was. The loader logs a `config.retired_keys_archive_failed` warning with
-the `path` of the file and the `reason`, and loads the rest of the file with the retired settings
-inactive. They are only inactive, not removed: the file keeps them until an archive succeeds, so
-treat the warning as something to act on. Make the file or directory writable, or finish editing,
-and the next load archives the current content and logs `config.retired_keys_archived`. The daemon
-starts either way.
-
-Setting a retired key with `compozy config set` is still refused.
+The separate archive for retired `skills.marketplace` and `skills.allowed_marketplace_mcp` settings
+remains supported. These entries become inactive comments. If the archive cannot be written, loading
+fails and the original file remains unchanged.
 
 ## Complete Annotated Example
 
@@ -1634,10 +1600,9 @@ digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 
-| Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                             |
-| ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                                |
-| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Deprecated, no effect: `approve-all` selects the provider's unrestricted mode. Loaded with a warning through v0.6.0; removed in v0.6.1. |
+| Field  | Type   | Default       | Valid values                                                        | Description                                                                              |
+| ------ | ------ | ------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `mode` | string | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never
@@ -2750,7 +2715,7 @@ Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `worksp
 `tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, and `compaction_trigger`.
 Each event family accepts only some of them. `compaction_trigger` is `requested` or `agent` and
 narrows `context.pre_compact` and `context.post_compact`, which observe real agent compactions;
-`compaction_reason` and `compaction_strategy` are retired and archived on load. See
+`compaction_reason` and `compaction_strategy` are rejected in v0.6.1; use `compaction_trigger`. See
 [Hook declarations](/docs/hooks/declaration#matchers).
 
 Current hook events are:

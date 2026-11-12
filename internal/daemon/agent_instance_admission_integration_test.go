@@ -2053,32 +2053,55 @@ func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
 	t.Fatal("session_prompt descriptor is missing")
 }
 
-// Invariant: boot and discovery migrate persisted definitions without changing unrelated bytes.
-func TestAgentKindAliasBootIntegration(t *testing.T) {
-	t.Run("Should migrate persisted definitions on boot and discovery", func(t *testing.T) {
-		var paths []string
-		seed := func(path string) {
-			t.Helper()
+// Invariant: boot rejects retired global files; workspace discovery diagnoses and omits them.
+// Owner: daemon resource publication/discovery. Canonical suite: admission integration.
+func TestAgentKindRetirementBootIntegration(t *testing.T) {
+	const retiredDefinition = "---\nname: retired\nkind: stays_on\n---\nWatch.\n"
+	seed := func(t *testing.T, paths []string) {
+		t.Helper()
+		for _, path := range paths {
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(
-				path,
-				[]byte("---\nname: retired\nkind: stays_on\n---\nWatch.\n"),
-				0600,
-			); err != nil {
+			if err := os.WriteFile(path, []byte(retiredDefinition), 0600); err != nil {
 				t.Fatal(err)
 			}
-			paths = append(paths, path)
 		}
-		home := testHomePaths(t)
-		d := newTestDaemon(t, home, testConfigPtr(t, home))
-		seed(filepath.Join(home.AgentsDir, "retired", "AGENT.md"))
-		seed(filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"))
-		if err := d.boot(t.Context()); err != nil {
-			t.Fatalf("boot error = %v", err)
+	}
+	assertUnchanged := func(t *testing.T, paths []string) {
+		t.Helper()
+		for _, path := range paths {
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != retiredDefinition {
+				t.Fatalf("rejected definition changed %s: %q %v", path, body, err)
+			}
 		}
+	}
 
+	t.Run("Should reject retired global definitions and boot after canonical recovery", func(t *testing.T) {
+		home := testHomePaths(t)
+		paths := []string{
+			filepath.Join(home.AgentsDir, "retired", "AGENT.md"),
+			filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"),
+		}
+		seed(t, paths)
+		d := newTestDaemon(t, home, testConfigPtr(t, home))
+		if err := d.boot(t.Context()); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) ||
+			!strings.Contains(err.Error(), "always_on") {
+			t.Fatalf("boot error = %v, want rejected retired kind with replacement guidance", err)
+		}
+		assertUnchanged(t, paths)
+
+		canonical := strings.Replace(retiredDefinition, "kind: stays_on", "kind: always_on", 1)
+		for _, path := range paths {
+			if err := os.WriteFile(path, []byte(canonical), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		d = newTestDaemon(t, home, testConfigPtr(t, home))
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatalf("boot after canonical recovery: %v", err)
+		}
 		t.Cleanup(func() {
 			if err := d.Shutdown(context.Background()); err != nil {
 				t.Error(err)
@@ -2086,20 +2109,57 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		})
 		for _, path := range paths {
 			body, err := os.ReadFile(path)
-			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
-				t.Fatalf("boot did not migrate %s: %q %v", path, body, err)
+			if err != nil || string(body) != canonical {
+				t.Fatalf("canonical definition changed %s: %q %v", path, body, err)
 			}
 		}
+	})
 
-		root := t.TempDir()
-		seed(filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"))
-		seed(filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"))
-		resolveDaemonWorkspace(t, d.workspaceResolver, root)
-		for _, path := range paths {
-			body, err := os.ReadFile(path)
-			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
-				t.Fatalf("definition changed: %q %v", body, err)
+	t.Run("Should diagnose retired workspace definitions without cataloging or rewriting them", func(t *testing.T) {
+		home := testHomePaths(t)
+		d := newTestDaemon(t, home, testConfigPtr(t, home))
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatalf("boot error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		root := canonicalDaemonRoot(t, t.TempDir())
+		paths := []string{
+			filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"),
+			filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"),
+		}
+		seed(t, paths)
+		resolver, ok := d.workspaceResolver.(workspacepkg.ProfileRegistrationResolver)
+		if !ok {
+			t.Fatal("workspace resolver does not support profile registration")
+		}
+		resolved, err := resolver.ResolveOrRegisterForProfile(
+			t.Context(),
+			root,
+			compozyconfig.DefaultProfileDirName,
+		)
+		if err != nil {
+			t.Fatalf("resolve workspace with default profile: %v", err)
+		}
+		for _, agent := range resolved.Agents {
+			if agent.Name == "retired" {
+				t.Fatal("retired definition entered the agent catalog")
 			}
 		}
+		for _, path := range paths {
+			found := false
+			for _, diagnostic := range resolved.AgentDiagnostics {
+				if diagnostic.Path == path && strings.Contains(diagnostic.Message, "always_on") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("missing retired-kind diagnostic for %s: %#v", path, resolved.AgentDiagnostics)
+			}
+		}
+		assertUnchanged(t, paths)
 	})
 }

@@ -87,7 +87,6 @@ type AgentProcess struct {
 	compactionTerminalOrder []string
 	retiredCompactions      map[string]struct{}
 	unknownUpdates          map[string]struct{}
-	usageAliasWarning       sync.Once
 	usageRangeWarning       sync.Once
 	triagePolicyErr         error // Protected by promptMu; a mode violation permanently fences new prompts.
 	promptMu                sync.RWMutex
