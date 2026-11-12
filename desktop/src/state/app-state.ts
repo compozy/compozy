@@ -198,7 +198,12 @@ export class AppStatePublisher {
 
   async publish(snapshot: ShellSnapshot): Promise<void> {
     if (this.#closed) return;
-    this.#snapshot = snapshot;
+    const previousAttempt =
+      this.#snapshot.state === "starting" ? this.#snapshot.attempt : undefined;
+    this.#snapshot =
+      snapshot.state === "starting"
+        ? { ...snapshot, attempt: snapshot.attempt ?? previousAttempt ?? 1 }
+        : snapshot;
     await this.#persist();
   }
 

@@ -148,3 +148,25 @@ result requires a `command_id`; the owning E2E now selects that exact command's
 row and still requires both `approved_once` and the expected terminal ID. It
 does not select by the expected approval value or weaken the approval invariant.
 Current-head CI must confirm the repaired correlation and remaining UI walk.
+
+## Desktop first-run state record (#1595)
+
+The later #1547 comment 6813880087 retains [Desktop first-run job 130953022505](https://github.com/compozy/compozy/actions/runs/43148743622/job/130953022505):
+the real CLI rejects a boot snapshot missing `attempt`. Source confirms the
+`starting/ready` projection omits it and the app-state writer persisted it as-is,
+although the shared schema requires it throughout `starting`. Product publication
+is asynchronous after renderer load, exposing this transient record.
+
+The owning writer now supplies the first attempt and retains an explicit reported
+attempt across readiness. Leaving `starting` clears that carry-over. The existing
+publisher suite reads real temporary files across start, ready and fresh-start
+transitions. The existing Electron first-run journey waits for asynchronous
+product-state publication through the same strict CLI, preserving its full
+installed/running/product/attached/owned assertions. The schema and validation are
+unchanged; no new field, version or migration is introduced. CI owns all execution.
+
+A contradictory existing upper bound remains explicit: CLI
+`bootstrapMaximumAttempts` is 5 and the Desktop preload accepts up to 5, while
+`desktop/schema/app-state.schema.json` caps attempts at 3. Resolving that public
+contract requires its own compatibility decision. This missing-field fix preserves
+actual explicit counts and does not clamp them or relax the schema.
