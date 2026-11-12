@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.1 - 2026-11-12
+
+### Bug Fixes
+
+- Point the Atlassian extension at the v2 MCP endpoint (#1551)
+- Keep issue triage running when a gh search flag is rejected
+- Encode triage search queries and define retryable gh errors
+- Make issue intake failures reach maestro
+- Preserve requested reasoning during Goal rotation (#1555)
+- Align Loop ACP provenance with applied options (#1554)
+- Keep daemon booting with undefined disabled providers (#1556)
+- Isolate native tool state and enrich retired task results (#1558)
+- Honor recurring catch-up policies after host sleep (#1569)
+- Keep loaded transcript messages stable when a live entry rolls pages (#1571)
+- Retire stale terminal windows and open agent terminals on demand (#1570)
+- Keep skill documents inline without duplicate result content (#1575)
+- Recover heartbeat cadence after runtime configuration repairs (#1584)
+- Preserve exact Claude models during session recovery (#1560)
+- Watch explicitly selected fork pull requests (#1578)
+- Resolve current heartbeat policy for manual wakes (#1579)
+- Reconcile Goal ACP provenance and prove cleanup delivery (#1574)
+- Retire pre-view Loop pin translation in v0.6.1 (#1590)
+- Resume agent instances after daemon listeners start (#1591)
+- Accept check-in proposals with surrounding prose (#1589)
+- Keep UDS and HTTP harness lifecycle parity with standing context (#1594)
+- Reconnect the window-manager stream after a client-side failure (#1583)
+- Keep unusable SQLite controls from rejecting compliant heads (#1592)
+- Allow terminal exec to target managed worktrees (#1585)
+- Group native recovery reads and expose reply watches (#1576)
+- Avoid duplicate and stale child early-stop wakes (#1586)
+- Validate heartbeat health requests and synchronize daemon boot (#1582)
+- Return admitted automation runs before agent completion (#1587)
+- Retry terminal attach attempts that stall before ATTACHED (#1609)
+- Preserve exact Claude models on fresh startup (#1610)
+- Prevent child reply and attention wake starvation (#1604)
+- Keep boot window progress, attempts and versions accurate across retries
+
+### Features
+
+- Add bundled interface fonts, text size and letter spacing to CompozyOS Appearance (#1550)
+- Reveal model names and page the provider filter rail (#1536)
+- Bind operator rules and peer roster into always-on agent context (#1572)
+- Fold worktrees under projects in the terminal picker (#1599)
+- Redesign the desktop boot window with real upgrade progress (#1600)
+
+### Miscellaneous Tasks
+
+- Route workspace heartbeat triage to claude-haiku-5-5
+
+### Refactoring
+
+- Remove compatibility shims expired in v0.6.1 (#1593)
+- Split the desktop boot draft and address its review notes
+
+### Testing
+
+- Cover the composer context toggle and pin process fixture identities (#1577)
+- Expect the boot window font-src CSP in E2E-034
+
 ## 0.6.0 - 2026-11-11
 
 ### Bug Fixes
@@ -1415,6 +1474,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.6.1]: https://github.com/compozy/compozy/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/compozy/compozy/compare/v0.5.5...v0.6.0
 [0.5.5]: https://github.com/compozy/compozy/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/compozy/compozy/compare/v0.5.3...v0.5.4
