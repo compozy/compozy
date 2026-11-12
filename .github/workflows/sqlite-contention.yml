@@ -30,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: sqlite-contention-${{ github.ref }}
+  group: sqlite-contention-${{ github.ref }}-${{ inputs.trace_run_id && 'analysis' || inputs.runtime_trace_trials && 'traced' || 'acceptance' }}
   cancel-in-progress: true
 
 env:
