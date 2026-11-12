@@ -6,6 +6,7 @@ on:
       - internal/daemon/daemon_test.go
       - internal/providerusage/service_test.go
       - internal/cli/cli_integration_test.go
+      - internal/session/manager_busy_input_test.go
       - .github/workflows/daemon-followup-diagnostics.yml
   workflow_dispatch:
 
@@ -41,3 +42,14 @@ jobs:
       - uses: ./.github/actions/setup-go
       - name: Repeat compact integration with original shutdown deadlines
         run: go test -race -tags=integration ./internal/cli -run '^TestSessionCompactIntegration$' -count=20 -parallel=4 -timeout=15m -v
+
+  boundary-steer-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - name: Repeat boundary steering with original drain deadlines
+        run: go test -race ./internal/session -run '^TestManagerBoundarySteer$' -count=20 -parallel=4 -timeout=15m -v

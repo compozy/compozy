@@ -3,6 +3,23 @@
 Refs #1547. Source inspection and retained CI logs only; no local test, lint,
 build, daemon or QA execution is claimed. CI on the PR head owns validation.
 
+## Boundary steering drain timeout
+
+[Full integration shard 5, job 131045669959](https://github.com/compozy/compozy/actions/runs/43177532728/job/131045669959)
+on `188533440` failed two existing `TestManagerBoundarySteer` cases at
+`WaitForPromptDrains`: transient boundary queue failure and delayed native refusal
+followed by a timeout. The active stream had drained, but a tracked task remained.
+The log contains only a context deadline, so the task and cause are unconfirmed.
+This package invocation failed before the daemon invocation; it does not verify
+the preceding standing-context overflow correction.
+
+The owning suite now captures a bounded 1 MiB stack dump with manager, session,
+turn and truncation identity on that error. A separate CI-only race job repeats
+the existing suite twenty times. The invariant remains correct boundary steering
+and complete owned task drainage under the original five-second context. All
+behavioral assertions, deadlines and cleanup remain unchanged. This is diagnostic
+instrumentation pending attributable evidence, not a claimed production fix.
+
 ## Standing-context overflow fixture after #1572 integration
 
 [Full integration shard 5, job 131023234338](https://github.com/compozy/compozy/actions/runs/43170690094/job/131023234338)
