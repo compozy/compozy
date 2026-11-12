@@ -26,6 +26,7 @@ type restartRequestRuntime struct {
 	executable    func() (string, error)
 	startDetached detachedStartFunc
 	signalProcess func(int, syscall.Signal) error
+	preflight     restartPreflightFunc
 }
 
 func defaultDetachedStart(ctx context.Context, req detachedStartRequest) (restartProcess, error) {

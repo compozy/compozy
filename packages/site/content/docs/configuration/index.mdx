@@ -107,3 +107,11 @@ Status values are intentionally small:
 `next_action` tells operators what to do next: `none`, `restart-daemon`, `new-session`, or `retry`.
 CompozyOS does not roll back `config.toml` after a reload failure; the apply record is the audit surface
 that explains why the active generation did or did not advance.
+
+A restart checks the replacement runtime before the running daemon stops. The installed binary loads
+`config.toml` and plans the global database upgrade without changing either. If it reports that it
+cannot start, for example because of an invalid config key or a database written by a newer release,
+the restart is refused: the running daemon keeps serving, `POST /api/settings/actions/restart`
+returns `409` with the reason, and the restart operation is recorded as `failed` with the same
+`failure_reason`. Fix the reported problem and restart again. A binary that cannot run the check, or
+does not answer within a few seconds, restarts as before.

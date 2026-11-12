@@ -318,6 +318,7 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 			return restartProcessStub{pid: os.Getpid()}, nil
 		}
 		d.signalProcess = func(int, syscall.Signal) error { return nil }
+		d.preflightReplacement = stubRestartPreflight(restartPreflightUnavailable)
 		if _, err := d.RequestRestart(t.Context()); err != nil {
 			t.Fatal(err)
 		}

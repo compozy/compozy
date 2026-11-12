@@ -95,8 +95,10 @@ func restartTransitionAllowed(current RestartStatus, next RestartStatus) bool {
 	}
 }
 
-// RequestRestart creates the persisted restart operation, launches the detached relaunch helper,
-// and signals the running daemon to enter its normal graceful shutdown path.
+// RequestRestart creates the persisted restart operation, pre-flights the replacement binary,
+// launches the detached relaunch helper, and signals the running daemon to enter its normal
+// graceful shutdown path. A replacement that reports it cannot boot fails the operation with
+// ErrRestartPreflightFailed before anything is launched or signaled.
 func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 	if ctx == nil {
 		return RestartOperation{}, errors.New("daemon: restart context is required")
@@ -110,6 +112,10 @@ func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 	operation, err := store.Create(runtime.newOperation())
 	if err != nil {
 		return RestartOperation{}, err
+	}
+
+	if err := runtime.preflightReplacement(ctx, operation.OperationID); err != nil {
+		return failRestartOperation(store, operation, restartPreflightFailureAction, err)
 	}
 
 	if err := runtime.launchRelaunchHelper(ctx, d.homePaths, operation.OperationID); err != nil {
@@ -144,6 +150,7 @@ func (d *Daemon) restartRequestRuntime() (restartRequestRuntime, error) {
 	executable := d.executable
 	startDetached := d.startDetached
 	signalProcess := d.signalProcess
+	preflight := d.preflightReplacement
 	d.mu.Unlock()
 
 	if startedAt.IsZero() || pidFn == nil {
@@ -178,6 +185,7 @@ func (d *Daemon) restartRequestRuntime() (restartRequestRuntime, error) {
 		executable:    executable,
 		startDetached: startDetached,
 		signalProcess: signalProcess,
+		preflight:     preflight,
 	}, nil
 }
 

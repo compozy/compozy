@@ -47,6 +47,12 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 uses that runtime truth, including changes saved from CLI or API after a previous restart.
 Choosing **Not now** dismisses the observed change; a later apply record can show the notice again.
 
+`POST /api/settings/actions/restart` (HTTP or UDS) pre-flights the replacement binary before the
+running daemon is signaled: config load and validation, plus a read-only global database migration
+plan. A positive failure returns `409` with the reason, records the restart operation as `failed`
+with that `failure_reason`, and leaves the running daemon serving; fix the cause and request the
+restart again. An unavailable or timed-out pre-flight never blocks the restart.
+
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
 

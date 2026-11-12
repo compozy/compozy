@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/admission"
+	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1665,6 +1668,382 @@ func TestRestartExecutableSurvivesBinarySwap(t *testing.T) {
 		cmd.Env = append(os.Environ(), "COMPOZY_RESTART_EXECUTABLE_PROBE="+probe)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("binary swap probe: %v\n%s", err, output)
+		}
+	})
+}
+
+// stubRestartPreflight keeps restart tests from executing a replacement binary.
+func stubRestartPreflight(status restartPreflightStatus) restartPreflightFunc {
+	return func(context.Context, restartPreflightRequest) restartPreflightOutcome {
+		return restartPreflightOutcome{status: status}
+	}
+}
+
+func TestRequestRestartPreflightsReplacementBeforeSignal(t *testing.T) {
+	t.Parallel()
+
+	type restartProbe struct {
+		daemon      *Daemon
+		homePaths   compozyconfig.HomePaths
+		preflighted []restartPreflightRequest
+		launched    int
+		signaled    int
+	}
+	newProbe := func(t *testing.T, outcome restartPreflightOutcome) *restartProbe {
+		t.Helper()
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.config = cfg
+		d.startedAt = time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+		d.pid = func() int { return 4242 }
+		d.executable = func() (string, error) { return "/usr/bin/compozy", nil }
+		probe := &restartProbe{daemon: d, homePaths: homePaths}
+		d.preflightReplacement = func(_ context.Context, req restartPreflightRequest) restartPreflightOutcome {
+			if probe.launched != 0 || probe.signaled != 0 {
+				t.Errorf("pre-flight ran after launch=%d signal=%d, want before both", probe.launched, probe.signaled)
+			}
+			probe.preflighted = append(probe.preflighted, req)
+			return outcome
+		}
+		d.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
+			probe.launched++
+			return restartProcessStub{pid: 9001}, nil
+		}
+		d.signalProcess = func(int, syscall.Signal) error {
+			probe.signaled++
+			return nil
+		}
+		return probe
+	}
+
+	t.Run("Should keep the daemon unsignaled and record the failure when pre-flight fails", func(t *testing.T) {
+		t.Parallel()
+		reason := "config: daemon: load global config: unknown key"
+		probe := newProbe(t, restartPreflightOutcome{status: restartPreflightFailed, reason: reason})
+
+		_, err := settingsRestartController{daemon: probe.daemon}.RequestRestart(testutil.Context(t))
+		if !errors.Is(err, ErrRestartPreflightFailed) || !strings.Contains(err.Error(), reason) {
+			t.Fatalf("RequestRestart() error = %v, want pre-flight failure carrying %q", err, reason)
+		}
+		if got, want := core.StatusForSettingsError(err), http.StatusConflict; got != want {
+			t.Fatalf("StatusForSettingsError() = %d, want %d so transports do not mask the reason", got, want)
+		}
+		if probe.launched != 0 || probe.signaled != 0 {
+			t.Fatalf("launched=%d signaled=%d, want the running daemon untouched", probe.launched, probe.signaled)
+		}
+		probe.daemon.mu.Lock()
+		restartRequested := probe.daemon.restartRequested
+		probe.daemon.mu.Unlock()
+		if restartRequested {
+			t.Fatal("restartRequested = true, want the daemon to keep serving")
+		}
+		if got := len(probe.preflighted); got != 1 {
+			t.Fatalf("pre-flight runs = %d, want 1", got)
+		}
+		request := probe.preflighted[0]
+		if request.binary != "/usr/bin/compozy" ||
+			strings.Join(request.args, " ") != "daemon "+RestartPreflightCommand {
+			t.Fatalf("pre-flight request = %q %q, want the daemon pre-flight", request.binary, request.args)
+		}
+		if got := envValue(request.sandbox, RestartOperationEnvKey); got != "" {
+			t.Fatalf("pre-flight env restart operation id = %q, want no internal handoff state", got)
+		}
+
+		entries, err := os.ReadDir(probe.homePaths.RestartsDir)
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("restart journal entries = %d, %v; want exactly one failed operation", len(entries), err)
+		}
+		operationID := strings.TrimSuffix(entries[0].Name(), ".json")
+		persisted, err := ReadRestartOperation(probe.homePaths, operationID)
+		if err != nil {
+			t.Fatalf("ReadRestartOperation() error = %v", err)
+		}
+		if got, want := persisted.Status, RestartStatusFailed; got != want {
+			t.Fatalf("persisted.Status = %q, want %q", got, want)
+		}
+		if !strings.Contains(persisted.FailureReason, reason) {
+			t.Fatalf("persisted.FailureReason = %q, want %q", persisted.FailureReason, reason)
+		}
+	})
+
+	proceeding := []struct {
+		name   string
+		status restartPreflightStatus
+	}{
+		{name: "Should restart when the replacement passes pre-flight", status: restartPreflightPassed},
+		{
+			name:   "Should restart as before when the replacement does not support pre-flight",
+			status: restartPreflightUnavailable,
+		},
+		{name: "Should restart as before when pre-flight times out", status: restartPreflightTimedOut},
+	}
+	for _, tc := range proceeding {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			probe := newProbe(t, restartPreflightOutcome{status: tc.status, reason: "not conclusive"})
+
+			operation, err := probe.daemon.RequestRestart(testutil.Context(t))
+			if err != nil {
+				t.Fatalf("RequestRestart() error = %v", err)
+			}
+			if got, want := operation.Status, RestartStatusStopping; got != want {
+				t.Fatalf("operation.Status = %q, want %q", got, want)
+			}
+			if len(probe.preflighted) != 1 || probe.launched != 1 || probe.signaled != 1 {
+				t.Fatalf(
+					"preflight=%d launched=%d signaled=%d, want one of each",
+					len(probe.preflighted), probe.launched, probe.signaled,
+				)
+			}
+		})
+	}
+}
+
+func TestClassifyRestartPreflight(t *testing.T) {
+	t.Parallel()
+
+	failedReport := `{"schema":"` + RestartPreflightSchema + `","ok":false,"stage":"config","error":"bad key"}`
+	passedReport := `{"schema":"` + RestartPreflightSchema + `","ok":true,"warnings":["plan not conclusive"]}`
+	cases := []struct {
+		name       string
+		stdout     string
+		waitErr    error
+		ctxErr     error
+		wantStatus restartPreflightStatus
+		wantReason string
+	}{
+		{
+			name:       "Should fail on a positive failure report",
+			stdout:     "noise\n" + failedReport + "\n",
+			waitErr:    errors.New("exit status 1"),
+			wantStatus: restartPreflightFailed,
+			wantReason: "config: bad key",
+		},
+		{
+			name:       "Should fail on a positive failure report even after the timeout",
+			stdout:     failedReport,
+			waitErr:    errors.New("signal: killed"),
+			ctxErr:     context.DeadlineExceeded,
+			wantStatus: restartPreflightFailed,
+			wantReason: "config: bad key",
+		},
+		{
+			name:       "Should pass on a passing report",
+			stdout:     passedReport + "\n",
+			wantStatus: restartPreflightPassed,
+			wantReason: "plan not conclusive",
+		},
+		{
+			name:       "Should be unavailable when an older binary prints help and exits zero",
+			stdout:     "Manage the CompozyOS daemon\n\nUsage:\n  compozy daemon [command]\n",
+			wantStatus: restartPreflightUnavailable,
+		},
+		{
+			name:       "Should be unavailable when an older binary rejects the unknown command",
+			waitErr:    errors.New("exit status 1"),
+			wantStatus: restartPreflightUnavailable,
+			wantReason: "exit status 1",
+		},
+		{
+			name:       "Should be unavailable for a report of another schema",
+			stdout:     `{"schema":"compozy.daemon.preflight/v9","ok":false,"error":"future"}`,
+			waitErr:    errors.New("exit status 1"),
+			wantStatus: restartPreflightUnavailable,
+		},
+		{
+			name:       "Should time out when nothing was reported before the deadline",
+			waitErr:    errors.New("signal: killed"),
+			ctxErr:     context.DeadlineExceeded,
+			wantStatus: restartPreflightTimedOut,
+		},
+		{
+			name:       "Should be unavailable when the request was canceled",
+			waitErr:    errors.New("signal: killed"),
+			ctxErr:     context.Canceled,
+			wantStatus: restartPreflightUnavailable,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			outcome := classifyRestartPreflight([]byte(tc.stdout), tc.waitErr, tc.ctxErr)
+			if outcome.status != tc.wantStatus {
+				t.Fatalf("status = %q (%s), want %q", outcome.status, outcome.reason, tc.wantStatus)
+			}
+			if !strings.Contains(outcome.reason, tc.wantReason) {
+				t.Fatalf("reason = %q, want it to contain %q", outcome.reason, tc.wantReason)
+			}
+		})
+	}
+}
+
+func TestDefaultRestartPreflightRunsReplacementCommand(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell as the replacement command")
+	}
+
+	failedReport := `{"schema":"` + RestartPreflightSchema + `","ok":false,"stage":"migration_plan","error":"ahead"}`
+	passedReport := `{"schema":"` + RestartPreflightSchema + `","ok":true}`
+	cases := []struct {
+		name       string
+		binary     string
+		script     string
+		timeout    time.Duration
+		wantStatus restartPreflightStatus
+		wantReason string
+	}{
+		{
+			name:       "Should report the failure the replacement printed before exiting non-zero",
+			binary:     "/bin/sh",
+			script:     "printf '%s\\n' '" + failedReport + "'; exit 1",
+			wantStatus: restartPreflightFailed,
+			wantReason: "migration_plan: ahead",
+		},
+		{
+			name:       "Should pass when the replacement reports it can boot",
+			binary:     "/bin/sh",
+			script:     "printf '%s\\n' '" + passedReport + "'",
+			wantStatus: restartPreflightPassed,
+		},
+		{
+			name:       "Should be unavailable when the replacement prints no report",
+			binary:     "/bin/sh",
+			script:     "echo usage; exit 0",
+			wantStatus: restartPreflightUnavailable,
+		},
+		{
+			name:       "Should be unavailable when the replacement cannot be started",
+			binary:     filepath.Join(t.TempDir(), "missing-compozy"),
+			wantStatus: restartPreflightUnavailable,
+		},
+		{
+			name:       "Should time out without blocking on a replacement that never reports",
+			binary:     "/bin/sh",
+			script:     "sleep 30",
+			timeout:    300 * time.Millisecond,
+			wantStatus: restartPreflightTimedOut,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			if tc.timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, tc.timeout)
+				defer cancel()
+			}
+			outcome := defaultRestartPreflight(ctx, restartPreflightRequest{
+				binary:  tc.binary,
+				args:    []string{"-c", tc.script},
+				sandbox: os.Environ(),
+			})
+			if outcome.status != tc.wantStatus {
+				t.Fatalf("status = %q (%s), want %q", outcome.status, outcome.reason, tc.wantStatus)
+			}
+			if !strings.Contains(outcome.reason, tc.wantReason) {
+				t.Fatalf("reason = %q, want it to contain %q", outcome.reason, tc.wantReason)
+			}
+		})
+	}
+}
+
+func TestRunRestartPreflightReportsBootReadiness(t *testing.T) {
+	t.Parallel()
+
+	noEnv := func(string) string { return "" }
+	run := func(t *testing.T, homePaths compozyconfig.HomePaths, loadLaunchConfig func() error) RestartPreflightReport {
+		t.Helper()
+		report := RunRestartPreflight(testutil.Context(t), &RestartPreflightConfig{
+			HomePaths:        homePaths,
+			Getenv:           noEnv,
+			LoadLaunchConfig: loadLaunchConfig,
+		})
+		if got, want := report.Schema, RestartPreflightSchema; got != want {
+			t.Fatalf("report.Schema = %q, want %q", got, want)
+		}
+		return report
+	}
+
+	t.Run("Should plan a fresh home without creating its database", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+
+		report := run(t, homePaths, nil)
+		if !report.OK || len(report.Migrations) != 1 || report.Migrations[0].Pending == 0 {
+			t.Fatalf("report = %+v, want a passing plan with pending migrations", report)
+		}
+		if _, err := os.Stat(homePaths.DatabaseFile); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(database) error = %v, want pre-flight to leave it absent", err)
+		}
+	})
+
+	t.Run("Should pass with nothing pending on a database at this binary's head", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		if err := daemonTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
+			t.Fatalf("daemon store seed Clone() error = %v", err)
+		}
+
+		report := run(t, homePaths, nil)
+		if !report.OK || len(report.Migrations) != 1 {
+			t.Fatalf("report = %+v, want a passing plan", report)
+		}
+		plan := report.Migrations[0]
+		if plan.Pending != 0 || plan.Version != plan.HeadVersion || plan.HeadVersion == 0 {
+			t.Fatalf("plan = %+v, want the database at head with nothing pending", plan)
+		}
+	})
+
+	t.Run("Should fail on a configuration the replacement cannot load", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		if err := os.WriteFile(homePaths.ConfigFile, []byte("[daemon\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(config) error = %v", err)
+		}
+
+		report := run(t, homePaths, nil)
+		if report.OK || report.Stage != RestartPreflightStageConfig || strings.TrimSpace(report.Error) == "" {
+			t.Fatalf("report = %+v, want a config failure with its reason", report)
+		}
+	})
+
+	t.Run("Should fail when the launch configuration cannot be loaded", func(t *testing.T) {
+		t.Parallel()
+		report := run(t, testHomePaths(t), func() error { return errors.New("config: unknown key agents.bogus") })
+		if report.OK || report.Stage != RestartPreflightStageConfig ||
+			!strings.Contains(report.FailureReason(), "unknown key agents.bogus") {
+			t.Fatalf("report = %+v, want the launch config failure", report)
+		}
+	})
+
+	t.Run("Should fail on a global database ahead of this binary without changing it", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		if err := daemonTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
+			t.Fatalf("daemon store seed Clone() error = %v", err)
+		}
+		const aheadVersion = int64(99990101000000)
+		db, err := sql.Open("sqlite", homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("sql.Open() error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			testutil.Context(t),
+			`INSERT INTO goose_db_version_global (version_id, is_applied) VALUES (?, 1)`,
+			aheadVersion,
+		); err != nil {
+			t.Fatalf("record ahead migration version: %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("db.Close() error = %v", err)
+		}
+
+		report := run(t, homePaths, nil)
+		if report.OK || report.Stage != RestartPreflightStageMigrations || !strings.Contains(report.Error, "ahead") {
+			t.Fatalf("report = %+v, want an ahead-schema refusal", report)
 		}
 	})
 }
