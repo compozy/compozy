@@ -1884,6 +1884,37 @@ func TestArchiveRetiredMemorySettings(t *testing.T) {
 			t.Fatalf("unexpected migration: %v %v %s", archived, err, rendered)
 		}
 	})
+	t.Run("Should keep a comment that sits between a retired element and its separator", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("automation.triggers = [\n" +
+			"  {name='old', event='memory.consolidated'} # Keep this note.\n" +
+			"  ,\n" +
+			"  {name='kept', event='session.stopped', workspace='workspace'},\n" +
+			"]\n")
+		rendered, names, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil {
+			t.Fatalf("archiveRetiredMemorySettings() error = %v", err)
+		}
+		if len(names) == 0 {
+			t.Fatal("archive reported no retired settings")
+		}
+		var values struct {
+			Automation struct {
+				Triggers []struct {
+					Name string `toml:"name"`
+				} `toml:"triggers"`
+			} `toml:"automation"`
+		}
+		if _, err := burnttoml.Decode(string(rendered), &values); err != nil {
+			t.Fatalf("archive published a document that does not parse: %v\n%s", err, rendered)
+		}
+		if got := values.Automation.Triggers; len(got) != 1 || got[0].Name != "kept" {
+			t.Fatalf("triggers = %+v, want only the kept trigger\n%s", got, rendered)
+		}
+		if !strings.Contains(string(rendered), "# Keep this note.") {
+			t.Fatalf("archive dropped the comment:\n%s", rendered)
+		}
+	})
 	t.Run("Should leave invalid input unchanged so the decoder reports the parse error", func(t *testing.T) {
 		t.Parallel()
 		contents := []byte("[memory\nenabled = false\n")

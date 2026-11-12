@@ -53,6 +53,12 @@ func archiveRetiredMemorySettings(contents []byte, source string) ([]byte, []str
 	for line := range strings.SplitSeq(strings.TrimRight(archive.String(), "\n"), "\n") {
 		result.WriteString("# " + line + "\n")
 	}
+	// A layout the removal cannot rewrite cleanly must never be published: the file stays as it is
+	// and the load reports the failure instead of leaving a document that no longer parses.
+	var rewritten map[string]any
+	if _, err := burnttoml.Decode(result.String(), &rewritten); err != nil {
+		return nil, nil, fmt.Errorf("archive retired memory settings: rewritten %s does not parse: %w", source, err)
+	}
 	slices.Sort(names)
 	names = slices.Compact(names)
 	return result.Bytes(), names, nil
@@ -279,37 +285,36 @@ func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) 
 		for i+1 < len(children) && removed[i+1] {
 			i++
 		}
-		start, end := retiredMemoryRemovalRange(source, children, first, i)
+		start, end, separator := retiredMemoryRemovalRange(source, children, first, i)
 		edits = append(edits, retiredMemoryEdit{start: start, end: end})
+		if separator >= 0 {
+			edits = append(edits, retiredMemoryEdit{start: separator, end: separator + 1})
+		}
 	}
 	return edits, nil
 }
 
 // retiredMemoryRemovalRange returns the byte range that removes children[first..last] together with
 // the one separator that belongs to them, so the surrounding array or inline table stays valid.
-func retiredMemoryRemovalRange(source []byte, children []*tomlast.Node, first, last int) (int, int) {
+// When a comment sits between the removed elements and their separator, the comment is kept and
+// the separator is reported as its own offset; it is -1 otherwise.
+func retiredMemoryRemovalRange(source []byte, children []*tomlast.Node, first, last int) (int, int, int) {
 	start := rangeStart(expressionRange(children[first]))
 	end := retiredMemoryNodeEnd(source, children[last])
-	switch {
-	case last+1 < len(children):
-		nextStart := rangeStart(expressionRange(children[last+1]))
-		if comma := retiredMemorySeparator(source[end:nextStart]); comma >= 0 {
-			end += comma + 1
-		}
-	case first > 0:
+	if first > 0 && last+1 == len(children) {
 		previousEnd := retiredMemoryNodeEnd(source, children[first-1])
 		if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
-			start = previousEnd + comma
-		} else if trailing := retiredMemorySeparator(source[end:]); trailing >= 0 {
-			// A comment is the previous node, so the element's own separator follows it.
-			end += trailing + 1
-		}
-	default:
-		if comma := retiredMemorySeparator(source[end:]); comma >= 0 {
-			end += comma + 1
+			return previousEnd + comma, end, -1
 		}
 	}
-	return start, end
+	trailing := retiredMemorySeparator(source[end:])
+	if trailing < 0 {
+		return start, end, -1
+	}
+	if bytes.IndexByte(source[end:end+trailing], '#') >= 0 {
+		return start, end, end + trailing
+	}
+	return start, end + trailing + 1, -1
 }
 
 func retiredMemoryNodeEnd(source []byte, node *tomlast.Node) int {
