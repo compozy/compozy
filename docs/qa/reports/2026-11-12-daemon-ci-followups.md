@@ -170,3 +170,25 @@ A contradictory existing upper bound remains explicit: CLI
 `desktop/schema/app-state.schema.json` caps attempts at 3. Resolving that public
 contract requires its own compatibility decision. This missing-field fix preserves
 actual explicit counts and does not clamp them or relax the schema.
+
+## Main standing-context integration
+
+On `9dfde45ad`, [runtime E2E job 131001094715](https://github.com/compozy/compozy/actions/runs/43163765451/job/131001094715)
+and [full integration shard 7 job 131000918609](https://github.com/compozy/compozy/actions/runs/43163765340/job/131000918609)
+fail the same HTTP/UDS harness-observation parity test. The retained events include
+the legitimate third `standing` augmenter introduced by merged #1572, but the
+stale oracle expects only `skills` and `situation`, so its exact five-event match
+can never settle after all six events arrive.
+
+After rebasing onto `e226c9ccf`, the owning transport suite now expects the exact
+six-event sequence and explicitly requires metadata for all three augmenters.
+HTTP/UDS deep equality and every deadline remain intact. No production event,
+filter or validation policy changes. The existing full patch series replayed
+without conflicts and range-diff preserves all prior commits. CI must replay
+both the integration and runtime lanes on this integrated head.
+
+The [SQLite acceptance lane on the previous head](https://github.com/compozy/compozy/actions/runs/43163765328/job/131000842035)
+remains excluded under #1433: no invalid head trial and no throughput regression
+were recorded, but baseline transcript-tail pair 0 is incomplete, so acceptance
+correctly fails rather than averaging away that missing pair. No SQLite harness
+or threshold is changed.
