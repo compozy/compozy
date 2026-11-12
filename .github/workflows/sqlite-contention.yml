@@ -138,4 +138,3 @@ jobs:
             ${{ runner.temp }}/sqlite-daemon-qa/labs/**/qa-artifacts/**
           retention-days: 14
           if-no-files-found: error
-

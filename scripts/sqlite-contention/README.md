@@ -232,13 +232,6 @@ can grow to tens of megabytes, affect GC pacing and incur copying/page faults.
 An abrupt process kill loses the buffered trace. These recordings can identify
 syscall stacks during a pause; they are not an undisturbed GC/latency control.
 
-To inspect existing trace files without rerunning the experiment, dispatch
-`sqlite-trace-analysis.yml` with `trace_run_id=<source run ID>`. Its independent
-workflow publishes no skipped acceptance jobs and cannot cancel acceptance. It
-downloads that run's contention artifact and uploads syscall, scheduling and
-synchronization profiles with flat and cumulative stack summaries. This job
-does not build or run the workload and cannot count as acceptance evidence.
-
 For a dedicated Linux lab, build the harness in each checkout, then run:
 
 ```sh
