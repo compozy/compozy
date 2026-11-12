@@ -1,7 +1,7 @@
 // Suite: window-manager stream hook
 // Invariant: one client-bound socket survives topology advances, reconnects with the latest fence,
-// serializes burst refreshes to the highest announced revision, and accepts only newer bound-client
-// presentation frames.
+// serializes burst refreshes to the highest announced revision, accepts only newer bound-client
+// presentation frames, and reconnects for a fresh fence after a client-side frame failure (#1543).
 // Owning layer: the WebSocket → TanStack Query/client-presentation bridge.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,10 +18,14 @@ import {
 import type { WorkspacePayload } from "@/systems/workspace/types";
 
 import { fetchWindowManagerSnapshot } from "../../adapters/window-manager-api";
+import { windowManagerCommandsAvailable } from "../../lib/window-manager-command-availability";
 import { windowManagerKeys } from "../../lib/window-manager-query";
+import type { WindowManagerSettingsSection } from "../../lib/window-manager-settings-section";
+import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import type { WindowManagerClientCommandExecutor } from "../../lib/window-manager-client-command-frames";
 import type {
   WindowManagerClientView,
+  WindowManagerConfig,
   WindowManagerSnapshot,
 } from "../../lib/window-manager-types";
 import {
@@ -29,8 +33,8 @@ import {
   WINDOW_MANAGER_HEARTBEAT_INTERVAL_MS,
   WINDOW_MANAGER_STREAM_STALL_MS,
   windowManagerReconnectDelay,
-  type WindowManagerClientContextInput,
 } from "../use-window-manager-stream";
+import type { WindowManagerClientContextInput } from "../../lib/desktop-chrome-client-context";
 import type {
   WindowManagerSocket,
   WindowManagerSocketFactory,
@@ -107,6 +111,41 @@ function client(presentationRevision: number, clientId = "client:web"): WindowMa
     connectedAt: "2026-07-22T00:00:00Z",
   };
 }
+
+const CONFIG: WindowManagerConfig = {
+  newWindowPolicy: "floating",
+  smallViewportPolicy: "stack",
+  focusPolicy: "click_directional",
+  focusWrap: true,
+  focusFollowsPointer: false,
+  raiseOnFocus: true,
+  dragAwayPolicy: "window",
+  groupMoveModifier: "alt",
+  swapModifier: "shift",
+  historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
+  desktopTransition: "slide",
+  gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
+  snap: { edgeBand: 32, cornerReach: 150, exitSlack: 16, repeatRatios: [0.5] },
+  bindings: { topCenter: "zoom", bottomCenter: "reserved" },
+  shortcuts: {},
+  globalShortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
+};
+
+const SETTINGS_SECTION: WindowManagerSettingsSection = {
+  scope: "workspace",
+  availableScopes: ["user", "workspace"],
+  workspaceId: "workspace:test",
+  config: CONFIG,
+  commands: [],
+  aliases: {},
+  extensionDefaults: [],
+  diagnostics: [],
+  globalShortcuts: [],
+};
 
 function workspace(id: string): WorkspacePayload {
   return {
@@ -1012,6 +1051,77 @@ describe("useWindowManagerStream", () => {
         windowManagerKeys.snapshot("workspace:test", "marketing")
       )?.revision
     ).toBe(2);
+  });
+
+  it("Should reconnect after a frame handler throws while heartbeats repeat the cached revision [#1543]", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      windowManagerKeys.config("workspace:test", "client:web", "marketing"),
+      SETTINGS_SECTION
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.start();
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient(client(1));
+    const { factory, sockets } = createSocketFactory();
+    const subscriberFailure = new Error("Subscriber failed to apply the frame.");
+    // The same wiring useDesktopChrome gives the stream: errors degrade, snapshots clear.
+    const onClient = vi.fn().mockImplementationOnce(() => {
+      throw subscriberFailure;
+    });
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: status => runtime.setConnectionStatus(status),
+          onSnapshot: () => runtime.setLoadError(null),
+          onClient,
+          onClientInvalidated: vi.fn(),
+          onError: error =>
+            runtime.setLoadError(error instanceof Error ? error : new Error(error.error)),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+    expect(runtime.getState().hydration).toBe("live");
+    expect(windowManagerCommandsAvailable(runtime.getState())).toBe(true);
+
+    act(() => sockets[0]?.message(rawClientFrame(2)));
+
+    expect(onClient).toHaveBeenCalledOnce();
+    expect(runtime.getState().hydration).toBe("degraded");
+    expect(runtime.getState().loadError).toBe(subscriberFailure);
+    expect(sockets[0]?.close).toHaveBeenCalledOnce();
+
+    // Heartbeats at the cached revision keep arriving and announce nothing to refetch.
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 5 })
+    );
+    expect(fetchWindowManagerSnapshot).not.toHaveBeenCalled();
+    expect(runtime.getState().hydration).toBe("degraded");
+
+    await act(() => vi.advanceTimersByTimeAsync(windowManagerReconnectDelay(0)));
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(factory).toHaveBeenLastCalledWith(
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb&profile=marketing"
+    );
+    act(() => sockets[1]?.open());
+    act(() => sockets[1]?.message(rawSnapshotFrame(5)));
+
+    expect(runtime.getState().loadError).toBeNull();
+    expect(runtime.getState().hydration).toBe("live");
+    expect(runtime.getState().connectionStatus).toBe("connected");
+    expect(windowManagerCommandsAvailable(runtime.getState())).toBe(true);
+    runtime.stop();
   });
 
   it("Should stay idle before the first stream attempt and report a later stop as disconnected", () => {

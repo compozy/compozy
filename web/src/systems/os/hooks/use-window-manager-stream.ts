@@ -32,18 +32,10 @@ import {
 } from "./window-manager-stream-liveness";
 import { windowManagerStreamLogic } from "./window-manager-stream-store";
 import { workspaceKeys } from "@/systems/workspace";
-import type { GlobalShortcutRegistrationWire } from "../lib/desktop-shell-bridge";
-
-export interface WindowManagerClientContextInput {
-  scopeGlobal: boolean;
-  focusedSessionState: string | null;
-  workspaceTrusted: boolean;
-  destinationIntent: {
-    pathname: string;
-    search: Readonly<Record<string, unknown>>;
-  } | null;
-  globalShortcuts: readonly GlobalShortcutRegistrationWire[];
-}
+import {
+  serializeWindowManagerClientContext,
+  type WindowManagerClientContextInput,
+} from "../lib/desktop-chrome-client-context";
 
 export {
   WINDOW_MANAGER_HEARTBEAT_INTERVAL_MS,
@@ -107,7 +99,12 @@ export function useWindowManagerStream({
     bindingKey: string;
     ready: boolean;
     socket: WindowManagerSocket;
+    /** Reports a client-side stream failure and reconnects for a fresh fence snapshot. */
+    recover: (cause: Error) => void;
   } | null>(null);
+  // Consecutive client-side stream failures, kept across sockets so a frame that
+  // fails on every reconnect backs off instead of spinning; a snapshot resets it.
+  const recoveryAttemptRef = useRef(0);
   const contextRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The workspace/profile scope whose stream this hook has attempted. Before any
   // attempt the status is `idle` (nothing to report); after one — including while
@@ -120,22 +117,7 @@ export function useWindowManagerStream({
       ? `${workspaceId}\u0000${profileId}\u0000${clientId}\u0000${registrationEpoch}`
       : null;
   const clientContextFrame =
-    clientContext === undefined
-      ? null
-      : JSON.stringify({
-          type: "client_context",
-          context: {
-            scope_global: clientContext.scopeGlobal,
-            ...(clientContext.focusedSessionState === null
-              ? {}
-              : { focused_session_state: clientContext.focusedSessionState }),
-            workspace_trusted: clientContext.workspaceTrusted,
-            ...(clientContext.destinationIntent === null
-              ? {}
-              : { destination_intent: clientContext.destinationIntent }),
-            global_shortcuts: clientContext.globalShortcuts,
-          },
-        });
+    clientContext === undefined ? null : serializeWindowManagerClientContext(clientContext);
   const scheduleContextRefresh = useEffectEvent(() => {
     if (contextRefreshTimerRef.current !== null) {
       clearTimeout(contextRefreshTimerRef.current);
@@ -155,7 +137,7 @@ export function useWindowManagerStream({
       try {
         bound.socket.send(clientContextFrame);
       } catch (cause) {
-        publishError(
+        bound.recover(
           cause instanceof Error ? cause : new Error("Unable to refresh the client context.")
         );
       }
@@ -227,7 +209,6 @@ export function useWindowManagerStream({
     );
     const activeBindingKey = bindingKey;
     attemptedScopeRef.current = streamScope;
-    boundSocketRef.current = { bindingKey: activeBindingKey, ready: false, socket };
 
     /**
      * Cache the snapshot. Events and refreshes only ever move the cache forward;
@@ -262,8 +243,7 @@ export function useWindowManagerStream({
           applySnapshot(snapshot, true);
         })
         .catch(cause => {
-          if (stopped) return;
-          publishError(
+          recoverStream(
             cause instanceof Error ? cause : new Error("Unable to re-read the window layout.")
           );
         })
@@ -362,6 +342,23 @@ export function useWindowManagerStream({
       },
     });
 
+    // A client-side failure (bad or unapplied frame, throwing subscriber, failed
+    // write or resync) has no daemon event to correct it: heartbeats keep the socket
+    // alive at a revision we hold. Reconnect so a fresh fence snapshot clears the error.
+    const recoverStream = (cause: Error) => {
+      if (stopped) return;
+      publishError(cause);
+      const attempt = recoveryAttemptRef.current;
+      recoveryAttemptRef.current = attempt + 1;
+      liveness.restart(windowManagerReconnectDelay(attempt));
+    };
+    boundSocketRef.current = {
+      bindingKey: activeBindingKey,
+      ready: false,
+      socket,
+      recover: recoverStream,
+    };
+
     socket.onopen = () => {
       if (stopped) return;
       const bound = boundSocketRef.current;
@@ -393,7 +390,7 @@ export function useWindowManagerStream({
             try {
               writeWindowManagerClientCommandFrame(data => socket.send(data), outbound);
             } catch (sendCause) {
-              publishError(
+              recoverStream(
                 sendCause instanceof Error
                   ? sendCause
                   : new Error("Unable to return the client operation result.")
@@ -414,6 +411,7 @@ export function useWindowManagerStream({
           applySnapshot(frame.snapshot, true);
           if (frame.client !== null) applyClient(frame.client);
           publishStatus("connected");
+          recoveryAttemptRef.current = 0;
           return;
         }
         if (frame.type === "client") {
@@ -432,7 +430,7 @@ export function useWindowManagerStream({
         );
         if (frame.revision > (cached?.revision ?? -1)) refreshSnapshot(frame.revision);
       } catch (cause) {
-        publishError(
+        recoverStream(
           cause instanceof Error ? cause : new Error("The window-manager stream was invalid.")
         );
       }
