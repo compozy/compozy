@@ -42,6 +42,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__automation_jobs_list":           nativeEntry("Reading", " ", false, "⏱️", "auto"),
 	"compozy__automation_jobs_trigger":        nativeEntry("Running", " ", false, "⏱️", "auto"),
 	"compozy__automation_jobs_update":         nativeEntry("Updating", " ", false, "⏱️", "auto"),
+	"compozy__automation_runs_cancel":         nativeEntry("Canceling", " ", false, "⏱️", "auto"),
 	"compozy__automation_runs_get":            nativeEntry("Reading", " ", false, "⏱️", "auto"),
 	"compozy__automation_runs_list":           nativeEntry("Reading", " ", false, "⏱️", "auto"),
 	"compozy__automation_suggestions_accept":  nativeEntry("Creating", " ", false, "⏱️", "auto"),

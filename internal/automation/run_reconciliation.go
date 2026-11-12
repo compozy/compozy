@@ -9,7 +9,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-var ErrRunActive = errors.New("automation: run may still be executing; stop its session or delegated execution before canceling")
+// ErrRunActive refuses settlement while an execution may still be live.
+var ErrRunActive = errors.New(
+	"automation: run may still be executing; stop its session or delegated execution before canceling",
+)
 
 func (m *Manager) reconcileRuns(ctx context.Context) error {
 	for _, status := range []RunStatus{RunScheduled, RunRunning} {

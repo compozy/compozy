@@ -365,7 +365,9 @@ func validateAutomationLast(last int) error {
 func newAutomationRunsCancelCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "cancel <id>", Short: "Cancel an orphaned automation run",
-		Long: "Cancel a run whose session is missing or stopped, preserving its history. Stop live sessions through session stop first. Admissions without a session and delegated executions are refused. Terminal runs are unchanged.",
+		Long: "Cancel a run whose session is missing or stopped, preserving its history. " +
+			"Stop live sessions through session stop first. " +
+			"Admissions without a session and delegated executions are refused. Terminal runs are unchanged.",
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

@@ -41,6 +41,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"archiveTask",
 			"attachSession",
 			"blockTask",
+			"cancelAutomationRun",
 			"cancelLoopNode",
 			"cancelLoopRun",
 			"cancelQueuedSessionPrompt",

@@ -119,6 +119,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__automation_jobs_list":           expectedNativeEntry("Reading", " ", false, "⏱️", "auto"),
 		"compozy__automation_jobs_trigger":        expectedNativeEntry("Running", " ", false, "⏱️", "auto"),
 		"compozy__automation_jobs_update":         expectedNativeEntry("Updating", " ", false, "⏱️", "auto"),
+		"compozy__automation_runs_cancel":         expectedNativeEntry("Canceling", " ", false, "⏱️", "auto"),
 		"compozy__automation_runs_get":            expectedNativeEntry("Reading", " ", false, "⏱️", "auto"),
 		"compozy__automation_runs_list":           expectedNativeEntry("Reading", " ", false, "⏱️", "auto"),
 		"compozy__automation_suggestions_accept":  expectedNativeEntry("Creating", " ", false, "⏱️", "auto"),
