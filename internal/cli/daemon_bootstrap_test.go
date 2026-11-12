@@ -369,6 +369,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			}
 			if test.migration == "advancing" {
 				assertBootstrapMigrationEvents(t, events.String(), []int{0, 0, 50, 100})
+				assertBootstrapProvisionVersions(t, events.String(), test.status.Version)
 			}
 			if execution.restartRejectingDesktopRuntime(test.status, true) {
 				t.Fatal("restartRejectingDesktopRuntime() after replacement = true, want no second restart")
@@ -1233,6 +1234,27 @@ func bootstrapRestartStatuses(migration string) []SettingsRestartStatusRecord {
 	}
 }
 
+// assertBootstrapProvisionVersions checks that a replacement names the runtime it replaces and the
+// bundled version it installs, so the desktop can show the transition.
+func assertBootstrapProvisionVersions(t *testing.T, output string, replaced string) {
+	t.Helper()
+	for line := range strings.Lines(output) {
+		var event bootstrapEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("bootstrap event %q: %v", line, err)
+		}
+		if event.Phase != bootstrapPhaseProvision || event.Status != bootstrapStatusStarted || event.Stage != "" {
+			continue
+		}
+		if event.Versions == nil || event.Versions.To == "" ||
+			event.Versions.From != normalizedBootstrapVersion(replaced) {
+			t.Fatalf("provision versions = %#v, want %q replaced by the bundle", event.Versions, replaced)
+		}
+		return
+	}
+	t.Fatal("replacement emitted no provision started event")
+}
+
 func assertBootstrapMigrationEvents(t *testing.T, output string, wantPercents []int) {
 	t.Helper()
 	var percents []int
@@ -1246,6 +1268,9 @@ func assertBootstrapMigrationEvents(t *testing.T, output string, wantPercents []
 		}
 		if event.Phase != bootstrapPhaseProvision || event.Status != bootstrapStatusStarted || event.Percent == nil {
 			t.Fatalf("migration event = %#v, want a started provision event with a percentage", event)
+		}
+		if event.Completed == nil || event.Total == nil || event.Migration != "telemetry_relocation" {
+			t.Fatalf("migration event = %#v, want counts and the runtime's stage name", event)
 		}
 		percents = append(percents, *event.Percent)
 	}

@@ -140,9 +140,70 @@ describe("bootstrapSnapshot", () => {
         resolution: "start",
       },
       "desktop-bootstrap.jsonl",
-      started.attempt
+      started
     );
     expect(ready).toEqual({ state: "starting", stage: "ready", attempt: 3 });
+  });
+
+  it("Should map determinate session upgrade progress to counts in sessions", () => {
+    expect(
+      bootstrapSnapshot({
+        type: "bootstrap",
+        phase: "provision",
+        status: "started",
+        message: "Upgrading CompozyOS data (29%).",
+        stage: "migrate",
+        pct: 29,
+        completed: 744,
+        total: 2554,
+        migration: "session_history_upgrade",
+      })
+    ).toEqual({
+      state: "provisioning",
+      stage: "migrate",
+      pct: 29,
+      completed: 744,
+      total: 2554,
+      work: "sessions",
+    });
+  });
+
+  it("Should keep the provisioned version transition until the boot ends", () => {
+    const provisioning = bootstrapSnapshot({
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: "Provisioning",
+      versions: { from: "0.5.4", to: "0.6.0" },
+    });
+    expect(provisioning).toEqual({
+      state: "provisioning",
+      stage: "install",
+      from_version: "0.5.4",
+      to_version: "0.6.0",
+    });
+    const migrating = bootstrapSnapshot(
+      {
+        type: "bootstrap",
+        phase: "provision",
+        status: "started",
+        message: "Upgrading",
+        stage: "migrate",
+        pct: 0,
+        completed: 0,
+        total: 0,
+        migration: "telemetry_relocation",
+      },
+      "desktop-bootstrap.jsonl",
+      provisioning
+    );
+    expect(migrating).toMatchObject({
+      work: "records",
+      from_version: "0.5.4",
+      to_version: "0.6.0",
+    });
+    const failure = bootstrapSnapshot(failed("failed", "start"), "log", migrating);
+    expect(failure).toMatchObject({ state: "error", from_version: "0.5.4", to_version: "0.6.0" });
   });
 
   it.each([

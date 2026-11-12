@@ -42,18 +42,31 @@ type bootstrapDaemon struct {
 }
 
 type bootstrapEvent struct {
-	Type           string                  `json:"type"`
-	Phase          bootstrapPhase          `json:"phase"`
-	Status         string                  `json:"status"`
-	Resolution     bootstrapResolution     `json:"resolution,omitempty"`
-	Attempt        int                     `json:"attempt,omitzero"`
-	BackoffMS      int64                   `json:"backoff_ms,omitzero"`
-	Classification bootstrapProbeClass     `json:"classification,omitempty"`
-	Message        string                  `json:"message"`
-	Stage          bootstrapStage          `json:"stage,omitempty"`
-	Percent        *int                    `json:"pct,omitempty"`
-	Daemon         *bootstrapDaemon        `json:"daemon,omitzero"`
-	Compatibility  *bootstrapCompatibility `json:"compatibility,omitzero"`
+	Type           string              `json:"type"`
+	Phase          bootstrapPhase      `json:"phase"`
+	Status         string              `json:"status"`
+	Resolution     bootstrapResolution `json:"resolution,omitempty"`
+	Attempt        int                 `json:"attempt,omitzero"`
+	BackoffMS      int64               `json:"backoff_ms,omitzero"`
+	Classification bootstrapProbeClass `json:"classification,omitempty"`
+	Message        string              `json:"message"`
+	Stage          bootstrapStage      `json:"stage,omitempty"`
+	Percent        *int                `json:"pct,omitempty"`
+	// Completed and Total count a migrate stage's work; Total is 0 while the stage is still counting.
+	Completed *int64 `json:"completed,omitempty"`
+	Total     *int64 `json:"total,omitempty"`
+	// Migration names the runtime's migration stage so the desktop can say what it counts.
+	Migration     string                  `json:"migration,omitempty"`
+	Versions      *bootstrapVersions      `json:"versions,omitzero"`
+	Daemon        *bootstrapDaemon        `json:"daemon,omitzero"`
+	Compatibility *bootstrapCompatibility `json:"compatibility,omitzero"`
+}
+
+// bootstrapVersions names the runtime transition a provisioning run performs. From is set only
+// when the run replaces an installed runtime.
+type bootstrapVersions struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to"`
 }
 
 type bootstrapCompatibility struct {

@@ -380,11 +380,18 @@ func TestGlobalDBUsageCostRepair(t *testing.T) {
 		for _, fixture := range preserved {
 			seedCostRepairLedger(t, path, "sess-"+fixture.agent, "ws-cost", fixture.agent, []float64{1, 3, 0.5, 2})
 		}
-		for range 2 {
-			db, err := openGlobalMigrationUpgrade(t, path)
+		for pass := range 2 {
+			var reports []MigrationProgress
+			record := func(progress MigrationProgress) {
+				if progress.Stage == MigrationStageUsageCostRepair {
+					reports = append(reports, progress)
+				}
+			}
+			db, err := openGlobalMigrationUpgradeWithOptions(t, path, WithMigrationProgress(record))
 			if err != nil {
 				t.Fatal(err)
 			}
+			assertUsageCostRepairProgress(t, pass, reports)
 			stats, err := db.ListTokenStats(ctx, store.TokenStatsQuery{})
 			if err != nil {
 				t.Fatal(err)
@@ -506,5 +513,29 @@ func assertPreservedDailyCost(t *testing.T, db *sql.DB, day string, fixture cost
 	}
 	if !same {
 		t.Fatalf("daily provenance changed for %s", fixture.agent)
+	}
+}
+
+// assertUsageCostRepairProgress checks that the repair reports each session against a fixed total
+// and clears its stage, and that a completed repair reports nothing when the database reopens.
+func assertUsageCostRepairProgress(t *testing.T, pass int, reports []MigrationProgress) {
+	t.Helper()
+	if pass > 0 {
+		if len(reports) != 0 {
+			t.Fatalf("completed repair reported progress again: %+v", reports)
+		}
+		return
+	}
+	if len(reports) < 3 || !reports[len(reports)-1].Done {
+		t.Fatalf("usage cost repair progress = %+v, want counts and a final done", reports)
+	}
+	total := reports[0].Total
+	for index, report := range reports[:len(reports)-1] {
+		if report.Total != total || report.Completed != int64(index) {
+			t.Fatalf("usage cost repair progress[%d] = %+v, want %d of %d", index, report, index, total)
+		}
+	}
+	if last := reports[len(reports)-2]; last.Completed != total {
+		t.Fatalf("usage cost repair ended at %d of %d", last.Completed, total)
 	}
 }

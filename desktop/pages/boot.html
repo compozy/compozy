@@ -5,62 +5,118 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'"
     />
     <title>CompozyOS</title>
     <link rel="stylesheet" href="boot.css" />
     <script src="boot.js" type="module"></script>
   </head>
   <body>
-    <main class="boot" aria-labelledby="boot-title">
-      <p class="boot__identity">CompozyOS</p>
-      <section class="boot__state">
-        <div class="boot__heading">
-          <span class="boot__mark" aria-hidden="true"></span>
-          <h1 id="boot-title" aria-atomic="true" aria-live="polite">Looking for CompozyOS</h1>
+    <main id="boot" class="boot" data-layout="center" aria-labelledby="boot-title">
+      <img class="boot__atmosphere" src="assets/horizon.jpg" alt="" />
+      <div class="boot__lead">
+        <img class="boot__symbol" src="assets/symbol.png" alt="" />
+        <h1 id="boot-title" class="boot__title" aria-atomic="true" aria-live="polite">
+          Looking for CompozyOS
+        </h1>
+        <div id="boot-versions" class="boot__versions" hidden>
+          <span class="boot__version-pill">
+            <span id="boot-version-from" hidden></span>
+            <span id="boot-version-arrow" class="boot__version-arrow" aria-hidden="true" hidden
+              >→</span
+            >
+            <b id="boot-version-to"></b>
+          </span>
+          <button id="boot-release-notes" class="boot__link" type="button">What’s new</button>
         </div>
         <p id="boot-detail" class="boot__detail" hidden></p>
-        <div id="boot-progress" class="boot__progress" role="status" aria-atomic="true" hidden>
-          <p id="boot-progress-label" class="boot__progress-label"></p>
-          <p id="boot-progress-attempt" class="boot__progress-attempt" hidden></p>
-          <progress id="boot-progress-bar" class="boot__progress-bar" max="100" hidden></progress>
-        </div>
+        <p id="boot-error-code" class="boot__error-code" hidden></p>
+        <div id="boot-pulse" class="boot__points boot__pulse" aria-hidden="true" hidden></div>
         <div
           id="boot-controls"
-          class="boot__controls"
+          class="boot__actions"
           role="group"
           aria-label="Available actions"
           hidden
         >
-          <button id="boot-retry" class="boot__control boot__control--primary" type="button" hidden>
-            Retry operation
+          <button id="boot-retry" class="boot__btn" data-variant="primary" type="button" hidden>
+            Try again
           </button>
-          <button id="boot-open-logs" class="boot__control" type="button" hidden>Open logs</button>
-          <button id="boot-quit" class="boot__control" type="button" hidden>Quit</button>
-          <button id="boot-diagnose" class="boot__control" type="button" hidden>
-            Load diagnostics
-          </button>
+          <button id="boot-open-logs" class="boot__btn" type="button" hidden>Open logs</button>
+          <button id="boot-quit" class="boot__btn" type="button" hidden>Quit</button>
         </div>
-        <p id="boot-result" class="boot__result" role="status" aria-atomic="true" hidden></p>
-        <details id="boot-technical" class="boot__technical" hidden>
-          <summary>Technical details</summary>
-          <div class="boot__technical-content">
-            <dl id="boot-diagnostics" class="boot__diagnostics"></dl>
-            <div
-              id="boot-diagnostic-controls"
-              class="boot__diagnostic-controls"
-              role="group"
-              aria-label="Diagnostic actions"
-              hidden
-            >
-              <button id="boot-copy" class="boot__control" type="button">Copy diagnostics</button>
-              <button id="boot-export" class="boot__control" type="button">
-                Export diagnostics
+        <div id="boot-runner" class="boot__runner" hidden></div>
+        <p class="boot__status">
+          <span class="boot__status-mark" aria-hidden="true"></span>
+          <span id="boot-status-word" class="boot__status-word">Working</span>
+          <span id="boot-elapsed" hidden></span>
+          <span id="boot-activity" class="boot__status-activity" hidden></span>
+        </p>
+      </div>
+      <section id="boot-panel" class="boot__panel" aria-label="Progress" hidden>
+        <ol id="boot-steps" class="boot__steps"></ol>
+        <section id="boot-work" class="boot__work" hidden>
+          <div class="boot__work-head">
+            <h2 id="boot-work-name" class="boot__work-name"></h2>
+            <span id="boot-work-count" class="boot__work-count" hidden></span>
+          </div>
+          <div
+            id="boot-progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-labelledby="boot-work-name"
+          >
+            <div id="boot-field" class="boot__points boot__field" aria-hidden="true"></div>
+          </div>
+          <div class="boot__work-foot">
+            <span id="boot-work-hint"></span>
+            <span id="boot-work-percent" hidden></span>
+          </div>
+          <div id="boot-notice" class="boot__notice" role="status" hidden>
+            <p>
+              <strong id="boot-notice-title"></strong>
+              <span id="boot-notice-text"></span>
+            </p>
+            <div class="boot__notice-actions">
+              <button
+                id="boot-notice-logs"
+                class="boot__btn"
+                data-size="sm"
+                type="button"
+                data-action="open_logs"
+              >
+                Open logs
+              </button>
+              <button
+                id="boot-notice-diagnose"
+                class="boot__btn"
+                data-size="sm"
+                type="button"
+                hidden
+              >
+                Diagnostics
               </button>
             </div>
           </div>
-        </details>
+        </section>
+        <section id="boot-technical" class="boot__technical" hidden>
+          <h2 class="boot__panel-title">Technical details</h2>
+          <dl id="boot-diagnostics" class="boot__diagnostics"></dl>
+          <div class="boot__panel-foot" role="group" aria-label="Diagnostic actions">
+            <button id="boot-diagnose" class="boot__btn" data-size="sm" type="button">
+              Load diagnostics
+            </button>
+            <button id="boot-copy" class="boot__btn" data-size="sm" type="button" hidden>
+              Copy diagnostics
+            </button>
+            <button id="boot-export" class="boot__btn" data-size="sm" type="button" hidden>
+              Export diagnostics
+            </button>
+          </div>
+        </section>
       </section>
+      <p id="boot-result" class="boot__result" role="status" aria-atomic="true" hidden></p>
     </main>
   </body>
 </html>

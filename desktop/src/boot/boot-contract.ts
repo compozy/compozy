@@ -4,11 +4,12 @@ export const BOOT_METHOD_VALUES = [
   "copy_diagnostics",
   "export_diagnostics",
   "open_logs",
+  "open_release_notes",
   "quit",
 ] as const;
 export type BootMethod = (typeof BOOT_METHOD_VALUES)[number];
 export const BOOT_METHODS = new Set<string>(BOOT_METHOD_VALUES);
-export type ForwardedBootMethod = Exclude<BootMethod, "open_logs" | "quit">;
+export type ForwardedBootMethod = Exclude<BootMethod, "open_logs" | "open_release_notes" | "quit">;
 const FORWARDED_BOOT_METHODS = new Set<string>([
   "retry",
   "diagnose",
@@ -32,6 +33,17 @@ const STATES = new Set([
 ]);
 const STAGES = new Set(["download", "verify", "install", "migrate", "start", "ready"]);
 const TARGETS = new Set(["app", "runtime"]);
+const WORK = new Set(["sessions", "records"]);
+
+function optionalCount(value: unknown): boolean {
+  return (
+    value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+  );
+}
+
+function optionalVersion(value: unknown): boolean {
+  return value === undefined || (typeof value === "string" && value.trim() !== "");
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -88,6 +100,11 @@ export function validState(value: unknown): boolean {
         Number.isFinite(value.pct) &&
         value.pct >= 0 &&
         value.pct <= 100)) &&
+    optionalCount(value.completed) &&
+    optionalCount(value.total) &&
+    (value.work === undefined || (typeof value.work === "string" && WORK.has(value.work))) &&
+    optionalVersion(value.from_version) &&
+    optionalVersion(value.to_version) &&
     (value.runtime === undefined || typeof value.runtime === "string") &&
     (value.needed === undefined || typeof value.needed === "string") &&
     (value.newer === undefined || typeof value.newer === "boolean") &&
@@ -137,6 +154,7 @@ export function validResponse(method: BootMethod, value: unknown): boolean {
         value.bytes >= 0
       );
     case "open_logs":
+    case "open_release_notes":
       return value.opened === true;
     case "quit":
       return value.quitting === true;
