@@ -249,11 +249,7 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.publishLifecycleAttentionTransition(ctx, running, session.Info())
 		}
 	}()
-	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
-	turnState.reportMessageIDs = []string{req.messageID}
-	for _, input := range dispatchInput.batched {
-		turnState.reportMessageIDs = append(turnState.reportMessageIDs, input.request.messageID)
-	}
+	initPromptTurnReport(turnState, req.messageID, dispatchInput)
 	recoveryRequest := m.newDispatchPromptRequest(ctx, session, &req, dispatchMessage, dispatchInput, attachments,
 		activity)
 	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)

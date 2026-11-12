@@ -112,3 +112,12 @@ func clearPromptState(session *Session, turnID string) {
 		session.currentPromptDone = nil
 	}
 }
+
+// initPromptTurnReport seeds recovery and the message IDs a turn reports, including batched inputs.
+func initPromptTurnReport(turnState *promptTurnDispatchState, messageID string, dispatchInput preparedPromptInput) {
+	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
+	turnState.reportMessageIDs = []string{messageID}
+	for _, input := range dispatchInput.batched {
+		turnState.reportMessageIDs = append(turnState.reportMessageIDs, input.request.messageID)
+	}
+}
