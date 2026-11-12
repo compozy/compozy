@@ -528,25 +528,40 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			t.Fatalf("Global memory: status=%d body=%s", response.Code, response.Body.String())
 		}
 		for _, item := range []struct {
-			body string
-			code int
-			want string
+			method, path, body string
+			asAgent            bool
+			code               int
+			want               string
 		}{
-			{`{"text":"File issues through report-writer","kind":"rule"}`, http.StatusOK, "- [rule] File issues through report-writer"},
-			{`{"text":"Expiring rule","kind":"rule","until":"2027-01-01"}`, http.StatusUnprocessableEntity, "expiry"},
-			{`{"text":"Typo","kind":"rules"}`, http.StatusUnprocessableEntity, "note or rule"},
-			{`{"text":"Plain note"}`, http.StatusOK, "Global · Plain note"},
+			{http.MethodPost, "/entries", `{"text":"File issues through report-writer","kind":"rule"}`, true,
+				http.StatusForbidden, "agent_memory_rule_protected"},
+			{http.MethodPost, "/entries", `{"text":"File issues through report-writer","kind":"rule"}`, false,
+				http.StatusOK, "- [rule] File issues through report-writer"},
+			{http.MethodPost, "/entries", `{"text":"Expiring rule","kind":"rule","until":"2027-01-01"}`, false,
+				http.StatusUnprocessableEntity, "expiry"},
+			{http.MethodPost, "/entries", `{"text":"Typo","kind":"rules"}`, false,
+				http.StatusUnprocessableEntity, "note or rule"},
+			{http.MethodPost, "/entries", `{"text":"Plain note"}`, true, http.StatusOK, "Global · Plain note"},
+			{http.MethodPatch, "/entries", `{"match":"report-writer","text":"anyone"}`, true,
+				http.StatusForbidden, "agent_memory_rule_protected"},
+			{http.MethodDelete, "/entries", `{"match":"File issues"}`, true,
+				http.StatusForbidden, "agent_memory_rule_protected"},
+			{http.MethodPatch, "/entries", `{"match":"Plain note","text":"Edited note"}`, true,
+				http.StatusOK, "Edited note"},
 		} {
-			add := httptest.NewRequestWithContext(
-				t.Context(), http.MethodPost, "/agents/triage/memory/entries", strings.NewReader(item.body),
+			write := httptest.NewRequestWithContext(
+				t.Context(), item.method, "/agents/triage/memory"+item.path, strings.NewReader(item.body),
 			)
-			add.Header.Set("Content-Type", "application/json")
-			add.Header.Set("X-Compozy-Session-ID", "global-caller")
-			add.Header.Set("X-Compozy-Agent", "triage")
+			write.Header.Set("Content-Type", "application/json")
+			if item.asAgent {
+				write.Header.Set("X-Compozy-Session-ID", "global-caller")
+				write.Header.Set("X-Compozy-Agent", "triage")
+			}
 			response = httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, add)
+			fixture.Engine.ServeHTTP(response, write)
 			if response.Code != item.code || !strings.Contains(response.Body.String(), item.want) {
-				t.Fatalf("add %s: status=%d body=%s", item.body, response.Code, response.Body.String())
+				t.Fatalf("%s %s as agent=%t: status=%d body=%s",
+					item.method, item.body, item.asAgent, response.Code, response.Body.String())
 			}
 		}
 		reader.caller.InstanceID = ""

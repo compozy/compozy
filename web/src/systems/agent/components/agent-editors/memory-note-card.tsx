@@ -201,6 +201,75 @@ export function NoteSheet({
   );
 }
 
+/** What a card says about itself beside its source: a rule, or not saved yet. */
+function NoteMarks({ rule, pending }: { rule: boolean; pending: boolean }) {
+  return (
+    <>
+      {rule ? (
+        <Pill size="xs" title={RULE_HELP} tone="info">
+          Rule
+        </Pill>
+      ) : null}
+      {pending ? (
+        <Pill form="plain" size="xs">
+          Not saved yet
+        </Pill>
+      ) : null}
+    </>
+  );
+}
+
+/** The hover actions of one card: switch kind, edit, remove. */
+function NoteActions({
+  rule,
+  onEdit,
+  onKind,
+  onRemove,
+}: {
+  rule: boolean;
+  onEdit: () => void;
+  onKind: () => void;
+  onRemove: () => void;
+}) {
+  const name = rule ? "rule" : "note";
+  const kindLabel = rule ? "Make it a note" : "Make it a rule";
+  return (
+    <div
+      className="absolute top-2 right-2 flex gap-0.5 rounded-sm opacity-0 transition-opacity duration-base group-hover/note:opacity-100 group-focus-within/note:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+      style={{ backgroundColor: "var(--note-paper)" }}
+    >
+      <Button
+        aria-label={kindLabel}
+        onClick={onKind}
+        size="icon-xs"
+        title={kindLabel}
+        type="button"
+        variant="quiet"
+      >
+        {rule ? <NotebookPen aria-hidden="true" /> : <Gavel aria-hidden="true" />}
+      </Button>
+      <Button
+        aria-label={`Edit ${name}`}
+        onClick={onEdit}
+        size="icon-xs"
+        type="button"
+        variant="quiet"
+      >
+        <Pencil aria-hidden="true" />
+      </Button>
+      <Button
+        aria-label={`Remove ${name}`}
+        onClick={onRemove}
+        size="icon-xs"
+        type="button"
+        variant="quiet"
+      >
+        <Trash2 aria-hidden="true" />
+      </Button>
+    </div>
+  );
+}
+
 export function NoteCard({
   agent,
   note,
@@ -226,7 +295,6 @@ export function NoteCard({
   const [editing, setEditing] = useState(false);
   const expired = memoryNoteExpired(note, today);
   const rule = isMemoryRule(note);
-  const name = rule ? "rule" : "note";
   return (
     <li>
       <NoteSheet faded={expired && !editing} note={note} tilt={editing ? 0 : tiltOf(note.id)}>
@@ -248,51 +316,15 @@ export function NoteCard({
               <Forgets note={note} today={today} />
               <div className="flex min-h-6 items-center gap-1 pr-3">
                 <Source agent={agent} note={note} scopeLabel={scopeLabel} today={today} />
-                {rule ? (
-                  <Pill size="xs" title={RULE_HELP} tone="info">
-                    Rule
-                  </Pill>
-                ) : null}
-                {pending ? (
-                  <Pill form="plain" size="xs">
-                    Not saved yet
-                  </Pill>
-                ) : null}
+                <NoteMarks pending={pending} rule={rule} />
               </div>
             </div>
-            <div
-              className="absolute top-2 right-2 flex gap-0.5 rounded-sm opacity-0 transition-opacity duration-base group-hover/note:opacity-100 group-focus-within/note:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
-              style={{ backgroundColor: "var(--note-paper)" }}
-            >
-              <Button
-                aria-label={rule ? "Make it a note" : "Make it a rule"}
-                onClick={onKind}
-                size="icon-xs"
-                title={rule ? "Make it a note" : "Make it a rule"}
-                type="button"
-                variant="quiet"
-              >
-                {rule ? <NotebookPen aria-hidden="true" /> : <Gavel aria-hidden="true" />}
-              </Button>
-              <Button
-                aria-label={`Edit ${name}`}
-                onClick={() => setEditing(true)}
-                size="icon-xs"
-                type="button"
-                variant="quiet"
-              >
-                <Pencil aria-hidden="true" />
-              </Button>
-              <Button
-                aria-label={`Remove ${name}`}
-                onClick={onRemove}
-                size="icon-xs"
-                type="button"
-                variant="quiet"
-              >
-                <Trash2 aria-hidden="true" />
-              </Button>
-            </div>
+            <NoteActions
+              onEdit={() => setEditing(true)}
+              onKind={onKind}
+              onRemove={onRemove}
+              rule={rule}
+            />
           </>
         )}
       </NoteSheet>

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -127,12 +128,16 @@ func (s *Store) Load(key Key) (string, error) {
 }
 
 func (s *Store) Write(key Key, content, expectedDigest string) (Document, error) {
+	return s.write(key, content, expectedDigest, false)
+}
+
+func (s *Store) write(key Key, content, expectedDigest string, guardRules bool) (Document, error) {
 	return s.update(key, func(old string) (string, error) {
 		if digest(old) != expectedDigest {
 			return "", ErrConflict
 		}
 		return content, nil
-	}, false)
+	}, false, guardRules)
 }
 
 func (s *Store) Add(key Key, now time.Time, scope, text, until string) (Document, error) {
@@ -140,7 +145,9 @@ func (s *Store) Add(key Key, now time.Time, scope, text, until string) (Document
 	if err != nil {
 		return Document{}, err
 	}
-	return s.update(key, func(old string) (string, error) { return join(append(lines(old), entry)), nil }, true)
+	return s.update(
+		key, func(old string) (string, error) { return join(append(lines(old), entry)), nil }, true, false,
+	)
 }
 
 // Rules returns the operator rules currently in force, without the archiving side effect of Load.
@@ -159,10 +166,16 @@ func (s *Store) AddRule(key Key, text string) (Document, error) {
 	if err != nil {
 		return Document{}, err
 	}
-	return s.update(key, func(old string) (string, error) { return join(append(lines(old), entry)), nil }, false)
+	return s.update(
+		key, func(old string) (string, error) { return join(append(lines(old), entry)), nil }, false, false,
+	)
 }
 
-func (s *Store) update(key Key, change func(string) (string, error), tool bool) (Document, error) {
+// update applies one change under the key lock. guardRules refuses a result whose
+// operator rules differ from the current ones: the single check behind every agent write.
+func (s *Store) update(
+	key Key, change func(string) (string, error), tool, guardRules bool,
+) (Document, error) {
 	defer s.lock(key)()
 	dir, err := s.directory(key)
 	if err != nil {
@@ -180,6 +193,13 @@ func (s *Store) update(key Key, change func(string) (string, error), tool bool) 
 	content, err := change(old)
 	if err != nil {
 		return Document{}, err
+	}
+	if guardRules {
+		before, _ := Split(old)
+		after, _ := Split(content)
+		if !slices.Equal(before, after) {
+			return Document{}, ErrRuleProtected
+		}
 	}
 	kept, archived, err := Overflow(redact.String(content))
 	if err != nil {

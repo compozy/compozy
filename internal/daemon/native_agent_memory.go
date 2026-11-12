@@ -115,12 +115,12 @@ func (n *daemonNativeTools) agentMemoryCall(
 		result = map[string]any{agentMemoryDigestKey: doc.Digest, "budget": doc.Budget}
 	case toolspkg.ToolIDAgentMemoryReplace:
 		var doc agentmemory.Document
-		doc, err = n.deps.AgentMemory.ReplaceNote(key, input.Match, input.Text)
+		doc, err = n.deps.AgentMemory.AsAgent().Replace(key, input.Match, input.Text)
 		result = map[string]any{agentMemoryDigestKey: doc.Digest}
 	case toolspkg.ToolIDAgentMemoryRemove:
 		var doc agentmemory.Document
 		var removed int
-		doc, removed, err = n.deps.AgentMemory.RemoveNote(key, input.Match)
+		doc, removed, err = n.deps.AgentMemory.AsAgent().Remove(key, input.Match)
 		result = map[string]any{agentMemoryDigestKey: doc.Digest, "removed": removed}
 	case toolspkg.ToolIDAgentMemorySearch:
 
