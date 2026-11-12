@@ -10057,6 +10057,12 @@ export interface components {
       user_home_dir: string;
       version: string;
     };
+    DaemonReadinessPayload: {
+      phase: string;
+      /** Format: date-time */
+      since: string;
+      step?: string;
+    };
     DaemonStatusPayload: {
       active_sessions: number;
       gateway?: components["schemas"]["GatewayStatusPayload"] | null;
@@ -10064,6 +10070,7 @@ export interface components {
       http_port: number;
       min_app_version: string;
       pid: number;
+      readiness?: components["schemas"]["DaemonReadinessPayload"] | null;
       schema_streams: components["schemas"]["SchemaStreamStatus"][];
       socket: string;
       /** Format: date-time */
@@ -39823,6 +39830,15 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Replacement runtime failed its restart pre-flight; the running daemon was kept */
+      409: {
         headers: {
           [name: string]: unknown;
         };

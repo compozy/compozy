@@ -20,6 +20,8 @@ type Info struct {
 	HTTPHost  string    `json:"http_host,omitempty"`
 	Port      int       `json:"port"`
 	StartedAt time.Time `json:"started_at"`
+	// ReadinessPhase is the lifecycle phase when this file was written; absent on older daemons.
+	ReadinessPhase string `json:"readiness_phase,omitempty"`
 }
 
 // Validate ensures the persisted daemon info remains usable for discovery.

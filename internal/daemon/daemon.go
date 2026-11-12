@@ -246,6 +246,7 @@ type Daemon struct {
 	restartRequested   bool
 	config             compozyconfig.Config
 	admission          admission.Gate
+	readiness          readinessTracker
 	providerPreStarter *providers.PreStarter
 	// providerAuthVerdicts keeps the last live provider sign-in verdict for settings and provider list.
 	providerAuthVerdicts *providers.AuthVerdicts

@@ -136,9 +136,16 @@ func GracefulShutdownTimeout(cfg *compozyconfig.Config) time.Duration {
 
 func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets) error {
 	var errs []error
-	d.shutdownRuntimeWorkers(ctx, targets, &errs)
-	d.shutdownServersAndHooks(ctx, targets, &errs)
-	d.shutdownPersistentResources(ctx, targets, &errs)
+	phase := func(name string, run func()) {
+		// Phase errors are collected in errs; the timer only names and measures the phase.
+		_ = d.timeShutdownPhase(ctx, name, func() error {
+			run()
+			return nil
+		})
+	}
+	phase("stop_workers_and_sessions", func() { d.shutdownRuntimeWorkers(ctx, targets, &errs) })
+	phase("close_servers_and_hooks", func() { d.shutdownServersAndHooks(ctx, targets, &errs) })
+	phase("close_persistent_resources", func() { d.shutdownPersistentResources(ctx, targets, &errs) })
 	return errors.Join(errs...)
 }
 

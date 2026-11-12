@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -183,6 +184,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 	ctx = d.admission.BeginBoot(ctx)
 	defer d.finishBoot(&err)
+	bootStarted := time.Now()
 
 	state := &bootState{
 		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
@@ -208,6 +210,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.publishBootState(state)
+	state.logger.InfoContext(ctx, "daemon: boot complete", "duration_ms", time.Since(bootStarted).Milliseconds())
 	return nil
 }
 
@@ -215,7 +218,9 @@ func (d *Daemon) publishDaemonInfo(state *bootState, cleanup *bootCleanup) error
 	cleanup.add(func(context.Context) error {
 		return RemoveInfo(d.homePaths.DaemonInfo)
 	})
-	if err := WriteInfo(d.homePaths.DaemonInfo, state.info); err != nil {
+	info := state.info
+	info.ReadinessPhase = string(contract.DaemonReadinessReady)
+	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
 		return fmt.Errorf("daemon: publish daemon info: %w", err)
 	}
 	return nil
