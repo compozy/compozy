@@ -53,3 +53,15 @@ export function daemonRecovery(daemon: DaemonStatusPayload | undefined): DaemonR
   const named = readiness.step ? RECOVERY_STEP_LABELS[readiness.step] : undefined;
   return { label: named ?? DEFAULT_RECOVERY_LABEL };
 }
+
+/**
+ * Whether the runtime just finished its boot recovery: the previous answer was still starting or
+ * serving and this one is ready. Reads taken before this point can predate the boot reconcile.
+ */
+export function daemonRecoveryFinished(
+  previousPhase: string | null,
+  phase: string | null
+): boolean {
+  if (phase !== "ready") return false;
+  return previousPhase === "starting" || previousPhase === "serving";
+}

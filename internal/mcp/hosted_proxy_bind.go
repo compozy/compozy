@@ -24,10 +24,13 @@ func bindHostedMCPWithDialRetry(
 	client HostedProxyClient,
 	req HostedBindRequest,
 ) (HostedBindResponse, error) {
+	// The window bounds in-flight attempts too, not only the gaps between them.
+	windowCtx, cancel := context.WithTimeout(ctx, hostedBindDialRetryWindow)
+	defer cancel()
 	deadline := time.NewTimer(hostedBindDialRetryWindow)
 	defer deadline.Stop()
 	for {
-		bind, err := client.BindHostedMCP(ctx, req)
+		bind, err := client.BindHostedMCP(windowCtx, req)
 		if err == nil || !isHostedDialError(err) {
 			return bind, err
 		}

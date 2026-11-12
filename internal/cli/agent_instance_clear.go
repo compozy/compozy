@@ -9,6 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// refuseAgentInstanceClearMain keeps clear-main operator-only, matching the native tool. The
+// daemon client sends no agent credentials, so an agent session must be refused before any call.
+func refuseAgentInstanceClearMain(deps commandDeps, action string) error {
+	if action == agentInstanceClearMainAction && agentIdentityEnvironmentPresent(deps) {
+		return errors.New("clear_main_operator_only: only the operator can clear a main session")
+	}
+	return nil
+}
+
 // clearAgentInstanceMain is the operator recovery for a main session that cannot resume. It
 // keeps the instance, the session id, queued inputs and agent memory; only the conversation
 // and its provider thread are replaced.

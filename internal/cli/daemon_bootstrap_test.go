@@ -1489,6 +1489,41 @@ func TestDaemonBootstrapDesktopHandoff(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound a serving probe that never answers by the mutation wait", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.deps.bootstrapAttachTimeout = 20 * time.Millisecond
+		lock := holdMutationLock(t, fixture)
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Errorf("Release() error = %v", err)
+			}
+		})
+		// The daemon accepts the status request and never answers it.
+		fixture.observeStatus(func(
+			ctx context.Context, _ func(context.Context) (DaemonStatus, error),
+		) (DaemonStatus, error) {
+			select {
+			case <-ctx.Done():
+				return DaemonStatus{}, ctx.Err()
+			case <-time.After(30 * time.Second):
+				return DaemonStatus{}, errors.New("injected: status probe outlived the mutation wait")
+			}
+		})
+
+		started := time.Now()
+		events, err := fixture.run(t, "--ready-phase", "serving")
+		if !errors.Is(err, compozydaemon.ErrRuntimeMutationInProgress) {
+			t.Fatalf("bootstrap error = %v, want the runtime mutation; events=%#v", err, events)
+		}
+		if elapsed := time.Since(started); elapsed > 10*time.Second {
+			t.Fatalf("bootstrap took %s, want the wait bounded by the attach timeout", elapsed)
+		}
+		failed := events[len(events)-1]
+		if failed.Phase != bootstrapPhaseFailed || failed.Classification != bootstrapProbeMutationBusy {
+			t.Fatalf("final event = %#v, want a terminal mutation-in-progress failure", failed)
+		}
+	})
+
 	t.Run("Should fail once when the runtime binary cannot be launched", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)
 		launches := 0
@@ -1604,6 +1639,82 @@ func TestDaemonBootstrapDesktopHandoff(t *testing.T) {
 			t.Fatalf("final event = %#v, want attach to serving lock owner pid %d", ready, fixture.ownerPID)
 		}
 	})
+
+	// An existing daemon publishes daemon.json before it reports `running`, and no runtime mutation
+	// lock is held: the serving target attaches to it, the default target still waits for `running`.
+	for _, tc := range []struct {
+		name           string
+		flags          []string
+		identityPID    int
+		wantResolution bootstrapResolution
+		wantStatus     string
+		wantPhase      contract.DaemonReadinessPhase
+	}{
+		{
+			name:  "Should attach to an existing serving daemon without a held mutation lock when asked",
+			flags: []string{"--ready-phase", "serving"}, identityPID: 777,
+			wantResolution: bootstrapResolutionAttach, wantStatus: "draining",
+			wantPhase: contract.DaemonReadinessServing,
+		},
+		{
+			name:           "Should wait for an existing serving daemon to run by default",
+			identityPID:    777,
+			wantResolution: bootstrapResolutionStart, wantStatus: daemonRunningStatus,
+		},
+		{
+			name:  "Should not attach to a serving daemon whose identity differs from the record",
+			flags: []string{"--ready-phase", "serving"}, identityPID: 778,
+			wantResolution: bootstrapResolutionStart, wantStatus: daemonRunningStatus,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newBootstrapLockOwnerFixture(t)
+			startedAt := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+			fixture.deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+			fixture.deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+				return compozydaemon.Info{PID: fixture.ownerPID, Port: 2123, StartedAt: startedAt}, nil
+			}
+			answers := 0
+			fixture.observeStatus(func(
+				context.Context, func(context.Context) (DaemonStatus, error),
+			) (DaemonStatus, error) {
+				answers++
+				status := DaemonStatus{
+					Status: daemonRunningStatus, PID: fixture.ownerPID, Version: "v1.2.0", StartedAt: startedAt,
+					Socket: fixture.homePaths.DaemonSocket, HTTPHost: "127.0.0.1", HTTPPort: 2123,
+				}
+				// Recovery finishes after the first answer, so a bootstrap that keeps waiting attaches
+				// on its next probe instead of spending start attempts.
+				if answers > 1 {
+					return status, nil
+				}
+				status.PID = tc.identityPID
+				return serving(status, "resumeBootInterruptedSessions"), nil
+			})
+
+			events, err := fixture.run(t, tc.flags...)
+			if err != nil {
+				t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+			}
+			if fixture.spawns != 0 {
+				t.Fatalf("spawned children = %d, want none beside a live daemon; events=%#v", fixture.spawns, events)
+			}
+			if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 0 {
+				t.Fatalf("retrying events = %d, want none; events=%#v", got, events)
+			}
+			ready := events[len(events)-1]
+			if ready.Phase != bootstrapPhaseReady || ready.Status != bootstrapStatusCompleted ||
+				ready.Resolution != tc.wantResolution || ready.Daemon == nil ||
+				ready.Daemon.PID != fixture.ownerPID || ready.Daemon.Status != tc.wantStatus {
+				t.Fatalf("final event = %#v, want %s as pid %d with status %q",
+					ready, tc.wantResolution, fixture.ownerPID, tc.wantStatus)
+			}
+			if tc.wantPhase != "" &&
+				(ready.Readiness == nil || ready.Readiness.Phase != string(tc.wantPhase)) {
+				t.Fatalf("final readiness = %#v, want phase %q", ready.Readiness, tc.wantPhase)
+			}
+		})
+	}
 
 	t.Run("Should reject an unknown ready phase", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)

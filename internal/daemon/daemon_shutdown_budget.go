@@ -20,16 +20,58 @@ const (
 	// shutdownPersistBudget bounds the final persistence phase, including the checkpointed database
 	// close. It is granted even when the earlier phases spent the whole teardown budget.
 	shutdownPersistBudget = 4 * time.Second
-	// shutdownWatchdogMargin is how far past the complete budget a terminal shutdown may run.
+	// shutdownWatchdogMargin is the slack between the last phase budget and the forced exit. It covers
+	// the transitions between phases, so a slow shutdown that respects every budget is never killed.
 	shutdownWatchdogMargin   = 2 * time.Second
 	shutdownWatchdogExitCode = 1
+	// shutdownReservedBudget is what the phases that own a detached budget may spend after teardown.
+	shutdownReservedBudget = shutdownSessionDependenciesBudget + shutdownPersistBudget
+	// shutdownMinTeardownBudget keeps a teardown deadline when the complete budget is below the reserve.
+	shutdownMinTeardownBudget = time.Second
+	// shutdownPreludeBudget bounds the serial steps that run before workers and sessions stop.
+	shutdownPreludeBudget = 2 * time.Second
+	// shutdownPreludeShare is the largest fraction of the remaining teardown the prelude may spend.
+	shutdownPreludeShare = 4
+	// restartCheckpointBudget is the part of the teardown the restart drain leaves for capturing the
+	// restart checkpoints of the turns it did not outwait.
+	restartCheckpointBudget = 2 * time.Second
 )
 
 // shutdownTeardownBudget is the part of the complete shutdown budget the drain, worker and session
-// phases may spend. The remainder is reserved for the phases that own a detached budget, so the
-// complete budget still bounds the whole shutdown.
+// phases may spend. The detached budgets of the later phases are reserved first, so the phase
+// budgets never add up to more than the complete budget.
 func shutdownTeardownBudget(total time.Duration) time.Duration {
-	return max(total-shutdownSessionDependenciesBudget-shutdownPersistBudget, total/2)
+	return max(total-shutdownReservedBudget, shutdownMinTeardownBudget)
+}
+
+// shutdownWatchdogBudget is when a process-terminal shutdown is forced to exit. It is always
+// shutdownWatchdogMargin past the sum of every phase budget, which is the complete budget unless
+// that budget is smaller than the reserve.
+func shutdownWatchdogBudget(total time.Duration) time.Duration {
+	return shutdownTeardownBudget(total) + shutdownReservedBudget + shutdownWatchdogMargin
+}
+
+// remainingShutdownBudget reports the time left before ctx expires, or fallback without a deadline.
+func remainingShutdownBudget(ctx context.Context, fallback time.Duration) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return fallback
+	}
+	return max(time.Until(deadline), 0)
+}
+
+// shutdownPreludeWait is the allocation of the serial steps before workers and sessions stop: a
+// fixed cap that is also a bounded share of the remaining teardown, so they cannot starve it.
+func shutdownPreludeWait(ctx context.Context) time.Duration {
+	remaining := remainingShutdownBudget(ctx, shutdownPreludeBudget*shutdownPreludeShare)
+	return min(shutdownPreludeBudget, remaining/shutdownPreludeShare)
+}
+
+// restartDrainBudget bounds the restart drain by what the teardown has left after the checkpoint
+// reserve. It never exceeds the capped grace and is zero when only the reserve is left.
+func restartDrainBudget(ctx context.Context, grace time.Duration) time.Duration {
+	wait := restartDrainWait(grace)
+	return max(min(wait, remainingShutdownBudget(ctx, wait+restartCheckpointBudget)-restartCheckpointBudget), 0)
 }
 
 // restartDrainWait caps the configured grace: zero still disables the wait.

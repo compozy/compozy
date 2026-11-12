@@ -3670,7 +3670,8 @@ func resolvedSkillPath(dir string, source string) workspacepkg.SkillPath {
 	}
 }
 
-// Skill editing rejects retired definitions without writes and accepts canonical definitions.
+// TestRegistrySetEnabledForAgentKindAlias owns the UT-004 skill attach case: toggling a skill on a
+// persisted definition migrates before skill editing.
 func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
 	t.Run("Should enforce the current input contract", func(t *testing.T) {
 		t.Parallel()
@@ -3680,29 +3681,17 @@ func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		const original = "---\nname: triage\nkind: stays_on\ndescription: Watches issues\n---\nWatch.\n"
 		if err := os.WriteFile(
 			path,
-			[]byte(original),
+			[]byte("---\nname: triage\nkind: stays_on\ndescription: Watches issues\n---\nWatch.\n"),
 			0o600,
 		); err != nil {
 			t.Fatal(err)
 		}
 		registry := newTestRegistry(t, RegistryConfig{GlobalAgentsDir: agentsDir})
 		err := registry.SetEnabledForAgent("review", nil, "triage", false)
-		if !errors.Is(err, ErrAgentLocalInvalid) {
-			t.Fatalf("retired agent edit error = %v, want ErrAgentLocalInvalid", err)
-		}
-		unchanged, err := os.ReadFile(path)
-		if err != nil || string(unchanged) != original {
-			t.Fatalf("rejected definition changed: %q, %v", unchanged, err)
-		}
-		canonical := strings.Replace(original, "stays_on", "always_on", 1)
-		if err := os.WriteFile(path, []byte(canonical), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := registry.SetEnabledForAgent("review", nil, "triage", false); err != nil {
-			t.Fatalf("edit canonical agent skill: %v", err)
+		if err != nil {
+			t.Fatalf("enable migrated agent skill: %v", err)
 		}
 
 		body, err := os.ReadFile(path)

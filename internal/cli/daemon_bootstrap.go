@@ -178,7 +178,8 @@ type bootstrapExecution struct {
 
 // resolveAndStart attaches to a compatible daemon or provisions and starts the selected runtime.
 func (e *bootstrapExecution) resolveAndStart() error {
-	status, running, err := probeBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths)
+	probe := bootstrapDaemonProbe{deps: e.deps, homePaths: e.homePaths, readyPhase: e.options.readyPhase}
+	status, running, err := probe.status(e.cmd.Context())
 	if err == nil && running {
 		return e.attachRunning(status)
 	}
@@ -384,21 +385,13 @@ func bootstrapRuntimePath(homePaths compozyconfig.HomePaths) string {
 	return filepath.Join(homePaths.BinDir, name)
 }
 
-func probeBootstrapDaemon(
-	ctx context.Context,
-	deps commandDeps,
-	homePaths compozyconfig.HomePaths,
-) (DaemonStatus, bool, error) {
-	probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths}
-	return probe.status(ctx)
-}
-
 // runBootstrapDaemonDetached owns the startup mutation lock until readiness, exit, or cancellation.
 func runBootstrapDaemonDetached(
 	ctx context.Context,
 	deps commandDeps,
 	homePaths compozyconfig.HomePaths,
 	binaryPath string,
+	readyPhase bootstrapReadyPhase,
 	observe bootstrapStartObserver,
 ) (status DaemonStatus, returnErr error) {
 	updateLock, err := acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(homePaths))
@@ -411,7 +404,8 @@ func runBootstrapDaemonDetached(
 	if _, running, err := daemonInfo(homePaths, deps); err != nil {
 		return DaemonStatus{}, err
 	} else if running {
-		status, healthy, probeErr := probeBootstrapDaemon(ctx, deps, homePaths)
+		probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths, readyPhase: readyPhase}
+		status, healthy, probeErr := probe.status(ctx)
 		if probeErr == nil && healthy {
 			return status, nil
 		}

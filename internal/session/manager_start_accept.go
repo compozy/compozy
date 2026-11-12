@@ -23,7 +23,9 @@ type acceptedSessionStart struct {
 	cleanupPending bool
 	// recorderClosing distinguishes joining Close from retrying an unfinished write.
 	recorderClosing bool
-	retainedFailure *failedStartRetention
+	// shutdownInterrupted keeps the start failure in the run result across settlement retries.
+	shutdownInterrupted bool
+	retainedFailure     *failedStartRetention
 }
 
 // acceptSessionStart resolves routing before persistence so invalid configuration cannot create sessions.

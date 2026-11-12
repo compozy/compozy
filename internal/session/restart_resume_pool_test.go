@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -111,7 +112,7 @@ func TestRestartResumePool(t *testing.T) {
 				resumed = append(resumed, id)
 				cancel()
 			})
-		if err == nil || !slices.Equal(resumed, []string{"a"}) {
+		if !errors.Is(err, context.Canceled) || !slices.Equal(resumed, []string{"a"}) {
 			t.Fatalf("runRestartResumes() = %v after resuming %v; want cancellation after the first", err, resumed)
 		}
 	})

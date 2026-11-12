@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
@@ -31,6 +33,10 @@ const (
 	defaultRestartPreflightTimeout = 5 * time.Second
 	restartPreflightKillWait       = time.Second
 	restartPreflightOutputLimit    = 64 << 10
+	// restartPreflightTextLimit bounds each free-text field of a report. JSON escaping can grow a
+	// field sixfold, so the error and the warning together still fit restartPreflightOutputLimit.
+	restartPreflightTextLimit      = 4 << 10
+	restartPreflightTextTruncation = " [truncated]"
 	restartPreflightFailureAction  = "restart pre-flight"
 )
 
@@ -66,9 +72,9 @@ type RestartPreflightConfig struct {
 	LoadLaunchConfig func() error
 }
 
-// RunRestartPreflight reports whether this binary can boot the home: it loads and validates the
-// configuration as launch and boot do, then plans the global database migrations through a
-// read-only handle. It never applies a migration, never creates the database, and never opens
+// RunRestartPreflight reports whether this binary can boot the home: it plans the global database
+// migrations through a read-only handle, then loads and validates the configuration as launch and
+// boot do. It never applies a migration, never creates the database, and never opens
 // per-session databases.
 func RunRestartPreflight(ctx context.Context, cfg *RestartPreflightConfig) RestartPreflightReport {
 	report := RestartPreflightReport{Schema: RestartPreflightSchema}
@@ -77,6 +83,26 @@ func RunRestartPreflight(ctx context.Context, cfg *RestartPreflightConfig) Resta
 	}
 	if ctx == nil {
 		return report.failed(RestartPreflightStageConfig, errors.New("daemon: pre-flight context is required"))
+	}
+	// The config loaders apply the lossless retired-key migrations every CLI command applies, so the
+	// read-only database plan runs first: a refused plan leaves the config files untouched.
+	summary, err := store.PlanMigrationsAtPath(ctx, cfg.HomePaths.DatabaseFile, globaldb.MigrationStream())
+	switch {
+	case err == nil:
+		report.Migrations = []RestartPreflightMigration{{
+			Stream:      summary.Stream,
+			Version:     summary.Version,
+			HeadVersion: summary.HeadVersion,
+			Pending:     summary.Pending,
+		}}
+	case restartPreflightMigrationRefused(err):
+		return report.failed(RestartPreflightStageMigrations, err)
+	default:
+		// A busy or unreadable database is not evidence that the replacement cannot boot.
+		report.Warnings = append(
+			report.Warnings,
+			boundRestartPreflightText("migration plan was not conclusive: "+err.Error()),
+		)
 	}
 	if cfg.LoadLaunchConfig != nil {
 		if err := cfg.LoadLaunchConfig(); err != nil {
@@ -91,21 +117,6 @@ func RunRestartPreflight(ctx context.Context, cfg *RestartPreflightConfig) Resta
 		return report.failed(RestartPreflightStageConfig, err)
 	}
 
-	summary, err := store.PlanMigrationsAtPath(ctx, cfg.HomePaths.DatabaseFile, globaldb.MigrationStream())
-	switch {
-	case err == nil:
-		report.Migrations = []RestartPreflightMigration{{
-			Stream:      summary.Stream,
-			Version:     summary.Version,
-			HeadVersion: summary.HeadVersion,
-			Pending:     summary.Pending,
-		}}
-	case restartPreflightMigrationRefused(err):
-		return report.failed(RestartPreflightStageMigrations, err)
-	default:
-		// A busy or unreadable database is not evidence that the replacement cannot boot.
-		report.Warnings = append(report.Warnings, "migration plan was not conclusive: "+err.Error())
-	}
 	report.OK = true
 	return report
 }
@@ -120,8 +131,21 @@ func restartPreflightMigrationRefused(err error) bool {
 func (r RestartPreflightReport) failed(stage string, err error) RestartPreflightReport {
 	r.OK = false
 	r.Stage = stage
-	r.Error = err.Error()
+	r.Error = boundRestartPreflightText(err.Error())
 	return r
+}
+
+// boundRestartPreflightText keeps a report field small enough that the daemon reading the report
+// never receives a truncated, unreadable line.
+func boundRestartPreflightText(text string) string {
+	if len(text) <= restartPreflightTextLimit {
+		return text
+	}
+	cut := restartPreflightTextLimit - len(restartPreflightTextTruncation)
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + restartPreflightTextTruncation
 }
 
 // FailureReason renders the failed check for the restart journal and transport errors.
@@ -226,11 +250,41 @@ func classifyRestartPreflight(stdout []byte, waitErr error, ctxErr error) restar
 	}
 }
 
+// classifyRestartPreflightOutput classifies a captured run. Output past the capture limit that left
+// no readable report is never read as a binary without the subcommand: with a failing exit it is
+// the failure report of a replacement that cannot boot, so it refuses the restart.
+func classifyRestartPreflightOutput(
+	output *restartPreflightOutput,
+	waitErr error,
+	ctxErr error,
+) restartPreflightOutcome {
+	outcome := classifyRestartPreflight(output.data, waitErr, ctxErr)
+	if !output.truncated || outcome.status != restartPreflightUnavailable || ctxErr != nil {
+		return outcome
+	}
+	if waitErr != nil {
+		return restartPreflightOutcome{
+			status: restartPreflightFailed,
+			reason: fmt.Sprintf(
+				"replacement failed its pre-flight with a report larger than %d bytes: %v",
+				output.limit, waitErr,
+			),
+		}
+	}
+	return restartPreflightOutcome{
+		status: restartPreflightUnavailable,
+		reason: fmt.Sprintf(
+			"replacement pre-flight output exceeded %d bytes and held no readable report",
+			output.limit,
+		),
+	}
+}
+
 // parseRestartPreflightReport returns the last line that is a report of the schema this daemon reads.
 func parseRestartPreflightReport(stdout []byte) (RestartPreflightReport, bool) {
 	lines := bytes.Split(stdout, []byte{'\n'})
-	for index := len(lines) - 1; index >= 0; index-- {
-		line := bytes.TrimSpace(lines[index])
+	for _, raw := range slices.Backward(lines) {
+		line := bytes.TrimSpace(raw)
 		if len(line) == 0 || line[0] != '{' {
 			continue
 		}

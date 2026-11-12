@@ -16,7 +16,8 @@ import (
 const bootSessionWatermarkFile = "boot-session-watermarks.json"
 
 // bootSessionWatermark is the durable proof that one retained session needs no boot work while
-// its files stay byte-identical: Verified covers the events database upgrade and owner check,
+// its files carry the same evidence (store.FileStamp: size, modification time, inode identity
+// and change time, and the database header digest): Verified covers the events database upgrade and owner check,
 // Settled covers the restart capture and history repair pass.
 type bootSessionWatermark struct {
 	Files    store.SessionFilesStamp `json:"files"`
@@ -26,8 +27,8 @@ type bootSessionWatermark struct {
 
 // bootSessionWatermarks carries proofs from the previous boot and collects this boot's. A proof
 // is only ever written after the work it stands for succeeded, and only ever honored when the
-// session's files, the running executable, and its embedded schema head all still match;
-// everything else takes the full path. A nil receiver disables the optimization.
+// session's files, the running build, and its embedded schema head all still match; a file whose
+// identity cannot be established, and everything else, takes the full path. A nil receiver disables the optimization.
 type bootSessionWatermarks struct {
 	path        string
 	profile     string

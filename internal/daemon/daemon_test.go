@@ -1629,8 +1629,9 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() left task runtime = %#v, want nil", d.tasks)
 	}
 
-	// Workers and sessions stop side by side: each side keeps its own order, and both finish before
-	// the servers, hooks and persistent resources close.
+	// Workers and sessions stop side by side, and both finish before the servers, hooks and persistent
+	// resources close. Workers keep their order; sessions stop concurrently, one goroutine each, so
+	// they have no order among themselves and each is stopped exactly once.
 	eventsMu.Lock()
 	defer eventsMu.Unlock()
 	position := func(event string) int {
@@ -1643,8 +1644,10 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	if position("extensions") > position("automation") {
 		t.Fatalf("Shutdown() worker order = %#v, want extensions before automation", events)
 	}
-	if position("session:sess-a") > position("session:sess-b") {
-		t.Fatalf("Shutdown() session order = %#v, want sess-a before sess-b", events)
+	for _, stopped := range []string{"session:sess-a", "session:sess-b"} {
+		if position(stopped) >= 4 {
+			t.Fatalf("Shutdown() events = %#v, want %q before the servers close", events, stopped)
+		}
 	}
 	wantTail := []string{"http", "uds", "hooks", "db", "lock", "logger"}
 	if len(events) != 4+len(wantTail) || !slices.Equal(events[4:], wantTail) {
@@ -2201,6 +2204,134 @@ func TestDaemonShutdownOperation(t *testing.T) {
 		}
 	})
 
+	// Invariant: the phase budgets add up to the complete budget and the watchdog fires strictly
+	// after them, so a slow shutdown that respects every budget is never force-exited.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should keep every phase budget inside the watchdog deadline", func(t *testing.T) {
+		t.Parallel()
+		for _, total := range []time.Duration{
+			time.Second, defaultShutdownTimeout, 14 * time.Second, 25 * time.Second, time.Minute,
+		} {
+			phases := shutdownTeardownBudget(total) + shutdownSessionDependenciesBudget + shutdownPersistBudget
+			if watchdog := shutdownWatchdogBudget(total); watchdog-phases < shutdownWatchdogMargin {
+				t.Fatalf("total %s: phases %s, watchdog %s, want %s of slack", total, phases, watchdog,
+					shutdownWatchdogMargin)
+			}
+			if total >= defaultShutdownTimeout && phases != total {
+				t.Fatalf("total %s: phase budgets add up to %s, want the complete budget", total, phases)
+			}
+		}
+	})
+
+	// Invariant: the serial steps before the teardown own a bounded share of it, so a stuck
+	// workspace-deletion drain or watcher join leaves the workers and the sessions a live context.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should leave the teardown a live context when the prelude never finishes", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		stopCtxErr := context.Canceled
+		targets := &shutdownTargets{
+			sessions: &fakeSessionManager{shutdownHook: func() { stopCtxErr = ctx.Err() }},
+			workspaceFinalizer: workspaceUnregisterFinalizerFunc(func(drainCtx context.Context) error {
+				<-drainCtx.Done()
+				return drainCtx.Err()
+			}),
+			skillsDone: make(chan struct{}),
+		}
+		var errs []error
+		(&Daemon{}).shutdownRuntimeWorkers(ctx, targets, &errs)
+		if err := errors.Join(errs...); !errors.Is(err, context.DeadlineExceeded) ||
+			!strings.Contains(err.Error(), "drain workspace deletion finalization") ||
+			!strings.Contains(err.Error(), "stop skills watcher") {
+			t.Fatalf("shutdownRuntimeWorkers() error = %v, want both stuck prelude steps abandoned", err)
+		}
+		if stopCtxErr != nil || ctx.Err() != nil {
+			t.Fatalf("session stop context = %v, teardown context = %v, want both live after the prelude",
+				stopCtxErr, ctx.Err())
+		}
+	})
+
+	// Invariant: sessions still stopping after a retryable shutdown keep the stdio MCP pool; the
+	// retry that joins their cleanup, or the process-terminal path, closes it.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should keep session dependencies open until session cleanup joins", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		closes := 0
+		manager := &fakeSessionManager{shutdownErr: context.DeadlineExceeded}
+		newTargets := func() *shutdownTargets {
+			return &shutdownTargets{
+				sessions: manager,
+				stdioMCP: stdioMCPCloserFunc(func(context.Context) error {
+					closes++
+					return nil
+				}),
+			}
+		}
+		err = d.shutdownDetached(testutil.Context(t), nil, newTargets())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("shutdownDetached(incomplete) error = %v, want deadline", err)
+		}
+		if closes != 0 {
+			t.Fatalf("stdio MCP closes after incomplete retryable shutdown = %d, want 0", closes)
+		}
+		terminal := &daemonShutdownOperation{done: make(chan struct{}), withdrawDiscovery: true}
+		err = d.shutdownDetached(testutil.Context(t), terminal, newTargets())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("shutdownDetached(terminal) error = %v, want deadline", err)
+		}
+		if closes != 1 {
+			t.Fatalf("stdio MCP closes after incomplete terminal shutdown = %d, want 1", closes)
+		}
+		manager.mu.Lock()
+		manager.shutdownErr = nil
+		manager.mu.Unlock()
+		if err := d.shutdownDetached(testutil.Context(t), nil, newTargets()); err != nil {
+			t.Fatalf("shutdownDetached(joined retry) error = %v", err)
+		}
+		if closes != 2 {
+			t.Fatalf("stdio MCP closes after the joined retry = %d, want 2", closes)
+		}
+	})
+
+	// Invariant: the restart drain never spends the teardown its checkpoint capture needs, so a turn
+	// that outlasts the drain is still checkpointed on a live context.
+	// Owner: daemon shutdown; canonical shutdown suite.
+	t.Run("Should reserve the checkpoint capture from the restart drain", func(t *testing.T) {
+		t.Parallel()
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.restartRequested = true
+		d.config.Daemon.ShutdownGrace = 30 * time.Second
+		if got := restartDrainBudget(t.Context(), 30*time.Second); got != restartDrainCap {
+			t.Fatalf("restartDrainBudget(no deadline) = %s, want %s", got, restartDrainCap)
+		}
+		spent, cancelSpent := context.WithTimeout(testutil.Context(t), restartCheckpointBudget/2)
+		defer cancelSpent()
+		if got := restartDrainBudget(spent, 30*time.Second); got != 0 {
+			t.Fatalf("restartDrainBudget(only the reserve left) = %s, want 0", got)
+		}
+
+		ctx, cancel := context.WithTimeout(testutil.Context(t), restartCheckpointBudget+200*time.Millisecond)
+		defer cancel()
+		manager := &checkpointRecordingSessionManager{promptingSessionManager: promptingSessionManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{{ID: "sess-running"}}},
+		}}
+		if err := d.prepareShutdownSessions(ctx, manager); err != nil {
+			t.Fatalf("prepareShutdownSessions() error = %v", err)
+		}
+		if !manager.prepared || !manager.restart || manager.prepareCtxErr != nil {
+			t.Fatalf("checkpoint capture: prepared=%t restart=%t ctxErr=%v, want a restart capture on a live context",
+				manager.prepared, manager.restart, manager.prepareCtxErr)
+		}
+	})
+
 	// Invariant: a hung process-terminal shutdown ends the process and names the step still running;
 	// a shutdown that returned never exits. Owner: daemon lifecycle; canonical shutdown suite.
 	t.Run("Should force the process exit only while a terminal shutdown is still running", func(t *testing.T) {
@@ -2249,6 +2380,27 @@ type promptingSessionManager struct {
 }
 
 func (promptingSessionManager) IsPrompting(string) bool { return true }
+
+// checkpointRecordingSessionManager records the context its restart checkpoint capture runs under.
+type checkpointRecordingSessionManager struct {
+	promptingSessionManager
+	prepared      bool
+	restart       bool
+	prepareCtxErr error
+}
+
+func (*checkpointRecordingSessionManager) CaptureRestartInterruptions(context.Context, []*session.Info) error {
+	return nil
+}
+
+func (m *checkpointRecordingSessionManager) PrepareDaemonShutdown(ctx context.Context, restart bool) error {
+	m.prepared, m.restart, m.prepareCtxErr = true, restart, ctx.Err()
+	return nil
+}
+
+func (*checkpointRecordingSessionManager) ResumeInterruptedSessions(context.Context) error {
+	return nil
+}
 
 type shutdownBegin struct {
 	restart  bool
@@ -7569,14 +7721,21 @@ func (f *fakeSessionManager) RepairSession(
 	return &session.RepairResult{SessionID: opts.SessionID}, nil
 }
 
+// recordStopLocked reports the session that was actually stopped and drops it from the listing.
+func (f *fakeSessionManager) recordStopLocked(id string) {
+	index := slices.IndexFunc(f.infos, func(info *session.Info) bool { return info != nil && info.ID == id })
+	if f.onStop == nil || index < 0 {
+		return
+	}
+	f.onStop(id)
+	f.infos = slices.Delete(slices.Clone(f.infos), index, index+1)
+}
+
 func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stopCalls = append(f.stopCalls, id)
-	if f.onStop != nil && len(f.infos) > 0 {
-		f.onStop(f.infos[0].ID)
-		f.infos = f.infos[1:]
-	}
+	f.recordStopLocked(id)
 	if f.stopErr != nil {
 		return f.stopErr(id)
 	}
@@ -7613,10 +7772,7 @@ func (f *fakeSessionManager) StopWithCause(_ context.Context, id string, cause s
 		cause:  cause,
 		detail: detail,
 	})
-	if f.onStop != nil && len(f.infos) > 0 {
-		f.onStop(f.infos[0].ID)
-		f.infos = f.infos[1:]
-	}
+	f.recordStopLocked(id)
 	if f.stopWithCauseErr != nil {
 		return f.stopWithCauseErr(id, cause, detail)
 	}
@@ -7784,6 +7940,11 @@ func TestBootSessionRepair(t *testing.T) {
 						}
 						return false, readErr
 					}
+					if canceled {
+						// Inspections share a worker pool, so this read observes the cancellation.
+						<-ctx.Done()
+						return false, ctx.Err()
+					}
 					return true, nil
 				},
 			}
@@ -7805,6 +7966,105 @@ func TestBootSessionRepair(t *testing.T) {
 			}
 		})
 	}
+
+	// Invariant: restart inspection is per-session work that opens a retained history, so it
+	// runs inside the bounded pool together with the repair it decides, never serially ahead of it.
+	t.Run("Should inspect and repair restart candidates inside the bounded worker pool", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		infos := make([]*session.Info, 0, bootSessionWorkers*3)
+		wantRepaired := make([]string, 0, cap(infos))
+		for index := range cap(infos) {
+			id := fmt.Sprintf("sess-%02d", index)
+			infos = append(infos, &session.Info{ID: id, State: session.StateStopped, StopReason: store.StopShutdown})
+			if index%2 == 0 {
+				wantRepaired = append(wantRepaired, id)
+			}
+		}
+		var (
+			mu       sync.Mutex
+			inFlight int
+			peak     int
+			poolFull = make(chan struct{})
+		)
+		manager := &restartStateReadManager{
+			fakeSessionManager: &fakeSessionManager{infos: infos},
+			read: func(readCtx context.Context, id string) (bool, error) {
+				mu.Lock()
+				inFlight++
+				peak = max(peak, inFlight)
+				if inFlight == bootSessionWorkers {
+					select {
+					case <-poolFull:
+					default:
+						close(poolFull)
+					}
+				}
+				mu.Unlock()
+				// Every inspection waits until the pool is full once: a serial pass never gets there.
+				select {
+				case <-poolFull:
+				case <-readCtx.Done():
+					return false, readCtx.Err()
+				}
+				mu.Lock()
+				inFlight--
+				mu.Unlock()
+				return slices.Contains(wantRepaired, id), nil
+			},
+		}
+		state := &bootState{sessions: manager, logger: discardLogger()}
+		if err := repairBootSessionHistories(ctx, state, infos, nil); err != nil {
+			t.Fatalf("repairBootSessionHistories() error = %v", err)
+		}
+		repaired := make([]string, 0, len(manager.repairCalls))
+		for _, call := range manager.repairCalls {
+			repaired = append(repaired, call.SessionID)
+		}
+		slices.Sort(repaired)
+		if peak != bootSessionWorkers || !slices.Equal(repaired, wantRepaired) {
+			t.Fatalf("peak inspections=%d repaired=%v, want peak=%d repaired=%v",
+				peak, repaired, bootSessionWorkers, wantRepaired)
+		}
+	})
+
+	// Invariant: a proof belongs to one build. Executable size and modification time can collide
+	// across builds, so the identity always carries the commit stamp or a content digest.
+	t.Run("Should bind proofs to the build instead of executable size and timestamp", func(t *testing.T) {
+		t.Parallel()
+		digest := func(value string, err error) func() (string, error) {
+			return func() (string, error) { return value, err }
+		}
+		identity := func(release, commit string, content func() (string, error)) string {
+			t.Helper()
+			got, err := store.BootWatermarkBuildIdentity(release, commit, 4096, 1700000000, content)
+			if err != nil {
+				t.Fatalf("BootWatermarkBuildIdentity(%q, %q) error = %v", release, commit, err)
+			}
+			return got
+		}
+		unused := digest("", errors.New("a stamped build must not be digested"))
+		if identity("1.2.3", "abc1234", unused) == identity("1.2.3", "def5678", unused) ||
+			identity("1.2.3", "abc1234", unused) == identity("1.2.4", "abc1234", unused) {
+			t.Fatal("stamped builds with equal size and timestamp share an identity")
+		}
+		if identity("dev", "unknown", digest("aaaa", nil)) == identity("dev", "unknown", digest("bbbb", nil)) {
+			t.Fatal("unstamped builds with equal size and timestamp share an identity")
+		}
+		if identity("dev", "unknown", digest("aaaa", nil)) != identity("dev", "unknown", digest("aaaa", nil)) {
+			t.Fatal("one unstamped build reports two identities")
+		}
+		for _, content := range []func() (string, error){digest("", errors.New("unreadable")), digest("", nil)} {
+			if got, err := store.BootWatermarkBuildIdentity("dev", "unknown", 4096, 1700000000, content); err == nil {
+				t.Fatalf("unidentifiable build = %q, want an error that disables proofs", got)
+			}
+		}
+		running, err := store.BootWatermarkBinary()
+		if err != nil || running == "" {
+			t.Fatalf("BootWatermarkBinary() = %q, %v; want the running build's identity", running, err)
+		}
+	})
 
 	// Invariant: retained databases upgrade before boot reads their histories;
 	// migration failures stop boot and identity refusals stay isolated to their session.
@@ -7959,6 +8219,24 @@ func TestBootSessionRepair(t *testing.T) {
 		})
 		expect("new session", []string{"sess-new"}, nil)
 		expect("settled again", nil, nil)
+
+		// Size and modification time are not proof of content. A database replaced by another of
+		// the same size and timestamp is a different file, and one rewritten in place carries a
+		// different header; both are inspected again.
+		idleDatabase := filepath.Join(homePaths.SessionsDir, "sess-idle", store.SessionDatabaseName)
+		sharedHead := strings.Repeat("h", 256)
+		writeSessionFile("sess-idle", store.SessionDatabaseName, sharedHead+"-turn-a")
+		expect("database grew", []string{"sess-idle"}, nil)
+		expect("grown database settled", nil, nil)
+		writeSessionFile("sess-idle", "restore.tmp", sharedHead+"-turn-b")
+		if err := os.Rename(filepath.Join(filepath.Dir(idleDatabase), "restore.tmp"), idleDatabase); err != nil {
+			t.Fatal(err)
+		}
+		expect("same-size same-timestamp atomic restore", []string{"sess-idle"}, nil)
+		expect("restored database settled", nil, nil)
+		writeSessionFile("sess-idle", store.SessionDatabaseName, "H"+sharedHead[1:]+"-turn-b")
+		expect("same-size same-timestamp rewrite in place", []string{"sess-idle"}, nil)
+		expect("rewritten database settled", nil, nil)
 
 		indexPath := filepath.Join(home, bootSessionWatermarkFile)
 		index, err := os.ReadFile(indexPath)

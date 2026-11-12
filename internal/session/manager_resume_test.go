@@ -207,6 +207,7 @@ func TestResumeInterruptedSession(t *testing.T) {
 			if err := h.manager.CaptureRestartInterruptions(t.Context(), infos); err != nil {
 				t.Fatal(err)
 			}
+			simulateDaemonRestart(h.manager)
 			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
 			if err != nil && !errors.Is(err, ErrRestartContinuationSkipped) {
 				t.Fatal(err)
@@ -1348,7 +1349,11 @@ func TestResumeReplayFallback(t *testing.T) {
 			starts := append([]acp.StartOpts(nil), h.driver.startCalls...)
 			h.driver.mu.Unlock()
 			if len(starts) != 3 || starts[1].ResumeSessionID != originalACP || starts[2].ResumeSessionID != "" {
-				t.Fatalf("provider starts = %d, want create, one load of %q and one fresh thread", len(starts), originalACP)
+				t.Fatalf(
+					"provider starts = %d, want create, one load of %q and one fresh thread",
+					len(starts),
+					originalACP,
+				)
 			}
 			prompt := managerPromptCalls(h)[0].Message
 			if strings.Count(prompt, resumeReplayOpenTag) != 1 ||

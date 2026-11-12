@@ -244,10 +244,18 @@ func (m *Manager) settleClosedSessionStart(
 	}
 	// Once a failure batch reserves its terminal identity, retries own that outcome.
 	// A later Stop joins the start run instead of appending another terminal event.
-	if accepted.retainedFailure == nil && (accepted.session.stopWasRequested() ||
-		(retain && m.interruptStartForDaemonShutdown(settleCtx, accepted, failure))) {
+	stopRequested := accepted.session.stopWasRequested()
+	if accepted.retainedFailure == nil && !stopRequested && retain &&
+		m.interruptStartForDaemonShutdown(settleCtx, accepted, failure) {
+		accepted.shutdownInterrupted, stopRequested = true, true
+	}
+	if accepted.retainedFailure == nil && stopRequested {
 		releaseCommit()
 		err := m.settleCanceledSessionStart(settleCtx, accepted)
+		if accepted.shutdownInterrupted {
+			// The run still reports that its start did not happen; only retention is withheld.
+			err = errors.Join(failure, err)
+		}
 		return m.canceledSessionStartPending(accepted), err
 	}
 	if retain {

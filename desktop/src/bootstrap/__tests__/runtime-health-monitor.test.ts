@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeHealthMonitor } from "../runtime-health-monitor";
-import { processAlive, recordedRuntimePids, runtimeProcessAlive } from "../runtime-liveness";
+import {
+  processAlive,
+  processStartedAt,
+  recordedRuntimeProcesses,
+  runtimeProcessAlive,
+} from "../runtime-liveness";
 import { monitorProductRuntime, type ProductRuntimeShell } from "../runtime-reconnect";
 
 const ORIGIN = "http://127.0.0.1:2123";
@@ -227,23 +232,33 @@ describe("runtime health monitor", () => {
 });
 
 // Invariant: a runtime counts as alive while the process bound to the window, a daemon holding
-// the daemon lock, or the process driving a restart or update exists. Owner: runtime liveness.
+// the daemon lock, or the process driving a restart or update exists, and a pid counts only for
+// the process the runtime was recorded under, never for a later process reusing it.
+// Owner: runtime liveness.
 describe("runtime liveness", () => {
+  const recordedPids = async (home: string, platform: NodeJS.Platform) =>
+    (await recordedRuntimeProcesses(home, platform)).map(record => record.pid);
+
   it("Should read the daemon and mutation-lock pids the runtime records in its home", async () => {
     const home = await mkdtemp(join(tmpdir(), "compozy-runtime-liveness-"));
     try {
-      expect(await recordedRuntimePids(home, "linux")).toEqual([]);
+      expect(await recordedPids(home, "linux")).toEqual([]);
+      const before = Date.now();
       await writeFile(join(home, "daemon.lock"), "4242\n");
       await writeFile(join(home, "update.lock"), '{"pid":777,"started_at":"2026-11-12T00:00:00Z"}');
-      expect(await recordedRuntimePids(home, "linux")).toEqual([4242, 777]);
+      expect(await recordedPids(home, "linux")).toEqual([4242, 777]);
+      // Each record carries the file's last write: the moment its process recorded itself.
+      for (const record of await recordedRuntimeProcesses(home, "linux")) {
+        expect(Math.abs(record.recordedAt - before)).toBeLessThan(60_000);
+      }
       // Windows locks the files exclusively, so the runtime records the pids beside them.
-      expect(await recordedRuntimePids(home, "win32")).toEqual([]);
+      expect(await recordedPids(home, "win32")).toEqual([]);
       await writeFile(join(home, "daemon.lock.pid"), "4243");
       await writeFile(join(home, "update.lock.owner"), '{"pid":778}');
-      expect(await recordedRuntimePids(home, "win32")).toEqual([4243, 778]);
+      expect(await recordedPids(home, "win32")).toEqual([4243, 778]);
       // A released mutation lock is truncated: it names no process.
       await writeFile(join(home, "update.lock"), "");
-      expect(await recordedRuntimePids(home, "linux")).toEqual([4242]);
+      expect(await recordedPids(home, "linux")).toEqual([4242]);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
@@ -252,14 +267,69 @@ describe("runtime liveness", () => {
   it("Should count any recorded or bound runtime process that exists", async () => {
     const home = await mkdtemp(join(tmpdir(), "compozy-runtime-liveness-"));
     try {
-      expect(await runtimeProcessAlive(home, 42, () => false)).toBe(false);
-      expect(await runtimeProcessAlive(home, 42, pid => pid === 42)).toBe(true);
-      expect(await runtimeProcessAlive(home, undefined, () => true)).toBe(false);
+      const bound = { pid: 42, recordedAt: 10_000 };
+      const startedAt = async () => 9_000;
+      expect(await runtimeProcessAlive(home, bound, { alive: () => false, startedAt })).toBe(false);
+      expect(await runtimeProcessAlive(home, bound, { alive: pid => pid === 42, startedAt })).toBe(
+        true
+      );
+      expect(await runtimeProcessAlive(home, undefined, { alive: () => true, startedAt })).toBe(
+        false
+      );
+      await writeFile(join(home, "daemon.lock"), "4242\n");
+      expect(
+        await runtimeProcessAlive(home, undefined, { alive: pid => pid === 4242, startedAt })
+      ).toBe(true);
       expect(processAlive(process.pid)).toBe(true);
       expect(processAlive(0)).toBe(false);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
+  });
+
+  it("Should not count a pid reused by a process that started after the runtime was recorded", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-runtime-liveness-"));
+    try {
+      // The daemon crashed without clearing its lock pid, and another program now holds that pid.
+      await writeFile(join(home, "daemon.lock"), "4242\n");
+      const alive = () => true;
+      const reused = async () => Date.now() + 3_600_000;
+      const bound = { pid: 42, recordedAt: Date.now() };
+      expect(await runtimeProcessAlive(home, bound, { alive, startedAt: reused })).toBe(false);
+      // A start time that cannot be read confirms no ownership either.
+      expect(await runtimeProcessAlive(home, bound, { alive, startedAt: async () => null })).toBe(
+        false
+      );
+      expect(await runtimeProcessAlive(home, bound, { alive, startedAt: async () => 0 })).toBe(
+        true
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("Should read a process start time from the platform process table", async () => {
+    const calls: string[] = [];
+    const answer = (text: string) => async (file: string, args: readonly string[]) => {
+      calls.push([file, ...args].join(" "));
+      return text;
+    };
+    expect(await processStartedAt(4242, "linux", answer("Mon Nov  2 10:00:00 2026"))).toBe(
+      new Date(2026, 10, 2, 10, 0, 0).getTime()
+    );
+    expect(await processStartedAt(4242, "win32", answer("2026-11-02T10:00:00.0000000Z"))).toBe(
+      Date.UTC(2026, 10, 2, 10, 0, 0)
+    );
+    expect(calls[0]).toBe("ps -o lstart= -p 4242");
+    expect(calls[1]).toContain("Get-Process -Id 4242");
+    // A process that is gone, or an answer that is not a time, yields no start time.
+    expect(await processStartedAt(4242, "linux", answer(""))).toBeNull();
+    expect(await processStartedAt(4242, "linux", answer("not a time"))).toBeNull();
+    expect(await processStartedAt(0, "linux", answer("Mon Nov  2 10:00:00 2026"))).toBeNull();
+    // The real process table knows this process, which started before now.
+    const own = await processStartedAt(process.pid);
+    if (process.platform !== "win32") expect(own).not.toBeNull();
+    if (own !== null) expect(own).toBeLessThanOrEqual(Date.now());
   });
 });
 

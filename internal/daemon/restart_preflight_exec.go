@@ -3,22 +3,27 @@ package daemon
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os/exec"
 	"syscall"
 
 	"github.com/compozy/compozy/internal/procutil"
 )
 
-// restartPreflightOutput keeps a bounded prefix of the replacement's standard output.
+// restartPreflightOutput keeps a bounded prefix of the replacement's standard output and records
+// whether anything was dropped past it.
 type restartPreflightOutput struct {
-	data  []byte
-	limit int
+	data      []byte
+	limit     int
+	truncated bool
 }
 
 func (o *restartPreflightOutput) Write(chunk []byte) (int, error) {
-	if remaining := o.limit - len(o.data); remaining > 0 {
-		o.data = append(o.data, chunk[:min(len(chunk), remaining)]...)
+	remaining := max(o.limit-len(o.data), 0)
+	if len(chunk) > remaining {
+		o.truncated = true
 	}
+	o.data = append(o.data, chunk[:min(len(chunk), remaining)]...)
 	return len(chunk), nil
 }
 
@@ -53,5 +58,11 @@ func defaultRestartPreflight(ctx context.Context, req restartPreflightRequest) r
 		}
 	}
 	waitErr := command.Wait()
-	return classifyRestartPreflight(output.data, waitErr, commandCtx.Err())
+	// Wait does not release the process-group registration, so the bounded cleanup runs on every
+	// path, success included. The report already decided the outcome; a cleanup failure is logged.
+	if err := procutil.KillCommandProcessGroupAndWait(command, restartPreflightKillWait); err != nil {
+		slog.WarnContext(ctx, "daemon: replacement pre-flight process group cleanup failed",
+			"binary", req.binary, "error", err)
+	}
+	return classifyRestartPreflightOutput(output, waitErr, commandCtx.Err())
 }

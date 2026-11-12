@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/admission"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -1767,6 +1769,60 @@ func TestRequestRestartPreflightsReplacementBeforeSignal(t *testing.T) {
 		}
 	})
 
+	// Invariant: one restart owns the daemon at a time; the claim is held through pre-flight and
+	// helper launch and returned by a request that fails. Owner: daemon restart request.
+	t.Run("Should refuse an overlapping request and accept one after a failed request", func(t *testing.T) {
+		t.Parallel()
+		probe := newProbe(t, restartPreflightOutcome{status: restartPreflightPassed})
+		inPreflight, releasePreflight := make(chan struct{}), make(chan struct{})
+		failing := restartPreflightOutcome{status: restartPreflightFailed, reason: "config: bad key"}
+		outcomes := []restartPreflightOutcome{failing, {status: restartPreflightPassed}}
+		probe.daemon.preflightReplacement = func(
+			_ context.Context,
+			req restartPreflightRequest,
+		) restartPreflightOutcome {
+			probe.preflighted = append(probe.preflighted, req)
+			if len(probe.preflighted) == len(outcomes) {
+				close(inPreflight)
+				<-releasePreflight
+			}
+			return outcomes[len(probe.preflighted)-1]
+		}
+
+		if _, err := probe.daemon.RequestRestart(testutil.Context(t)); !errors.Is(err, ErrRestartPreflightFailed) {
+			t.Fatalf("RequestRestart(failing) error = %v, want pre-flight failure", err)
+		}
+		type result struct {
+			operation RestartOperation
+			err       error
+		}
+		owner := make(chan result, 1)
+		go func() {
+			operation, err := probe.daemon.RequestRestart(testutil.Context(t))
+			owner <- result{operation: operation, err: err}
+		}()
+		<-inPreflight
+		if _, err := probe.daemon.RequestRestart(testutil.Context(t)); !errors.Is(err, ErrRestartInProgress) {
+			t.Fatalf("RequestRestart(overlapping) error = %v, want %v", err, ErrRestartInProgress)
+		}
+		close(releasePreflight)
+		owned := <-owner
+		if owned.err != nil || owned.operation.Status != RestartStatusStopping {
+			t.Fatalf("RequestRestart(owner) = %q, %v; want a stopping operation", owned.operation.Status, owned.err)
+		}
+		if _, err := probe.daemon.RequestRestart(testutil.Context(t)); !errors.Is(err, ErrRestartInProgress) {
+			t.Fatalf("RequestRestart(after signal) error = %v, want %v", err, ErrRestartInProgress)
+		}
+		if len(probe.preflighted) != 2 || probe.launched != 1 || probe.signaled != 1 {
+			t.Fatalf("preflight=%d launched=%d signaled=%d, want two pre-flights and one launch and signal",
+				len(probe.preflighted), probe.launched, probe.signaled)
+		}
+		entries, err := os.ReadDir(probe.homePaths.RestartsDir)
+		if err != nil || len(entries) != 2 {
+			t.Fatalf("restart journal entries = %d, %v; want none for the refused requests", len(entries), err)
+		}
+	})
+
 	proceeding := []struct {
 		name   string
 		status restartPreflightStatus
@@ -1919,6 +1975,20 @@ func TestDefaultRestartPreflightRunsReplacementCommand(t *testing.T) {
 			wantStatus: restartPreflightUnavailable,
 		},
 		{
+			name:       "Should fail when a failing replacement prints more than the capture keeps",
+			binary:     "/bin/sh",
+			script:     "head -c 70000 /dev/zero | tr '\\0' 'x'; exit 1",
+			wantStatus: restartPreflightFailed,
+			wantReason: "report larger than",
+		},
+		{
+			name:       "Should not read oversized output without a report as a missing command",
+			binary:     "/bin/sh",
+			script:     "head -c 70000 /dev/zero | tr '\\0' 'x'; exit 0",
+			wantStatus: restartPreflightUnavailable,
+			wantReason: "held no readable report",
+		},
+		{
 			name:       "Should time out without blocking on a replacement that never reports",
 			binary:     "/bin/sh",
 			script:     "sleep 30",
@@ -2016,6 +2086,34 @@ func TestRunRestartPreflightReportsBootReadiness(t *testing.T) {
 		if report.OK || report.Stage != RestartPreflightStageConfig ||
 			!strings.Contains(report.FailureReason(), "unknown key agents.bogus") {
 			t.Fatalf("report = %+v, want the launch config failure", report)
+		}
+	})
+
+	// Invariant: a failure report always fits the capture of the daemon that reads it, so an
+	// oversized reason still refuses the restart. Owner: restart pre-flight report.
+	t.Run("Should bound an oversized failure reason so the report stays readable", func(t *testing.T) {
+		t.Parallel()
+		report := run(t, testHomePaths(t), func() error {
+			return errors.New("config: unknown key " + strings.Repeat("\u00e9\x01", restartPreflightOutputLimit))
+		})
+		if report.OK || len(report.Error) > restartPreflightTextLimit || !utf8.ValidString(report.Error) ||
+			!strings.HasSuffix(report.Error, restartPreflightTextTruncation) {
+			t.Fatalf("report.Error is %d bytes, want a valid reason bounded to %d", len(report.Error),
+				restartPreflightTextLimit)
+		}
+		payload, err := json.Marshal(report)
+		if err != nil {
+			t.Fatalf("json.Marshal(report) error = %v", err)
+		}
+		output := &restartPreflightOutput{limit: restartPreflightOutputLimit}
+		if _, err := output.Write(append(payload, '\n')); err != nil {
+			t.Fatalf("output.Write() error = %v", err)
+		}
+		outcome := classifyRestartPreflightOutput(output, errors.New("exit status 1"), nil)
+		if output.truncated || outcome.status != restartPreflightFailed ||
+			!strings.Contains(outcome.reason, "config: unknown key") {
+			t.Fatalf("outcome = %q (%.80s), truncated=%t; want the bounded failure report", outcome.status,
+				outcome.reason, output.truncated)
 		}
 	})
 

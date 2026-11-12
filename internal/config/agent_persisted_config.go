@@ -24,11 +24,13 @@ var retiredAgentKindTable = []string{AgentsDirName, retiredAgentKind}
 // v0.5.1 resolved them, drops the old table, and appends the original values as an inactive
 // comment archive. It returns the moved and archived key paths.
 //
-// The agents table is rendered as a unit and verified against the expected decoded values.
+// The agents table is rendered as a unit and verified against the expected decoded values. A
+// document that does not parse is returned unchanged, so the config decoder reports the syntax
+// error with its position instead of a migration failure.
 func migrateRetiredAlwaysOnTable(contents []byte, source string) ([]byte, []string, error) {
 	var values map[string]any
 	if _, err := burnttoml.Decode(string(contents), &values); err != nil {
-		return nil, nil, err
+		return contents, nil, nil
 	}
 	agents, isTable := values[AgentsDirName].(map[string]any)
 	if !isTable {

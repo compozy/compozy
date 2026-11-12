@@ -3425,6 +3425,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
 
 		addCheckInToolSchemaFields(baseline)
+		addDaemonReadinessSchema(t, baseline, current)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -5929,6 +5930,30 @@ func addAlwaysOnAdditiveSchemas(value any) {
 			)
 		}
 	}
+}
+
+// addDaemonReadinessSchema accepts the additive optional daemon readiness phase on the status read.
+func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	daemonProperties := func(document map[string]any) map[string]any {
+		node := document
+		for _, key := range []string{
+			"paths", "/api/status", "get", "responses", "200", "content", "application/json", "schema",
+			"properties", "daemon", "properties",
+		} {
+			next, ok := node[key].(map[string]any)
+			if !ok {
+				t.Fatalf("status daemon schema is missing %q", key)
+			}
+			node = next
+		}
+		return node
+	}
+	readiness, ok := daemonProperties(current)["readiness"]
+	if !ok {
+		t.Fatal("status daemon schema is missing the readiness property")
+	}
+	daemonProperties(baseline)["readiness"] = readiness
 }
 
 func addCheckInToolSchemaFields(value any) {

@@ -5344,10 +5344,14 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 		missing        bool
 		column         bool // reported_cost_amount exists before version 11 is recorded
 		normalized     int  // leading turns already stored in the version 11 shape
+		unreported     bool // normalized turns' usage projections lack reported_cost_amount
+		mismatched     bool // reported_cost_amount exists with a definition migration 11 never published
 		amounts, costs []float64
 	}{
 		{name: "Should complete migration 11 when its column exists without the recorded version", column: true, amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
 		{name: "Should keep already normalized turns when completing migration 11", column: true, normalized: 2, amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should restore a missing report from the normalized canonical turn", column: true, normalized: 2, unreported: true, amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should leave a mismatched reported cost column to fail migration 11", mismatched: true, amounts: []float64{1, 3}, costs: []float64{1, 2}},
 		{name: "Should derive costs from canonical history when the column exists and a usage projection is missing", column: true, missing: true, amounts: []float64{1, 3, 4, 0.5, 2}, costs: []float64{1, 2, 1, 0, 1.5}},
 		{name: "Should preserve raw reports while charging zero for a dropped counter", amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
 		{name: "Should resume increments from a lagging restored counter", amounts: []float64{10, 12, 11.5, 12.5}, costs: []float64{10, 2, 0, 1}},
@@ -5376,6 +5380,14 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 				if _, err := old.ExecContext(
 					ctx,
 					`ALTER TABLE token_usage ADD COLUMN reported_cost_amount real NULL`,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.mismatched {
+				if _, err := old.ExecContext(
+					ctx,
+					`ALTER TABLE token_usage ADD COLUMN reported_cost_amount text NOT NULL DEFAULT ''`,
 				); err != nil {
 					t.Fatal(err)
 				}
@@ -5414,7 +5426,7 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 				if tc.missing && i == 1 {
 					continue
 				}
-				if i < tc.normalized {
+				if i < tc.normalized && !tc.unreported {
 					if _, err := old.ExecContext(
 						ctx,
 						`INSERT INTO token_usage(turn_id,total_tokens,cache_read_tokens,cost_amount,reported_cost_amount,cost_currency,timestamp) VALUES (?,5,4,?,?,'USD',?)`,
@@ -5427,11 +5439,15 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 					}
 					continue
 				}
+				projected := amount
+				if i < tc.normalized {
+					projected = costs[i]
+				}
 				if _, err := old.ExecContext(
 					ctx,
 					`INSERT INTO token_usage(turn_id,total_tokens,cache_read_tokens,cost_amount,cost_currency,timestamp) VALUES (?,5,4,?,'USD',?)`,
 					turn,
-					amount,
+					projected,
 					store.FormatTimestamp(stamp),
 				); err != nil {
 					t.Fatal(err)
@@ -5439,6 +5455,19 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 			}
 			if err := old.Close(); err != nil {
 				t.Fatal(err)
+			}
+			if tc.mismatched {
+				ledger, err := OpenSessionDB(ctx, owner, path)
+				if err == nil {
+					if closeErr := ledger.Close(ctx); closeErr != nil {
+						t.Error(closeErr)
+					}
+					t.Fatal("OpenSessionDB() error = nil, want migration 11 to reject the mismatched column")
+				}
+				if !strings.Contains(err.Error(), "duplicate column name") {
+					t.Fatalf("OpenSessionDB() error = %v, want the duplicate column failure of migration 11", err)
+				}
+				return
 			}
 			for range 2 {
 				ledger, err := OpenSessionDB(ctx, owner, path)

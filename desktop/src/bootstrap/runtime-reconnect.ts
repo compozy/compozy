@@ -94,6 +94,9 @@ export function monitorProductRuntime(
 ): RuntimeHealthMonitor {
   const fields = { origin: runtime.origin };
   const home = shell.home;
+  // The bound process answered the bootstrap, so it existed by now; a later start is a reused pid.
+  const bound =
+    runtime.pid === undefined ? undefined : { pid: runtime.pid, recordedAt: Date.now() };
   /** True when the loaded page is this runtime version's own and can refresh its data itself. */
   const keepsPage = async (identity: RuntimeIdentity | null): Promise<boolean> =>
     identity !== null &&
@@ -102,7 +105,7 @@ export function monitorProductRuntime(
     shell.productLoaded?.() === true &&
     (await refreshesItself(runtime.origin, monitorOptions.fetcher ?? fetch));
   return new RuntimeHealthMonitor({
-    ...(home === undefined ? {} : { runtimeAlive: () => runtimeProcessAlive(home, runtime.pid) }),
+    ...(home === undefined ? {} : { runtimeAlive: () => runtimeProcessAlive(home, bound) }),
     ...monitorOptions,
     origin: runtime.origin,
     onError: error => shell.logger.error("follow product runtime", error),
@@ -127,7 +130,8 @@ export function monitorProductRuntime(
         // The app record is advisory and the next state change rewrites it; reload regardless.
         shell.logger.error("publish reconnected runtime state", error);
       }
-      if (!soft) await shell.reloadProduct();
+      // Shutdown may have begun while the publish was pending; it must not start window work.
+      if (!soft && !shell.stopped()) await shell.reloadProduct();
     },
     onLost: async () => {
       if (shell.stopped()) return;

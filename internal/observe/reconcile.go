@@ -46,7 +46,10 @@ func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error)
 
 	var result store.ReconcileResult
 	if reconciler, ok := o.registry.(store.SessionChangeReconciler); ok {
-		result, err = reconciler.ReconcileSessionChanges(ctx, sessions, unchanged)
+		var changes store.SessionChangeReconcileResult
+		changes, err = reconciler.ReconcileSessionChanges(ctx, sessions, unchanged)
+		result = changes.ReconcileResult
+		watermarks.reconciled(changes.Written)
 	} else {
 		result, err = o.registry.ReconcileSessions(ctx, sessions)
 	}

@@ -210,6 +210,13 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.publishBootState(state)
+	// The discovery record names ready only once boot has committed; until then it carries the phase
+	// that was current when it was written. A failed rewrite leaves the conservative earlier phase.
+	readyInfo := state.info
+	readyInfo.ReadinessPhase = string(contract.DaemonReadinessReady)
+	if err := WriteInfo(d.homePaths.DaemonInfo, readyInfo); err != nil {
+		state.logger.WarnContext(ctx, "daemon: publish ready phase in daemon info", "error", err)
+	}
 	state.logger.InfoContext(ctx, "daemon: boot complete", "duration_ms", time.Since(bootStarted).Milliseconds())
 	return nil
 }
@@ -219,7 +226,7 @@ func (d *Daemon) publishDaemonInfo(state *bootState, cleanup *bootCleanup) error
 		return RemoveInfo(d.homePaths.DaemonInfo)
 	})
 	info := state.info
-	info.ReadinessPhase = string(contract.DaemonReadinessReady)
+	info.ReadinessPhase = string(d.readiness.snapshot().phase)
 	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
 		return fmt.Errorf("daemon: publish daemon info: %w", err)
 	}

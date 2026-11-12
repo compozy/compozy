@@ -87,7 +87,7 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 // shutdownAfterRunTrigger retains discovery withdrawal while retrying terminal teardown.
 // It is the process-terminal path, so a watchdog bounds it: a hung teardown cannot keep serving.
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
-	disarm := d.armShutdownWatchdog(d.gracefulShutdownTimeout() + shutdownWatchdogMargin)
+	disarm := d.armShutdownWatchdog(shutdownWatchdogBudget(d.gracefulShutdownTimeout()))
 	defer disarm()
 	return d.shutdownWithOperation(context.WithoutCancel(ctx), true)
 }
@@ -144,15 +144,22 @@ func (d *Daemon) shutdownDetached(
 ) error {
 	var errs []error
 	phase := func(name string, run func()) {
-		// Phase errors are collected in errs; the timer only names and measures the phase.
-		_ = d.timeShutdownPhase(ctx, name, func() error {
+		// Phases collect their own errors in errs; the timer only names and measures the phase.
+		if err := d.timeShutdownPhase(ctx, name, func() error {
 			run()
 			return nil
-		})
+		}); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	phase("stop_workers_and_sessions", func() { d.shutdownRuntimeWorkers(ctx, targets, &errs) })
-	// In-flight tool calls and stopping sessions use these until the last session has stopped.
+	// In-flight tool calls and stopping sessions use these until the last session has stopped. A
+	// retryable shutdown that left the session manager unfinished keeps them open for the sessions
+	// still stopping; the retry that joins that cleanup, or the process-terminal path, closes them.
 	phase("close_session_dependencies", func() {
+		if targets.sessionShutdownIncomplete && !d.shutdownIsTerminal(operation) {
+			return
+		}
 		dependenciesCtx, cancel := detachedShutdownBudget(ctx, shutdownSessionDependenciesBudget)
 		defer cancel()
 		shutdownSessionDependencies(dependenciesCtx, targets, &errs)

@@ -22,11 +22,12 @@ const (
 // sites and their tests in v0.7.0.
 //
 // archiveRetiredMemorySettings moves retired memory and compaction settings into an inactive
-// comment archive at the end of the same document.
+// comment archive at the end of the same document. A document that does not parse is returned
+// unchanged, so the config decoder reports the syntax error with its position.
 func archiveRetiredMemorySettings(contents []byte, source string) ([]byte, []string, error) {
 	var values map[string]any
 	if _, err := burnttoml.Decode(string(contents), &values); err != nil {
-		return nil, nil, err
+		return contents, nil, nil
 	}
 	_, retired, names := splitRetiredMemoryValues(values, nil)
 	if len(names) == 0 {
@@ -290,6 +291,9 @@ func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) 
 			previousEnd := retiredMemoryNodeEnd(source, children[first-1])
 			if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
 				start = previousEnd + comma
+			} else if trailing := retiredMemorySeparator(source[end:]); trailing >= 0 {
+				// A comment is the previous node, so the element's own separator follows it.
+				end += trailing + 1
 			}
 		default:
 			if comma := retiredMemorySeparator(source[end:]); comma >= 0 {

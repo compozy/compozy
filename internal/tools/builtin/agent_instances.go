@@ -44,20 +44,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		if required != "" {
 			schema = strings.TrimSuffix(schema, "}") + `,"required":["` + required + `"]}`
 		}
-		description := "Manage the caller's always-on agent instance: " + operation.name
-		switch operation.name {
-		case "list":
-			description += ". Defaults to the caller agent and workspace; only authorized instances are returned. " +
-				"Ordinary active_count spans all workspaces in selected profiles, ignoring filters and pagination; " +
-				"max_active_instances is per profile. Use peers for reachable agents: both capacity fields are zero (unavailable)."
-		case "ensure_main":
-			description += ". Requires an existing instance; dry_run is not supported. Use agent_instance_get to inspect it."
-		case agentInstanceClearMainOperation:
-			description = "Clear an always-on agent instance's main session: discard its conversation and start a " +
-				"fresh provider thread under the same session id. Queued inputs, agent memory and the instance " +
-				"are kept. Operator only; refused while the main is running a turn; dry_run is not supported. " +
-				"Use it when the main cannot resume, for example after a provider or account change."
-		}
+		description := agentInstanceDescription(operation.name)
 		result = append(result, withAgentInstanceResultViews(nativeDescriptor(
 			operation.id,
 			"agent_instance_"+operation.name,
@@ -93,6 +80,25 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		),
 	)
 	return result
+}
+
+// agentInstanceDescription is the model-facing description of one instance operation.
+func agentInstanceDescription(name string) string {
+	description := "Manage the caller's always-on agent instance: " + name
+	switch name {
+	case "list":
+		description += ". Defaults to the caller agent and workspace; only authorized instances are returned. " +
+			"Ordinary active_count spans all workspaces in selected profiles, ignoring filters and pagination; " +
+			"max_active_instances is per profile. Use peers for reachable agents: both capacity fields are zero (unavailable)."
+	case "ensure_main":
+		description += ". Requires an existing instance; dry_run is not supported. Use agent_instance_get to inspect it."
+	case agentInstanceClearMainOperation:
+		description = "Clear an always-on agent instance's main session: discard its conversation and start a " +
+			"fresh provider thread under the same session id. Queued inputs, agent memory and the instance " +
+			"are kept. Operator only; refused while the main is running a turn; dry_run is not supported. " +
+			"Use it when the main cannot resume, for example after a provider or account change."
+	}
+	return description
 }
 
 // agentInstanceClearMainOperation names the operator-only main-session clear.

@@ -1,14 +1,20 @@
 package store
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/version"
 )
 
 const (
@@ -16,13 +22,65 @@ const (
 	// bootWatermarkSettleWindow keeps a file modified this recently out of a watermark: a later
 	// write inside the filesystem's timestamp granularity would be indistinguishable from it.
 	bootWatermarkSettleWindow = 2 * time.Second
+	// bootWatermarkHeadBytes covers the SQLite database header (change counter, page count,
+	// schema cookie, version-valid-for) and the whole write-ahead log header (checkpoint
+	// sequence and salts), which SQLite rewrites whenever it commits to or restarts the file.
+	bootWatermarkHeadBytes = 100
 )
 
-// FileStamp is the cheap identity a boot watermark compares instead of reopening a file.
+// FileStamp is the cheap evidence a boot watermark compares instead of reopening a file. Size and
+// modification time alone do not prove unchanged content, so a stamp also carries the file's
+// platform identity and, for a database family member, a digest of its leading bytes.
+//
+// What the evidence proves: the same inode on the same device was neither written, truncated,
+// renamed, nor re-timestamped since the stamp (each of those moves the inode-change time, which
+// no caller can set back), and an atomic replacement is a different inode. What stays unproven:
+// a filesystem that does not maintain inode-change times, a raw write below the filesystem, or a
+// rewrite landing in the very clock tick the stamp was taken in; the header digest still catches
+// those whenever the replacing content committed through SQLite at a different change counter,
+// page count, schema cookie, or log salt, but not a same-header change confined to data pages.
 type FileStamp struct {
 	Name    string `json:"name"`
 	Size    int64  `json:"size"`
 	ModTime int64  `json:"mtime_ns"`
+	// Identity is the device, inode, and inode-change time. It is empty on a platform that
+	// exposes none, and a stamp without it never proves anything.
+	Identity string `json:"identity,omitempty"`
+	// Head digests the leading bytes of a database family member.
+	Head string `json:"head,omitempty"`
+}
+
+func newFileStamp(info os.FileInfo) FileStamp {
+	identity, _ := fileStampIdentity(info)
+	return FileStamp{
+		Name: info.Name(), Size: info.Size(), ModTime: info.ModTime().UnixNano(), Identity: identity,
+	}
+}
+
+// proves reports whether other is the same file with the same content evidence. A stamp whose
+// file identity could not be established proves nothing, so its session takes the full checks.
+func (s FileStamp) proves(other FileStamp) bool {
+	return s.Identity != "" && s == other
+}
+
+// fileHeadDigest digests the first bootWatermarkHeadBytes of a file.
+func fileHeadDigest(path string) (digest string, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	head := make([]byte, bootWatermarkHeadBytes)
+	read, err := io.ReadFull(file, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	sum := sha256.Sum256(head[:read])
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // StatFileStamp stamps one regular file. A missing file reports false without an error.
@@ -37,7 +95,7 @@ func StatFileStamp(path string) (FileStamp, bool, error) {
 	if !info.Mode().IsRegular() {
 		return FileStamp{}, false, fmt.Errorf("store: boot watermark target %q is not a regular file", path)
 	}
-	return FileStamp{Name: info.Name(), Size: info.Size(), ModTime: info.ModTime().UnixNano()}, true, nil
+	return newFileStamp(info), true, nil
 }
 
 // Settled reports whether the file was last modified long enough before now for its stamp to
@@ -82,22 +140,33 @@ func StatSessionFiles(sessionDir string) (SessionFilesStamp, bool, error) {
 			continue
 		}
 		if !info.Mode().IsRegular() {
-			return SessionFilesStamp{}, false, fmt.Errorf("store: session database member %q is not a regular file", name)
+			return SessionFilesStamp{}, false, fmt.Errorf(
+				"store: session database member %q is not a regular file",
+				name,
+			)
 		}
-		stamp.Database = append(stamp.Database, FileStamp{
-			Name: name, Size: info.Size(), ModTime: info.ModTime().UnixNano(),
-		})
+		member := newFileStamp(info)
+		member.Head, err = fileHeadDigest(filepath.Join(sessionDir, name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return SessionFilesStamp{}, false, fmt.Errorf("store: read %q for boot watermark: %w", name, err)
+		}
+		stamp.Database = append(stamp.Database, member)
 	}
 	return stamp, true, nil
 }
 
-// Equal reports whether both stamps describe byte-identical session files.
+// Equal reports whether both stamps carry the same evidence for every session file. It is false
+// whenever any file's identity could not be established, which sends the session down the full
+// path instead of trusting size and modification time.
 func (s SessionFilesStamp) Equal(other SessionFilesStamp) bool {
-	if s.Meta != other.Meta || len(s.Database) != len(other.Database) {
+	if !s.Meta.proves(other.Meta) || len(s.Database) != len(other.Database) {
 		return false
 	}
 	for index := range s.Database {
-		if s.Database[index] != other.Database[index] {
+		if !s.Database[index].proves(other.Database[index]) {
 			return false
 		}
 	}
@@ -166,9 +235,14 @@ func MigrationStreamHead(stream MigrationStream) (string, error) {
 		stream.Name, directory.maxVersion, directory.migrationCount, directory.sumDigest), nil
 }
 
-// BootWatermarkBinary identifies the running executable. Proofs recorded by another build are
-// never honored, because the checks that build ran at boot may differ from this one's.
+// BootWatermarkBinary identifies the running build. Proofs recorded by another build are never
+// honored, because the checks that build ran at boot may differ from this one's. The identity is
+// resolved once per process.
 func BootWatermarkBinary() (string, error) {
+	return bootWatermarkBinary()
+}
+
+var bootWatermarkBinary = sync.OnceValues(func() (string, error) {
 	path, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("store: resolve executable for boot watermark: %w", err)
@@ -177,5 +251,49 @@ func BootWatermarkBinary() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("store: stat executable for boot watermark: %w", err)
 	}
-	return fmt.Sprintf("%d:%d", info.Size(), info.ModTime().UnixNano()), nil
+	build := version.Current()
+	return BootWatermarkBuildIdentity(build.Version, build.Commit, info.Size(), info.ModTime().UnixNano(),
+		func() (string, error) { return executableDigest(path) })
+})
+
+// BootWatermarkBuildIdentity names one build. Executable size and modification time can collide
+// across builds, so they are only ever combined with a build-specific identifier: the stamped
+// release version and commit, or, for a build that carries no commit stamp, a digest of the
+// executable's content. A build that can supply neither has no identity.
+func BootWatermarkBuildIdentity(
+	release string,
+	commit string,
+	size int64,
+	modTime int64,
+	contentDigest func() (string, error),
+) (string, error) {
+	commit = strings.TrimSpace(commit)
+	if commit != "" && commit != "unknown" {
+		return fmt.Sprintf("build:%s:%s:%d:%d", strings.TrimSpace(release), commit, size, modTime), nil
+	}
+	digest, err := contentDigest()
+	if err != nil {
+		return "", fmt.Errorf("store: digest executable for boot watermark: %w", err)
+	}
+	if strings.TrimSpace(digest) == "" {
+		return "", errors.New("store: executable digest for boot watermark is empty")
+	}
+	return fmt.Sprintf("sha256:%s:%d:%d", digest, size, modTime), nil
+}
+
+func executableDigest(path string) (digest string, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	hash := sha256.New()
+	if _, err = io.Copy(hash, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }

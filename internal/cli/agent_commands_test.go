@@ -1289,6 +1289,25 @@ func TestAgentInstanceCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse clear-main from an agent session before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, nil)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			t.Error("agent clear-main reached the daemon client")
+			return nil, errors.New("unexpected client")
+		}
+		deps.getenv = func(key string) string {
+			if key == agentidentity.EnvSessionID {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err := executeRootCommand(t, deps, "agent", "instance", "clear-main", "ainst-test", "--global")
+		if err == nil || !strings.Contains(err.Error(), "clear_main_operator_only") {
+			t.Fatalf("agent clear-main err=%v", err)
+		}
+	})
+
 	for _, command := range []string{"check", "occurrence"} {
 		t.Run("Should read the completed occurrence through "+command, func(t *testing.T) {
 			t.Parallel()

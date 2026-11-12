@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runtimeIdentityFixture, statusFixture } from "../../mocks/fixtures";
-import { daemonRecovery } from "../../lib/daemon-readiness";
+import { daemonRecovery, daemonRecoveryFinished } from "../../lib/daemon-readiness";
 import { statusKeys } from "../../lib/query-keys";
 import type { StatusPayload } from "../../types";
 import { deriveDaemonConnectionStatus, useDaemonHealth } from "../use-daemon-health";
@@ -251,6 +251,33 @@ describe("daemon recovery after a restart", () => {
       unmount();
     }
   });
+
+  it("Should hide the recovery while status reads fail and restore it on the next answer", async () => {
+    // A failed read says nothing about the phase, so the last answer's notice must not linger.
+    vi.useFakeTimers();
+    const serving = statusInPhase("serving", "recoverBootMonitors");
+    vi.mocked(fetchStatus).mockResolvedValue(serving);
+    const { result, unmount } = renderHook(() => useDaemonRecovery(), {
+      wrapper: createWrapper(),
+    });
+
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(result.current).toEqual({ label: "Restoring monitors" });
+
+      // The recovering poll fires after two seconds and its single retry one second later.
+      vi.mocked(fetchStatus).mockRejectedValue(new Error("Connection closed"));
+      await act(() => vi.advanceTimersByTimeAsync(3_500));
+      expect(result.current).toBeNull();
+
+      vi.mocked(fetchStatus).mockResolvedValue(serving);
+      await act(() => vi.advanceTimersByTimeAsync(3_500));
+      expect(result.current).toEqual({ label: "Restoring monitors" });
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
 });
 
 // Invariant: a runtime restart on the same origin refreshes the page's server state in place.
@@ -258,6 +285,7 @@ describe("daemon recovery after a restart", () => {
 describe("runtime reconnect refresh", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(fetchStatus).mockResolvedValue(statusFixture);
   });
 
   it("Should mark cached reads stale only when another runtime process answers", async () => {
@@ -286,6 +314,49 @@ describe("runtime reconnect refresh", () => {
       await waitFor(() => {
         expect(stale()).toBe(true);
       });
+    } finally {
+      unmount();
+    }
+  });
+
+  // Invariant: a read taken while the restarted runtime still reconciles its session catalog is
+  // refreshed once the runtime reports ready, exactly once, and never for a page that only ever
+  // saw a ready runtime.
+  it("Should mark cached reads stale once when the runtime finishes its recovery", async () => {
+    expect(daemonRecoveryFinished("serving", "ready")).toBe(true);
+    expect(daemonRecoveryFinished("starting", "ready")).toBe(true);
+    expect(daemonRecoveryFinished(null, "ready")).toBe(false);
+    expect(daemonRecoveryFinished("ready", "ready")).toBe(false);
+    expect(daemonRecoveryFinished("serving", "stopping")).toBe(false);
+
+    vi.mocked(fetchRuntimeIdentity).mockResolvedValue(runtimeIdentityFixture);
+    vi.mocked(fetchStatus).mockResolvedValue(statusInPhase("serving", "bootFinalize"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cached = ["sessions", "list"];
+    queryClient.setQueryData(cached, []);
+    const stale = () => queryClient.getQueryState(cached)?.isInvalidated;
+    const { unmount } = renderHook(() => useRuntimeReconnectRefresh(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    try {
+      await waitFor(() => {
+        expect(queryClient.getQueryData(statusKeys.current())).toBeDefined();
+      });
+      // Another answer from the same recovery is not its end.
+      await act(() => queryClient.refetchQueries({ queryKey: statusKeys.current() }));
+      expect(stale()).toBe(false);
+
+      vi.mocked(fetchStatus).mockResolvedValue(statusInPhase("ready"));
+      await act(() => queryClient.refetchQueries({ queryKey: statusKeys.current() }));
+      await waitFor(() => {
+        expect(stale()).toBe(true);
+      });
+
+      // A runtime that stays ready does not refresh the page again.
+      queryClient.setQueryData(cached, []);
+      await act(() => queryClient.refetchQueries({ queryKey: statusKeys.current() }));
+      expect(stale()).toBe(false);
     } finally {
       unmount();
     }

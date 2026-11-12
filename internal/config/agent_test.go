@@ -2256,6 +2256,21 @@ Watch.
 					t.Fatalf("migration changed unrelated bytes: %q, %v", body, err)
 				}
 			}
+			// A packaged definition decodes the retired kind in memory and is never rewritten,
+			// even when its file is writable.
+			packaged := filepath.Join(t.TempDir(), "triage", agentDefName)
+			if err := os.MkdirAll(filepath.Dir(packaged), 0755); err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, packaged, content)
+			loaded, err := LoadPackagedAgentDefFile(packaged)
+			if err != nil || loaded.Kind != AgentKindAlwaysOn {
+				t.Fatalf("packaged load = %+v, %v", loaded, err)
+			}
+			body, err := os.ReadFile(packaged)
+			if err != nil || string(body) != content {
+				t.Fatalf("packaged load rewrote the file: %q, %v", body, err)
+			}
 		})
 	}
 	for _, layer := range []string{"global", "profile", "workspace", "workspace_profile", "additional"} {

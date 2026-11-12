@@ -5,7 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
+
+// projectionResourceError marks a failure to read one package's own manifest or declarative
+// resources. Registry and workspace lookups never carry it, so they propagate to the caller.
+type projectionResourceError struct {
+	err error
+}
+
+func (e *projectionResourceError) Error() string { return e.err.Error() }
+
+func (e *projectionResourceError) Unwrap() error { return e.err }
 
 // ProjectForProfile returns the extension resources visible through one real profile.
 // The boolean is false when the extension is disabled for that profile, or when its packaged
@@ -35,7 +46,7 @@ func (m *Manager) ProjectForProfile(
 	}
 
 	key = ProfileInstanceKey(key.Name, profile.ID, key.WorkspaceID)
-	extension, err := m.loadProfileProjectionSource(ctx, key)
+	extension, withdrawn, err := m.loadProfileProjectionSource(ctx, key)
 	if err != nil {
 		return nil, false, err
 	}
@@ -54,7 +65,7 @@ func (m *Manager) ProjectForProfile(
 	extension.Info.Enabled = enabled
 	extension.Status.Enabled = enabled
 	if extension.Manifest == nil {
-		return extension, enabled, nil
+		return extension, enabled && !withdrawn, nil
 	}
 
 	key.WorkspaceID = extension.Status.WorkspaceID
@@ -91,28 +102,32 @@ func (m *Manager) ProjectForProfile(
 	return extension, enabled, nil
 }
 
-func (m *Manager) loadProfileProjectionSource(ctx context.Context, key InstanceKey) (*Extension, error) {
+// loadProfileProjectionSource reads the package behind one projection. The boolean reports that
+// the package's own resources failed to load and were withdrawn, so it publishes nothing.
+func (m *Manager) loadProfileProjectionSource(ctx context.Context, key InstanceKey) (*Extension, bool, error) {
 	extension, err := m.getForInstance(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if extension.Manifest == nil && extension.Status.LastError == "" {
-		workspaceID := extension.Status.WorkspaceID
-		key.WorkspaceID = workspaceID
-		inspected, err := m.inspectProjectionSource(ctx, key)
-		switch {
-		case err == nil:
-			extension = inspected
-		case ctx.Err() != nil || errors.Is(err, ErrExtensionNotFound):
-			return nil, err
-		default:
-			// The registry row stays visible without a manifest, like a managed package whose
-			// manifest failed to parse; callers publish nothing for it.
-			m.withdrawProjectedResources(extension, "", err)
-		}
-		extension.Status.WorkspaceID = workspaceID
+	if extension.Manifest != nil || extension.Status.LastError != "" {
+		return extension, false, nil
 	}
-	return extension, nil
+	workspaceID := extension.Status.WorkspaceID
+	key.WorkspaceID = workspaceID
+	inspected, err := m.inspectProjectionSource(ctx, key)
+	if err == nil {
+		inspected.Status.WorkspaceID = workspaceID
+		return inspected, false, nil
+	}
+	var resourceErr *projectionResourceError
+	if ctx.Err() != nil || !errors.As(err, &resourceErr) {
+		return nil, false, err
+	}
+	// The registry row stays visible without a manifest, like a managed package whose
+	// manifest failed to parse; callers publish nothing for it.
+	m.withdrawProjectedResources(extension, "", err)
+	extension.Status.WorkspaceID = workspaceID
+	return extension, true, nil
 }
 
 // withdrawProjectedResources records why one package projects no declarative resources.
@@ -139,26 +154,56 @@ func (m *Manager) withdrawProjectedResources(extension *Extension, profileName s
 
 func (m *Manager) inspectProjectionSource(ctx context.Context, key InstanceKey) (*Extension, error) {
 	if key.WorkspaceID == "" {
-		return m.InspectPackageResources(ctx, key.Name)
+		return m.inspectInstalledProjectionSource(ctx, key.Name)
 	}
 	link, err := m.registry.GetDevLink(key.Name, key.WorkspaceID)
 	if err != nil {
 		if errors.Is(err, ErrExtensionNotDevLinked) {
-			return m.InspectPackageResources(ctx, key.Name)
+			return m.inspectInstalledProjectionSource(ctx, key.Name)
 		}
 		return nil, fmt.Errorf("extension: inspect development projection %q: %w", key.runtimeID(), err)
 	}
 	verified, err := m.resolveDevGeneration(ctx, key, link.OriginPath, link.BundleGeneration)
 	if err != nil {
-		return nil, fmt.Errorf("extension: verify development projection %q: %w", key.runtimeID(), err)
+		err = fmt.Errorf("extension: verify development projection %q: %w", key.runtimeID(), err)
+		if errors.Is(err, ErrExtensionGenerationInvalid) {
+			return nil, &projectionResourceError{err: err}
+		}
+		return nil, err
 	}
 	candidate := managedDevExtension(key, verified, m.logRingFor(key))
 	loaded, err := m.loadDeclarativeResources(ctx, candidate)
 	if err != nil {
-		return nil, fmt.Errorf("extension: load development projection %q: %w", key.runtimeID(), err)
+		return nil, &projectionResourceError{
+			err: fmt.Errorf("extension: load development projection %q: %w", key.runtimeID(), err),
+		}
 	}
 	loaded.apply(candidate)
 	return m.cloneExtension(candidate), nil
+}
+
+// inspectInstalledProjectionSource follows InspectPackageResources with the registry read kept
+// apart from the package reads, so only the package's own files can withdraw its resources.
+func (m *Manager) inspectInstalledProjectionSource(ctx context.Context, name string) (*Extension, error) {
+	info, err := m.registry.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := LoadInstalledManifest(info)
+	if err != nil {
+		return nil, &projectionResourceError{err: err}
+	}
+	managed := &managedExtension{
+		info:     *info,
+		rootDir:  PackageRootFromManifest(strings.TrimSpace(info.ManifestPath)),
+		manifest: manifest,
+	}
+	loaded, err := m.loadDeclarativeResources(ctx, managed)
+	if err != nil {
+		return nil, &projectionResourceError{err: err}
+	}
+	loaded.apply(managed)
+	return m.cloneExtension(managed), nil
 }
 
 func projectManifestResourcesForProfile(resources *ResourcesConfig, profileName string) {

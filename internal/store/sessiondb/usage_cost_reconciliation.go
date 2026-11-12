@@ -15,7 +15,9 @@ const usageCostMigrationVersion = 11
 // COLUMN and would fail there, so the same transformation runs here in an
 // idempotent form: only usage rows without a retained report and only events
 // without ReportedCostAmount change, and turns whose canonical events are
-// already normalized keep their stored cost.
+// already normalized keep their stored cost. Only the column definition that
+// migration publishes is recognized; any other column of that name falls
+// through to the migration, which fails on it explicitly.
 func usageCostMigrationReconciliation() *store.MigrationReconciliation {
 	return &store.MigrationReconciliation{
 		Name:     "usage_cost_reported_amount",
@@ -30,7 +32,8 @@ func detectUsageCostColumn(ctx context.Context, db store.MigrationQuerier) (bool
 	// dynamic-sql: pragma_table_info inspects physical schema outside sqlc's query model.
 	if err := db.QueryRowContext(
 		ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name = 'reported_cost_amount'`,
+		`SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name = 'reported_cost_amount'
+AND lower(type) = 'real' AND "notnull" = 0 AND dflt_value IS NULL AND pk = 0`,
 	).Scan(&count); err != nil {
 		return false, fmt.Errorf("store: inspect token_usage reported cost column: %w", err)
 	}
@@ -40,6 +43,8 @@ func detectUsageCostColumn(ctx context.Context, db store.MigrationQuerier) (bool
 // usageCostReconciliationStatements mirrors 00011_schema.sql after its ADD
 // COLUMN. A report is the retained ReportedCostAmount when present, otherwise
 // the legacy cumulative CostAmount, which is the baseline the runtime reads.
+// A usage row without a report takes it from its canonical turn history first:
+// a normalized turn's cost_amount is already the per-turn cost, not the report.
 var usageCostReconciliationStatements = []string{
 	`DROP TABLE IF EXISTS temp.usage_cost_baselines`,
 	`DROP TABLE IF EXISTS temp.usage_cost_normalized_turns`,
@@ -47,7 +52,13 @@ var usageCostReconciliationStatements = []string{
 SELECT DISTINCT turn_id FROM events
 WHERE json_valid(content) AND json_type(content, '$.usage.ReportedCostAmount') IN ('real', 'integer')`,
 	`CREATE INDEX usage_cost_normalized_turns_turn ON usage_cost_normalized_turns(turn_id)`,
-	`UPDATE token_usage SET reported_cost_amount = cost_amount
+	`UPDATE token_usage SET reported_cost_amount = COALESCE((
+    SELECT json_extract(content, '$.usage.ReportedCostAmount') FROM events
+    WHERE events.turn_id = token_usage.turn_id AND type IN ('usage', 'done') AND json_valid(content)
+      AND json_type(content, '$.usage.ReportedCostAmount') IN ('real', 'integer')
+      AND trim(json_extract(content, '$.usage.CostCurrency')) = trim(token_usage.cost_currency)
+    ORDER BY sequence DESC LIMIT 1
+), cost_amount)
 WHERE reported_cost_amount IS NULL AND cost_amount IS NOT NULL`,
 	`CREATE TEMP TABLE usage_cost_baselines AS
 WITH reports AS (

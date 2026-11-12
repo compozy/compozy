@@ -73,8 +73,9 @@ func (d *Daemon) prepareShutdownSessions(ctx context.Context, sessions SessionMa
 	d.mu.Lock()
 	restart, grace := d.restartRequested, d.config.Daemon.ShutdownGrace
 	d.mu.Unlock()
-	if restart && grace > 0 {
-		wait := restartDrainWait(grace)
+	// The drain leaves a reserve of the teardown for the checkpoint capture below: an interrupted
+	// turn is only resumed by the next boot when its checkpoint was captured.
+	if wait := restartDrainBudget(ctx, grace); restart && wait > 0 {
 		if busy := waitSessionDrain(ctx, sessions, wait); busy > 0 {
 			d.runtimeLogger().Info("daemon: restart drain ended with turns still running",
 				"running_turns", busy,

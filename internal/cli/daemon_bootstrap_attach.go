@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -70,9 +69,22 @@ type bootstrapDaemonProbe struct {
 	homePaths compozyconfig.HomePaths
 	target    ClientTarget
 	client    DaemonClient
+	// readyPhase is the bootstrap target; the zero value accepts only a `running` daemon.
+	readyPhase bootstrapReadyPhase
 }
 
-// status reuses one transport while rechecking discovery identity on every observation.
+// probeBootstrapDaemon probes the recorded daemon for the default target: only `running` is healthy.
+func probeBootstrapDaemon(
+	ctx context.Context,
+	deps commandDeps,
+	homePaths compozyconfig.HomePaths,
+) (DaemonStatus, bool, error) {
+	probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths}
+	return probe.status(ctx)
+}
+
+// status reuses one transport while rechecking discovery identity on every observation. A daemon
+// in the serving phase is healthy only for the serving target, and only with a matching identity.
 func (p *bootstrapDaemonProbe) status(ctx context.Context) (DaemonStatus, bool, error) {
 	info, running, err := daemonInfo(p.homePaths, p.deps)
 	if err != nil || !running {
@@ -92,7 +104,7 @@ func (p *bootstrapDaemonProbe) status(ctx context.Context) (DaemonStatus, bool, 
 	if err != nil {
 		return DaemonStatus{}, false, &bootstrapStatusFailure{cause: err}
 	}
-	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
+	if status.PID <= 0 || !daemonServesAs(status, p.readyPhase) {
 		return status, false, &bootstrapStatusFailure{
 			cause: errors.New("cli: running daemon did not report healthy status"),
 		}

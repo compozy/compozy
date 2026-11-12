@@ -11,7 +11,8 @@ function selectRecovery(status: StatusPayload): DaemonRecovery | null {
   return daemonRecovery(status.daemon);
 }
 
-function refetchInterval(query: { state: { data?: StatusPayload } }): number {
+/** The shared status query is read faster while the runtime recovers. */
+export function recoveryRefetchInterval(query: { state: { data?: StatusPayload } }): number {
   const recovering = daemonRecovery(query.state.data?.daemon) !== null;
   return recovering ? RECOVERING_REFETCH_INTERVAL_MS : SETTLED_REFETCH_INTERVAL_MS;
 }
@@ -19,8 +20,15 @@ function refetchInterval(query: { state: { data?: StatusPayload } }): number {
 /**
  * The runtime's session recovery after a restart, or null once it is fully ready. The shared
  * status query is read faster while recovery runs, so the notice clears soon after it ends.
+ * A failed status read says nothing about the runtime's phase, so the last answer's notice is
+ * hidden until the next successful response.
  */
 export function useDaemonRecovery(): DaemonRecovery | null {
-  const query = useQuery({ ...statusOptions(), select: selectRecovery, refetchInterval });
+  const query = useQuery({
+    ...statusOptions(),
+    select: selectRecovery,
+    refetchInterval: recoveryRefetchInterval,
+  });
+  if (query.isError) return null;
   return query.data ?? null;
 }

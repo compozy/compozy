@@ -1526,3 +1526,9 @@ func (r *userLifecycleResolver) ResolveUser(
 	resolved.ProfileName = "default"
 	return resolved, nil
 }
+
+// simulateDaemonRestart clears the shutdown marker the way a new daemon process starts without one,
+// for tests that drive shutdown and the following boot through one Manager.
+func simulateDaemonRestart(manager *Manager) {
+	manager.daemonShutdown.Store(nil)
+}

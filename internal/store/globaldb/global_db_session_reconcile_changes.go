@@ -15,18 +15,19 @@ const reconcileSessionChunkSize = 200
 var _ store.SessionChangeReconciler = (*SessionRepo)(nil)
 
 // ReconcileSessionChanges upserts the changed on-disk sessions in bounded transactions and marks
-// orphaned every catalog session that is neither changed nor listed as unchanged.
+// orphaned every catalog session that is neither changed nor listed as unchanged. It returns each
+// upserted row as read back inside the transaction that wrote it.
 func (g *SessionRepo) ReconcileSessionChanges(
 	ctx context.Context,
 	changed []store.SessionInfo,
 	unchanged []string,
-) (store.ReconcileResult, error) {
+) (store.SessionChangeReconcileResult, error) {
 	if err := g.checkReady(ctx, "reconcile session changes"); err != nil {
-		return store.ReconcileResult{}, err
+		return store.SessionChangeReconcileResult{}, err
 	}
 	sessions, present, err := g.normalizeReconciledSessions(changed)
 	if err != nil {
-		return store.ReconcileResult{}, err
+		return store.SessionChangeReconcileResult{}, err
 	}
 	for _, id := range unchanged {
 		if id = strings.TrimSpace(id); id != "" {
@@ -34,32 +35,36 @@ func (g *SessionRepo) ReconcileSessionChanges(
 		}
 	}
 
-	result := store.ReconcileResult{Indexed: make([]string, 0), Orphaned: make([]string, 0)}
+	result := store.SessionChangeReconcileResult{
+		ReconcileResult: store.ReconcileResult{Indexed: make([]string, 0), Orphaned: make([]string, 0)},
+		Written:         make([]store.SessionInfo, 0, len(sessions)),
+	}
+	// The catalog IDs are read once, in the first write transaction; later chunks only add to them.
+	var existing map[string]struct{}
 	for start := 0; start < len(sessions); start += reconcileSessionChunkSize {
 		chunk := sessions[start:min(start+reconcileSessionChunkSize, len(sessions))]
 		var indexed []string
+		var written []store.SessionInfo
 		chunkErr := g.withImmediateTransaction(ctx, "reconcile session changes", func(exec globalSQLExecutor) error {
-			existing, err := g.loadSessionIDs(ctx, exec)
-			if err != nil {
-				return err
-			}
-			attempt := make([]string, 0)
-			for index := range chunk {
-				session := &chunk[index]
-				if _, ok := existing[session.ID]; !ok {
-					attempt = append(attempt, session.ID)
+			if existing == nil {
+				loaded, err := g.loadSessionIDs(ctx, exec)
+				if err != nil {
+					return err
 				}
-				if err := g.registerSession(ctx, exec, session); err != nil {
-					return fmt.Errorf("store: reconcile session %q: %w", session.ID, err)
-				}
+				existing = loaded
 			}
-			indexed = attempt
-			return nil
+			var err error
+			indexed, written, err = g.reconcileSessionChunk(ctx, exec, chunk, existing)
+			return err
 		})
 		if chunkErr != nil {
-			return store.ReconcileResult{}, chunkErr
+			return store.SessionChangeReconcileResult{}, chunkErr
 		}
 		result.Indexed = append(result.Indexed, indexed...)
+		result.Written = append(result.Written, written...)
+		for _, id := range indexed {
+			existing[id] = struct{}{}
+		}
 	}
 
 	err = g.withImmediateTransaction(ctx, "reconcile orphaned sessions", func(exec globalSQLExecutor) error {
@@ -85,9 +90,41 @@ func (g *SessionRepo) ReconcileSessionChanges(
 		return nil
 	})
 	if err != nil {
-		return store.ReconcileResult{}, err
+		return store.SessionChangeReconcileResult{}, err
 	}
 	return result, nil
+}
+
+// reconcileSessionChunk upserts one chunk and reads every row back before the transaction
+// commits, so the returned rows are exactly what this reconcile wrote.
+func (g *SessionRepo) reconcileSessionChunk(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	chunk []store.SessionInfo,
+	existing map[string]struct{},
+) ([]string, []store.SessionInfo, error) {
+	indexed := make([]string, 0)
+	written := make([]store.SessionInfo, 0, len(chunk))
+	now := g.now()
+	for index := range chunk {
+		session := &chunk[index]
+		if _, ok := existing[session.ID]; !ok {
+			indexed = append(indexed, session.ID)
+		}
+		if err := g.registerSession(ctx, exec, session); err != nil {
+			return nil, nil, fmt.Errorf("store: reconcile session %q: %w", session.ID, err)
+		}
+		row, err := scanSessionInfo(exec.QueryRowContext(ctx, sessionInfoSelectQuery+" WHERE id = ?", session.ID))
+		if err != nil {
+			return nil, nil, fmt.Errorf("store: read reconciled session %q: %w", session.ID, err)
+		}
+		// Mirrors ListSessions, so the row compares equal to a later listing of an untouched row.
+		if expiry := row.AttachExpiresAtValue(); expiry != nil && !expiry.After(now) {
+			row.SetAttach("", nil)
+		}
+		written = append(written, row)
+	}
+	return indexed, written, nil
 }
 
 // normalizeReconciledSessions validates and de-duplicates the sessions a reconcile writes.

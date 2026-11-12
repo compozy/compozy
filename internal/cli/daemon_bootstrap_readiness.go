@@ -81,6 +81,17 @@ func (o bootstrapOptions) servingAs(status DaemonStatus, pid int) bool {
 		status.Readiness != nil && status.Readiness.Phase == contract.DaemonReadinessServing
 }
 
+// daemonServesAs reports whether an existing daemon answers in a phase this bootstrap target
+// accepts as ready: `running` for every target, and the serving phase (status still `draining`)
+// only for the serving target. The caller still validates the daemon's identity.
+func daemonServesAs(status DaemonStatus, readyPhase bootstrapReadyPhase) bool {
+	if strings.TrimSpace(status.Status) == daemonRunningStatus {
+		return true
+	}
+	return readyPhase == bootstrapReadyPhaseServing &&
+		status.Readiness != nil && status.Readiness.Phase == contract.DaemonReadinessServing
+}
+
 // bootstrapStartObserver sees each status the start wait reads and reports whether it is the
 // readiness this bootstrap accepts before `running`.
 type bootstrapStartObserver func(status DaemonStatus, childPID int) bool
@@ -205,7 +216,7 @@ func (e *bootstrapExecution) launch(
 ) (DaemonStatus, error) {
 	ctx := e.cmd.Context()
 	observe := e.observeStart(resolution, attempt)
-	status, err := runBootstrapDaemonDetached(ctx, e.deps, e.homePaths, runtimePath, observe)
+	status, err := runBootstrapDaemonDetached(ctx, e.deps, e.homePaths, runtimePath, e.options.readyPhase, observe)
 	if !errors.Is(err, compozydaemon.ErrRuntimeMutationInProgress) {
 		return status, err
 	}
@@ -225,6 +236,9 @@ func (e *bootstrapExecution) launch(
 		return DaemonStatus{}, writeErr
 	}
 	timeout := e.deps.bootstrapAttachTimeout
+	// Serving probes share the wait budget, so a daemon that never answers cannot outlast it.
+	probeCtx, cancelProbes := context.WithTimeout(ctx, timeout)
+	defer cancelProbes()
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	ticker := time.NewTicker(e.deps.pollInterval)
@@ -242,10 +256,10 @@ func (e *bootstrapExecution) launch(
 			)
 		case <-ticker.C:
 		}
-		if servingStatus, ok := serving.status(ctx, 0); ok {
+		if servingStatus, ok := serving.status(probeCtx, 0); ok {
 			return servingStatus, nil
 		}
-		status, err = runBootstrapDaemonDetached(ctx, e.deps, e.homePaths, runtimePath, observe)
+		status, err = runBootstrapDaemonDetached(ctx, e.deps, e.homePaths, runtimePath, e.options.readyPhase, observe)
 		if !errors.Is(err, compozydaemon.ErrRuntimeMutationInProgress) {
 			return status, err
 		}

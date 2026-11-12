@@ -835,8 +835,51 @@ func TestDaemonShutdownRefusesProviderStarts(t *testing.T) {
 			t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 		}
 		after := readStoredEvents(t, session)
-		if got, want := countEventType(after, acp.EventTypeError), countEventType(before, acp.EventTypeError); got != want {
+		if got, want := countEventType(
+			after,
+			acp.EventTypeError,
+		), countEventType(
+			before,
+			acp.EventTypeError,
+		); got != want {
 			t.Fatalf("stored error events = %d, want %d: a refused start is not a failure row", got, want)
+		}
+	})
+
+	// Invariant: a start whose failure settles as a shutdown interruption retains no session
+	// failure, yet its start run still reports the failure to a Stop that joins it.
+	t.Run("Should keep the start failure in the run result of an interrupted settlement", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		closeFail := new(atomic.Bool)
+		closeFail.Store(true)
+		accepted.storage.recorder = &terminalCloseFailingRecorder{
+			EventRecorder: accepted.storage.recorder,
+			fail:          closeFail,
+			closeErr:      errors.New("recorder close failed"),
+			terminal:      true,
+		}
+		h.manager.BeginDaemonShutdown(true)
+
+		failure := errors.New("startup failed")
+		err := h.manager.discardAcceptedSessionStart(t.Context(), accepted, failure)
+		if !accepted.cleanupPending {
+			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		}
+		if !errors.Is(err, failure) {
+			t.Fatalf("discardAcceptedSessionStart() error = %v, want %v", err, failure)
+		}
+		if runErr := waitForSessionStartRun(testutil.Context(t), accepted.run); !errors.Is(runErr, failure) {
+			t.Fatalf("start run result = %v, want %v for a joining Stop", runErr, failure)
+		}
+		if accepted.retainedFailure != nil {
+			t.Fatal("shutdown interruption retained a start failure")
+		}
+		wantCause, _ := DaemonShutdownStopCause(true)
+		if got, _ := accepted.session.stopCauseDetail(); got != wantCause {
+			t.Fatalf("stop cause = %v, want %v", got, wantCause)
 		}
 	})
 }

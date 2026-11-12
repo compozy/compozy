@@ -122,6 +122,7 @@ func TestRestartContinuationRetainedFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			simulateDaemonRestart(h.manager)
 			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
 			if resumed != tc.wantResume {
 				t.Fatalf("resumed = %t, want %t; error %v", resumed, tc.wantResume, err)

@@ -2,6 +2,7 @@ package observe
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/soul"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
@@ -802,9 +804,23 @@ func TestReconciliationRecoveryMetadataBoundary(t *testing.T) {
 					t.Fatalf("recovery changed unsupported session file %s", path)
 				}
 			}
+			// The reconcile summary is an INFO record; exactly one record above INFO is allowed.
 			var warning map[string]any
-			if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &warning); err != nil {
-				t.Fatalf("want exactly one structured warning: %v; logs: %s", err, logs.String())
+			for line := range bytes.Lines(bytes.TrimSpace(logs.Bytes())) {
+				var record map[string]any
+				if err := json.Unmarshal(line, &record); err != nil {
+					t.Fatalf("want structured log records: %v; logs: %s", err, logs.String())
+				}
+				if record["level"] == "INFO" {
+					continue
+				}
+				if warning != nil {
+					t.Fatalf("want exactly one structured warning; logs: %s", logs.String())
+				}
+				warning = record
+			}
+			if warning == nil {
+				t.Fatalf("want exactly one structured warning; logs: %s", logs.String())
 			}
 			for key, want := range map[string]string{
 				"level": "WARN", "msg": "observe.session_recovery_skipped", "session_id": sessionID,
@@ -922,7 +938,8 @@ func TestReconciliationReadsOnlyChangedSessions(t *testing.T) {
 
 		writeMeta("sess-idle", "Idle", time.Hour)
 		writeMeta("sess-busy", "Busy", time.Hour)
-		if result, read, _ := reconcile(); read != 2 || !slices.Equal(result.Indexed, []string{"sess-busy", "sess-idle"}) {
+		if result, read, _ := reconcile(); read != 2 ||
+			!slices.Equal(result.Indexed, []string{"sess-busy", "sess-idle"}) {
 			t.Fatalf("first reconcile read %d sessions and indexed %v, want both", read, result.Indexed)
 		}
 		// The first read may persist a recovery classification; the proof is taken from a settled read.
@@ -982,5 +999,62 @@ func TestReconciliationReadsOnlyChangedSessions(t *testing.T) {
 			t.Fatalf("removed directory orphaned=%v unchanged=%d, want only the removed session orphaned",
 				result.Orphaned, unchanged)
 		}
+
+		// A proof pairs the files with the row the reconcile itself wrote. A catalog row another
+		// writer changes after that write, before the proof is taken, leaves the session
+		// unrecorded, so the next reconcile reads it again and restores the row from metadata.
+		writeMeta("sess-idle", "Edited", time.Hour)
+		h.observer.registry = &racingReconcileRegistry{
+			GlobalDB: h.registry,
+			afterReconcile: func() {
+				if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
+					ID:            "sess-idle",
+					ProfileID:     store.DefaultProfileID,
+					Name:          "Raced",
+					AgentName:     "coder",
+					Provider:      "claude",
+					RuntimeStatus: store.SessionRuntimeUnbound,
+					WorkspaceID:   h.workspaceID,
+					State:         "stopped",
+					StopReason:    stopReason,
+					CreatedAt:     h.now,
+					UpdatedAt:     h.now,
+				})); err != nil {
+					t.Errorf("RegisterSession(raced) error = %v", err)
+				}
+			},
+		}
+		if _, read, _ := reconcile(); read != 2 || catalogName("sess-idle") != "Raced" {
+			t.Fatalf("raced reconcile read=%d name=%q, want the racing write to land after the reconcile",
+				read, catalogName("sess-idle"))
+		}
+		h.observer.registry = h.registry
+		if _, read, unchanged := reconcile(); read != 2 || unchanged != 0 || catalogName("sess-idle") != "Edited" {
+			t.Fatalf("after a raced row read=%d unchanged=%d name=%q, want the session read again and restored",
+				read, unchanged, catalogName("sess-idle"))
+		}
+		if _, read, unchanged := reconcile(); read != 1 || unchanged != 1 {
+			t.Fatalf("after the restored row read=%d unchanged=%d, want its proof recorded", read, unchanged)
+		}
 	})
+}
+
+// racingReconcileRegistry runs a catalog write right after the reconcile's own write returns:
+// the window in which a proof must not be taken from the row another writer left.
+type racingReconcileRegistry struct {
+	*globaldb.GlobalDB
+	afterReconcile func()
+}
+
+func (r *racingReconcileRegistry) ReconcileSessionChanges(
+	ctx context.Context,
+	changed []store.SessionInfo,
+	unchanged []string,
+) (store.SessionChangeReconcileResult, error) {
+	result, err := r.GlobalDB.ReconcileSessionChanges(ctx, changed, unchanged)
+	if hook := r.afterReconcile; hook != nil {
+		r.afterReconcile = nil
+		hook()
+	}
+	return result, err
 }

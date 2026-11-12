@@ -30,9 +30,12 @@ type reconcileWatermarks struct {
 	profile     string
 	sessionsDir string
 	rows        map[string]string
-	previous    map[string]reconcileWatermark
-	next        map[string]reconcileWatermark
-	read        map[string]store.SessionFilesStamp
+	// wrote holds the digest of each catalog row this reconcile wrote, taken from the row the
+	// store read back inside its write transaction.
+	wrote    map[string]string
+	previous map[string]reconcileWatermark
+	next     map[string]reconcileWatermark
+	read     map[string]store.SessionFilesStamp
 }
 
 func (o *Observer) loadReconcileWatermarks(ctx context.Context) *reconcileWatermarks {
@@ -60,6 +63,7 @@ func (o *Observer) loadReconcileWatermarks(ctx context.Context) *reconcileWaterm
 		profile:     binary,
 		sessionsDir: sessionsDir,
 		rows:        rows,
+		wrote:       make(map[string]string),
 		previous:    store.ReadBootWatermarks[reconcileWatermark](path, binary),
 		next:        make(map[string]reconcileWatermark),
 		read:        make(map[string]store.SessionFilesStamp),
@@ -75,6 +79,12 @@ func (o *Observer) sessionRowDigests(ctx context.Context) (map[string]string, er
 	if err != nil {
 		return nil, err
 	}
+	return sessionRowDigestsOf(rows), nil
+}
+
+// sessionRowDigestsOf fingerprints catalog rows by id. A row that cannot be encoded gets no
+// digest, which keeps its session out of every proof.
+func sessionRowDigestsOf(rows []store.SessionInfo) map[string]string {
 	digests := make(map[string]string, len(rows))
 	for index := range rows {
 		payload, err := json.Marshal(&rows[index])
@@ -84,7 +94,15 @@ func (o *Observer) sessionRowDigests(ctx context.Context) (map[string]string, er
 		sum := sha256.Sum256(payload)
 		digests[rows[index].ID] = hex.EncodeToString(sum[:])
 	}
-	return digests, nil
+	return digests
+}
+
+// reconciled remembers the rows the reconcile wrote, as its write transaction left them.
+func (w *reconcileWatermarks) reconciled(written []store.SessionInfo) {
+	if w == nil {
+		return
+	}
+	w.wrote = sessionRowDigestsOf(written)
 }
 
 func (w *reconcileWatermarks) stamp(sessionID string) (store.SessionFilesStamp, bool) {
@@ -116,7 +134,10 @@ func (w *reconcileWatermarks) unchanged(sessionID string) bool {
 }
 
 // record stamps the sessions this reconcile read, left untouched on disk, and mirrored into the
-// catalog. Files modified too recently for their timestamps to be trusted stay unrecorded.
+// catalog. A proof pairs the files with the row the reconcile itself wrote: when the catalog row
+// read now differs from that row, another writer changed it after the reconcile, and the session
+// stays unrecorded so the next reconcile reads it again. Files modified too recently for their
+// timestamps to be trusted stay unrecorded too.
 func (w *reconcileWatermarks) record(ctx context.Context, o *Observer, sessionIDs []string) {
 	if w == nil {
 		return
@@ -131,10 +152,14 @@ func (w *reconcileWatermarks) record(ctx context.Context, o *Observer, sessionID
 		for _, id := range sessionIDs {
 			before, read := w.read[id]
 			after, found := w.stamp(id)
-			if !read || !found || !before.Equal(after) || !after.Settled(now) || rows[id] == "" {
+			if !read || !found || !before.Equal(after) || !after.Settled(now) {
 				continue
 			}
-			w.next[id] = reconcileWatermark{Files: after, Row: rows[id]}
+			row := w.wrote[id]
+			if row == "" || rows[id] != row {
+				continue
+			}
+			w.next[id] = reconcileWatermark{Files: after, Row: row}
 		}
 	}
 	if err := store.WriteBootWatermarks(w.path, w.profile, w.next); err != nil {

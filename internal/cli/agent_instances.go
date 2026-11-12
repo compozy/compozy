@@ -204,6 +204,9 @@ type agentInstanceOptions struct {
 }
 
 func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, action string, args []string) error {
+	if err := refuseAgentInstanceClearMain(deps, action); err != nil {
+		return err
+	}
 	base, err := clientFromDeps(deps)
 	if err != nil {
 		return err

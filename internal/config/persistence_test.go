@@ -1977,6 +1977,17 @@ func TestArchiveRetiredMemorySettingsTOMLForms(t *testing.T) {
 			"automation.triggers = [",
 		},
 		{
+			"Should keep a comment before the only retired trigger",
+			"automation.triggers = [\n  # Keep this note.\n  {name='old',event='memory.consolidated'},\n]\n",
+			"# Keep this note.",
+		},
+		{
+			"Should keep a comment between a live and a retired trigger",
+			"automation.triggers = [\n  {name='kept',event='session.stopped',workspace='workspace'},\n" +
+				"  # Keep this note.\n  {name='old',event='memory.consolidated'},\n]\n",
+			"{name='kept',event='session.stopped',workspace='workspace'},\n  # Keep this note.",
+		},
+		{
 			"Should archive spec hook shape",
 			"[[hooks]]\nname='audit'\nmatcher = { compaction_reason = 'pressure', session_id = 'keep' }\n",
 			"session_id = 'keep'",
@@ -2407,6 +2418,54 @@ func TestPersistedAgentKindConfigMigration(t *testing.T) {
 		data, err := os.ReadFile(home.ConfigFile)
 		if err != nil || !bytes.Contains(data, []byte("max_proposals = 7")) {
 			t.Fatalf("archive = %s %v", data, err)
+		}
+	})
+	t.Run("Should archive retired memory settings before applying a canonical config write", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, "[memory]\nenabled = false\n")
+		target, err := ResolveConfigWriteTarget(home, "", WriteScopeUser, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := EditConfigOverlay(home, "", target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+		})
+		if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 3 {
+			t.Fatalf("write = %+v %v", cfg.Agents.AlwaysOn, err)
+		}
+		data, err := os.ReadFile(home.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		active, archive, found := strings.Cut(string(data), retiredMemoryArchiveHeader)
+		if !found || strings.Contains(active, "[memory]") || !strings.Contains(archive, "enabled = false") {
+			t.Fatalf("retired memory settings not archived by the write: %s", data)
+		}
+	})
+	// Invariant: a retired-key shim never reports a syntax error; the document reaches the config
+	// decoder unchanged so the parse error keeps its position.
+	t.Run("Should leave a malformed document to the config decoder", func(t *testing.T) {
+		t.Parallel()
+		malformed := []byte("[memory]\nenabled = false\n[agents.stays_on]\nmax_proposals = \n")
+		for name, step := range map[string]func([]byte, string) ([]byte, []string, error){
+			"memory archive":   archiveRetiredMemorySettings,
+			"always-on rename": migrateRetiredAlwaysOnTable,
+		} {
+			rendered, changed, err := step(malformed, "config.toml")
+			if err != nil || len(changed) != 0 || !bytes.Equal(rendered, malformed) {
+				t.Fatalf("%s = %q, %v, %v, want the input unchanged", name, rendered, changed, err)
+			}
+		}
+		rendered, migration, err := migrateRetiredConfigKeys(malformed, "config.toml")
+		if err != nil || migration.changed() || !bytes.Equal(rendered, malformed) {
+			t.Fatalf("migrateRetiredConfigKeys() = %q, %+v, %v, want the input unchanged", rendered, migration, err)
+		}
+		if _, err := loadConfigOverlayBytes(rendered, "config.toml"); err == nil {
+			t.Fatal("loadConfigOverlayBytes() error = nil, want the decoder's parse error")
 		}
 	})
 	t.Run("Should migrate other overlays while a config save owns the write mutex", func(t *testing.T) {

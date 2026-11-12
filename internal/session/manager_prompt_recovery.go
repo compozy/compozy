@@ -81,12 +81,7 @@ func (m *Manager) attemptPromptRecovery(
 
 		request, message := recoveredPromptPayload(recovery, reason)
 		source, _, err := m.startRecoveredPrompt(
-			recovery.executionCtx,
-			session,
-			turnState,
-			request,
-			message,
-			budget.expiresAt,
+			recovery.executionCtx, session, turnState, request, message, budget.expiresAt,
 		)
 		if err != nil {
 			if errors.Is(err, ErrDaemonShuttingDown) {
