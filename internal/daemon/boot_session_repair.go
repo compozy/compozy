@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -47,7 +48,7 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		}
 		return fmt.Errorf("daemon: boot session inventory recovery failed: %w", err)
 	}
-	infos, err = upgradeBootSessionDatabases(ctx, state, infos)
+	infos, err = upgradeBootSessionDatabases(ctx, state, infos, d.migrationProgressReporter())
 	if err != nil {
 		return err
 	}
@@ -120,17 +121,33 @@ type sessionDatabaseUpgrader interface {
 	UpgradeSessionDatabase(context.Context, string) error
 }
 
+// upgradeBootSessionDatabases brings every retained session database to the current schema and
+// projection. A coordinated-restart replacement reports each session to the restart journal, so the
+// desktop shows real counts while a large history upgrades instead of a frozen install stage.
 func upgradeBootSessionDatabases(
 	ctx context.Context,
 	state *bootState,
 	infos []*session.Info,
+	progress globaldb.MigrationProgressFunc,
 ) ([]*session.Info, error) {
 	upgrader, ok := state.sessions.(sessionDatabaseUpgrader)
 	if !ok {
 		return infos, nil
 	}
+	total := int64(len(infos))
+	report := func(completed int) {
+		progress.Report(globaldb.MigrationProgress{
+			Stage: globaldb.MigrationStageSessionHistoryUpgrade, Completed: int64(completed), Total: total,
+		})
+	}
+	report(0)
+	// The journal clears the stage on every exit so a later boot step never inherits its idle window.
+	defer progress.Report(globaldb.MigrationProgress{Stage: globaldb.MigrationStageSessionHistoryUpgrade, Done: true})
 	ready := make([]*session.Info, 0, len(infos))
-	for _, info := range infos {
+	for index, info := range infos {
+		if index > 0 {
+			report(index)
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", err)
 		}

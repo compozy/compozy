@@ -7562,6 +7562,51 @@ func TestBootSessionRepair(t *testing.T) {
 		}
 	})
 
+	// Invariant: a restart replacement reports every retained database against a fixed total and
+	// clears the stage when the pass ends, so the desktop shows counts instead of a frozen install.
+	t.Run("Should report retained database upgrade progress and clear it when done", func(t *testing.T) {
+		t.Parallel()
+		manager := &databaseUpgradeManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+				{ID: "sess-a"}, {ID: "sess-refused"}, {ID: "sess-c"},
+			}},
+			upgradeErrors: map[string]error{"sess-refused": sessiondb.ErrSessionDBOwnerMismatch},
+		}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		var reports []globaldb.MigrationProgress
+		ready, err := upgradeBootSessionDatabases(
+			t.Context(), state, manager.infos, func(progress globaldb.MigrationProgress) {
+				reports = append(reports, progress)
+			},
+		)
+		if err != nil || len(ready) != 2 {
+			t.Fatalf("upgradeBootSessionDatabases() = %d ready, %v; want 2 ready", len(ready), err)
+		}
+		stage := globaldb.MigrationStageSessionHistoryUpgrade
+		want := []globaldb.MigrationProgress{
+			{Stage: stage, Completed: 0, Total: 3},
+			{Stage: stage, Completed: 1, Total: 3},
+			{Stage: stage, Completed: 2, Total: 3},
+			{Stage: stage, Done: true},
+		}
+		if !slices.Equal(reports, want) {
+			t.Fatalf("progress = %+v, want %+v", reports, want)
+		}
+
+		reports = nil
+		manager.upgradeErrors = map[string]error{"sess-a": store.ErrSchemaAhead}
+		if _, err := upgradeBootSessionDatabases(
+			t.Context(), state, manager.infos, func(progress globaldb.MigrationProgress) {
+				reports = append(reports, progress)
+			},
+		); !errors.Is(err, store.ErrSchemaAhead) {
+			t.Fatalf("upgradeBootSessionDatabases() error = %v, want schema refusal", err)
+		}
+		if len(reports) == 0 || !reports[len(reports)-1].Done {
+			t.Fatalf("progress after failure = %+v, want the stage cleared", reports)
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		err  error

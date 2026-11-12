@@ -35,6 +35,14 @@ export interface ShellSnapshot {
   readonly owned?: boolean;
   readonly target?: "app" | "runtime";
   readonly pct?: number;
+  /** Determinate data-upgrade work: units done and the stage total (0 while still counting). */
+  readonly completed?: number;
+  readonly total?: number;
+  /** What `completed`/`total` count, so the window can say "sessions" instead of a bare number. */
+  readonly work?: "sessions" | "records";
+  /** The runtime transition this boot performs: the replaced version (upgrades only) and the target. */
+  readonly from_version?: string;
+  readonly to_version?: string;
   readonly runtime?: string;
   readonly needed?: string;
   readonly newer?: boolean;

@@ -46,7 +46,8 @@ func (cost *repairedCost) add(usage store.TokenUsage) {
 // repairUsageCosts completes migration 199 before any runtime can append usage.
 // Session migration 11 is lossless and idempotent; one global transaction commits
 // only agent-reported aggregates and the completion marker. Interrupted opens retry.
-func repairUsageCosts(ctx context.Context, db *sql.DB, path string) error {
+// Each repaired session opens (and may upgrade) its database, so the stage reports per row.
+func repairUsageCosts(ctx context.Context, db *sql.DB, path string, progress MigrationProgressFunc) error {
 	queries := sqlcgen.New(db)
 	pending, err := queries.UsageCostRepairPending(ctx)
 	if err != nil {
@@ -59,7 +60,9 @@ func repairUsageCosts(ctx context.Context, db *sql.DB, path string) error {
 	if err != nil {
 		return fmt.Errorf("store: read usage cost repair sessions: %w", err)
 	}
-	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
+	total := int64(len(rows))
+	progress.Report(MigrationProgress{Stage: MigrationStageUsageCostRepair, Total: total})
+	if err := store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
 		writer := sqlcgen.New(tx)
 		// Capture original provenance before invalidation. A matching reconstructed
 		// daily key must never overwrite a previously estimated/included row.
@@ -74,10 +77,13 @@ func repairUsageCosts(ctx context.Context, db *sql.DB, path string) error {
 			return fmt.Errorf("store: invalidate reported daily costs: %w", err)
 		}
 		daily := make(map[repairedDailyCostKey]*repairedCost)
-		for _, row := range rows {
+		for index, row := range rows {
 			if err := repairSessionCost(ctx, writer, path, row, daily); err != nil {
 				return err
 			}
+			progress.Report(MigrationProgress{
+				Stage: MigrationStageUsageCostRepair, Completed: int64(index + 1), Total: total,
+			})
 		}
 		for _, day := range days {
 			key := repairedDailyCostKey{day.Day, day.ProfileID, day.WorkspaceID, day.AgentName}
@@ -101,7 +107,11 @@ func repairUsageCosts(ctx context.Context, db *sql.DB, path string) error {
 			}
 		}
 		return writer.CompleteUsageCostRepair(ctx)
-	})
+	}); err != nil {
+		return err
+	}
+	progress.Report(MigrationProgress{Stage: MigrationStageUsageCostRepair, Done: true})
+	return nil
 }
 
 func repairSessionCost(

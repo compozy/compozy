@@ -562,7 +562,7 @@ test("E2E-002: corrupt bundled runtime fails before provisioning and remains ret
     desktop.boot.getByRole("heading", { name: "CompozyOS could not start" })
   ).toBeVisible();
   await expect(desktop.boot.getByText(/integrity check|Reinstall the app/u)).toBeVisible();
-  await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toBeVisible();
+  await expect(desktop.boot.getByRole("button", { name: "Try again" })).toBeVisible();
   await expect(
     stat(join(desktop.home, "bin", process.platform === "win32" ? "compozy.exe" : "compozy"))
   ).rejects.toThrow();
@@ -582,7 +582,7 @@ test("E2E-003: runtime below the minimum stays on version-skew guidance", async 
     desktop.boot.getByRole("heading", { name: "CompozyOS needs an update" })
   ).toBeVisible();
   await expect(desktop.boot.getByText(/Runtime 0\.3\.0-beta\.1.*Repair or update/u)).toBeVisible();
-  await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toHaveCount(0);
+  await expect(desktop.boot.getByRole("button", { name: "Try again" })).toHaveCount(0);
 });
 
 test("E2E-007: quitting during bootstrap completes cleanup and preserves the daemon", async ({
@@ -790,7 +790,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   await expect(
     desktop.boot.getByRole("heading", { name: "CompozyOS could not start" })
   ).toBeVisible();
-  for (const name of ["Retry operation", "Open logs", "Quit", "Load diagnostics"]) {
+  for (const name of ["Try again", "Open logs", "Quit", "Load diagnostics"]) {
     await expect(desktop.boot.getByRole("button", { name })).toBeVisible();
   }
   const events = await bootstrapEvents(desktop.home);
@@ -799,7 +799,7 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   ).toHaveLength(5);
   await cp(desktop.bundleRuntimePath, join(desktop.home, "bin", runtimeName));
   if (process.platform !== "win32") await chmod(join(desktop.home, "bin", runtimeName), 0o700);
-  await desktop.boot.getByRole("button", { name: "Retry operation" }).click();
+  await desktop.boot.getByRole("button", { name: "Try again" }).click();
   await expect(await desktop.product()).toHaveTitle(/CompozyOS/u);
 });
 

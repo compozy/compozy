@@ -4,6 +4,18 @@ import type { ShellSnapshot } from "../state/app-state";
 import { presentWindow, type WindowPresentation } from "./window-presentation";
 import type { WindowTheme } from "./window-theme";
 
+/** The boot window: a wide frame so the journey and its progress sit side by side (#1549). */
+export const BOOT_WINDOW_SIZE = { width: 880, height: 540 } as const;
+const BOOT_WINDOW_MINIMUM = { width: 840, height: 520 } as const;
+/** macOS keeps its traffic lights over the page's ink; the page reserves their band. */
+const MAC_TRAFFIC_LIGHT_POSITION = { x: 14, y: 14 } as const;
+
+function bootWindowChrome(platform: NodeJS.Platform) {
+  return platform === "darwin"
+    ? { titleBarStyle: "hidden" as const, trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION }
+    : {};
+}
+
 export class BootWindow {
   readonly #window: BrowserWindow;
   readonly #presentation: WindowPresentation;
@@ -20,10 +32,11 @@ export class BootWindow {
     this.#presentation = options.presentation;
     this.#lastSnapshot = options.snapshot ?? { state: "resolving" };
     this.#window = new BrowserWindow({
-      width: 420,
-      height: 460,
-      minWidth: 380,
-      minHeight: 360,
+      width: BOOT_WINDOW_SIZE.width,
+      height: BOOT_WINDOW_SIZE.height,
+      minWidth: BOOT_WINDOW_MINIMUM.width,
+      minHeight: BOOT_WINDOW_MINIMUM.height,
+      ...bootWindowChrome(process.platform),
       show: false,
       title: "CompozyOS",
       backgroundColor: options.theme.backgroundColor("canvas"),

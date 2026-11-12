@@ -1,0 +1,76 @@
+/* The waiting game: an always-on agent's face runs the point line in the lead column's ink. */
+
+.boot__runner {
+  inline-size: 100%;
+  margin-block-start: auto;
+  padding-block: 14px 18px;
+}
+.boot__runner-hud {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.boot__runner-hint {
+  margin-inline-start: 10px;
+  font-style: normal;
+  opacity: 0.6;
+}
+.boot__runner-track {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  block-size: 88px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+.boot__runner-track:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+.boot__runner-agent {
+  position: absolute;
+  inset-block-end: 8px;
+  inset-inline-start: 28px;
+  display: block;
+  inline-size: 32px;
+  block-size: 32px;
+  will-change: transform;
+}
+/* The body sits inside the generator's 100-unit frame; draw past the box to fill it, as AgentAvatar does. */
+.boot__runner-face {
+  display: block;
+  inline-size: 134%;
+  block-size: 134%;
+  max-inline-size: none;
+  margin: -17%;
+}
+.boot__runner-block {
+  position: absolute;
+  inset-block-end: 8px;
+  inset-inline-start: 0;
+  background: radial-gradient(circle at 4px 4px, var(--point-done) 1.5px, transparent 2px) 0 0 / 8px
+    8px;
+  will-change: transform;
+}
+.boot__runner-ground {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  block-size: 8px;
+  overflow: hidden;
+}
+.boot__runner-ground-dots {
+  display: block;
+  inline-size: calc(100% + 8px);
+  block-size: 8px;
+  background: radial-gradient(circle at 4px 4px, var(--point) 1.5px, transparent 2px) 0 0 / 8px 8px;
+}

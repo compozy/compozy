@@ -19,7 +19,22 @@ type bootstrapProvisionRequest struct {
 	bundlePath    string
 	installedPath string
 	provenance    compozyupdate.DesktopProvenanceMetadata
-	restart       func() error
+	// fromVersion is the installed runtime this run replaces; empty on a first install.
+	fromVersion string
+	restart     func() error
+}
+
+// versions names the transition for the desktop, or nil when the bundle's version is unknown.
+func (r *bootstrapProvisionRequest) versions() *bootstrapVersions {
+	to := normalizedBootstrapVersion(r.provenance.RuntimeVersion)
+	if to == "" {
+		return nil
+	}
+	from := normalizedBootstrapVersion(r.fromVersion)
+	if from == to {
+		from = ""
+	}
+	return &bootstrapVersions{From: from, To: to}
 }
 
 type bootstrapRuntimeInstall struct {
@@ -35,6 +50,7 @@ func provisionBootstrapRuntime(cmd *cobra.Command, request *bootstrapProvisionRe
 	if err := writeBootstrapEvent(cmd, bootstrapEvent{
 		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusStarted,
 		Resolution: request.resolution, Message: "Provisioning the bundled CompozyOS runtime.",
+		Versions: request.versions(),
 	}); err != nil {
 		return err
 	}

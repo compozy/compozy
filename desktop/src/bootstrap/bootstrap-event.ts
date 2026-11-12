@@ -23,6 +23,13 @@ export interface BootstrapEvent {
   /** Refines the phase; "migrate" means the replacement runtime is upgrading persisted data. */
   readonly stage?: "migrate";
   readonly pct?: number;
+  /** Determinate data-upgrade progress on `migrate` events; `total` is 0 while still counting. */
+  readonly completed?: number;
+  readonly total?: number;
+  /** The runtime's migration stage name, e.g. "session_history_upgrade" or "telemetry_relocation". */
+  readonly migration?: string;
+  /** The runtime transition a provisioning run performs; `from` only when it replaces one. */
+  readonly versions?: { readonly from?: string; readonly to: string };
   readonly compatibility?: {
     readonly reason: "runtime_below_minimum" | "app_below_minimum";
     readonly runtime: string;
@@ -122,6 +129,32 @@ export function parseBootstrapEvent(line: string): BootstrapEvent | null {
       record.pct > 100)
   ) {
     return null;
+  }
+  for (const count of [record.completed, record.total]) {
+    if (
+      count !== undefined &&
+      (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)
+    ) {
+      return null;
+    }
+  }
+  if (
+    record.migration !== undefined &&
+    (typeof record.migration !== "string" || record.migration.trim() === "")
+  ) {
+    return null;
+  }
+  if (record.versions !== undefined) {
+    if (!record.versions || typeof record.versions !== "object") return null;
+    const versions = record.versions as Record<string, unknown>;
+    if (
+      typeof versions.to !== "string" ||
+      versions.to.trim() === "" ||
+      (versions.from !== undefined &&
+        (typeof versions.from !== "string" || versions.from.trim() === ""))
+    ) {
+      return null;
+    }
   }
   if (record.daemon !== undefined) {
     if (!record.daemon || typeof record.daemon !== "object") return null;
