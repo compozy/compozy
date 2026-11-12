@@ -1780,18 +1780,52 @@ func TestAutomationRunsCancelScope(t *testing.T) {
 		operator           bool
 		wantReason         toolspkg.ReasonCode
 	}{
-		{name: "Should cancel in the bound workspace", callerWorkspace: "ws-a", runWorkspace: "ws-a"},
-		{name: "Should hide another workspace when input omits it", callerWorkspace: "ws-a", runWorkspace: "ws-b", wantReason: toolspkg.ReasonToolUnknown},
-		{name: "Should reject an explicit conflicting workspace", callerWorkspace: "ws-a", requestedWorkspace: "ws-b", runWorkspace: "ws-b", wantReason: toolspkg.ReasonScopeMismatch},
-		{name: "Should preserve operator workspace selection", callerWorkspace: "ws-a", requestedWorkspace: "ws-b", runWorkspace: "ws-b", operator: true},
-		{name: "Should preserve unbound workspace selection", requestedWorkspace: "ws-b", runWorkspace: "ws-b"},
-		{name: "Should hide another profile before cancellation", callerWorkspace: "ws-a", runWorkspace: "ws-a", foreignProfile: true, wantReason: toolspkg.ReasonToolUnknown},
+		{
+			name:            "Should cancel in the bound workspace",
+			callerWorkspace: "ws-a",
+			runWorkspace:    "ws-a",
+		},
+		{
+			name:            "Should hide another workspace when input omits it",
+			callerWorkspace: "ws-a",
+			runWorkspace:    "ws-b",
+			wantReason:      toolspkg.ReasonToolUnknown,
+		},
+		{
+			name:               "Should reject an explicit conflicting workspace",
+			callerWorkspace:    "ws-a",
+			requestedWorkspace: "ws-b",
+			runWorkspace:       "ws-b",
+			wantReason:         toolspkg.ReasonScopeMismatch,
+		},
+		{
+			name:               "Should preserve operator workspace selection",
+			callerWorkspace:    "ws-a",
+			requestedWorkspace: "ws-b",
+			runWorkspace:       "ws-b",
+			operator:           true,
+		},
+		{
+			name:               "Should preserve unbound workspace selection",
+			requestedWorkspace: "ws-b",
+			runWorkspace:       "ws-b",
+		},
+		{
+			name:            "Should hide another profile before cancellation",
+			callerWorkspace: "ws-a",
+			runWorkspace:    "ws-a",
+			foreignProfile:  true,
+			wantReason:      toolspkg.ReasonToolUnknown,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			job := nativeAutomationJobFixture("job-cancel", automationpkg.JobSourceDynamic)
 			job.Scope, job.WorkspaceID = automationpkg.AutomationScopeWorkspace, tc.runWorkspace
-			run := automationpkg.Run{ID: "run-cancel", JobID: job.ID, ProfileID: store.DefaultProfileID, Status: automationpkg.RunRunning}
+			run := automationpkg.Run{
+				ID: "run-cancel", JobID: job.ID,
+				ProfileID: store.DefaultProfileID, Status: automationpkg.RunRunning,
+			}
 			if tc.foreignProfile {
 				run.ProfileID = strings.Repeat("b", 26)
 			}

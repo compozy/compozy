@@ -227,7 +227,8 @@ var automationTools = []toolspkg.Descriptor{
 }
 
 func automationDescriptors() []toolspkg.Descriptor {
-	descriptors := append(automationTools, automationRunDescriptors()...)
+	descriptors := append([]toolspkg.Descriptor(nil), automationTools...)
+	descriptors = append(descriptors, automationRunDescriptors()...)
 	return append(descriptors, automationSuggestionDescriptors()...)
 }
 

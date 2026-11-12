@@ -125,7 +125,10 @@ func cancelAutomationRunOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Canceled run or unchanged terminal run", Body: contract.RunResponse{}},
 			{Status: 404, Description: "Automation run not found", Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Run may still be executing or changed concurrently", Body: contract.ErrorPayload{}},
+			{
+				Status: 409, Description: "Run may still be executing or changed concurrently",
+				Body: contract.ErrorPayload{},
+			},
 			{Status: 503, Description: specAutomationManagerIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
