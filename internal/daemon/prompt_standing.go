@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -25,6 +26,9 @@ const (
 	standingRosterLimit      = 12
 	standingPeerDescription  = 160
 	standingStateMaxSessions = 2048
+	// standingRosterTTL bounds how long an instance created, paused or archived
+	// outside the definition catalog stays invisible to a cached roster.
+	standingRosterTTL = 30 * time.Second
 
 	standingPeerActiveState = "active"
 
@@ -51,13 +55,25 @@ type standingContextAugmenter struct {
 	profileNames       session.ProfileNameResolver
 	compactionBoundary func(context.Context, string) (*int64, error)
 
-	mu     sync.Mutex
-	states map[string]standingSessionState
+	now func() time.Time
+
+	mu      sync.Mutex
+	states  map[string]standingSessionState
+	rosters map[string]standingRoster
 }
 
 type standingSessionState struct {
 	acpSessionID string
 	boundary     int64
+}
+
+// standingRoster is one session's peer read, reused while the agent definition
+// catalog keeps its revision so an unchanged roster costs no per-turn resolution.
+type standingRoster struct {
+	revision int64
+	expires  time.Time
+	peers    []contract.AgentInstancePeer
+	more     bool
 }
 
 func (a *standingContextAugmenter) Augment(
@@ -138,6 +154,20 @@ func (a *standingContextAugmenter) peers(
 	if api == nil {
 		return nil, false, nil
 	}
+	var revision int64
+	if a.catalog != nil {
+		revision = a.catalog().Revision()
+	}
+	now := time.Now()
+	if a.now != nil {
+		now = a.now()
+	}
+	a.mu.Lock()
+	cached, ok := a.rosters[info.ID]
+	a.mu.Unlock()
+	if ok && cached.revision == revision && now.Before(cached.expires) {
+		return cached.peers, cached.more, nil
+	}
 	var access workspaceaccess.Policy
 	if a.access != nil {
 		access = a.access()
@@ -164,6 +194,14 @@ func (a *standingContextAugmenter) peers(
 	if len(peers) > standingRosterLimit {
 		peers = peers[:standingRosterLimit]
 	}
+	a.mu.Lock()
+	if a.rosters == nil || len(a.rosters) >= standingStateMaxSessions {
+		a.rosters = make(map[string]standingRoster)
+	}
+	a.rosters[info.ID] = standingRoster{
+		revision: revision, expires: now.Add(standingRosterTTL), peers: peers, more: more,
+	}
+	a.mu.Unlock()
 	return peers, more, nil
 }
 

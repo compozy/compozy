@@ -24,7 +24,7 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 6. Trigger a provider compaction (`/compact`) and send a turn. The full block is delivered again; the following turn returns to the marker.
 7. From the agent, call `compozy__agent_memory_replace` and `compozy__agent_memory_remove` with text matching the rule. Both fail with `agent_memory_rule_protected` and the file is unchanged. `compozy__agent_memory_add` writes a dated note. `compozy__agent_memory_search` returns the rule with its prefix.
 8. Call `compozy__agent_instance_list` with `peers: true`. Each peer carries `accepts`. Pause the second instance and send a turn: its roster line shows `[paused]`.
-9. Send a turn from a session of the same agent that is not an instance main or descendant. It receives the rules and no roster.
+9. Send a turn from a session of the same agent that does not belong to an instance. It receives the rules and no roster.
 10. Start an on-demand agent. It receives no standing context.
 11. Claude provider: start the always-on agent with `lean_environment` unset on a host whose Claude setup has its own MCP servers or claude.ai connectors. The session lists only CompozyOS-provided MCP tools. With `lean_environment: false` the operator's servers return. An on-demand agent is unchanged.
 12. Upgrade check: load a `MEMORY.md` written before rules existed. Every line stays a note, the digest is unchanged by reading, and no rule appears.

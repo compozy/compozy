@@ -2072,7 +2072,8 @@ authorization-filtered read as `peers: true`, limited to 12 peers of the session
 scope, a non-active state, the description cut to 160 characters and the accepted input forms. It
 tells the agent to hand work that matches a peer's role to that peer through
 `compozy__session_prompt` with `agent`. When more peers exist the block says so; list them with
-`peers: true`. A session that is not an instance main or descendant gets rules but no roster.
+`peers: true`. A session that does not belong to an instance gets rules but no roster. The roster is cached per
+session and re-read when the agent definition catalog changes or after 30 seconds.
 
 The block is bounded to 12,000 characters and sent in full only when needed: on the first turn of a
 provider session, when the rules or roster change, and on the first turn after a completed provider

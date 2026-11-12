@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
@@ -777,6 +778,83 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 		}
 	})
 
+	t.Run("Should list only authorized peers and reuse the roster until it can have changed", func(t *testing.T) {
+		t.Parallel()
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		stamp := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+		for _, id := range []string{"allowed", "denied"} {
+			if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+				ID: id, Name: id, RootDir: filepath.Join(t.TempDir(), id), CreatedAt: stamp, UpdatedAt: stamp,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		repo := db.Instances()
+		admit := func(workspace, agent string) {
+			t.Helper()
+			if _, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspace, AgentName: agent,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, 10); err != nil {
+				t.Fatal(err)
+			}
+		}
+		admit("allowed", "lead")
+		admit("allowed", "writer")
+		admit("denied", "hidden")
+		reads := 0
+		api := &core.AgentInstanceAPI{
+			Store: repo,
+			Authority: agentinstance.Authority{Callers: &instanceAdmissionInputs{
+				caller: agentinstance.Caller{
+					InstanceID: "lead-instance", AgentName: "lead", ProfileID: store.DefaultProfileID,
+				},
+			}},
+			ReadPeer: func(_ context.Context, row agentinstance.Instance) (contract.AgentInstancePeer, error) {
+				reads++
+				return contract.AgentInstancePeer{
+					Name: row.AgentName, Scope: row.WorkspaceID, State: row.State, Accepts: []string{"intake: <text>"},
+				}, nil
+			},
+		}
+		now := stamp
+		standing := &standingContextAugmenter{
+			instances: func() *core.AgentInstanceAPI { return api },
+			access:    func() workspaceaccess.Policy { return standingAllowedWorkspacePolicy{} },
+			now:       func() time.Time { return now },
+		}
+		info := &session.Info{
+			ID: "sess-lead", InstanceID: "lead-instance", AgentName: "lead",
+			ProfileID: store.DefaultProfileID, WorkspaceID: "allowed",
+		}
+		peers, more, err := standing.peers(t.Context(), info)
+		if err != nil || more || len(peers) != 1 || peers[0].Name != "writer" ||
+			peers[0].Accepts[0] != "intake: <text>" {
+			t.Fatalf("roster = %+v more=%t err=%v", peers, more, err)
+		}
+		admit("allowed", "cleaner")
+		firstReads := reads
+		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 1 || reads != firstReads {
+			t.Fatalf("cached roster = %+v reads=%d->%d err=%v", peers, firstReads, reads, err)
+		}
+		now = now.Add(standingRosterTTL)
+		if peers, _, err = standing.peers(t.Context(), info); err != nil || len(peers) != 2 {
+			t.Fatalf("refreshed roster = %+v err=%v", peers, err)
+		}
+		outsider := &session.Info{ID: "sess-plain", AgentName: "lead", ProfileID: store.DefaultProfileID}
+		if peers, _, err = standing.peers(t.Context(), outsider); err != nil || len(peers) != 0 {
+			t.Fatalf("session outside an instance got a roster: %+v err=%v", peers, err)
+		}
+	})
+
 	t.Run("Should render a bounded roster with input forms and skip on-demand agents", func(t *testing.T) {
 		t.Parallel()
 		peers := []contract.AgentInstancePeer{
@@ -819,4 +897,14 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 			t.Fatalf("nil session = %q, %v", got, err)
 		}
 	})
+}
+
+type standingAllowedWorkspacePolicy struct{}
+
+func (standingAllowedWorkspacePolicy) Authorize(
+	_ context.Context, req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	return workspaceaccess.Decision{
+		Allowed: req.Target.WorkspaceID == "allowed", Source: workspaceaccess.SourceAgentGrant,
+	}, nil
 }

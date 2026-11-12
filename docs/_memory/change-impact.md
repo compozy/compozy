@@ -26,7 +26,8 @@ and the 2026-11-12 impact note in `docs/qa/scenarios/RT-agent-memory-startup.md`
   compaction. The startup `<compozy-agent-memory>` snapshot now carries notes only.
 - **Workspace data isolation.** The roster reuses `AgentInstanceAPI.PeersPage` with the session as
   actor: instance authority plus the read-only `workspaceaccess` catalog check per row, profile
-  scoped. A session outside an instance lineage gets no roster. Memory identity is unchanged.
+  scoped. A session without an instance gets no roster. The read is cached per session until the
+  agent catalog revision changes or 30 seconds pass. Memory identity is unchanged.
 - **User state.** No schema or migration. `MEMORY.md` keeps its shape: a rule is a line starting
   `- [rule] `, every existing line stays a note, and nothing is rewritten on load. Rules are never
   archived by overflow.
