@@ -4960,7 +4960,9 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 	})
 }
 
-func TestBootConfigRejectsRemovedAgentKindTable(t *testing.T) {
+// Invariant: a global config that still carries [agents.stays_on] boots with its values applied
+// to agents.always_on (#1618; shim removal: v0.7.0). Owner: daemon boot config.
+func TestBootConfigMigratesRetiredAgentKindTable(t *testing.T) {
 	t.Run("Should enforce the current input contract", func(t *testing.T) {
 		t.Parallel()
 		homePaths := testHomePaths(t)
@@ -4977,12 +4979,11 @@ func TestBootConfigRejectsRemovedAgentKindTable(t *testing.T) {
 		if err := d.bootConfig(
 			state,
 			&bootCleanup{},
-		); err == nil || !strings.Contains(err.Error(), "agents.always_on") {
-			t.Fatalf("boot error = %v, want removed config guidance", err)
+		); err != nil {
+			t.Fatalf("boot error = %v", err)
 		}
-		after, err := os.ReadFile(homePaths.ConfigFile)
-		if err != nil || string(after) != "[agents.stays_on]\napproval_timeout = \"2h\"\n" {
-			t.Fatalf("rejected config changed: %q, %v", after, err)
+		if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("timeout lost: %v", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
 		}
 	})
 }

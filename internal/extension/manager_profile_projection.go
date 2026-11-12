@@ -8,7 +8,9 @@ import (
 )
 
 // ProjectForProfile returns the extension resources visible through one real profile.
-// The boolean is false when the extension is disabled for that profile.
+// The boolean is false when the extension is disabled for that profile, or when its packaged
+// declarative resources cannot be loaded: that package then projects no resources and carries the
+// failure in Status.LastError, so one broken package never fails the publication of the others.
 func (m *Manager) ProjectForProfile(
 	ctx context.Context,
 	key InstanceKey,
@@ -67,12 +69,11 @@ func (m *Manager) ProjectForProfile(
 	}
 	loaded, err := m.loadDeclarativeResources(ctx, temporary)
 	if err != nil {
-		return nil, false, fmt.Errorf(
-			"extension: project %q resources for profile %q: %w",
-			key.Name,
-			profile.Name,
-			err,
-		)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, false, ctxErr
+		}
+		m.withdrawProjectedResources(extension, profile.Name, err)
+		return extension, false, nil
 	}
 	extension.Manifest = manifest
 	extension.Hooks = loaded.hooks
@@ -98,13 +99,42 @@ func (m *Manager) loadProfileProjectionSource(ctx context.Context, key InstanceK
 	if extension.Manifest == nil && extension.Status.LastError == "" {
 		workspaceID := extension.Status.WorkspaceID
 		key.WorkspaceID = workspaceID
-		extension, err = m.inspectProjectionSource(ctx, key)
-		if err != nil {
+		inspected, err := m.inspectProjectionSource(ctx, key)
+		switch {
+		case err == nil:
+			extension = inspected
+		case ctx.Err() != nil || errors.Is(err, ErrExtensionNotFound):
 			return nil, err
+		default:
+			// The registry row stays visible without a manifest, like a managed package whose
+			// manifest failed to parse; callers publish nothing for it.
+			m.withdrawProjectedResources(extension, "", err)
 		}
 		extension.Status.WorkspaceID = workspaceID
 	}
 	return extension, nil
+}
+
+// withdrawProjectedResources records why one package projects no declarative resources.
+func (m *Manager) withdrawProjectedResources(extension *Extension, profileName string, cause error) {
+	reason := safeExtensionFailure(cause)
+	if extension.Status.LastError == "" {
+		extension.Status.LastError = reason
+	}
+	extension.Hooks = nil
+	extension.Agents = nil
+	extension.StaticAgents = nil
+	extension.Skills = nil
+	extension.Loops = nil
+	extension.AutomationJobs = nil
+	extension.AutomationTriggers = nil
+	extension.Layouts = nil
+	m.logger.Warn(
+		"extension.resources.skipped",
+		managerExtensionKey, extension.Info.Name,
+		"profile", profileName,
+		"error", reason,
+	)
 }
 
 func (m *Manager) inspectProjectionSource(ctx context.Context, key InstanceKey) (*Extension, error) {

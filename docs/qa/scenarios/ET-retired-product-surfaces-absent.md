@@ -94,10 +94,11 @@ Absent surfaces:
   route; `/settings/memory` renders not-found (inside a restored Settings window it lands on the overview);
   Settings lists 18 sections with no Memory; Settings → Roles shows two panels (Coordinator, Auto title);
   Home shows 5 system tiles with no Memory tile; the session context meter has no threshold warning.
-- Starting in v0.6.1, active retired config, SOUL memory_policy, hook matcher keys,
+- Starting in v0.6.1, SOUL memory_policy, `SKILL.md` and extension hook matcher keys,
   extension manifest memory entries and memory.consolidated automation resources fail validation
-  without rewriting files. Policies no longer filter retired atoms. Run v0.6.0 first to archive
-  old config and resolve deferred writes (owned by `RT-upgrade-memory-removal-home`).
+  without rewriting files, for that one file or package only. Policies no longer filter retired
+  atoms. Retired `config.toml` settings and `AGENT.md` hook matcher keys never block a start: they
+  are archived or ignored again until v0.7.0 (#1618, owned by `RT-upgrade-memory-removal-home`).
 - Prompts and compaction: a new session's first prompt carries no memory startup content and no
   `<workspace-knowledge-snapshot>` block even when `<workspace>/knowledge/` exists; usage at 0.95 of the window
   creates no child session and archives nothing (owned in depth by `RT-pressure-context-compaction`). The surviving
@@ -106,7 +107,7 @@ Absent surfaces:
   Web Compact now button in the context rail meter section (owned by `ET-session-compact-now`).
 
 Upgrade leg: run a disposable old home through v0.6.0 to archive config, then remove SOUL,
-hook, manifest and automation leftovers before v0.6.1. Confirm migrated state and memory files
+skill-hook, manifest and automation leftovers. Confirm migrated state and memory files
 remain intact, exact retired tool IDs remain inert and retired toolsets fail catalog validation.
 Walk it through `RT-upgrade-memory-removal-home`; do not duplicate it here.
 

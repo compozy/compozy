@@ -14,7 +14,9 @@ import (
 
 func TestLoadAgentResources(t *testing.T) {
 	t.Parallel()
-	t.Run("Should reject a retired persisted kind without modifying its package", func(t *testing.T) {
+	// Invariant: a packaged AGENT.md that still says kind: stays_on decodes as always_on and the
+	// package is never edited (#1618; shim removal: v0.7.0).
+	t.Run("Should decode a persisted extension kind without modifying its writable package", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeStaticAgentFixture(t, root, "writer", false)
@@ -25,8 +27,8 @@ func TestLoadAgentResources(t *testing.T) {
 			t.Fatal(err)
 		}
 		agents, err := LoadAgentResources(root, []string{"agents"})
-		if !errors.Is(err, compozyconfig.ErrAgentKindInvalid) || len(agents) != 0 {
-			t.Fatalf("agents = %+v, %v, want retired kind error", agents, err)
+		if err != nil || len(agents) != 1 || agents[0].Agent.Kind != compozyconfig.AgentKindAlwaysOn {
+			t.Fatalf("agents = %+v, %v", agents, err)
 		}
 		after, err := os.ReadFile(path)
 		if err != nil || string(after) != body {

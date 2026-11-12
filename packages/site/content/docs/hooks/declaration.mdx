@@ -127,10 +127,21 @@ empty value or `*` matches both. Like every string matcher it is validated only 
 pattern, so a value other than `requested` or `agent` is accepted and never matches. The matcher
 applies only to the two `context` events; on any other event the declaration fails validation.
 
-`compaction_trigger` replaces `compaction_reason` and `compaction_strategy`.
-Starting in v0.6.1, config, extension, AGENT.md and SKILL.md declarations reject the retired keys.
-Remove them before upgrading; run v0.6.0 first to archive old config entries losslessly.
-Sources remain unchanged when validation fails.
+`compaction_trigger` replaces the earlier `compaction_reason` and `compaction_strategy` matchers.
+How each source handles them depends on where the declaration lives:
+
+| Source                                                          | Handling                                                                                                                                                                                                                      |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config` (`[[hooks.declarations]]` in a `config.toml`)          | The two keys are removed from the matcher and archived at the end of the same file on load. See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings).                                       |
+| `agent_definition` (`hooks` in `AGENT.md`)                      | The two keys are ignored and CompozyOS logs one `agent.retired_entries_ignored` warning per load, with the `agent` name and the ignored `entries`, such as `hooks[0].matcher.compaction_reason`. `AGENT.md` is not rewritten. |
+| `extension` (`[[resources.hooks]]` in `extension.toml`/`.json`) | The declaration fails validation. That extension does not load; CompozyOS and every other extension still start.                                                                                                              |
+| `skill` (`metadata.compozy.hooks` in `SKILL.md`)                | The declaration fails validation and that skill does not load.                                                                                                                                                                |
+
+A `config.toml` or `AGENT.md` declaration keeps running with no trigger filter, so it observes every
+compaction, whatever its `trigger`. The rest of the matcher is still validated: an unknown or
+malformed matcher field next to the retired keys is still rejected. The `config.toml` and `AGENT.md`
+handling is a compatibility shim that CompozyOS removes in v0.7.0, so replace the two keys with
+`compaction_trigger` before then.
 
 An `AGENT.md` hook cannot target the context events at all. CompozyOS adds the agent's `name` as
 `matcher.agent_name` on every agent-definition hook, and the `context` family does not accept

@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
@@ -1720,6 +1721,33 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 			runtimeEnv:     daemonExtensionHelperEnv(""),
 		}, true)
 		writeDaemonFile(t, filepath.Join(badDir, "extension.toml"), "not = [valid")
+		// Invariant: a package whose manifest is valid but whose declarative resources fail to load
+		// (here an automation trigger for the retired memory.consolidated event) withdraws only its
+		// own resources and never stops the boot (#1618).
+		retiredResourceDir := installExtensionForDaemonIntegration(
+			t, homePaths.DatabaseFile, "ext-retired", daemonTestExtensionOptions{
+				runtimeCommand: daemonExtensionHelperCommand(t),
+				runtimeArgs:    daemonExtensionHelperArgs(),
+				runtimeEnv:     daemonExtensionHelperEnv(""),
+			}, true)
+		retiredManifestPath := filepath.Join(retiredResourceDir, "extension.toml")
+		retiredManifest, err := os.ReadFile(retiredManifestPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", retiredManifestPath, err)
+		}
+		const resourcesHeader = "\n[resources]\n"
+		if !strings.Contains(string(retiredManifest), resourcesHeader) {
+			t.Fatalf("fixture manifest has no resources table: %s", retiredManifest)
+		}
+		writeDaemonFile(t, retiredManifestPath, strings.Replace(
+			string(retiredManifest), resourcesHeader, resourcesHeader+"automation = [\"automation\"]\n", 1,
+		))
+		writeDaemonFile(
+			t,
+			filepath.Join(retiredResourceDir, "automation", "main.toml"),
+			"[[triggers]]\nname = \"retired\"\nagent = \"writer\"\nprompt = \"Handle it.\"\n"+
+				"event = \"memory.consolidated\"\n",
+		)
 
 		var logBuffer bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
@@ -1847,6 +1875,11 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		}
 		if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 			t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
+		}
+		for _, want := range []string{"extension.resources.skipped", "ext-retired", "memory.consolidated"} {
+			if !strings.Contains(logBuffer.String(), want) {
+				t.Fatalf("log output = %q, want skipped package resources entry with %q", logBuffer.String(), want)
+			}
 		}
 	})
 }
@@ -2109,58 +2142,132 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 	}
 }
 
-// IT-004: boot retains archived config and refuses active retired settings without writes.
-func TestBootRetiredMemorySettingsIntegration(t *testing.T) {
-	for _, archived := range []bool{false, true} {
-		name := "Should reject active retired config without changing its bytes"
-		if archived {
-			name = "Should preserve migrated comment archives across repeated boots"
-		}
-		t.Run(name, func(t *testing.T) {
-			homePaths := integrationHomePaths(t)
-			original := "[memory]\nenabled = true\n"
-			if archived {
-				original = "# Archived retired memory and compaction settings; these values are inactive.\n" +
-					"# [memory]\n# enabled = true\n"
-			}
-			writeDaemonFile(t, homePaths.ConfigFile, original)
-			for range 2 {
-				d, err := New(WithHomePaths(homePaths), WithConfigLoader(func() (compozyconfig.Config, error) {
+// IT-004: boot archives the retired settings v0.6.0 still accepted losslessly once, keeps a stable
+// second boot, and still boots when the config cannot be rewritten (#1618; shim removal: v0.7.0).
+func TestBootArchivesRetiredMemorySettingsIntegration(t *testing.T) {
+	t.Run("Should start with retired settings and preserve the archived config on second boot", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		original := fmt.Sprintf(
+			"[http]\nhost = %q\nport = %d\n[daemon]\nsocket = %q\n[automation]\nenabled = false\n[memory]\nenabled = true\n[roles.dream]\nenabled = true\n[session.compaction]\npressure_threshold = 0.8\n",
+			cfg.HTTP.Host,
+			cfg.HTTP.Port,
+			cfg.Daemon.Socket,
+		)
+		writeDaemonFile(t, homePaths.ConfigFile, original)
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		previousLogger := slog.Default()
+		slog.SetDefault(logger)
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
+		boot := func() {
+			t.Helper()
+			d, err := New(
+				WithHomePaths(homePaths),
+				WithLogger(logger),
+				WithConfigLoader(func() (compozyconfig.Config, error) {
 					return compozyconfig.LoadForHome(homePaths)
-				}))
-				if err != nil {
-					t.Fatal(err)
-				}
-				d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-					return &fakeSessionManager{}, nil
-				}
-				d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-					return &fakeObserver{}, nil
-				}
-				d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-					return &fakeServer{name: "http"}, nil
-				}
-				d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-					return &fakeServer{name: "uds"}, nil
-				}
-				bootErr := d.boot(t.Context())
-				if archived {
-					if bootErr != nil {
-						t.Fatalf("boot archived config: %v", bootErr)
-					}
-					if err := d.Shutdown(t.Context()); err != nil {
-						t.Fatal(err)
-					}
-				} else if bootErr == nil || !strings.Contains(bootErr.Error(), "memory") {
-					t.Fatalf("boot error = %v, want rejected retired memory config", bootErr)
-				}
-				after, err := os.ReadFile(homePaths.ConfigFile)
-				if err != nil || string(after) != original {
-					t.Fatalf("config changed: %q, %v", after, err)
-				}
+				}),
+			)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+			d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "http"}, nil }
+			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+			if err := d.boot(t.Context()); err != nil {
+				t.Fatalf("boot() error = %v", err)
+			}
+			if err := d.Shutdown(t.Context()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		}
+		boot()
+		archived, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config) error = %v", err)
+		}
+		if !bytes.Contains(
+			archived,
+			[]byte("# Archived retired memory and compaction settings; these values are inactive."),
+		) {
+			t.Fatalf("archived config = %q, want archive block", archived)
+		}
+		for _, line := range []string{"# [memory]", "#   [roles.dream]", "#   [session.compaction]", "#     pressure_threshold = 0.8"} {
+			if !bytes.Contains(archived, []byte(line)) {
+				t.Fatalf("archived config = %q, want %q", archived, line)
+			}
+		}
+		boot()
+		reopened, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatalf("ReadFile(config after second boot) error = %v", err)
+		}
+		if !bytes.Equal(reopened, archived) {
+			t.Fatalf("second boot rewrote archive: %q", reopened)
+		}
+		if got := strings.Count(logs.String(), "config.retired_keys_archived"); got != 1 {
+			t.Fatalf("archive log entries = %d, want 1; logs: %s", got, logs.String())
+		}
+	})
+	t.Run("Should boot with inactive retired settings when the archive directory is read-only", func(t *testing.T) {
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("requires enforced Unix directory write permissions")
+		}
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		directory := t.TempDir()
+		homePaths.ConfigFile = filepath.Join(directory, compozyconfig.ConfigName)
+		original := fmt.Sprintf(
+			"[http]\nhost = %q\nport = %d\n[daemon]\nsocket = %q\n[automation]\nenabled = false\n[memory]\nenabled = true\n",
+			cfg.HTTP.Host,
+			cfg.HTTP.Port,
+			cfg.Daemon.Socket,
+		)
+		writeDaemonFile(t, homePaths.ConfigFile, original)
+		if err := os.Chmod(directory, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(directory, 0o700); err != nil {
+				t.Errorf("restore config directory: %v", err)
 			}
 		})
-	}
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		previousLogger := slog.Default()
+		slog.SetDefault(logger)
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithLogger(logger),
+			WithConfigLoader(func() (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(homePaths)
+			}),
+		)
+		if err != nil {
+			t.Fatalf("New() = %v", err)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) { return &fakeSessionManager{}, nil }
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "http"}, nil }
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatalf("boot() = %v", err)
+		}
+		if err := d.Shutdown(t.Context()); err != nil {
+			t.Fatalf("Shutdown() = %v", err)
+		}
+		unchanged, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil || string(unchanged) != original {
+			t.Fatalf("config after boot = %q, error %v", unchanged, err)
+		}
+		if strings.Count(logs.String(), "config.retired_keys_archive_failed") == 0 ||
+			!strings.Contains(logs.String(), homePaths.ConfigFile) || !strings.Contains(logs.String(), "reason=") {
+			t.Fatalf("archive failure warning = %s", logs.String())
+		}
+	})
 }
 
 func TestBootInitializesRuntimeAssemblerIntegration(t *testing.T) {

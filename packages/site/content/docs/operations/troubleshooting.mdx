@@ -285,14 +285,14 @@ keys in the same environment.
 
 ## Retired settings are not archived
 
-| Field      | What to check                                                                                                                                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | Config loading reports unknown keys and the source path. An invalid home config can prevent startup; an invalid workspace config blocks its registration or resolution.                                        |
-| Diagnosis  | The archive shim for retired memory and compaction settings ended in v0.6.1. The loader applies strict validation and leaves rejected files unchanged.                                                         |
-| Resolution | Run v0.6.0 first if the file still needs the lossless migration, resolve any deferred writes there, and update or remove expired declarations before upgrading. Existing inactive comment archives can remain. |
+| Field      | What to check                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | The log holds a `config.retired_keys_archive_failed` warning with the `path` of a `config.toml` and a `reason`, for example `config changed during retirement migration` or a write error. The daemon and your commands keep working, and the file still holds its retired settings.                               |
+| Diagnosis  | The loader found retired settings in `<path>` and tried to archive them as comments. The file changed or was replaced between the read and the write, or the loader could not replace it, for example in a read-only directory. Nothing was written, so the retired values are inactive until an archive succeeds. |
+| Resolution | Stop whatever else edits the file and make the file and its directory writable. The next load archives the current content and logs `config.retired_keys_archived`; the warning stops once that happens. Nothing else needs changing, because the retired settings no longer apply.                                |
 
-See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings) for the
-expired migration window and the separate skill-acquisition archive that remains supported.
+See [Archived retired settings](/docs/configuration/config-toml#archived-retired-settings) for what
+the loader archives.
 
 ## Related pages
 
