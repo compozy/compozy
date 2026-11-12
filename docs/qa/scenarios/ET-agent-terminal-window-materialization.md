@@ -44,8 +44,11 @@ Validation remains CI-only under the operator's parallel-execution restriction.
 
 CI journey alignment (#1547): `terminal-agent.spec.ts` E2E-003 asserts that an approved
 agent exec does not create a desktop window or steal session focus, then explicitly
-opens its exact terminal and checks output, exit state and journal provenance.
+opens its exact terminal and checks output before releasing a stdin barrier. It
+verifies successful exit and retained output through `terminal_wait`, expects the
+agent terminal window to retire, then reopens Terminal to check journal provenance.
+A fixed sleep must not race window opening against the intentional exit retirement.
 E2E-005 restores the owning session before its approval when Terminal is the active
 tab; E2E-008 closes only the conversation tab, keeping the terminal available for the
-no-conversation selection fallback. Existing approval, redaction and quote assertions
+no-conversation selection fallback after selecting output on the remounted terminal. Existing approval, redaction and quote assertions
 remain in the canonical suite. CI owns the real daemon/browser walk; no local run is claimed.

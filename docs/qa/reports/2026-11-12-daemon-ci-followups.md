@@ -78,3 +78,28 @@ reporting surface, durable outcome model, and scheduler/CLI/Web projection.
 Inferring failure from prose or changing existing lifecycle meanings would be
 unsafe and incompatible. Leave that item unchecked pending a product contract;
 the existing intake-failed/watchdog mitigation remains separate.
+
+## Terminal browser CI reconciliation
+
+[Web shard 6 job 130980892165](https://github.com/compozy/compozy/actions/runs/43157453465/job/130980892165)
+on `095596a36` failed E2E-003 and E2E-008. Its retained browser trace,
+network envelopes, accessibility contexts and rendered screenshots establish:
+
+- E2E-003 successfully opens the exact terminal. Immediately afterward its
+  two-second command exits, and the authoritative `terminal.retire` event removes
+  that window and returns focus to the session. This matches the accepted #1570
+  scenario; waiting for an exit bar in that retired window contradicts it.
+- E2E-008 successfully sends the sourced quote and closes the conversation tab.
+  The terminal is visible again but has no selected range after remounting.
+  Selection actions require a current nonempty emulator selection.
+
+The existing hosted-native-tools/browser suite owns approval-gated execution,
+exact-terminal discovery, successful exit, retained output and journal provenance,
+plus the sourced quote and no-conversation selection fallback. E2E-003 now uses
+a stdin barrier instead of a fixed sleep: observe the live pane/output, release
+it through the native write tool, check native wait's exit reason/code and both
+output markers, verify the window retires, then reopen Terminal to view the same
+approved journal row. E2E-008 selects the current output again after the tab
+remount before checking Choose and Copy. No production behavior, timeout or valid
+approval/quote/journal assertion is relaxed. CI must run the corrected journeys;
+no local browser, daemon, test, build or lint execution is claimed.
