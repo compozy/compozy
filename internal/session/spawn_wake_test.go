@@ -682,8 +682,10 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		name    string
 		advance bool
 		during  string
+		seen    bool
 	}{
-		{name: "Should dispatch an early-stop wake while its child revision is current"},
+		{name: "Should dispatch an early-stop wake while its child occurrence is current"},
+		{name: "Should retain the queued alarm when the operator views its child", seen: true},
 		{name: "Should drop a queued early-stop wake after its child starts another turn", advance: true},
 		{name: "Should revalidate the child after input hooks", during: "input"},
 		{name: "Should revalidate the child after prompt augmentation", during: "augment"},
@@ -708,6 +710,16 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.seen {
+				before := child.Info()
+				if _, err := h.manager.SessionPresence(t.Context(), child.ID, "", true); err != nil {
+					t.Fatal(err)
+				}
+				after := child.Info()
+				if after.AttentionRevision <= before.AttentionRevision || after.EndedEarlyTurnID != before.EndedEarlyTurnID {
+					t.Fatalf("presence attention = %#v, want a seen revision of the same early-stop occurrence", after)
+				}
 			}
 			if tc.advance {
 				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)

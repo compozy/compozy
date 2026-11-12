@@ -62,7 +62,8 @@ interaction, and no reply watch from you on that turn is marked `needs-attention
 answer even when the child was created with `notify_creator: false`, unless the parent has a
 session monitor covering that child and the needs-attention state. In that case the monitor is the
 only wake path. The alarm asks the parent to review the answer without assuming code or PR delivery.
-A queued alarm is discarded if the child starts another turn or its attention revision changes.
+A queued alarm is discarded if the child starts another turn or its early-stop occurrence is
+cleared or replaced. Viewing the child alone does not cancel the parent's alarm.
 Prompt the child again or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
 instead and are never marked.
 Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does

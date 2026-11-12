@@ -249,6 +249,10 @@ func (m *Manager) spawnWakeCovered(creatorID string, child *Info, badge Badge) b
 }
 
 func spawnWakeEventID(info *Info, reason SpawnWakeReason) string {
+	if reason == SpawnWakeReasonNeedsAttention && strings.TrimSpace(info.EndedEarlyTurnID) != "" {
+		return fmt.Sprintf("session-wake:%s:%d:ended-early:%s", strings.TrimSpace(info.ID),
+			info.TranscriptEpoch, strings.TrimSpace(info.EndedEarlyTurnID))
+	}
 	return fmt.Sprintf("session-wake:%s:%d:%d:%s", strings.TrimSpace(info.ID),
 		info.TranscriptEpoch, info.AttentionRevision, reason)
 }

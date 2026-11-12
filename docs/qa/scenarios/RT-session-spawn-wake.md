@@ -262,3 +262,8 @@ record. Discarded alarms leave neither a replayable input nor a checkpoint for A
 Once a valid creator turn reaches the provider, runtime recovery replays that admitted turn even
 if the creator has since prompted its child. `TestPromptRuntimeRecovery` owns this regression;
 the stale extension cases in the spawn-wake suite also assert no persisted restart input.
+
+Viewing the child while its alarm waits must advance the operator's seen revision without canceling
+the creator's alarm for that same ended-early turn. The alarm identity is fenced by transcript epoch
+and ended-early turn, rather than the operator's seen revision. The canonical spawn-wake suite
+covers presence acknowledgement before queued delivery as well as actual child advancement.

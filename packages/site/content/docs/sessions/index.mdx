@@ -423,7 +423,8 @@ task lease, or pending question) is not `done`: it reads `needs-attention` with
 one wake with the child's final answer, even when the parent opted out of completion wakes. If the
 parent has a session monitor covering the child's needs-attention state, only that monitor wakes it.
 The alarm asks the parent to review the answer without assuming a code or PR deliverable. A queued
-alarm is discarded when the child starts another turn or its attention revision changes. The mark
+alarm is discarded when the child starts another turn or its early-stop occurrence is cleared or
+replaced. Viewing the child alone does not cancel the parent's alarm. The mark
 survives runtime release and daemon restarts, and the child's next prompt clears it. Subagents and
 top-level sessions are never marked. A pull request opened during the turn, including on a branch
 the turn just created, counts as delivery. When the pull request lookup fails for a transient
