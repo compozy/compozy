@@ -23,11 +23,13 @@ treated it as completion must ask to wait or follow the returned run id:
 - Native tool: `{"job_id":"<id>","wait":true,"timeout":"5m"}`
 
 The wait defaults to one minute and accepts any positive duration up to 24 hours. If the run
-finishes in time, you get its final result. If the wait runs out, you get the running run and
-the CLI still exits 0; the run is not canceled, and you can read its outcome later by run id.
-Invalid input, errors before the run starts, and daemon or connection errors still exit
-nonzero. `--timeout` without `--wait` is rejected.
+finishes in time, you get its final result; a run that fails within the wait returns its error
+and exits nonzero, as before. If the wait runs out, you get the running run and the CLI still
+exits 0; the run is not canceled, and you can read its outcome later by run id. Invalid input,
+errors before the run starts, and daemon or connection errors still exit nonzero. A timeout
+without wait is rejected (`--timeout` requires `--wait`).
 
-Task and Loop targets return the same receipts as before, and extension host trigger calls
-still wait for completion. No route, command, tool id, response field or stored data changes;
-a retried manual run keeps its run id.
+Task and Loop targets return their delegated receipts immediately, as before, even with
+`--wait`. Extension host trigger calls still wait for completion. The `wait` and `timeout`
+inputs are additive: no route, command, tool id, response field or stored data is removed or
+renamed, and a retried manual run keeps its run id.
