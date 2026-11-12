@@ -21,6 +21,10 @@ on:
         description: "Record the original trials for syscall/scheduling diagnosis (not final acceptance evidence)"
         type: boolean
         default: false
+      trace_run_id:
+        description: "Analyze retained traces from this workflow run instead of running another experiment (0 disables)"
+        type: number
+        default: 0
 
 permissions:
   contents: read
@@ -36,6 +40,7 @@ env:
 
 jobs:
   paired-load:
+    if: ${{ !inputs.trace_run_id }}
     name: ${{ inputs.runtime_trace_trials && 'SQLite traced diagnostic (not acceptance)' || 'SQLite paired load and 1 GB upgrade' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -106,6 +111,7 @@ jobs:
           if-no-files-found: error
 
   daemon-load:
+    if: ${{ !inputs.trace_run_id }}
     name: SQLite real daemon thirty-session exercise
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -136,5 +142,48 @@ jobs:
             ${{ runner.temp }}/sqlite-daemon-qa/*.log
             ${{ runner.temp }}/sqlite-daemon-qa/manifest-path.txt
             ${{ runner.temp }}/sqlite-daemon-qa/labs/**/qa-artifacts/**
+          retention-days: 14
+          if-no-files-found: error
+
+  trace-analysis:
+    name: SQLite retained trace analysis (not acceptance)
+    if: ${{ inputs.trace_run_id > 0 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+      - name: Download retained experiment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.trace_run_id }}
+        run: |
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'sqlite-contention-*' --dir "$RUNNER_TEMP/retained-traces"
+      - name: Summarize recorded scheduling and syscalls
+        run: |
+          mkdir "$RUNNER_TEMP/trace-analysis"
+          find "$RUNNER_TEMP/retained-traces" -name '*.trace' -print0 |
+          while IFS= read -r -d '' trace; do
+            name="$(basename "$trace" .trace)"
+            for kind in syscall sched sync; do
+              profile="$RUNNER_TEMP/trace-analysis/$name-$kind.pprof"
+              go tool trace -pprof="$kind" "$trace" > "$profile"
+              go tool pprof -top -nodecount=40 "$profile" > "$profile.txt"
+              go tool pprof -top -cum -nodecount=40 "$profile" > "$profile-cumulative.txt"
+            done
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sqlite-trace-analysis-${{ github.run_id }}
+          path: ${{ runner.temp }}/trace-analysis/*
           retention-days: 14
           if-no-files-found: error
