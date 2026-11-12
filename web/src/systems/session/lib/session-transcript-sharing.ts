@@ -55,11 +55,17 @@ export function shareTranscriptData(previous: unknown, next: unknown): unknown {
   if (!isTranscriptData(previous) || !isTranscriptData(next)) {
     return replaceEqualDeep(previous, next);
   }
+  // A live update usually rewrites the head only; older pages arrive as the
+  // same objects and need no work. Index only the pages that were replaced.
+  const carried = new Set(next.pages);
+  const kept = new Set(previous.pages);
   const known = new Map<number, NormalizedSessionTranscriptEntry>();
   for (const page of previous.pages) {
+    if (carried.has(page)) continue;
     for (const entry of page.entries) known.set(entry.start_sequence, entry);
   }
   const pages = next.pages.map((page, index) => {
+    if (kept.has(page)) return page;
     const entries = page.entries.map(entry => {
       const former = known.get(entry.start_sequence);
       return former === undefined ? entry : replaceEqualDeep(former, entry);
