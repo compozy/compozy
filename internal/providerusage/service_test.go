@@ -40,7 +40,20 @@ func usageFixture(t *testing.T, handler http.HandlerFunc) serviceFixture {
 		Options{
 			Resolver: catalog,
 			Collectors: DefaultRegistry(
-				RegistryOptions{BaseURLs: map[string]string{codexProviderID: server.URL}, Now: clock.Now},
+				RegistryOptions{
+					BaseURLs: map[string]string{codexProviderID: server.URL},
+					Now:      clock.Now,
+					Transport: fixtureTransport(func(request *http.Request) (*http.Response, error) {
+						response, err := http.DefaultTransport.RoundTrip(request)
+						if err != nil {
+							t.Logf(
+								"fixture HTTP transport: error_type=%T error=%v request_context=%v",
+								err, err, request.Context().Err(),
+							)
+						}
+						return response, err
+					}),
+				},
 			),
 			Clock: clock,
 		},
@@ -2111,6 +2124,12 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 		f := rateLimitedFixture(t, &calls, nil)
 		for _, want := range []time.Duration{5, 10, 20, 40, 60, 60} {
 			env := refreshFixture(t, f, IntentBackground)
+			if env.Targets[0].NextRefreshAt == nil {
+				t.Fatalf(
+					"missing cooldown: now=%s calls=%d status=%s error=%v",
+					f.clock.Now(), calls.Load(), env.Targets[0].Status, env.Targets[0].Error,
+				)
+			}
 			requireEqual(t, f.clock.Now().Add(want*time.Minute), *env.Targets[0].NextRefreshAt)
 			f.clock.Advance(want * time.Minute)
 		}
@@ -2130,8 +2149,18 @@ func TestUsageRateLimitBackoff(t *testing.T) {
 		ok.Store(false)
 		f.clock.Advance(time.Minute)
 		env := refreshFixture(t, f, IntentBackground)
+		if env.Targets[0].NextRefreshAt == nil {
+			t.Fatalf(
+				"missing cooldown after success: now=%s calls=%d status=%s error=%v",
+				f.clock.Now(), calls.Load(), env.Targets[0].Status, env.Targets[0].Error,
+			)
+		}
 		if want := f.clock.Now().Add(5 * time.Minute); !want.Equal(*env.Targets[0].NextRefreshAt) {
-			t.Logf("cooldown diagnostic: now=%s calls=%d target=%+v", f.clock.Now(), calls.Load(), env.Targets[0])
+			t.Logf(
+				"cooldown diagnostic: now=%s next=%s checked=%v calls=%d status=%s error=%v",
+				f.clock.Now(), *env.Targets[0].NextRefreshAt, env.Targets[0].CheckedAt,
+				calls.Load(), env.Targets[0].Status, env.Targets[0].Error,
+			)
 		}
 		requireEqual(t, f.clock.Now().Add(5*time.Minute), *env.Targets[0].NextRefreshAt)
 		requireEqual(t, int32(4), calls.Load())
