@@ -221,3 +221,17 @@ subprocesses and SQLite; CI owns the full transport journey. ET-042's hook contr
 attention lock ordering are unchanged; its native-settlement coverage remains applicable.
 After A completes and its tracking is retired, send a late Agent update in B and settle B.
 Metadata may refresh, but a later nested heartbeat must not recreate tracking or read storage.
+
+QA impact 2026-11-12 (foreign native state and retired summaries): launch a foreground Agent
+in turn A, then send a background or failed update for that call in B. A's own result must
+still settle it with its answer. A tool update with no turn may enrich metadata and settle
+the same call while retaining A's stored identity; task observations still require an exact
+turn match. A foreign task observation must not background A either.
+Complete background work without a summary, retire tracking through turn settlement,
+interruption or parent cleanup, then commit its matching terminal summary. The result must
+appear immediately, respecting status, identity and result limits, without reopening tracking,
+changing delivery or emitting another settled hook/wake. A committed summary whose projection
+fails must remain recoverable from the ledger; provider output rejected at the stop boundary
+is not a committed observation. The native lifecycle and Manager persistence suites own these
+deterministic checks; the native daemon integration uses real ACP subprocesses and SQLite.
+CI owns the full transport journey; these schedules do not claim a live-provider occurrence.

@@ -2029,6 +2029,156 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	// Invariant: another turn cannot background or settle a native call; owner: native lifecycle.
+	for _, status := range []string{"in_progress", "failed", "task"} {
+		t.Run("Should reject foreign-turn native state "+status, func(t *testing.T) {
+			t.Parallel()
+			s, db, runtime := newSubagentTestService(t)
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "foreground",
+				ToolName: "Agent", Status: "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			foreign := launch
+			foreign.ParentTurnID, foreign.Background, foreign.Status = "other-turn", true, status
+			foreign.Result, foreign.Error = "foreign result", "foreign failure"
+			if status == "task" {
+				foreign.Task = &NativeSubagentTask{Kind: acp.NativeTaskKindSpawn, Background: new(true)}
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", foreign); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", launch.ProviderToolCallID)]; row.Status != store.SubagentStatusRunning {
+				t.Fatalf("foreign event settled native work: %#v", row)
+			}
+			launch.Status, launch.Result = "completed", "own answer"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+			if row.Status != store.SubagentStatusCompleted || row.Result == nil || *row.Result != "own answer" ||
+				row.Error != nil || row.ParentTurnID != "turn" || len(runtime.queues) != 0 {
+				t.Fatalf("foreign event displaced own result: %#v", row)
+			}
+		})
+	}
+	// Invariant: a missing turn on a late tool result retains call ownership and metadata enrichment.
+	t.Run("Should accept an empty-turn foreground result for its persisted call", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		ev := NativeSubagentEvent{
+			WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "foreground", ToolName: "Agent",
+		}
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+		ev.ParentTurnID, ev.Status, ev.Result, ev.Title, ev.Model = "", "completed", "own answer", "Late title", "sonnet-5.5"
+		if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+			t.Fatal(err)
+		}
+		row := db.rows[subagentID("parent", ev.ProviderToolCallID)]
+		if row.ParentTurnID != "turn" || row.Status != store.SubagentStatusCompleted ||
+			row.Result == nil || *row.Result != ev.Result || row.Title != ev.Title || row.RuntimeModel != ev.Model {
+			t.Fatal(row)
+		}
+	})
+	// Invariant: matching terminal evidence enriches retired calls without a second settlement or tracking.
+	for _, edge := range []string{"settled", "interrupted", "stopped"} {
+		t.Run("Should enrich a retired native result after "+edge, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s, db, runtime := newSubagentTestService(t)
+				hook := &subagentRecordingHook{}
+				s.settled = hook
+				s.resultLimit = func(context.Context, string) (int, error) { return 4, nil }
+				launch := NativeSubagentEvent{
+					WorkspaceID:        "ws",
+					ParentTurnID:       "turn",
+					ProviderToolCallID: "retired",
+					ToolName:           "Agent",
+					Background:         true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+					t.Fatal(err)
+				}
+				var err error
+				switch edge {
+				case "settled":
+					err = s.OnParentTurnSettled(t.Context(), "parent", "turn")
+				case "interrupted":
+					err = s.OnParentTurnInterrupted(t.Context(), "parent", "turn")
+				case "stopped":
+					err = s.OnParentStopped(t.Context(), "parent")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				before := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+				settles := runtime.settles
+				launch.ParentTurnID = ""
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				for _, turn := range []string{"other-turn", ""} {
+					foreign := nativeTaskEvent(
+						launch.ProviderToolCallID,
+						acp.NativeTaskKindState,
+						acp.NativeTaskStatusCompleted,
+						new("wrong answer"),
+					)
+					foreign.ParentTurnID = turn
+					if err := s.OnNativeToolEvent(t.Context(), "parent", foreign); err != nil {
+						t.Fatal(err)
+					}
+				}
+				conflict := nativeTaskEvent(
+					launch.ProviderToolCallID,
+					acp.NativeTaskKindState,
+					acp.NativeTaskStatusFailed,
+					new("wrong outcome"),
+				)
+				if err := s.OnNativeToolEvent(t.Context(), "parent", conflict); err != nil {
+					t.Fatal(err)
+				}
+				if row := db.rows[before.ID]; row.Result != nil || row.Status != before.Status {
+					t.Fatalf("unmatched task enriched retired work: %#v", row)
+				}
+				for range 2 {
+					if err := s.OnNativeToolEvent(
+						t.Context(),
+						"parent",
+						nativeTaskEvent(
+							launch.ProviderToolCallID,
+							acp.NativeTaskKindState,
+							acp.NativeTaskStatusCompleted,
+							new("late answer"),
+						),
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				synctest.Wait()
+				row := db.rows[before.ID]
+				if row.Result == nil || *row.Result != "late" || !row.ResultTruncated || row.Status != before.Status ||
+					!row.SettledAt.Equal(
+						*before.SettledAt,
+					) || row.Delivery != before.Delivery || runtime.settles != settles ||
+					len(
+						runtime.queues,
+					) != 0 || len(hook.recorded()) != 1 || len(s.nativeKnown["parent"]) != 0 || len(s.nativeQueued["parent"]) != 0 {
+					t.Fatalf("late summary lost or resettled retired work: %#v", row)
+				}
+			})
+		})
+	}
 	for _, turn := range []string{"turn", "resumed-turn"} {
 		t.Run("Should recover a committed resume beyond an existing answer in "+turn, func(t *testing.T) {
 			t.Parallel()
