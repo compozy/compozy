@@ -33,7 +33,7 @@ func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
 		return
 	}
 	result, err := service.Exec(c.Request.Context(), terminalpkg.ExecRequest{
-		WS: workspaceID, Command: request.Command, Args: request.Args, Cwd: request.Cwd,
+		WS: workspaceID, Worktree: strings.TrimSpace(request.Worktree), Command: request.Command, Args: request.Args, Cwd: request.Cwd,
 		Env: request.Env, YieldMs: request.YieldMs, Visible: request.Visible,
 		Output: terminalpkg.OutputShape{
 			MaxBytes: request.Output.MaxBytes,

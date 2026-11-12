@@ -11464,6 +11464,7 @@ export type TerminalExecRequest = {
   };
   output?: TerminalOutputShape;
   visible?: boolean;
+  worktree?: string;
   yield_ms?: number;
 };
 

@@ -56,17 +56,17 @@ worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned p
 their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
 ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
 `add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
-session and run; callers cannot supply another execution root, and a `terminal_open` `worktree`
+session and run; callers cannot supply another execution root, and a terminal `worktree`
 other than the bound one fails with `invalid_cwd`. A session without a worktree may pass
-`worktree` to `terminal_open` to start in a ready worktree of its workspace and profile. Sessions
+`worktree` to `terminal_open` or `terminal_exec` to start in a ready worktree of its workspace and profile. Sessions
 without a worktree and human terminal launches otherwise keep the workspace directory rules. This validates the launch directory;
 it does not add filesystem sandboxing or change shared terminal access.
 
 ## Worktree Terminals
 
-`terminal_open` accepts an optional `worktree` (ID or name) to start the shell in a ready managed
+`terminal_open` and `terminal_exec` accept an optional `worktree` (ID or name) to start the shell in a ready managed
 worktree of the current workspace owned by the acting profile; operators use
-`compozy terminal open --worktree` or the create body's `worktree` field. The daemon resolves the
+`compozy terminal open --worktree`, `compozy terminal exec --worktree`, or the create/exec body's `worktree` field. The daemon resolves the
 reference, so never pass a worktree path as `cwd` instead. `cwd` then resolves inside the worktree.
 Refusals are structured: `worktree_not_found` (another workspace or profile, or unknown),
 `worktree_not_ready` (pending, failed, or removing), and `worktree_missing` (removed or folder
