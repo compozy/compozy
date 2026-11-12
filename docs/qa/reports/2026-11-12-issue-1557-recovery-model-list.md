@@ -18,6 +18,18 @@ conversation and daemon PID. While signed out, its resumed adapter advertised on
 ID as unavailable. The baseline therefore confirms misleading signed-out model
 negotiation, rather than proving that the full ID must be replaced by an alias.
 
+Later production evidence at approximately 03:12–03:14 UTC establishes a separate
+authenticated failure: native Usage remained successful while runtime rebuilds
+loaded the adapter's older built-in picker. Full Opus 5.5 and Fable 5.2 pins were
+rejected even though login had already returned. The baseline above restored
+both login and the model list, so it does not establish recovery for this case.
+
+Read-only log inspection confirms a successful Claude Usage collection at
+03:12:33 UTC, followed by a burst of runtime bindings and full-model refusals.
+The log rotated at 03:12:37 UTC; the nearby migrations concern session streams.
+These records do not identify the initiating operation. They do not establish
+that the rotation itself restarted the daemon or that a new sign-out occurred.
+
 ## Matrix
 
 | Journey | Status | Evidence |
@@ -28,6 +40,7 @@ negotiation, rather than proving that the full ID must be replaced by an alias.
 | Genuine unavailable model after login, live runtime | Pass | [Configuration rejection receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
 | Runtime exit, sign-in recovery, then genuine model rejection | Pass | [Corrective finalization receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
 | Cancellation during runtime-exit backoff | Pass | [Cancellation receipt](../evidence/2026-11-12-issue-1557-recovery.json) |
+| Authenticated runtime rebuild with stale built-in picker | CI regression added; corrective live walk not run | Existing ACP start/resume subprocess suite; local execution prohibited by the later operator rule |
 
 ## Implementation
 
@@ -43,6 +56,16 @@ Recovery probes bypass stale cached verdicts. Model-list rejections keep the bou
 alone does not prove token validity. If attempts exhaust, the last actual failure
 owns the terminal diagnostic and persisted badge instead of the original auth failure. Child-session attention distinguishes native sign-in from permission.
 
+For authenticated Claude reloads, the exact full pin is supplied through the
+documented `ANTHROPIC_CUSTOM_MODEL_OPTION` in the SDK's session-local startup
+environment. This adds a picker entry without changing persisted provider
+settings or family aliases. ACP must still advertise and acknowledge the exact
+selection. A loaded current value already equal to the pin is retained without
+another setter. Ignored startup options, provider refusals and unconfirmed
+responses remain errors. Typed model rejections carry model guidance rather
+than falling through authentication text matching. Fresh starts and live model
+changes retain their existing strict negotiation.
+
 ## Validation and limits
 
 Focused ACP subprocess, recovery and child-attention regressions passed on the
@@ -51,6 +74,11 @@ and the complete final-build daemon walks passed; the final continuation finishe
 0.202 seconds after the verified native-login probe. The same daemon PID and native
 conversation ID survived the final-build revoke/restore cycles. Full tests, race suites and repository gates remain CI-owned. No live
 OAuth account switch, real Usage endpoint, or rendered Web evidence is claimed.
+
+The later authenticated stale-picker correction is validated only by CI under
+the new operator restriction: no further local tests, lint, builds, daemons or
+QA labs may run. The earlier real-daemon receipts are retained with their
+original scope and do not claim a live execution of this later change.
 
 ## Review repairs
 

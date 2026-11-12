@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -313,6 +314,93 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 	t.Parallel()
 	// Invariant: a resume-only ACP agent retains its native conversation without transcript replay.
 	// Owner: ACP driver; canonical start negotiation suite with a subprocess at the protocol boundary.
+	// Invariant: authenticated Claude resumes negotiate the exact pin despite a stale built-in picker.
+	for _, tc := range []struct {
+		name      string
+		model     string
+		response  string
+		inputOnly bool
+	}{
+		{name: "Opus", model: "claude-opus-5-5"},
+		{name: "Fable", model: "claude-fable-5-2"},
+		{name: "input only", model: "claude-opus-5-5", inputOnly: true},
+		{name: "provider refusal", model: "claude-opus-5-5", response: "reject"},
+		{name: "unconfirmed model", model: "claude-opus-5-5", response: "unconfirmed"},
+		{name: "ignored startup option", model: "claude-opus-5-5", response: "ignored"},
+	} {
+		t.Run("Should preserve the authenticated full model with stale picker and "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			capture := filepath.Join(t.TempDir(), "requests.jsonl")
+			provider := compozyconfig.BuiltinProviders()["claude"]
+			command := helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest"
+			provider.Command = command
+			var probes atomic.Int64
+			probe := &providers.ProbeEnv{
+				ProviderName: "claude",
+				BypassCache:  true,
+				LookPath:     func(string) (string, error) { return os.Executable() },
+				ResolveCommand: func(context.Context, string, []string, string) (string, error) {
+					return os.Executable()
+				},
+				RunCommand: func(context.Context, providers.ProviderAuthCommandSpec) (providers.ProviderAuthCommandResult, error) {
+					probes.Add(1)
+					return providers.ProviderAuthCommandResult{Stdout: `{"loggedIn":true}`}, nil
+				},
+			}
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			proc, err := driver.Start(t.Context(), StartOpts{
+				AgentName: "helper", ProviderName: "claude", ProviderConfig: &provider,
+				ProviderAuthEnv: probe, Command: command, Cwd: t.TempDir(),
+				Env:             helperEnvWithCapture("load_claude_stale_models", tc.response, capture),
+				ResumeSessionID: "existing-claude", PreferredModel: tc.model, InputOnly: tc.inputOnly,
+			})
+			if probes.Load() != 1 {
+				t.Fatalf("authenticated probes = %d, want 1", probes.Load())
+			}
+			if proc != nil {
+				t.Cleanup(func() { stopProcess(t, driver, proc) })
+			}
+			if tc.response != "" {
+				diagnostic, ok := ProviderFailureDiagnosticFromError(err)
+				failure, _ := FailureFromError(err, store.FailurePrompt)
+				if err == nil || proc != nil || !ok || diagnostic.Action != ProviderFailureActionChangeModel ||
+					failure == nil || failure.Kind != store.FailureProtocol {
+					t.Fatalf("model refusal = %v, process = %v, diagnostic = %#v", err, proc, diagnostic)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
+			if proc.SessionID != "existing-claude" || !ok || option.CurrentValueID != tc.model {
+				t.Fatalf("resumed conversation/model = %q / %#v", proc.SessionID, option)
+			}
+			request := decodeCapturedSetSessionConfigOptionRequest(t,
+				captureRequestParams(t, capture, acpsdk.AgentMethodSessionSetConfigOption))
+			if request.ConfigID != "model" || request.Value != tc.model {
+				t.Fatalf("model acknowledgement = %#v, want exact pin %q", request, tc.model)
+			}
+		})
+	}
+
+	t.Run("Should keep an already observed full model absent from the picker without resetting it", func(t *testing.T) {
+		t.Parallel()
+		const model = "claude-opus-5-5"
+		capture := filepath.Join(t.TempDir(), "requests.jsonl")
+		driver := New()
+		proc := startHelperProcess(t, driver, "load_model_current", model, StartOpts{
+			ResumeSessionID: "existing-claude", PreferredModel: model,
+			Env: helperEnvWithCapture("load_model_current", model, capture),
+		})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
+		if !ok || option.CurrentValueID != model ||
+			captureMethodExists(t, capture, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatalf("observed full model was not preserved without a setter: %#v", option)
+		}
+	})
+
 	// Invariant: a native sign-out is classified before the resume adapter's offline model list.
 	// Owner: ACP driver; existing subprocess start/resume contract suite.
 	t.Run("Should resume the pinned full Claude model after sign in restores its model list", func(t *testing.T) {
