@@ -5728,8 +5728,11 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 
 	t.Run("Should inject the input hook's rewrite and never promote a message the hook refuses", func(t *testing.T) {
 		t.Parallel()
-		// Hold the refusal review until the second message is admitted, so its promotion request always
-		// lands while the first pass runs and must not be dropped.
+		// Hold the first pass inside the refusal review, after it listed only the first message, until the
+		// second message's promotion request has arrived, so that request always lands mid-pass and must
+		// not be dropped.
+		refusalReviewing := make(chan struct{})
+		startRefusalReview := sync.OnceFunc(func() { close(refusalReviewing) })
 		rewriteQueued := make(chan struct{})
 		admitRewrite := sync.OnceFunc(func() { close(rewriteQueued) })
 		t.Cleanup(admitRewrite)
@@ -5739,6 +5742,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		) (hookspkg.InputPreSubmitPayload, error) {
 			switch payload.Message {
 			case "status refused":
+				startRefusalReview()
 				select {
 				case <-rewriteQueued:
 				case <-ctx.Done():
@@ -5756,9 +5760,12 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		testutil.Receive(t, "the first promotion pass reviewing the refused message", 5*time.Second, refusalReviewing)
 		if _, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("rewrite", "sess-b", false)); err != nil {
 			t.Fatal(err)
 		}
+		// The running pass cleared its rerun mark before listing, so a set mark is the second request.
+		testutil.Eventually(t, "mid-pass promotion request", 5*time.Second, f.sess.inputPromotionRerun.Load)
 		admitRewrite()
 		text := testutil.Receive(t, "the allowed message injected", 5*time.Second, f.steered)
 		if !strings.Contains(text, "status rewritten by policy") || strings.Contains(text, "refused") {
