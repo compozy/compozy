@@ -7,7 +7,13 @@ import { Button, Empty, PillGroup, SearchInput, toast } from "@compozy/ui";
 import type { MemoryEditorModel } from "../../hooks/use-memory-editor";
 import { agentEditorMark } from "../../lib/agent-editor-mark";
 import { describeChanges } from "../../lib/agent-frontmatter";
-import { memoryBudgetLine, type MemoryFilter, type MemoryNote } from "../../lib/agent-memory-notes";
+import {
+  isMemoryRule,
+  memoryBudgetLine,
+  sameMemoryNote,
+  type MemoryFilter,
+  type MemoryNote,
+} from "../../lib/agent-memory-notes";
 import type { AgentPayload } from "../../types";
 import { AgentMark } from "../agent-mark";
 import { ConflictCard } from "./conflict-card";
@@ -22,6 +28,7 @@ const FILTERS: readonly { value: MemoryFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "learned", label: "Learned" },
   { value: "yours", label: "Yours" },
+  { value: "rules", label: "Rules" },
 ];
 
 const STARTERS = [
@@ -128,8 +135,9 @@ function MemoryNotes({ agent, model, scopeLabel }: Omit<AgentMemoryViewProps, "s
                 key={note.id}
                 note={note}
                 onEdit={text => model.update(note.id, text)}
+                onKind={() => model.setKind(note.id, isMemoryRule(note) ? "note" : "rule")}
                 onRemove={() => model.remove(note.id)}
-                pending={!saved.some(other => other.id === note.id && other.text === note.text)}
+                pending={!saved.some(other => other.id === note.id && sameMemoryNote(other, note))}
                 scopeLabel={scopeLabel}
                 today={today}
               />
@@ -159,6 +167,7 @@ function MemoryMain({ agent, model, scopeLabel }: Omit<AgentMemoryViewProps, "st
           <NoteSheet>
             <NoteComposer
               action="Add note"
+              chooseKind
               initial={seed}
               onCancel={model.cancelAdding}
               onDone={model.add}

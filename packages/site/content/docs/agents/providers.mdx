@@ -930,3 +930,11 @@ repository `CLAUDE.md` instructions, skills, tools, and settings hooks remain
 available. The option applies on new and resumed sessions. Other providers ignore
 it. User and spawned sessions retain their existing defaults when it is absent.
 Daemon `system` and heartbeat `triage` sessions always use the reduced environment.
+
+Always-on agents that leave `lean_environment` unset exclude ambient Claude MCP
+servers and claude.ai connectors by default and keep auto-memory. Their MCP servers
+then come only from CompozyOS configuration, where tool policy applies, and their
+context no longer lists every connector of your own Claude setup. Declare the
+servers such an agent needs in `mcp_servers`, or set `lean_environment: false` to
+inherit your Claude environment again. Codex and other providers load the MCP
+servers of their own configuration; CompozyOS does not narrow those.

@@ -62,6 +62,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			now:        d.now,
 			retryDelay: state.cfg.Agents.Heartbeat.DefaultInterval,
 			changed: func(instance agentinstance.Instance) {
+				state.standingContext.forgetRosters()
 				manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 			},
 		}),
@@ -69,6 +70,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		agentinstance.WithActiveLimit(state.cfg.Agents.AlwaysOn.MaxActiveInstances),
 		agentinstance.WithClock(d.now),
 		agentinstance.WithInstanceChanged(func(instance agentinstance.Instance) {
+			state.standingContext.forgetRosters()
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 		}),
 		agentinstance.WithLifecycleHooks(newInstanceLifecycleHooks(state.hookDispatcher, definitions)),

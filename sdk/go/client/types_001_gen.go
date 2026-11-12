@@ -406,10 +406,11 @@ type AgentInstancePayload struct {
 
 // AgentInstancePeer is a daemon API value.
 type AgentInstancePeer struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Scope       string `json:"scope"`
-	State       string `json:"state"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Scope       string   `json:"scope"`
+	State       string   `json:"state"`
+	Accepts     []string `json:"accepts,omitempty"`
 }
 
 // AgentInstancePickRequest is a daemon API value.

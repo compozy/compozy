@@ -739,6 +739,18 @@ func TestCanonicalUserTextStripsPromptAugmentationLayers(t *testing.T) {
 		},
 
 		{
+			name: "Should strip the standing context before other layers",
+			prompt: "<compozy-standing-context>\n# Operator rules\n\n1. Rule.\n</compozy-standing-context>\n\n" +
+				"<compozy-situation-context>{}</compozy-situation-context>\nhello alpha",
+			want: "hello alpha",
+		},
+		{
+			name: "Should strip the unchanged standing context marker",
+			prompt: `<compozy-standing-context unchanged="true">Still binds.</compozy-standing-context>` +
+				"\n\nhello alpha",
+			want: "hello alpha",
+		},
+		{
 			name: "Should strip the environment change notice before situation context",
 			prompt: "<compozy-environment-change>Directory changed.</compozy-environment-change>\n" +
 				"<compozy-situation-context>{}</compozy-situation-context>\nhello alpha",

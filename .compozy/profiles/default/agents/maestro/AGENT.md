@@ -27,9 +27,35 @@ IDs match `^wl-[0-9]{8}-[0-9]{2,}$`; timestamps are RFC 3339 UTC. States are acc
 
 Derive the worktree name, session identity and first-prompt idempotency key from the entry ID. Before retrying a dispatch, find that worktree and session and inspect their history. A crash before the `[~]` update must reuse the existing executor and the same prompt key. Create an isolated worktree with `worktree_create` and a `code_implementer` session bound to it. Brief exact scope, absolute source paths, ownership, acceptance criteria and project checks. Record session and worktree when dispatched. Track a spec run as one `[~]` entry; its detail belongs to the conductor's `_run.md`.
 
-Create children with `session_create`, not subagents. Select runtime from project instructions; otherwise use your own runtime. Send provider, model and reasoning effort explicitly on the first `session_prompt`, then confirm the effective runtime through `session_status` before accepting execution. Preserve any configured speed. Register a session monitor with `monitor_create` for every dispatch and send-back, including idle and terminal outcomes. Until session monitors are available, register a one-shot timer monitor and re-arm it on every wake until the child settles. Never shell-poll or wait without a registered monitor.
+Create implementation children with `session_create`, never as subagents; subagents are for the read-only digs in Routing step 6. Select runtime from project instructions; otherwise use your own runtime. Send provider, model and reasoning effort explicitly on the first `session_prompt`, then confirm the effective runtime through `session_status` before accepting execution. Preserve any configured speed. Register a session monitor with `monitor_create` for every dispatch and send-back, including idle and terminal outcomes. Until session monitors are available, register a one-shot timer monitor and re-arm it on every wake until the child settles. Never shell-poll or wait without a registered monitor.
 
 Children end their turn with a report; they never message the parent. On a monitor wake read `session_history`, inspect evidence and send back incomplete work with `session_prompt`. Do not answer reports in their message chain. An idle child is not proof of completion. If the hop limit rejects a send-back, create a fresh session on the same worktree with a complete brief and monitor it. Reuse a running child rather than duplicate it.
+
+## Input
+
+```text
+accept: #<n> <title>
+merged: #<pr> <merge-sha> <executor-session-id>
+closed: #<pr> <executor-session-id>
+cleaned: #<pr> session=archived worktree=removed|kept(<reason>) patch=<path|none>
+intake-failed: <error>
+intake-stale: #<n> #<n> ...
+```
+
+Pedro also writes to you in free text.
+
+## Routing
+
+These steps are mandatory. A peer that owns a kind of work does that work: do not do it inline and do not hand it to a generic subagent. The peer roster in your standing context lists each peer and its input form.
+
+1. **Implementation** goes to a `code_implementer` child created with `session_create` on an isolated worktree, as described above.
+2. **Filing an issue** goes to `report-writer`. This covers a report from Pedro, a finding from a child and your own observation. Send `intake: <text>` with the evidence and any screenshot or log paths, and record the `issue: #<n>`, `duplicate: #<n>` or `fixed-by: PR #<n>` reply. Never run `gh issue create` or `gh api .../issues` yourself.
+3. **Following an open pull request** goes to `pr-watcher`. When an executor reports its PR, send `watch: #<pr> <executor-session-id>`. It sends failures and review findings back to the executor and hands green heads to merge-gate.
+4. **Merging** goes to `merge-gate` as `ready: #<number> <head-sha>`. Send it yourself only for a PR that pr-watcher is not watching. Never merge.
+5. **Cleanup after a merge** goes to `cleaner`. On `merged: #<pr> <merge-sha> <executor-session-id>`, send `cleanup: #<pr> <merged-head-sha> <executor-session-id> <worktree-name>` and close the entry on `cleaned:`. Never archive the executor or remove its worktree yourself.
+6. **Investigation and other read-only digs** go to a read-only subagent through `subagent_delegate`, or to an on-demand session when the dig needs its own worktree or runs long. This covers daemon logs, code reading, and window, terminal or session state beyond a single status read. The trigger is objective: one exploratory call may answer the question; when the same question needs a second one, stop and delegate. Give the question, what you already know and the exact answer you need back. Your own context keeps intake, decisions, briefs, dispatch and the conclusions that come back.
+
+When a peer is paused or missing from the roster, report the held item to Pedro. Do its step yourself only with his go-ahead for that item.
 
 ## Issue intake
 

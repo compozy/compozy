@@ -49,6 +49,7 @@ type AgentDefinitionDraft struct {
 	Permissions       string
 	Skills            AgentSkillsConfig
 	CategoryPath      []string
+	Accepts           []string
 	MCPServers        []MCPServer
 	Hooks             []hookspkg.HookDecl
 	FallbackChain     []RoleFallback
@@ -135,6 +136,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		Prompt:            strings.TrimSpace(draft.Prompt),
 	}
 	agent.SetLeanEnvironment(draft.LeanEnvironment)
+	agent.SetAccepts(draft.Accepts)
 	agent.SetSpeed(draft.Speed)
 	agent.SetACPOptions(draft.ACPOptions)
 	agent = canonicalAgentDefinition(agent)
@@ -198,6 +200,7 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		PermissionRules:   append([]PermissionRule(nil), canonical.PermissionRules...),
 		Skills:            normalizeAgentSkillsConfig(canonical.Skills),
 		CategoryPath:      cloneStrings(canonical.CategoryPath),
+		Accepts:           canonical.AcceptsValue(),
 		MCPServers:        cloneMCPServers(canonical.MCPServers),
 		Hooks:             cloneHookDecls(canonical.Hooks),
 		FallbackChain:     normalizeRoleFallbacks(canonical.FallbackChain),

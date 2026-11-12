@@ -787,6 +787,7 @@ func testLoopRuntimeSelectionMatrixIntegration(t *testing.T, harness *e2etest.Ru
 	assertMatrixRuntimeOutputs(t, detail)
 }
 
+// assertMatrixRuntimeOutputs verifies that conjunctive rules preserve each matrix item's applied runtime.
 func assertMatrixRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
 	outputs := loopRuntimeResolvedOutputs(detail)
@@ -908,6 +909,7 @@ func assertLoopRuntimeNoDiagnostics(t testing.TB, environment loopRuntimeIntegra
 	}
 }
 
+// assertMixedRuntimeOutputs verifies per-item precedence and binder observations in a mixed batch.
 func assertMixedRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
 	outputs := loopRuntimeResolvedOutputs(detail)
@@ -1103,7 +1105,7 @@ func assertLoopRuntimeForeignIsolation(
 		t, ctx, harness, loopRunEventsPath(foreignWorkspaceID, runID, 0), http.StatusNotFound,
 	)
 
-	input, err := json.Marshal(map[string]string{"run_id": runID})
+	input, err := json.Marshal(map[string]string{"run_id": runID, "result_view": "full"})
 	if err != nil {
 		t.Fatalf("json.Marshal(foreign native loop status input) error = %v", err)
 	}

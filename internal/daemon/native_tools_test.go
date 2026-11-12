@@ -17030,6 +17030,34 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 		if doc.Content != "" {
 			t.Fatalf("remove left notes: %s", doc.Content)
 		}
+		memoryKey := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: "coder"}
+		if _, err := memory.AddRule(memoryKey, "File issues through report-writer"); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"report-writer","text":"anyone"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"File issues"}`},
+		} {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+			)
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+				!strings.HasPrefix(toolErr.PublicMessage, "agent_memory_rule_protected: operator rules") {
+				t.Fatalf("%s rule refusal hides its reason: %v", item.id, err)
+			}
+		}
+		if rules, err := memory.Rules(memoryKey); err != nil || len(rules) != 1 {
+			t.Fatalf("operator rule after agent writes = %v, %v", rules, err)
+		}
+		if _, _, err := memory.Remove(memoryKey, "File issues"); err != nil {
+			t.Fatal(err)
+		}
 		caller.caller.InstanceID = ""
 		_, err = registry.Call(
 			t.Context(),

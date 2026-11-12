@@ -1,5 +1,44 @@
 # Compozy Change Impact
 
+## Always-on context: operator rules, peer roster, provider MCP isolation — 2026-11-12
+
+Owner: small-work PR `feat/always-on-binding-context`. QA: `docs/qa/scenarios/RT-always-on-standing-context.md`
+and the 2026-11-12 impact note in `docs/qa/scenarios/RT-agent-memory-startup.md`.
+
+- **Native tools.** No new tool ID. `compozy__agent_memory_replace` and `compozy__agent_memory_remove`
+  refuse a change that would create, alter or delete an operator rule (`agent_memory_rule_protected`);
+  `compozy__agent_memory_add` still writes dated notes only. The same guard applies to HTTP/UDS/CLI memory
+  calls made with an agent session identity (403 `agent_memory_rule_protected`). `compozy__agent_instance_list` with
+  `peers: true` returns an additive `accepts` array per peer. Descriptions state the note/rule split.
+- **CLI/HTTP/UDS.** `compozy agent memory add --kind note|rule`. `AgentMemoryAddRequest.kind`
+  (`note` default, `rule`), `AgentInstancePeer.accepts` and `AgentPayload.accepts` are additive
+  (public regime, SD-013 ladder a). OpenAPI, the Go SDK and `@compozy/client` are regenerated.
+- **Extensibility and hooks.** AGENT.md gains the optional `accepts` key, valid for repository,
+  profile and extension agents; when absent the first fenced block under `## Input` is used. Frontmatter
+  decoding is strict, so a release before this one rejects a definition that uses the key: the
+  repository definitions keep the `## Input` block and do not use `accepts` yet. No hook change.
+- **Config.** No new key. Behavior change: an `always_on` agent with `lean_environment` unset now
+  launches Claude with `strictMcpConfig` and `ENABLE_CLAUDEAI_MCP_SERVERS=false` (auto-memory stays
+  on). `lean_environment: false` restores the operator's Claude MCP servers and connectors;
+  `true` is unchanged. Other providers and on-demand agents are unchanged.
+- **Prompt assembly.** New per-turn `standing` augmenter for always-on agents on every turn origin:
+  `<compozy-standing-context>` with operator rules and a 12-peer roster, bounded to 12,000
+  characters, stubbed to one line when unchanged and sent in full after a completed provider
+  compaction. The startup `<compozy-agent-memory>` snapshot now carries notes only.
+- **Workspace data isolation.** The roster reuses `AgentInstanceAPI.PeersPage` with the session as
+  actor: instance authority plus the read-only `workspaceaccess` catalog check per row, profile
+  scoped. A session without an instance gets no roster. The read is cached per session until the
+  agent catalog revision changes or 30 seconds pass. Memory identity is unchanged.
+- **User state.** No schema or migration. `MEMORY.md` keeps its shape: a rule is a line starting
+  `- [rule] `, every existing line stays a note, and nothing is rewritten on load. Rules are never
+  archived by overflow.
+- **Web.** The agent Memory editor shows rules apart from notes, can switch a line between note and
+  rule, and filters by rules.
+- **Official skill.** `skills/compozy/references/agent-memory.md`, `agent-definitions.md` and
+  `runtime-operations.md` describe rules, input forms, the standing context and the isolation default.
+- **Docs.** `packages/site/content/docs/agents/{definitions,providers}.mdx` and the generated
+  `cli/agent/memory/add.mdx`.
+
 ## Runtime selector hover names and chip rail paging — 2026-11-11
 
 Owner: small-work PR `run/polish-runtime-selector-rail-and-model-name-tooltips-c4b3757d`. QA:

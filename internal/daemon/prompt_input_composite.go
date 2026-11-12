@@ -52,7 +52,7 @@ type promptInputComposite struct {
 
 func defaultPromptInputAugmenterDescriptors(
 	skillsCatalog session.PromptInputAugmenter,
-	situationAugmenters ...session.PromptInputAugmenter,
+	situationAugmenters ...session.PromptInputAugmenter, // situation, then standing context
 ) []promptInputAugmenterDescriptor {
 	descriptors := make([]promptInputAugmenterDescriptor, 0, 4)
 	if skillsCatalog != nil {
@@ -73,6 +73,16 @@ func defaultPromptInputAugmenterDescriptors(
 			BudgetBehavior: promptInputAugmenterBudgetBehaviorOmit,
 			Critical:       false,
 			Augmenter:      situationAugmenters[0],
+		})
+	}
+	if len(situationAugmenters) > 1 && situationAugmenters[1] != nil {
+		descriptors = append(descriptors, promptInputAugmenterDescriptor{
+			Name:           HarnessAugmenterStanding,
+			Order:          standingAugmenterOrder,
+			Budget:         standingAugmenterBudget,
+			BudgetBehavior: promptInputAugmenterBudgetBehaviorOmit,
+			Critical:       false,
+			Augmenter:      situationAugmenters[1],
 		})
 	}
 	return descriptors

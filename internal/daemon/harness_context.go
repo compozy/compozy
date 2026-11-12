@@ -65,6 +65,8 @@ const (
 	HarnessAugmenterSituation HarnessAugmenter = "situation"
 	// HarnessAugmenterSkills injects the current effective skills catalog.
 	HarnessAugmenterSkills HarnessAugmenter = "skills"
+	// HarnessAugmenterStanding injects operator rules and the peer roster of always-on agents.
+	HarnessAugmenterStanding HarnessAugmenter = "standing"
 )
 
 // ReentryMode identifies how a resolved policy participates in synthetic reentry.
@@ -105,6 +107,7 @@ type HarnessRuntimeSignals struct {
 	ToolsPromptSectionEnabled           bool
 	SkillsAugmenter                     bool
 	SituationAugmenter                  bool
+	StandingAugmenter                   bool
 	SyntheticTurnsEnabled               bool
 	DetachedTaskRuntimeEnabled          bool
 }

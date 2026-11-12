@@ -56,6 +56,7 @@ func validateAgentResourceSpec(
 		Prompt:            strings.TrimSpace(spec.Prompt),
 	}
 	normalized.SetLeanEnvironment(spec.LeanEnvironmentValue())
+	normalized.SetAccepts(spec.AcceptsValue())
 	normalized.SetSpeed(spec.SpeedValue())
 	normalized.SetACPOptions(spec.ACPOptionsValue())
 	if spec.Capabilities != nil {

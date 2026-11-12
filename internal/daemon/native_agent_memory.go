@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -114,12 +115,12 @@ func (n *daemonNativeTools) agentMemoryCall(
 		result = map[string]any{agentMemoryDigestKey: doc.Digest, "budget": doc.Budget}
 	case toolspkg.ToolIDAgentMemoryReplace:
 		var doc agentmemory.Document
-		doc, err = n.deps.AgentMemory.Replace(key, input.Match, input.Text)
+		doc, err = n.deps.AgentMemory.AsAgent().Replace(key, input.Match, input.Text)
 		result = map[string]any{agentMemoryDigestKey: doc.Digest}
 	case toolspkg.ToolIDAgentMemoryRemove:
 		var doc agentmemory.Document
 		var removed int
-		doc, removed, err = n.deps.AgentMemory.Remove(key, input.Match)
+		doc, removed, err = n.deps.AgentMemory.AsAgent().Remove(key, input.Match)
 		result = map[string]any{agentMemoryDigestKey: doc.Digest, "removed": removed}
 	case toolspkg.ToolIDAgentMemorySearch:
 
@@ -145,6 +146,17 @@ func (n *daemonNativeTools) agentMemoryCall(
 		result = map[string]any{"results": results}
 	default:
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, errors.New("unknown agent memory operation"))
+	}
+	if errors.Is(err, agentmemory.ErrRuleProtected) {
+		// A generic invalid-input message would hide why the write failed and who can make it.
+		message := agentmemory.ErrRuleProtected.Error() + ": operator rules are changed only by the " +
+			"operator (compozy agent memory add|replace|remove, or the agent's Memory editor)"
+		toolErr := toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied, req.ToolID, message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err), toolspkg.ReasonPolicyDenied,
+		)
+		toolErr.PublicMessage = message
+		return toolspkg.ToolResult{}, toolErr
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)

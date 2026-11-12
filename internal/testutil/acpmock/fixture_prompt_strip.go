@@ -62,6 +62,9 @@ func lastLineMarkerIndex(text string, marker string) int {
 
 func stripKnownPromptAugmentation(prompt string) string {
 	next := stripTrailingRunAgentPromptContract(prompt)
+	// The standing context of always-on agents is the outermost prefix, in its full
+	// form or as the unchanged marker; both open with the same tag name.
+	next = stripLeadingPromptBlock(next, "<compozy-standing-context", "</compozy-standing-context>")
 	next = stripLeadingPromptBlock(next, "<compozy-context-notice>", "</compozy-context-notice>")
 	next = stripLeadingPromptBlock(next, "<compozy-context-reminder>", "</compozy-context-reminder>")
 	next = stripLeadingPromptBlock(next, "<compozy-environment-change>", "</compozy-environment-change>")
