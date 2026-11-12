@@ -1246,11 +1246,10 @@ func TestParseTriageReply(t *testing.T) {
 			}
 		}
 	})
-	t.Run("Should reject prose malformed JSON and multiple fenced values", func(t *testing.T) {
+	t.Run("Should reject internal prose malformed JSON and ambiguous values", func(t *testing.T) {
 		t.Parallel()
 		fenced := "```json\n" + validReply + "\n```"
 		for _, reply := range []string{
-			"Explanation\n" + fenced, fenced + "\nExplanation",
 			"```json\nExplanation\n" + validReply + "\n```",
 			"```json\n" + validReply + "\nExplanation\n```",
 			"```json\n" + validReply + "\n" + validReply + "\n```",
@@ -1266,6 +1265,30 @@ func TestParseTriageReply(t *testing.T) {
 		} {
 			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
 				t.Errorf("reply %q: %v", reply, err)
+			}
+		}
+	})
+	t.Run("Should accept one proposal envelope with surrounding commentary", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{validReply, "```json\n" + validReply + "\n```", "```JSON\r\n" + validReply + "\r\n```", "```\n" + validReply + "\n```"} {
+			for _, reply := range []string{"Candidates follow.\n" + body, body + "\nSkipped other candidates.", "Candidates follow.\n" + body + "\nSkipped other candidates."} {
+				proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
+				if err != nil || len(proposals) != 1 || proposals[0].Title != "Review" {
+					t.Fatalf("proposals=%+v error=%v", proposals, err)
+				}
+				outcome := TriageReplyOutcome(reply, CheckDigest{}, 2)
+				if outcome.Result != "reported" {
+					t.Fatalf("outcome=%+v", outcome)
+				}
+			}
+		}
+	})
+	t.Run("Should reject additional structured candidates in commentary", func(t *testing.T) {
+		t.Parallel()
+		fenced := "```json\n" + validReply + "\n```"
+		for _, reply := range []string{validReply + "\n" + fenced, fenced + "\n" + validReply, "{}\n" + fenced, fenced + "\n[]", validReply + "\n{}", validReply + "\nNOTHING_TO_REPORT", "NOTHING_TO_REPORT\n" + validReply, "Explanation\n" + validReply + "\n" + validReply} {
+			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
+				t.Fatalf("reply=%q error=%v", reply, err)
 			}
 		}
 	})
@@ -1357,6 +1380,30 @@ func TestParseTriageReply(t *testing.T) {
 }
 
 func TestTriageReplyOutcome(t *testing.T) {
+	t.Run("Should classify rejected replies without exposing provider text", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct{ reply, validation string }{
+			{"```json\n{}", "framing"},
+			{"", "framing"},
+			{`{"proposals":[]} tail {}`, "ambiguous_reply"},
+			{"Explanation\n" + `{"proposals":[{"title":"secret","body":"body","item_keys":[],"extra":true}]}`, "schema"},
+		} {
+			outcome := TriageReplyOutcome(tc.reply, CheckDigest{}, 2)
+			if outcome.Result != "failed" || outcome.Report == nil {
+				t.Fatalf("outcome=%+v", outcome)
+			}
+			var payload struct {
+				Detail string `json:"detail"`
+			}
+			if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(payload.Detail, "Validation: "+tc.validation+".") ||
+				strings.Contains(payload.Detail, "secret") {
+				t.Fatalf("detail=%s", payload.Detail)
+			}
+		}
+	})
 	t.Run("Should bound and redact rejected output in the failure report", func(t *testing.T) {
 		t.Parallel()
 		secret := "ghp_" + strings.Repeat("a", 36)
@@ -1378,10 +1425,12 @@ func TestTriageReplyOutcome(t *testing.T) {
 		if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") ||
+		if payload.Reason != "triage_output_invalid" || !strings.Contains(payload.Detail, "Format: fenced.") || !strings.Contains(payload.Detail, "Validation: framing.") ||
 			strings.Contains(payload.Detail, secret) || strings.Contains(payload.Detail, oauthCode) ||
-			strings.Contains(payload.Detail, punctuationCode) || !strings.Contains(payload.Detail, "[REDACTED]") ||
-			strings.Contains(payload.Detail, "token") || len(payload.Detail) > 600 {
+			strings.Contains(payload.Detail, punctuationCode) ||
+			!strings.Contains(payload.Detail, "[REDACTED]") ||
+			strings.Contains(payload.Detail, "token") ||
+			len(payload.Detail) > 600 {
 			t.Fatalf("payload=%+v", payload)
 		}
 		outcome.Report.SourceKey = "occ:test"

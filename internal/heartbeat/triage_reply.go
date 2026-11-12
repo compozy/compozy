@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -14,6 +15,7 @@ import (
 var ErrTriageOutputInvalid = errors.New("triage_output_invalid")
 
 const (
+	triageQuietReply = "NOTHING_TO_REPORT"
 	// TriageTitleMaxRunes bounds a proposal title.
 	TriageTitleMaxRunes = 120
 	// TriageBodyMaxRunes bounds a proposal body.
@@ -36,7 +38,7 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int, actions ...Ac
 	if err != nil {
 		return nil, err
 	}
-	if reply == "NOTHING_TO_REPORT" {
+	if reply == triageQuietReply {
 		return nil, nil
 	}
 	if limit < 1 || !strings.HasPrefix(reply, "{") {
@@ -116,7 +118,7 @@ func parseTriageProposal(value jsontext.Value) (TriageProposal, error) {
 func TriageReplyOutcome(reply string, digest CheckDigest, limit int, actions ...ActionDecl) TriageOutcome {
 	proposals, err := ParseTriageReply(reply, digest, limit, actions...)
 	if err != nil {
-		return invalidTriageReply(reply)
+		return invalidTriageReply(reply, err)
 	}
 	if len(proposals) == 0 {
 		return TriageOutcome{Result: "quiet", Reason: "quiet"}
@@ -124,7 +126,7 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int, actions ...
 	var diagnostics []string
 	unwrapped, err := unwrapTriageFence(strings.TrimSpace(reply))
 	if err != nil {
-		return invalidTriageReply(reply)
+		return invalidTriageReply(reply, err)
 	}
 	var raw struct {
 		Proposals []struct {
@@ -232,21 +234,24 @@ func boundedTriageText(text string, budget int) string {
 }
 
 // invalidTriageReply generates diagnostics without copying potentially secret reply characters.
-func invalidTriageReply(reply string) TriageOutcome {
+func invalidTriageReply(reply string, cause error) TriageOutcome {
 	outcome := failedTriage("triage_output_invalid")
 	reply = strings.TrimSpace(reply)
-	if reply == "" {
-		return outcome
-	}
 	format := "unfenced"
-	if strings.HasPrefix(reply, "```") {
+	if strings.Contains(reply, "```") {
 		format = "fenced"
+	}
+	failure := "schema"
+	if errors.Is(cause, errTriageFraming) {
+		failure = "framing"
+	} else if errors.Is(cause, errTriageAmbiguous) {
+		failure = "ambiguous_reply"
 	}
 	payload, err := json.Marshal(struct {
 		Reason string `json:"reason"`
 		Detail string `json:"detail"`
 	}{Reason: outcome.Reason, Detail: "The proactive check returned an invalid response. " +
-		"Output excerpt: [REDACTED]. Format: " + format + "."})
+		"Output excerpt: [REDACTED]. Format: " + format + ". Validation: " + failure + "."})
 	if err != nil {
 		return outcome
 	}
@@ -254,19 +259,66 @@ func invalidTriageReply(reply string) TriageOutcome {
 	return outcome
 }
 
-// unwrapTriageFence accepts only one complete outer fence, leaving strict JSON validation to the parser.
+var (
+	errTriageFraming   = fmt.Errorf("%w: framing", ErrTriageOutputInvalid)
+	errTriageAmbiguous = fmt.Errorf("%w: ambiguous_reply", ErrTriageOutputInvalid)
+)
+
+// unwrapTriageFence isolates one value without letting surrounding text supply another candidate.
 func unwrapTriageFence(reply string) (string, error) {
-	if strings.HasPrefix(reply, "```") {
-		opener, content, ok := strings.Cut(reply, "\n")
+	if reply == triageQuietReply {
+		return reply, nil
+	}
+	start := strings.IndexAny(reply, "{[")
+	fence := strings.Index(reply, "```")
+	if fence >= 0 && (start < 0 || fence < start) {
+		start = fence
+	}
+	if start < 0 {
+		return "", errTriageFraming
+	}
+	prefix, candidate := reply[:start], reply[start:]
+	var body, suffix string
+	if strings.HasPrefix(candidate, "```") {
+		opener, content, ok := strings.Cut(candidate, "\n")
 		opener = strings.TrimSpace(opener)
 		if !ok || (opener != "```" && !strings.EqualFold(opener, "```json")) {
-			return "", ErrTriageOutputInvalid
+			return "", errTriageFraming
 		}
-		body, closer, ok := strings.CutLast(content, "\n")
-		if !ok || strings.TrimSpace(closer) != "```" {
-			return "", ErrTriageOutputInvalid
+		offset := 0
+		found := false
+		for line := range strings.SplitSeq(content, "\n") {
+			if strings.TrimSpace(line) == "```" {
+				body = content[:offset]
+				suffix = content[min(offset+len(line)+1, len(content)):]
+				found = true
+				break
+			}
+			offset += len(line) + 1
 		}
-		reply = strings.TrimSpace(body)
+		if !found {
+			return "", errTriageFraming
+		}
+
+	} else {
+		decoder := jsontext.NewDecoder(strings.NewReader(candidate))
+		value, err := decoder.ReadValue()
+		if err != nil {
+			return "", errTriageFraming
+		}
+		body, suffix = string(value), candidate[decoder.InputOffset():]
 	}
-	return reply, nil
+	if ambiguousTriageCommentary(prefix) || ambiguousTriageCommentary(suffix) {
+		return "", errTriageAmbiguous
+	}
+	body = strings.TrimSpace(body)
+	if body == triageQuietReply && (strings.TrimSpace(prefix) != "" || strings.TrimSpace(suffix) != "") {
+		return "", errTriageAmbiguous
+	}
+	return body, nil
+}
+
+func ambiguousTriageCommentary(text string) bool {
+	return strings.ContainsAny(text, "{}[]") || strings.Contains(text, "```") ||
+		strings.Contains(text, triageQuietReply)
 }

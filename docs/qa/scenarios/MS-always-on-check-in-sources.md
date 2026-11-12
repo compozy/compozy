@@ -338,13 +338,17 @@ Focused regression: `TestSourceDigestGateAndFolding/Should_deliver_overflow_body
 
 ## Fenced triage replies
 
-Return a valid proposals object in one Markdown code fence, using `json`, `JSON`, or no
-language tag, with surrounding whitespace and LF or CRLF. The occurrence publishes its
-proposal report. The same wrappers around `NOTHING_TO_REPORT` finish quietly. Prose before,
-after, or inside the fence, multiple objects or fences, and malformed JSON still produce
-`triage_output_invalid`. Its failure report includes a fully redacted output placeholder
-and a generated fenced/unfenced format classification in `detail`. No reply characters
-survive, including punctuation-only OAuth codes; the diagnostic stays fixed in size.
+Return a valid proposals object bare or in one Markdown code fence, using `json`, `JSON`,
+or no language tag, with LF or CRLF. Add plain commentary before and after the object or
+fence: the occurrence still publishes its proposal report. Comments cannot contain braces,
+array brackets, another triple-backtick fence, or `NOTHING_TO_REPORT`; these markers make
+the reply ambiguous and it must fail rather than select a candidate. Prose inside the fence,
+multiple objects or fences, unknown envelope/proposal fields, and malformed JSON still produce
+`triage_output_invalid`. Bare or fenced `NOTHING_TO_REPORT` remains quiet only without commentary.
+The failure report includes a fully redacted placeholder, a fenced/unfenced classification and
+one static validation category (`framing`, `ambiguous_reply`, or `schema`) in `detail`.
+No provider reply characters survive, including punctuation-only OAuth codes.
+The prompt requests only the bare object or sentinel, without commentary or skipped candidates.
 
 Focused automated coverage: `TestParseTriageReply` and `TestTriageReplyOutcome` in
 `internal/heartbeat/heartbeat_test.go`. The existing `TestHeartbeatSourceRuntime` suite owns
