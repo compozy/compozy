@@ -304,7 +304,8 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("Cancel(other session) error = %v, want ErrNotFound", err)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested || !canceled.FiredAt.IsZero() {
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested ||
+				!canceled.FiredAt.IsZero() {
 				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			terminals.results <- Outcome{Reason: ReasonExit}
@@ -335,7 +336,8 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("monitor after refusal = %+v, want delivering", got)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested || !canceled.FiredAt.IsZero() {
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested ||
+				!canceled.FiredAt.IsZero() {
 				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			time.Sleep(deliveryRetryInitial*3 + time.Second)

@@ -334,10 +334,7 @@ func (p *Provider) selectGraphPull(
 				break
 			}
 			variables := graphPageVariables(repo, &page.PageInfo.EndCursor)
-			_, headBranch, qualified := strings.Cut(branch, ":")
-			if !qualified {
-				headBranch = branch
-			}
+			headBranch := pullHeadBranch(branch)
 			variables["branch"], variables["states"] = headBranch, states
 			result, err := p.graphRequest(ctx, token, pullQuery, variables)
 			if err != nil {

@@ -235,7 +235,9 @@ func normalizeSpec(spec Spec) (Spec, error) {
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
 	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
 		if strings.TrimSpace(owner) == "" || strings.TrimSpace(branch) == "" || strings.Contains(branch, ":") {
-			return Spec{}, invalid("qualified pull_request branch must use owner:branch with a non-empty owner and branch")
+			return Spec{}, invalid(
+				"qualified pull_request branch must use owner:branch with a non-empty owner and branch",
+			)
 		}
 	}
 	if spec.TerminalID != "" || spec.Pattern != "" || spec.Until != "" || spec.Delay != 0 {

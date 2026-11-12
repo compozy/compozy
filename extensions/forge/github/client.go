@@ -196,3 +196,10 @@ func matchesHeadRepository(repo repository, branch, fullName string) bool {
 	headOwner, _, valid := strings.Cut(fullName, "/")
 	return valid && strings.EqualFold(headOwner, owner)
 }
+
+func pullHeadBranch(selector string) string {
+	if _, branch, qualified := strings.Cut(selector, ":"); qualified {
+		return branch
+	}
+	return selector
+}

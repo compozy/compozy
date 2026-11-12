@@ -782,37 +782,47 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reconcile only the exact draft delivery candidate", func(t *testing.T) {
-		t.Parallel()
-		draft := true
-		candidate := pullPayload{Number: 44, HTMLURL: "https://github.com/acme/repo/pull/44", State: "open",
-			Head: pullRef{Ref: "feature/exit", SHA: "reviewed-sha"}, Base: pullRef{Ref: "main"}, Draft: &draft}
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet || r.URL.Query().Get("state") != "open" {
-				t.Errorf("unexpected candidate lookup %s %s", r.Method, r.URL)
+	for _, branch := range []string{"feature/exit", "contributor:feature/exit"} {
+		t.Run("Should reconcile only the exact draft delivery candidate for "+branch, func(t *testing.T) {
+			t.Parallel()
+			draft := true
+			candidate := pullPayload{Number: 44, HTMLURL: "https://github.com/acme/repo/pull/44", State: "open",
+				Head: pullRef{Ref: "feature/exit", SHA: "reviewed-sha"}, Base: pullRef{Ref: "main"}, Draft: &draft}
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Query().Get("state") != "open" {
+					t.Errorf("unexpected candidate lookup %s %s", r.Method, r.URL)
+				}
+				wantHead := branch
+				if !strings.Contains(branch, ":") {
+					wantHead = "acme:" + branch
+				}
+				if r.URL.Query().Get("head") != wantHead {
+					t.Errorf("head=%q, want %q", r.URL.Query().Get("head"), wantHead)
+				}
+				writeJSON(t, w, http.StatusOK, []pullPayload{candidate})
+			})
+			defer closeServer()
+			status, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
+				RemoteURLs: []string{
+					"https://github.com/acme/repo",
+				},
+				Branch:  branch,
+				Base:    "main",
+				HeadSHA: "reviewed-sha",
+			})
+			if err != nil || status.Head != "feature/exit" || status.Base != "main" || status.HeadSHA != "reviewed-sha" ||
+				status.Draft == nil || !*status.Draft {
+				t.Fatalf("exact candidate status = %#v, %v", status, err)
 			}
-			writeJSON(t, w, http.StatusOK, []pullPayload{candidate})
+			request := createRequest()
+			request.HeadSHA = "reviewed-sha"
+			request.Head = branch
+			created, err := provider.CreatePR(t.Context(), request)
+			if err != nil || created.Status != "opened_existing" || created.Number != candidate.Number {
+				t.Fatalf("reconciled create = %#v, %v", created, err)
+			}
 		})
-		defer closeServer()
-		status, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
-			RemoteURLs: []string{
-				"https://github.com/acme/repo",
-			},
-			Branch:  "feature/exit",
-			Base:    "main",
-			HeadSHA: "reviewed-sha",
-		})
-		if err != nil || status.Head != "feature/exit" || status.Base != "main" || status.HeadSHA != "reviewed-sha" ||
-			status.Draft == nil || !*status.Draft {
-			t.Fatalf("exact candidate status = %#v, %v", status, err)
-		}
-		request := createRequest()
-		request.HeadSHA = "reviewed-sha"
-		created, err := provider.CreatePR(t.Context(), request)
-		if err != nil || created.Status != "opened_existing" || created.Number != candidate.Number {
-			t.Fatalf("reconciled create = %#v, %v", created, err)
-		}
-	})
+	}
 
 	for _, mismatch := range []string{"base", "head", "sha", "draft", "unknown draft", "ambiguous"} {
 		t.Run("Should reject mismatched delivery "+mismatch+" before publishing", func(t *testing.T) {
@@ -1289,13 +1299,24 @@ func TestProviderGraphQL(t *testing.T) {
 						if state != "OPEN" {
 							alias, otherAlias = "terminalPullRequests", "pullRequests"
 						}
-						writeGraphBody(t, w, fmt.Sprintf(`{"data":{"repository":{"%s":{"nodes":[]},"%s":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"base-head","headRepository":{"nameWithOwner":"acme/repo"}},{"number":7,"state":"%s","headRefOid":"fork-head","headRepository":{"nameWithOwner":"contributor/renamed-fork"}}]}}}}`, otherAlias, alias, state))
+						writeGraphBody(
+							t,
+							w,
+							fmt.Sprintf(
+								`{"data":{"repository":{%q:{"nodes":[]},%q:{"nodes":[{"number":2,"state":"OPEN","headRefOid":"base-head","headRepository":{"nameWithOwner":"acme/repo"}},{"number":7,"state":%q,"headRefOid":"fork-head","headRepository":{"nameWithOwner":"contributor/renamed-fork"}}]}}}}`,
+								otherAlias, alias, state,
+							),
+						)
 					case strings.Contains(input.Query, "$oid"):
 						checks.Add(1)
 						if input.Variables["oid"] != "fork-head" {
 							t.Errorf("oid=%v, want fork-head", input.Variables["oid"])
 						}
-						writeGraphBody(t, w, `{"data":{"repository":{"object":{"oid":"fork-head","statusCheckRollup":{"contexts":{"totalCount":1,"checkRunCountsByState":[{"state":"SUCCESS","count":1}],"statusContextCountsByState":[],"nodes":[]}}}}}}`)
+						writeGraphBody(
+							t,
+							w,
+							`{"data":{"repository":{"object":{"oid":"fork-head","statusCheckRollup":{"contexts":{"totalCount":1,"checkRunCountsByState":[{"state":"SUCCESS","count":1}],"statusContextCountsByState":[],"nodes":[]}}}}}}`,
+						)
 					default:
 						reviews.Add(1)
 						writeGraphBody(t, w, `{"data":{"repository":{"pullRequest":{}}}}`)
@@ -1309,7 +1330,8 @@ func TestProviderGraphQL(t *testing.T) {
 				if state == "OPEN" {
 					wantReviews = 1
 				}
-				if err != nil || got.PRNumber == nil || *got.PRNumber != 7 || got.HeadSHA != "fork-head" || got.PRState == nil || *got.PRState != strings.ToLower(state) ||
+				if err != nil || got.PRNumber == nil || *got.PRNumber != 7 || got.HeadSHA != "fork-head" ||
+					got.PRState == nil || !strings.EqualFold(*got.PRState, state) ||
 					got.Checks == nil || got.Checks.State != "passing" || checks.Load() != 1 || reviews.Load() != wantReviews {
 					t.Fatalf("observation=%#v err=%v checks=%d reviews=%d", got, err, checks.Load(), reviews.Load())
 				}
