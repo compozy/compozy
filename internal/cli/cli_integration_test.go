@@ -4090,9 +4090,12 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 			return
 		}
 		if errors.Is(cleanupErr, context.DeadlineExceeded) {
-			stacks := make([]byte, 64<<10)
-			stacks = stacks[:runtime.Stack(stacks, true)]
-			cleanupErr = fmt.Errorf("%w; bounded shutdown goroutines:\n%s", cleanupErr, stacks)
+			stacks := make([]byte, 1<<20)
+			written := runtime.Stack(stacks, true)
+			cleanupErr = fmt.Errorf(
+				"%w; bounded shutdown goroutines (count=%d, at_capacity=%t):\n%s",
+				cleanupErr, runtime.NumGoroutine(), written == len(stacks), stacks[:written],
+			)
 		}
 		runErr = errors.Join(runErr, fmt.Errorf("%s: %w", operation, cleanupErr))
 	}
@@ -4327,7 +4330,10 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 				continue
 			}
 			shutdown(
-				fmt.Sprintf("stop active session %q", info.ID),
+				fmt.Sprintf(
+					"stop active session %q (manager=%p, acp_session=%q, state=%s, runtime=%s, pending_permission=%t)",
+					info.ID, manager, info.ACPSessionID, info.State, info.RuntimeStatus, info.PendingPermission,
+				),
 				func(ctx context.Context) error {
 					err := manager.StopWithCause(ctx, info.ID, session.CauseShutdown, "integration daemon shutdown")
 					// Match daemon.stopSessions: an already finalized session is no longer a stop target.

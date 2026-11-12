@@ -30,3 +30,14 @@ jobs:
       - name: Repeat Usage cooldown across CPU counts
         if: ${{ !cancelled() }}
         run: go test -race ./internal/providerusage -run '^TestUsageRateLimitBackoff$' -count=100 -cpu=1,2,8 -parallel=4 -timeout=15m -v
+
+  cli-shutdown-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - name: Repeat compact integration with original shutdown deadlines
+        run: go test -race -tags=integration ./internal/cli -run '^TestSessionCompactIntegration$' -count=20 -parallel=4 -timeout=15m -v

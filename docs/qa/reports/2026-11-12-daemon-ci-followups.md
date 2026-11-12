@@ -23,6 +23,25 @@ build, daemon or QA execution is claimed. CI on the PR head owns validation.
 The boot changes are diagnostic improvements, not claimed causal fixes. The
 historical boot items remain unchecked until CI evidence supports a disposition.
 
+### Reproduced CLI shutdown timeout
+
+[Full integration shard 4, job 131010754677](https://github.com/compozy/compozy/actions/runs/43166808033/job/131010754677)
+on `e2c0b2b4a` reproduces the two-second active-session shutdown timeout during
+`TestSessionCompactIntegration/completed` cleanup. The compact result assertions
+passed. The retained 64 KiB stack dump truncates before the responsible stop
+worker; a captured stop-observation worker belongs to a different manager and a
+real process, whereas this fixture owns synthetic process IDs. That stack is not
+evidence of this session's cause.
+
+The existing CLI integration harness now captures up to 1 MiB, explicitly reports
+capacity exhaustion and goroutine count, and identifies the target manager,
+ACP session, state, runtime and permission status in the phase error. The owning
+invariant remains complete, verified shutdown within the original two-second
+phase budget; neither the deadline nor error handling nor compact assertions
+change. A separate CI-only race job repeats the existing compact integration
+suite twenty times to collect attributable evidence. The production cause remains
+unconfirmed; this diagnostic round does not claim to fix the timeout.
+
 ## Usage cooldown root cause
 
 [Linux/race job 130976658467](https://github.com/compozy/compozy/actions/runs/43156218682/job/130976658467)
