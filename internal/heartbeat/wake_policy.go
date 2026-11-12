@@ -24,7 +24,9 @@ func (s *ManagedWakeService) currentWakeSnapshot(ctx context.Context, req WakeRe
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("heartbeat: generate policy snapshot id: %w", err)
 	}
-	snapshot, err := SnapshotFromResolved(id, target.workspaceID, target.agentName, &policy, s.currentTime(), target.profileID)
+	snapshot, err := SnapshotFromResolved(
+		id, target.workspaceID, target.agentName, &policy, s.currentTime(), target.profileID,
+	)
 	if err != nil {
 		return Snapshot{}, err
 	}

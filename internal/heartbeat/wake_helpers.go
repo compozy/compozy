@@ -35,7 +35,11 @@ func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 	case normalized.SessionID == "":
 		return WakeRequest{}, errors.New("heartbeat: wake session id is required")
 	case !ValidWakeSource(normalized.Source):
-		return WakeRequest{}, fmt.Errorf("%w: invalid wake source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry", ErrInvalid, normalized.Source)
+		return WakeRequest{}, fmt.Errorf(
+			"%w: invalid wake source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry",
+			ErrInvalid,
+			normalized.Source,
+		)
 	default:
 		return normalized, nil
 	}

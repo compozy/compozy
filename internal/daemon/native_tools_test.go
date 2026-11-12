@@ -10366,7 +10366,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentHeartbeatWake,
-			Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":"unknown"}`),
+			Input: json.RawMessage(
+				`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":"unknown"}`,
+			),
 		})
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
 			t.Fatalf("invalid source = %v, want input validation error", err)

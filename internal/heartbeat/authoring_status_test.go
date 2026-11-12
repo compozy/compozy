@@ -1662,7 +1662,11 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 		req := heartbeat.WakeRequest{PolicyTarget: &fixture.target, WorkspaceID: fixture.workspaceID,
 			AgentName: "coder", SessionID: "sess-disk", Source: heartbeat.WakeSourceManual, DryRun: true}
 		for _, summary := range []string{"Initial disk policy", "Edited disk policy"} {
-			if err := os.WriteFile(fixture.heartbeatPath, []byte(validHeartbeatBody(summary, "Inspect context.")), 0o600); err != nil {
+			if err := os.WriteFile(
+				fixture.heartbeatPath,
+				[]byte(validHeartbeatBody(summary, "Inspect context.")),
+				0o600,
+			); err != nil {
 				t.Fatal(err)
 			}
 			status, err := fixture.status.Status(fixture.ctx, heartbeat.StatusRequest{Target: fixture.target})

@@ -220,7 +220,10 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 		source = heartbeat.WakeSourceManual
 	}
 	if !heartbeat.ValidWakeSource(source) {
-		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, fmt.Errorf("invalid source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry", source))
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, fmt.Errorf(
+			"invalid source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry",
+			source,
+		))
 	}
 	decision, err := n.deps.HeartbeatWake.Wake(ctx, heartbeat.WakeRequest{
 		PolicyTarget: new(target.heartbeatAuthoringTarget()),

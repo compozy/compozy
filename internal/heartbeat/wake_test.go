@@ -655,7 +655,10 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 			t.Fatal("NewManagedWakeService(invalid config) error = nil, want validation error")
 		}
 		service := newTestWakeService(t, store, health, prompter, cfg, time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC))
-		_, sourceErr := service.Wake(t.Context(), WakeRequest{AgentName: "coder", SessionID: "sess-1", Source: "unknown"})
+		_, sourceErr := service.Wake(
+			t.Context(),
+			WakeRequest{AgentName: "coder", SessionID: "sess-1", Source: "unknown"},
+		)
 		if !errors.Is(sourceErr, ErrInvalid) {
 			t.Fatalf("invalid source error = %v, want validation error", sourceErr)
 		}
