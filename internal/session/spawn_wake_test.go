@@ -770,6 +770,17 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 			if wakeCalls != wantCalls {
 				t.Fatalf("early-stop provider calls = %d, want %d", wakeCalls, wantCalls)
 			}
+			if wantCalls == 0 {
+				if countEventType(readStoredEvents(t, parent), acp.EventTypeSyntheticReentry) != 0 {
+					t.Fatal("a discarded alarm left a replayable parent input")
+				}
+				parent.mu.RLock()
+				hasRestartBoundary := parent.restartBoundary != nil
+				parent.mu.RUnlock()
+				if hasRestartBoundary {
+					t.Fatal("a discarded alarm created a restart checkpoint")
+				}
+			}
 		})
 	}
 

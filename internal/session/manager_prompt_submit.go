@@ -220,6 +220,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
+	if err := m.validateSpawnWake(ctx, session.ID, req.meta.Synthetic); err != nil {
+		return nil, err
+	}
 	if err := m.recordRestartBoundary(session, req); err != nil {
 		return nil, err
 	}

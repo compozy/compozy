@@ -256,3 +256,9 @@ provider. Advance the child from an input hook, prompt augmenter and turn-start 
 final provider dispatch must discard each old alarm. A transient durable child lookup returns
 the input to the queue for retry; intentional stale drops retain an explicit suppression reason.
 The same suites cover admitted and retrying monitor outcomes against newer attention timestamps.
+
+The final extension-boundary check runs before the first restart checkpoint and prompt-input
+record. Discarded alarms leave neither a replayable input nor a checkpoint for AutoContinue.
+Once a valid creator turn reaches the provider, runtime recovery replays that admitted turn even
+if the creator has since prompted its child. `TestPromptRuntimeRecovery` owns this regression;
+the stale extension cases in the spawn-wake suite also assert no persisted restart input.
