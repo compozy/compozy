@@ -16,6 +16,13 @@ last_report: docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md
 overlaps: ET-terminal-browser-lifecycle; ET-terminal-limits-capabilities
 ---
 
+qa-impact: 2026-11-12 (#1607) each Web attach attempt now has a 10 s deadline to reach `ATTACHED`,
+covering the pass mint and a socket that stays in `CONNECTING` or opens silently. A stalled attempt
+retries through the usual backoff with a fresh pass. After three stalls in a row the pane stops
+retrying and shows the `attach_timeout` notice with **Reconnect**. Re-walk step 4 with the upgrade
+held open, for example through a proxy that accepts and never answers. Flag only: the next QA
+cycle owns live retesting.
+
 qa-impact: 2026-11-03 (#1180) the workspace terminal catalog stream and the All-projects
 `/api/terminals/catalog-stream` also accept a WebSocket upgrade, which the Web app now uses; a
 reconnect resumes with `last_event_id`. Re-walk the catalog cursor replay and snapshot reset over

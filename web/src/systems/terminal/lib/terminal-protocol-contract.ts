@@ -73,4 +73,6 @@ export interface TerminalProtocolClientOptions {
   /** Seam for deterministic backoff in tests. */
   random?: () => number;
   schedule?: (run: () => void, delayMs: number) => () => void;
+  /** Seam for the per-attempt attach deadline in tests; real timers by default. */
+  attachDeadline?: (run: () => void, delayMs: number) => () => void;
 }
