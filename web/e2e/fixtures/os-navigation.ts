@@ -119,7 +119,10 @@ export async function focusWindowThroughPalette(page: Page, win: Locator): Promi
     return;
   }
   const target = await authorityWindow(page, win);
-  const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
+  const label = (
+    await win.getByRole("heading", { level: 1, includeHidden: true }).textContent()
+  )?.trim();
+  if (!label) throw new Error("window surface must expose a title before palette activation");
   await page.keyboard.press("ControlOrMeta+K");
   const palette = page.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
