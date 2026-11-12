@@ -1106,6 +1106,9 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				}
 			}),
 		)
+		if err := stopGoalSessionOutboxRelay(t.Context(), fixture.daemonInstance.goalOutboxCancel, fixture.daemonInstance.goalOutboxDone); err != nil {
+			t.Fatalf("stop fixture outbox relay: %v", err)
+		}
 		request := fixture.bindingRequest("stop-create-race")
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		defer cancel()
@@ -1179,12 +1182,26 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("late-created session after binding cancellation = %#v, %v, want stopped", stopped, err)
 		}
 
+		pending, err := cleanupStore.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil || len(pending) != 1 || pending[0].SessionID != createdSessionID {
+			t.Fatalf("settled cleanup = %#v, %v, want created session obligation", pending, err)
+		}
+		acknowledged := make(chan string, 1)
+		recordingStore := &recordingGoalCleanupStore{loopSessionCleanupStore: cleanupStore, acknowledged: acknowledged}
 		relay := &goalSessionOutboxRelay{
 			store: outboxStore, appender: fixture.manager,
-			cleanupStore: cleanupStore, stopper: fixture.manager, now: time.Now,
+			cleanupStore: recordingStore, stopper: fixture.manager, now: time.Now,
 		}
 		if err := relay.DeliverPending(ctx); err != nil {
 			t.Fatalf("DeliverPending() error = %v", err)
+		}
+		select {
+		case cleanupID := <-acknowledged:
+			if cleanupID != pending[0].CleanupID {
+				t.Fatalf("acknowledged cleanup = %q, want %q", cleanupID, pending[0].CleanupID)
+			}
+		default:
+			t.Fatal("test relay did not acknowledge the created session cleanup")
 		}
 		if _, active := fixture.manager.Get(createdSessionID); active {
 			t.Fatalf("late-created session %q remained active", createdSessionID)
@@ -2301,4 +2318,17 @@ func (s *failingGoalBindingAdoption) BindCheckpoint(
 		return goalpkg.Checkpoint{}, err
 	}
 	return s.ExecutorStore.BindCheckpoint(ctx, req)
+}
+
+type recordingGoalCleanupStore struct {
+	loopSessionCleanupStore
+	acknowledged chan<- string
+}
+
+func (s *recordingGoalCleanupStore) AcknowledgeLoopSessionCleanup(ctx context.Context, id string, at time.Time) error {
+	if err := s.loopSessionCleanupStore.AcknowledgeLoopSessionCleanup(ctx, id, at); err != nil {
+		return err
+	}
+	s.acknowledged <- id
+	return nil
 }
