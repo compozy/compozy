@@ -14,6 +14,9 @@ type PromptSection struct {
 	Content          string
 	StartupContent   string
 	UnchangedContent string
+	// OperatorAuthored keeps a leading section outside the attribution header of a
+	// message sent by another agent, so operator text is never presented as the sender's.
+	OperatorAuthored bool
 }
 
 type promptSectionsKey struct{}

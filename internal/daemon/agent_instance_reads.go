@@ -210,5 +210,6 @@ func (r instanceDefinitions) instancePeer(
 		return peer, err
 	}
 	peer.Description = agent.Description
+	peer.Accepts = agent.AcceptedInputs()
 	return peer, nil
 }

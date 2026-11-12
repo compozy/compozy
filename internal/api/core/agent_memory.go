@@ -80,6 +80,8 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 		h.respondAgentMemoryError(c, err)
 		return
 	}
+	// A caller acting as the agent itself keeps the operator rules exactly as they are.
+	writer, agentCaller := h.agentMemoryWriterFor(c)
 	var result any
 	switch operation {
 	case "read":
@@ -91,30 +93,30 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 	case "write":
 		var req contract.AgentMemoryWriteRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
-			result, err = h.AgentMemory.Write(key, req.Content, req.ExpectedDigest)
+			result, err = writer.Write(key, req.Content, req.ExpectedDigest)
 		}
 	case "add":
 		var req contract.AgentMemoryAddRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
-			result, err = h.AgentMemory.Add(key, time.Now(), source, req.Text, req.Until)
+			result, err = h.addAgentMemory(key, source, req, agentCaller)
 		}
 	case "replace":
 		var req contract.AgentMemoryReplaceRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
-			result, err = h.AgentMemory.Replace(key, req.Match, req.Text)
+			result, err = writer.Replace(key, req.Match, req.Text)
 		}
 	case "remove":
 		var req contract.AgentMemoryRemoveRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
 			var doc agentmemory.Document
 			var removed int
-			doc, removed, err = h.AgentMemory.Remove(key, req.Match)
+			doc, removed, err = writer.Remove(key, req.Match)
 			result = contract.AgentMemoryRemoveResponse{Digest: doc.Digest, Removed: removed}
 		}
 	case "rollback":
 		var req contract.AgentMemoryRollbackRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
-			result, err = h.AgentMemory.Rollback(key, req.Revision)
+			result, err = writer.Rollback(key, req.Revision)
 		}
 	case "search":
 		var req contract.AgentMemorySearchRequest
@@ -139,6 +141,42 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 	c.JSON(http.StatusOK, result)
 }
 
+// agentMemoryWriter is the write surface shared by the operator store and its agent view.
+type agentMemoryWriter interface {
+	Write(key agentmemory.Key, content, expectedDigest string) (agentmemory.Document, error)
+	Replace(key agentmemory.Key, match, text string) (agentmemory.Document, error)
+	Remove(key agentmemory.Key, match string) (agentmemory.Document, int, error)
+	Rollback(key agentmemory.Key, revision string) (agentmemory.Document, error)
+}
+
+// agentMemoryWriterFor picks the write surface: the guarded agent view for a
+// caller that carries an agent identity, the full store for the operator.
+func (h *BaseHandlers) agentMemoryWriterFor(c *gin.Context) (agentMemoryWriter, bool) {
+	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		return h.AgentMemory.AsAgent(), true
+	}
+	return h.AgentMemory, false
+}
+
+func (h *BaseHandlers) addAgentMemory(
+	key agentmemory.Key, source string, req contract.AgentMemoryAddRequest, agentCaller bool,
+) (agentmemory.Document, error) {
+	switch req.Kind {
+	case "", agentmemory.KindNote:
+		return h.AgentMemory.Add(key, time.Now(), source, req.Text, req.Until)
+	case agentmemory.KindRule:
+		if agentCaller {
+			return agentmemory.Document{}, agentmemory.ErrRuleProtected
+		}
+		if req.Until != "" {
+			return agentmemory.Document{}, errors.New("a rule takes no expiry")
+		}
+		return h.AgentMemory.AddRule(key, req.Text)
+	default:
+		return agentmemory.Document{}, errors.New("memory kind must be note or rule")
+	}
+}
+
 func (h *BaseHandlers) respondAgentMemoryError(c *gin.Context, err error) {
 	status := StatusForAgentIdentityError(err)
 	if status == http.StatusInternalServerError {
@@ -147,6 +185,8 @@ func (h *BaseHandlers) respondAgentMemoryError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, agentmemory.ErrConflict):
 		status = http.StatusConflict
+	case errors.Is(err, agentmemory.ErrRuleProtected):
+		status = http.StatusForbidden
 	case errors.Is(err, os.ErrNotExist):
 		status = http.StatusNotFound
 	case strings.Contains(err.Error(), "forbidden"):
@@ -162,6 +202,8 @@ func (h *BaseHandlers) respondAgentMemoryError(c *gin.Context, err error) {
 		code = "agent_memory_budget_exceeded"
 	case errors.Is(err, agentmemory.ErrEntryTooLarge):
 		code = "agent_memory_entry_too_large"
+	case errors.Is(err, agentmemory.ErrRuleProtected):
+		code = "agent_memory_rule_protected"
 	case err.Error() == "agent_not_always_on":
 		code = "agent_not_always_on"
 	case err.Error() == "agent_instance_forbidden":

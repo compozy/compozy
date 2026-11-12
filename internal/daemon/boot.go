@@ -65,6 +65,7 @@ type bootState struct {
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
 	situationContext    *situation.Service
+	standingContext     *standingContextAugmenter
 	promptAssembler     session.PromptAssembler
 	startupOverlay      session.StartupPromptOverlay
 	promptAugmenter     session.PromptInputAugmenter
@@ -304,6 +305,7 @@ func (d *Daemon) bootHarnessPromptRuntime(
 		ToolsPromptSectionEnabled:           state.cfg.Tools.Enabled,
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
+		StandingAugmenter:                   true,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
 	},
@@ -340,9 +342,11 @@ func (d *Daemon) bootHarnessPromptRuntime(
 	if skillsCatalogAugmenter != nil {
 		skillsCatalog = skillsCatalogAugmenter.Augment
 	}
+	state.standingContext = newStandingContextAugmenter(state)
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		skillsCatalog,
 		state.situationContext.Augment,
+		state.standingContext.Augment,
 	)
 	if skillsCatalogAugmenter != nil {
 		for index := range promptAugmenterDescriptors {

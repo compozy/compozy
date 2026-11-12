@@ -502,3 +502,33 @@ Daemon `system` and heartbeat `triage` sessions always use this reduced environm
 User and spawned worker sessions retain the existing environment unless their
 definition opts in; `false` keeps the ordinary environment for these roles. The
 input-only title pass retains its stricter tool-free environment.
+
+An `always_on` agent that leaves `lean_environment` unset gets the MCP half of the
+reduced environment: Claude Code MCP servers outside the CompozyOS launch and
+claude.ai connectors are excluded, and auto-memory stays on. A long-lived agent
+otherwise carries every server and connector of the operator's own Claude setup in
+its context, outside CompozyOS tool policy. Declare the servers it needs in
+`mcp_servers` (definition, provider or global config), or set
+`lean_environment: false` to inherit the operator's Claude environment again.
+Codex and other providers load their own configured MCP servers; CompozyOS cannot
+narrow those over ACP.
+
+## Input forms for peers
+
+An always-on agent can declare the input forms it answers so peers know how to
+address it. Either list them in frontmatter:
+
+```yaml
+accepts:
+  - "intake: <text>"
+  - "sweep:"
+```
+
+or keep an `## Input` heading in the prompt followed by a fenced block with one form
+per line; that block is used when `accepts` is absent. At most 8 forms of 160
+characters are kept; extra entries and characters are dropped, never rejected.
+The forms appear in the peer roster of other always-on agents and in the `accepts`
+field of `compozy__agent_instance_list` with `peers: true`. They are a hint for
+senders: the receiving agent still decides what it accepts. Frontmatter is decoded
+strictly, so a release that predates `accepts` rejects a definition that uses the
+key; prefer the `## Input` block for definitions shared with older daemons.

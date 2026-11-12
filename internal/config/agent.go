@@ -74,6 +74,7 @@ type parsedAgentDef struct {
 	Permissions       string                  `yaml:"permissions,omitempty"         toml:"permissions,omitempty"`
 	Skills            AgentSkillsConfig       `yaml:"skills,omitempty"              toml:"skills,omitempty"`
 	CategoryPath      []string                `yaml:"category_path,omitempty"       toml:"category_path,omitempty"`
+	Accepts           []string                `yaml:"accepts,omitempty"             toml:"accepts,omitempty"`
 	MCPServers        []MCPServer             `yaml:"mcp_servers,omitempty"         toml:"mcp_servers,omitempty"`
 	Hooks             []parsedHookDeclaration `yaml:"hooks,omitempty"               toml:"hooks,omitempty"`
 	FallbackChain     []RoleFallback          `yaml:"fallback_chain,omitempty"      toml:"fallback_chain,omitempty"`
@@ -371,6 +372,7 @@ func parseAgentDef(content []byte, persisted bool) (AgentDef, error) {
 	if err != nil {
 		return AgentDef{}, err
 	}
+	agent.SetAccepts(parsed.Accepts)
 	agent.SetACPOptions(normalizedOptions)
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
