@@ -42,7 +42,10 @@ func goIntegrationTestInvocations(ctx context.Context) ([]goUnitTestInvocation, 
 		packages = append(packages, pkg)
 	}
 	invocations := partitionIntegrationInvocations(packages, tests, census, shard)
-	fmt.Printf("Go integration group %q shard %d/%d selected %d invocations\n", group, shard.index+1, shard.total, len(invocations))
+	fmt.Printf(
+		"Go integration group %q shard %d/%d selected %d invocations\n",
+		group, shard.index+1, shard.total, len(invocations),
+	)
 	return invocations, nil
 }
 

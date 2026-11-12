@@ -212,7 +212,9 @@ func (c *goTestCensus) pruneMissingSource(root string) error {
 		}
 		tests, loaded := sourceTests[packagePath]
 		if !loaded {
-			files, err := filepath.Glob(filepath.Join(root, strings.TrimPrefix(packagePath, compozyModulePath), "*_test.go"))
+			files, err := filepath.Glob(
+				filepath.Join(root, strings.TrimPrefix(packagePath, compozyModulePath), "*_test.go"),
+			)
 			if err != nil {
 				return fmt.Errorf("find census sources %q: %w", packagePath, err)
 			}

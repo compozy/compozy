@@ -467,7 +467,7 @@ func TestMergeEnvOverrides(t *testing.T) {
 
 func TestGlobalDBIntegrationConcurrency(t *testing.T) {
 	t.Parallel()
-	t.Run("Should retain race detection with four parallel tests and the modernc checkptr exception", func(t *testing.T) {
+	t.Run("Should retain race checks and four parallel tests with the modernc exception", func(t *testing.T) {
 		t.Parallel()
 		want := []string{"-race", "-gcflags=" + moderncCheckptrFlag, "-parallel=4"}
 		if got := goIntegrationTestSafetyArgs(); !slices.Equal(got, want) {
@@ -480,7 +480,11 @@ func TestIntegrationUnifiedPartition(t *testing.T) {
 	t.Parallel()
 	t.Run("Should cover every qualified test once with bounded package invocations", func(t *testing.T) {
 		t.Parallel()
-		tests := map[string][]string{"daemon": {"TestSame", "TestOther"}, "store": {"TestSame", "TestOther"}, "regular": {"TestRegular"}}
+		tests := map[string][]string{
+			"daemon":  {"TestSame", "TestOther"},
+			"store":   {"TestSame", "TestOther"},
+			"regular": {"TestRegular"},
+		}
 		census := &goTestCensus{
 			DefaultPackageSeconds: 1, DefaultSplitTestSeconds: 1,
 			Packages:   map[string]float64{"regular": 18},
@@ -489,7 +493,10 @@ func TestIntegrationUnifiedPartition(t *testing.T) {
 		seen := map[string]int{}
 		for index := range 2 {
 			weight := 0.0
-			for _, invocation := range partitionIntegrationInvocations([]string{"daemon", "store", "regular"}, tests, census, goTestShard{index: index, total: 2}) {
+			for _, invocation := range partitionIntegrationInvocations(
+				[]string{"daemon", "store", "regular"},
+				tests, census, goTestShard{index: index, total: 2},
+			) {
 				if len(invocation.packages) != 1 || len(invocation.tests) == 0 {
 					t.Fatalf("unbounded invocation: %+v", invocation)
 				}
@@ -555,8 +562,11 @@ func TestExternal(t *test.T) {}
 		if err != nil {
 			t.Fatal(err)
 		}
-		tagged := goTestPackageFiles{Dir: root, ImportPath: compozyModulePath + "internal/daemon",
-			TestGoFiles: []string{"unit_test.go", "tagged_test.go"}, XTestGoFiles: []string{"external_integration_test.go"}}
+		tagged := goTestPackageFiles{
+			Dir: root, ImportPath: compozyModulePath + "internal/daemon",
+			TestGoFiles:  []string{"unit_test.go", "tagged_test.go"},
+			XTestGoFiles: []string{"external_integration_test.go"},
+		}
 		unit := goTestPackageFiles{Dir: root, TestGoFiles: []string{"unit_test.go"}}
 		got, err := integrationTestsInFiles(tagged, unit, plan.GoSuites)
 		if err != nil {
@@ -567,8 +577,9 @@ func TestExternal(t *test.T) {}
 		}
 		// Missing/invalid tagged sources fail discovery instead of silently skipping coverage.
 		tagged.TestGoFiles = []string{"missing_integration_test.go"}
-		if _, err := integrationTestsInFiles(tagged, unit, plan.GoSuites); err == nil {
-			t.Fatal("missing source accepted")
+		if _, err := integrationTestsInFiles(tagged, unit, plan.GoSuites); err == nil ||
+			!strings.Contains(err.Error(), "missing_integration_test.go") {
+			t.Fatalf("missing source error = %v, want missing_integration_test.go", err)
 		}
 	})
 	t.Run("Should retain transport and harness E2E ownership in the runtime lane", func(t *testing.T) {

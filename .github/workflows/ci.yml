@@ -135,13 +135,14 @@ jobs:
           # in through CI changes or a live label read (also honored on re-run).
           release_pr=false
           if [[ "$EVENT_NAME" == "pull_request" ]] &&
+             [[ "$PR_BASE_REF" == main || "$PR_BASE_REF" == release/v* ]] &&
              [[ "$PR_TITLE" == 'build: release '* || "$PR_BASE_REF" == release/v* ]]; then
             release_pr=true
           fi
           heavy=true
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             heavy=false
-            if [[ "$release_pr" == true ]] || grep -qx 'ci_infra=true' <<<"$areas"; then
+            if [[ "$release_pr" == true || "$PR_TITLE" == 'build: release '* ]] || grep -qx 'ci_infra=true' <<<"$areas"; then
               heavy=true
             else
               labels=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name')

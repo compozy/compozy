@@ -19,11 +19,11 @@ import (
 )
 
 func listIntegrationTests(ctx context.Context, group string) (map[string][]string, error) {
-	unit, err := listGoTestPackageFiles(ctx)
+	unit, err := listGoTestPackageFiles(ctx, false)
 	if err != nil {
 		return nil, err
 	}
-	tagged, err := listGoTestPackageFiles(ctx, "-tags=integration")
+	tagged, err := listGoTestPackageFiles(ctx, true)
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +47,17 @@ func listIntegrationTests(ctx context.Context, group string) (map[string][]strin
 	return result, nil
 }
 
-func listGoTestPackageFiles(ctx context.Context, flags ...string) (map[string]goTestPackageFiles, error) {
-	args := append([]string{"list", "-race", "-json"}, flags...)
-	cmd := exec.CommandContext(ctx, "go", append(args, goAllPackagesPattern)...)
+func listGoTestPackageFiles(ctx context.Context, integration bool) (map[string]goTestPackageFiles, error) {
+	args := []string{"list", "-race", "-json"}
+	if integration {
+		args = append(args, "-tags=integration")
+	}
+	args = append(args, goAllPackagesPattern)
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(nil))
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("list Go test sources (%v): %w: %s", flags, err, goCommandStderr(err))
+		return nil, fmt.Errorf("list Go test sources (integration=%t): %w: %s", integration, err, goCommandStderr(err))
 	}
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	result := make(map[string]goTestPackageFiles)

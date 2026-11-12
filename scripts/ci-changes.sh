@@ -15,7 +15,7 @@ set -euo pipefail
 # classify prints the space-separated areas for one repository-relative path.
 classify() {
   case "$1" in
-    .github/workflows/ci.yml | .github/actions/* | scripts/ci-changes.sh | scripts/ci-workspaces.py | scripts/ci-frontend.py | scripts/ci-turbo-report.py)
+    .github/workflows/ci.yml | .github/workflows/go-integration.yml | .github/actions/* | scripts/ci-changes.sh | scripts/ci-workspaces.py | scripts/ci-frontend.py | scripts/ci-turbo-report.py)
       echo "backend web desktop ci_infra"
       return
       ;;
@@ -131,6 +131,7 @@ self_test() {
     fi
   done <<'EOF'
 .github/workflows/ci.yml|backend web desktop ci_infra
+.github/workflows/go-integration.yml|backend web desktop ci_infra
 .github/actions/setup-go/action.yml|backend web desktop ci_infra
 scripts/ci-changes.sh|backend web desktop ci_infra
 .github/workflows/release.yml|backend
