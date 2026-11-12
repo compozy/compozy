@@ -125,10 +125,20 @@ describe("bootstrapSnapshot", () => {
 
   it("Should retain the actual start attempt until the product is ready", () => {
     const started = bootstrapSnapshot({
-      type: "bootstrap", phase: "start", status: "started", message: "Retry", attempt: 3,
+      type: "bootstrap",
+      phase: "start",
+      status: "started",
+      message: "Retry",
+      attempt: 3,
     });
     const ready = bootstrapSnapshot(
-      { type: "bootstrap", phase: "ready", status: "completed", message: "Ready", resolution: "start" },
+      {
+        type: "bootstrap",
+        phase: "ready",
+        status: "completed",
+        message: "Ready",
+        resolution: "start",
+      },
       "desktop-bootstrap.jsonl",
       started.attempt
     );
