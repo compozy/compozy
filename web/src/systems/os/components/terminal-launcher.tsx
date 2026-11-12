@@ -236,7 +236,7 @@ function TerminalLauncherProjectRows({
         aria-controls={expanded ? branchId : undefined}
         aria-expanded={count > 0 ? expanded : undefined}
         data-testid={`terminal-launcher-new-${destination.value}`}
-        disabled={busy || destination.unavailableReason !== null}
+        disabled={busy || destination.unavailableReason !== null || !project.matches}
         onSelect={() => onOpenNew(destination)}
         value={`${NEW_PREFIX}${destination.value}`}
       >

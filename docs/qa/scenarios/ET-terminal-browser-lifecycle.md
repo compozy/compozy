@@ -113,8 +113,10 @@ project's fold control; confirm its worktrees hang from the same branched connec
 uses for child sessions and a click on the control opens no terminal. With the search empty, select a
 project and press →, ↓ onto a worktree, then ← twice; confirm → unfolds, the first ← returns the
 selection to the project, and the second folds it. Type part of one worktree's name; confirm only the
-projects holding a match show, unfolded to the matching worktrees, and that clearing the search folds
-them again. Open a terminal from an unfolded worktree row and confirm it starts in that checkout.
+projects holding a match show, unfolded to the matching worktrees, with a project that does not match
+itself dimmed as context and the matching worktree selected so Enter opens that checkout; combine a
+worktree word with its project's name and confirm the worktree still matches; clearing the search
+folds them again. Open a terminal from an unfolded worktree row and confirm it starts in that checkout.
 
 2026-10-30 qa-impact (#1071): an open terminal's title carries no live-state mark. Walk: open a
 terminal from the dock (and one from `compozy terminal open --detach` so a non-UI origin is

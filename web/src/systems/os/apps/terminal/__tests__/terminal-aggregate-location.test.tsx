@@ -238,13 +238,28 @@ describe("TerminalAggregateLocation", () => {
     expect(screen.queryByTestId("terminal-launcher-new-ws-atlas/wt-fix")).toBeNull();
     expect(screen.queryByTestId("terminal-launcher-new-ws-beacon")).toBeNull();
     expect(screen.queryByTestId("terminal-launcher-new-@user")).toBeNull();
-    await waitFor(() => expect(project).toHaveAttribute("aria-selected", "true"));
+    // The project is context for its match, not a result: Enter opens the worktree searched for.
+    expect(project).toHaveAttribute("aria-disabled", "true");
+    await waitFor(() =>
+      expect(screen.getByTestId("terminal-launcher-new-ws-atlas/wt-feature")).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
+    );
+
+    // Words combine across a worktree's name and its project's.
+    fireEvent.change(screen.getByPlaceholderText("Open a terminal in…"), {
+      target: { value: "login atlas" },
+    });
+    expect(screen.getByTestId("terminal-launcher-new-ws-atlas/wt-feature")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-launcher-new-ws-atlas/wt-fix")).toBeNull();
 
     // A project matched only by name stays folded.
     fireEvent.change(screen.getByPlaceholderText("Open a terminal in…"), {
       target: { value: "atlas" },
     });
     expect(project).toHaveAttribute("aria-expanded", "false");
+    expect(project).not.toHaveAttribute("aria-disabled", "true");
     fireEvent.change(screen.getByPlaceholderText("Open a terminal in…"), {
       target: { value: "docs" },
     });

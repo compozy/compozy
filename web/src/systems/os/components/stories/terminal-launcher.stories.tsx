@@ -86,7 +86,7 @@ export const Expanded: Story = {
   },
 };
 
-/** A search keeps the projects holding a match and unfolds them to the matching worktrees. */
+/** A search unfolds the projects holding a match to the matching worktrees; a project that only holds a match is dimmed context, and the first matching worktree is selected. */
 export const SearchExpanded: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {

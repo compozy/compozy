@@ -101,6 +101,12 @@ export interface TerminalLauncherProject {
 
 /** One project row as the launcher shows it for the current search and folds. */
 export interface TerminalLauncherProjectView extends TerminalLauncherProject {
+  /**
+   * Whether the project row is a result itself. A project shown only as the
+   * parent of matching worktrees is context: its row cannot be chosen, so a
+   * search selects the worktree that was searched for.
+   */
+  matches: boolean;
   /** Whether the worktrees show; always `false` for a project without any. */
   expanded: boolean;
   /** The worktree rows on the project's branch: the matching ones while searching. */
@@ -134,16 +140,30 @@ export function terminalLauncherSearching(query: string): boolean {
   return normalizeRankingText(query).compact !== "";
 }
 
+const termReaches = (term: string, field: string) =>
+  subsequenceMatch(term, normalizeRankingText(field).compact) !== null;
+
 /**
- * Whether `query` reaches any of `fields`: its letters appear in order,
- * ignoring case, accents, and separators (the palette's subsequence match).
- * An empty query matches everything.
+ * Whether every word of `query` reaches one of `fields`: its letters appear in
+ * order, ignoring case, accents, and separators (the palette's subsequence
+ * match), so a search can combine words from several fields. An empty query
+ * matches everything.
  */
 export function terminalLauncherMatches(query: string, fields: readonly string[]): boolean {
-  const needle = normalizeRankingText(query).compact;
-  if (needle === "") return true;
-  return fields.some(
-    field => subsequenceMatch(needle, normalizeRankingText(field).compact) !== null
+  return normalizeRankingText(query).tokens.every(term =>
+    fields.some(field => termReaches(term, field))
+  );
+}
+
+/**
+ * Whether a search reaches a worktree: every word reaches its name or its
+ * project's, and at least one reaches its own name, so the project's name
+ * alone never lists every worktree of the project.
+ */
+function worktreeMatches(query: string, worktree: string, project: string): boolean {
+  return (
+    terminalLauncherMatches(query, [worktree, project]) &&
+    normalizeRankingText(query).tokens.some(term => termReaches(term, worktree))
   );
 }
 
@@ -163,21 +183,17 @@ export function terminalLauncherProjectViews(
   const searching = terminalLauncherSearching(query);
   const views: TerminalLauncherProjectView[] = [];
   for (const project of projects) {
+    const label = project.destination.label;
     const matching = searching
-      ? project.worktrees.filter(worktree => terminalLauncherMatches(query, [worktree.label]))
+      ? project.worktrees.filter(worktree => worktreeMatches(query, worktree.label, label))
       : [];
-    if (
-      searching &&
-      matching.length === 0 &&
-      !terminalLauncherMatches(query, [project.destination.label])
-    ) {
-      continue;
-    }
+    const matches = terminalLauncherMatches(query, [label]);
+    if (searching && matching.length === 0 && !matches) continue;
     const flipped = toggled.has(project.destination.value);
     const expanded =
       project.worktrees.length > 0 && (searching ? matching.length > 0 !== flipped : flipped);
     const shown = !expanded ? [] : matching.length > 0 ? matching : project.worktrees;
-    views.push({ ...project, expanded, shown });
+    views.push({ ...project, matches, expanded, shown });
   }
   return views;
 }
