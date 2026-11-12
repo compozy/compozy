@@ -62,6 +62,7 @@ type bootState struct {
 	harnessResolver     *HarnessContextResolver
 	harnessRecorder     *harnessLifecycleRecorder
 	runtimeWorkers      daemonRuntimeWorkers
+	proactiveChecksMu   sync.RWMutex
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
 	situationContext    *situation.Service

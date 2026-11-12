@@ -10333,6 +10333,19 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, statusResult, []byte(`"snapshot_id":"hbs-1"`))
 		requireNativeStructuredContains(t, statusResult, []byte(`"wake_events"`))
 
+		for _, input := range []string{
+			`{"workspace":"ws-1","agent_name":"coder","include_session_health":true}`,
+			`{"workspace":"ws-1","agent_name":"coder","session_id":"  ","include_session_health":true}`,
+		} {
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatStatus, Input: json.RawMessage(input),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+			if !strings.Contains(err.Error(), "session_id") || status.calls != 1 {
+				t.Fatalf("missing session reached backend: error=%v calls=%d", err, status.calls)
+			}
+		}
+
 		wakeResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},

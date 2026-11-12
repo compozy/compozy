@@ -7431,7 +7431,12 @@ func TestManagerBoundarySteer(t *testing.T) {
 				t.Fatal("active stream did not finish")
 			}
 			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
-				t.Fatal(err)
+				stacks := make([]byte, 1<<20)
+				written := runtime.Stack(stacks, true)
+				t.Fatalf(
+					"prompt drains (manager=%p, session=%q, turn=%q): %v; bounded goroutines (at_capacity=%t):\n%s",
+					h.manager, sess.ID, turn, err, written == len(stacks), stacks[:written],
+				)
 			}
 			if parkedID != "" {
 				parked, err := database.GetSessionInputQueueEntry(ctx, sess.ID, parkedID)

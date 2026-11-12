@@ -64,6 +64,7 @@ interface AgentHarness {
   client: Client;
   connection: HostedMcpConnection;
   sessionId: string;
+  sessionUrl: string;
   sessionUI: ReturnType<typeof sessionWindowSelectors>;
   sessionWin: Locator;
   workspace: { id: string; name: string };
@@ -96,7 +97,8 @@ async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promis
     body: JSON.stringify({ agent_name: MOCK_AGENT, workspace: workspace.id }),
   });
   const sessionId = created.session.id;
-  await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
+  const sessionUrl = runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`);
+  await appPage.goto(sessionUrl, {
     waitUntil: "domcontentloaded",
   });
   const sessionWin = sessionWindow(appPage, sessionId);
@@ -110,10 +112,21 @@ async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promis
     path.join(runtime.paths.homeDir, "logs", "acpmock", `${MOCK_AGENT}.jsonl`)
   );
   const connection = await connectHostedMcpClient(descriptor);
-  return { client: connection.client, connection, sessionId, sessionUI, sessionWin, workspace };
+  return {
+    client: connection.client,
+    connection,
+    sessionId,
+    sessionUrl,
+    sessionUI,
+    sessionWin,
+    workspace,
+  };
 }
 
 async function approveOnce(harness: AgentHarness, appPage: Page): Promise<void> {
+  if (!(await harness.sessionWin.isVisible())) {
+    await appPage.goto(harness.sessionUrl, { waitUntil: "domcontentloaded" });
+  }
   await focusWindowThroughPalette(appPage, harness.sessionWin);
   await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
   await harness.sessionUI.permissionAllowOnce.click();
@@ -173,7 +186,8 @@ async function ensureTerminalWindow(page: Page): Promise<Locator> {
 
 /**
  * The window hosting one terminal, keyed by the authority's `instance_key`.
- * Explicit terminal opens can coexist, so app-wide locators become ambiguous.
+ * Once explicitly opened, terminals have distinct windows; an app-wide
+ * locator is ambiguous when more than one is open.
  */
 function terminalWindowFor(page: Page, terminalId: string): Locator {
   return page.locator(
@@ -231,7 +245,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
   const harness = await startAgentHarness(appPage, runtime);
   let activeCall: ReturnType<Client["callTool"]> | undefined;
   try {
-    const command = "printf 'agent-live-1\\n'; read -r release; printf 'agent-live-2\\n'";
+    const command = "printf 'agent-live-1\\n'; IFS= read -r line; printf 'agent-live-2\\n'";
     const pending = harness.client.callTool({
       name: "compozy__terminal_exec",
       arguments: {
@@ -244,7 +258,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     });
     activeCall = pending;
     await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-    const exactApproval = String.raw`/bin/sh -c 'printf '\''agent-live-1\n'\''; read -r release; printf '\''agent-live-2\n'\'''`;
+    const exactApproval = String.raw`/bin/sh -c 'printf '\''agent-live-1\n'\''; IFS= read -r line; printf '\''agent-live-2\n'\'''`;
     await expect(harness.sessionWin.getByTestId("terminal-approval-command")).toHaveText(
       `$ ${exactApproval}`
     );
@@ -262,11 +276,11 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const callResult = await pending;
     activeCall = undefined;
     expect(callResult.isError).toBeFalsy();
-    const execution = readToolResult<TerminalToolResult>(callResult);
+    const execution = readToolResult<TerminalToolResult & { command_id: string }>(callResult);
     expect(execution).toMatchObject({ still_running: true });
     const terminalId = execution.terminal_id;
 
-    // Agent terminals remain in the catalog until the operator opens them.
+    // Agent execution stays outside the desktop until the operator opens it.
     const materialized = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
     await expect(materialized).toHaveCount(0);
     await expect(windowFrame(harness.sessionWin)).toHaveAttribute("data-focused", "");
@@ -276,24 +290,32 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
       waitUntil: "domcontentloaded",
     });
-    const terminalWindow = appPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
-    );
+    const terminalWindow = terminalWindowFor(appPage, terminalId);
     await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
       timeout: 20_000,
     });
     await expect
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
       .toContain("agent-live-1");
+    // Keep the process live until its exact window and output have been observed.
     const released = await harness.client.callTool({
       name: "compozy__terminal_write",
-      arguments: { terminal_id: terminalId, data: "\n" },
-      _meta: { toolCallId: "e2e-terminal-release-exec" },
+      arguments: { terminal_id: terminalId, data: "continue\n" },
+      _meta: { toolCallId: "e2e-terminal-deliberate-release" },
     });
     expect(released.isError).toBeFalsy();
-    await expect
-      .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
-      .toContain("agent-live-2");
+    const completed = await harness.client.callTool({
+      name: "compozy__terminal_wait",
+      arguments: { terminal_id: terminalId, until: "exit", timeout_ms: 20_000 },
+    });
+    expect(completed.isError).toBeFalsy();
+    const completion = readToolResult<{ reason: string; exit_code: number; screen: string }>(
+      completed
+    );
+    expect(completion).toMatchObject({ reason: "exit", exit_code: 0 });
+    expect(completion.screen).toContain("agent-live-1");
+    expect(completion.screen).toContain("agent-live-2");
+    // Agent exit retires its desktop window; retained output and journal stay readable.
     await expect(terminalWindow).toBeHidden({ timeout: 20_000 });
 
     const journalEntry = async () => {
@@ -304,19 +326,15 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
           harness.workspace.id
         )}/terminals/journal?profile=default`
       );
-      return journal.entries.find(entry => entry.terminal_id === terminalId);
+      return journal.entries.find(entry => entry.command_id === execution.command_id);
     };
-    await expect.poll(journalEntry).toMatchObject({ approval: "approved_once" });
+    await expect.poll(journalEntry).toMatchObject({
+      approval: "approved_once",
+      terminal_id: terminalId,
+    });
     const row = await journalEntry();
     if (!row) throw new Error("Approved terminal exec was absent from the journal.");
-
-    // The journal outlives the exited agent's window and is shared by the workspace.
-    const journalTerminalId = await openAgentTerminal(harness, "completed-exec-journal");
-    await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(journalTerminalId)}`), {
-      waitUntil: "domcontentloaded",
-    });
-    const journalWindow = terminalWindowFor(appPage, journalTerminalId);
-    await expect(journalWindow).toBeVisible({ timeout: 20_000 });
+    const journalWindow = await ensureAppWindow(appPage, "Terminal", "terminal");
     await journalWindow.getByTestId("terminal-journal-toggle").click();
     await expect(journalWindow.getByTestId(`terminal-journal-row-${row.command_id}`)).toBeVisible();
   } finally {
@@ -558,6 +576,7 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
     await closeAppWindow(appPage, harness.sessionWin);
     await expect(harness.sessionWin).toBeHidden();
     await expect(terminalWindow).toBeVisible();
+    // Returning from the conversation tab remounts the terminal; select its current output.
     await selectTerminalOutput(appPage, terminalWindow);
     const fallback = terminalWindow.getByTestId("terminal-selection-actions-no-session");
     await expect(fallback.getByRole("button", { name: "Choose a session…" })).toBeVisible();

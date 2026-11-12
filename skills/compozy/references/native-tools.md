@@ -586,6 +586,8 @@ any other cross-profile write, so it needs the unrestricted grant. Refusals carr
 session in a folder.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
+For heartbeat status, `include_session_health: true` requires a nonblank `session_id`;
+otherwise the tool returns `tool_invalid_input` naming `session_id`.
 
 Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
 `compozy__agent_list`, `compozy__agent_create`. `compozy__workspace_describe` returns sessions owned

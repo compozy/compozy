@@ -151,6 +151,12 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 		return toolspkg.ToolResult{}, err
 	}
 	sessionID := strings.TrimSpace(input.SessionID)
+	if input.IncludeSessionHealth && sessionID == "" {
+		return toolspkg.ToolResult{}, nativeInputError(
+			req.ToolID,
+			errors.New("session_id is required when include_session_health is true"),
+		)
+	}
 	if sessionID != "" {
 		if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, target.workspaceID, sessionID); err != nil {
 			return toolspkg.ToolResult{}, err

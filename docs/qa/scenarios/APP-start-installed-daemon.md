@@ -46,3 +46,15 @@ Canonical schema bytes and persisted digests must remain identical. The real SQL
 `TestBootLoopReconciliationBarrier` keeps its original one/five-second guards and all 16 claim
 rejections; a timeout records goroutine stacks to identify the blocked boot phase. Local CPU
 profiles and focused tests do not replace Linux-race CI or the desktop platform walks above.
+
+First-run state-record regression (#1595 / #1547): while bootstrap moves from
+`starting/start` to `starting/ready`, every published `app.json` must retain a
+start attempt. Preserve the reported retry count until leaving `starting`; a new
+start without a count begins at 1. Poll the real `app status -o json` through
+product-state publication with strict schema validation intact, then confirm
+installed/running/product and attached/owned runtime. The existing app-state
+publisher suite reads the actual temporary record, and the Electron first-run
+journey owns the real CLI walk. CI owns execution; no local run or platform
+verdict is claimed. The separate schema maximum of 3 versus CLI retry budget of 5
+needs a compatibility-contract decision; this repair neither clamps counts nor
+changes that bound.

@@ -71,7 +71,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "331cbb147ec73a25ddc06927f1e81077d305e837a708eb88de7a2fae9bba17c3",
+    "input_schema_digest": "9ccb65be1ec245ce5a078b437a59657c6f29d220a72401268308b72edad245c9",
     "output_schema_digest": "e0ea1f9352f313e7d614eb71b58f6694984c6f836767e507aff799ae18153039",
     "result_contract": "compact_full",
     "compact_output_schema_digest": "e0ea1f9352f313e7d614eb71b58f6694984c6f836767e507aff799ae18153039",

@@ -537,9 +537,14 @@ test("E2E-001 E2E-002: first run provisions offline and exposes every boot phase
     .map(event => event.phase)
     .filter((phase, index, phases) => phases.indexOf(phase) === index);
   expect(firstSeenPhases).toEqual(["resolve", "provision", "start", "ready"]);
-  const status = await jsonCommand(desktop, ["app", "status", "-o", "json"]);
-  expect(status).toMatchObject({ installed: true, running: true, state: "product" });
-  expect(status.runtime).toMatchObject({ attached: true, owned: true });
+  await expect
+    .poll(async () => await jsonCommand(desktop, ["app", "status", "-o", "json"]))
+    .toMatchObject({
+      installed: true,
+      running: true,
+      state: "product",
+      runtime: { attached: true, owned: true },
+    });
   expect(
     (
       await stat(

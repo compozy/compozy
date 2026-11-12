@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -4088,6 +4089,14 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		if cleanupErr == nil {
 			return
 		}
+		if errors.Is(cleanupErr, context.DeadlineExceeded) {
+			stacks := make([]byte, 1<<20)
+			written := runtime.Stack(stacks, true)
+			cleanupErr = fmt.Errorf(
+				"%w; bounded shutdown goroutines (count=%d, at_capacity=%t):\n%s",
+				cleanupErr, runtime.NumGoroutine(), written == len(stacks), stacks[:written],
+			)
+		}
 		runErr = errors.Join(runErr, fmt.Errorf("%s: %w", operation, cleanupErr))
 	}
 
@@ -4311,7 +4320,9 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		shutdown := func(operation string, stop func(context.Context) error) {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			joinRunError(operation, stop(shutdownCtx))
+			started := time.Now()
+			err := stop(shutdownCtx)
+			joinRunError(fmt.Sprintf("%s (elapsed %s, budget 2s)", operation, time.Since(started)), err)
 		}
 		shutdown("shutdown automation manager", automationManager.Shutdown)
 		for _, info := range manager.List() {
@@ -4319,7 +4330,10 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 				continue
 			}
 			shutdown(
-				fmt.Sprintf("stop active session %q", info.ID),
+				fmt.Sprintf(
+					"stop active session %q (manager=%p, acp_session=%q, state=%s, runtime=%s, pending_permission=%t)",
+					info.ID, manager, info.ACPSessionID, info.State, info.RuntimeStatus, info.PendingPermission,
+				),
 				func(ctx context.Context) error {
 					err := manager.StopWithCause(ctx, info.ID, session.CauseShutdown, "integration daemon shutdown")
 					// Match daemon.stopSessions: an already finalized session is no longer a stop target.

@@ -60,8 +60,8 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 		agents:     agentCatalogDependency(state.agentCatalog),
 	}
 	var checkOptions []schedulerpkg.Option
-	if state.runtimeWorkers.proactiveChecks != nil {
-		checkOptions = append(checkOptions, schedulerpkg.WithProactiveChecks(state.runtimeWorkers.proactiveChecks.Tick))
+	if checks := state.currentProactiveChecks(); checks != nil {
+		checkOptions = append(checkOptions, schedulerpkg.WithProactiveChecks(checks.Tick))
 	}
 	runtime, err := newSchedulerRuntime(
 		ctx,

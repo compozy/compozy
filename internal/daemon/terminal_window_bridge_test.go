@@ -4,6 +4,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,7 +35,11 @@ func newBridgeTestManager(t *testing.T) *windowmanager.Manager {
 	t.Helper()
 	manager, err := windowmanager.NewService(
 		windowmanager.NewMemoryRepository(),
-		windowmanager.NewMemoryWorkspaceResolver(bridgeTestWorkspace),
+		windowmanager.NewMemoryWorkspaceResolver(
+			bridgeTestWorkspace,
+			windowmanager.GlobalDesktopWorkspaceID,
+			windowmanager.UserDesktopWorkspaceID,
+		),
 		nil,
 		windowmanager.DefaultConfig(),
 	)
@@ -55,12 +60,23 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 		kind      terminalpkg.EventKind
 		origin    terminalpkg.ActorKind
 		remaining int
+		partition windowmanager.WorkspaceID
 	}{
-		{terminalpkg.EventKindClosed, terminalpkg.ActorKindAgent, 0},
-		{terminalpkg.EventKindDeleted, terminalpkg.ActorKindAgent, 0},
-		{terminalpkg.EventKindClosed, terminalpkg.ActorKindHuman, 1},
+		{terminalpkg.EventKindClosed, terminalpkg.ActorKindAgent, 0, bridgeTestWorkspace},
+		{terminalpkg.EventKindClosed, terminalpkg.ActorKindAgent, 0, windowmanager.GlobalDesktopWorkspaceID},
+		{terminalpkg.EventKindClosed, terminalpkg.ActorKindAgent, 0, windowmanager.UserDesktopWorkspaceID},
+		{terminalpkg.EventKindDeleted, terminalpkg.ActorKindAgent, 0, bridgeTestWorkspace},
+		{terminalpkg.EventKindDeleted, terminalpkg.ActorKindAgent, 0, windowmanager.GlobalDesktopWorkspaceID},
+		{terminalpkg.EventKindDeleted, terminalpkg.ActorKindAgent, 0, windowmanager.UserDesktopWorkspaceID},
+		{terminalpkg.EventKindClosed, terminalpkg.ActorKindHuman, 1, bridgeTestWorkspace},
 	} {
-		t.Run("Should reconcile "+string(testCase.origin)+" windows on "+string(testCase.kind), func(t *testing.T) {
+		name := fmt.Sprintf(
+			"Should reconcile %s windows on %s in %s",
+			testCase.origin,
+			testCase.kind,
+			testCase.partition,
+		)
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			manager := newBridgeTestManager(t)
@@ -84,7 +100,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 					t.Errorf("stop bridge: %v", err)
 				}
 			})
-			before, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+			before, err := manager.Snapshot(ctx, testCase.partition)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,7 +117,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 					},
 				)
 			}
-			after, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+			after, err := manager.Snapshot(ctx, testCase.partition)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -112,7 +128,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			_, err = manager.Execute(
 				ctx,
 				windowmanager.CommandRequest{
-					WorkspaceID:      bridgeTestWorkspace,
+					WorkspaceID:      testCase.partition,
 					ExpectedRevision: after.Revision,
 					Actor:            windowmanager.Actor{Kind: "system", ID: "test"},
 					Payload: windowmanager.OpenWindowCommand{
@@ -132,13 +148,13 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			}
 			var updates <-chan windowmanager.SubscriptionUpdate
 			if testCase.remaining == 0 {
-				seeded, err := manager.Snapshot(ctx, bridgeTestWorkspace)
+				seeded, err := manager.Snapshot(ctx, testCase.partition)
 				if err != nil {
 					t.Fatal(err)
 				}
 				subscription, err := manager.Subscribe(
 					ctx,
-					windowmanager.SubscriptionRequest{WorkspaceID: bridgeTestWorkspace, AfterRevision: seeded.Revision},
+					windowmanager.SubscriptionRequest{WorkspaceID: testCase.partition, AfterRevision: seeded.Revision},
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -174,7 +190,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 					t.Fatal("retirement was not retried")
 				}
 			}
-			after, err = manager.Snapshot(ctx, bridgeTestWorkspace)
+			after, err = manager.Snapshot(ctx, testCase.partition)
 			if err != nil {
 				t.Fatal(err)
 			}
