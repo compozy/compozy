@@ -917,10 +917,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"desktop-dry-run":     releasePullRequest,
 			"e2e-nightly":         releasePullRequest,
 			"e2e-desktop-nightly": releasePullRequest,
-			"integration": "(" + selectedPullRequest + " && " +
-				"(startsWith(github.event.pull_request.title, 'build: release ') || " +
-				"startsWith(github.base_ref, 'release/v') || " +
-				"contains(github.event.pull_request.labels.*.name, 'ci:full'))) || (" + routinePush + ")",
+			"integration":         releasePullRequest,
 			"release-plan": "github.event_name == 'workflow_dispatch' || (" + mainPush +
 				" && " + current + " && " +
 				"(vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))",
@@ -1151,7 +1148,12 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 
 		const sharedVersion = "${{ needs.dry-run-identity.outputs.release_version }}"
 		dryRunJob := workflowJobSection(t, workflow, "dry-run", "desktop-dry-run")
-		assertContainsText(t, "release dry-run dependency", dryRunJob, "needs: dry-run-identity")
+		assertContainsText(
+			t,
+			"release dry-run identity and integration dependencies",
+			dryRunJob,
+			"needs: [dry-run-identity, integration]",
+		)
 		assertContainsText(t, "release dry-run version", dryRunJob, "DRY_RUN_VERSION: "+sharedVersion)
 		assertContainsText(t, "release dry-run plan version", dryRunJob, `--version "${DRY_RUN_VERSION}"`)
 

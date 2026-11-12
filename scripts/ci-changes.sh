@@ -15,7 +15,7 @@ set -euo pipefail
 # classify prints the space-separated areas for one repository-relative path.
 classify() {
   case "$1" in
-    .github/workflows/ci.yml | .github/actions/* | scripts/ci-changes.sh | scripts/ci-workspaces.py | scripts/ci-frontend.py | scripts/ci-turbo-report.py)
+    .github/workflows/ci.yml | .github/workflows/go-integration.yml | .github/actions/* | scripts/ci-changes.sh | scripts/ci-workspaces.py | scripts/ci-frontend.py | scripts/ci-turbo-report.py)
       echo "backend web desktop ci_infra"
       return
       ;;
@@ -94,7 +94,8 @@ require_lanes() {
       "go-static": $backend, "go-test": $backend, "sdk-go-test": $backend,
       "go-build": $backend, "go-peer-darwin": $backend,
       desktop: ($desktop or $web),
-      "go-integration": ($heavy and $backend),
+      # Release owns the identical reusable lane and gates its dry-run on it.
+      "go-integration": ($heavy and $backend and ($o.release_pr != "true")),
       "go-terminal-windows": ($heavy and $backend),
       "e2e-runtime": ($heavy and ($backend or $web)),
       "e2e-web": ($heavy and ($backend or $web)),
@@ -130,6 +131,7 @@ self_test() {
     fi
   done <<'EOF'
 .github/workflows/ci.yml|backend web desktop ci_infra
+.github/workflows/go-integration.yml|backend web desktop ci_infra
 .github/actions/setup-go/action.yml|backend web desktop ci_infra
 scripts/ci-changes.sh|backend web desktop ci_infra
 .github/workflows/release.yml|backend
@@ -195,6 +197,8 @@ EOF
   if jq '."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy; then
     echo "required integration skip was accepted" >&2; return 1
   fi
+  # Release PRs run the same integration shards through Release's thin call.
+  jq '.changes.outputs.release_pr = "true" | ."go-integration".result = "skipped"' <<<"$projection" | require_lanes heavy
   local scenario expected job skipped
   while IFS='|' read -r scenario expected; do
     projection=$(jq --arg scenario "$scenario" '

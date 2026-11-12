@@ -106,7 +106,7 @@ func exactGoTestRunPattern(tests []string) string {
 	return "^(?:" + strings.Join(quoted, "|") + ")$"
 }
 
-// TestIntegration runs all tests including integration tests.
+// TestIntegration runs integration-tagged tests outside the dedicated E2E lanes.
 func TestIntegration() error {
 	preparedAt := time.Now()
 	ctx := context.Background()
@@ -125,7 +125,7 @@ func TestIntegration() error {
 	}
 	for index, invocation := range invocations {
 		args := gotestsumInvocationArgs(jsonFileDir, index)
-		args = append(args, goIntegrationTestSafetyArgs(invocation.packages)...)
+		args = append(args, goIntegrationTestSafetyArgs()...)
 		args = append(args, "-p", packageLimit,
 			"-timeout", goIntegrationTestTimeout, "-tags", "integration")
 		if len(invocation.tests) > 0 {
@@ -163,7 +163,7 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		goIntegrationPackageLimit,
 		"-parallel=4",
 		"-timeout",
-		goIntegrationTestTimeout,
+		goE2ETestTimeout,
 		"-count=1",
 		"-artifacts",
 		"-outputdir",
