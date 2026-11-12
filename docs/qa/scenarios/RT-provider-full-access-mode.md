@@ -4,12 +4,12 @@ area: RT
 title: Full access runs the ACP provider in its unrestricted mode
 persona: Ada
 journey: J-15
-expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy selects yolo, and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. The deprecated permissions.provider_full_access key loads with a warning and has no effect.
+expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy selects yolo, and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. In v0.6.1 permissions.provider_full_access is rejected as an unknown key without rewriting the source; permissions.mode remains the canonical control.
 entry_points: config.toml permissions; compozy agent info; compozy session prompt; Loop run-agent
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: issue #1473
 evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md
 last_report: docs/qa/reports/2026-11-10-issue-1473-full-access.md
@@ -24,10 +24,12 @@ the first runs without the Codex sandbox, the second runs in the Codex reviewer 
 sandbox and `permission_mode_degraded: false`. Confirm that an agent's explicit narrower mode wins,
 that `approve-reads` drops an inherited unrestricted agent mode, and that an explicit unrestricted
 session selection below `approve-all` is refused. Add `provider_full_access = false` to the global
-config: it loads with one deprecation warning naming `permissions.mode`, and `approve-all` still
-selects the unrestricted mode. Stop the sessions.
+config and confirm config load fails with an unknown-key error naming `provider_full_access`,
+leaving file bytes unchanged. Repeat with `true`. Remove the retired key and confirm canonical
+config loads and `approve-all` selects the unrestricted mode. Stop the sessions.
+Current-head CI owns the config rejection checks; no new local walk is authorized.
 
-2026-11-10 live evidence (#1473): with only `mode = "approve-all"` plus a deprecated
+Historical 2026-11-10 live evidence (#1473, before v0.6.1 key removal): with only `mode = "approve-all"` plus a deprecated
 `provider_full_access = false`, a fresh Codex session reported `agent-full-access` and its shell had
 no Codex sandbox variables; an `auto` session kept the `agent` reviewer mode (`CODEX_SANDBOX=seatbelt`,
 network disabled, not degraded). A `read-only` agent kept its mode, and an explicit
@@ -43,8 +45,8 @@ CLI. See the dated run report and its isolated lab receipts.
 With effective `approve-all`, a new `agy` session
 prefers mode `yolo`; an explicit narrower agent mode wins, and narrower session permissions reject
 `yolo`. `agy` is never added to generic automatic mode candidates. Unit ownership is UT-004
-(config negotiation cases); the live `agy` walk is unexecuted and this scenario remains `pass`
-only on its previously verified Codex/Claude branches.
+(config negotiation cases); the live `agy` walk is unexecuted and the historical Codex/Claude branches remain previously verified;
+this scenario is untested for the v0.6.1 key-removal behavior.
 
 ## Providers without a unique mode option
 

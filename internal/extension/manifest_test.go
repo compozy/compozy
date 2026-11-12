@@ -2558,8 +2558,32 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 				if err := os.WriteFile(filepath.Join(dir, "extension."+format), content, 0o600); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := LoadManifest(dir); err == nil {
-					t.Fatal("retired entry loaded")
+				want := field
+				switch field {
+				case "capability":
+					want = "memory.backend"
+				case "permission":
+					want = "memory/store"
+				}
+				if _, err := LoadManifest(dir); err == nil || !strings.Contains(err.Error(), want) {
+					t.Fatalf("load error = %v, want rejected entry %s", err, want)
+				}
+				canonical := string(content)
+				switch field {
+				case "capability":
+					canonical = strings.ReplaceAll(canonical, "memory.backend", "view.provider")
+				case "permission":
+					canonical = strings.ReplaceAll(canonical, "memory/store", "sessions/list")
+				default:
+					canonical = strings.ReplaceAll(canonical, field, "compaction_trigger")
+					canonical = strings.ReplaceAll(canonical, "'old'", "'requested'")
+					canonical = strings.ReplaceAll(canonical, `"old"`, `"requested"`)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "extension."+format), []byte(canonical), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := LoadManifest(dir); err != nil {
+					t.Fatalf("canonical manifest rejected: %v", err)
 				}
 			})
 		}

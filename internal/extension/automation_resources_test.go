@@ -263,16 +263,23 @@ event = "session.stopped"
 	t.Run("Should reject a retired memory trigger instead of skipping it", func(t *testing.T) {
 		t.Parallel()
 		rootDir := t.TempDir()
-		writeAutomationResource(t, rootDir, "automation/main.toml", `
+		const body = `
 [[triggers]]
 name = "retired"
 agent = "writer"
 prompt = "Handle it."
 event = "memory.consolidated"
-`)
+`
+		writeAutomationResource(t, rootDir, "automation/main.toml", body)
 		_, _, err := LoadAutomationResources(rootDir, "kit", []string{"automation"})
-		if err == nil {
-			t.Fatal("retired trigger loaded")
+		if err == nil || !strings.Contains(err.Error(), "memory.consolidated") {
+			t.Fatalf("load error = %v, want retired event error", err)
+		}
+		writeAutomationResource(t, rootDir, "automation/main.toml",
+			strings.ReplaceAll(body, "memory.consolidated", "session.stopped"))
+		_, triggers, err := LoadAutomationResources(rootDir, "kit", []string{"automation"})
+		if err != nil || len(triggers) != 1 || triggers[0].Event != "session.stopped" {
+			t.Fatalf("canonical triggers = %#v, %v", triggers, err)
 		}
 	})
 

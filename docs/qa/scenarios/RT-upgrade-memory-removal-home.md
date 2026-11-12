@@ -5,7 +5,7 @@ title: Upgrade a memory-enabled home through the final migration release
 persona: Dora
 journey: J-validate-compozy-hard-cut
 expected: Run the archival walkthrough on v0.6.0, resolve deferred writes and remove retired declarations, then upgrade to v0.6.1 with migrated state intact. v0.6.1 rejects active retired declarations without rewriting files; permanent SQL migrations and catalog recovery remain.
-entry_points: previous-release compozy binary on a lab COMPOZY_HOME, then the new build on the same home; compozy daemon start; config.toml; compozy status -o json; compozy automation triggers -o json; compozy session list|history; compozy agent soul validate; compozy extension list -o json; Web desktop root with the saved layout
+entry_points: legacy fixture binary on a lab COMPOZY_HOME, v0.6.0 archival build, then v0.6.1 on the same home; compozy daemon start; config.toml; compozy status -o json; compozy automation triggers -o json; compozy session list|history; compozy agent soul validate; compozy extension list -o json; Web desktop root with the saved layout
 qa_status: untested
 bug_ids:
 fix_status:
@@ -18,7 +18,7 @@ overlaps: ET-retired-product-surfaces-absent; RT-pressure-context-compaction; RT
 
 Compatibility regime: user state. The historical archival walkthrough below runs on v0.6.0, the final migration release; v0.6.1 acceptance is listed at the end.
 
-**Setup (previous release).** Build the previous release (v0.3.0, commit c46be43c7) into the lab with
+**Setup (legacy fixture).** Build the legacy fixture release (v0.3.0, commit c46be43c7) into the lab with
 `git archive`, boot it on an isolated `COMPOZY_HOME` with the acpmock provider, and create:
 
 - memory enabled and populated: Markdown memory files at profile, workspace, and agent scope, plus `_inbox/`
@@ -44,7 +44,7 @@ Compatibility regime: user state. The historical archival walkthrough below runs
 Record `session list`, the compacted session's `history`, `status -o json`, the file hashes, and `config.toml`
 bytes; stop the daemon cleanly; back up the home.
 
-**Upgrade (new build, same home).** Start the daemon with no manual step and check:
+**Archive (v0.6.0, same home).** Start the v0.6.0 daemon with no manual step and check:
 
 1. The daemon reaches readiness. Global migration `00130` and session migration `00009` apply once; a second
    restart changes nothing and `PRAGMA foreign_key_check` is empty.
