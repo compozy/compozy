@@ -619,7 +619,7 @@ func (a *helperACPAgent) ResumeSession(
 // NewSession advertises the scenario capabilities without contacting a live provider.
 func (a *helperACPAgent) NewSession(
 	ctx context.Context,
-	_ acpsdk.NewSessionRequest,
+	params acpsdk.NewSessionRequest,
 ) (acpsdk.NewSessionResponse, error) {
 	if a.scenario == "stall_new" {
 		<-ctx.Done()
@@ -627,6 +627,10 @@ func (a *helperACPAgent) NewSession(
 	}
 	if a.scenario == "new_session_auth_required" {
 		return acpsdk.NewSessionResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+	}
+	if a.scenario == "load_claude_stale_models" {
+		options, err := a.claudeStaleModelOptions(params.Meta)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, err
 	}
 	if a.scenario == "triage_config_mode" || a.scenario == "triage_config_unconfirmed" {
 		options := []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default", "plan")}
@@ -762,7 +766,8 @@ func (a *helperACPAgent) LoadSession(
 		return acpsdk.LoadSessionResponse{ConfigOptions: options}, nil
 	}
 	if a.scenario == "load_claude_stale_models" {
-		return a.loadClaudeStaleModels(params)
+		options, err := a.claudeStaleModelOptions(params.Meta)
+		return acpsdk.LoadSessionResponse{ConfigOptions: options}, err
 	}
 	if a.scenario == "load_config_options" || a.scenario == "load_claude_models" {
 		configOptions := helperConfigOptions("loaded-model", "high")
@@ -787,9 +792,8 @@ func (a *helperACPAgent) LoadSession(
 	}, nil
 }
 
-// loadClaudeStaleModels mirrors the SDK's startup custom-picker entry while its
-// built-in list remains stale. The setter remains responsible for accepting it.
-func (a *helperACPAgent) loadClaudeStaleModels(params acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+// claudeStaleModelOptions mirrors the SDK's custom picker while its built-in list is stale.
+func (a *helperACPAgent) claudeStaleModelOptions(metadata any) ([]acpsdk.SessionConfigOption, error) {
 	var meta struct {
 		ClaudeCode struct {
 			Options struct {
@@ -797,12 +801,12 @@ func (a *helperACPAgent) loadClaudeStaleModels(params acpsdk.LoadSessionRequest)
 			} `json:"options"`
 		} `json:"claudeCode"`
 	}
-	data, err := json.Marshal(params.Meta)
+	data, err := json.Marshal(metadata)
 	if err != nil {
-		return acpsdk.LoadSessionResponse{}, err
+		return nil, err
 	}
 	if err := json.Unmarshal(data, &meta); err != nil {
-		return acpsdk.LoadSessionResponse{}, err
+		return nil, err
 	}
 	values := []string{"default", "opus", "fable", "claude-opus-5", "claude-fable-5-1"}
 	if model := meta.ClaudeCode.Options.Env["ANTHROPIC_CUSTOM_MODEL_OPTION"]; model != "" && a.filePath != "ignored" {
@@ -810,7 +814,7 @@ func (a *helperACPAgent) loadClaudeStaleModels(params acpsdk.LoadSessionRequest)
 	}
 	options := []acpsdk.SessionConfigOption{helperSelectConfigOption("model", "Model", "opus", values...)}
 	a.setHelperConfigOptions(options)
-	return acpsdk.LoadSessionResponse{ConfigOptions: options}, nil
+	return options, nil
 }
 
 func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
