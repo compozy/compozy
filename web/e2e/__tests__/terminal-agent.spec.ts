@@ -296,24 +296,31 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
       .toContain("agent-live-2");
     await expect(terminalWindow).toBeHidden({ timeout: 20_000 });
 
-    const journal = await runtime.requestJSON<{
-      entries: Array<{ approval: string; command_id: string; terminal_id: string | null }>;
-    }>(
-      `/api/workspaces/${encodeURIComponent(
-        harness.workspace.id
-      )}/terminals/journal?profile=default`
-    );
-    const row = journal.entries.find(entry => entry.terminal_id === terminalId);
-    expect(row).toMatchObject({ approval: "approved_once" });
+    const journalEntry = async () => {
+      const journal = await runtime.requestJSON<{
+        entries: Array<{ approval: string; command_id: string; terminal_id: string | null }>;
+      }>(
+        `/api/workspaces/${encodeURIComponent(
+          harness.workspace.id
+        )}/terminals/journal?profile=default`
+      );
+      return journal.entries.find(entry => entry.terminal_id === terminalId);
+    };
+    await expect.poll(journalEntry).toMatchObject({ approval: "approved_once" });
+    const row = await journalEntry();
     if (!row) throw new Error("Approved terminal exec was absent from the journal.");
-    const journalTerminalId = await openAgentTerminal(harness, "journal-view");
+
+    // The journal outlives the exited agent's window and is shared by the workspace.
+    const journalTerminalId = await openAgentTerminal(harness, "completed-exec-journal");
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(journalTerminalId)}`), {
       waitUntil: "domcontentloaded",
     });
     const journalWindow = terminalWindowFor(appPage, journalTerminalId);
     await expect(journalWindow).toBeVisible({ timeout: 20_000 });
     await journalWindow.getByTestId("terminal-journal-toggle").click();
-    await expect(journalWindow.getByTestId(`terminal-journal-row-${row.command_id}`)).toBeVisible();
+    await expect(
+      journalWindow.getByTestId(`terminal-journal-row-${row.command_id}`)
+    ).toBeVisible();
   } finally {
     await teardownHostedMcp(harness.connection, activeCall);
   }
