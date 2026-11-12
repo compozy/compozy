@@ -41,3 +41,11 @@ journal access from another live terminal. Approval navigation activates a hidde
 tab before asserting its permission dock; session close uses the canonical tab-aware helper.
 The prior CI artifacts showed an obsolete automatic-window expectation and hidden-tab controls.
 Validation remains CI-only under the operator's parallel-execution restriction.
+
+CI journey alignment (#1547): `terminal-agent.spec.ts` E2E-003 asserts that an approved
+agent exec does not create a desktop window or steal session focus, then explicitly
+opens its exact terminal and checks output, exit state and journal provenance.
+E2E-005 restores the owning session before its approval when Terminal is the active
+tab; E2E-008 closes only the conversation tab, keeping the terminal available for the
+no-conversation selection fallback. Existing approval, redaction and quote assertions
+remain in the canonical suite. CI owns the real daemon/browser walk; no local run is claimed.

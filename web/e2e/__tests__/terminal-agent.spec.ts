@@ -64,6 +64,7 @@ interface AgentHarness {
   client: Client;
   connection: HostedMcpConnection;
   sessionId: string;
+  sessionUrl: string;
   sessionUI: ReturnType<typeof sessionWindowSelectors>;
   sessionWin: Locator;
   workspace: { id: string; name: string };
@@ -96,7 +97,8 @@ async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promis
     body: JSON.stringify({ agent_name: MOCK_AGENT, workspace: workspace.id }),
   });
   const sessionId = created.session.id;
-  await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
+  const sessionUrl = runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`);
+  await appPage.goto(sessionUrl, {
     waitUntil: "domcontentloaded",
   });
   const sessionWin = sessionWindow(appPage, sessionId);
@@ -110,10 +112,21 @@ async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promis
     path.join(runtime.paths.homeDir, "logs", "acpmock", `${MOCK_AGENT}.jsonl`)
   );
   const connection = await connectHostedMcpClient(descriptor);
-  return { client: connection.client, connection, sessionId, sessionUI, sessionWin, workspace };
+  return {
+    client: connection.client,
+    connection,
+    sessionId,
+    sessionUrl,
+    sessionUI,
+    sessionWin,
+    workspace,
+  };
 }
 
 async function approveOnce(harness: AgentHarness, appPage: Page): Promise<void> {
+  if (!(await harness.sessionWin.isVisible())) {
+    await appPage.goto(harness.sessionUrl, { waitUntil: "domcontentloaded" });
+  }
   await focusWindowThroughPalette(appPage, harness.sessionWin);
   await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
   await harness.sessionUI.permissionAllowOnce.click();
@@ -173,7 +186,8 @@ async function ensureTerminalWindow(page: Page): Promise<Locator> {
 
 /**
  * The window hosting one terminal, keyed by the authority's `instance_key`.
- * Explicit terminal opens can coexist, so app-wide locators become ambiguous.
+ * Once explicitly opened, terminals have distinct windows; an app-wide
+ * locator is ambiguous when more than one is open.
  */
 function terminalWindowFor(page: Page, terminalId: string): Locator {
   return page.locator(
@@ -266,7 +280,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     expect(execution).toMatchObject({ still_running: true });
     const terminalId = execution.terminal_id;
 
-    // Agent terminals remain in the catalog until the operator opens them.
+    // Agent execution stays outside the desktop until the operator opens it.
     const materialized = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
     await expect(materialized).toHaveCount(0);
     await expect(windowFrame(harness.sessionWin)).toHaveAttribute("data-focused", "");
