@@ -6014,7 +6014,8 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 					return 0, err
 				}
 				for _, entry := range entries {
-					if entry.MessageID != "creator-fallback" || entry.Status != store.SessionInputQueueStatusDispatching ||
+					if entry.MessageID != "creator-fallback" ||
+						entry.Status != store.SessionInputQueueStatusDispatching ||
 						!triggered.CompareAndSwap(false, true) {
 						continue
 					}
