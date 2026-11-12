@@ -3241,11 +3241,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					{path: "references/loops.md", wantOffload: true},
 					{path: "references/tools-and-skills.md", wantOffload: true},
 					{path: "references/native-tools.md", wantOffload: true},
-				}
-				if target.wantOffload {
-					references = append(references, resourceExpectation{
-						path: "references/runtime-operations.md", wantOffload: true,
-					})
+					{path: "references/runtime-operations.md", wantOffload: true},
 				}
 				for _, reference := range references {
 					t.Run("Should read the complete "+reference.path+" resource", func(t *testing.T) {
@@ -3292,7 +3288,7 @@ func TestDaemonNativeTools(t *testing.T) {
 							t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
 						}
 						if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
-							viewResult.Content[0].Text != diagnostics.Redact(expectedContent) {
+							viewResult.Content[0].Text != "Skill content" {
 							t.Fatalf(
 								"skill_view(%s) resource mismatch: expected=%d structured=%d text_blocks=%d truncated=%t artifacts=%d redactions=%v",
 								resource,
@@ -3304,8 +3300,15 @@ func TestDaemonNativeTools(t *testing.T) {
 								viewResult.Redactions,
 							)
 						}
-						if diagnostics.Redact(expectedContent) != expectedContent && len(viewResult.Redactions) == 0 {
-							t.Fatalf("skill_view(%s) omitted display redaction metadata", resource)
+						if len(viewResult.Redactions) != 0 {
+							t.Fatalf("skill_view(%s) altered verified content: %v", resource, viewResult.Redactions)
+						}
+						encodedContent, err := json.Marshal(expectedContent)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if viewResult.Bytes > int64(len(encodedContent)+(16<<10)) {
+							t.Fatalf("skill_view(%s) envelope = %d bytes for %d encoded document bytes", resource, viewResult.Bytes, len(encodedContent))
 						}
 						t.Logf(
 							"%s: full structured bytes=%d, display redactions=%d",
@@ -3366,7 +3369,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
 			policy,
 			toolspkg.WithResultProcessor(
-				toolspkg.NewResultProcessor(compozyconfig.DefaultToolsMaxResultBytes, artifactStore),
+				toolspkg.NewResultProcessor(32<<10, artifactStore),
 			),
 		)
 		for _, tc := range []struct{ name, input, resource string }{
@@ -3386,8 +3389,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Registry.Call(skill_view) error = %v", err)
 				}
-				if tc.resource == "references/runtime-operations.md" {
-					if !result.Truncated || len(result.Artifacts) != 1 {
+				if tc.resource == "references/runtime-operations.md" && !result.Truncated {
+					t.Fatal("large User resource was not offloaded")
+				}
+				if result.Truncated {
+					if len(result.Artifacts) != 1 {
 						t.Fatal("large User resource was not offloaded with one artifact")
 					}
 					artifactURI := result.Artifacts[0].URI
@@ -3954,8 +3960,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extension skill_view) error = %v", err)
 		}
-		if len(viewResult.Content) != 1 || viewResult.Content[0].Text != skillContent {
-			t.Fatalf("extension skill_view content = %#v, want %q", viewResult.Content, skillContent)
+		var viewPayload struct {
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
+			t.Fatal(err)
+		}
+		if viewPayload.Content != skillContent {
+			t.Fatalf("extension skill_view content = %q, want %q", viewPayload.Content, skillContent)
 		}
 	})
 
@@ -4262,12 +4274,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_view command_id) error = %v", err)
 		}
 		if !strings.Contains(string(result.Structured), commandID) || len(result.Content) != 1 ||
-			result.Content[0].Text != skillContent || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
+			result.Content[0].Text != "Skill content" || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
 			t.Fatalf("skill_view command_id result = %#v", result)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(skill_view command_id) error = %v", err)
+		}
+		if payload["content"] != skillContent {
+			t.Fatalf("skill_view command_id content = %q, want %q", payload["content"], skillContent)
 		}
 		viewedSkill, ok := payload["skill"].(map[string]any)
 		if !ok {

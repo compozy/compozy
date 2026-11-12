@@ -90,8 +90,10 @@ it carries the continuation envelope `{"truncated":true,"truncated_from_bytes":N
 "artifacts":[{"uri":"compozy://tool-artifacts/..."}],"read_tool":"compozy__tool_artifact_read"}`.
 Hosted native tools advertise no `outputSchema`. Structured continuations and typed
 `{"error":{...}}` payloads remain unchanged. Read result contracts through `compozy__tool_info`.
-Check `truncated` first and page retained results through `read_tool`; use smaller pages
-(for example `limit: 32768`) when the harness caps inline output.
+Check `truncated` first and page retained results through `read_tool`. Artifact reads default to
+32 KiB of decoded bytes: base64 plus the JSON text and `structuredContent` copies stay below a
+128 KiB inline transport budget. Explicit reads up to 64 KiB remain supported; request smaller
+pages when the harness has a lower cap.
 
 Workspace artifacts retain workspace-only ownership. User artifacts belong to User scope of the
 producing profile. Missing, expired, and foreign-scope references share the same not-found result,
@@ -258,6 +260,11 @@ and naming any failed or slow source in `sources_degraded`. Use `compozy skill i
 or extension-specific browse endpoints.
 
 ## Skill Loading
+
+`compozy__skill_view` returns the complete verified document once in the canonical result's
+`structured.content`, with a short display summary. This keeps bundled references around 168 KB
+inline under the default 256 KiB result budget without heuristic display redaction altering the
+document. Hosted MCP preserves its standard JSON text and `structuredContent` projections.
 
 Scan roots allow groups at any depth (300 `SKILL.md` max); frontmatter `name` stays identity. Scaffold
 with `compozy skill create <name> --group <path>`. Managed sessions resolve skill search/view through

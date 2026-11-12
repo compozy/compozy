@@ -192,12 +192,7 @@ func (n *daemonNativeTools) skillView(
 	if file != "" {
 		payload["file"] = file
 	}
-	result, err := structuredResult(payload, "Skill content")
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	result.Content = []toolspkg.ToolContent{{Type: nativeToolsTextKey, Text: content}}
-	return result, nil
+	return structuredResult(payload, "Skill content")
 }
 
 func skillViewResourceError(ctx context.Context, id toolspkg.ToolID, file string, err error) error {
