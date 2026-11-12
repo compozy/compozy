@@ -43,16 +43,8 @@ func usageFixture(t *testing.T, handler http.HandlerFunc) serviceFixture {
 				RegistryOptions{
 					BaseURLs: map[string]string{codexProviderID: server.URL},
 					Now:      clock.Now,
-					Transport: fixtureTransport(func(request *http.Request) (*http.Response, error) {
-						response, err := http.DefaultTransport.RoundTrip(request)
-						if err != nil {
-							t.Logf(
-								"fixture HTTP transport: error_type=%T error=%v request_context=%v",
-								err, err, request.Context().Err(),
-							)
-						}
-						return response, err
-					}),
+					// Isolate connections from other parallel servers' global transport cleanup.
+					Transport: server.Client().Transport,
 				},
 			),
 			Clock: clock,

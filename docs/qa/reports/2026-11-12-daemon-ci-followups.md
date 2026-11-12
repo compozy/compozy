@@ -20,8 +20,32 @@ build, daemon or QA execution is claimed. CI on the PR head owns validation.
   mismatch. Linux/race repetitions must distinguish a reproducible defect from
   an isolated sample. Earlier non-race passes do not establish a cause.
 
-These are diagnostic improvements, not claimed causal fixes. The historical
-boot and Usage items remain unchecked until CI evidence supports a disposition.
+The boot changes are diagnostic improvements, not claimed causal fixes. The
+historical boot items remain unchecked until CI evidence supports a disposition.
+
+## Usage cooldown root cause
+
+[Linux/race job 130976658467](https://github.com/compozy/compozy/actions/runs/43156218682/job/130976658467)
+on `96da0511b` reproduced the original floor-after-success mismatch: expected
+00:21, observed 00:20. The temporary fixture instrumentation captured
+`net/http: HTTP/1.x transport connection broken: http: CloseIdleConnections called`
+with no request-context cancellation. The collection recorded `network_error`,
+so the service correctly retained the previous successful snapshot's 00:20
+refresh time instead of receiving the new HTTP 429 and calculating 00:21.
+
+The fixture used `http.DefaultTransport`, shared with parallel HTTP tests.
+Go's `httptest.Server.Close` closes idle connections on that global transport,
+allowing another fixture's teardown to interrupt a newly reused connection.
+The owning `TestUsageRateLimitBackoff` suite must preserve exact cooldown/reset
+behavior without unrelated fixture teardown changing its HTTP response.
+
+`usageFixture` now supplies `server.Client().Transport`, which is owned and
+cleaned up by that server. Existing cleanup ordering shuts down the service
+before the server. Real loopback HTTP, parallelism, fake-clock expectations,
+call counts and the Linux/race stress workload are unchanged. Temporary raw
+transport logging is removed after capturing the causal evidence; status and
+timestamp diagnostics remain. No production retry/backoff behavior changes.
+Current-head CI must verify the repair; no local execution is claimed.
 
 ## Provider recovery evidence follow-ups
 
