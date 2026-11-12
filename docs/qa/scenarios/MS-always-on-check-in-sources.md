@@ -408,3 +408,10 @@ local execution is forbidden for this parallel dispatch.
 6. Pass an unknown `source`; expect validation failure naming `timer`, `instance_check`, `scheduler`, `manual`, and `harness_reentry`. Tool discovery declares these enum values.
 
 CI coverage: `TestManagedHeartbeatDiskWake` in `internal/heartbeat/authoring_status_test.go` uses real filesystem and SQLite persistence. Local execution is deferred under the CI-only operator rule.
+
+CI integration repair 2026-11-12 (#1565): register a workspace while declaration
+watchers refresh resource-backed hook bindings. Both publications must succeed,
+retain one resource per binding, and leave unchanged bindings at their original
+version. `TestNewHookBindingPublisherUsesResourceBackedSync` covers concurrent
+publication with real SQLite; `TestInstanceRunningCheckPauseIntegration` covers
+workspace registration during real daemon startup. CI is the only execution gate.
