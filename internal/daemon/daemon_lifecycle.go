@@ -85,7 +85,10 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 }
 
 // shutdownAfterRunTrigger retains discovery withdrawal while retrying terminal teardown.
+// It is the process-terminal path, so a watchdog bounds it: a hung teardown cannot keep serving.
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
+	disarm := d.armShutdownWatchdog(d.gracefulShutdownTimeout() + shutdownWatchdogMargin)
+	defer disarm()
 	return d.shutdownWithOperation(context.WithoutCancel(ctx), true)
 }
 
@@ -134,7 +137,11 @@ func GracefulShutdownTimeout(cfg *compozyconfig.Config) time.Duration {
 	return defaultShutdownTimeout + cfg.Daemon.ShutdownGrace + session.TerminationBudget(cfg.Session.Stop)
 }
 
-func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets) error {
+func (d *Daemon) shutdownDetached(
+	ctx context.Context,
+	operation *daemonShutdownOperation,
+	targets *shutdownTargets,
+) error {
 	var errs []error
 	phase := func(name string, run func()) {
 		// Phase errors are collected in errs; the timer only names and measures the phase.
@@ -144,8 +151,19 @@ func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets)
 		})
 	}
 	phase("stop_workers_and_sessions", func() { d.shutdownRuntimeWorkers(ctx, targets, &errs) })
+	// In-flight tool calls and stopping sessions use these until the last session has stopped.
+	phase("close_session_dependencies", func() {
+		dependenciesCtx, cancel := detachedShutdownBudget(ctx, shutdownSessionDependenciesBudget)
+		defer cancel()
+		shutdownSessionDependencies(dependenciesCtx, targets, &errs)
+	})
 	phase("close_servers_and_hooks", func() { d.shutdownServersAndHooks(ctx, targets, &errs) })
-	phase("close_persistent_resources", func() { d.shutdownPersistentResources(ctx, targets, &errs) })
+	// The database is checkpointed on every exit, so this phase never inherits an expired deadline.
+	phase("close_persistent_resources", func() {
+		persistCtx, cancel := detachedShutdownBudget(ctx, shutdownPersistBudget)
+		defer cancel()
+		d.shutdownPersistentResources(persistCtx, targets, d.shutdownIsTerminal(operation), &errs)
+	})
 	return errors.Join(errs...)
 }
 

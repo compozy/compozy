@@ -130,6 +130,13 @@ func (m *Manager) startAgentProcess(
 	startOpts acp.StartOpts,
 ) (*AgentProcess, error) {
 	logger := spec.startLogger(m).With("resolved_provider", startOpts.ProviderName)
+	if m.daemonShuttingDown() {
+		// Every provider spawn passes here; a shutdown refusal is an interruption, not a startup failure.
+		logger.Info("session.start.refused_daemon_shutdown", "phase", spec.startAction)
+		return nil, fmt.Errorf(
+			"session: %s agent for %q: %w", spec.startAction, spec.sessionID, ErrDaemonShuttingDown,
+		)
+	}
 	logger.Info("session.provider_route.selected", "phase", spec.startAction, "attempt", spec.fallbackAttempt)
 	proc, err := m.driver.Start(ctx, startOpts)
 	if err != nil {

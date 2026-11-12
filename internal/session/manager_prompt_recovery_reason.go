@@ -155,6 +155,9 @@ func (m *Manager) stoppedPromptRecovery(
 ) (bool, *acp.AgentEvent, error) {
 	if session.promptCancellationRequested(state.turnID) || state.recovery.executionCtx.Err() != nil ||
 		m.daemonShuttingDown() {
+		// Shutdown now closes recovery before the checkpoint scan runs, so the turn is checkpointed
+		// here; a turn the user canceled is skipped by the capture itself.
+		m.captureDaemonShutdownTurn(ctx, session, state.turnID)
 		trigger = promptCancellationTerminalEvent()
 	}
 	return false, &trigger, m.settleStoppedPromptRecovery(ctx, session, reason, trigger)

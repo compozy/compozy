@@ -873,7 +873,10 @@ public_dns_resolver = "1.1.1.1:853"
 
 `shutdown_grace` defaults to `"30s"` and accepts durations from `"0s"` through `"5m"`.
 On a requested restart it gives admitted turns time to finish before CompozyOS records interruptions
-and stops provider processes concurrently. The total shutdown budget also reserves time for the
+and stops provider processes concurrently. That wait is the smaller of `shutdown_grace` and 5 seconds,
+ends as soon as no turn is running, and skips turns waiting on an approval or a question: an
+interrupted turn is checkpointed and resumed by the next start, so a longer wait only delays the
+restart. `"0s"` still disables the wait. The total shutdown budget also reserves time for the
 session termination ladder and resource cleanup; the relaunch helper waits through that budget.
 Explicit daemon stop does not wait for restart continuation and never auto-resumes work.
 Changing this setting requires a restart.

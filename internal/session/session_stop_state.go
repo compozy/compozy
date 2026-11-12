@@ -198,8 +198,9 @@ func (s *Session) setStopCause(cause StopCause) {
 }
 
 // reclassifyDaemonShutdownExit replaces an unrequested process exit with the daemon's shutdown
-// cause. It also reports true for a session the daemon already stopped with that cause, whose agent
-// died from the same signal, and for a session already reclassified, so a retried finalization keeps it.
+// cause. It also reports true for a session the daemon already stopped with that cause or with a
+// shutdown stop, whose agent died from the same signal, and for a session already reclassified, so a
+// retried finalization keeps it.
 func (s *Session) reclassifyDaemonShutdownExit(cause StopCause, detail string) bool {
 	if s == nil {
 		return false
@@ -207,7 +208,8 @@ func (s *Session) reclassifyDaemonShutdownExit(cause StopCause, detail string) b
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.daemonShutdownExit || s.stopCause == cause {
+	// A shutdown stop is an interruption whichever label the daemon gives its own stop.
+	if s.daemonShutdownExit || s.stopCause == cause || s.stopCause == CauseShutdown {
 		s.daemonShutdownExit = true
 		return true
 	}

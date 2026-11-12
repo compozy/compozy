@@ -191,6 +191,9 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(h.turnIDs),
+		// The fake driver keeps a prompt stream open after its process stops, so a shutdown stop
+		// would otherwise spend the whole production grace waiting for a terminal event.
+		WithDaemonShutdownTurnGrace(20 * time.Millisecond),
 		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        runtimeProviderClaude,
 			ModelID:           claudeProvider.Models.Default,

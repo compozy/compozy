@@ -358,6 +358,14 @@ func WithPromptRecoveryDelays(delays ...time.Duration) Option {
 	}
 }
 
+// WithDaemonShutdownTurnGrace overrides how long a daemon shutdown stop keeps a session's recorder
+// open for the terminal event of the turn it interrupted.
+func WithDaemonShutdownTurnGrace(grace time.Duration) Option {
+	return func(manager *Manager) {
+		manager.daemonShutdownTurnGrace = grace
+	}
+}
+
 // WithSessionAuthRecoveryConfig sets how long a turn waits for a lost provider sign-in.
 func WithSessionAuthRecoveryConfig(config compozyconfig.SessionAuthRecoveryConfig) Option {
 	return func(manager *Manager) {
