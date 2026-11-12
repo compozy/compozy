@@ -4,9 +4,9 @@ import { Logo } from "@compozy/ui";
 
 // The brand's `horizon` Atmosphere visual; the boot page would ship its own self-hosted copy.
 import horizon from "../../../../packages/brand/public/brand/visuals/horizon-1280.jpg";
-import { BootRunner } from "./boot-runner";
-import { useElapsed, useWork } from "./hooks/use-boot-live";
-import type { BootAction, BootScene, BootStep, BootWork } from "./scenes";
+import { BootRunner } from "@/drafts/desktop-boot/boot-runner";
+import { useElapsed, useWork } from "@/drafts/desktop-boot/hooks/use-boot-live";
+import type { BootAction, BootScene, BootStep, BootWork } from "@/drafts/desktop-boot/scenes";
 
 const NUMBER = new Intl.NumberFormat("en-US");
 const FIELD = { cols: 52, rows: 18 };
@@ -242,13 +242,50 @@ function Diagnostics({ scene }: { scene: BootScene }) {
   );
 }
 
+function LeadMessage({ scene }: { scene: BootScene }) {
+  return (
+    <>
+      {scene.detail ? <p className="boot__detail">{scene.detail}</p> : null}
+      {scene.error ? (
+        <>
+          <p className="boot__detail" role="alert">
+            {scene.error.message}
+          </p>
+          <p className="boot__error-code">{scene.error.code}</p>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The one mono line. Only the word and the activity are live: the clock ticks every second, so it
+ * stays readable outside the status region, and it is total boot time, never time without progress.
+ */
+function StatusLine({ scene, alive }: { scene: BootScene; alive: boolean }) {
+  const elapsed = useElapsed(scene.elapsed);
+  const word = STATUS_WORD[scene.state] ?? (scene.work?.moving === false ? "Waiting" : "Working");
+  return (
+    <p className="boot__status">
+      <span className="boot__status-mark" aria-hidden="true" />
+      <span className="boot__status-word" role="status">
+        {word}
+      </span>
+      {alive && elapsed !== null ? <span aria-label="Boot time">{clock(elapsed)}</span> : null}
+      {scene.activity ? (
+        <span className="boot__status-activity" role="status">
+          {scene.activity}
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
 /** The boot page body: what `desktop/pages/boot.html` renders for one boot snapshot. */
 export function BootWindow({ scene }: { scene: BootScene }) {
-  const elapsed = useElapsed(scene.elapsed);
   const work = useWork(scene.work);
   const alive = scene.tone === "progress" || scene.state === "disconnected";
-  const word =
-    STATUS_WORD[scene.state] ?? (scene.work?.moving === false ? "No progress" : "Working");
+  const journey = scene.layout === "journey";
   return (
     <main
       className="boot"
@@ -264,16 +301,8 @@ export function BootWindow({ scene }: { scene: BootScene }) {
           {scene.title}
         </h1>
         {scene.versions ? <Versions versions={scene.versions} /> : null}
-        {scene.detail ? <p className="boot__detail">{scene.detail}</p> : null}
-        {scene.error ? (
-          <>
-            <p className="boot__detail" role="alert">
-              {scene.error.message}
-            </p>
-            <p className="boot__error-code">{scene.error.code}</p>
-          </>
-        ) : null}
-        {scene.layout === "center" && alive ? (
+        <LeadMessage scene={scene} />
+        {!journey && alive ? (
           <Points className="boot__pulse" cols={PULSE.cols} rows={PULSE.rows} fraction={null} />
         ) : null}
         {scene.actions ? (
@@ -283,17 +312,10 @@ export function BootWindow({ scene }: { scene: BootScene }) {
             ))}
           </div>
         ) : null}
-        {scene.layout === "journey" ? <BootRunner autoplay={alive} /> : null}
-        <p className="boot__status" role="status">
-          <span className="boot__status-mark" aria-hidden="true" />
-          <span className="boot__status-word">{word}</span>
-          {alive && elapsed !== null ? (
-            <span aria-label="Elapsed time">{clock(elapsed)}</span>
-          ) : null}
-          {scene.activity ? <span className="boot__status-activity">{scene.activity}</span> : null}
-        </p>
+        {journey ? <BootRunner autoplay={alive} /> : null}
+        <StatusLine scene={scene} alive={alive} />
       </div>
-      {scene.layout === "journey" ? (
+      {journey ? (
         <div className="boot__panel">
           {scene.steps ? <Steps steps={scene.steps} /> : null}
           <Work scene={scene} work={work} />

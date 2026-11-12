@@ -261,7 +261,7 @@ export const SCENES: Record<string, BootScene> = {
     versions: { from: "0.5.4", to: "0.6.0" },
     detail: "This app is older than the runtime on this computer. Update the app to reconnect.",
     ring: "still",
-    actions: ["quit"],
+    actions: ["logs", "quit"],
   },
   error: {
     state: "error",

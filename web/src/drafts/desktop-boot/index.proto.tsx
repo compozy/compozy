@@ -1,9 +1,11 @@
-import "./boot.css";
+import "@/drafts/desktop-boot/boot.css";
+import "@/drafts/desktop-boot/boot-panel.css";
+import "@/drafts/desktop-boot/boot-runner.css";
 
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { BootWindow } from "./boot-window";
-import { SCENES } from "./scenes";
+import { BootWindow } from "@/drafts/desktop-boot/boot-window";
+import { SCENES } from "@/drafts/desktop-boot/scenes";
 
 export const meta = definePrototype({
   title: "Desktop boot and install window",

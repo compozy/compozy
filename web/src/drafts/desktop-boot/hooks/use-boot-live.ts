@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { BootWork } from "../scenes";
+import type { BootWork } from "@/drafts/desktop-boot/scenes";
 
 /** Counts whole seconds from `start`, so every scene opens mid-flight and keeps moving. */
 export function useElapsed(start: number | undefined) {

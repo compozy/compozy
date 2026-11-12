@@ -1,6 +1,6 @@
 import { AgentAvatar } from "@compozy/ui";
 
-import { useBootRunner } from "./hooks/use-boot-runner";
+import { useBootRunner } from "@/drafts/desktop-boot/hooks/use-boot-runner";
 
 /**
  * The waiting game in the lead column's empty ink: an always-on agent's face runs the point
@@ -21,7 +21,14 @@ export function BootRunner({ autoplay }: { autoplay: boolean }) {
         </span>
         <span>{String(score).padStart(3, "0")}</span>
       </p>
-      <button className="boot__runner-track" type="button" aria-label="Jump" onClick={onJump}>
+      {/* Reduced motion stops the game, so the track offers no jump it cannot perform. */}
+      <button
+        className="boot__runner-track"
+        type="button"
+        aria-label="Jump"
+        disabled={still}
+        onClick={onJump}
+      >
         <span ref={runner} className="boot__runner-agent">
           <AgentAvatar
             key={agent}

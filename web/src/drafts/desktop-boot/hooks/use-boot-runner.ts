@@ -158,7 +158,14 @@ export function useBootRunner({ autoplay }: { autoplay: boolean }) {
 
     const onKey = (event: KeyboardEvent) => {
       if (event.code !== "Space" && event.code !== "ArrowUp") return;
-      if (event.target instanceof HTMLElement && event.target.closest("button, a, summary")) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("button, a, summary, input, textarea, select, [contenteditable]"))
+      ) {
+        return;
+      }
       event.preventDefault();
       jump.current();
     };
