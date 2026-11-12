@@ -223,27 +223,18 @@ func (m *Manager) handlePromptPumpEvent(
 	); handled {
 		return failure, errorText, stop
 	}
+	recoveryFailure := false
 	if !runtimeEvent {
-		recoveryCandidate := promptErrorForExitedProcess(
-			session.processHandle(),
-			m.normalizeEvent(session, turnState.turnID, event),
-		)
-		if recoveryCandidate.Type == acp.EventTypeError {
-			if err := m.failDispatchedReports(ctx, session, turnState); err != nil {
-				failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
-				return failure, errorText, true
-			}
+		recovered, terminal, err := m.recoverPromptPumpEvent(ctx, session, turnState, loop, event)
+		if err != nil {
+			failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+			return failure, errorText, true
 		}
-		if reason, ok := promptRecoveryReasonFor(recoveryCandidate); ok && promptRecoveryAllowed(loop) &&
-			!m.daemonShuttingDown() {
-			recovered, err := m.attemptPromptRecovery(ctx, session, turnState, loop, recoveryCandidate, reason)
-			if err != nil {
-				failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
-				return failure, errorText, true
-			}
-			if recovered {
-				return nil, "", false
-			}
+		if terminal != nil {
+			event, recoveryFailure = *terminal, true
+		}
+		if recovered {
+			return nil, "", false
 		}
 	}
 
@@ -254,6 +245,7 @@ func (m *Manager) handlePromptPumpEvent(
 		loop,
 		event,
 		runtimeEvent,
+		recoveryFailure,
 		fatal,
 	)
 	if skip {
@@ -261,6 +253,9 @@ func (m *Manager) handlePromptPumpEvent(
 	}
 
 	fatalPromptFailure := promptFatalFailure(normalized)
+	if recoveryConfigurationFailed(normalized, recoveryFailure) {
+		fatalPromptFailure = store.CloneSessionFailure(normalized.Failure)
+	}
 	if err := m.recordPromptEventWithCost(ctx, turnState, loop, &normalized, runtimeEvent); err != nil {
 		if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, normalized.Type, err) {
 			return nil, "", false
@@ -330,10 +325,13 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 	loop *promptPumpLoopState,
 	event acp.AgentEvent,
 	runtimeEvent bool,
+	recoveryFailure bool,
 	fatal *promptPumpFatal,
 ) (acp.AgentEvent, bool) {
 	normalized := m.normalizeEvent(session, turnState.turnID, event)
-	normalized = promptErrorForExitedProcess(session.processHandle(), normalized)
+	if !recoveryFailure {
+		normalized = promptErrorForExitedProcess(session.processHandle(), normalized)
+	}
 	ownsTurnStop := session.ownsTurnStop(turnState.turnID)
 	if (ownsTurnStop || m.daemonShuttingDown()) && normalized.Type == acp.EventTypeError &&
 		normalized.Failure != nil && (normalized.Failure.Kind == store.FailureProcess ||
@@ -352,7 +350,7 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 		return acp.AgentEvent{}, true
 	}
 	attachDiagnostics := true
-	if isFatalPromptFailureEvent(normalized) {
+	if isFatalPromptFailureEvent(normalized) || recoveryConfigurationFailed(normalized, recoveryFailure) {
 		attachDiagnostics = m.prepareFatalPromptFailureEvent(ctx, session, normalized, fatal)
 	}
 	if attachDiagnostics {
@@ -360,7 +358,7 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 	}
 	normalized = m.preparePromptEvent(ctx, turnState, normalized)
 	normalized = transcript.RedactAgentEvent(normalized)
-	if isFatalPromptFailureEvent(normalized) {
+	if isFatalPromptFailureEvent(normalized) || recoveryConfigurationFailed(normalized, recoveryFailure) {
 		session.setFailure(store.CloneSessionFailure(normalized.Failure))
 	}
 	return normalized, false
@@ -371,4 +369,8 @@ func promptFatalFailure(event acp.AgentEvent) *store.SessionFailure {
 		return nil
 	}
 	return store.CloneSessionFailure(event.Failure)
+}
+
+func recoveryConfigurationFailed(event acp.AgentEvent, recoveryFailure bool) bool {
+	return recoveryFailure && event.Failure != nil && event.Failure.Kind == store.FailureProtocol
 }

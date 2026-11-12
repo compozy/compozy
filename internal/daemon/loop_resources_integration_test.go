@@ -561,16 +561,14 @@ func (p *loopWatcherTestPublisher) Sync(context.Context) error {
 func TestLoopResultViewsIntegration(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name                 string
-		preView, full, patch bool
-		corrected            bool
+		name         string
+		full, patch  bool
+		singleResult bool
 	}{
 		{name: "Should complete an unchanged compact definition"},
-		{name: "Should resume a corrected single-result schema without a selector", corrected: true},
-		{name: "Should resume a pre-view snapshot with its full result", preView: true},
+		{name: "Should complete a single-result tool without a selector", singleResult: true},
 		{name: "Should complete a pinned full node", full: true},
 		{name: "Should reject a hook downgrade of a pinned full node", full: true, patch: true},
-		{name: "Should reject a hook downgrade of a resumed pre-view node", preView: true, patch: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -591,8 +589,8 @@ func TestLoopResultViewsIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			var calls atomic.Int32
-			live := loopResultViewDescriptor(t, true)
-			if tc.corrected {
+			live := loopResultViewDescriptor(t)
+			if tc.singleResult {
 				for _, descriptor := range builtin.NativeDescriptors() {
 					if descriptor.ID == toolspkg.ToolIDLoopRequest {
 						live = descriptor
@@ -601,27 +599,13 @@ func TestLoopResultViewsIntegration(t *testing.T) {
 				}
 			}
 			registry := loopResultViewRegistry(t, live, &calls, nil)
-			initial := registry
-			if tc.corrected {
-				old := live
-				old.OutputSchema = supersededNativeOutputSchema(t, live.ID)
-				var err error
-				old, err = toolspkg.DescriptorWithSchemaDigests(old)
-				if err != nil {
-					t.Fatal(err)
-				}
-				initial = loopResultViewRegistry(t, old, &calls, nil)
-			}
-			if tc.preView {
-				initial = loopResultViewRegistry(t, loopResultViewDescriptor(t, false), &calls, nil)
-			}
 			node := loopdsl.Node{
 				ID:     "inspect",
 				Class:  loopdsl.NodeClassAction,
 				Kind:   live.ID.String(),
 				Params: loopdsl.NodeParams{},
 			}
-			if tc.corrected {
+			if tc.singleResult {
 				node.Params = loopdsl.NodeParams{"run_id": "run-request", "generation": 1, "node_id": "ask"}
 			}
 			if tc.full {
@@ -641,10 +625,10 @@ func TestLoopResultViewsIntegration(t *testing.T) {
 				},
 				Graph: loopdsl.Graph{Nodes: []loopdsl.Node{node}},
 			}
-			if tc.corrected {
+			if tc.singleResult {
 				definition.Contract.StopWhen.Expr = `nodes.inspect.status == "succeeded" && nodes.inspect.output.node_id == "ask"`
 			}
-			resolved, err := newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(ctx, initial)).Compile(definition)
+			resolved, err := newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(ctx, registry)).Compile(definition)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -769,7 +753,7 @@ func TestLoopResultViewsIntegration(t *testing.T) {
 				t.Fatalf("output=%#v worker=%#v calls=%d", outputs[0], settled, calls.Load())
 			}
 			hasDetails := strings.Contains(string(settled.ResultValue()), "full-only")
-			if !tc.corrected && hasDetails != (tc.preView || tc.full) {
+			if !tc.singleResult && hasDetails != tc.full {
 				t.Fatalf("result=%s", settled.ResultValue())
 			}
 			wake, added, err := db.EnqueueLoopCoordinatorWake(
@@ -802,7 +786,7 @@ func TestLoopResultViewsIntegration(t *testing.T) {
 	}
 }
 
-func loopResultViewDescriptor(t *testing.T, views bool) toolspkg.Descriptor {
+func loopResultViewDescriptor(t *testing.T) toolspkg.Descriptor {
 	t.Helper()
 	const full = `{"type":"object","properties":{"id":{"type":"string"},"details":{"type":"string"}},"additionalProperties":false}`
 	descriptor := toolspkg.Descriptor{
@@ -819,25 +803,18 @@ func loopResultViewDescriptor(t *testing.T, views bool) toolspkg.Descriptor {
 		Risk:       toolspkg.RiskRead,
 		ReadOnly:   true,
 	}
-	if views {
-		before, err := toolspkg.SchemaDigest(descriptor.InputSchema)
-		if err != nil {
-			t.Fatal(err)
-		}
-		descriptor.InputSchema = json.RawMessage(
-			`{"type":"object","properties":{"result_view":{"type":"string","enum":["compact","full"]}},"additionalProperties":false}`,
-		)
-		descriptor.OutputSchema = json.RawMessage(
-			`{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`,
-		)
-		descriptor.SetResultViews(
-			&toolspkg.ResultViews{
-				Compact:                  toolspkg.ResultViewContract{Schema: descriptor.OutputSchema},
-				Full:                     toolspkg.ResultViewContract{Schema: json.RawMessage(full)},
-				PreViewInputSchemaDigest: before,
-			},
-		)
-	}
+	descriptor.InputSchema = json.RawMessage(
+		`{"type":"object","properties":{"result_view":{"type":"string","enum":["compact","full"]}},"additionalProperties":false}`,
+	)
+	descriptor.OutputSchema = json.RawMessage(
+		`{"type":"object","properties":{"id":{"type":"string"}},"additionalProperties":false}`,
+	)
+	descriptor.SetResultViews(
+		&toolspkg.ResultViews{
+			Compact: toolspkg.ResultViewContract{Schema: descriptor.OutputSchema},
+			Full:    toolspkg.ResultViewContract{Schema: json.RawMessage(full)},
+		},
+	)
 	result, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
 	if err != nil {
 		t.Fatal(err)
@@ -936,21 +913,4 @@ func loopResultViewDowngradeHook(t *testing.T, db *globaldb.GlobalDB, workspaceI
 		t.Fatal(err)
 	}
 	return &nativeToolHookRunner{hooks: h.notifier, binder: &nativeWorkspaceInputBinder{}}
-}
-
-func supersededNativeOutputSchema(t *testing.T, id toolspkg.ToolID) json.RawMessage {
-	t.Helper()
-	data, err := os.ReadFile("../tools/builtin/testdata/superseded-output-schemas.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var schemas map[string]json.RawMessage
-	if err := json.Unmarshal(data, &schemas); err != nil {
-		t.Fatal(err)
-	}
-	schema, ok := schemas[id.String()]
-	if !ok {
-		t.Fatalf("missing old contract for %s", id)
-	}
-	return schema
 }

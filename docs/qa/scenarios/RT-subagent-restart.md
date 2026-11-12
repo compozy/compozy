@@ -83,3 +83,10 @@ bundle install leaves the live daemon untouched; failure to request coordinated 
 falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
 remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
 Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).
+
+Native result replay regression: seed recently settled native calls in several turns
+of one parent, with committed summaries. Recovery reads that parent's native history
+once per candidate page, preserves each call's result and exhausts event/candidate
+pages. Unfinalized interruption recovery remains grouped by turn. The existing
+`TestSubagentNativeRecoveryEdges` suite owns the read-count and result assertions.
+No boot-latency benchmark or live-provider receipt is claimed; verification is CI-only.

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
@@ -23,6 +22,7 @@ func (p *Provider) restDisplayStatus(
 		FetchedAt: p.now().UTC(),
 		Selection: "complete",
 	}
+	headBranch := pullHeadBranch(branch)
 	for _, state := range []string{"open", "closed"} {
 		path, err := url.Parse(pullListPath(repo, branch, state))
 		if err != nil {
@@ -50,14 +50,14 @@ func (p *Provider) restDisplayStatus(
 				response.Selection = pullSelectionIncomplete
 				return response, nil
 			}
-			if pull.Head.Ref != branch {
+			if pull.Head.Ref != headBranch {
 				continue
 			}
 			if pull.Head.Repo == nil || pull.Head.Repo.FullName == "" || pull.UpdatedAt.IsZero() {
 				response.Selection = pullSelectionIncomplete
 				return response, nil
 			}
-			if pull.State != state || !strings.EqualFold(pull.Head.Repo.FullName, repo.owner+"/"+repo.name) {
+			if pull.State != state || !matchesHeadRepository(repo, branch, pull.Head.Repo.FullName) {
 				continue
 			}
 			if selected == nil || pull.UpdatedAt.After(selected.UpdatedAt) {

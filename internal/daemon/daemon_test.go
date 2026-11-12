@@ -1062,6 +1062,9 @@ func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
 		case bootErr := <-bootResult:
 			t.Fatalf("boot() returned before late reconciliation: %v", bootErr)
 		case <-ctx.Done():
+			stacks := make([]byte, 64<<10)
+			stacks = stacks[:runtime.Stack(stacks, true)]
+			t.Logf("bounded boot timeout goroutines:\n%s", stacks)
 			t.Fatalf("boot() did not reach late reconciliation: %v", ctx.Err())
 		}
 
@@ -4230,6 +4233,41 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 	for err := range providerErrors {
 		t.Errorf("extension declaration provider error = %v", err)
 	}
+}
+
+// Boot watchers must observe a fully published check service without racing its owner.
+func TestBootStateProactiveChecksAccessIsSynchronized(t *testing.T) {
+	t.Run("Should publish proactive checks safely to concurrent boot watchers", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{}
+		service := new(heartbeat.CheckService)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for range 16 {
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				<-start
+				for range 128 {
+					state.setProactiveChecks(service)
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				for range 128 {
+					if got := state.currentProactiveChecks(); got != nil && got != service {
+						t.Errorf("published check service = %p, want nil or %p", got, service)
+					}
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+		if got := state.currentProactiveChecks(); got != service {
+			t.Fatalf("published check service = %p, want %p", got, service)
+		}
+	})
 }
 
 func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {

@@ -63,3 +63,13 @@ explicit User selector; `TestAgentMemoryStartup` owns definition-origin identity
 and parity between catalog projection and startup memory.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): memory routes and tools called for an on-demand agent return `agent_not_always_on`; the experimental routes have no compatibility window. Not walked; S4 walks it on the integration head.
+
+2026-11-12 (always-on binding context) QA impact: the startup snapshot now holds notes
+only. A line starting `- [rule] ` is an operator rule: it is left out of the
+`compozy-agent-memory` fence and delivered with turns in `compozy-standing-context`
+(`RT-always-on-standing-context`). Re-walk steps 2, 3 and 5 with one rule in the file and
+confirm the fence text says rules arrive in the standing context. Agent memory tools refuse
+rule edits with `agent_memory_rule_protected`; `compozy agent memory add --kind rule` and the
+HTTP add route with `kind: "rule"` write one. Owning suites: `TestStore`,
+`TestAgentMemoryRoutes`, `TestAgentMemoryNativeTools`,
+`TestPromptInputCompositeIntegrationStandingContext`.

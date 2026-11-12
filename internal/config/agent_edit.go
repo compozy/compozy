@@ -141,6 +141,7 @@ func agentDefFromParsedFile(
 		SourcePath:      filepath.Clean(path),
 	}
 	agent.SetLeanEnvironment(parsed.LeanEnvironment)
+	agent.SetAccepts(parsed.Accepts)
 	agent.SetSpeed(parsed.Speed)
 	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", parsed.ACPOptions)
 	if err != nil {
@@ -186,6 +187,7 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.PermissionRules = append([]PermissionRule(nil), agent.PermissionRules...)
 	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	parsed.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
+	parsed.Accepts = agent.AcceptsValue()
 	parsed.MCPServers = cloneMCPServers(agent.MCPServers)
 	parsed.FallbackChain = normalizeRoleFallbacks(agent.FallbackChain)
 	hooks, err := parsedHookDeclarationsFromHookDecls(agent.Hooks, agent.Name)

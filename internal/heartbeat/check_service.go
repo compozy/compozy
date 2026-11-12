@@ -17,14 +17,15 @@ import (
 )
 
 type CheckTarget struct {
-	ReadOnlyTools          map[string][]string
-	DefinitionDir, RootDir string
-	UntrustedScripts       bool
-	Instance               agentinstance.Instance
-	Policy                 ResolvedPolicy
-	Scope                  CollectorScope
-	Gate                   string
-	MainPrompting          bool
+	TriageProvider, TriageModel string
+	ReadOnlyTools               map[string][]string
+	DefinitionDir, RootDir      string
+	UntrustedScripts            bool
+	Instance                    agentinstance.Instance
+	Policy                      ResolvedPolicy
+	Scope                       CollectorScope
+	Gate                        string
+	MainPrompting               bool
 }
 type CheckEnvironment interface {
 	ResolveCheck(context.Context, string) (CheckTarget, error)

@@ -171,7 +171,9 @@ scheduler/manual/harness ──► HeartbeatWakeService
 
 Wake guarantees:
 
-1. The wake service evaluates the latest valid `HEARTBEAT.md` snapshot at wake-decision time.
+1. Manual wake resolves the current `HEARTBEAT.md` through the same policy loader as status,
+   including repository edits without an authoring revision. A real wake persists its snapshot; a
+   dry run evaluates without writing one. Scheduler and harness wakes use persisted snapshots.
 2. Wake never calls `ClaimNextRun`, never creates `task_runs`, never renews leases, and never
    issues raw claim tokens.
 3. Wake serializes with the session prompt gate. If a user/model prompt starts concurrently, wake
@@ -221,7 +223,7 @@ compozy agent heartbeat status reviewer --json
 ```
 
 There is no `compozy agent heartbeat refresh` command in MVP. Managed writes create new snapshots,
-and wake decisions evaluate the latest valid snapshot at wake-decision time.
+and manual wake resolves the current file even when no managed write has created a snapshot.
 
 Recent wake events include proactive checks: `timer` identifies scheduled checks and
 `instance_check` identifies manual instance checks. These retain their check outcomes
@@ -240,7 +242,7 @@ Common deterministic codes:
 | `heartbeat_conflict`                                   | `expected_digest` did not match.                                          |
 | `heartbeat_if_match_header_unsupported`                | HTTP `If-Match` header was sent; use `expected_digest` instead.           |
 | `heartbeat_rate_limited`                               | The agent exceeded `max_wakes_per_cycle` for the current scheduler cycle. |
-| `heartbeat_no_policy`                                  | No valid snapshot exists for the agent.                                   |
+| `heartbeat_no_policy`                                  | No current manual policy or stored scheduler/harness snapshot exists.     |
 | `cooldown_active`                                      | The session is inside `wake_cooldown` from a prior wake.                  |
 | `quiet_window`                                         | Wake fell inside an authored quiet window.                                |
 | `session_not_found`                                    | The target session id was not resolved.                                   |
@@ -408,6 +410,15 @@ Healthy, unapproved and disabled sources are eligible on every check that passes
 
 ## Check-in tools and authority
 
+A check-in's final assistant message must contain only `NOTHING_TO_REPORT` or one JSON
+object with `proposals`. A single Markdown fence and plain commentary around a proposal
+object are tolerated. Multiple objects or fences, braces or array brackets in surrounding
+commentary, and a sentinel mixed with proposals are rejected as ambiguous. The envelope
+and proposal fields remain strictly validated; earlier assistant messages and tool output
+are not parsed as proposals. Invalid replies keep the `triage_output_invalid` reason and
+include a static validation category in the redacted report detail: `framing`,
+`ambiguous_reply`, or `schema`.
+
 A check-in that reaches the model can use native and MCP read tools through the
 hosted gateway. Provider built-in tools remain in their confirmed read-only mode.
 The instance's current main-session permissions and tool grants remain the ceiling.
@@ -569,3 +580,19 @@ are canceled. A new failure raises attention again.
 The local operator can use `compozy agent instance mark-seen <id>` or
 `POST /api/agent-instances/{id}/away` for the same acknowledgement. Reports remain in history
 and keep their provider delivery state: reading them does not send them to the agent.
+
+### Recovering rejected check-in configuration
+
+A check-in rejected with `triage_config_unavailable` waits up to
+`agents.heartbeat.max_interval` before retrying. Applying heartbeat or provider runtime
+configuration reschedules affected active instances within their normal resolved cadence
+and clears the quiet and failure backoff. A fresh live provider model catalog confirming
+the configured triage model also schedules recovery in that profile and workspace.
+Paused, archived, disabled, and in-flight instances are left alone. Pending automation
+events and unattended-turn counts are preserved.
+
+Instance status and list responses explain the last runtime rejection in the next check's
+description. Use `agent_instance_check` to retry manually after correcting configuration.
+
+Manual wake `source` accepts `timer`, `instance_check`, `scheduler`, `manual`, or `harness_reentry`
+(default: `manual`). Unknown values return a validation error listing these values.

@@ -176,6 +176,9 @@ func (m *Manager) preparePromptRequestMessage(
 	session *Session,
 	req *promptRequest,
 ) (string, error) {
+	if err := m.validateSpawnWake(ctx, session.ID, req.meta.Synthetic); err != nil {
+		return "", err
+	}
 	if req.delivery == PromptDeliveryMaintenance {
 		return req.message, nil
 	}
@@ -217,6 +220,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
+	if err := m.validateSpawnWake(ctx, session.ID, req.meta.Synthetic); err != nil {
+		return nil, err
+	}
 	if err := m.recordRestartBoundary(session, req); err != nil {
 		return nil, err
 	}
@@ -408,9 +414,10 @@ func (m *Manager) promptDispatchMessage(
 	}
 	ctx, sections := acp.CollectPromptSections(ctx)
 	augmented, err := m.augmentPromptMessage(ctx, session, message)
+	collected := sections()
 	return preparedPromptInput{
-		message:  promptOriginMessage(session.CurrentPromptMeta().Origin, augmented),
-		sections: sections(),
+		message:  promptOriginMessageAfter(session.CurrentPromptMeta().Origin, augmented, collected),
+		sections: collected,
 	}, err
 }
 

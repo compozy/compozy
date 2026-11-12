@@ -36,7 +36,7 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
   compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 -o json
 
   # Decode page bytes directly to stdout
-  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536`,
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 32768`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uri := strings.TrimSpace(args[0])
@@ -80,7 +80,10 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&flags.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().Int64Var(&flags.offset, "offset", 0, "Zero-based byte offset")
-	cmd.Flags().Int64Var(&flags.limit, "limit", 0, "Page size in bytes (default and maximum 65536)")
+	cmd.Flags().Int64Var(&flags.limit, "limit", 0, fmt.Sprintf(
+		"Page size in bytes (default %d, maximum %d)",
+		toolspkg.DefaultToolArtifactPageBytes, toolspkg.MaxToolArtifactPageBytes,
+	))
 	return cmd
 }
 

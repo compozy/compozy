@@ -235,3 +235,35 @@ fails must remain recoverable from the ledger; provider output rejected at the s
 is not a committed observation. The native lifecycle and Manager persistence suites own these
 deterministic checks; the native daemon integration uses real ACP subprocesses and SQLite.
 CI owns the full transport journey; these schedules do not claim a live-provider occurrence.
+
+
+QA impact 2026-11-12 (issue #1566): create a child with `notify_creator: false` and let its
+parent register a session monitor covering the child and `needs-attention`. When the child
+ends with no open work, require one monitor wake and no additional early-stop session wake.
+A monitor owned by another session, watching another child or another state, or canceled before
+settlement must not suppress the alarm. Repeat with a monitor that fires before creator-wake
+dispatch; its already-admitted outcome still covers that same attention occurrence.
+For investigation/report children, the alarm asks the parent to review the final answer and does
+not assume a pull request deliverable. Queue an alarm behind a busy parent, start a newer child
+turn, then release the parent: the old alarm must be marked stale/failed before provider dispatch.
+The current revision's alarm must still run. Owning regressions extend
+`TestManagerEarlyStopSupervision`, `TestSessionWorkSourcesMonitors`, and `TestSessionWakeBridge`.
+Validation is CI-only by operator instruction; no local tests, lint, builds or live QA were run.
+
+Review-round coverage for #1566: deliver the alarm synchronously while the child's settling
+turn is still registered and its creator is idle; that current-turn alarm must reach the
+provider. Advance the child from an input hook, prompt augmenter and turn-start hook in turn;
+final provider dispatch must discard each old alarm. A transient durable child lookup returns
+the input to the queue for retry; intentional stale drops retain an explicit suppression reason.
+The same suites cover admitted and retrying monitor outcomes against newer attention timestamps.
+
+The final extension-boundary check runs before the first restart checkpoint and prompt-input
+record. Discarded alarms leave neither a replayable input nor a checkpoint for AutoContinue.
+Once a valid creator turn reaches the provider, runtime recovery replays that admitted turn even
+if the creator has since prompted its child. `TestPromptRuntimeRecovery` owns this regression;
+the stale extension cases in the spawn-wake suite also assert no persisted restart input.
+
+Viewing the child while its alarm waits must advance the operator's seen revision without canceling
+the creator's alarm for that same ended-early turn. The alarm identity is fenced by transcript epoch
+and ended-early turn, rather than the operator's seen revision. The canonical spawn-wake suite
+covers presence acknowledgement before queued delivery as well as actual child advancement.

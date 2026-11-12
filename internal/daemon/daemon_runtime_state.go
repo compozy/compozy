@@ -36,6 +36,7 @@ type daemonRuntimeState struct {
 	runtimeWorkers    daemonRuntimeWorkers
 	terminals         *terminalpkg.Service
 	situationContext  *situation.Service
+	standingContext   *standingContextAugmenter
 	sessions          SessionManager
 	sessionWakeBridge *sessionWakeBridge
 	sessionMonitors   *monitorpkg.Service

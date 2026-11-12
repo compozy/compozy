@@ -2821,6 +2821,175 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 	t.Parallel()
 	actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 
+	for _, visible := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should retain the worktree lease across exec yield visible=%t", visible),
+			func(t *testing.T) {
+				t.Parallel()
+				checkout := t.TempDir()
+				child := filepath.Join(checkout, "child")
+				if err := os.Mkdir(child, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				var leases atomic.Int32
+				manager, starter, _ := newTestManager(t, DefaultSettings(), WithWorktreeRootResolver(
+					func(_ context.Context, ws, profile, ref string) (string, func(), error) {
+						if ws != "workspace-a" || profile != "profile-a" || ref != "wt-ready" {
+							return "", nil, worktreeNotFoundError(ref)
+						}
+						leases.Add(1)
+						return checkout, func() { leases.Add(-1) }, nil
+					},
+				))
+				result, err := manager.Exec(t.Context(), ExecRequest{
+					WS: "workspace-a", Worktree: "wt-ready", Cwd: "child", Command: "pwd",
+					Actor: Actor{
+						Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+						SessionID: "session-a", RunID: "run-a", Generation: 1,
+					},
+					Approval: "allowlisted", Visible: visible, YieldMs: 250,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !result.StillRunning || result.TerminalID == nil {
+					t.Fatalf("Exec() = %#v, want running terminal", result)
+				}
+				proc := receiveStartedProc(t, starter)
+				want, err := filepath.EvalSymlinks(child)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if proc.spec.Cwd != want || leases.Load() != 1 {
+					t.Fatalf("cwd=%q leases=%d, want %q and 1", proc.spec.Cwd, leases.Load(), want)
+				}
+				proc.complete(terminalExit("exited", new(0), nil))
+				handle, err := manager.Handle(t.Context(), "workspace-a", "profile-a", *result.TerminalID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := handle.Wait(t.Context(), WaitCondition{Until: "exit", TimeoutMs: 2000}); err != nil {
+					t.Fatal(err)
+				}
+				if leases.Load() != 0 {
+					t.Fatalf("leases after exit=%d, want 0", leases.Load())
+				}
+			},
+		)
+	}
+
+	t.Run("Should reject unauthorized worktrees and cwd escapes before exec spawn", func(t *testing.T) {
+		t.Parallel()
+		checkout, bound := t.TempDir(), t.TempDir()
+		var leases atomic.Int32
+		manager, starter, root := newTestManager(t, DefaultSettings(),
+			WithExecutionRootResolver(func(_ context.Context, _ string, actor Actor) (string, error) {
+				if actor.SessionID == "bound" {
+					return bound, nil
+				}
+				return "", nil
+			}),
+			WithWorktreeRootResolver(func(_ context.Context, ws, profile, ref string) (string, func(), error) {
+				if ref == "wt-pending" {
+					return "", nil, &Error{Code: ErrorCodeWorktreeNotReady, Err: ErrWorktreeNotReady}
+				}
+				if ws != "workspace-a" || profile != "profile-a" || ref != "wt-ready" {
+					return "", nil, worktreeNotFoundError(ref)
+				}
+				leases.Add(1)
+				return checkout, func() { leases.Add(-1) }, nil
+			}),
+		)
+		for _, tc := range []struct {
+			ref, cwd, profile, session string
+			want                       error
+		}{
+			{"wt-ready", root, "profile-a", "unbound", ErrInvalidCwd},
+			{"wt-ready", "", "profile-b", "unbound", ErrWorktreeNotFound},
+			{"wt-unknown", "", "profile-a", "unbound", ErrWorktreeNotFound},
+			{"", checkout, "profile-a", "unbound", ErrInvalidCwd},
+			{"wt-ready", "", "profile-a", "bound", ErrInvalidCwd},
+			{"wt-pending", "", "profile-a", "unbound", ErrWorktreeNotReady},
+		} {
+			_, err := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-a", Worktree: tc.ref, Cwd: tc.cwd, Command: "pwd", Approval: "allowlisted",
+				Actor: Actor{
+					Kind: ActorKindAgent, ID: "agent", ProfileID: tc.profile,
+					SessionID: tc.session, RunID: "run-a", Generation: 1,
+				},
+			})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("Exec(%+v) error=%v, want %v", tc, err, tc.want)
+			}
+			if errors.Is(err, ErrInvalidCwd) && tc.session != "bound" &&
+				!strings.Contains(err.Error(), "worktree option") {
+				t.Fatalf("missing alternative in error: %v", err)
+			}
+		}
+		if starter.starts.Load() != 0 || leases.Load() != 0 {
+			t.Fatalf("starts=%d leases=%d after refusal", starter.starts.Load(), leases.Load())
+		}
+	})
+
+	for _, stage := range []string{"registration", "visible publication"} {
+		t.Run("Should retain the worktree lease until exec rollback exits after failed "+stage, func(t *testing.T) {
+			t.Parallel()
+			checkout := t.TempDir()
+			var releases atomic.Int32
+			released := make(chan struct{}, 1)
+			failure := errors.New("registration refused")
+			var starter *fakePTY
+			settings := DefaultSettings()
+			settings.MaxPerWorkspace = 1
+			manager, started, _ := newTestManager(t, settings,
+				WithWorktreeRootResolver(func(context.Context, string, string, string) (string, func(), error) {
+					return checkout, func() {
+						releases.Add(1)
+						released <- struct{}{}
+					}, nil
+				}),
+				withProcessRegister(
+					func(_ context.Context, config toolruntime.RegisterConfig) (processCheckpoint, error) {
+						if config.Command != "exec-test" {
+							return nil, nil
+						}
+						starter.latest().failKill(errors.New("kill refused"))
+						if stage == "registration" {
+							return nil, failure
+						}
+						return nil, nil
+					},
+				),
+			)
+			starter = started
+			if stage == "visible publication" {
+				openTestTerminal(t, manager, "workspace-a", "profile-a")
+				receiveStartedProc(t, starter)
+				failure = ErrLimitReached
+			}
+			_, err := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-a", Worktree: "wt-ready", Command: "exec-test", Actor: actor,
+				Visible: stage == "visible publication",
+			})
+			if !errors.Is(err, failure) {
+				t.Fatalf("Exec() error=%v, want %v", err, failure)
+			}
+			proc := receiveStartedProc(t, starter)
+			if releases.Load() != 0 {
+				t.Fatal("lease released while the process survived rollback")
+			}
+			proc.complete(terminalExit("exited", new(0), nil))
+			select {
+			case <-released:
+			case <-time.After(2 * time.Second):
+				t.Fatal("lease retained after process exit")
+			}
+			if releases.Load() != 1 {
+				t.Fatalf("lease releases=%d, want 1", releases.Load())
+			}
+		})
+	}
+
 	t.Run("Should bind declared environment and retain redaction through command completion", func(t *testing.T) {
 		t.Parallel()
 		released := make(chan struct{})

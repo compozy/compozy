@@ -233,6 +233,13 @@ func normalizeSpec(spec Spec) (Spec, error) {
 }
 
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
+	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
+		if strings.TrimSpace(owner) == "" || strings.TrimSpace(branch) == "" || strings.Contains(branch, ":") {
+			return Spec{}, invalid(
+				"qualified pull_request branch must use owner:branch with a non-empty owner and branch",
+			)
+		}
+	}
 	if spec.TerminalID != "" || spec.Pattern != "" || spec.Until != "" || spec.Delay != 0 {
 		return Spec{}, invalid("pull_request monitors accept only branch and timeout_seconds")
 	}
@@ -288,3 +295,11 @@ func invalid(message string) error {
 
 // InvalidSpec reports a refused monitor request whose static message guides the caller to correct it.
 func InvalidSpec(message string) error { return invalid(message) }
+
+// observable hides the legacy cancellation timestamp retained for durable history pruning.
+func (m Monitor) observable() Monitor {
+	if m.Status == StatusCanceled {
+		m.FiredAt = time.Time{}
+	}
+	return m
+}

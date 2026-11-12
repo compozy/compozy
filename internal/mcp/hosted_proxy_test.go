@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/tools/builtin"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -678,6 +680,51 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 // TestHostedProxyHelpers verifies hosted result projection, fallback content, error classification, and exact JSON deduplication.
 func TestHostedProxyHelpers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should keep default artifact pages below the duplicated transport budget", func(t *testing.T) {
+		t.Parallel()
+		store, err := tools.OpenFilesystemToolArtifactStore(t.Context(), t.TempDir(), tools.ToolArtifactRetention{
+			MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := workspaceaccess.ScopeTarget("workspace-a", "")
+		ref, err := store.Put(t.Context(), scope, []byte(strings.Repeat("x", 128<<10)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		page, err := store.ReadPage(t.Context(), scope, ref.URI, 0, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(decoded) != 32<<10 || page.NextOffset != int64(len(decoded)) || page.EOF {
+			t.Fatalf("default page = %#v, want a complete 32 KiB first page", page)
+		}
+		payload, err := json.Marshal(page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := hostedToolResult(tools.ToolResult{Structured: payload, Preview: "Artifact page"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		envelope, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(envelope) >= 128<<10 || result.StructuredContent == nil || len(result.Content) != 2 {
+			t.Fatalf("hosted artifact envelope = %d bytes, want duplicated payload below 128 KiB", len(envelope))
+		}
+		maximum, err := store.ReadPage(t.Context(), scope, ref.URI, 0, tools.MaxToolArtifactPageBytes)
+		if err != nil || maximum.Bytes != 64<<10 {
+			t.Fatalf("explicit maximum page = %d bytes, %v; want compatible 64 KiB read", maximum.Bytes, err)
+		}
+	})
 
 	t.Run("Should build descriptions from title and descriptor text", func(t *testing.T) {
 		t.Parallel()

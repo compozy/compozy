@@ -111,6 +111,7 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		MessageID: normalized.WakeEventID,
 		Message:   sessionWakePromptMessage(normalized),
 		Metadata: acp.PromptSyntheticMeta{
+			Kind:           sessionWakeKind(normalized),
 			ChildSessionID: normalized.ChildSessionID,
 			ChildAgentName: normalized.ChildAgentName,
 			Badge:          string(normalized.Badge),
@@ -174,9 +175,16 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 	return session.SanitizeSpawnWakeText(strings.Join(lines, "\n"))
 }
 
+func sessionWakeKind(event session.SpawnWakeEvent) string {
+	if event.EndedEarly {
+		return session.SpawnWakeKindEndedEarly
+	}
+	return ""
+}
+
 func sessionWakeAction(event session.SpawnWakeEvent) string {
 	if event.EndedEarly {
-		return "It stopped before delivering. Prompt it to continue, or stop it with compozy__session_stop."
+		return "Review its answer and decide whether to prompt it again or stop it with compozy__session_stop."
 	}
 	switch event.Badge {
 	case session.BadgeWaitingForInput:

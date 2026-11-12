@@ -154,7 +154,14 @@ relative margin. The median of the four head-max/budget ratios must be at most
 COMMIT of at least one second, and its entire elapsed time fits **its own pair's**
 budget. A large baseline in another pair or a favorable median cannot excuse that
 warning. Missing/nonfinite/nonpositive tail samples and baseline transcript
-operation errors fail calibration. Head operation errors, other warnings,
+operation errors fail calibration. When that control is unusable, the pair uses
+the unchanged absolute 1,000 ms budget instead: every such head maximum must
+meet that ceiling, even if the median passes, and no COMMIT warning in that pair
+is eligible for an exemption. Missing or invalid head samples still fail. An
+expired historical control cannot itself prove a regression when the head meets
+the absolute budget without calibration. All four head ratios remain in the
+median; none is dropped. `budget_basis` records the decision for each pair.
+Head operation errors, other warnings,
 retention and upgrade correctness remain strict. `results.json` and `report.md`
 retain every raw warning in JSON and every head warning with its individual
 decision in Markdown, alongside paired maxima, budgets and ratios.
@@ -211,6 +218,19 @@ workload regions and scheduling, GC, lock and syscall events for diagnosis. It
 is uploaded as `head-diagnostic.trace`; `go tool trace` can inspect it or produce
 `-pprof=sync`, `-pprof=syscall` and `-pprof=sched` profiles. This replay never
 replaces a measurement or turns the original failure into a passing job.
+
+For pauses that do not recur in a replay, manually dispatch the same workflow
+with `runtime_trace_trials=true`. Both binaries record Go traces during each
+original trial, buffered in memory and written only after the workload drains.
+The per-trial `.trace`, JSON and log files then describe the same execution.
+`results.json` identifies these diagnostic timings with `runtime_trace_trials`;
+they cannot replace the required uninstrumented acceptance runs. All failed
+samples and the unchanged acceptance decisions remain in the artifact.
+The workflow uses a separate `SQLite traced diagnostic (not acceptance)` check
+name for this mode. Recording still changes CPU/GC behavior: the heap buffer
+can grow to tens of megabytes, affect GC pacing and incur copying/page faults.
+An abrupt process kill loses the buffered trace. These recordings can identify
+syscall stacks during a pause; they are not an undisturbed GC/latency control.
 
 For a dedicated Linux lab, build the harness in each checkout, then run:
 

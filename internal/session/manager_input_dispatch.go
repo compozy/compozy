@@ -321,9 +321,14 @@ func (m *Manager) handleQueuedInputDispatchError(
 	// Batched entries never started: they return to the queue whatever failed, and a follower that
 	// fails on its own is retried as the next head and settled there.
 	m.releaseQueuedInputBatch(session, target, entry.batch)
-	if errors.Is(cause, ErrPromptInProgress) || errors.Is(cause, ErrSessionNotActive) {
+	if errors.Is(cause, ErrPromptInProgress) || errors.Is(cause, ErrSessionNotActive) ||
+		errors.Is(cause, errSpawnWakeLookup) {
 		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.id); err != nil {
 			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.id, "error", err)
+		}
+		if errors.Is(cause, errSpawnWakeLookup) {
+			m.sessionLogger(session).Warn("session: retry child wake lookup", "entry_id", entry.id, "error", cause)
+			m.scheduleQueuedInputReselect(target)
 		}
 		return
 	}
@@ -341,12 +346,21 @@ func (m *Manager) handleQueuedInputDispatchError(
 			m.logSubagentError(service.OnWakeFailed(m.fallbackLifecycleContext(), target, entry.messageID))
 		}
 	}
+	marker := "Queued input failed before dispatch."
+	if errors.Is(cause, errSpawnWakeStale) && req.meta.Synthetic != nil {
+		meta := req.meta.Synthetic
+		m.logSpawnWakeSuppressed(m.fallbackLifecycleContext(), target, SpawnWakeEvent{
+			ChildSessionID: meta.ChildSessionID, WakeEventID: meta.WakeEventID,
+			Reason: SpawnWakeReason(meta.Reason), Badge: Badge(meta.Badge),
+		}, "stale", nil)
+		marker = "Stale child wake discarded before dispatch."
+	}
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
 		session,
 		req.turnID,
 		transcript.MarkerPromptDropped,
-		"Queued input failed before dispatch.",
+		marker,
 		queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0),
 	)
 	m.startNextQueuedInputPrompt(target)

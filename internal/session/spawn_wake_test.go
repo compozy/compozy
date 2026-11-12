@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -22,18 +23,23 @@ type recordingSpawnWakeNotifier struct {
 	events  []SpawnWakeEvent
 	parents []string
 	err     error
+	deliver func(context.Context, string, SpawnWakeEvent) error
 }
 
 func (notifier *recordingSpawnWakeNotifier) WakeSpawnCreator(
-	_ context.Context,
+	ctx context.Context,
 	creatorSessionID string,
 	event SpawnWakeEvent,
 ) error {
 	notifier.mu.Lock()
-	defer notifier.mu.Unlock()
 	notifier.parents = append(notifier.parents, creatorSessionID)
 	notifier.events = append(notifier.events, event)
-	return notifier.err
+	err, deliver := notifier.err, notifier.deliver
+	notifier.mu.Unlock()
+	if deliver != nil {
+		return deliver(ctx, creatorSessionID, event)
+	}
+	return err
 }
 
 func (notifier *recordingSpawnWakeNotifier) calls() ([]string, []SpawnWakeEvent) {
@@ -66,6 +72,21 @@ func TestSpawnWakeEventContract(t *testing.T) {
 		}
 		if got := len([]rune(event.Detail)); got > spawnWakeTextMaxRunes {
 			t.Fatalf("wake detail runes = %d, want <= %d", got, spawnWakeTextMaxRunes)
+		}
+	})
+
+	t.Run("Should keep other attention causes distinct from the early-stop occurrence", func(t *testing.T) {
+		t.Parallel()
+		info := spawnWakeTestInfo(true)
+		info.State = StateActive
+		info.PendingInteractions = nil
+		info.EndedEarlyTurnID = "turn-early"
+		earlyID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+		info.StopVerificationFailed = true
+		info.AttentionRevision++
+		failureID := spawnWakeEventID(info, SpawnWakeReasonNeedsAttention)
+		if failureID == earlyID {
+			t.Fatal("a new stop-verification failure reused the early-stop alarm identity")
 		}
 	})
 
@@ -163,6 +184,32 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 				if event.WakeEventID != events[0].WakeEventID {
 					t.Fatal("retry changed the durable admission identity")
 				}
+			}
+		})
+	}
+
+	// Invariant: child attention names native sign-in separately from a permission request.
+	// Owner: session spawn wake; canonical dispatch suite.
+	for _, tc := range []struct {
+		name     string
+		failure  *store.SessionFailure
+		recovery *store.SessionRuntimeRecovery
+		want     string
+	}{
+		{name: "Should describe provider sign in recovery", recovery: &store.SessionRuntimeRecovery{Reason: store.SessionRuntimeRecoveryProviderAuth}, want: "Waiting for the provider sign-in."},
+		{name: "Should describe expired provider sign in", failure: &store.SessionFailure{Kind: store.FailureProviderAuth}, want: "Waiting for the provider sign-in."},
+		{name: "Should retain permission guidance for a pending permission", want: "Waiting for permission."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			notifier := &recordingSpawnWakeNotifier{}
+			manager := spawnWakeTestManager(notifier, nil)
+			info := spawnWakeTestInfo(true)
+			info.Failure, info.RuntimeRecovery = tc.failure, tc.recovery
+			manager.dispatchSpawnWake(t.Context(), info, BadgeWaitingForAuth)
+			_, events := notifier.calls()
+			if len(events) != 1 || events[0].Detail != tc.want {
+				t.Fatalf("wakes = %#v, want detail %q", events, tc.want)
 			}
 		})
 	}
@@ -625,6 +672,220 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave an early-stop alarm to the creator session monitor", func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		h.manager.ConfigureSpawnWakeCoverage(func(creatorID string, info *Info, badge Badge) bool {
+			return creatorID == parent.ID && info.ID == child.ID && badge == BadgeNeedsAttention
+		})
+
+		promptChild(t, h, child)
+
+		attention, err := db.GetSessionAttention(t.Context(), child.ID)
+		if err != nil || attention.EndedEarlyTurnID == "" {
+			t.Fatalf("attention = %#v, %v; want the monitor to observe the early-stop state", attention, err)
+		}
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("creator wakes = %#v, want only the session monitor's wake", events)
+		}
+	})
+
+	t.Run("Should synchronously deliver the settling child's alarm to an idle creator", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		var parentEvents <-chan acp.AgentEvent
+		notifier.deliver = func(ctx context.Context, creatorID string, event SpawnWakeEvent) error {
+			var err error
+			parentEvents, err = h.manager.PromptSynthetic(ctx, creatorID, SyntheticPromptOpts{
+				MessageID: event.WakeEventID, Message: "Review the child's answer.",
+				Metadata: acp.PromptSyntheticMeta{Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+					Reason: string(event.Reason), WakeEventID: event.WakeEventID},
+			})
+			return err
+		}
+		promptChild(t, h, child)
+		if parentEvents == nil {
+			t.Fatal("the idle creator received no wake stream")
+		}
+		collectEvents(t, parentEvents)
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 2 || h.driver.promptCalls[1].Meta.Synthetic == nil ||
+			h.driver.promptCalls[1].Meta.Synthetic.ChildSessionID != child.ID {
+			t.Fatalf("provider calls = %#v, want the child then its creator alarm", h.driver.promptCalls)
+		}
+		if parent.IsPrompting() {
+			t.Fatal("the creator wake did not settle")
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		advance bool
+		during  string
+		seen    bool
+	}{
+		{name: "Should dispatch an early-stop wake while its child occurrence is current"},
+		{name: "Should retain the queued alarm when the operator views its child", seen: true},
+		{name: "Should drop a queued early-stop wake after its child starts another turn", advance: true},
+		{name: "Should revalidate the child after input hooks", during: "input"},
+		{name: "Should revalidate the child after prompt augmentation", during: "augment"},
+		{name: "Should revalidate the child after turn start hooks", during: "turn"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+			promptChild(t, h, child)
+			_, wakes := notifier.calls()
+			if len(wakes) != 1 {
+				t.Fatalf("child wakes = %#v, want one early-stop wake", wakes)
+			}
+			h.manager.restartInputsHeld.Store(parent.ID, true)
+			wake := wakes[0]
+			queued, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+				MessageID: wake.WakeEventID, Message: "Child turn ended with no open work.",
+				Metadata: acp.PromptSyntheticMeta{
+					Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+					Reason: string(wake.Reason), WakeEventID: wake.WakeEventID,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.seen {
+				before := child.Info()
+				if _, err := h.manager.SessionPresence(t.Context(), child.ID, "", true); err != nil {
+					t.Fatal(err)
+				}
+				after := child.Info()
+				if after.AttentionRevision <= before.AttentionRevision ||
+					after.EndedEarlyTurnID != before.EndedEarlyTurnID {
+					t.Fatalf("presence attention = %#v, want a seen revision of the same early-stop occurrence", after)
+				}
+			}
+			if tc.advance {
+				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+				promptChild(t, h, child)
+			}
+			if tc.during != "" {
+				advanceChild := func() {
+					h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+					promptChild(t, h, child)
+				}
+				dispatcher := &spyHookDispatcher{}
+				if tc.during == "input" {
+					dispatcher.dispatchInputPreSubmitFn = func(
+						_ context.Context,
+						payload hookspkg.InputPreSubmitPayload,
+					) (hookspkg.InputPreSubmitPayload, error) {
+						if payload.SessionID == parent.ID {
+							advanceChild()
+						}
+						return payload, nil
+					}
+				}
+				if tc.during == "turn" {
+					dispatcher.dispatchTurnStartFn = func(
+						_ context.Context,
+						payload hookspkg.TurnStartPayload,
+					) (hookspkg.TurnStartPayload, error) {
+						if payload.SessionID == parent.ID {
+							advanceChild()
+						}
+						return payload, nil
+					}
+				}
+				h.manager.hooks = fullHookSet(dispatcher)
+				if tc.during == "augment" {
+					h.manager.inputAugmenter = func(
+						_ context.Context,
+						target *Session,
+						message string,
+					) (string, error) {
+						if target.ID == parent.ID {
+							advanceChild()
+						}
+						return message, nil
+					}
+				}
+			}
+			h.manager.restartInputsHeld.Delete(parent.ID)
+			h.manager.startNextQueuedInputPrompt(parent.ID)
+			wantStatus := store.SessionInputQueueStatusSent
+			if tc.advance || tc.during != "" {
+				wantStatus = store.SessionInputQueueStatusFailed
+			}
+			waitForCondition(t, "the queued child wake to settle", func() bool {
+				entry, readErr := h.manager.inputQueue.Get(t.Context(), parent.ID, queued.ID)
+				return readErr == nil && entry.Status == wantStatus
+			})
+			h.driver.mu.Lock()
+			defer h.driver.mu.Unlock()
+			wakeCalls := 0
+			for _, call := range h.driver.promptCalls {
+				if call.Meta.Synthetic != nil && call.Meta.Synthetic.Kind == SpawnWakeKindEndedEarly {
+					wakeCalls++
+				}
+			}
+			wantCalls := 1
+			if tc.advance || tc.during != "" {
+				wantCalls = 0
+			}
+			if wakeCalls != wantCalls {
+				t.Fatalf("early-stop provider calls = %d, want %d", wakeCalls, wantCalls)
+			}
+			if wantCalls == 0 {
+				if countEventType(readStoredEvents(t, parent), acp.EventTypeSyntheticReentry) != 0 {
+					t.Fatal("a discarded alarm left a replayable parent input")
+				}
+				parent.mu.RLock()
+				hasRestartBoundary := parent.restartBoundary != nil
+				parent.mu.RUnlock()
+				if hasRestartBoundary {
+					t.Fatal("a discarded alarm created a restart checkpoint")
+				}
+			}
+		})
+	}
+
+	t.Run("Should retry a transient durable child lookup without losing its alarm", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+		promptChild(t, h, child)
+		_, wakes := notifier.calls()
+		if len(wakes) != 1 {
+			t.Fatalf("wakes = %#v, want one alarm", wakes)
+		}
+		catalog := &flakySpawnWakeCatalog{SessionCatalog: h.manager.sessionCatalog, childID: child.ID}
+		h.manager.sessionCatalog = catalog
+		h.manager.mu.Lock()
+		delete(h.manager.sessions, child.ID)
+		h.manager.mu.Unlock()
+		defer func() {
+			h.manager.mu.Lock()
+			h.manager.sessions[child.ID] = child
+			h.manager.mu.Unlock()
+		}()
+		wake := wakes[0]
+		queued, err := h.manager.EnqueueSyntheticWake(t.Context(), parent.ID, SyntheticPromptOpts{
+			MessageID: wake.WakeEventID, Message: "Review the child's answer.",
+			Metadata: acp.PromptSyntheticMeta{Kind: SpawnWakeKindEndedEarly, ChildSessionID: child.ID,
+				Reason: string(wake.Reason), WakeEventID: wake.WakeEventID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "the child wake to retry its durable lookup and dispatch", func() bool {
+			entry, err := h.manager.inputQueue.Get(t.Context(), parent.ID, queued.ID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent
+		})
+		catalog.mu.Lock()
+		defer catalog.mu.Unlock()
+		if catalog.calls < 2 {
+			t.Fatalf("child lookups = %d, want a failed read and successful retry", catalog.calls)
+		}
+	})
+
 	t.Run("Should clear the early stop when the next prompt starts", func(t *testing.T) {
 		t.Parallel()
 		h, db, notifier, _, child := newEarlyStopHarness(t, "", true, nil)
@@ -737,4 +998,28 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 			}
 		})
 	}
+}
+
+// flakySpawnWakeCatalog fails only the first child read at the durable I/O boundary.
+type flakySpawnWakeCatalog struct {
+	store.SessionCatalog
+	mu      sync.Mutex
+	childID string
+	calls   int
+}
+
+func (c *flakySpawnWakeCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	if query.ID == c.childID {
+		c.mu.Lock()
+		c.calls++
+		fail := c.calls == 1
+		c.mu.Unlock()
+		if fail {
+			return nil, errors.New("temporary catalog read failure")
+		}
+	}
+	return c.SessionCatalog.ListSessions(ctx, query)
 }

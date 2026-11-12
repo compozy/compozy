@@ -353,6 +353,7 @@ export type AgentInstancePayload = {
 };
 
 export type AgentInstancePeer = {
+  accepts?: Array<string>;
   description: string;
   name: string;
   scope: string;
@@ -520,6 +521,7 @@ export type AgentMeResponse = {
 };
 
 export type AgentMemoryAddRequest = {
+  kind?: string;
   text: string;
   until?: string;
 };
@@ -607,6 +609,7 @@ export type AgentNotifyResponse = {
 };
 
 export type AgentPayload = {
+  accepts?: Array<string>;
   acp_options?: Array<AgentACPOptionSelection>;
   appearance?: {
     [key: string]: unknown;
@@ -11464,6 +11467,7 @@ export type TerminalExecRequest = {
   };
   output?: TerminalOutputShape;
   visible?: boolean;
+  worktree?: string;
   yield_ms?: number;
 };
 

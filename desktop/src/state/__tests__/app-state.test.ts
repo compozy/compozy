@@ -13,6 +13,41 @@ import type {
 // Invariant: every published app.json is a complete schema-v2 snapshot of shell and update truth.
 // Owner: desktop app-state writer. Canonical suite: app-state.test.ts.
 describe("app state publisher", () => {
+  it.each([1, 3])("Should retain start attempt %i through readiness publication", async attempt => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
+    const path = join(home, "app.json");
+    try {
+      const publisher = new AppStatePublisher({
+        path,
+        appVersion: "0.3.0",
+        channel: "development",
+        startedAt: new Date("2026-08-16T00:00:00Z"),
+      });
+      await publisher.publish({
+        state: "starting",
+        stage: "start",
+        ...(attempt === 1 ? {} : { attempt }),
+      });
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
+        state: "starting",
+        stage: "start",
+        attempt,
+      });
+      await publisher.publish({ state: "starting", stage: "ready" });
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
+        state: "starting",
+        stage: "ready",
+        attempt,
+      });
+      await publisher.publish({ state: "resolving" });
+      expect(JSON.parse(await readFile(path, "utf8"))).not.toHaveProperty("attempt");
+      await publisher.publish({ state: "starting", stage: "start" });
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ attempt: 1 });
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("Should preserve acquired kernel identity across later publications", async () => {
     const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
     const path = join(home, "app.json");

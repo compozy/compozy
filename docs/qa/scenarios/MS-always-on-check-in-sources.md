@@ -338,13 +338,17 @@ Focused regression: `TestSourceDigestGateAndFolding/Should_deliver_overflow_body
 
 ## Fenced triage replies
 
-Return a valid proposals object in one Markdown code fence, using `json`, `JSON`, or no
-language tag, with surrounding whitespace and LF or CRLF. The occurrence publishes its
-proposal report. The same wrappers around `NOTHING_TO_REPORT` finish quietly. Prose before,
-after, or inside the fence, multiple objects or fences, and malformed JSON still produce
-`triage_output_invalid`. Its failure report includes a fully redacted output placeholder
-and a generated fenced/unfenced format classification in `detail`. No reply characters
-survive, including punctuation-only OAuth codes; the diagnostic stays fixed in size.
+Return a valid proposals object bare or in one Markdown code fence, using `json`, `JSON`,
+or no language tag, with LF or CRLF. Add plain commentary before and after the object or
+fence: the occurrence still publishes its proposal report. Comments cannot contain braces,
+array brackets, another triple-backtick fence, or `NOTHING_TO_REPORT`; these markers make
+the reply ambiguous and it must fail rather than select a candidate. Prose inside the fence,
+multiple objects or fences, unknown envelope/proposal fields, and malformed JSON still produce
+`triage_output_invalid`. Bare or fenced `NOTHING_TO_REPORT` remains quiet only without commentary.
+The failure report includes a fully redacted placeholder, a fenced/unfenced classification and
+one static validation category (`framing`, `ambiguous_reply`, or `schema`) in `detail`.
+No provider reply characters survive, including punctuation-only OAuth codes.
+The prompt requests only the bare object or sentinel, without commentary or skipped candidates.
 
 Focused automated coverage: `TestParseTriageReply` and `TestTriageReplyOutcome` in
 `internal/heartbeat/heartbeat_test.go`. The existing `TestHeartbeatSourceRuntime` suite owns
@@ -374,3 +378,49 @@ preserves both independent choices. The agent created through
 a separate mock agent does not configure that new agent. A driver launched without
 `--fixture` produces a startup failure report instead of exercising proposal picks.
 This focused runtime check does not replace the live-provider and Web journeys above.
+
+## Rejected runtime configuration recovery
+
+1. Configure a triage model the provider rejects and allow a timer check-in to finish.
+2. Confirm the check-in records `triage_config_unavailable`, keeps the instance active,
+   and defers its next check to `max_interval`. Instance status/list must explain the
+   rejection and name `agent_instance_check` for manual recovery.
+3. Apply corrected heartbeat/provider runtime configuration. Confirm the next check is
+   no later than one resolved cadence away and both backoff streaks are zero.
+4. Repeat recovery through a fresh live catalog confirmation of the triage model in the
+   same profile and workspace. Other profiles/workspaces must remain unchanged.
+5. Confirm paused, archived, checks-disabled, and in-flight instances are unchanged;
+   pending events and unattended counts survive recovery. A repeated recovery must not
+   move an already earlier deadline later.
+
+Execution evidence: CI owns validation for this change; local runtime QA is prohibited
+by the parallel-delivery operator constraint.
+
+CI integration repair 2026-11-12 (#1565): start the MCP declaration watcher only after
+the proactive check service is published and its recovery bindings are installed. The
+Linux race lane observed watcher polling concurrent with bootProactiveChecks publication.
+The existing real daemon boot suite and declaration/recovery suites own verification;
+local execution is forbidden for this parallel dispatch.
+
+Heartbeat status input validation: call `compozy__agent_heartbeat_status` with
+`include_session_health: true` and no `session_id` (then a whitespace-only ID).
+Both calls must return `tool_invalid_input` naming `session_id`, before any session-health read.
+An explicit session ID still enforces profile/workspace ownership.
+
+## Manual wake after repository policy edits
+
+1. Create a valid `HEARTBEAT.md` directly beside an agent definition without using authoring mutations.
+2. Read `agent_heartbeat_status`; confirm valid, active, present policy without a snapshot.
+3. Call `agent_heartbeat_wake` for an idle eligible session with `dry_run: true`. Expect the same policy digest and a would-send decision, with no snapshot or authoring revision written.
+4. Edit the summary on disk and repeat. Expect the updated digest. Perform a real manual wake; expect one prompt using the edited guidance, a persisted snapshot visible in status, and no authoring revision.
+5. Replace the file with malformed frontmatter; expect `heartbeat_invalid`. Remove it; expect `heartbeat_no_policy`, even with an older valid snapshot stored.
+6. Pass an unknown `source`; expect validation failure naming `timer`, `instance_check`, `scheduler`, `manual`, and `harness_reentry`. Tool discovery declares these enum values.
+
+CI coverage: `TestManagedHeartbeatDiskWake` in `internal/heartbeat/authoring_status_test.go` uses real filesystem and SQLite persistence. Local execution is deferred under the CI-only operator rule.
+
+CI integration repair 2026-11-12 (#1565): register a workspace while declaration
+watchers refresh resource-backed hook bindings. Both publications must succeed,
+retain one resource per binding, and leave unchanged bindings at their original
+version. `TestNewHookBindingPublisherUsesResourceBackedSync` covers concurrent
+publication with real SQLite; `TestInstanceRunningCheckPauseIntegration` covers
+workspace registration during real daemon startup. CI is the only execution gate.

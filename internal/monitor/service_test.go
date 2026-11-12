@@ -304,7 +304,8 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("Cancel(other session) error = %v, want ErrNotFound", err)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested {
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested ||
+				!canceled.FiredAt.IsZero() {
 				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			terminals.results <- Outcome{Reason: ReasonExit}
@@ -313,7 +314,7 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("notifications = %d, want 0", got)
 			}
 			listed := onlyMonitor(t, service, "sess-a")
-			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested {
+			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested || !listed.FiredAt.IsZero() {
 				t.Fatalf("listed monitor = %+v, want canceled by request", listed)
 			}
 		})
@@ -335,7 +336,8 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("monitor after refusal = %+v, want delivering", got)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested {
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested ||
+				!canceled.FiredAt.IsZero() {
 				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			time.Sleep(deliveryRetryInitial*3 + time.Second)
@@ -344,7 +346,7 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("wake attempts = %d, want only the refused one", got)
 			}
 			listed := onlyMonitor(t, service, "sess-a")
-			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested {
+			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested || !listed.FiredAt.IsZero() {
 				t.Fatalf("listed monitor = %+v, want canceled by request", listed)
 			}
 		})
@@ -2615,6 +2617,15 @@ func TestServicePullRequestMonitor(t *testing.T) {
 			if active := service.ActiveCounts([]string{"sess-1"})["sess-1"]; active != 1 {
 				t.Fatalf("active = %d", active)
 			}
+			canceled, err := service.Cancel("sess-1", created.ID)
+			if err != nil || !canceled.FiredAt.IsZero() || !canceled.LastFiredAt.Equal(mon.LastFiredAt) ||
+				canceled.FireCount != mon.FireCount {
+				t.Fatalf("cancel after repeated wakes = %+v, %v", canceled, err)
+			}
+			listed := onlyMonitor(t, service, "sess-1")
+			if !listed.FiredAt.IsZero() || !listed.LastFiredAt.Equal(mon.LastFiredAt) {
+				t.Fatalf("listed after repeated wakes = %+v", listed)
+			}
 		})
 	})
 	t.Run("Should end as fired on merge and release its slots", func(t *testing.T) {
@@ -2961,6 +2972,9 @@ func TestServicePullRequestMonitorSpec(t *testing.T) {
 		{"Should refuse until", func(s *Spec) { s.Until = UntilExit }},
 		{"Should refuse a delay", func(s *Spec) { s.Delay = time.Minute }},
 		{"Should refuse a timeout past 24 hours", func(s *Spec) { s.Timeout = 25 * time.Hour }},
+		{"Should refuse a qualified branch without an owner", func(s *Spec) { s.Branch = ":topic" }},
+		{"Should refuse a qualified branch without a branch", func(s *Spec) { s.Branch = "contributor:" }},
+		{"Should refuse multiple owner separators", func(s *Spec) { s.Branch = "contributor:topic:other" }},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()

@@ -336,6 +336,8 @@ func updateAgentDraft(
 	}
 	draft.MCPServers = currentDraft.MCPServers
 	draft.Hooks = currentDraft.Hooks
+	// Authored in AGENT.md only; an update must not drop it.
+	draft.Accepts = currentDraft.Accepts
 	return draft, nil
 }
 

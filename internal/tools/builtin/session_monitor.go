@@ -118,7 +118,7 @@ const monitorCreateInputSchema = `{
 			"description":"Terminal: exit (default) or match. Session: all (default) or any."},
 		"pattern":{"type":"string","minLength":1,"maxLength":512,"description":"Go regular expression for until=match."},
 		"branch":{"type":"string","minLength":1,"maxLength":255,
-			"description":"pull_request monitors only; defaults to this session's branch."},
+			"description":"pull_request monitors only; defaults to this session's branch. Use owner:branch for a GitHub fork."},
 		"timeout_seconds":{"type":"integer","minimum":1,"maximum":86400,
 			"description":"Defaults: terminal 1800 (max 21600), session 7200 (max 21600), ` +
 	`pull_request 21600 (max 86400). A timeout still wakes you."},

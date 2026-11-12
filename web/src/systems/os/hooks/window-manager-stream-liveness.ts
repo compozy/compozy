@@ -31,6 +31,12 @@ export interface StreamLiveness {
   noteFrame(): void;
   /** Schedule one reconnect; later triggers for the same socket are ignored. */
   scheduleReconnect(delay: number): void;
+  /**
+   * Drop a socket that is still open but can no longer be trusted (a frame it
+   * carried could not be applied, or a write to it failed) and reconnect after
+   * `delay`, so the next fence snapshot replaces whatever this client missed.
+   */
+  restart(delay: number): void;
   dispose(): void;
 }
 
@@ -103,6 +109,11 @@ export function createStreamLiveness(input: StreamLivenessInput): StreamLiveness
       armStallTimer();
     },
     scheduleReconnect,
+    restart(delay) {
+      if (disposed || reconnectTimer !== null) return;
+      input.closeSocket();
+      scheduleReconnect(delay);
+    },
     dispose() {
       disposed = true;
       window.removeEventListener("online", verifyOnWake);

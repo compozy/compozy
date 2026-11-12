@@ -81,7 +81,7 @@ const agentHeartbeatStatusInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
-		"session_id":{"type":"string"},
+		"session_id":{"type":"string","description":"Required when include_session_health is true."},
 		"include_session_health":{"type":"boolean"},
 		"include_recent_wake_events":{"type":"boolean"}
 	},
@@ -95,7 +95,7 @@ const agentHeartbeatWakeInputSchema = `{
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"session_id":{"type":"string"},
-		"source":{"type":"string"},
+		"source":{"type":"string","enum":["timer","instance_check","scheduler","manual","harness_reentry"]},
 		"dry_run":{"type":"boolean"}
 	},
 	"additionalProperties":false

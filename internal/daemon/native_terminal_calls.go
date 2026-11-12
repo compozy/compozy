@@ -30,7 +30,8 @@ func (n *daemonNativeTools) terminalExec(
 		return toolspkg.ToolResult{}, err
 	}
 	result, err := manager.Exec(ctx, terminalpkg.ExecRequest{
-		WS: workspaceID, Command: input.Command, Args: input.Args, Cwd: input.Cwd, Env: input.Env,
+		WS: workspaceID, Worktree: strings.TrimSpace(input.Worktree),
+		Command: input.Command, Args: input.Args, Cwd: input.Cwd, Env: input.Env,
 		YieldMs: input.YieldMS, Visible: input.Visible, Output: input.Output,
 		Approval: approval, Actor: actor,
 	})

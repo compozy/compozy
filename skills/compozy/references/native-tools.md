@@ -192,7 +192,9 @@ targets that did not settle. A state that could not be read is reported as last 
 fires at once.
 `kind="pull_request"` is the wait for a pull request's checks and reviews. The daemon reads the forge about
 once a minute, with the forge extension's own credential, and runs no command or URL of yours. `branch`
-defaults to the session's branch; a default branch, or a session with no branch, is refused. A missing pull
+defaults to the session's branch; GitHub fork heads use `owner:branch` to select the contributor
+explicitly. An unqualified branch selects the base repository. A default branch, or a session with no
+branch, is refused. A missing pull
 request is a wait, so you can register before opening it, and so is one that had already merged or closed
 when the monitor first read it: a reused branch's old pull request is history, and only a pull request this
 monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at
@@ -307,7 +309,7 @@ rather than deriving it from the session state.
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
 `notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
 that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
-history or hold `session_wait` just to collect the answer. `compozy__session_status` with `result_view: "full"` lists outstanding
+history or hold `session_wait` just to collect the answer. `compozy__session_status` in both compact and full views lists outstanding
 `reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
 summary. `dropped` means the input was removed before it ran; `unknown` means delivery was uncertain,
@@ -584,6 +586,8 @@ any other cross-profile write, so it needs the unrestricted grant. Refusals carr
 session in a folder.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
+For heartbeat status, `include_session_health: true` requires a nonblank `session_id`;
+otherwise the tool returns `tool_invalid_input` naming `session_id`.
 
 Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
 `compozy__agent_list`, `compozy__agent_create`. `compozy__workspace_describe` returns sessions owned
@@ -1449,3 +1453,6 @@ A single-result tool has no `output_views` and no `result_view` input:
 Compact session records also retain `stop_cause`, `permission_mode_degraded`,
 `attention_dismissible`, `lineage.ttl_expires_at` and `lineage.spawn_budget`.
 Compact `compozy__agent_heartbeat_status` retains the policy `snapshot_id`.
+
+Compact session records retain outstanding `reply_watches` with watch ID, target session,
+message ID, state and creation time, at the same paths and values as the full record.

@@ -7,10 +7,14 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
 )
+
+// SpawnWakeKindEndedEarly identifies a revision-fenced early-stop alarm in the durable queue.
+const SpawnWakeKindEndedEarly = "session_ended_early"
 
 const (
 	// SpawnWakeReasonStopped wakes the creator when a child stops without failure.
@@ -29,6 +33,8 @@ const (
 )
 
 var (
+	errSpawnWakeStale  = errors.New("session: stale early-stop wake")
+	errSpawnWakeLookup = errors.New("session: early-stop wake lookup can be retried")
 	// ErrSpawnWakeValidation reports structurally invalid child wake input.
 	ErrSpawnWakeValidation = errors.New("session: spawn wake validation failed")
 	// ErrSpawnWakeSessionNotLive reports that the creator cannot accept a wake prompt.
@@ -173,13 +179,7 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 		Reason:         reason,
 		Badge:          badge,
 		Detail:         spawnWakeDetail(info, badge),
-		WakeEventID: fmt.Sprintf(
-			"session-wake:%s:%d:%d:%s",
-			strings.TrimSpace(info.ID),
-			info.TranscriptEpoch,
-			info.AttentionRevision,
-			reason,
-		),
+		WakeEventID:    spawnWakeEventID(info, reason),
 	}.Normalize()
 	if err := event.Validate(); err != nil {
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
@@ -192,6 +192,10 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	// the parent even when the parent opted out of completion wakes.
 	endedEarly := EndedEarlyAttention(info, badge)
 	if endedEarly {
+		if m.spawnWakeCovered(creatorSessionID, info, badge) {
+			m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "session_monitor_covers", nil)
+			return
+		}
 		event.EndedEarly = true
 		event.FinalAnswer = sanitizeSpawnWakeAnswer(m.endedEarlyAnswer(ctx, info))
 	}
@@ -228,6 +232,65 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 		jsonReasonFieldReason, event.Reason,
 		"badge", event.Badge,
 	)
+}
+
+// ConfigureSpawnWakeCoverage installs the daemon's session-monitor coverage reader.
+func (m *Manager) ConfigureSpawnWakeCoverage(covers func(string, *Info, Badge) bool) {
+	m.spawnWakeMu.Lock()
+	defer m.spawnWakeMu.Unlock()
+	m.spawnWakeCoverage = covers
+}
+
+func (m *Manager) spawnWakeCovered(creatorID string, child *Info, badge Badge) bool {
+	m.spawnWakeMu.Lock()
+	covers := m.spawnWakeCoverage
+	m.spawnWakeMu.Unlock()
+	return covers != nil && covers(creatorID, child, badge)
+}
+
+func spawnWakeEventID(info *Info, reason SpawnWakeReason) string {
+	if reason == SpawnWakeReasonNeedsAttention && EndedEarlyAttention(info, BadgeForInfo(info)) {
+		return fmt.Sprintf("session-wake:%s:%d:ended-early:%s", strings.TrimSpace(info.ID),
+			info.TranscriptEpoch, strings.TrimSpace(info.EndedEarlyTurnID))
+	}
+	return fmt.Sprintf("session-wake:%s:%d:%d:%s", strings.TrimSpace(info.ID),
+		info.TranscriptEpoch, info.AttentionRevision, reason)
+}
+
+// validateSpawnWake drops an alarm whose child has advanced while the creator was busy.
+func (m *Manager) validateSpawnWake(ctx context.Context, creatorID string, meta *acp.PromptSyntheticMeta) error {
+	if meta == nil || meta.Kind != SpawnWakeKindEndedEarly {
+		return nil
+	}
+	var info *Info
+	if child, ok := m.Get(meta.ChildSessionID); ok {
+		child.mu.RLock()
+		info = child.infoLocked()
+		currentTurnID := child.currentTurnID
+		child.mu.RUnlock()
+		if currentTurnID != "" && currentTurnID != info.EndedEarlyTurnID {
+			return fmt.Errorf("%w: child started a newer turn", errSpawnWakeStale)
+		}
+	} else {
+		if m.sessionCatalog == nil {
+			return fmt.Errorf("%w: session catalog unavailable", errSpawnWakeLookup)
+		}
+		var err error
+		info, err = m.durableSessionInfoForLifecycleTransition(ctx, meta.ChildSessionID)
+		if errors.Is(err, ErrSessionNotFound) {
+			return fmt.Errorf("%w: child no longer exists", errSpawnWakeStale)
+		}
+		if err != nil {
+			return fmt.Errorf("%w: %w", errSpawnWakeLookup, err)
+		}
+	}
+	if !EndedEarlyAttention(info, BadgeForInfo(info)) ||
+		store.NormalizeSessionLineage(info.ID, info.Lineage).ParentSessionID != creatorID ||
+		spawnWakeEventID(info, SpawnWakeReasonNeedsAttention) != meta.WakeEventID ||
+		m.spawnWakeCovered(creatorID, info, BadgeNeedsAttention) {
+		return fmt.Errorf("%w: child attention changed or a session monitor covers it", errSpawnWakeStale)
+	}
+	return nil
 }
 
 func (m *Manager) reserveSpawnWakeEvent(wakeEventID string) bool {
@@ -319,6 +382,9 @@ func spawnWakeDetail(info *Info, badge Badge) string {
 		}
 		return "Waiting for input."
 	case BadgeWaitingForAuth:
+		if infoProviderAuthRecovery(info) || info.Failure != nil && info.Failure.Kind == store.FailureProviderAuth {
+			return "Waiting for the provider sign-in."
+		}
 		return "Waiting for permission."
 	case BadgeFailed:
 		if info.Failure != nil {

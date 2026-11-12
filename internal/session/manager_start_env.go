@@ -52,27 +52,30 @@ func (m *Manager) sessionStartOpts(
 				s.sessionType,
 			),
 		},
-		AgentName:              resolved.Name,
-		CompozySessionID:       s.sessionID,
-		WorkspaceID:            s.workspace.ID,
-		ProfileID:              s.profileID,
-		RuntimeGeneration:      max(session.RuntimeGeneration, 1),
-		Command:                resolved.Command,
-		Cwd:                    s.cwd,
-		AdditionalDirs:         s.executionAdditionalDirs(),
-		Env:                    env,
-		MCPServers:             mcpServers,
-		Permissions:            m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
-		SystemPrompt:           resolved.Prompt,
-		PreferredModel:         preferredModel,
-		LaunchModelID:          launchModelID,
-		ReasoningEffort:        strings.TrimSpace(s.reasoningEffort),
-		Speed:                  s.speed,
-		ACPOptions:             acp.CloneSessionConfigOptionSelections(s.acpOptions),
-		ResumeSessionID:        s.acpSessionID,
-		InputOnly:              IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
-		ShellWaitGuard:         shellWaitGuard,
-		LeanEnvironment:        sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
+		AgentName:         resolved.Name,
+		CompozySessionID:  s.sessionID,
+		WorkspaceID:       s.workspace.ID,
+		ProfileID:         s.profileID,
+		RuntimeGeneration: max(session.RuntimeGeneration, 1),
+		Command:           resolved.Command,
+		Cwd:               s.cwd,
+		AdditionalDirs:    s.executionAdditionalDirs(),
+		Env:               env,
+		MCPServers:        mcpServers,
+		Permissions:       m.startPermissions(startSpecPermissions(s, resolved.Permissions)),
+		SystemPrompt:      resolved.Prompt,
+		PreferredModel:    preferredModel,
+		LaunchModelID:     launchModelID,
+		ReasoningEffort:   strings.TrimSpace(s.reasoningEffort),
+		Speed:             s.speed,
+		ACPOptions:        acp.CloneSessionConfigOptionSelections(s.acpOptions),
+		ResumeSessionID:   s.acpSessionID,
+		InputOnly:         IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
+		ShellWaitGuard:    shellWaitGuard,
+		LeanEnvironment:   sessionLeanEnvironment(s.sessionType, resolved.LeanEnvironmentValue()),
+		IsolateProviderMCP: sessionIsolatesProviderMCP(
+			session.AgentDefinition().EffectiveKind(), resolved.LeanEnvironmentValue(),
+		),
 		PermissionEventHandler: m.permissionEventHandler(session),
 		ToolGateway:            newProviderNativeToolGateway(m, session, s.runtimeMode, shellWaitGuard),
 		ActivateMCPServers: m.sessionMCPServerActivator(
@@ -200,6 +203,15 @@ func sessionEnvironmentKey(name string) string {
 		return strings.ToUpper(name)
 	}
 	return name
+}
+
+// sessionIsolatesProviderMCP keeps an always-on agent's tool surface to what
+// CompozyOS passes and governs. A long-lived agent otherwise inherits every MCP
+// server and connector of the operator's own Claude setup, outside tool policy.
+// An authored lean_environment decides instead: true is the wider lean mode,
+// false opts back into the operator's environment.
+func sessionIsolatesProviderMCP(agentKind string, authoredLean *bool) bool {
+	return agentKind == compozyconfig.AgentKindAlwaysOn && authoredLean == nil
 }
 
 func sessionLeanEnvironment(sessionType Type, authored *bool) bool {

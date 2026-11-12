@@ -223,7 +223,7 @@ func (r *ActionRegistry) resolve(
 	return &ToolCallActionExecutor{
 		runtime:               r.runtime,
 		hasResultViews:        view.Descriptor.ResultViews() != nil,
-		pinnedView:            pinnedActionResultView(expected, view.Descriptor, resultView, requirePinned),
+		pinnedView:            pinnedActionResultView(view.Descriptor, resultView, requirePinned),
 		toolID:                id,
 		eventReader:           r.events,
 		workspaceRootResolver: r.toolWorkspace,

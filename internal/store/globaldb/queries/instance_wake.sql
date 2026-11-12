@@ -110,3 +110,17 @@ RETURNING unattended_turns;
 -- name: ResetInstanceUnattended :exec
 UPDATE agent_instance_wake_state SET unattended_turns=0, engaged_at=sqlc.arg(now)
 WHERE instance_id=sqlc.arg(instance_id);
+
+-- name: RecoverConfigRejectedInstanceWake :execrows
+UPDATE agent_instance_wake_state SET quiet_streak=0, failure_streak=0,
+next_wake_at=CASE WHEN next_wake_at>sqlc.arg(next_wake_at) THEN sqlc.arg(next_wake_at) ELSE next_wake_at END
+WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND occurrence_id=''
+AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id=agent_instance_wake_state.instance_id AND i.state='active' AND i.archived_at IS NULL AND i.checks_enabled=1)
+AND (SELECT reason FROM agent_heartbeat_wake_events e WHERE e.instance_id=agent_instance_wake_state.instance_id
+AND NOT (e.source='instance_check' AND e.result IN ('skipped','cancelled'))
+ORDER BY e.created_at DESC,e.id DESC LIMIT 1)='triage_config_unavailable';
+
+-- name: GetInstanceWakeDiagnostic :one
+SELECT reason FROM agent_heartbeat_wake_events
+WHERE instance_id=? AND NOT (source='instance_check' AND result IN ('skipped','cancelled'))
+ORDER BY created_at DESC,id DESC LIMIT 1;

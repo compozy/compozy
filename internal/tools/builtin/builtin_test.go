@@ -4053,13 +4053,6 @@ func TestResultViewDeclaration(t *testing.T) {
 			original := cloneDescriptor(d)
 			compact := `{"type":"object","additionalProperties":false}`
 			result := withResultViews(d, compact, string(d.OutputSchema))
-			digest, err := toolspkg.SchemaDigest(original.InputSchema)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if result.ResultViews().PreViewInputSchemaDigest != digest {
-				t.Fatal("pre-view digest changed")
-			}
 			if string(result.OutputSchema) != compact ||
 				string(result.ResultViews().Full.Schema) != string(original.OutputSchema) {
 				t.Fatal("output contracts changed")

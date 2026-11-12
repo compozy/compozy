@@ -81,6 +81,7 @@ func (b *terminalPermissionBridge) AuthorizeTerminalExec(
 		"command":          request.Command,
 		nativeToolsArgsKey: request.Args,
 		"cwd":              request.Cwd,
+		"worktree":         request.Worktree,
 		"env":              request.Env,
 		"visible":          request.Visible,
 		"risk":             terminalPermissionRisk(classification),

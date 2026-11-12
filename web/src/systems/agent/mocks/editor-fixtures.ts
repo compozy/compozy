@@ -185,7 +185,8 @@ export function blankCheckInsModelFixture() {
   });
 }
 
-const MEMORY_FILE = `- 2026-11-02 · reloaddev · Preview deploys need \`make preview\`. The normal deploy skips the staging data. · until 2026-12-01
+const MEMORY_FILE = `- [rule] File issues through report-writer.
+- 2026-11-02 · reloaddev · Preview deploys need \`make preview\`. The normal deploy skips the staging data. · until 2026-12-01
 - 2026-10-31 · compozy · Give each issue its own worker. If something urgent comes up, steer the worker that's already on it.
 Keep status updates short. Two lines is usually enough.
 - 2026-10-28 · advos · Hearing dates live in the calendar, not in tasks.
@@ -232,6 +233,7 @@ function memoryModel(content: string): MemoryEditorModel {
     cancelAdding: fn(),
     add: fn(),
     update: fn(),
+    setKind: fn(),
     remove: fn(),
     restore: fn(),
   };

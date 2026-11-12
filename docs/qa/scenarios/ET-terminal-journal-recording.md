@@ -54,3 +54,12 @@ integration journeys also passed with real terminal processes. This storage slic
 replace the historical browser recording/selection verdict.
 
 PR #973 offline regression: open an uncached journal after the browser goes offline. The unlocked journal must keep its loading region visible while its first read is paused; it must not render a blank panel. Reconnect and verify history replaces the placeholder. A journal that has never been opened remains locked and does not fetch.
+
+CI journey reconciliation (#1547): E2E-003 now holds the approved agent process at a
+stdin barrier until its live window/output are observed, then verifies successful
+exit and retained output via the native wait result. The accepted exit-retirement
+contract removes that agent window; reopen Terminal to read its approved journal
+row. E2E-008 selects the terminal output again after closing the conversation tab,
+since switching tabs remounts the emulator, then checks Choose a session and Copy
+as quoted block. Source and rendered failure evidence are retained in PR #1582;
+current-head CI owns the re-walk, with no local execution claimed.

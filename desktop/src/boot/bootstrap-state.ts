@@ -28,7 +28,8 @@ function failureCode(event: BootstrapEvent): string {
 
 export function bootstrapSnapshot(
   event: BootstrapEvent,
-  logPath = "desktop-bootstrap.jsonl"
+  logPath = "desktop-bootstrap.jsonl",
+  currentAttempt = 1
 ): ShellSnapshot {
   if (event.status === "failed" || event.phase === "failed") {
     const skew = skewSnapshot(event);
@@ -63,11 +64,11 @@ export function bootstrapSnapshot(
       return {
         state: "starting",
         stage: "start",
-        ...(event.attempt ? { attempt: event.attempt } : {}),
+        attempt: event.attempt ?? currentAttempt,
       };
     case "ready":
       return event.resolution === "attach"
         ? { state: "attaching", stage: "ready" }
-        : { state: "starting", stage: "ready" };
+        : { state: "starting", stage: "ready", attempt: event.attempt ?? currentAttempt };
   }
 }

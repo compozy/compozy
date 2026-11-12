@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -350,8 +349,7 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 				Compact: ResultViewContract{
 					Schema: json.RawMessage(`{"type":"object","additionalProperties":false}`),
 				},
-				Full:                     ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
-				PreViewInputSchemaDigest: "private-translation-digest",
+				Full: ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)},
 			}
 			d := validDescriptor()
 			d.SetResultViews(views)
@@ -361,14 +359,6 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 			}
 			if (Descriptor{}).ResultViews() != nil || (Tool{}).ResultViews() != nil {
 				t.Fatal("zero metadata has views")
-			}
-			encoded, err := json.Marshal(d)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if bytes.Contains(encoded, []byte("private-translation-digest")) ||
-				bytes.Contains(encoded, []byte("PreViewInputSchemaDigest")) {
-				t.Fatal("internal translation digest leaked onto the wire")
 			}
 			for _, metadata := range []*ToolExecutionMetadata{nil, NewToolExecutionMetadata(true, ErrorCodeInvalidRequest, 4096),
 				NewToolExecutionMetadata(false, "", 0, &ResultViews{Compact: ResultViewContract{Schema: json.RawMessage(`{"type":"object","additionalProperties":false}`)}, Full: ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)}})} {

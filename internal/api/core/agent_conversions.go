@@ -90,6 +90,7 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 		PermissionRules:    permissionRulesPayload(agent.PermissionRules),
 		Permissions:        agent.Permissions,
 		CategoryPath:       append([]string(nil), agent.CategoryPath...),
+		Accepts:            agent.AcceptsValue(),
 		MCPServers:         mcpServers,
 		Origin:             entry.Origin,
 		PackageOwned:       entry.PackageOwned,

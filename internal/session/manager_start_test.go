@@ -1109,4 +1109,13 @@ func TestSessionLeanEnvironment(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should isolate provider MCP for always-on agents unless lean is authored", func(t *testing.T) {
+		t.Parallel()
+		if !sessionIsolatesProviderMCP(compozyconfig.AgentKindAlwaysOn, nil) ||
+			sessionIsolatesProviderMCP(compozyconfig.AgentKindAlwaysOn, new(false)) ||
+			sessionIsolatesProviderMCP(compozyconfig.AgentKindAlwaysOn, new(true)) ||
+			sessionIsolatesProviderMCP(compozyconfig.AgentKindOnDemand, nil) {
+			t.Fatal("incorrect provider MCP isolation default")
+		}
+	})
 }

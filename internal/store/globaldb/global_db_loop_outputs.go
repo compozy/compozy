@@ -117,6 +117,7 @@ func (g *LoopRepo) RecordAppliedRuntime(
 	)
 }
 
+// appliedRuntimeEventPayload keeps replayed runtime observations aligned with persisted outputs.
 func appliedRuntimeEventPayload(
 	generation int,
 	nodeID looppkg.NodeID,
