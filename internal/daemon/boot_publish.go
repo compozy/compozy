@@ -17,6 +17,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		runtimeWorkers:        state.runtimeWorkers,
 		terminals:             state.terminals,
 		situationContext:      state.situationContext,
+		standingContext:       state.standingContext,
 		sessions:              state.sessions,
 		sessionWakeBridge:     state.sessionWakeBridge,
 		sessionMonitors:       state.sessionMonitors,

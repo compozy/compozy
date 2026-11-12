@@ -3095,9 +3095,28 @@ func TestClaudeLeanEnvironment(t *testing.T) {
 			)
 		}
 	}
+	t.Run("Should isolate provider MCP without turning off auto-memory", func(t *testing.T) {
+		t.Parallel()
+		meta, ok := claudeCodeSessionMeta(StartOpts{
+			Command: "npx -y @agentclientprotocol/claude-agent-acp@latest", IsolateProviderMCP: true,
+		}).(map[string]any)
+		if !ok {
+			t.Fatal("Claude session meta missing")
+		}
+		options := meta["claudeCode"].(map[string]any)["options"].(map[string]any)
+		env := options["env"].(map[string]string)
+		if options["strictMcpConfig"] != true || env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
+			t.Fatalf("provider MCP not isolated: %+v", options)
+		}
+		if _, disabled := env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"]; disabled {
+			t.Fatal("provider MCP isolation turned off auto-memory")
+		}
+	})
 	t.Run("Should leave other provider environments unchanged", func(t *testing.T) {
 		t.Parallel()
-		if claudeCodeSessionMeta(StartOpts{Command: "codex-acp", LeanEnvironment: true}) != nil {
+		if claudeCodeSessionMeta(
+			StartOpts{Command: "codex-acp", LeanEnvironment: true, IsolateProviderMCP: true},
+		) != nil {
 			t.Fatal("Claude options escaped to another provider")
 		}
 	})

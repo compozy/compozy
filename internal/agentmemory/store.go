@@ -143,6 +143,25 @@ func (s *Store) Add(key Key, now time.Time, scope, text, until string) (Document
 	return s.update(key, func(old string) (string, error) { return join(append(lines(old), entry)), nil }, true)
 }
 
+// Rules returns the operator rules currently in force, without the archiving side effect of Load.
+func (s *Store) Rules(key Key) ([]string, error) {
+	doc, err := s.Read(key)
+	if err != nil {
+		return nil, err
+	}
+	rules, _ := Split(redact.String(doc.Content))
+	return rules, nil
+}
+
+// AddRule appends an operator rule. Only operator surfaces call it.
+func (s *Store) AddRule(key Key, text string) (Document, error) {
+	entry, err := FormatRule(text)
+	if err != nil {
+		return Document{}, err
+	}
+	return s.update(key, func(old string) (string, error) { return join(append(lines(old), entry)), nil }, false)
+}
+
 func (s *Store) update(key Key, change func(string) (string, error), tool bool) (Document, error) {
 	defer s.lock(key)()
 	dir, err := s.directory(key)

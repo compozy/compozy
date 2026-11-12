@@ -46,6 +46,7 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		),
 	}
 	cloned.SetLeanEnvironment(agent.LeanEnvironmentValue())
+	cloned.SetAccepts(agent.AcceptsValue())
 	cloned.SetSpeed(agent.SpeedValue())
 	cloned.SetACPOptions(agent.ACPOptionsValue())
 	return cloned

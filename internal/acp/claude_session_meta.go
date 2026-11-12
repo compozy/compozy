@@ -128,6 +128,8 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 	}
 	if opts.LeanEnvironment {
 		env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+	}
+	if opts.LeanEnvironment || opts.IsolateProviderMCP {
 		env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
 		options["strictMcpConfig"] = true
 	}

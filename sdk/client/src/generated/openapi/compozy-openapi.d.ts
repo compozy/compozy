@@ -8385,6 +8385,7 @@ export interface components {
       workspace_id: string;
     };
     AgentInstancePeer: {
+      accepts?: string[];
       description: string;
       name: string;
       scope: string;
@@ -8544,6 +8545,7 @@ export interface components {
       me: components["schemas"]["AgentMePayload"];
     };
     AgentMemoryAddRequest: {
+      kind?: string;
       text: string;
       until?: string;
     };
@@ -8616,6 +8618,7 @@ export interface components {
       retry_after_ms?: number;
     };
     AgentPayload: {
+      accepts?: string[];
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       appearance?: {
         [key: string]: unknown;

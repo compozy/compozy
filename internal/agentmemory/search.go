@@ -69,7 +69,17 @@ func (s *Store) Search(key Key, query string) ([]SearchResult, error) {
 	return results, nil
 }
 
+// Replace rewrites every matching line. It is the operator path and may edit rules.
 func (s *Store) Replace(key Key, match, text string) (Document, error) {
+	return s.replace(key, match, text, false)
+}
+
+// ReplaceNote is the agent path: it refuses to create, change or delete an operator rule.
+func (s *Store) ReplaceNote(key Key, match, text string) (Document, error) {
+	return s.replace(key, match, text, true)
+}
+
+func (s *Store) replace(key Key, match, text string, notesOnly bool) (Document, error) {
 	if strings.TrimSpace(text) == "" || strings.ContainsAny(text, "\r\n") {
 		return Document{}, errors.New("invalid memory entry")
 	}
@@ -87,6 +97,9 @@ func (s *Store) Replace(key Key, match, text string) (Document, error) {
 				if entryCharacters(replacement) > MaxEntryCharacters {
 					return "", ErrEntryTooLarge
 				}
+				if notesOnly && (IsRule(line) || IsRule(replacement)) {
+					return "", ErrRuleProtected
+				}
 				all[i] = replacement
 			}
 		}
@@ -94,7 +107,17 @@ func (s *Store) Replace(key Key, match, text string) (Document, error) {
 	}, true)
 }
 
+// Remove deletes every matching line. It is the operator path and may delete rules.
 func (s *Store) Remove(key Key, match string) (Document, int, error) {
+	return s.remove(key, match, false)
+}
+
+// RemoveNote is the agent path: it refuses to delete an operator rule.
+func (s *Store) RemoveNote(key Key, match string) (Document, int, error) {
+	return s.remove(key, match, true)
+}
+
+func (s *Store) remove(key Key, match string, notesOnly bool) (Document, int, error) {
 	removed := 0
 	doc, err := s.update(key, func(old string) (string, error) {
 		if match == "" {
@@ -103,6 +126,9 @@ func (s *Store) Remove(key Key, match string) (Document, int, error) {
 		kept := make([]string, 0)
 		for _, line := range lines(old) {
 			if strings.Contains(line, match) {
+				if notesOnly && IsRule(line) {
+					return "", ErrRuleProtected
+				}
 				removed++
 				continue
 			}

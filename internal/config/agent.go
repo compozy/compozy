@@ -74,6 +74,7 @@ type parsedAgentDef struct {
 	Permissions       string                  `yaml:"permissions,omitempty"         toml:"permissions,omitempty"`
 	Skills            AgentSkillsConfig       `yaml:"skills,omitempty"              toml:"skills,omitempty"`
 	CategoryPath      []string                `yaml:"category_path,omitempty"       toml:"category_path,omitempty"`
+	Accepts           []string                `yaml:"accepts,omitempty"             toml:"accepts,omitempty"`
 	MCPServers        []MCPServer             `yaml:"mcp_servers,omitempty"         toml:"mcp_servers,omitempty"`
 	Hooks             []parsedHookDeclaration `yaml:"hooks,omitempty"               toml:"hooks,omitempty"`
 	FallbackChain     []RoleFallback          `yaml:"fallback_chain,omitempty"      toml:"fallback_chain,omitempty"`
@@ -371,6 +372,7 @@ func parseAgentDef(content []byte, persisted bool) (AgentDef, error) {
 	if err != nil {
 		return AgentDef{}, err
 	}
+	agent.SetAccepts(parsed.Accepts)
 	agent.SetACPOptions(normalizedOptions)
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
@@ -389,6 +391,36 @@ func parseAgentDef(content []byte, persisted bool) (AgentDef, error) {
 	}
 
 	return agent, nil
+}
+
+const (
+	// MaxAgentAccepts bounds the input forms an agent advertises to peers.
+	MaxAgentAccepts = 8
+	// MaxAgentAcceptRunes bounds one advertised input form.
+	MaxAgentAcceptRunes = 160
+)
+
+// NormalizeAgentAccepts keeps a bounded, single-line list of input forms. It
+// clamps instead of failing so an oversized list never makes a definition unloadable.
+func NormalizeAgentAccepts(accepts []string) []string {
+	normalized := make([]string, 0, min(len(accepts), MaxAgentAccepts))
+	for _, form := range accepts {
+		form = strings.Join(strings.Fields(form), " ")
+		if form == "" {
+			continue
+		}
+		if runes := []rune(form); len(runes) > MaxAgentAcceptRunes {
+			form = string(runes[:MaxAgentAcceptRunes])
+		}
+		normalized = append(normalized, form)
+		if len(normalized) == MaxAgentAccepts {
+			break
+		}
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 // normalizeAgentCategoryPath trims each segment, preserving casing and order.

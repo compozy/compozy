@@ -96,7 +96,7 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 	case "add":
 		var req contract.AgentMemoryAddRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
-			result, err = h.AgentMemory.Add(key, time.Now(), source, req.Text, req.Until)
+			result, err = h.addAgentMemory(key, source, req)
 		}
 	case "replace":
 		var req contract.AgentMemoryReplaceRequest
@@ -137,6 +137,22 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 		result = agentMemoryDocumentPayload(doc)
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *BaseHandlers) addAgentMemory(
+	key agentmemory.Key, source string, req contract.AgentMemoryAddRequest,
+) (agentmemory.Document, error) {
+	switch req.Kind {
+	case "", agentmemory.KindNote:
+		return h.AgentMemory.Add(key, time.Now(), source, req.Text, req.Until)
+	case agentmemory.KindRule:
+		if req.Until != "" {
+			return agentmemory.Document{}, errors.New("a rule takes no expiry")
+		}
+		return h.AgentMemory.AddRule(key, req.Text)
+	default:
+		return agentmemory.Document{}, errors.New("memory kind must be note or rule")
+	}
 }
 
 func (h *BaseHandlers) respondAgentMemoryError(c *gin.Context, err error) {

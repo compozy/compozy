@@ -55,6 +55,8 @@ type AgentInstancePeer struct {
 	Description string `json:"description"`
 	Scope       string `json:"scope"`
 	State       string `json:"state"`
+	// Accepts lists the input forms the peer's definition declares.
+	Accepts []string `json:"accepts,omitempty"`
 }
 
 type AgentInstanceListResponse struct {
