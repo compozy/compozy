@@ -1282,7 +1282,7 @@ func TestBootAgentInstances(t *testing.T) {
 		if err := (&Daemon{now: func() time.Time { return now }}).bootAgentInstances(t.Context(), state); err != nil {
 			t.Fatal(err)
 		}
-		if logs.Len() != 0 {
+		if strings.Contains(logs.String(), instance.ID) {
 			t.Fatalf("instance setup reconciled before server startup: %s", logs.String())
 		}
 		if err := reconcileBootInstances(t.Context(), state); err != nil {

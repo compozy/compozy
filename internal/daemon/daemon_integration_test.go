@@ -3880,9 +3880,13 @@ func TestBootResumesInstancesAfterServersStart(t *testing.T) {
 				}
 			}
 			db := d.registry.(*globaldb.GlobalDB)
+			ceiling, err := json.Marshal(main.Info().Lineage.PermissionPolicy)
+			if err != nil {
+				t.Fatal(err)
+			}
 			instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
 				ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
-				PermissionCeiling: "{}", CreatedByKind: "human",
+				PermissionCeiling: string(ceiling), CreatedByKind: "human",
 			}, main.ID, 10)
 			if err != nil {
 				t.Fatal(err)
