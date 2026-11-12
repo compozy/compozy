@@ -65,6 +65,13 @@ func shutdownSessionDependencies(ctx context.Context, targets *shutdownTargets, 
 
 // stopResourceWatchers stops the skills and loops watchers; both are a cancel and a short join.
 func stopResourceWatchers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	// Both are signaled before either is joined, so one slow join cannot leave the other running.
+	if targets.skillsCancel != nil {
+		targets.skillsCancel()
+	}
+	if targets.loopsCancel != nil {
+		targets.loopsCancel()
+	}
 	appendWrappedError(
 		errs,
 		"daemon: stop skills watcher",

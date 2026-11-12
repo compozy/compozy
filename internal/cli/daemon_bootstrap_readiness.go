@@ -259,6 +259,10 @@ func (e *bootstrapExecution) launch(
 		if servingStatus, ok := serving.status(probeCtx, 0); ok {
 			return servingStatus, nil
 		}
+		if probeCtx.Err() != nil {
+			// The wait budget ended during the probe: report the expiry instead of starting a child.
+			continue
+		}
 		status, err = runBootstrapDaemonDetached(ctx, e.deps, e.homePaths, runtimePath, e.options.readyPhase, observe)
 		if !errors.Is(err, compozydaemon.ErrRuntimeMutationInProgress) {
 			return status, err

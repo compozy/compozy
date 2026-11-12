@@ -2320,9 +2320,9 @@ func TestDaemonShutdownOperation(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(testutil.Context(t), restartCheckpointBudget+200*time.Millisecond)
 		defer cancel()
-		manager := &checkpointRecordingSessionManager{promptingSessionManager: promptingSessionManager{
+		manager := &checkpointRecordingSessionManager{
 			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{{ID: "sess-running"}}},
-		}}
+		}
 		if err := d.prepareShutdownSessions(ctx, manager); err != nil {
 			t.Fatalf("prepareShutdownSessions() error = %v", err)
 		}
@@ -8049,10 +8049,23 @@ func TestBootSessionRepair(t *testing.T) {
 			identity("1.2.3", "abc1234", unused) == identity("1.2.4", "abc1234", unused) {
 			t.Fatal("stamped builds with equal size and timestamp share an identity")
 		}
+		if identity("1.2.3-dirty", "abc1234", digest("aaaa", nil)) ==
+			identity("1.2.3-dirty", "abc1234", digest("bbbb", nil)) {
+			t.Fatal("builds of a modified tree with one stamp, size and timestamp share an identity")
+		}
 		if identity("dev", "unknown", digest("aaaa", nil)) == identity("dev", "unknown", digest("bbbb", nil)) {
 			t.Fatal("unstamped builds with equal size and timestamp share an identity")
 		}
-		if identity("dev", "unknown", digest("aaaa", nil)) != identity("dev", "unknown", digest("aaaa", nil)) {
+		first, second := identity(
+			"dev",
+			"unknown",
+			digest("aaaa", nil),
+		), identity(
+			"dev",
+			"unknown",
+			digest("aaaa", nil),
+		)
+		if first != second {
 			t.Fatal("one unstamped build reports two identities")
 		}
 		for _, content := range []func() (string, error){digest("", errors.New("unreadable")), digest("", nil)} {
@@ -8143,6 +8156,9 @@ func TestBootSessionRepair(t *testing.T) {
 	// full path.
 	t.Run("Should skip unchanged verified sessions and reinspect changed ones on the next boot", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+			t.Skip("without an inode identity every session takes the full boot checks")
+		}
 		home := t.TempDir()
 		homePaths := compozyconfig.HomePaths{HomeDir: home, SessionsDir: filepath.Join(home, "sessions")}
 		settledAt := time.Now().Add(-time.Hour)

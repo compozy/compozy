@@ -1884,14 +1884,16 @@ func TestArchiveRetiredMemorySettings(t *testing.T) {
 			t.Fatalf("unexpected migration: %v %v %s", archived, err, rendered)
 		}
 	})
-	t.Run("Should retain the TOML decoder error for invalid input", func(t *testing.T) {
+	t.Run("Should leave invalid input unchanged so the decoder reports the parse error", func(t *testing.T) {
 		t.Parallel()
 		contents := []byte("[memory\nenabled = false\n")
+		rendered, archived, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil || len(archived) != 0 || !bytes.Equal(rendered, contents) {
+			t.Fatalf("archive of invalid TOML = %q, %v, %v; want the input unchanged", rendered, archived, err)
+		}
 		var values map[string]any
-		_, want := burnttoml.Decode(string(contents), &values)
-		_, _, err := archiveRetiredMemorySettings(contents, "config.toml")
-		if err == nil || err.Error() != want.Error() {
-			t.Fatalf("error = %v, want %v", err, want)
+		if _, decodeErr := burnttoml.Decode(string(rendered), &values); decodeErr == nil {
+			t.Fatal("decoder accepted the invalid document")
 		}
 	})
 }
@@ -2464,8 +2466,10 @@ func TestPersistedAgentKindConfigMigration(t *testing.T) {
 		if err != nil || migration.changed() || !bytes.Equal(rendered, malformed) {
 			t.Fatalf("migrateRetiredConfigKeys() = %q, %+v, %v, want the input unchanged", rendered, migration, err)
 		}
-		if _, err := loadConfigOverlayBytes(rendered, "config.toml"); err == nil {
-			t.Fatal("loadConfigOverlayBytes() error = nil, want the decoder's parse error")
+		_, err = loadConfigOverlayBytes(rendered, "config.toml")
+		fileErr, ok := errors.AsType[FileError](err)
+		if !ok || fileErr.Op != "decode" || fileErr.Path != "config.toml" {
+			t.Fatalf("loadConfigOverlayBytes() error = %v, want a decode error naming config.toml", err)
 		}
 	})
 	t.Run("Should migrate other overlays while a config save owns the write mutex", func(t *testing.T) {

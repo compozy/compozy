@@ -55,6 +55,7 @@ const versionArrow = byId("boot-version-arrow");
 const versionTo = byId("boot-version-to");
 const releaseNotes = byId<HTMLButtonElement>("boot-release-notes");
 const detail = byId("boot-detail");
+const lead = byId("boot-lead");
 const errorCode = byId("boot-error-code");
 const controls = byId("boot-controls");
 const retry = byId<HTMLButtonElement>("boot-retry");
@@ -355,9 +356,14 @@ function renderWork(view: JourneyView): void {
 
 /** The game plays itself while work runs; after a failure it waits at rest for Space. */
 function renderRunner(view: JourneyView): void {
-  const wanted = view.layout === "journey";
+  let wanted = view.layout === "journey";
   const autoplay = snapshot.state !== "error";
   show(runnerHost, wanted);
+  // The reason and the actions outrank the game: it yields when the column cannot hold all three.
+  if (wanted && lead.scrollHeight > lead.clientHeight) {
+    wanted = false;
+    show(runnerHost, false);
+  }
   if (runner && (!wanted || runnerAutoplay !== autoplay)) {
     runner.stop();
     runner = null;

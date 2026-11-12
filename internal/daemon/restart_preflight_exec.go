@@ -58,11 +58,13 @@ func defaultRestartPreflight(ctx context.Context, req restartPreflightRequest) r
 		}
 	}
 	waitErr := command.Wait()
+	// Read before the cleanup below, which may outlast the deadline the replacement itself met.
+	ctxErr := commandCtx.Err()
 	// Wait does not release the process-group registration, so the bounded cleanup runs on every
 	// path, success included. The report already decided the outcome; a cleanup failure is logged.
 	if err := procutil.KillCommandProcessGroupAndWait(command, restartPreflightKillWait); err != nil {
 		slog.WarnContext(ctx, "daemon: replacement pre-flight process group cleanup failed",
 			"binary", req.binary, "error", err)
 	}
-	return classifyRestartPreflightOutput(output, waitErr, commandCtx.Err())
+	return classifyRestartPreflightOutput(output, waitErr, ctxErr)
 }

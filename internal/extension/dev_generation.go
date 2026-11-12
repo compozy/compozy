@@ -173,7 +173,9 @@ func readPortableDevManifest(originPath string) (*agentplugin.ManifestDocument, 
 	for _, name := range []string{manifestTOMLFileName, manifestJSONFileName} {
 		exists, err := fileExists(filepath.Join(originPath, name))
 		if err != nil {
-			return nil, fmt.Errorf("extension: inspect development manifest %q: %w", name, err)
+			return nil, &devManifestError{
+				err: fmt.Errorf("extension: inspect development manifest %q: %w", name, err),
+			}
 		}
 		if exists {
 			return nil, nil
@@ -183,8 +185,21 @@ func readPortableDevManifest(originPath string) (*agentplugin.ManifestDocument, 
 	if missing, ok := errors.AsType[*agentplugin.NotManifestError](err); ok && missing != nil {
 		return nil, nil
 	}
-	return document, err
+	if err != nil {
+		return nil, &devManifestError{err: err}
+	}
+	return document, nil
 }
+
+// devManifestError marks a development package whose own manifest cannot be read or parsed, as
+// opposed to a registry or workspace failure.
+type devManifestError struct {
+	err error
+}
+
+func (e *devManifestError) Error() string { return e.err.Error() }
+
+func (e *devManifestError) Unwrap() error { return e.err }
 
 func verifyPortableDevGeneration(
 	originPath string,

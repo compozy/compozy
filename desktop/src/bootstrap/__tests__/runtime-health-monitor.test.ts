@@ -276,6 +276,10 @@ describe("runtime liveness", () => {
       expect(await runtimeProcessAlive(home, undefined, { alive: () => true, startedAt })).toBe(
         false
       );
+      // A pid reused moments after the runtime was recorded is still another program.
+      expect(
+        await runtimeProcessAlive(home, bound, { alive: () => true, startedAt: async () => 10_500 })
+      ).toBe(false);
       await writeFile(join(home, "daemon.lock"), "4242\n");
       expect(
         await runtimeProcessAlive(home, undefined, { alive: pid => pid === 4242, startedAt })

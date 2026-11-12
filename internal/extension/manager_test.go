@@ -594,7 +594,7 @@ path = "skills/shared"
 		t.Fatal(err)
 	}
 	projected, enabled, err = manager.ProjectForProfile(t.Context(), key, lens)
-	if err == nil || enabled || projected != nil {
+	if err == nil || !strings.Contains(err.Error(), "extension_dev_links") || enabled || projected != nil {
 		t.Fatalf(
 			"registry failure projection = %#v, enabled=%v, err=%v, want propagated error",
 			projected,

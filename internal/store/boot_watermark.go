@@ -268,7 +268,8 @@ func BootWatermarkBuildIdentity(
 	contentDigest func() (string, error),
 ) (string, error) {
 	commit = strings.TrimSpace(commit)
-	if commit != "" && commit != "unknown" {
+	// A build from a modified tree shares its commit stamp with every other such build.
+	if commit != "" && commit != "unknown" && !strings.Contains(release, "dirty") {
 		return fmt.Sprintf("build:%s:%s:%d:%d", strings.TrimSpace(release), commit, size, modTime), nil
 	}
 	digest, err := contentDigest()

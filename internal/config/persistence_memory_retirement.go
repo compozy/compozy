@@ -279,30 +279,37 @@ func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) 
 		for i+1 < len(children) && removed[i+1] {
 			i++
 		}
-		start := rangeStart(expressionRange(children[first]))
-		end := retiredMemoryNodeEnd(source, children[i])
-		switch {
-		case i+1 < len(children):
-			nextStart := rangeStart(expressionRange(children[i+1]))
-			if comma := retiredMemorySeparator(source[end:nextStart]); comma >= 0 {
-				end += comma + 1
-			}
-		case first > 0:
-			previousEnd := retiredMemoryNodeEnd(source, children[first-1])
-			if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
-				start = previousEnd + comma
-			} else if trailing := retiredMemorySeparator(source[end:]); trailing >= 0 {
-				// A comment is the previous node, so the element's own separator follows it.
-				end += trailing + 1
-			}
-		default:
-			if comma := retiredMemorySeparator(source[end:]); comma >= 0 {
-				end += comma + 1
-			}
-		}
+		start, end := retiredMemoryRemovalRange(source, children, first, i)
 		edits = append(edits, retiredMemoryEdit{start: start, end: end})
 	}
 	return edits, nil
+}
+
+// retiredMemoryRemovalRange returns the byte range that removes children[first..last] together with
+// the one separator that belongs to them, so the surrounding array or inline table stays valid.
+func retiredMemoryRemovalRange(source []byte, children []*tomlast.Node, first, last int) (int, int) {
+	start := rangeStart(expressionRange(children[first]))
+	end := retiredMemoryNodeEnd(source, children[last])
+	switch {
+	case last+1 < len(children):
+		nextStart := rangeStart(expressionRange(children[last+1]))
+		if comma := retiredMemorySeparator(source[end:nextStart]); comma >= 0 {
+			end += comma + 1
+		}
+	case first > 0:
+		previousEnd := retiredMemoryNodeEnd(source, children[first-1])
+		if comma := retiredMemorySeparator(source[previousEnd:start]); comma >= 0 {
+			start = previousEnd + comma
+		} else if trailing := retiredMemorySeparator(source[end:]); trailing >= 0 {
+			// A comment is the previous node, so the element's own separator follows it.
+			end += trailing + 1
+		}
+	default:
+		if comma := retiredMemorySeparator(source[end:]); comma >= 0 {
+			end += comma + 1
+		}
+	}
+	return start, end
 }
 
 func retiredMemoryNodeEnd(source []byte, node *tomlast.Node) int {

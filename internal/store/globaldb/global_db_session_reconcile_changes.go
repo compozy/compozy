@@ -36,8 +36,9 @@ func (g *SessionRepo) ReconcileSessionChanges(
 	}
 
 	result := store.SessionChangeReconcileResult{
-		ReconcileResult: store.ReconcileResult{Indexed: make([]string, 0), Orphaned: make([]string, 0)},
-		Written:         make([]store.SessionInfo, 0, len(sessions)),
+		Indexed:  make([]string, 0),
+		Orphaned: make([]string, 0),
+		Written:  make([]store.SessionInfo, 0, len(sessions)),
 	}
 	// The catalog IDs are read once, in the first write transaction; later chunks only add to them.
 	var existing map[string]struct{}

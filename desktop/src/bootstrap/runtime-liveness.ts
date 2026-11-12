@@ -23,8 +23,6 @@ export interface RuntimeProcessRecord {
 }
 
 const START_LOOKUP_TIMEOUT_MS = 5_000;
-/** Skew allowed between a recorded moment and the kernel's start time, as the runtime allows. */
-const START_SKEW_MS = 2_000;
 
 function commandOutput(file: string, args: readonly string[]): Promise<string> {
   return new Promise(resolve => {
@@ -125,7 +123,9 @@ export async function runtimeProcessAlive(
   for (const record of records) {
     if (!alive(record.pid)) continue;
     const started = await startedAt(record.pid);
-    if (started !== null && started <= record.recordedAt + START_SKEW_MS) return true;
+    // A process starts before it is recorded and start times only round down, so no skew is
+    // allowed: any start after the recorded moment is another program holding a reused pid.
+    if (started !== null && started <= record.recordedAt) return true;
   }
   return false;
 }

@@ -177,6 +177,8 @@ body {
   text-wrap: pretty;
   max-block-size: 10lh;
   overflow-y: auto;
+  /* The reason never gives up its lines; the waiting game yields the space instead. */
+  flex: none;
 }
 .boot[data-layout="center"] .boot__detail {
   max-inline-size: 44ch;

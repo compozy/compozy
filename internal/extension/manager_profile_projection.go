@@ -119,8 +119,7 @@ func (m *Manager) loadProfileProjectionSource(ctx context.Context, key InstanceK
 		inspected.Status.WorkspaceID = workspaceID
 		return inspected, false, nil
 	}
-	var resourceErr *projectionResourceError
-	if ctx.Err() != nil || !errors.As(err, &resourceErr) {
+	if _, isResourceErr := errors.AsType[*projectionResourceError](err); ctx.Err() != nil || !isResourceErr {
 		return nil, false, err
 	}
 	// The registry row stays visible without a manifest, like a managed package whose
@@ -166,7 +165,8 @@ func (m *Manager) inspectProjectionSource(ctx context.Context, key InstanceKey) 
 	verified, err := m.resolveDevGeneration(ctx, key, link.OriginPath, link.BundleGeneration)
 	if err != nil {
 		err = fmt.Errorf("extension: verify development projection %q: %w", key.runtimeID(), err)
-		if errors.Is(err, ErrExtensionGenerationInvalid) {
+		_, brokenManifest := errors.AsType[*devManifestError](err)
+		if brokenManifest || errors.Is(err, ErrExtensionGenerationInvalid) {
 			return nil, &projectionResourceError{err: err}
 		}
 		return nil, err
