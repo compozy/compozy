@@ -70,7 +70,8 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 		{terminalpkg.EventKindDeleted, terminalpkg.ActorKindAgent, 0, windowmanager.UserDesktopWorkspaceID},
 		{terminalpkg.EventKindClosed, terminalpkg.ActorKindHuman, 1, bridgeTestWorkspace},
 	} {
-		t.Run(fmt.Sprintf("Should reconcile %s windows on %s in %s", testCase.origin, testCase.kind, testCase.partition), func(t *testing.T) {
+		name := fmt.Sprintf("Should reconcile %s windows on %s in %s", testCase.origin, testCase.kind, testCase.partition)
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			manager := newBridgeTestManager(t)

@@ -1399,7 +1399,8 @@ func TestTriageDispatcher(t *testing.T) {
 				}
 				if tc.async {
 					info, statusErr := h.manager.Status(t.Context(), "sess-1")
-					if statusErr != nil || info.State != StateStopped || info.Failure == nil || info.Failure.Kind != store.FailureStartup {
+					if statusErr != nil || info.State != StateStopped || info.Failure == nil ||
+						info.Failure.Kind != store.FailureStartup {
 						t.Fatalf("retained startup failure = %+v, error = %v", info, statusErr)
 					}
 				}
