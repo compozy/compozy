@@ -732,7 +732,8 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 					t.Fatal(err)
 				}
 				after := child.Info()
-				if after.AttentionRevision <= before.AttentionRevision || after.EndedEarlyTurnID != before.EndedEarlyTurnID {
+				if after.AttentionRevision <= before.AttentionRevision ||
+					after.EndedEarlyTurnID != before.EndedEarlyTurnID {
 					t.Fatalf("presence attention = %#v, want a seen revision of the same early-stop occurrence", after)
 				}
 			}
@@ -747,7 +748,10 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 				}
 				dispatcher := &spyHookDispatcher{}
 				if tc.during == "input" {
-					dispatcher.dispatchInputPreSubmitFn = func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+					dispatcher.dispatchInputPreSubmitFn = func(
+						_ context.Context,
+						payload hookspkg.InputPreSubmitPayload,
+					) (hookspkg.InputPreSubmitPayload, error) {
 						if payload.SessionID == parent.ID {
 							advanceChild()
 						}
@@ -755,7 +759,10 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 					}
 				}
 				if tc.during == "turn" {
-					dispatcher.dispatchTurnStartFn = func(_ context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+					dispatcher.dispatchTurnStartFn = func(
+						_ context.Context,
+						payload hookspkg.TurnStartPayload,
+					) (hookspkg.TurnStartPayload, error) {
 						if payload.SessionID == parent.ID {
 							advanceChild()
 						}
@@ -764,7 +771,11 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 				}
 				h.manager.hooks = fullHookSet(dispatcher)
 				if tc.during == "augment" {
-					h.manager.inputAugmenter = func(_ context.Context, target *Session, message string) (string, error) {
+					h.manager.inputAugmenter = func(
+						_ context.Context,
+						target *Session,
+						message string,
+					) (string, error) {
 						if target.ID == parent.ID {
 							advanceChild()
 						}
@@ -971,7 +982,10 @@ type flakySpawnWakeCatalog struct {
 	calls   int
 }
 
-func (c *flakySpawnWakeCatalog) ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error) {
+func (c *flakySpawnWakeCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
 	if query.ID == c.childID {
 		c.mu.Lock()
 		c.calls++

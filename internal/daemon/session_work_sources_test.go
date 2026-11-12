@@ -165,9 +165,13 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 				now := time.Now()
 				child := &session.Info{ID: "child", WorkspaceID: "ws", ProfileID: store.DefaultProfileID,
 					State: session.StateActive, EndedEarlyTurnID: "turn-1", AttentionChangedAt: &now}
-				targets := &monitorTargetManagerStub{reads: map[string]int{}, infos: map[string]*session.Info{"child": child}}
+				targets := &monitorTargetManagerStub{
+					reads: map[string]int{}, infos: map[string]*session.Info{"child": child},
+				}
 				wakeManager := &monitorWakeManagerStub{status: &session.Info{State: session.StateActive}}
-				var waker monitor.Waker = &monitorSessionWaker{sessions: func() monitorSessionManager { return wakeManager }}
+				var waker monitor.Waker = &monitorSessionWaker{
+					sessions: func() monitorSessionManager { return wakeManager },
+				}
 				wantStatus := monitor.StatusFired
 				if delivering {
 					waker, wantStatus = retryMonitorWaker{}, monitor.StatusDelivering

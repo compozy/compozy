@@ -107,15 +107,11 @@ func (bridge *sessionWakeBridge) WakeSpawnCreator(
 		return nil
 	}
 
-	kind := ""
-	if normalized.EndedEarly {
-		kind = session.SpawnWakeKindEndedEarly
-	}
 	events, err := sessions.PromptSynthetic(deliveryCtx, creatorID, session.SyntheticPromptOpts{
 		MessageID: normalized.WakeEventID,
 		Message:   sessionWakePromptMessage(normalized),
 		Metadata: acp.PromptSyntheticMeta{
-			Kind:           kind,
+			Kind:           sessionWakeKind(normalized),
 			ChildSessionID: normalized.ChildSessionID,
 			ChildAgentName: normalized.ChildAgentName,
 			Badge:          string(normalized.Badge),
@@ -177,6 +173,13 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 		lines = append(lines, "Detail: "+event.Detail)
 	}
 	return session.SanitizeSpawnWakeText(strings.Join(lines, "\n"))
+}
+
+func sessionWakeKind(event session.SpawnWakeEvent) string {
+	if event.EndedEarly {
+		return session.SpawnWakeKindEndedEarly
+	}
+	return ""
 }
 
 func sessionWakeAction(event session.SpawnWakeEvent) string {

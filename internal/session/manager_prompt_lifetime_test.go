@@ -416,8 +416,11 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 				child.mu.Unlock()
 				proc.crash(errors.New("provider process exited"), "provider disconnected")
 				events <- acp.AgentEvent{Type: acp.EventTypeError, SessionID: proc.handle.SessionID, TurnID: req.TurnID,
-					Error:   "peer disconnected before response",
-					Failure: &store.SessionFailure{Kind: store.FailureTransport, Summary: "peer disconnected before response"}}
+					Error: "peer disconnected before response",
+					Failure: &store.SessionFailure{
+						Kind: store.FailureTransport, Summary: "peer disconnected before response",
+					},
+				}
 			} else {
 				events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID}
 			}
@@ -434,7 +437,8 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		}
 		completed := collectEvents(t, stream)
 		if countAgentEvents(completed, acp.EventTypeRuntimeRecoverySucceeded) != 1 ||
-			countAgentEvents(completed, acp.EventTypeDone) != 1 || countAgentEvents(completed, acp.EventTypeError) != 0 {
+			countAgentEvents(completed, acp.EventTypeDone) != 1 ||
+			countAgentEvents(completed, acp.EventTypeError) != 0 {
 			t.Fatalf("events = %#v, want one successful recovery and completion", completed)
 		}
 		h.driver.mu.Lock()
