@@ -204,8 +204,13 @@ func (s *ManagedWakeService) loadWakePolicy(
 	ctx context.Context,
 	req WakeRequest,
 ) (Snapshot, SnapshotEnvelope, WakeDecision, bool, error) {
-	snapshot, err := s.store.GetLatestValidHeartbeatSnapshot(ctx, req.WorkspaceID, req.AgentName, req.ProfileID)
+	snapshot, err := s.currentWakeSnapshot(ctx, req)
 	if err != nil {
+		if invalid, ok := errors.AsType[*AuthoringError](err); ok && errors.Is(err, ErrInvalid) {
+			decision := s.newDecision(WakeResultSkipped, WakeReasonHeartbeatInvalid, "", "", "")
+			decision.Diagnostics = cloneDiagnostics(invalid.Diagnostics)
+			return Snapshot{}, SnapshotEnvelope{}, decision, false, nil
+		}
 		if errors.Is(err, ErrSnapshotNotFound) {
 			decision := s.newDecision(WakeResultSkipped, WakeReasonHeartbeatNoPolicy, "", "", "")
 			return Snapshot{}, SnapshotEnvelope{}, decision, false, nil

@@ -397,3 +397,14 @@ the proactive check service is published and its recovery bindings are installed
 Linux race lane observed watcher polling concurrent with bootProactiveChecks publication.
 The existing real daemon boot suite and declaration/recovery suites own verification;
 local execution is forbidden for this parallel dispatch.
+
+## Manual wake after repository policy edits
+
+1. Create a valid `HEARTBEAT.md` directly beside an agent definition without using authoring mutations.
+2. Read `agent_heartbeat_status`; confirm valid, active, present policy without a snapshot.
+3. Call `agent_heartbeat_wake` for an idle eligible session with `dry_run: true`. Expect the same policy digest and a would-send decision, with no snapshot or authoring revision written.
+4. Edit the summary on disk and repeat. Expect the updated digest. Perform a real manual wake; expect one prompt using the edited guidance, a persisted snapshot visible in status, and no authoring revision.
+5. Replace the file with malformed frontmatter; expect `heartbeat_invalid`. Remove it; expect `heartbeat_no_policy`, even with an older valid snapshot stored.
+6. Pass an unknown `source`; expect validation failure naming `timer`, `instance_check`, `scheduler`, `manual`, and `harness_reentry`. Tool discovery declares these enum values.
+
+CI coverage: `TestManagedHeartbeatDiskWake` in `internal/heartbeat/authoring_status_test.go` uses real filesystem and SQLite persistence. Local execution is deferred under the CI-only operator rule.

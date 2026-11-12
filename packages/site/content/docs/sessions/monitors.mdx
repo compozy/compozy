@@ -138,8 +138,9 @@ Ask an agent to open a pull request and see it through, for example:
    }
    ```
 
-   The monitor follows the session's branch. Pass `branch` to watch another one. A default branch, or
-   a session with no branch, is refused. If the pull request does not exist yet, the monitor waits for it.
+   The monitor follows the session's branch. Pass `branch` to watch another one. For a GitHub fork,
+   pass `branch: "contributor:topic"` to select the fork owner and head branch explicitly. An
+   unqualified branch selects the base repository. A default branch, or a session with no branch, is refused. If the pull request does not exist yet, the monitor waits for it.
    It also waits when the branch only has a pull request that had already merged or closed, as a reused
    branch does: only a pull request the monitor saw open can end it.
 
@@ -177,8 +178,8 @@ If the forge cannot be reached, those failed reads are never treated as check re
 minutes of failures, one wake says the forge is unavailable and the monitor stays armed. If only reviews
 fail to load, checks keep working and reviews that arrive meanwhile are still reported once they can be
 read. Rate limits are respected, and sessions watching the same pull request share one read. A forge
-extension that does not report reviews still supports checks, and each wake says what it could not observe. Pull requests
-from forks are not visible to the monitor.
+extension that does not report reviews still supports checks, and each wake says what it could not observe. GitHub pull requests from forks require an explicit
+`owner:branch` selector.
 
 A pull request monitor keeps its slot for its whole life, and an always-on agent's session does not
 rotate while one is active.
@@ -235,3 +236,6 @@ Monitors are stored by the daemon and survive a restart. After the daemon comes 
   before the monitor is listed as `interrupted`. If you delete a session that is not running during that
   time, its monitors are canceled by the next check, within about 30 seconds, rather than at the moment of
   deletion.
+
+Canceled monitors omit `fired_at`; cancellation does not represent a wake. For repeating
+pull request monitors, `last_fired_at` still records any earlier wakes.

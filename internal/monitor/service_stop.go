@@ -16,7 +16,7 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 		return Monitor{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if !item.occupies() {
-		state := item.state
+		state := item.state.observable()
 		if item.saved >= item.decided {
 			s.mu.Unlock()
 			return state, nil
@@ -31,7 +31,7 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	s.logLifecycle("monitor.canceled", item.state, "requested")
 	item.cancel()
 	s.pruneSessionLocked(sessionID, s.now())
-	state, record := item.state, s.decideLocked(item)
+	state, record := item.state.observable(), s.decideLocked(item)
 	s.mu.Unlock()
 	s.notify(sessionID)
 	return state, s.confirmCancel(item, record)
