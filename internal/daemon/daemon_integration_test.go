@@ -1959,7 +1959,6 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 			name = "Should preserve restart intent through full shutdown during provider recovery backoff"
 		}
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			homePaths := integrationHomePaths(t)
 			cfg := testConfig(t, homePaths)
 			if recovering {
