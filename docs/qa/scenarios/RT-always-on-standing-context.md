@@ -39,3 +39,11 @@ Walked 2026-11-12 in two isolated labs with real Claude and Codex sessions; step
 were not walked in a browser.
 
 2026-11-12 review repair (not re-walked in a lab; owned by `TestAgentMemoryRoutes`, `TestStore` and `TestPromptInputCompositeIntegrationStandingContext` in CI): steps 13 to 15, the `compaction="<n>"` attribute on the block after a compaction, and the reworded unchanged marker.
+
+CI integration repair 2026-11-12 (#1565): HTTP and UDS log reads must expose the
+same complete harness lifecycle, including all three selected augmenters: skills,
+situation and standing. An on-demand session reports standing as unchanged without
+receiving standing content. The existing
+`TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP` requires the exact event
+sequence and each augmenter's metadata over both real transports. Validation runs
+only in CI under the parallel-dispatch operator rule; no local walk was performed.

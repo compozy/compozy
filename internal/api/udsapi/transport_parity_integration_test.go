@@ -2507,7 +2507,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !strings.Contains(httpHarnessEvents[2].Summary, "surface=turn") {
 		t.Fatalf("turn summary = %q, want turn surface", httpHarnessEvents[2].Summary)
 	}
-	for _, augmenter := range []string{"skills", "situation"} {
+	for _, augmenter := range []string{"skills", "situation", "standing"} {
 		if !slices.ContainsFunc(httpHarnessEvents[3:], func(event compozycontract.LogEventPayload) bool {
 			return strings.Contains(event.Summary, "augmenter="+augmenter+" ")
 		}) {
@@ -3329,6 +3329,7 @@ func wantTransportObserveHarnessTypes() []string {
 		"harness.context_resolved",
 		"harness.section_selected",
 		"harness.context_resolved",
+		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 	}
