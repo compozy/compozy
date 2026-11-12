@@ -31,13 +31,13 @@ export const terminalLauncherLogic = createStoreLogic<
   TerminalLauncherContext,
   TerminalLauncherEvents
 >({
-  context: { chosen: null, query: "", unfolded: new Set(), searchFlips: new Set() },
+  context: { chosen: null, query: "", unfolded: new Set<string>(), searchFlips: new Set<string>() },
   on: {
     rowSelected: (context, event) => ({
       ...context,
       chosen: event.value === event.defaultValue ? null : event.value,
     }),
-    searched: (context, event) => ({ ...context, query: event.query, searchFlips: new Set() }),
+    searched: (context, event) => ({ ...context, query: event.query, searchFlips: new Set<string>() }),
     projectFolded: (context, event) =>
       terminalLauncherSearching(context.query)
         ? { ...context, searchFlips: flip(context.searchFlips, event.project) }
