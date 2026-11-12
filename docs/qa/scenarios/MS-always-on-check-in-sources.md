@@ -391,3 +391,9 @@ This focused runtime check does not replace the live-provider and Web journeys a
 
 Execution evidence: CI owns validation for this change; local runtime QA is prohibited
 by the parallel-delivery operator constraint.
+
+CI integration repair 2026-11-12 (#1565): start the MCP declaration watcher only after
+the proactive check service is published and its recovery bindings are installed. The
+Linux race lane observed watcher polling concurrent with bootProactiveChecks publication.
+The existing real daemon boot suite and declaration/recovery suites own verification;
+local execution is forbidden for this parallel dispatch.
