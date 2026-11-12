@@ -1512,10 +1512,11 @@ func TestAgentInstanceCreateResult(t *testing.T) {
 
 // Invariant: the instance read chooses the earliest timed wake and preserves untimed monitors.
 func TestAgentInstanceNextWake(t *testing.T) {
-	for _, tc := range []struct{ name, monitorAt, checkAt, want string }{
-		{"Should prefer an earlier timer", "2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z", "timer"},
-		{"Should prefer an earlier check", "2026-11-03T12:00:00Z", "2026-11-03T11:00:00Z", "check"},
-		{"Should preserve an untimed monitor without a check", "", "", "timer"},
+	for _, tc := range []struct{ name, monitorAt, checkAt, want, reason string }{
+		{"Should prefer an earlier timer", "2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z", "timer", ""},
+		{"Should prefer an earlier check", "2026-11-03T12:00:00Z", "2026-11-03T11:00:00Z", "check", ""},
+		{"Should preserve an untimed monitor without a check", "", "", "timer", ""},
+		{"Should explain a deferred configuration rejection", "", "2026-11-03T11:00:00Z", "check", heartbeat.ReasonTriageConfigUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1530,12 +1531,16 @@ func TestAgentInstanceNextWake(t *testing.T) {
 					}, nil
 				},
 				WakeState: func(context.Context, string) (heartbeat.InstanceWakeState, error) {
-					return heartbeat.InstanceWakeState{NextWakeAt: tc.checkAt}, nil
+					return heartbeat.InstanceWakeState{NextWakeAt: tc.checkAt, LastReason: tc.reason}, nil
 				},
 			}
 			payload, err := api.Payload(t.Context(), agentinstance.Instance{State: "active", ChecksEnabled: true})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.reason != "" &&
+				(payload.NextWake == nil || !strings.Contains(payload.NextWake.Description, "agent_instance_check")) {
+				t.Fatalf("missing manual recovery: %+v", payload.NextWake)
 			}
 			if payload.NextWake == nil || payload.NextWake.Kind != tc.want {
 				t.Fatalf("next wake = %+v", payload.NextWake)

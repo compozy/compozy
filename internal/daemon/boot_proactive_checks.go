@@ -90,6 +90,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	state.runtimeWorkers.proactiveChecks = service
 	state.agentInstances.Checks = service
 	state.agentInstances.CheckSettings = service
+	bindCheckConfigRecovery(state, service)
 	cleanup.add(service.Shutdown)
 	return nil
 }
