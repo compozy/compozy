@@ -35,3 +35,14 @@ and passes afterward, including boolean false and per-option provenance. The exi
 runtime integration and cross-surface restart/replay case pass with SQLite and the isolated ACP
 test peer. This verifies the projection leg; it does not change the historical live-provider
 scenario verdict above.
+
+QA impact (#1520, #1526): applied ACP provenance is rebuilt per applied option. In the
+run-agent action checks, an agent-added mode gets `agent` alongside a node-authored
+`fast_mode=false`; a skipped mode loses its source entry while surviving node provenance
+is retained. Reuse the existing runtime integration for persisted and replayed projections;
+these metadata repairs do not alter runtime selection or the historical live-provider verdict.
+
+Focused verification 2026-11-11 (#1520, #1526): the three action cases fail on the original
+implementation and pass after the repair. The unchanged runtime integration passes, including
+persisted/read projections and replay after isolated daemon restart. Scoped Loop lint reports
+zero issues for both normal and integration build tags; broad gates remain CI-owned.

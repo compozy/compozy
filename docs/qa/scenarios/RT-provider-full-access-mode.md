@@ -64,3 +64,16 @@ Real daemon/process-boundary coverage: `TestAgyACPBuiltInEntry`,
 `TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions`, and
 `TestLoopRuntimeSelectionIntegration` (integration tag). These checks use disposable homes and
 subprocess ACP providers; they do not establish live-provider or new browser evidence.
+
+ACP provenance regression coverage (#1520, #1526): in the existing run-agent action suite,
+request `fast_mode=false` and let binding add `mode=agent-full-access`; the applied sources
+must be exactly `fast_mode=node` and `mode=agent`. Then request both options and skip
+`mode`: only `fast_mode=node` survives. Skipping every option must omit option provenance.
+Requested intent remains unchanged. `TestReservedActionExecutorsShouldRunAgentLoopAndTransform`
+owns this invariant; `TestLoopRuntimeSelectionIntegration` owns persisted/read projections
+and `runtime_applied` replay. Historical events remain unchanged.
+
+Focused verification 2026-11-11: action/precedence regressions and scoped Loop lint pass;
+`go test -tags=integration ./internal/daemon -run '^TestLoopRuntimeSelectionIntegration$' -count=1`
+passes with an isolated daemon, SQLite and subprocess ACP peer, including restart/read/replay.
+This is automated integration evidence, not a new live-provider or browser walk.
