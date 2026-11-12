@@ -115,7 +115,9 @@ async function authorityWindow(page: Page, win: Locator): Promise<Locator> {
 
 /** Focus an obscured window through the user-facing palette's exact tab identity. */
 export async function focusWindowThroughPalette(page: Page, win: Locator): Promise<void> {
-  if ((await windowFrame(win).getAttribute("data-focused")) !== null) return;
+  if ((await windowFrame(win).getAttribute("data-focused")) !== null && (await win.isVisible())) {
+    return;
+  }
   const target = await authorityWindow(page, win);
   const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
   await page.keyboard.press("ControlOrMeta+K");
