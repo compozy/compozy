@@ -54,7 +54,7 @@ func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev
 	if row.Origin != store.SubagentOriginProviderNative {
 		return false, nil
 	}
-	if !known && !nativeTaskActive(ev.Task) {
+	if !known && !nativeTaskActive(ev.Task) && !store.IsSubagentStatusTerminal(row.Status) {
 		return false, nil
 	}
 
@@ -130,7 +130,7 @@ func (s *subagentService) observeNativeTaskCall(parent string, ev NativeSubagent
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	call, known := s.nativeKnown[parent][ev.ProviderToolCallID]
-	if known && ev.Task.Background != nil && *ev.Task.Background && !call.background {
+	if known && call.turnID == ev.ParentTurnID && ev.Task.Background != nil && *ev.Task.Background && !call.background {
 		call.background = true
 		s.nativeKnown[parent][ev.ProviderToolCallID] = call
 	}

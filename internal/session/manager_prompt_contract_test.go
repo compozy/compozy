@@ -4461,6 +4461,72 @@ func (r *nativeOrderRecorder) Summaries(context.Context, []string) (map[string]s
 // stream (issue #766), and the next turn stays excluded until settlement returns; owner: Manager prompt persistence.
 func TestNativeSubagentPersistenceOrder(t *testing.T) {
 	t.Parallel()
+	// Invariant: committed late summaries enrich retired rows immediately or survive projection failure for replay.
+	for _, recoverResult := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should retain a committed late native summary with recovery %t", recoverResult),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newDeriveHarness(t)
+				parent := createSession(t, h.harness)
+				t.Cleanup(func() { reportSessionStop(t, h.harness, parent.ID) })
+				s, _, _ := newSubagentTestService(t)
+				s.store, s.runtime, s.now = h.db, managerSubagentRuntime{m: h.manager}, h.manager.now
+				hook := &subagentRecordingHook{}
+				s.settled = hook
+				h.manager.SetSubagentService(s)
+				launch := acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "turn", ToolCallID: "retired"}.
+					WithProviderToolMetadata("", "Agent", "pending").
+					WithTool("Agent", json.RawMessage(`{"run_in_background":true}`), false)
+				if err := h.manager.recordEvent(t.Context(), parent, launch); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnNativeTurnDone(t.Context(), parent.ID, "turn", s.now()); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.OnParentStopped(t.Context(), parent.ID); err != nil {
+					t.Fatal(err)
+				}
+				limit := s.resultLimit
+				if recoverResult {
+					s.resultLimit = func(context.Context, string) (int, error) { return 0, errors.New("projection unavailable") }
+				}
+				late := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: "retired"}.
+					WithNativeTask(&acp.NativeTaskObservation{
+						Kind: acp.NativeTaskKindState, TaskID: "agent", ToolCallID: "retired",
+						Status: acp.NativeTaskStatusCompleted, Summary: new("durable late answer"),
+					})
+				if err := h.manager.recordEvent(t.Context(), parent, late); err != nil {
+					t.Fatal(err)
+				}
+				row, err := h.db.GetSubagent(t.Context(), h.workspaceID, subagentID(parent.ID, "retired"))
+				if err != nil || recoverResult && row.Result != nil || !recoverResult && row.Result == nil {
+					t.Fatalf("late projection = %#v, %v", row, err)
+				}
+				stored, err := h.manager.Events(
+					t.Context(),
+					parent.ID,
+					store.EventQuery{Types: []string{acp.EventTypeNativeTask}},
+				)
+				if err != nil || len(stored) != 1 {
+					t.Fatalf("committed summaries = %d, %v", len(stored), err)
+				}
+				s.resultLimit = limit
+				if recoverResult {
+					if err := s.Recover(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				}
+				waitForCondition(t, "native settled hook", func() bool { return len(hook.recorded()) == 1 })
+				row, err = h.db.GetSubagent(t.Context(), h.workspaceID, row.ID)
+				if err != nil || row.Result == nil || *row.Result != "durable late answer" ||
+					row.Status != store.SubagentStatusCompleted || row.Delivery != store.SubagentDeliveryNone ||
+					len(hook.recorded()) != 1 || len(s.nativeKnown[parent.ID]) != 0 {
+					t.Fatalf("committed summary lost or resettled native work: %#v, %v", row, err)
+				}
+			},
+		)
+	}
 	t.Run("Should reserve the next prompt until native settlement returns", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

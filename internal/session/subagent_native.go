@@ -74,6 +74,10 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if store.IsSubagentStatusTerminal(row.Status) {
 		return created, nil
 	}
+	// Metadata can arrive late, but an explicit foreign turn cannot change call state.
+	if ev.ParentTurnID != "" && ev.ParentTurnID != row.ParentTurnID {
+		return created, nil
+	}
 	call := s.rememberNativeCall(parent, row.ParentTurnID, ev)
 	changed, err := s.finalizeNativeToolResult(ctx, row, ev, call.background)
 	if err != nil || !changed {
