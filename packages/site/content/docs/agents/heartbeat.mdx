@@ -569,3 +569,16 @@ are canceled. A new failure raises attention again.
 The local operator can use `compozy agent instance mark-seen <id>` or
 `POST /api/agent-instances/{id}/away` for the same acknowledgement. Reports remain in history
 and keep their provider delivery state: reading them does not send them to the agent.
+
+### Recovering rejected check-in configuration
+
+A check-in rejected with `triage_config_unavailable` waits up to
+`agents.heartbeat.max_interval` before retrying. Applying heartbeat or provider runtime
+configuration reschedules affected active instances within their normal resolved cadence
+and clears the quiet and failure backoff. A fresh live provider model catalog confirming
+the configured triage model also schedules recovery in that profile and workspace.
+Paused, archived, disabled, and in-flight instances are left alone. Pending automation
+events and unattended-turn counts are preserved.
+
+Instance status and list responses explain the last runtime rejection in the next check's
+description. Use `agent_instance_check` to retry manually after correcting configuration.

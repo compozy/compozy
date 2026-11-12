@@ -90,3 +90,13 @@ func (r *InstanceRepo) Occurrence(
 		ReportID: row.ReportID,
 	}, nil
 }
+
+func (r *InstanceRepo) RecoverConfigRejectedWake(ctx context.Context, id string, next time.Time) error {
+	_, err := executeWriteQueryResult(ctx, r.repoBase, "recover config rejected instance wake",
+		func(ctx context.Context, q *sqlcgen.Queries) (int64, error) {
+			return q.RecoverConfigRejectedInstanceWake(ctx, sqlcgen.RecoverConfigRejectedInstanceWakeParams{
+				InstanceID: id, NextWakeAt: store.FormatTimestamp(next),
+			})
+		})
+	return err
+}

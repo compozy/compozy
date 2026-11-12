@@ -430,6 +430,28 @@ func (q *Queries) MarkSessionInputUnattendedCounted(ctx context.Context, id stri
 	return result.RowsAffected()
 }
 
+const recoverConfigRejectedInstanceWake = `-- name: RecoverConfigRejectedInstanceWake :execrows
+UPDATE agent_instance_wake_state SET quiet_streak=0, failure_streak=0,
+next_wake_at=CASE WHEN next_wake_at>?1 THEN ?1 ELSE next_wake_at END
+WHERE agent_instance_wake_state.instance_id=?2 AND occurrence_id=''
+AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id=agent_instance_wake_state.instance_id AND i.state='active' AND i.archived_at IS NULL AND i.checks_enabled=1)
+AND (SELECT reason FROM agent_heartbeat_wake_events e WHERE e.instance_id=agent_instance_wake_state.instance_id
+ORDER BY e.created_at DESC,e.id DESC LIMIT 1)='triage_config_unavailable'
+`
+
+type RecoverConfigRejectedInstanceWakeParams struct {
+	NextWakeAt string `json:"next_wake_at"`
+	InstanceID string `json:"instance_id"`
+}
+
+func (q *Queries) RecoverConfigRejectedInstanceWake(ctx context.Context, arg RecoverConfigRejectedInstanceWakeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recoverConfigRejectedInstanceWake, arg.NextWakeAt, arg.InstanceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const resetInstanceUnattended = `-- name: ResetInstanceUnattended :exec
 UPDATE agent_instance_wake_state SET unattended_turns=0, engaged_at=?1
 WHERE instance_id=?2

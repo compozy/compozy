@@ -2223,6 +2223,42 @@ func TestHeartbeatSourceOperatorRuntime(t *testing.T) {
 // persistent source failure reports once and disappears from the digest on recovery.
 // Owning layer: daemon heartbeat runtime and its real SQLite recovery transactions.
 func TestHeartbeatSourceRecovery(t *testing.T) {
+	t.Run("Should recover a config rejected timer within the resolved cadence", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, true, false)
+		repo, now := h.db.Instances(), h.now()
+		if admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+			InstanceID: h.instance.ID, OccurrenceID: "config-rejected", ManualCheck: true,
+			Now: now, MaxConcurrent: 1,
+		}); err != nil || !admitted {
+			t.Fatalf("admit=%v error=%v", admitted, err)
+		}
+		if result, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+			InstanceID: h.instance.ID, OccurrenceID: "config-rejected", Source: "timer",
+			Result: "failed", Reason: heartbeat.ReasonTriageConfigUnavailable,
+			Interval: time.Hour, MaxInterval: 24 * time.Hour, Now: now, ExpiresAt: now.Add(48 * time.Hour),
+		}); err != nil || !result.Changed {
+			t.Fatalf("finish=%+v error=%v", result, err)
+		}
+		if err := h.checks.RecoverConfiguration(t.Context(), func(heartbeat.CheckTarget) bool { return false }); err != nil {
+			t.Fatal(err)
+		}
+		before, err := repo.WakeState(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.checks.RecoverConfiguration(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		after, err := repo.WakeState(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, err := store.ParseTimestamp(after.NextWakeAt)
+		if err != nil || !next.Before(now.Add(24*time.Hour)) || before.NextWakeAt == after.NextWakeAt {
+			t.Fatalf("before=%+v after=%+v error=%v", before, after, err)
+		}
+	})
 	t.Run("Should recover an interrupted bound triage and repeat its input [IT-004]", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, true)
 		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":7}`)})

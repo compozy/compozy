@@ -374,3 +374,20 @@ preserves both independent choices. The agent created through
 a separate mock agent does not configure that new agent. A driver launched without
 `--fixture` produces a startup failure report instead of exercising proposal picks.
 This focused runtime check does not replace the live-provider and Web journeys above.
+
+## Rejected runtime configuration recovery
+
+1. Configure a triage model the provider rejects and allow a timer check-in to finish.
+2. Confirm the check-in records `triage_config_unavailable`, keeps the instance active,
+   and defers its next check to `max_interval`. Instance status/list must explain the
+   rejection and name `agent_instance_check` for manual recovery.
+3. Apply corrected heartbeat/provider runtime configuration. Confirm the next check is
+   no later than one resolved cadence away and both backoff streaks are zero.
+4. Repeat recovery through a fresh live catalog confirmation of the triage model in the
+   same profile and workspace. Other profiles/workspaces must remain unchanged.
+5. Confirm paused, archived, checks-disabled, and in-flight instances are unchanged;
+   pending events and unattended counts survive recovery. A repeated recovery must not
+   move an already earlier deadline later.
+
+Execution evidence: CI owns validation for this change; local runtime QA is prohibited
+by the parallel-delivery operator constraint.

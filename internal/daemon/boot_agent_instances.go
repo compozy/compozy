@@ -132,6 +132,11 @@ func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, re
 			if err := reconcile(ctx); err != nil {
 				state.logger.ErrorContext(ctx, "daemon: reconcile instances after agent catalog change", "error", err)
 			}
+			if checks := state.runtimeWorkers.proactiveChecks; checks != nil {
+				if err := checks.RecoverConfiguration(ctx, nil); err != nil {
+					state.logger.ErrorContext(ctx, "daemon: recover checks after agent catalog change", "error", err)
+				}
+			}
 		})
 	}
 }
