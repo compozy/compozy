@@ -410,6 +410,15 @@ Healthy, unapproved and disabled sources are eligible on every check that passes
 
 ## Check-in tools and authority
 
+A check-in's final assistant message must contain only `NOTHING_TO_REPORT` or one JSON
+object with `proposals`. A single Markdown fence and plain commentary around a proposal
+object are tolerated. Multiple objects or fences, braces or array brackets in surrounding
+commentary, and a sentinel mixed with proposals are rejected as ambiguous. The envelope
+and proposal fields remain strictly validated; earlier assistant messages and tool output
+are not parsed as proposals. Invalid replies keep the `triage_output_invalid` reason and
+include a static validation category in the redacted report detail: `framing`,
+`ambiguous_reply`, or `schema`.
+
 A check-in that reaches the model can use native and MCP read tools through the
 hosted gateway. Provider built-in tools remain in their confirmed read-only mode.
 The instance's current main-session permissions and tool grants remain the ceiling.
