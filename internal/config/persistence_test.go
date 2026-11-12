@@ -1915,6 +1915,33 @@ func TestArchiveRetiredMemorySettings(t *testing.T) {
 			t.Fatalf("archive dropped the comment:\n%s", rendered)
 		}
 	})
+	t.Run("Should remove a separator shared by two retired elements once", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("automation.triggers = [\n" +
+			"  {name='one', event='memory.consolidated'} # keep\n" +
+			"  , {name='two', event='memory.consolidated'}\n" +
+			"]\n" +
+			"[daemon]\n" +
+			"socket = 'daemon.sock'\n")
+		rendered, _, err := archiveRetiredMemorySettings(contents, "config.toml")
+		if err != nil {
+			t.Fatalf("archiveRetiredMemorySettings() error = %v", err)
+		}
+		var values struct {
+			Automation struct {
+				Triggers []map[string]any `toml:"triggers"`
+			} `toml:"automation"`
+			Daemon struct {
+				Socket string `toml:"socket"`
+			} `toml:"daemon"`
+		}
+		if _, err := burnttoml.Decode(string(rendered), &values); err != nil {
+			t.Fatalf("archive published a document that does not parse: %v\n%s", err, rendered)
+		}
+		if len(values.Automation.Triggers) != 0 || values.Daemon.Socket != "daemon.sock" {
+			t.Fatalf("rewritten values = %+v, want no triggers and the daemon table kept\n%s", values, rendered)
+		}
+	})
 	t.Run("Should leave invalid input unchanged so the decoder reports the parse error", func(t *testing.T) {
 		t.Parallel()
 		contents := []byte("[memory\nenabled = false\n")

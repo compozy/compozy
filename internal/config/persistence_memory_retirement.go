@@ -232,11 +232,25 @@ func removeRetiredMemorySettings(editor *OverlayEditor) error {
 	if err := parser.Error(); err != nil {
 		return err
 	}
-	slices.SortFunc(edits, func(a, b retiredMemoryEdit) int { return a.start - b.start })
-	for _, edit := range slices.Backward(edits) {
+	for _, edit := range slices.Backward(mergeRetiredMemoryEdits(edits)) {
 		editor.content = replaceOffsets(editor.content, edit.start, edit.end, edit.replacement)
 	}
 	return nil
+}
+
+// mergeRetiredMemoryEdits orders the removals and joins the ones that overlap, so a separator
+// claimed by two neighboring removals is deleted once.
+func mergeRetiredMemoryEdits(edits []retiredMemoryEdit) []retiredMemoryEdit {
+	slices.SortFunc(edits, func(a, b retiredMemoryEdit) int { return a.start - b.start })
+	merged := make([]retiredMemoryEdit, 0, len(edits))
+	for _, edit := range edits {
+		if last := len(merged) - 1; last >= 0 && edit.start < merged[last].end {
+			merged[last].end = max(merged[last].end, edit.end)
+			continue
+		}
+		merged = append(merged, edit)
+	}
+	return merged
 }
 
 func retiredMemoryInlineEdits(source []byte, node *tomlast.Node, path []string) ([]retiredMemoryEdit, error) {
