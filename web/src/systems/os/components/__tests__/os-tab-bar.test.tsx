@@ -540,8 +540,13 @@ describe("OsTabBar", () => {
     await user.click(screen.getByTestId("os-tab-split-with-tab:vault"));
     expect(manager.splitWithTab).toHaveBeenCalledExactlyOnceWith("tab:tasks", "tab:vault");
 
+    // The split tab's menu opens while the first one may still be leaving: once only one menu is
+    // left, the closed menu's return focus must not have pulled focus out of the open one.
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
-    act(() => screen.getByTestId("os-tab-arrange-menu-tab:split").focus());
+    const arrange = screen.getByTestId("os-tab-arrange-menu-tab:split");
+    act(() => arrange.focus());
+    await waitFor(() => expect(screen.getAllByRole("menu")).toHaveLength(1));
+    expect(arrange).toHaveFocus();
     await user.keyboard("{ArrowRight}");
     await user.click(await screen.findByRole("menuitem", { name: "Grid" }));
     expect(manager.arrangeLayout).toHaveBeenCalledExactlyOnceWith("w-agents", "grid");

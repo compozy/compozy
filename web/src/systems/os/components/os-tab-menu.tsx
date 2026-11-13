@@ -46,17 +46,22 @@ type SessionOf = (win: OsWindow) => SessionPayload | undefined;
  * Where focus goes when a tab's menu closes: the tab it was opened from. The menu's trigger is the
  * plate wrapper, which takes no focus, and the menu's default return lands on the trigger's first
  * tabbable descendant; a tab off the bar's one roving stop has none, so focus fell out of the bar.
- * Focus that already moved on, into a window the closing click landed in, stays there.
+ * Focus that already moved on stays there: into a window the closing click landed in, or into
+ * another tab's menu that opened while this one was still closing (the return runs when this
+ * menu's popup unmounts, after its exit, which a slow machine or a quick second right-click
+ * outruns).
  */
-function tabReturnFocus(plate: HTMLElement | null): HTMLElement | false {
+function tabReturnFocus(plate: HTMLElement | null, popup: HTMLElement | null): HTMLElement | false {
   const tab = plate?.querySelector<HTMLElement>('[role="tab"]');
   if (!tab) return false;
-  const focused = tab.ownerDocument.activeElement;
-  const movedOn =
-    focused !== null &&
-    focused !== tab.ownerDocument.body &&
-    focused.closest('[role="menu"]') === null;
-  return movedOn ? false : tab;
+  const doc = tab.ownerDocument;
+  const focused = doc.activeElement;
+  if (focused === null || focused === doc.body) return tab;
+  if (focused.closest('[role="menu"]') === null) return false;
+  const anotherMenuOpen = Array.from(
+    doc.querySelectorAll<HTMLElement>('[data-slot="context-menu-content"]')
+  ).some(menu => menu !== popup);
+  return anotherMenuOpen ? false : tab;
 }
 
 /** One "Split with ▸" destination, named like its tab. */
@@ -259,6 +264,8 @@ export function OsTabMenu({
   const others = bar.tabs.filter(entry => entry.tab.id !== tabId);
   const windowCount = bar.tabs.reduce((sum, entry) => sum + entry.members.length, 0);
   const plateRef = useRef<HTMLDivElement>(null);
+  // Kept past unmount: the return focus is resolved while this popup is leaving the document.
+  const popupRef = useRef<HTMLElement | null>(null);
 
   return (
     <ContextMenu>
@@ -275,7 +282,12 @@ export function OsTabMenu({
           </div>
         }
       />
-      <ContextMenuContent finalFocus={() => tabReturnFocus(plateRef.current)}>
+      <ContextMenuContent
+        ref={(popup: HTMLDivElement | null) => {
+          if (popup) popupRef.current = popup;
+        }}
+        finalFocus={() => tabReturnFocus(plateRef.current, popupRef.current)}
+      >
         <ContextMenuItem onClick={() => bar.pin(tabId, !pinned)}>
           {pinned ? "Unpin tab" : "Pin tab"}
         </ContextMenuItem>
