@@ -16,6 +16,15 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
+qa-impact: 2026-11-13 (#1660) ordinary tab/head clicks below the 5 px drag threshold must
+not prepare drop geometry or publish an active drag view. Verify click activation and
+head controls, then drag across the threshold (including a release without an intermediate
+move), reorder, split, cancel, and converge from a second client. Retained tab trees observe
+their own members and projection; sibling focus changes must preserve hidden app state, while
+member updates/removal and split topology still propagate. E2E-023 owns real-browser acceptance
+with eleven tabs, the unchanged 500 ms restore budget and both 50 ms switch/convergence bounds.
+CI owns verification; local runs and screenshots are waived by the v0.6.3 release dispatch.
+
 qa-impact: 2026-11-12 (#1543) a client-side window-manager stream failure (a frame that cannot be
 parsed or applied, a throwing subscriber, a failed socket write or resync) now reconnects the
 stream with backoff instead of leaving the layout degraded while heartbeats keep the socket open.

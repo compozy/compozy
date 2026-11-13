@@ -8,6 +8,7 @@ import type { SessionPayload } from "@/systems/session";
 import {
   useOsDeskLayer,
   useDeskTabPanes,
+  useDeskTabWindows,
   type DeskDesktopModel,
   type OsDeskLayerModel,
 } from "../hooks/use-os-desk-layer";
@@ -18,7 +19,7 @@ import { useOsSplitSeam } from "../hooks/use-os-split-seam";
 import { useOsTabDrag } from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
 import type { WindowPaneHosts } from "../lib/window-pane-hosts";
-import type { TabProjection } from "../lib/window-manager-types";
+import type { LayoutTab, TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
 import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
@@ -135,11 +136,11 @@ function DropZones({
   projection,
 }: {
   tabId: string;
-  drag: TabDragState;
+  drag: TabDragState | null;
   projection: TabProjection | undefined;
 }) {
-  const target = drag.target;
-  if (drag.phase !== "dragging" || drag.contentTabId !== tabId || target === null) return null;
+  const target = drag?.target;
+  if (drag === null || drag.contentTabId !== tabId || target == null) return null;
   if (target.kind === "root")
     return target.tabId === tabId ? <OsRootDropZone edge={target.edge} /> : null;
   if (target.kind !== "window" && target.kind !== "swap") return null;
@@ -152,9 +153,51 @@ function DropZones({
   );
 }
 
+/** A retained tab observes its own members and projection, not changes in every sibling tab. */
+function DeskTabContent({
+  tab,
+  active,
+  hosts,
+  sessionOf,
+  drag,
+}: {
+  tab: LayoutTab;
+  active: boolean;
+  hosts: WindowPaneHosts;
+  sessionOf: (win: OsWindow) => SessionPayload | undefined;
+  drag: TabDragState | null;
+}) {
+  const { coordinator } = useOsShell();
+  const windows = useDeskTabWindows(tab);
+  const projection = useDesktop(state => state.projections[tab.id]);
+  const gaps = useDesktop(state => state.windowManagerConfig?.gaps);
+  return (
+    <div
+      role="tabpanel"
+      hidden={!active}
+      className="absolute inset-0 flex"
+      data-slot="os-tab-content"
+      data-tab-id={tab.id}
+    >
+      <OsSplitView
+        root={tab.root}
+        windows={windows}
+        collapsed={projection?.collapsed ?? []}
+        seams={projection?.seams}
+        sessionOf={sessionOf}
+        renderWindow={windowId => <OsWindowSlot key={windowId} hosts={hosts} windowId={windowId} />}
+        renderSeam={renderSeam}
+        onShowMember={windowId => void coordinator.userFocus(windowId)}
+        gaps={gaps}
+      >
+        <DropZones tabId={tab.id} drag={drag} projection={projection} />
+      </OsSplitView>
+    </div>
+  );
+}
+
 function DeskLayer({
   model,
-  windows,
   sessionOf,
   reducedMotion,
   viewportReady,
@@ -162,7 +205,6 @@ function DeskLayer({
   onTransitionComplete,
 }: {
   model: DeskDesktopModel;
-  windows: Readonly<Record<string, OsWindow>>;
   sessionOf: (win: OsWindow) => SessionPayload | undefined;
   reducedMotion: boolean;
   viewportReady: boolean;
@@ -170,8 +212,6 @@ function DeskLayer({
   onTransitionComplete: () => void;
 }) {
   const { coordinator, manager } = useOsShell();
-  const projections = useDesktop(state => state.projections);
-  const gaps = useDesktop(state => state.windowManagerConfig?.gaps);
   const { incoming, interactive, style } = desktopLayerView({
     model,
     reducedMotion,
@@ -182,20 +222,18 @@ function DeskLayer({
   const tabs = model.desktop.tabs;
   // A drag shows another tab's content as its drop target; nothing activates until the drop.
   const previewing =
-    drag.phase === "dragging" &&
+    drag !== null &&
     drag.session?.desktopId === model.desktop.id &&
     drag.contentTabId !== null &&
     tabs.some(tab => tab.id === drag.contentTabId);
   const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
+  const windows = useDesktop(state => state.windows);
   const { visited, paneWindowIds, hosts } = useDeskTabPanes(
     tabs,
     shownTabId,
     manager,
     windows,
     coordinator.keyboardFocus
-  );
-  const renderWindow = (windowId: string) => (
-    <OsWindowSlot key={windowId} hosts={hosts} windowId={windowId} />
   );
 
   return (
@@ -216,31 +254,15 @@ function DeskLayer({
       {visited.map(tabId => {
         const tab = tabs.find(entry => entry.id === tabId);
         if (tab === undefined) return null;
-        const active = tabId === shownTabId;
-        const projection = projections[tabId];
         return (
-          <div
+          <DeskTabContent
             key={tabId}
-            role="tabpanel"
-            hidden={!active}
-            className="absolute inset-0 flex"
-            data-slot="os-tab-content"
-            data-tab-id={tabId}
-          >
-            <OsSplitView
-              root={tab.root}
-              windows={windows}
-              collapsed={projection?.collapsed ?? []}
-              seams={projection?.seams}
-              sessionOf={sessionOf}
-              renderWindow={renderWindow}
-              renderSeam={renderSeam}
-              onShowMember={windowId => void coordinator.userFocus(windowId)}
-              gaps={gaps}
-            >
-              <DropZones tabId={tabId} drag={drag} projection={projection} />
-            </OsSplitView>
-          </div>
+            tab={tab}
+            active={tabId === shownTabId}
+            hosts={hosts}
+            sessionOf={sessionOf}
+            drag={drag}
+          />
         );
       })}
       {/* After the tab layers: each slot has adopted its host before the pane's layout effects. */}
@@ -275,8 +297,9 @@ export function OsDeskLayer({
   onTransitionComplete,
 }: OsDeskLayerProps) {
   const { layerRef, desktops, viewportState } = model;
-  const windows = useDesktop(state => state.windows);
-  const hasSession = Object.values(windows).some(win => win.app === "session");
+  const hasSession = useDesktop(state =>
+    Object.values(state.windows).some(win => win.app === "session")
+  );
   const sessionById = useTabSessions(hasSession);
   const sessionOf = (win: OsWindow) =>
     win.app === "session" ? sessionById.get(win.instanceKey ?? "") : undefined;
@@ -286,7 +309,6 @@ export function OsDeskLayer({
         <DeskLayer
           key={desktop.desktop.id}
           model={desktop}
-          windows={windows}
           sessionOf={sessionOf}
           reducedMotion={reducedMotion}
           viewportReady={viewportState === "ready"}
