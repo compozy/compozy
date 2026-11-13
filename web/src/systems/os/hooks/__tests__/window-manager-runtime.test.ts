@@ -932,6 +932,21 @@ describe("WindowManagerRuntime", () => {
       expect(sentCommands()).toEqual(["window.swap"]);
     });
 
+    it("Should drop the pending-swap overlay once another layout command follows it [#1658]", async () => {
+      deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      const leftmost = () =>
+        [...runtime.directionalCandidates()].sort((a, b) => a.rect.x - b.rect.x)[0]?.id;
+      expect(leftmost()).toBe("app:tasks");
+
+      // An unanswered Swap right already counts for the next directional press...
+      runtime.swapDirection("right");
+      expect(leftmost()).toBe("app:agents");
+      // ...until an Undo queued behind it makes the outcome unknowable here.
+      runtime.undoLayout();
+      expect(leftmost()).toBe("app:tasks");
+    });
+
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startSplitRuntime();

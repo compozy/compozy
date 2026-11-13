@@ -17,7 +17,12 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import type { FocusDirection, FocusWindowOptions, PixelRect } from "../lib/window-manager-types";
+import type {
+  FocusDirection,
+  FocusWindowOptions,
+  PixelRect,
+  WindowManagerCommandInput,
+} from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { buildOsDesktopRuntimeView } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -99,6 +104,18 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
 
   /** Swaps sent but not yet answered, oldest first, with where the first window stood. */
   private pendingSwaps: Array<{ first: string; second: string; firstRect: PixelRect }> = [];
+
+  /**
+   * Any other command sent after unanswered swaps (an undo, a move, a tile, an arrange) runs after
+   * them and changes the layout in ways this client cannot predict, so the overlay is dropped and
+   * directional input reads the shown layout again.
+   */
+  protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
+    if (command.commandId !== "window.swap" && command.commandId !== "window.focus") {
+      this.pendingSwaps = [];
+    }
+    return super.dispatch(command);
+  }
 
   /**
    * The active tab's on-screen windows with this client's unanswered swaps applied, so directional
