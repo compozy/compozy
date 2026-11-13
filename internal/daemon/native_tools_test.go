@@ -12912,6 +12912,10 @@ type nativeObserverStub struct {
 	lastEventQuery        store.EventSummaryQuery
 }
 
+func (o *nativeObserverStub) EventSequenceHead(context.Context) (int64, error) {
+	return 0, nil
+}
+
 func (o *nativeObserverStub) QueryEvents(
 	_ context.Context,
 	query store.EventSummaryQuery,
