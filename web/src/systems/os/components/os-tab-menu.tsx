@@ -6,18 +6,17 @@ import {
   tidyMenuTree,
   type MenuTreeNode,
 } from "@compozy/ui";
-import { use, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { use, useRef, type ReactNode } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
 import { OsTabBarContext } from "../contexts/os-tab-bar-context";
 import type { OsTabBarModel, OsTabModel } from "../hooks/use-os-tab-bar";
-import { osWindowTitle } from "../hooks/use-os-window-title";
+import { useTabTitles } from "../hooks/use-tab-titles";
 import { useWindowMoveTargets, type WindowMoveTarget } from "../hooks/use-window-move-targets";
 import { openContextMenuFromKeyboard } from "../lib/context-menu-keyboard";
 import type { OsArrangePreset, OsWindow } from "../lib/os-types";
 import { adjacentTabIndex } from "../lib/window-manager-command-builders";
-import { subscribeWindowSlotRegistry, windowSlotSnapshot } from "../lib/window-slot-registry";
 
 /** Counts the unpinned tabs each bulk close would reach from this tab. */
 function closeReach(tabs: readonly OsTabModel[], index: number) {
@@ -75,20 +74,6 @@ function tabReturnFocus(plate: HTMLElement | null, popup: HTMLElement | null): H
     doc.querySelectorAll<HTMLElement>('[data-slot="context-menu-content"]')
   ).some(menu => menu !== popup);
   return anotherMenuOpen ? false : tab;
-}
-
-/** The live title of each tab's lead window, re-read whenever a window publishes a new label. */
-function useTabTitles(models: readonly OsTabModel[], sessionOf: SessionOf): readonly string[] {
-  // One string snapshot keeps the read stable between publications; NUL never occurs in a title.
-  const joined = useSyncExternalStore(subscribeWindowSlotRegistry, () =>
-    models
-      .map(model => {
-        const lead = model.members[0]!;
-        return osWindowTitle(lead, sessionOf(lead), windowSlotSnapshot(lead.id));
-      })
-      .join("\0")
-  );
-  return models.length === 0 ? [] : joined.split("\0");
 }
 
 interface TabMenuTreeInput {
