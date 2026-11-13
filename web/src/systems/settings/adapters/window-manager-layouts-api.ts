@@ -36,7 +36,9 @@ import { windowManagerSnapshotToLayoutState } from "../lib/window-manager-layout
 export class WindowManagerLayoutsApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    /** The daemon's error code (`window_manager_revision_conflict`, `profile_not_found`), when it sent one. */
+    public readonly code: string | null = null
   ) {
     super(message);
     this.name = "WindowManagerLayoutsApiError";
@@ -80,12 +82,24 @@ function errorMessage(value: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Window-manager answers carry `code` at the top; profile answers nest it under `error`. */
+function errorCode(value: unknown): string | null {
+  if (value === null || typeof value !== "object") return null;
+  const top: unknown = Reflect.get(value, "code");
+  if (typeof top === "string" && top.trim() !== "") return top;
+  const nested: unknown = Reflect.get(value, "error");
+  if (nested === null || typeof nested !== "object") return null;
+  const code: unknown = Reflect.get(nested, "code");
+  return typeof code === "string" && code.trim() !== "" ? code : null;
+}
+
 async function requireJson(response: Response, fallback: string): Promise<unknown> {
   const body = await responseJson(response);
   if (response.ok) return body;
   throw new WindowManagerLayoutsApiError(
     errorMessage(body, `${fallback} (${response.status})`),
-    response.status
+    response.status,
+    errorCode(body)
   );
 }
 

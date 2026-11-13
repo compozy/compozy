@@ -3,7 +3,8 @@ import { parseSettingsWindowManagerSection } from "@/systems/os";
 // Invariant: the editor reads document + CAS revision from one authoritative snapshot,
 // resource discovery returns the complete unbounded collection exposed by the daemon, a
 // document of any accepted version becomes version 6 only through the daemon's preview,
-// and Settings never writes a retired window-manager option back.
+// a refusal keeps the daemon's status and code for the caller to word, and Settings
+// never writes a retired window-manager option back.
 // Owning layer: Settings HTTP adapter. Boundary OUT: React Query cache and editor presentation.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -344,6 +345,33 @@ describe("window-manager layouts API", () => {
     await expect(
       convertWindowManagerLayoutDocument("workspace-a", "marketing", 7, { version: 3 })
     ).rejects.toThrow("unsupported layout version 3");
+  });
+
+  it.each([
+    {
+      name: "a window-manager refusal",
+      body: { error: "window_manager_revision_conflict", code: "window_manager_revision_conflict" },
+      status: 409,
+      code: "window_manager_revision_conflict",
+    },
+    {
+      name: "a profile refusal",
+      body: { error: { code: "profile_not_found", message: "profile was not found" } },
+      status: 404,
+      code: "profile_not_found",
+    },
+    {
+      name: "a refusal without a code",
+      body: { error: "request body too large" },
+      status: 413,
+      code: null,
+    },
+  ])("Should carry the status and daemon code of $name", async ({ body, status, code }) => {
+    apiMocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(body), { status }));
+
+    await expect(
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", 7, { version: 5 })
+    ).rejects.toMatchObject({ name: "WindowManagerLayoutsApiError", status, code });
   });
 
   it("Should list a profile saved before tabs and splits as an earlier source, untouched", async () => {

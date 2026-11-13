@@ -245,24 +245,109 @@ describe("useWindowManagerLayoutEditor", () => {
     expect(result.current.draft).toEqual(draft);
   });
 
-  it("Should keep the draft and word the daemon's refusal of a version it does not accept", async () => {
-    // Read after the hook has loaded: a top-level import of the adapter would load it
-    // first, and the hook, reached again through `@/systems/os` while the mock factory
-    // runs, would bind the real adapter instead of the mock.
+  // One row per class of daemon answer to the conversion request. The bodies carry
+  // codes, never sentences, and none of them may reach the editor.
+  it.each([
+    {
+      name: "a document version or shape it does not accept",
+      status: 422,
+      code: "window_manager_invalid_topology",
+      shown: "CompozyOS can't open this layout document. It may come from a newer version.",
+    },
+    {
+      name: "a document whose window bindings it does not accept",
+      status: 400,
+      code: "window_binding_invalid",
+      shown: "CompozyOS can't open this layout document. It may come from a newer version.",
+    },
+    {
+      name: "a document over its body limit",
+      status: 413,
+      code: null,
+      shown: "This layout document is too large to open.",
+    },
+    {
+      name: "a revision the editor has moved past",
+      status: 409,
+      code: "window_manager_revision_conflict",
+      shown: "Couldn't check the layout file. Try again.",
+    },
+    {
+      name: "a project that is gone",
+      status: 404,
+      code: "window_manager_workspace_not_found",
+      shown: "Layouts for this project and profile aren't available here.",
+    },
+    {
+      name: "a profile that is gone",
+      status: 404,
+      code: "profile_not_found",
+      shown: "Layouts for this project and profile aren't available here.",
+    },
+    {
+      name: "a profile request it refuses",
+      status: 400,
+      code: "profile_selection_conflict",
+      shown: "Layouts for this project and profile aren't available here.",
+    },
+    {
+      name: "a profile in a state it refuses",
+      status: 409,
+      code: "profile_archived",
+      shown: "Layouts for this project and profile aren't available here.",
+    },
+    {
+      name: "a caller it does not recognise",
+      status: 401,
+      code: null,
+      shown: "Layouts for this project and profile aren't available here.",
+    },
+    {
+      name: "a caller it does not allow",
+      status: 403,
+      code: "agent_scope_denied",
+      shown: "Layouts for this project and profile aren't available here.",
+    },
+  ])(
+    "Should keep the draft and word the daemon's refusal of $name",
+    async ({ status, code, shown }) => {
+      // Read after the hook has loaded: a top-level import of the adapter would load it
+      // first, and the hook, reached again through `@/systems/os` while the mock factory
+      // runs, would bind the real adapter instead of the mock.
+      const { WindowManagerLayoutsApiError } =
+        await import("../../adapters/window-manager-layouts-api");
+      apiMocks.convert.mockRejectedValue(
+        new WindowManagerLayoutsApiError(code ?? "", status, code)
+      );
+      const { result } = renderEditor(stateAt(41, "Build"));
+      const file = new File([JSON.stringify({ ...EARLIER_WIRE, version: 7 })], "layout.json");
+
+      await act(async () => {
+        await result.current.importDocument(file);
+      });
+
+      expect(result.current.importError).toBe(shown);
+      expect(result.current.draft.desktops[0]?.name).toBe("Build");
+    }
+  );
+
+  it("Should word a refused saved layout as the saved layout, not as a file", async () => {
     const { WindowManagerLayoutsApiError } =
       await import("../../adapters/window-manager-layouts-api");
-    // The daemon's refusal body names a code, not a sentence.
-    apiMocks.convert.mockRejectedValue(new WindowManagerLayoutsApiError("invalid_topology", 422));
+    apiMocks.convert.mockRejectedValue(
+      new WindowManagerLayoutsApiError(
+        "window_manager_invalid_command",
+        422,
+        "window_manager_invalid_command"
+      )
+    );
     const { result } = renderEditor(stateAt(41, "Build"));
-    const file = new File([JSON.stringify({ ...EARLIER_WIRE, version: 7 })], "layout.json");
 
     await act(async () => {
-      await result.current.importDocument(file);
+      await result.current.loadSource({ kind: "earlier", version: 5, wire: EARLIER_WIRE });
     });
 
-    expect(result.current.importError).toBe(
-      "CompozyOS can't open this layout document. It may come from a newer version."
-    );
+    expect(result.current.importError).toBe("This saved layout could not be opened.");
     expect(result.current.draft.desktops[0]?.name).toBe("Build");
   });
 
