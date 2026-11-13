@@ -86,9 +86,9 @@ func run(ctx context.Context, args []string) (err error) {
 	if err != nil {
 		return fmt.Errorf("read raw stored window snapshot: %w", err)
 	}
-	var snapshot windowmanager.Snapshot
-	if err := json.Unmarshal(entry.Value, &snapshot); err != nil {
-		return fmt.Errorf("decode raw snapshot: %w", err)
+	snapshot, err := legacySnapshotForSeed(entry.Value)
+	if err != nil {
+		return err
 	}
 	if err := addRetiredKnowledgeWindow(&snapshot, parsed); err != nil {
 		return err
@@ -112,7 +112,68 @@ func run(ctx context.Context, args []string) (err error) {
 	return nil
 }
 
-func addRetiredKnowledgeWindow(snapshot *windowmanager.Snapshot, parsed options) error {
+// Seed the previous release's persisted shape so cold boot exercises both the
+// v5 upgrade and retired-app reconciliation. Shared content and config survive;
+// v6 history is reset because its states cannot be represented as v5 history.
+func legacySnapshotForSeed(encoded []byte) (windowmanager.SnapshotV5, error) {
+	var current windowmanager.Snapshot
+	if err := json.Unmarshal(encoded, &current); err != nil {
+		return windowmanager.SnapshotV5{}, fmt.Errorf("decode current snapshot: %w", err)
+	}
+	if err := windowmanager.ValidateSnapshot(current); err != nil {
+		return windowmanager.SnapshotV5{}, fmt.Errorf("validate current snapshot: %w", err)
+	}
+	var legacy windowmanager.SnapshotV5
+	if err := json.Unmarshal(encoded, &legacy); err != nil {
+		return windowmanager.SnapshotV5{}, fmt.Errorf("copy shared snapshot fields: %w", err)
+	}
+	legacy.Version = 5
+	legacy.History = []byte(`{"undo":[],"redo":[]}`)
+	legacy.Desktops = make([]windowmanager.DesktopV5, 0, len(current.Desktops))
+	pins := make(map[windowmanager.TabID]bool)
+	for _, desktop := range current.Desktops {
+		previous := windowmanager.DesktopV5{
+			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order,
+			Groups: []windowmanager.LayoutGroupV5{}, Floating: []windowmanager.WindowID{},
+			FloatingStacks: []windowmanager.FloatingStackV5{},
+		}
+		// v5 has no durable active tab. Put its group first so conversion keeps
+		// the currently selected session visible after the retired app is removed.
+		for _, active := range []bool{true, false} {
+			for _, tab := range desktop.Tabs {
+				if (tab.ID == desktop.ActiveTabID) != active {
+					continue
+				}
+				pins[tab.ID] = tab.Pinned
+				previous.Groups = append(previous.Groups, windowmanager.LayoutGroupV5{
+					ID:    windowmanager.GroupID(tab.ID),
+					Frame: windowmanager.NormalizedRect{Width: 1, Height: 1},
+					Root:  legacyLayoutNode(tab.Root),
+				})
+			}
+		}
+		legacy.Desktops = append(legacy.Desktops, previous)
+	}
+	for id, window := range legacy.Windows {
+		window.Placement = windowmanager.WindowPlacementTiled
+		window.Pinned = pins[current.Windows[id].TabID]
+		legacy.Windows[id] = window
+	}
+	return legacy, nil
+}
+
+func legacyLayoutNode(node windowmanager.LayoutNode) windowmanager.LayoutNodeV5 {
+	children := make([]windowmanager.LayoutNodeV5, 0, len(node.Children))
+	for _, child := range node.Children {
+		children = append(children, legacyLayoutNode(child))
+	}
+	return windowmanager.LayoutNodeV5{
+		ID: node.ID, Kind: node.Kind, WindowID: node.WindowID, Axis: node.Axis,
+		Children: children, Weights: node.Weights,
+	}
+}
+
+func addRetiredKnowledgeWindow(snapshot *windowmanager.SnapshotV5, parsed options) error {
 	sessionID := windowmanager.WindowID(parsed.sessionWindowID)
 	session, exists := snapshot.Windows[sessionID]
 	if !exists || session.App != "session" {
@@ -122,7 +183,7 @@ func addRetiredKnowledgeWindow(snapshot *windowmanager.Snapshot, parsed options)
 	if _, exists := snapshot.Windows[knowledgeID]; exists {
 		return fmt.Errorf("knowledge window %q already exists", knowledgeID)
 	}
-	snapshot.Windows[knowledgeID] = windowmanager.Window{
+	snapshot.Windows[knowledgeID] = windowmanager.WindowV5{
 		ID: knowledgeID, App: "knowledge", DesktopID: session.DesktopID,
 		Placement: windowmanager.WindowPlacementFloating, FloatingRect: parsed.rect,
 		Route:    windowmanager.RouteIntent{Pathname: "/knowledge", Search: windowmanager.RouteSearch{}},
@@ -147,7 +208,7 @@ func addRetiredKnowledgeWindow(snapshot *windowmanager.Snapshot, parsed options)
 	}
 	snapshot.Revision = revision
 	snapshot.UpdatedAt = time.Now().UTC()
-	if err := windowmanager.ValidateSnapshot(*snapshot); err != nil {
+	if _, _, err := windowmanager.ConvertSnapshotV5(*snapshot); err != nil {
 		return fmt.Errorf("validate seeded topology: %w", err)
 	}
 	return nil
