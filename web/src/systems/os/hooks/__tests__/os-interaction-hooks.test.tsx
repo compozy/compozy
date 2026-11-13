@@ -3059,6 +3059,57 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
   });
 
+  it("Should step a three-member split by arrow keys only to shifts it still lays out side by side at, up to its bound (AS-F-18)", async () => {
+    // The row of the F8 drag case: 820px, raw shares 300.3 | 300.3 | 219.4 over 220px floors,
+    // allocated 300 | 300 | 220. One ArrowRight asks for 0.02 × 820 = 16.4px: unadmitted, the
+    // shares 316.7 | 283.9 | 219.4 floor to 818 and the two spare pixels go to .9 and .7, leaving
+    // the third member 219px wide. Admitted, the step is 16px: 316.3 | 284.3 | 219.4 keeps the
+    // fractions .3 | .3 | .4, so the spare pixel stays with the third member (220px). Every step
+    // keeps them, so each moves 16px until the second member reaches 220px at +80px; the next
+    // press is at the bound and sends nothing.
+    let weights = [300.3 / 820, 300.3 / 820, 219.4 / 820];
+    let revision = SNAPSHOT.revision;
+    const shell = exactShell(snapshotWithSplit(weights, revision), 820, 700);
+    const area = { x: 0, y: 0, w: 820, h: 700 };
+    const target = { splitId: "split:main", boundaryIndex: 0 };
+    const stored = authoritativeSeam(shell.state, area, target);
+    if (stored === null) throw new Error("expected the first row seam");
+    render(<SeamHarness seam={stored} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    act(() => seam.focus());
+
+    for (let press = 1; press <= 6; press += 1) {
+      fireEvent.keyDown(seam, { key: "ArrowRight" });
+      await act(async () => {});
+      if (press === 6) break;
+      expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(press);
+      expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+        "split:main",
+        0,
+        expect.closeTo(16 / 820, 9),
+        fenceAt(revision)
+      );
+      const delta = vi.mocked(shell.controller.resizeLayout).mock.lastCall?.[2] ?? 0;
+      weights = [(weights[0] ?? 0) + delta, (weights[1] ?? 0) - delta, weights[2] ?? 0];
+      revision += 1;
+      act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit(weights, revision) }));
+      const tab = shell.state.snapshot?.desktops[0]?.tabs[0];
+      if (tab === undefined) throw new Error("expected the row's tab");
+      const after = projectTab({
+        tab,
+        workArea: area,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: buildWindowManagerMinimums(snapshotWithSplit(weights, revision)),
+      });
+      expect(after.collapsed).toEqual([]);
+      expect(after.seams.map(entry => entry.id)).toEqual(["split:main:0", "split:main:1"]);
+      expect(seam).toHaveFocus();
+    }
+    // At the bound: no step is sent, and the seam keeps focus.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(5);
+    expect(seam).toHaveFocus();
+  });
+
   it("Should not arm a press on a seam the stored layout does not have (R7-02)", () => {
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={{ ...EXACT_SEAM, id: "split:gone:0", splitId: "split:gone" }} />, {

@@ -410,7 +410,16 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     event.preventDefault();
     const step = direction * seamKeyStep(event);
     sendSeamCommand(seam, (current, { inputAt }) => {
-      const delta = seamWeightDelta(current, step * current.axisSpan);
+      // The same admission a drag frame goes through, against the layout at send time: a step
+      // never leaves the split one member at a time, so the focused seam stays mounted.
+      const admitted = authoritativeSeamShift(
+        manager.getState(),
+        projectedWorkArea(),
+        current,
+        step * current.axisSpan
+      );
+      if (admitted === null) return;
+      const delta = seamWeightDelta(admitted.seam, admitted.shiftPx);
       if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
       const fence = fenceFor(current, inputAt);
       void sent(manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fence));
