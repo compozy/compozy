@@ -151,6 +151,7 @@ export function TerminalWindowApp({
     resolving,
     openTerminal,
     setLimitOpen,
+    closeLimitTerminal,
   } = useTerminalWindowAppState({
     workspaceId,
     profile,
@@ -230,7 +231,7 @@ export function TerminalWindowApp({
       {!readOnly && limit !== undefined ? (
         <TerminalLimitDialog
           limit={limit}
-          onCloseTerminal={actions.onCloseTerminal}
+          onCloseTerminal={closeLimitTerminal}
           onOpenChange={setLimitOpen}
           onOpenSettings={actions.onOpenSettings}
           open={limitOpen}

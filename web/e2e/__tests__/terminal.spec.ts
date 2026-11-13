@@ -432,7 +432,8 @@ function tabOfWindow(page: Page, windowId: string): Locator {
  */
 async function closeAllTabsFrom(page: Page, windowId: string): Promise<void> {
   await tabOfWindow(page, windowId).click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Close all tabs" }).click();
+  await page.getByRole("menuitem", { name: "Close", exact: true }).click();
+  await page.getByRole("menuitem", { name: "All tabs", exact: true }).click();
 }
 
 function structuredTerminalErrorCode(payload: unknown): string | undefined {
@@ -1037,7 +1038,7 @@ test("E2E-009: the workspace cap names the terminal that can be closed", async (
   await expect(dialog).toContainText(terminals[0]!.id);
   await expect(dialog).toContainText(terminals[7]!.id);
   await expect(dialog).toContainText("8 of 8 terminals are open");
-  await expect(dialog).toContainText("terminal.max_per_workspace 8");
+  await expect(dialog).not.toContainText("terminal.max_per_workspace");
   await appPage.keyboard.press("Escape");
   await focusedTerminalWindow(appPage).getByRole("button", { name: "Close window" }).click();
 

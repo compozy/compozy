@@ -27,3 +27,12 @@ QA impact 2026-09-28 (normie pass): Settings › Terminal limits (terminals per 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-11-13 (issue #1659): the project-cap dialog no longer shows the raw
+`terminal_limit_reached · terminal.max_per_workspace N` footer line; its header copy, Open Settings,
+and Close stay. A Terminal window opened at the cap waits for a slot: when the running count drops
+below the limit — the dialog's Close, another window, or `compozy terminal close` — the dialog
+closes and the window opens a live terminal without a reload. Dismissing the dialog (Esc or outside
+click) without closing a terminal ends the wait and shows the "No terminals yet" empty state with
+its Open a terminal control instead of an endless "Opening a terminal". Walk both branches at the
+cap with the next pass; covered meanwhile by the terminal window component suite.

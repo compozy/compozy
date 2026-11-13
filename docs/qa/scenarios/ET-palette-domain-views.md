@@ -76,3 +76,11 @@ report's session matrix in a future QA cycle.
 QA impact 2026-10-08 (Automations spec task 07): the Jobs and Triggers web apps merged into one Automations window. Web entry points moved to `/automations` (old `/jobs*` and `/triggers*` links redirect until v0.5.0); walk through the new route. Daemon, CLI and API behavior in this scenario is unchanged.
 
 All-projects AW4 (2026-10-21): reset to untested for the All projects Agents/Worktrees sources and in-place opening of agent and terminal rows.
+
+QA impact 2026-11-13 (issue #1659): Agents and Extensions rows now refresh live. The existing
+`cmd_palette.catalog.changed` event (and the stream's reconnect reconcile) also invalidates the agent
+lists (project and All projects aggregate) and the extension lists the rows read, so
+`compozy extension disable <name>` removes that extension's agent rows and marks its Extensions row
+`disabled` within one stream event, palette open or closed, with no reload; `enable` brings both
+back. A disabled extension's row detail reads its state (`disabled`), never a health word. Not
+walked; covered by the stream and domain-search unit suites. Walk it with the next pass.

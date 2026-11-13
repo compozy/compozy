@@ -9,6 +9,7 @@ import {
   type AutomationTrigger,
   type AutomationView,
 } from "@/systems/automation";
+import type { ExtensionEntry } from "@/systems/extensions";
 import type { VaultSecret } from "@/systems/vault";
 import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import {
@@ -160,6 +161,16 @@ export function marketplaceEntryRoute(input: {
 
 export function vaultRoute(ref: string): OsWindowRoute {
   return { pathname: "/vault", search: { ref: ref.trim() } };
+}
+
+/**
+ * An extension row's detail. A disabled extension runs nothing, so it reads as its state
+ * ("disabled") rather than a health word nobody observed.
+ */
+export function extensionRowDetail(
+  extension: Pick<ExtensionEntry, "enabled" | "health" | "state">
+): string | undefined {
+  return extension.enabled ? extension.health : extension.state;
 }
 
 export function rowSeed(

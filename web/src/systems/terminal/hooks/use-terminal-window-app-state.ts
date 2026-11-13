@@ -9,6 +9,18 @@ import { useTerminalStore } from "./use-terminal-store";
 
 const EMPTY_WINDOWED: ReadonlySet<string> = new Set();
 
+/**
+ * An id-less window that found the project at its cap. `waiting` opens the
+ * terminal as soon as a slot frees; `dismissed` gave up and shows the empty
+ * state. Keyed to the arrival it belongs to, so it never leaks across scopes.
+ */
+interface LimitWait {
+  key: string;
+  status: "waiting" | "dismissed";
+  /** The limit dialog's own Close was used: its dismissal keeps the wait. */
+  closeRequested: boolean;
+}
+
 function hasTerminal(terminals: readonly TerminalInfo[], id: string): boolean {
   return terminals.some(terminal => terminal.id === id);
 }
@@ -57,6 +69,8 @@ export interface TerminalWindowAppState {
   resolving: boolean;
   openTerminal: (() => void) | undefined;
   setLimitOpen: (open: boolean) => void;
+  /** The limit dialog's Close: frees a slot this window may be waiting for. */
+  closeLimitTerminal: (terminalId: string) => void;
 }
 
 /**
@@ -66,7 +80,9 @@ export interface TerminalWindowAppState {
  * window shows, and the journal is a local overlay on top of it. The id-less
  * `/terminal` route resolves itself — it adopts the most recent running
  * terminal no other window is showing, or opens a fresh one — so launching the
- * app always lands in a working terminal rather than a picker.
+ * app always lands in a working terminal rather than a picker. At the cap it
+ * waits: the first time the project drops below the limit — whoever closed a
+ * terminal — it opens one, unless the limit dialog was dismissed first.
  */
 export function useTerminalWindowAppState({
   workspaceId,
@@ -84,6 +100,7 @@ export function useTerminalWindowAppState({
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
   const [journalOpen, setJournalOpen] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
+  const [limitWait, setLimitWait] = useState<LimitWait | null>(null);
   // Interaction state belongs to one `(workspace, profile)`: a dialog opened
   // for one project must not survive into another. Compared during render so
   // there is never a frame where the stale dialog shows over the new scope.
@@ -111,11 +128,24 @@ export function useTerminalWindowAppState({
   const activeProfile = active?.profile_name ?? profile;
   useTerminalScopeCleanup({ workspaceId, profile: activeProfile, terminals, store });
 
+  const awaitingRoute = routeOwned && requestedTerminalId === null && !readOnly;
+  // One resolution per arrival at the id-less route in a scope: re-renders and
+  // StrictMode's doubled effect land on the same key and are ignored, while
+  // navigating away and back produces a new arrival.
+  const resolutionKey = `${scope}::${requestedTerminalId ?? "auto"}`;
+  const currentWait = awaitingRoute && limitWait?.key === resolutionKey ? limitWait : null;
+  const waitingForSlot = currentWait?.status === "waiting";
+  const resolving = awaitingRoute && currentWait?.status !== "dismissed";
+
   // The daemon refuses a create at the cap, so the offer becomes the way out.
+  // A window with no terminal of its own keeps waiting behind the dialog.
   const openTerminal =
     actions.onOpenTerminal && !readOnly
       ? () => {
           if (atLimit) {
+            if (awaitingRoute) {
+              setLimitWait({ key: resolutionKey, status: "waiting", closeRequested: false });
+            }
             setLimitOpen(true);
             return;
           }
@@ -123,13 +153,23 @@ export function useTerminalWindowAppState({
         }
       : undefined;
 
-  const resolving = routeOwned && requestedTerminalId === null && !readOnly;
-  // One resolution per arrival at the id-less route in a scope: re-renders and
-  // StrictMode's doubled effect land on the same key and are ignored, while
-  // navigating away and back produces a new arrival.
-  const resolutionKey = `${scope}::${requestedTerminalId ?? "auto"}`;
+  const changeLimitOpen = (open: boolean) => {
+    setLimitOpen(open);
+    if (open) return;
+    // Dismissed without freeing a slot: stop waiting and offer the empty state.
+    setLimitWait(wait =>
+      wait?.status === "waiting" && !wait.closeRequested ? { ...wait, status: "dismissed" } : wait
+    );
+  };
+  const closeLimitTerminal = (terminalId: string) => {
+    setLimitWait(wait => (wait?.status === "waiting" ? { ...wait, closeRequested: true } : wait));
+    actions.onCloseTerminal(terminalId);
+  };
+
   const lastResolutionKeyRef = useRef<string | null>(null);
   const resolveDestination = useEffectEvent(() => {
+    // A new arrival starts clean; the open below re-arms the wait at the cap.
+    setLimitWait(null);
     const adoptable = createIntent
       ? null
       : latestUnwindowedRunning(terminals, profile, windowedTerminalIds);
@@ -143,7 +183,7 @@ export function useTerminalWindowAppState({
     // Adopting or creating a terminal because the window landed on `/terminal`
     // is a synchronization with the daemon, keyed to that arrival — exactly
     // what an effect is for.
-    if (!resolving) {
+    if (!awaitingRoute) {
       lastResolutionKeyRef.current = resolutionKey;
       return;
     }
@@ -153,7 +193,19 @@ export function useTerminalWindowAppState({
     lastResolutionKeyRef.current = resolutionKey;
     if (previousKey === resolutionKey) return;
     resolveDestination();
-  }, [resolving, resolveReady, resolutionKey]);
+  }, [awaitingRoute, resolveReady, resolutionKey]);
+
+  // The live catalog is the signal: a close from the dialog, another window or
+  // the CLI drops the running count, and a waiting window takes the slot.
+  const openFreedSlot = useEffectEvent(() => {
+    setLimitWait(null);
+    setLimitOpen(false);
+    actions.onOpenTerminal?.();
+  });
+  useEffect(() => {
+    if (!waitingForSlot || atLimit) return;
+    openFreedSlot();
+  }, [waitingForSlot, atLimit]);
 
   return {
     active,
@@ -172,7 +224,8 @@ export function useTerminalWindowAppState({
     missingRequested,
     resolving,
     openTerminal,
-    setLimitOpen,
+    setLimitOpen: changeLimitOpen,
+    closeLimitTerminal,
   };
 }
 

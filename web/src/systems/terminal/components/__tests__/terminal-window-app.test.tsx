@@ -41,7 +41,8 @@ import {
  * Invariant: one terminal per OS window — every S1 state renders with its
  * distinguishing behaviour, the id-less route resolves itself (adopt the newest
  * unwindowed running terminal, else create once, cap surfaced instead of a dead
- * create), and every interactive attachment is writable regardless of who
+ * create and the create taken as soon as a slot frees unless the cap dialog was
+ * dismissed), and every interactive attachment is writable regardless of who
  * started the terminal. A pending question stays on screen for an aggregate
  * read, with the write row absent; resolved rows from the host projection,
  * including "by you", stay on the same stack.
@@ -170,7 +171,9 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(dialog).toHaveTextContent(
       `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT} terminals are open`
     );
-    expect(dialog).toHaveTextContent("terminal.max_per_workspace 8");
+    // The header already says it in words; no raw error code or config key below it.
+    expect(dialog).not.toHaveTextContent("terminal_limit_reached");
+    expect(dialog).not.toHaveTextContent("terminal.max_per_workspace");
     // Every running terminal you could close is listed — the list is the choice.
     for (const terminal of TERMINAL_FIXTURES_AT_CAP) {
       expect(screen.getByTestId(`terminal-limit-row-${terminal.id}`)).toBeInTheDocument();
@@ -908,6 +911,27 @@ describe("TerminalWindowApp — stream states", () => {
 });
 
 describe("TerminalWindowApp — id-less route resolver and close", () => {
+  /** An id-less window whose every running terminal already has a window: nothing to adopt. */
+  function waitingAtCapProps(
+    actions: TerminalWindowAppProps["actions"],
+    terminals: readonly TerminalInfo[]
+  ): TerminalWindowAppProps {
+    return {
+      actions,
+      engineLoader: stubEngineLoader,
+      inputRequests: [],
+      journal: <div data-testid="journal-slot">journal</div>,
+      limit: TERMINAL_LIMIT,
+      profile: TERMINAL_FIXTURE_PROFILE,
+      requestedTerminalId: null,
+      socketFactory: silentSocketFactory,
+      terminals,
+      viewerId: TERMINAL_FIXTURE_VIEWER,
+      windowedTerminalIds: new Set(TERMINAL_FIXTURES_AT_CAP.map(terminal => terminal.id)),
+      workspaceId: "ws-atlas",
+    };
+  }
+
   it("Should adopt the newest running terminal no other window shows", async () => {
     const retargetTerminal = vi.fn();
     const actions = stubWindowActions({ retargetTerminal });
@@ -1020,6 +1044,64 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
 
     expect(await screen.findByTestId("terminal-limit-dialog")).toBeInTheDocument();
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should open the waiting terminal once the dialog's Close frees a slot", async () => {
+    const actions = stubWindowActions();
+    const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
+
+    await screen.findByTestId("terminal-limit-dialog");
+    await userEvent.click(screen.getByTestId("terminal-limit-close"));
+    expect(actions.onCloseTerminal).toHaveBeenCalledWith(TERMINAL_FIXTURES_AT_CAP[0].id);
+    // Still waiting for the catalog to show the slot free — no create refused at the cap.
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Opening a terminal");
+
+    const freed = TERMINAL_FIXTURES_AT_CAP.slice(1);
+    rerender(<TerminalWindowApp {...waitingAtCapProps(actions, freed)} />);
+    await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
+
+    // The next catalog push on the same arrival must not open a second one.
+    rerender(<TerminalWindowApp {...waitingAtCapProps(actions, freed.slice(1))} />);
+    expect(actions.onOpenTerminal).toHaveBeenCalledOnce();
+  });
+
+  it("Should open the waiting terminal when another window or the CLI frees a slot", async () => {
+    const actions = stubWindowActions();
+    const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
+
+    await screen.findByTestId("terminal-limit-dialog");
+    rerender(
+      <TerminalWindowApp {...waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP.slice(1))} />
+    );
+
+    await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(screen.queryByTestId("terminal-limit-dialog")).not.toBeInTheDocument()
+    );
+    expect(actions.onCloseTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should fall back to the empty state when the cap dialog is dismissed", async () => {
+    const actions = stubWindowActions();
+    const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
+
+    await screen.findByTestId("terminal-limit-dialog");
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("terminal-limit-dialog")).not.toBeInTheDocument()
+    );
+    expect(screen.getByTestId("terminal-empty-open")).toBeInTheDocument();
+    expect(screen.queryByText(/Opening a terminal/)).not.toBeInTheDocument();
+
+    // Dismissing ended the wait: a slot freed later does not open one unasked.
+    rerender(
+      <TerminalWindowApp {...waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP.slice(1))} />
+    );
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+    expect(actions.onCloseTerminal).not.toHaveBeenCalled();
   });
 
   it("Should neither adopt nor create on an aggregate profile read", async () => {

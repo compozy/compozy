@@ -15,11 +15,12 @@ export const agentKeys = {
   catalogByWorkspace: (workspace: string) => [...agentKeys.catalogs(), workspace.trim()] as const,
   catalog: (workspace: string, filters: AgentCatalogStableFilter = {}) =>
     [...agentKeys.catalogByWorkspace(workspace), normalizeAgentCatalogFilter(filters)] as const,
+  /** Every All projects catalog read, across Project-filter selections. */
+  aggregates: () => [...agentKeys.catalogs(), "@aggregate"] as const,
   /** The All projects catalog, per Project-filter selection; lives under `catalogs()`. */
   aggregate: (workspaceIds: readonly string[], filters: AgentCatalogStableFilter = {}) =>
     [
-      ...agentKeys.catalogs(),
-      "@aggregate",
+      ...agentKeys.aggregates(),
       [...workspaceIds].sort().join(","),
       normalizeAgentCatalogFilter(filters),
     ] as const,

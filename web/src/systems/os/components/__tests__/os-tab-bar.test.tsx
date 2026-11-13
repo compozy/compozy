@@ -3,8 +3,11 @@
 // selected, activates a tab through its lead window, closes it by button, middle click, and menu
 // (never a pinned tab by middle click), skips pinned tabs in bulk closes, keeps one tab stop that
 // follows the active tab while focus is outside the bar, hands focus on when the focused tab
-// closes, returns focus to the tab a menu came from when Escape closes it, and opens the overflow list only when tabs at the floor no longer fit. The tab menu offers a menu equivalent for every
-// drag (Move left/right within the pin range, Split with ▸, Arrange ▸) and no retired control.
+// closes, returns focus to the tab a menu came from when Escape closes it or a submenu item runs,
+// and opens the overflow list only when tabs at the floor no longer fit. The tab menu groups its
+// items (Pin, Move ▸, Split with ▸, Arrange ▸, Close tab, Close ▸, Reopen closed tab), offers a menu
+// equivalent for every drag (Move ▸ Left/Right within the pin range, Split with ▸, Arrange ▸),
+// leaves out items that cannot apply and the submenus they empty, and offers no retired control.
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -94,19 +97,36 @@ const TABS: LayoutTab[] = [
 function snapshot(
   tabs: LayoutTab[] = TABS,
   closedEntryCount = 1,
-  activeTabId = "tab:tasks"
+  activeTabId = "tab:tasks",
+  secondDesktop = false
 ): WindowManagerSnapshot {
+  // A second desktop, "Review", holding one tab of its own: a Move ▸ To desktop destination.
+  const review = { ...win("w-review", "tasks", "tab:review"), desktopId: "desktop:review" };
   return {
     version: 6,
     workspaceId: "workspace:test",
     revision: 3,
-    desktops: [{ id: "desktop:main", name: "Main", order: 0, tabs, activeTabId }],
+    desktops: [
+      { id: "desktop:main", name: "Main", order: 0, tabs, activeTabId },
+      ...(secondDesktop
+        ? [
+            {
+              id: "desktop:review",
+              name: "Review",
+              order: 1,
+              tabs: [solo("tab:review", "w-review")],
+              activeTabId: "tab:review",
+            },
+          ]
+        : []),
+    ],
     windows: {
       "w-dash": win("w-dash", "dashboard", "tab:dash"),
       "w-tasks": win("w-tasks", "tasks", "tab:tasks"),
       "w-agents": win("w-agents", "agents", "tab:split"),
       "w-loops": win("w-loops", "loops", "tab:split"),
       "w-vault": win("w-vault", "vault", "tab:vault"),
+      ...(secondDesktop ? { "w-review": review } : {}),
     },
     closedEntryCount,
     overrides: {},
@@ -139,12 +159,19 @@ interface BarOptions {
   closedEntryCount?: number;
   /** The desktop's active tab; the client keeps no override of its own. */
   activeTabId?: string;
+  /** Adds the "Review" desktop, a destination for Move ▸ To desktop. */
+  secondDesktop?: boolean;
 }
 
 function barState(options: BarOptions) {
   return buildOsDesktopRuntimeView({
     viewportWidth: 1440,
-    snapshot: snapshot(options.tabs, options.closedEntryCount, options.activeTabId),
+    snapshot: snapshot(
+      options.tabs,
+      options.closedEntryCount,
+      options.activeTabId,
+      options.secondDesktop
+    ),
     globalConfig: CONFIG,
     client: {
       workspaceId: "workspace:test",
@@ -165,6 +192,32 @@ function barState(options: BarOptions) {
     wallpaper: "flat",
     reduceMotion: false,
   });
+}
+
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+/**
+ * Opens a submenu from the keyboard and resolves once focus sits inside it. jsdom has no geometry
+ * for a submenu's hover guard, so a pointer crossing from its trigger may close it on the way.
+ */
+async function openSubmenu(user: MenuUser, triggerTestId: string): Promise<HTMLElement> {
+  const trigger = await screen.findByTestId(triggerTestId);
+  await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
+  act(() => trigger.focus());
+  await user.keyboard("{ArrowRight}");
+  return waitFor(() => {
+    const submenu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
+    expect(submenu).toBeTruthy();
+    expect(submenu).not.toContainElement(trigger);
+    return submenu!;
+  });
+}
+
+/** The names of a menu's own items, in order; a submenu's items portal outside it. */
+function itemNames(menu: HTMLElement): string[] {
+  return within(menu)
+    .getAllByRole("menuitem")
+    .map(item => item.textContent?.trim() ?? "");
 }
 
 function renderBar(options: BarOptions = {}) {
@@ -493,30 +546,37 @@ describe("OsTabBar", () => {
     const { manager } = renderBar();
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
-    await user.click(await screen.findByRole("menuitem", { name: "Close tabs to the left" }));
+    await openSubmenu(user, "os-tab-close-menu-tab:split");
+    await user.click(await screen.findByRole("menuitem", { name: "Tabs to the left" }));
     expect(manager.closeWindowScoped).toHaveBeenCalledWith("w-agents", "left");
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:dash"));
     expect(await screen.findByRole("menuitem", { name: "Unpin tab" })).toBeInTheDocument();
-    // "Close tab" may carry its shortcut in the name; "Close tabs to the …" must not match.
-    expect(screen.queryByRole("menuitem", { name: /^Close tab(?!s)/ })).toBeNull();
+    // "Close tab" may carry its shortcut in the name; the Close ▸ trigger must not match.
+    expect(screen.queryByRole("menuitem", { name: /^Close tab/ })).toBeNull();
     // Every other tab is unpinned and to its right: a close that reaches nothing is absent
     // (US-006.EC-4, `_uiux.md` S7), while the ones that reach tabs stay.
-    expect(screen.queryByRole("menuitem", { name: "Close tabs to the left" })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Close tabs to the right" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Close other tabs" })).toBeInTheDocument();
+    const close = await openSubmenu(user, "os-tab-close-menu-tab:dash");
+    expect(itemNames(close)).toEqual(["Other tabs", "Tabs to the right", "All tabs"]);
   });
 
   it("Should leave out bulk closes that reach no tab on a bar of one unpinned tab [US-006.EC-4]", async () => {
+    const user = userEvent.setup();
     renderBar({ tabs: [solo("tab:tasks", "w-tasks")] });
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
-    expect(await screen.findByRole("menuitem", { name: /^Close tab(?!s)/ })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Close other tabs" })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Close tabs to the right" })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Close tabs to the left" })).toBeNull();
-    // The tab itself is unpinned, so "Close all tabs" still closes something.
-    expect(screen.getByRole("menuitem", { name: "Close all tabs" })).toBeInTheDocument();
+    const menu = await screen.findByRole("menu");
+    // Nothing to move, split with or arrange: those submenus are gone, not left empty.
+    expect(itemNames(menu)).toEqual(["Pin tab", "Close tab", "Close", "Reopen closed tab"]);
+    expect(screen.queryByTestId("os-tab-move-menu-tab:tasks")).toBeNull();
+    expect(screen.queryByTestId("os-tab-split-with-menu-tab:tasks")).toBeNull();
+    expect(screen.queryByTestId("os-tab-arrange-menu-tab:tasks")).toBeNull();
+    // The tab itself is unpinned, so "All tabs" still closes something; nothing else does.
+    const close = await openSubmenu(user, "os-tab-close-menu-tab:tasks");
+    expect(itemNames(close)).toEqual(["All tabs"]);
   });
 
   it("Should offer Reopen closed tab only while a closed entry exists [US-006.EC-4]", async () => {
@@ -541,15 +601,63 @@ describe("OsTabBar", () => {
     const { manager } = renderBar();
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
-    // The first regular tab cannot move among the pins.
-    await user.click(await screen.findByRole("menuitem", { name: "Move right" }));
-    expect(screen.queryByRole("menuitem", { name: "Move left" })).toBeNull();
+    // The first regular tab cannot move among the pins; with one desktop there is no To desktop.
+    let move = await openSubmenu(user, "os-tab-move-menu-tab:tasks");
+    expect(itemNames(move)).toEqual(["Right"]);
+    await user.click(within(move).getByRole("menuitem", { name: "Right" }));
     expect(manager.moveTab).toHaveBeenCalledExactlyOnceWith("w-tasks", "right");
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:vault"));
-    await user.click(await screen.findByRole("menuitem", { name: "Move left" }));
-    expect(screen.queryByRole("menuitem", { name: "Move right" })).toBeNull();
+    move = await openSubmenu(user, "os-tab-move-menu-tab:vault");
+    expect(itemNames(move)).toEqual(["Left"]);
+    await user.click(within(move).getByRole("menuitem", { name: "Left" }));
     expect(manager.moveTab).toHaveBeenLastCalledWith("w-vault", "left");
+    // A submenu item hands focus back to the tab the menu came from, off the bar's one stop.
+    await waitFor(() => expect(screen.getByTestId("os-tab-tab:vault")).toHaveFocus());
+  });
+
+  it("Should group the tab menu into Move, Split with, Arrange and Close submenus", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar({ secondDesktop: true });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    const menu = await screen.findByRole("menu");
+    expect(itemNames(menu)).toEqual([
+      "Pin tab",
+      "Move",
+      "Split with",
+      "Arrange",
+      "Close tab",
+      "Close",
+      "Reopen closed tab",
+    ]);
+    expect(within(menu).getAllByRole("separator")).toHaveLength(2);
+
+    // Move ▸: the steps, then every other desktop by name under To desktop.
+    const move = await openSubmenu(user, "os-tab-move-menu-tab:split");
+    expect(itemNames(move)).toEqual(["Left", "Right", "Review"]);
+    expect(within(move).getByText("To desktop")).toBeInTheDocument();
+    await user.click(within(move).getByRole("menuitem", { name: "Review" }));
+    expect(manager.moveWindowToDesktop).toHaveBeenCalledExactlyOnceWith(
+      "w-agents",
+      "desktop:review"
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
+
+    // Close ▸ on a middle tab: every bulk close reaches a tab.
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    const close = await openSubmenu(user, "os-tab-close-menu-tab:split");
+    expect(itemNames(close)).toEqual([
+      "Other tabs",
+      "Tabs to the right",
+      "Tabs to the left",
+      "All tabs",
+    ]);
   });
 
   it("Should split with another tab and arrange or balance from the tab menu [US-012.AC-3, AC-4]", async () => {
@@ -573,7 +681,14 @@ describe("OsTabBar", () => {
     await waitFor(() => expect(screen.getAllByRole("menu")).toHaveLength(1));
     expect(arrange).toHaveFocus();
     await user.keyboard("{ArrowRight}");
-    await user.click(await screen.findByRole("menuitem", { name: "Grid" }));
+    const grid = await screen.findByRole("menuitem", { name: "Grid" });
+    expect(itemNames(grid.closest<HTMLElement>('[role="menu"]')!)).toEqual([
+      "Main and stack",
+      "Columns",
+      "Grid",
+      "Balance sizes",
+    ]);
+    await user.click(grid);
     expect(manager.arrangeLayout).toHaveBeenCalledExactlyOnceWith("w-agents", "grid");
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
