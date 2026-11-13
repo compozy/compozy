@@ -59,6 +59,13 @@ func InspectSessionModels(ctx context.Context, req SessionInspectionRequest) (Se
 				continue
 			}
 			if !model.ReadOnly {
+				// Inspection walks the values captured when it started; a model switch can
+				// shrink the picker, and a value that is no longer advertised must be
+				// reported instead of waiting for a catalog update that will not come.
+				if err := ValidateModelConfigValue(proc.CapsSnapshot().ConfigOptions, value.Value); err != nil {
+					result.recordModelError(value.Value, err)
+					continue
+				}
 				if _, err := driver.applySessionModel(ctx, proc, value.Value); err != nil {
 					result.recordModelError(value.Value, err)
 					continue
