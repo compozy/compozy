@@ -1,6 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
@@ -267,20 +268,35 @@ export function useWindowManagerLayoutEditor(
   const edit = (next: WindowManagerLayoutDocument) => {
     if (next !== context.draft) updateDraft(next);
   };
-  /** Any accepted version goes to the daemon, and the editor edits the version 6 it returns. */
-  const convertWire = async (wire: Readonly<Record<string, unknown>>) => {
-    const converted = await convertWindowManagerLayoutDocument(workspaceId, profileId, wire);
-    updateDraft({ ...converted, workspaceId });
+  const loadSequence = useRef(0);
+  /**
+   * A load owns the draft it started from: its result is dropped once a later load began or the
+   * draft changed (an edit, a reset, a newer baseline), so a slow answer never replaces newer work.
+   */
+  const beginLoad = () => {
+    loadSequence.current += 1;
+    const sequence = loadSequence.current;
+    const startedFrom = store.getSnapshot().context.draft;
+    return () =>
+      sequence === loadSequence.current && store.getSnapshot().context.draft === startedFrom;
   };
-  /** Every failure reaches the review bar in product wording, never as engine text. */
+  /**
+   * Any accepted version goes to the daemon, and the editor edits the version 6 it returns. Every
+   * failure reaches the review bar in product wording, never as engine text.
+   */
   const loadWire = async (
     read: () => Promise<Readonly<Record<string, unknown>>>,
     messages: LayoutConversionMessages
   ) => {
+    const stillCurrent = beginLoad();
     try {
-      await convertWire(await read());
+      const wire = await read();
+      const converted = await convertWindowManagerLayoutDocument(workspaceId, profileId, wire);
+      if (stillCurrent()) updateDraft({ ...converted, workspaceId });
     } catch (cause) {
-      store.trigger.importFailed({ error: layoutConversionError(cause, messages) });
+      if (stillCurrent()) {
+        store.trigger.importFailed({ error: layoutConversionError(cause, messages) });
+      }
     }
   };
   const importDocument = (file: File) =>
@@ -288,6 +304,7 @@ export function useWindowManagerLayoutEditor(
   /** A saved layout opens as is, or — saved before tabs and splits — converted by the daemon. */
   const loadSource = async (source: WindowManagerLayoutProfileSource) => {
     if (source.kind === "current") {
+      loadSequence.current += 1;
       updateDraft({ ...structuredClone(source.document), workspaceId });
       return;
     }

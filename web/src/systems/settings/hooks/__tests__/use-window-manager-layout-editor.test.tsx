@@ -421,4 +421,56 @@ describe("useWindowManagerLayoutEditor", () => {
     expect(apiMocks.convert).not.toHaveBeenCalled();
     expect(result.current.draft.desktops[0]?.name).toBe("Saved");
   });
+
+  it("Should keep the newer layout when an earlier load answers after it", async () => {
+    let answerFirst: (document: WindowManagerLayoutDocument) => void = () => undefined;
+    apiMocks.convert.mockImplementationOnce(
+      () =>
+        new Promise<WindowManagerLayoutDocument>(resolve => {
+          answerFirst = resolve;
+        })
+    );
+    apiMocks.convert.mockResolvedValueOnce(documentWith("Second"));
+    const { result } = renderEditor(stateAt(41, "Build"));
+
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.loadSource({ kind: "earlier", version: 5, wire: EARLIER_WIRE });
+    });
+    await act(async () => {
+      await result.current.loadSource({ kind: "earlier", version: 5, wire: EARLIER_WIRE });
+    });
+    await act(async () => {
+      answerFirst(documentWith("First"));
+      await first;
+    });
+
+    expect(result.current.draft.desktops[0]?.name).toBe("Second");
+    expect(result.current.importError).toBeNull();
+  });
+
+  it("Should keep an edit made while a saved layout was still loading", async () => {
+    let answer: (document: WindowManagerLayoutDocument) => void = () => undefined;
+    apiMocks.convert.mockImplementationOnce(
+      () =>
+        new Promise<WindowManagerLayoutDocument>(resolve => {
+          answer = resolve;
+        })
+    );
+    const { result } = renderEditor(stateAt(41, "Build"));
+
+    let load: Promise<void> = Promise.resolve();
+    act(() => {
+      load = result.current.loadSource({ kind: "earlier", version: 5, wire: EARLIER_WIRE });
+    });
+    act(() => {
+      result.current.edit(renameDesktop(result.current.draft, "Edited"));
+    });
+    await act(async () => {
+      answer(documentWith("Loaded"));
+      await load;
+    });
+
+    expect(result.current.draft.desktops[0]?.name).toBe("Edited");
+  });
 });
