@@ -93,3 +93,8 @@ Repeat the post-Git-cleanup state-write failure and approved-cleanup rollback ca
 root configured through a directory symlink. Retry and boot recovery must reach `removed`; failed
 Git cleanup must restore a usable `ready` checkout with clean status. Collection must finish through
 the alias while a symlink at the trash directory itself remains refused.
+
+Use literal root names containing `%`, `%20` and decomposed Unicode as well. Interrupt before
+staging with the original checkout intact: an unavailable session inventory must leave a retryable
+ready checkout, not a permanently removing row. Repeat post-Git-cleanup recovery and collection
+under each literal root; staging must not create a decoded or Unicode-normalized sibling root.

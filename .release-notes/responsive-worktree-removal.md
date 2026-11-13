@@ -15,4 +15,4 @@ Interrupted staging now restores verified checkout bytes before retrying safety 
 
 After staged safety checks succeed, CompozyOS durably records removal approval before clearing Git registration. Recovery uses that approval to finish an interrupted state write without restoring a broken checkout. External Git pruning alone never authorizes deletion of refused staged changes.
 
-Configured worktrees roots reached through directory symlinks support staged removal, recovery and clean rollback without stranding the checkout.
+Configured worktrees roots reached through directory symlinks support staged removal, recovery and clean rollback without stranding the checkout. Literal percent signs and Unicode directory names remain unchanged when resolving those roots.

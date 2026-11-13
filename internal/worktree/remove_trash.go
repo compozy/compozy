@@ -250,7 +250,7 @@ func (s *Service) trashRoots(ctx context.Context) ([]string, error) {
 
 // Resolve configured root aliases, but leave the trash entry itself subject to the ownership checks.
 func canonicalTrashPath(managedRoot string) (string, error) {
-	root, err := fileutil.CanonicalPathWithExistingPrefix(managedRoot)
+	root, err := canonicalFuturePath(managedRoot)
 	if err != nil {
 		return "", err
 	}

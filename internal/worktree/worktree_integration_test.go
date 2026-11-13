@@ -72,69 +72,86 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
-	for _, restart := range []bool{false, true} {
-		name := fmt.Sprintf("Should recover staged Git cleanup through a linked root restart=%t", restart)
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			f := newRealGitFixture(t)
-			f.useSymlinkedWorktreesRoot()
-			item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
-				ProfileID: testWorktreeProfileID, Name: "Staged state recovery",
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			writeErr := errors.New("removal state write failed")
-			f.service.store = &removalStateErrorStore{Store: f.store, err: writeErr}
-			if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(err, writeErr) {
-				t.Fatalf("Remove() = %v, want state write failure", err)
-			}
-			if f.item(item.ID).State != StateRemoving || f.events.count(EventRemoved) != 0 {
-				t.Fatal("failed state write completed removal")
-			}
-			for _, absent := range []string{item.Path, item.GitDir} {
-				if _, err := os.Lstat(absent); !errors.Is(err, os.ErrNotExist) {
-					t.Fatalf("Git cleanup retained %s: %v", absent, err)
+	for _, rootName := range []string{"linked-worktrees", "100%", "my%20dir", "cafe\u0301"} {
+		for _, restart := range []bool{false, true} {
+			name := fmt.Sprintf("Should recover staged Git cleanup through %q restart=%t", rootName, restart)
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				f.useSymlinkedWorktreesRoot(rootName)
+				item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+					ProfileID: testWorktreeProfileID, Name: "Staged state recovery",
+				})
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-			staged := filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "README.md")
-			assertFileContent(t, staged, "initial\n")
-			f.service = f.newService(f.runner)
-			f.service.sessions = fixedSessionGuard{err: errors.New("session inventory unavailable")}
-			if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(
-				err,
-				ErrNotReady,
-			) {
-				t.Fatalf("recovery with unavailable sessions = %v", err)
-			}
-			if f.item(item.ID).State != StateRemoving {
-				t.Fatal("session inspection failure cleared the removing fence")
-			}
-			if err := f.service.collectTrash(t.Context(), nil); err != nil {
-				t.Fatal(err)
-			}
-			assertFileContent(t, staged, "initial\n")
-			f.service.sessions = nil
-			if restart {
-				err = f.service.RecoverCreations(t.Context())
-			} else {
-				_, err = f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
-			}
-			if err != nil || f.item(item.ID).State != StateRemoved || f.events.count(EventRemoved) != 1 {
-				t.Fatalf("recovery = %v, state=%s, events=%d",
-					err, f.item(item.ID).State, f.events.count(EventRemoved))
-			}
-			if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("recovery restored an unregistered checkout: %v", err)
-			}
-			assertFileContent(t, staged, "initial\n")
-			if err := f.service.collectTrash(t.Context(), nil); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := os.Stat(filepath.Dir(staged)); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("completed recovery retained staged bytes: %v", err)
-			}
-		})
+				if err := f.store.SetState(
+					t.Context(), f.workspace.ID, item.ID, StateRemoving, item.UpdatedAt,
+				); err != nil {
+					t.Fatal(err)
+				}
+				sessionErr := errors.New("session inventory unavailable before staging")
+				f.service.sessions = fixedSessionGuard{err: sessionErr}
+				if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(
+					err,
+					sessionErr,
+				) || f.item(item.ID).State != StateReady {
+					t.Fatalf("intact checkout recovery = %v, state=%s", err, f.item(item.ID).State)
+				}
+				assertFileContent(t, filepath.Join(item.Path, "README.md"), "initial\n")
+				f.service.sessions = nil
+				writeErr := errors.New("removal state write failed")
+				f.service.store = &removalStateErrorStore{Store: f.store, err: writeErr}
+				if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(err, writeErr) {
+					t.Fatalf("Remove() = %v, want state write failure", err)
+				}
+				if f.item(item.ID).State != StateRemoving || f.events.count(EventRemoved) != 0 {
+					t.Fatal("failed state write completed removal")
+				}
+				for _, absent := range []string{item.Path, item.GitDir} {
+					if _, err := os.Lstat(absent); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("Git cleanup retained %s: %v", absent, err)
+					}
+				}
+				staged := filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "README.md")
+				assertFileContent(t, staged, "initial\n")
+				f.service = f.newService(f.runner)
+				f.service.sessions = fixedSessionGuard{err: errors.New("session inventory unavailable")}
+				if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(
+					err,
+					ErrNotReady,
+				) {
+					t.Fatalf("recovery with unavailable sessions = %v", err)
+				}
+				if f.item(item.ID).State != StateRemoving {
+					t.Fatal("session inspection failure cleared the removing fence")
+				}
+				if err := f.service.collectTrash(t.Context(), nil); err != nil {
+					t.Fatal(err)
+				}
+				assertFileContent(t, staged, "initial\n")
+				f.service.sessions = nil
+				if restart {
+					err = f.service.RecoverCreations(t.Context())
+				} else {
+					_, err = f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+				}
+				if err != nil || f.item(item.ID).State != StateRemoved || f.events.count(EventRemoved) != 1 {
+					t.Fatalf("recovery = %v, state=%s, events=%d",
+						err, f.item(item.ID).State, f.events.count(EventRemoved))
+				}
+				if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("recovery restored an unregistered checkout: %v", err)
+				}
+				assertFileContent(t, staged, "initial\n")
+				if err := f.service.collectTrash(t.Context(), nil); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := os.Stat(filepath.Dir(staged)); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("completed recovery retained staged bytes: %v", err)
+				}
+			})
+		}
 	}
 
 	t.Run("Should retain refused staged changes after external Git pruning", func(t *testing.T) {
@@ -190,7 +207,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should restore a clean checkout through a linked root after Git cleanup fails", func(t *testing.T) {
 		t.Parallel()
 		f := newRealGitFixture(t)
-		f.useSymlinkedWorktreesRoot()
+		f.useSymlinkedWorktreesRoot("rollback%20-root")
 		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Approved cleanup rollback",
 		})
@@ -3233,12 +3250,12 @@ func newRealGitFixtureWithCommit(t *testing.T, withCommit bool) *realGitFixture 
 }
 
 // The lifecycle suite owns removal, recovery and clean rollback through configured root aliases.
-func (f *realGitFixture) useSymlinkedWorktreesRoot() {
+func (f *realGitFixture) useSymlinkedWorktreesRoot(rootName string) {
 	f.t.Helper()
 	if err := os.MkdirAll(f.worktreesRoot, 0o700); err != nil {
 		f.t.Fatal(err)
 	}
-	alias := filepath.Join(f.t.TempDir(), "linked-worktrees")
+	alias := filepath.Join(f.t.TempDir(), rootName)
 	if err := os.Symlink(f.worktreesRoot, alias); err != nil {
 		f.t.Skipf("worktrees root symlink unavailable: %v", err)
 	}

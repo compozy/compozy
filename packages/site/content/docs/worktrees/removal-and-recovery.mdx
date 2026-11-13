@@ -166,7 +166,8 @@ before an interrupted state write, recovery uses the approval to finish the remo
 restoring a checkout with missing Git metadata. An external Git prune without that approval keeps
 the record `removing` and preserves staged bytes for recovery. Managed roots reached through
 parent-directory symlinks use their resolved location consistently for staging, recovery and cleanup;
-the trash directory itself must still pass the ownership and symlink checks.
+the trash directory itself must still pass the ownership and symlink checks. Literal percent signs,
+escape-like sequences and Unicode in configured directory names are preserved.
 
 A failed fenced-target read restores the original record to `ready`. If an interrupted removal
 leaves a record `removing`, repeat removal by its ID to reconcile it without restarting the daemon;
