@@ -25,8 +25,14 @@ export interface SessionParentPickerProps {
   search: string;
   onSearchChange: (search: string) => void;
   loading: boolean;
+  /** The rows belong to a previous search or page while the next one loads. */
+  stale: boolean;
   failed: boolean;
   onRetry: () => void;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
   /** A move is in flight; every choice waits for it. */
   pending: boolean;
   onChoose: (parent: SessionPayload) => void;
@@ -37,27 +43,13 @@ export interface SessionParentPickerProps {
  * Move under…: pick the session this one nests under, or return a nested child
  * to the top level. Keyboard-first: typing searches the project's sessions and
  * Enter moves under the selected one. An ineligible session states why instead
- * of listing parents the daemon would refuse.
+ * of listing parents the daemon would refuse, with Make top-level focused when
+ * the session can go back to the top level.
  */
-export function SessionParentPicker({
-  open,
-  onOpenChange,
-  source,
-  sourceFailed,
-  candidates,
-  search,
-  onSearchChange,
-  loading,
-  failed,
-  onRetry,
-  pending,
-  onChoose,
-  onMakeTopLevel,
-}: SessionParentPickerProps) {
+export function SessionParentPicker(props: SessionParentPickerProps) {
+  const { open, onOpenChange, source } = props;
   const title = source ? getSessionDisplayTitle(source) : "";
-  const refusal = source ? sessionMoveUnderRefusal(source) : null;
-  const canMakeTopLevel = source !== null && sessionCanMakeTopLevel(source);
-  const choosing = source !== null && refusal === null;
+  const choosing = source !== null && sessionMoveUnderRefusal(source) === null;
   return (
     <CommandDialog
       className="sm:max-w-lg"
@@ -68,111 +60,146 @@ export function SessionParentPicker({
       open={open}
       title="Move under another session"
     >
-      <Command data-testid="session-parent-picker" shouldFilter={false} className="h-auto">
-        {choosing ? (
-          <CommandInput
-            aria-label="Search sessions"
-            autoFocus
-            onValueChange={onSearchChange}
-            placeholder={`Move “${title}” under…`}
-            value={search}
-            variant="quiet"
-          />
-        ) : null}
-        <CommandList className="max-h-[min(24rem,50vh)]">
-          {source === null ? (
-            <p className="px-3 py-2 text-small-body text-muted-foreground" role="status">
-              {sourceFailed ? "Couldn't load this session." : "Loading session…"}
-            </p>
-          ) : null}
-          {refusal ? (
-            <p
-              className="px-3 py-2 text-small-body text-muted-foreground"
-              data-testid="session-parent-picker-refusal"
-              role="note"
-            >
-              {refusal}
-            </p>
-          ) : null}
-          {canMakeTopLevel ? (
-            <CommandGroup heading="Top level">
-              <CommandItem
-                data-testid="session-parent-picker-top-level"
-                disabled={pending}
-                onSelect={onMakeTopLevel}
-                value="top-level"
-              >
-                <CornerLeftUp aria-hidden="true" className="text-subtle" />
-                Make top-level
-              </CommandItem>
-            </CommandGroup>
-          ) : null}
-          {choosing ? (
-            <SessionParentCandidates
-              candidates={candidates}
-              failed={failed}
-              loading={loading}
-              onChoose={onChoose}
-              onRetry={onRetry}
-              pending={pending}
-            />
-          ) : null}
-        </CommandList>
-      </Command>
+      {choosing ? (
+        <SessionParentSearch {...props} title={title} />
+      ) : (
+        <SessionParentUnavailable {...props} />
+      )}
     </CommandDialog>
   );
 }
 
-function SessionParentCandidates({
+function SessionParentUnavailable({
+  source,
+  sourceFailed,
+  pending,
+  onMakeTopLevel,
+}: SessionParentPickerProps) {
+  const refusal = source ? sessionMoveUnderRefusal(source) : null;
+  const canMakeTopLevel = source !== null && sessionCanMakeTopLevel(source);
+  return (
+    <div className="flex flex-col items-start gap-3 p-3" data-testid="session-parent-picker">
+      {source === null ? (
+        <p className="text-small-body text-muted-foreground" role="status">
+          {sourceFailed ? "Couldn't load this session." : "Loading session…"}
+        </p>
+      ) : (
+        <p
+          className="text-small-body text-muted-foreground"
+          data-testid="session-parent-picker-refusal"
+          role="note"
+        >
+          {refusal}
+        </p>
+      )}
+      {canMakeTopLevel ? (
+        <Button
+          autoFocus
+          data-testid="session-parent-picker-top-level"
+          disabled={pending}
+          onClick={onMakeTopLevel}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <CornerLeftUp aria-hidden="true" />
+          Make top-level
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function SessionParentSearch({
+  title,
   candidates,
+  search,
+  onSearchChange,
   loading,
+  stale,
   failed,
+  onRetry,
+  hasNext,
+  hasPrevious,
+  onNextPage,
+  onPreviousPage,
   pending,
   onChoose,
-  onRetry,
-}: Pick<
-  SessionParentPickerProps,
-  "candidates" | "loading" | "failed" | "pending" | "onChoose" | "onRetry"
->) {
-  if (failed) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 text-small-body" role="alert">
-        Couldn't load sessions.
-        <Button type="button" size="sm" variant="ghost" onClick={onRetry}>
-          Try again
-        </Button>
-      </div>
-    );
-  }
-  if (loading) {
-    return (
-      <p className="px-3 py-2 text-small-body text-muted-foreground" role="status">
-        Loading sessions…
-      </p>
-    );
-  }
+}: SessionParentPickerProps & { title: string }) {
+  const locked = pending || stale;
   return (
-    <>
-      <CommandEmpty>No sessions match.</CommandEmpty>
-      {candidates.length > 0 ? (
-        <CommandGroup heading="Sessions">
-          {candidates.map(parent => (
-            <CommandItem
-              data-testid={`session-parent-picker-${parent.id}`}
-              disabled={pending}
-              key={parent.id}
-              onSelect={() => onChoose(parent)}
-              value={parent.id}
-            >
-              <CornerDownRight aria-hidden="true" className="text-subtle" />
-              <span className="min-w-0 flex-1 truncate">{getSessionDisplayTitle(parent)}</span>
-              <span className="ms-auto shrink-0 ps-3 text-micro text-subtle">
-                {parent.agent_name}
-              </span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
+    <Command data-testid="session-parent-picker" shouldFilter={false} className="h-auto">
+      <CommandInput
+        aria-label="Search sessions"
+        autoFocus
+        onValueChange={onSearchChange}
+        placeholder={`Move “${title}” under…`}
+        value={search}
+        variant="quiet"
+      />
+      <CommandList className="max-h-[min(24rem,50vh)]" aria-busy={stale || undefined}>
+        {failed ? (
+          <div className="flex items-center gap-2 px-3 py-2 text-small-body" role="alert">
+            Couldn't load sessions.
+            <Button type="button" size="sm" variant="ghost" onClick={onRetry}>
+              Try again
+            </Button>
+          </div>
+        ) : loading ? (
+          <p className="px-3 py-2 text-small-body text-muted-foreground" role="status">
+            Loading sessions…
+          </p>
+        ) : (
+          <>
+            <CommandEmpty>No sessions match.</CommandEmpty>
+            {candidates.length > 0 ? (
+              <CommandGroup heading="Sessions">
+                {candidates.map(parent => (
+                  <CommandItem
+                    data-testid={`session-parent-picker-${parent.id}`}
+                    disabled={locked}
+                    key={parent.id}
+                    onSelect={() => {
+                      if (!locked) onChoose(parent);
+                    }}
+                    value={parent.id}
+                  >
+                    <CornerDownRight aria-hidden="true" className="text-subtle" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {getSessionDisplayTitle(parent)}
+                    </span>
+                    <span className="ms-auto shrink-0 ps-3 text-micro text-subtle">
+                      {parent.agent_name}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
+          </>
+        )}
+      </CommandList>
+      {hasNext || hasPrevious ? (
+        <div className="flex justify-between gap-2 border-t border-line p-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={!hasPrevious || stale}
+            onClick={onPreviousPage}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={!hasNext || stale}
+            onClick={onNextPage}
+          >
+            Next
+          </Button>
+        </div>
       ) : null}
-    </>
+    </Command>
   );
 }

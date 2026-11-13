@@ -1,7 +1,8 @@
 // Suite: session-parent-picker
 // Invariant: Move under… is keyboard-first — typing searches, Enter moves under the
-// selected parent — and an ineligible session shows the reason (and Make top-level where
-// the daemon allows it) instead of parents it would refuse.
+// selected parent, never a row left over from a previous search — and an ineligible
+// session shows the reason (with a focused Make top-level where the daemon allows it)
+// instead of parents it would refuse.
 // Owning layer: component (systems/session/components)
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -37,6 +38,8 @@ function renderPicker(props: Partial<SessionParentPickerProps> = {}) {
     onSearchChange: vi.fn(),
     onOpenChange: vi.fn(),
     onRetry: vi.fn(),
+    onNextPage: vi.fn(),
+    onPreviousPage: vi.fn(),
   };
   render(
     <SessionParentPicker
@@ -46,6 +49,9 @@ function renderPicker(props: Partial<SessionParentPickerProps> = {}) {
       candidates={[]}
       search=""
       loading={false}
+      stale={false}
+      hasNext={false}
+      hasPrevious={false}
       failed={false}
       pending={false}
       {...handlers}
@@ -80,15 +86,33 @@ describe("SessionParentPicker", () => {
     expect(screen.queryByTestId("session-parent-picker-top-level")).not.toBeInTheDocument();
   });
 
-  it("Should offer Make top-level to an adopted child", async () => {
+  it("Should offer a focused Make top-level to an adopted child", async () => {
     const user = userEvent.setup();
     const child = session("child", { parent_session_id: "parent", kind: "provenance" });
     const handlers = renderPicker({ source: child });
     expect(screen.getByTestId("session-parent-picker-refusal")).toHaveTextContent(
       "Make this session top-level first"
     );
-    await user.click(screen.getByTestId("session-parent-picker-top-level"));
+    const makeTopLevel = screen.getByRole("button", { name: "Make top-level" });
+    expect(makeTopLevel).toHaveFocus();
+    await user.keyboard("{Enter}");
     expect(handlers.onMakeTopLevel).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should not choose a row from a previous search while the next one loads", async () => {
+    const user = userEvent.setup();
+    const handlers = renderPicker({ candidates: [session("old")], stale: true });
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByTestId("session-parent-picker-old"));
+    expect(handlers.onChoose).not.toHaveBeenCalled();
+  });
+
+  it("Should page through parents beyond the first page", async () => {
+    const user = userEvent.setup();
+    const handlers = renderPicker({ candidates: [session("p1")], hasNext: true });
+    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(handlers.onNextPage).toHaveBeenCalledTimes(1);
   });
 
   it("Should report a failed parent read with a retry", async () => {

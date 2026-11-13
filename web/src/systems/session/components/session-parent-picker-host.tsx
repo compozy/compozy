@@ -38,7 +38,11 @@ function OpenSessionParentPicker({
   reparent: SessionReparent;
 }) {
   const { params } = useProfileReadScope();
-  const sourceQuery = useQuery(sessionScopedDetailOptions(sessionId, params, { liveTail: false }));
+  // The session may belong to another profile (a window kept open under its owner
+  // banner); read it across profiles so every move names its own owner.
+  const sourceQuery = useQuery(
+    sessionScopedDetailOptions(sessionId, { all_profiles: true }, { liveTail: false })
+  );
   const source = sourceQuery.data ?? null;
   const {
     draftValue: search,
@@ -76,6 +80,13 @@ function OpenSessionParentPicker({
       candidates={source ? sessionParentCandidates(source, catalog.sessions) : []}
       failed={catalog.failed}
       loading={catalog.loading}
+      // Rows of a previous search stay on screen while the next one loads; they
+      // must not be chosen by an Enter meant for the new query.
+      stale={catalog.paging || search !== remoteSearch}
+      hasNext={search === remoteSearch && catalog.next}
+      hasPrevious={search === remoteSearch && catalog.previous}
+      onNextPage={catalog.nextPage}
+      onPreviousPage={catalog.previousPage}
       onChoose={choose}
       onMakeTopLevel={makeTopLevel}
       onOpenChange={open => {
