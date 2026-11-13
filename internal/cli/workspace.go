@@ -297,6 +297,11 @@ func newWorkspaceRemoveCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <name-or-id>",
 		Short: "Remove a workspace registration and stopped session history",
+		Long: `Remove a workspace registration and stopped session history.
+
+When a stored desktop layout cannot be read, the removal stays pending: the command prints the
+profile and project whose layout failed (HTTP 503, code window_manager_unavailable) and exits
+non-zero. Run it again once that layout is readable to finish the removal.`,
 		Example: `  # Remove a workspace registration by name
   compozy workspace remove checkout-api`,
 		Args: exactOneNonBlankArg(),

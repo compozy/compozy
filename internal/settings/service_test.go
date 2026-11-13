@@ -1409,6 +1409,77 @@ bottom_center = 42
 		}
 	})
 
+	t.Run("Should store only the project delta and keep inherited keys flowing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		userConfig := func(focusPolicy string) string {
+			return baseSettingsConfig() + "\n[window_manager]\nfocus_policy = \"" + focusPolicy + "\"\n"
+		}
+		writeFile(t, homePaths.ConfigFile, userConfig("directional"))
+		workspaceRoot := t.TempDir()
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {ID: "ws-1", RootDir: workspaceRoot},
+			}},
+			CmdPalette: &recordingCmdPaletteCatalog{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
+				{ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}},
+			}}},
+		})
+		save := func(binding string) {
+			t.Helper()
+			shortcuts := map[string]windowmanager.ShortcutBinding{"session.new": {binding}}
+			if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+				Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+				WindowManagerShortcuts: &shortcuts,
+			}); err != nil {
+				t.Fatalf("UpdateSection(project shortcut) error = %v", err)
+			}
+		}
+		load := func() compozyconfig.Config {
+			t.Helper()
+			loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+			if err != nil {
+				t.Fatalf("LoadForHome(project) error = %v", err)
+			}
+			return loaded
+		}
+		projectFile := workspaceConfigPath(workspaceRoot)
+
+		save("alt+KeyN")
+		written := readFile(t, projectFile)
+		if !strings.Contains(written, "[window_manager.shortcuts]") {
+			t.Fatalf("project file = %q, want the keymap table", written)
+		}
+		for _, key := range []string{
+			"focus_policy", "history_limit", "new_window_policy", "gaps", "global_shortcuts", "aliases",
+		} {
+			if strings.Contains(written, key) {
+				t.Fatalf("project file = %q, want no %s copied from inherited config", written, key)
+			}
+		}
+		writeFile(t, homePaths.ConfigFile, userConfig("click_directional"))
+		if got := load().WindowManager.FocusPolicy; got != "click_directional" {
+			t.Fatalf("project focus_policy = %q, want the later user value", got)
+		}
+
+		writeFile(t, projectFile, "[window_manager]\nfocus_policy = \"click_directional\"\nhistory_limit = 80\n\n"+
+			"[window_manager.shortcuts]\n\"session.new\" = [\"alt+KeyN\"]\n")
+		if got := load().WindowManager; got.FocusPolicy != "click_directional" || got.HistoryLimit != 80 {
+			t.Fatalf("copied project scalars loaded as %+v", got)
+		}
+		save("alt+KeyM")
+		rewritten := readFile(t, projectFile)
+		if strings.Contains(rewritten, "focus_policy") || !strings.Contains(rewritten, "history_limit = 80") {
+			t.Fatalf("project file = %q, want inherited copy removed and differing value kept", rewritten)
+		}
+		if got := load().WindowManager; got.FocusPolicy != "click_directional" || got.HistoryLimit != 80 ||
+			!slices.Equal(got.Shortcuts["session.new"], windowmanager.ShortcutBinding{"alt+KeyM"}) {
+			t.Fatalf("project config after save = %+v", got)
+		}
+	})
+
 	t.Run("Should emit global binding changes once per registered workspace [IT-033]", func(t *testing.T) {
 		t.Parallel()
 

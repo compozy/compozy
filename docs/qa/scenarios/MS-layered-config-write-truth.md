@@ -41,3 +41,8 @@ QA impact 2026-10-09 (Subagents tools slice): `[subagents] result_max_chars` def
 accepts 1000–1000000, and supports workspace overrides. `TestSubagentsConfig` verifies real file
 loading and workspace isolation; an isolated CLI run verified the default, user override, and
 999 rejection. The integrated finalize-time reload walk remains owned by the spec QA slice.
+
+QA impact 2026-11-13 (#1659): project-scope window-manager writes no longer pin the whole
+`[window_manager]` section. Scalars and gaps equal to the inherited value are removed from the
+project file; `global_shortcuts` and `cmd_palette.aliases` are written only when the request changes
+them. The keymap stays a whole-map override. Not walked yet.

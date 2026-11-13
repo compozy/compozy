@@ -52,6 +52,10 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   hooksListKey,
 		Short: "List resolved hooks in pipeline order",
+		Long: `List resolved hooks in pipeline order.
+
+The daemon scopes a user-config hook to each registered workspace. Without --workspace the table
+shows such a hook once, at its lowest order; JSON, JSONL and TOON keep every scoped entry.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -81,7 +85,13 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 					seen[hook.Event] = true
 				}
 			}
-			return writeCommandOutput(cmd, hookListBundle(hooks))
+			bundle := hookListBundle(hooks)
+			if workspaceID == "" {
+				// The daemon declares a user-config hook once per registered workspace; the table
+				// shows the declaration once. JSON keeps every scoped entry.
+				bundle.human = hookListBundle(collapseWorkspaceScopedHooks(hooks)).human
+			}
+			return writeCommandOutput(cmd, bundle)
 		},
 	}
 
@@ -217,55 +227,6 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	configureSingleProfileReadCommand(cmd, deps)
 	return cmd
-}
-
-func hookListBundle(hooks []HookCatalogRecord) outputBundle {
-	return listBundle(
-		hooks,
-		hooks,
-		"Hooks",
-		[]string{
-			"Order",
-			automationNameValue,
-			hooksEventValue,
-			authoredContextSourceValue,
-			taskModeValue,
-			cliPriorityValue,
-		},
-		"hooks",
-		[]string{
-			hooksOrderKey,
-			automationNameKey,
-			hooksEventKey,
-			automationSourceKey,
-			"skill_source",
-			hooksModeKey,
-			configRequiredKey,
-			"priority",
-		},
-		func(item HookCatalogRecord) []string {
-			return []string{
-				strconv.Itoa(item.Order),
-				stringOrDash(item.Name),
-				stringOrDash(item.Event),
-				stringOrDash(item.Source),
-				stringOrDash(item.Mode),
-				strconv.Itoa(item.Priority),
-			}
-		},
-		func(item HookCatalogRecord) []string {
-			return []string{
-				strconv.Itoa(item.Order),
-				item.Name,
-				item.Event,
-				item.Source,
-				item.SkillSource,
-				item.Mode,
-				strconv.FormatBool(item.Required),
-				strconv.Itoa(item.Priority),
-			}
-		},
-	)
 }
 
 func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
