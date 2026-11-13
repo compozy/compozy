@@ -1,26 +1,15 @@
-import {
-  resolveAppDescriptorForPath as resolveAppForPath,
-  SESSION_EMPTY_PATH,
-} from "./app-catalog";
+import { SESSION_EMPTY_PATH } from "./app-catalog";
 import { createdSessionHostWindow, landCreatedSession } from "./created-session-window";
-import type { OsOpenTarget, OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
+import type { OsOpenTarget, OsWindowRoute } from "./os-types";
 import { mruWindowInstance } from "./window-instance-lookup";
-import type {
-  OsRouterPort,
-  RouteReconciliation,
-  RoutingManager,
-} from "./routing-coordinator-contract";
+import type { OsRouterPort, RoutingManager } from "./routing-coordinator-contract";
 import {
-  carriesDesktopDefaultViewIntent,
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
-import {
-  CanonicalCandidate,
-  decideRouteReconciliation,
-  focusedRouteOrDesktop,
-} from "./routing-route-decision";
+import { CanonicalCandidate, focusedRouteOrDesktop } from "./routing-route-decision";
 import { RoutingEntryLedger } from "./routing-entry-ledger";
+import { RouteReconciler } from "./routing-route-reconciler";
 import { WindowActivations } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
@@ -51,8 +40,6 @@ export class RoutingCoordinator {
   private currentRoute: OsWindowRoute | null = null;
   private heldRoute: OsWindowRoute | null = null;
   private desktopDefaultViewIntentPending = false;
-  private routeReconciliation: RouteReconciliation | null = null;
-  private nextReconciliationToken = 0;
   private nextUserRetargetToken = 0;
   /**
    * Bumped by every navigation the coordinator did not write itself and by every explicit
@@ -62,10 +49,9 @@ export class RoutingCoordinator {
    */
   private nextUserIntentToken = 0;
   private readonly activations = new WindowActivations();
-  private pendingNavigateMode: "push" | "pop" | null = null;
-  private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
   private readonly entries: RoutingEntryLedger;
   private readonly canonical: CanonicalCandidate;
+  private readonly reconciler: RouteReconciler;
 
   /** `entries` is fed by the router bridge with every history change (`RouterEntryBridge`). */
   constructor(manager: RoutingManager, router: OsRouterPort, entries = new RoutingEntryLedger()) {
@@ -73,6 +59,16 @@ export class RoutingCoordinator {
     this.router = router;
     this.entries = entries;
     this.canonical = new CanonicalCandidate(entries);
+    this.reconciler = new RouteReconciler({
+      manager,
+      canReconcile: () => this.phase === "ready" && this.heldRoute === null,
+      desktopDefaultViewIntentPending: () => this.desktopDefaultViewIntentPending,
+      userIntentToken: () => this.nextUserIntentToken,
+      settleDesktopDefaultViewIntent: () => {
+        this.desktopDefaultViewIntentPending = false;
+      },
+      reportAuthoritativeState: () => this.reportAuthoritativeState(),
+    });
   }
 
   /**
@@ -100,7 +96,7 @@ export class RoutingCoordinator {
       this.initialIntent = route;
       return;
     }
-    this.queueRouteReconciliation(route);
+    this.reconciler.queue(route);
   }
 
   /**
@@ -125,20 +121,20 @@ export class RoutingCoordinator {
       const defaultIntent =
         intent && isDesktopDefaultViewIntent(intent) ? intent : { pathname: "/", search: {} };
       this.replaceRoute(withoutDesktopDefaultViewIntent(defaultIntent));
-      this.queueRouteReconciliation(defaultIntent);
+      this.reconciler.queue(defaultIntent);
       return;
     }
     if (this.cycle === "workspace-switch") {
       this.cycle = "boot";
       if (intent && intent.pathname !== "/") {
-        this.queueRouteReconciliation(intent);
+        this.reconciler.queue(intent);
         return;
       }
       this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
       return;
     }
     if (intent && intent.pathname !== "/") {
-      this.queueRouteReconciliation(intent);
+      this.reconciler.queue(intent);
       return;
     }
     const state = this.manager.getState();
@@ -155,15 +151,17 @@ export class RoutingCoordinator {
   reportAuthoritativeState(): void {
     if (this.phase !== "ready" || this.heldRoute) return;
     if (this.desktopDefaultViewIntentPending) {
-      if (this.routeReconciliation === null) {
-        this.queueRouteReconciliation({ pathname: "/", search: {} });
-      } else if (!this.routeReconciliation.inFlight) {
-        this.reconcilePendingRoute();
+      const pending = this.reconciler.pending;
+      if (pending === null) {
+        this.reconciler.queue({ pathname: "/", search: {} });
+      } else if (!pending.inFlight) {
+        this.reconciler.reconcilePending();
       }
       return;
     }
-    if (this.routeReconciliation !== null) {
-      if (!this.routeReconciliation.inFlight) this.reconcilePendingRoute();
+    const pending = this.reconciler.pending;
+    if (pending !== null) {
+      if (!pending.inFlight) this.reconciler.reconcilePending();
       return;
     }
     // A window activation in flight writes the URL once it settles (`activate`).
@@ -185,7 +183,7 @@ export class RoutingCoordinator {
    * operator answers it, so the hold suspends both until the surface resolves.
    */
   holdRoute(route: OsWindowRoute): void {
-    this.invalidateRouteReconciliation();
+    this.reconciler.invalidate();
     this.heldRoute = route;
     this.currentRoute = route;
     this.initialIntent = null;
@@ -202,7 +200,7 @@ export class RoutingCoordinator {
    * unmarked keeps today's `replace` semantics.
    */
   noteNavigateMode(mode: "push" | "pop"): void {
-    this.pendingNavigateMode = mode;
+    this.reconciler.noteNavigateMode(mode);
   }
 
   /**
@@ -211,9 +209,7 @@ export class RoutingCoordinator {
    * reconciliation consumes the hint; it survives a workspace switch (held deep link).
    */
   noteCreatedSession(sessionId: string): void {
-    const instanceKey = sessionId.trim();
-    const afterToken = this.nextReconciliationToken;
-    this.createdSessionIntent = instanceKey ? { instanceKey, afterToken } : null;
+    this.reconciler.noteCreatedSession(sessionId);
   }
 
   /**
@@ -229,7 +225,7 @@ export class RoutingCoordinator {
   userNavigate(route: OsWindowRoute): void {
     this.nextUserIntentToken += 1;
     this.pushRoute(route, "operator");
-    if (this.phase === "ready") this.queueRouteReconciliation(route);
+    if (this.phase === "ready") this.reconciler.queue(route);
   }
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
@@ -390,7 +386,7 @@ export class RoutingCoordinator {
    */
   beginWorkspaceSwitch(): void {
     if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
-    this.invalidateRouteReconciliation();
+    this.reconciler.invalidate();
     this.activations.abandon();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
@@ -405,95 +401,5 @@ export class RoutingCoordinator {
   private replaceRoute(route: OsWindowRoute): void {
     this.currentRoute = route;
     this.router.replace(route);
-  }
-
-  /**
-   * Route-originated reconciliation (rule 2): store updates only, no history.
-   * The desktop URL (`/`) opens nothing — it focuses an existing dashboard
-   * window on the active desktop or leaves the desktop as-is (first run stays
-   * empty, US-001.EC-1).
-   */
-  private queueRouteReconciliation(route: OsWindowRoute): void {
-    const current = this.routeReconciliation;
-    const desktopDefaultView = carriesDesktopDefaultViewIntent(
-      route,
-      this.desktopDefaultViewIntentPending,
-      current
-    );
-    if (current && sameOsWindowRoute(current.route, route)) {
-      if (!current.inFlight) this.reconcilePendingRoute();
-      return;
-    }
-    this.nextReconciliationToken += 1;
-    this.routeReconciliation = {
-      token: this.nextReconciliationToken,
-      route,
-      desktopDefaultView,
-      inFlight: false,
-    };
-    this.reconcilePendingRoute();
-  }
-
-  private reconcilePendingRoute(): void {
-    const pending = this.routeReconciliation;
-    if (pending === null || pending.inFlight || this.phase !== "ready" || this.heldRoute) return;
-    const state = this.manager.getState();
-    if (state.client === null || state.hydration !== "live") return;
-    const desktopDefaultView = pending.desktopDefaultView;
-    const route = withoutDesktopDefaultViewIntent(pending.route);
-    const resolved = resolveAppForPath(route.pathname);
-    const mode = this.pendingNavigateMode;
-    this.pendingNavigateMode = null;
-    if (!resolved) {
-      this.routeReconciliation = null;
-      return;
-    }
-    const intent = this.createdSessionIntent;
-    const matches = intent?.instanceKey === resolved.instanceKey;
-    if (matches || (intent && pending.token > intent.afterToken)) this.createdSessionIntent = null;
-    const createdSession = pending.createdSession === true || matches;
-    const tracked = createdSession ? { ...pending, createdSession } : pending;
-    const intentToken = this.nextUserIntentToken;
-    const outcome = decideRouteReconciliation(this.manager, {
-      resolved,
-      route,
-      desktopDefaultView,
-      mode,
-      createdSession,
-      isCurrent: () => intentToken === this.nextUserIntentToken,
-    });
-    if (outcome === null) {
-      this.routeReconciliation = null;
-      return;
-    }
-    this.startRouteReconciliation(tracked, outcome);
-  }
-
-  private startRouteReconciliation(
-    pending: RouteReconciliation,
-    outcome: WindowManagerOpenOutcome
-  ): void {
-    if (!outcome.accepted) {
-      if (this.routeReconciliation?.token !== pending.token) return;
-      this.routeReconciliation = { ...pending, inFlight: false };
-      return;
-    }
-    this.routeReconciliation = { ...pending, inFlight: true };
-    void outcome.completion.then(applied => {
-      if (this.routeReconciliation?.token !== pending.token) return;
-      if (!applied) {
-        this.routeReconciliation = { ...pending, inFlight: false };
-        return;
-      }
-      if (pending.desktopDefaultView) this.desktopDefaultViewIntentPending = false;
-      this.routeReconciliation = null;
-      this.reportAuthoritativeState();
-    });
-  }
-
-  private invalidateRouteReconciliation(): void {
-    this.nextReconciliationToken += 1;
-    this.routeReconciliation = null;
-    this.pendingNavigateMode = null;
   }
 }

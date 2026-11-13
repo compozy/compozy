@@ -28,6 +28,7 @@ import {
   reportCommandCompleted,
   reportCommandRefused,
 } from "./window-manager-command-outcome";
+import { WindowManagerConflictRecovery } from "./window-manager-conflict-recovery";
 import { FocusTurns, type FocusTicket } from "./window-manager-focus-turns";
 import {
   clientViewInBinding,
@@ -37,7 +38,6 @@ import {
   queryCacheEventChangesData,
   randomWindowManagerId,
   sameRuntimeBinding,
-  WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
 } from "./window-manager-runtime-helpers";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
 
@@ -63,8 +63,11 @@ export abstract class WindowManagerRuntimeCore {
   protected wallpaper: OsWallpaper = "flat";
   protected reduceMotion = false;
   protected loadError: Error | null = null;
-  private diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
-  private conflictRecovery: Promise<boolean> | null = null;
+  private readonly conflicts = new WindowManagerConflictRecovery({
+    presentedRevision: () => this.view.snapshot?.revision ?? 0,
+    refreshSnapshot: options => this.refreshSnapshot(options),
+    publish: () => this.publish(),
+  });
   protected readonly focusTurns = new FocusTurns<WindowManagerClientView>(v => this.adoptClient(v));
 
   constructor(queryClient: QueryClient) {
@@ -113,7 +116,7 @@ export abstract class WindowManagerRuntimeCore {
     this.unsubscribePresentation?.();
     this.unsubscribeQuery = null;
     this.unsubscribePresentation = null;
-    this.cancelDiagnosticExpiry();
+    this.conflicts.cancelDiagnosticExpiry();
     this.focusTurns.reset();
   }
 
@@ -251,59 +254,9 @@ export abstract class WindowManagerRuntimeCore {
     windowManagerStore.trigger.conflictCleared();
   }
 
-  /**
-   * A revision conflict means another client or agent moved the layout first.
-   * The surface re-reads the snapshot and reopens for commands on its own; the
-   * refused action rolls back and the notice explains what happened.
-   */
-  private recoverFromConflict(): Promise<boolean> {
-    if (this.conflictRecovery !== null) return this.conflictRecovery;
-    const commandState = windowManagerStore.getSnapshot().context.commandState;
-    // The daemon reporting a revision behind ours means it restarted from a
-    // discarded or replaced arrangement; its re-read replaces the cache.
-    const authoritative =
-      commandState.status === "conflict" &&
-      commandState.conflict.currentRevision < (this.view.snapshot?.revision ?? 0);
-    this.conflictRecovery = this.refreshSnapshot({ authoritative })
-      .then(refreshed => {
-        if (!refreshed) return false;
-        const commandState = windowManagerStore.getSnapshot().context.commandState;
-        if (commandState.status === "conflict") {
-          const diagnostic = commandState.diagnostic;
-          this.clearConflict();
-          windowManagerStore.trigger.diagnosticReported({ diagnostic });
-          this.scheduleDiagnosticExpiry();
-        }
-        return refreshed;
-      })
-      .finally(() => {
-        this.conflictRecovery = null;
-        this.publish();
-      });
-    return this.conflictRecovery;
-  }
-
   /** Resolves once the surface has re-read the layout after a revision conflict. */
   protected awaitConflictRecovery(): Promise<boolean> {
-    if (windowManagerStore.getSnapshot().context.commandState.status !== "conflict") {
-      return Promise.resolve(true);
-    }
-    return this.recoverFromConflict();
-  }
-
-  private scheduleDiagnosticExpiry(): void {
-    this.cancelDiagnosticExpiry();
-    this.diagnosticTimer = setTimeout(() => {
-      this.diagnosticTimer = null;
-      windowManagerStore.trigger.diagnosticCleared();
-      this.publish();
-    }, WINDOW_MANAGER_DIAGNOSTIC_TTL_MS);
-  }
-
-  private cancelDiagnosticExpiry(): void {
-    if (this.diagnosticTimer === null) return;
-    clearTimeout(this.diagnosticTimer);
-    this.diagnosticTimer = null;
+    return this.conflicts.awaitRecovery();
   }
 
   async refreshSnapshot(options: { authoritative?: boolean } = {}): Promise<boolean> {
@@ -479,9 +432,9 @@ export abstract class WindowManagerRuntimeCore {
           binding
         );
         if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") {
-          void this.recoverFromConflict();
+          void this.conflicts.recover();
         } else {
-          this.scheduleDiagnosticExpiry();
+          this.conflicts.scheduleDiagnosticExpiry();
         }
         this.publish();
         return false;
