@@ -282,7 +282,11 @@ func (s *subagentService) failDelegation(
 		},
 	)
 	if err == nil && changed {
-		s.publishTerminal(cleanup, settled)
+		// The retries may have spent the whole cleanup budget; publishing on a
+		// dead context skips the parent catalog upsert.
+		publishCtx, publishCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		s.publishTerminal(publishCtx, settled)
+		publishCancel()
 	}
 	unlock()
 	if child != "" {

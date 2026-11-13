@@ -2,8 +2,11 @@ package session
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -72,6 +75,46 @@ func TestRecoverFinalizesOrphanedIsolatedDelegation(t *testing.T) {
 	}
 	if settled.SettledAt == nil {
 		t.Fatal("settled_at = nil, want the recovery instant")
+	}
+}
+
+// A rollback that fails cannot keep the row running until the next boot: the
+// row still settles and the parent still wakes, while the checkout keeps its
+// pending cleanup so recoverIsolationCleanup retries it.
+func TestRecoverSettlesOrphanedIsolationWhenCompensationFails(t *testing.T) {
+	t.Parallel()
+
+	s, db, r := newSubagentTestService(t)
+	s.worktrees = &subagentWorktreeStub{lookupErr: errors.New("worktree lookup unavailable")}
+	var logs strings.Builder
+	s.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	row := orphanedDelegationRow()
+	row.Isolation = SubagentIsolationWorktree
+	row.WakePolicy = store.SubagentWakePolicySettledOnly
+	db.rows["orphan"] = row
+
+	if err := s.Recover(t.Context()); err != nil {
+		t.Fatalf("Recover() error = %v", err)
+	}
+
+	settled := db.rows["orphan"]
+	if settled.Status != store.SubagentStatusFailed {
+		t.Fatalf("status = %q, want %q even when the rollback failed", settled.Status, store.SubagentStatusFailed)
+	}
+	if settled.WakePolicy != store.SubagentWakePolicyAlways {
+		t.Fatalf("wake policy = %q, want %q for a failed orphan", settled.WakePolicy, store.SubagentWakePolicyAlways)
+	}
+	if got := settled.WorktreeState().Cleanup; got != "pending" {
+		t.Fatalf("worktree cleanup = %q, want %q for recoverIsolationCleanup to retry", got, "pending")
+	}
+	if len(db.wakes) != 1 || len(r.queues) != 1 {
+		t.Fatalf("wakes = %+v queues = %+v, want one planned wake", db.wakes, r.queues)
+	}
+	// Both failures surface: the settle result is not allowed to swallow the
+	// compensation error that made the fallback necessary.
+	if !strings.Contains(logs.String(), "orphaned_isolation_compensation") ||
+		!strings.Contains(logs.String(), "worktree lookup unavailable") {
+		t.Fatalf("logs = %q, want the compensation error reported", logs.String())
 	}
 }
 
@@ -165,4 +208,80 @@ func TestFinalizeSubagentDoesNotRetryPermanentErrors(t *testing.T) {
 	if want := 1; db.finalizeCalls != want {
 		t.Fatalf("finalize calls = %d, want %d", db.finalizeCalls, want)
 	}
+}
+
+// slowFinalizeSubagents makes each terminal write spend fake time, so a retry
+// can outlive the caller's cleanup context without slowing the suite down.
+type slowFinalizeSubagents struct {
+	store.SubagentStore
+	delay time.Duration
+}
+
+func (d slowFinalizeSubagents) FinalizeSubagent(
+	ctx context.Context,
+	in store.SubagentFinalize,
+) (store.SessionSubagent, bool, error) {
+	time.Sleep(d.delay)
+	return d.SubagentStore.FinalizeSubagent(ctx, in)
+}
+
+func publishContextProbe(r *subagentTestRuntime) (published *int, publishErr *error) {
+	published, publishErr = new(int), new(error)
+	r.publishParent = func(ctx context.Context, _ string) {
+		*published++
+		*publishErr = ctx.Err()
+	}
+	return published, publishErr
+}
+
+// The retry owns a 30 s budget while the caller's cleanup context lasts 5 s.
+// Publishing the settled row on that spent context silently drops the parent
+// catalog refresh, so the publication needs a bounded context of its own.
+func TestFailDelegationPublishesTerminalWithLiveContext(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		s, db, r := newSubagentTestService(t)
+		db.rows["orphan"] = orphanedDelegationRow()
+		db.finalizeFailures = 1
+		s.store = slowFinalizeSubagents{SubagentStore: db, delay: 2 * defaultLifecycleTimeout}
+		published, publishErr := publishContextProbe(r)
+
+		if _, err := s.failDelegation(t.Context(), db.rows["orphan"], "", testSubagentError()); err != nil {
+			t.Fatalf("failDelegation() error = %v", err)
+		}
+		if *published != 1 {
+			t.Fatalf("PublishParent calls = %d, want 1", *published)
+		}
+		if *publishErr != nil {
+			t.Fatalf("PublishParent context error = %v, want a live publication context", *publishErr)
+		}
+	})
+}
+
+func TestFailIsolatedDelegationPublishesTerminalWithLiveContext(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		s, db, r := newSubagentTestService(t)
+		row := orphanedDelegationRow()
+		row.Isolation = SubagentIsolationWorktree
+		row.Worktree = &store.SubagentWorktreeState{ID: "wt-1", BaseSHA: "base"}
+		db.rows["orphan"] = row
+		db.finalizeFailures = 1
+		s.worktrees = &subagentWorktreeStub{worktree: SubagentWorktree{ID: "wt-1"}}
+		s.store = slowFinalizeSubagents{SubagentStore: db, delay: 2 * defaultLifecycleTimeout}
+		published, publishErr := publishContextProbe(r)
+
+		cause := testSubagentError()
+		if _, err := s.failIsolatedDelegation(t.Context(), db.rows["orphan"], "", cause); !errors.Is(err, cause) {
+			t.Fatalf("failIsolatedDelegation() error = %v, want %v", err, cause)
+		}
+		if *published != 1 {
+			t.Fatalf("PublishParent calls = %d, want 1", *published)
+		}
+		if *publishErr != nil {
+			t.Fatalf("PublishParent context error = %v, want a live publication context", *publishErr)
+		}
+	})
 }

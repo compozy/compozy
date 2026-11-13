@@ -8,6 +8,9 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// subagentRecoveredInterrupted is the terminal summary of a delegation the daemon never saw settle.
+const subagentRecoveredInterrupted = "delegation interrupted"
+
 func (s *subagentService) provisionIsolation(
 	ctx context.Context,
 	req SubagentRequest,
@@ -231,7 +234,11 @@ func (s *subagentService) failIsolatedDelegation(
 			},
 		)
 		if err == nil && changed {
-			s.publishTerminal(cleanup, settled)
+			// The retries may have spent the whole cleanup budget; publishing on a
+			// dead context skips the parent catalog upsert.
+			publishCtx, publishCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			s.publishTerminal(publishCtx, settled)
+			publishCancel()
 		}
 		unlock()
 		cleanupErr = errors.Join(cleanupErr, err)
@@ -284,10 +291,22 @@ func (s *subagentService) recoverIsolation(ctx context.Context, row store.Sessio
 			return s.recoverChild(ctx, row)
 		}
 	}
-	summary := "delegation interrupted"
+	summary := subagentRecoveredInterrupted
 	if retained {
 		summary = "worktree_retained"
 	}
+	return s.settleRecoveredIsolation(ctx, row, summary)
+}
+
+// settleRecoveredIsolation is the shared tail of boot recovery and of the
+// orphaned fallback: settle the row and wake the parent through an ordinary
+// wake. It never touches the checkout, so a failed rollback can settle the row
+// while the worktree cleanup keeps retrying from disk.
+func (s *subagentService) settleRecoveredIsolation(
+	ctx context.Context,
+	row store.SessionSubagent,
+	summary string,
+) error {
 	unlock := s.lock(row.ParentSessionID)
 	defer unlock()
 	failed, changed, err := s.finalizeSubagentWithRetry(

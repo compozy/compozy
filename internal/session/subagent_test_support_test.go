@@ -451,6 +451,7 @@ type subagentTestRuntime struct {
 	permissionLimit                 *SubagentPermissionLimit
 	permissionLimitErr              error
 	stopDescendants                 func(context.Context, string) error
+	publishParent                   func(context.Context, string)
 	inputStatuses                   map[string]string
 	errorResume                     error
 	mu                              sync.Mutex
@@ -594,7 +595,10 @@ func (r *subagentTestRuntime) CancelWake(_ context.Context, wake store.SessionSu
 func (r *subagentTestRuntime) Steer(context.Context, string, string, string, string) (acp.SteerResult, error) {
 	return r.steer, r.steerErr
 }
-func (r *subagentTestRuntime) PublishParent(_ context.Context, id string) {
+func (r *subagentTestRuntime) PublishParent(ctx context.Context, id string) {
+	if r.publishParent != nil {
+		r.publishParent(ctx, id)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.publishes = append(r.publishes, id)
