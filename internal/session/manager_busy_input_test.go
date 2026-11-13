@@ -6239,8 +6239,15 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			}
 			f.advance(2 * time.Minute)
 			f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+			var injected []string
 			for range 2 {
-				testutil.Receive(t, "runtime-less wake injected", 5*time.Second, f.steered)
+				injected = append(injected, testutil.Receive(t, "runtime-less wake injected", 5*time.Second, f.steered))
+			}
+			payload := strings.Join(injected, "\n")
+			for _, outcome := range []string{"child reply", "wake defaults-a", "wake defaults-b"} {
+				if strings.Count(payload, outcome) != 1 {
+					t.Fatalf("injected payload = %q, want exactly one %q", payload, outcome)
+				}
 			}
 			for _, id := range []string{reply.ID, wake.ID} {
 				waitForCondition(t, "wake settled in the live turn", func() bool {
