@@ -900,6 +900,38 @@ describe("WindowManagerRuntime", () => {
       await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:tasks"));
     });
 
+    it("Should resolve a swap pressed behind another against the layout that one leaves [#1658]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      // The first swap's answer: Agents | Tasks, so nothing lies right of Tasks any more.
+      const swapped: WindowManagerSnapshot = {
+        ...splitSnapshot,
+        revision: splitSnapshot.revision + 1,
+        desktops: splitSnapshot.desktops.map(desktop => ({
+          ...desktop,
+          tabs: desktop.tabs.map(tab =>
+            tab.root.kind === "split"
+              ? { ...tab, root: { ...tab.root, children: [...tab.root.children].reverse() } }
+              : tab
+          ),
+        })),
+      };
+
+      runtime.swapDirection("right");
+      runtime.swapDirection("right");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!({ ...splitAnswer(splitView("app:tasks", 2)), snapshot: swapped });
+
+      // The second press reads the swapped layout and has no neighbour: it does not swap back.
+      const left = () => {
+        const windows = runtime.getState().projections["tab:split"]?.windows ?? [];
+        return [...windows].sort((a, b) => a.rect.x - b.rect.x)[0]?.windowId;
+      };
+      await vi.waitFor(() => expect(left()).toBe("app:agents"));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(sentCommands()).toEqual(["window.swap"]);
+    });
+
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startSplitRuntime();

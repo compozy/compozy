@@ -124,6 +124,7 @@ function renderMenu(
   const moveWindowToDesktop = vi.fn();
   const manager = {
     getState: () => state,
+    directionalFocusId: () => "w-focused",
     moveWindowToDesktop,
   } as unknown as WindowManagerController;
   const shell: OsShellHandle = {

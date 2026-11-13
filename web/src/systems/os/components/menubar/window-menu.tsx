@@ -131,16 +131,19 @@ function SwapDirectionItem({
  * Window › Swap: the directions in which the focused window has an on-screen
  * neighbour in its tab. Outside a split the entry disables in place with the
  * registry's reason, as "Move to new tab" does; a side with no neighbour is absent.
+ * Sides are read from the window the command will start from (a focus still
+ * waiting for its answer included), so a listed side is one that swaps. The menu
+ * content mounts on open, and every view change re-reads it.
  */
 function SwapMenu({ onRun }: { onRun: (commandId: string) => void }) {
+  const { manager } = useOsShell();
   const family = usePaletteCommand(SWAP_FAMILY_COMMAND);
-  const directions = useDesktop(
-    state =>
-      SWAP_DIRECTIONS.filter(
-        direction => directionalSwapTarget(state, state.focusedId, direction) !== null
-      ),
-    sameDirections
-  );
+  const directions = useDesktop(state => {
+    const from = manager.directionalFocusId();
+    return SWAP_DIRECTIONS.filter(
+      direction => directionalSwapTarget(state, from, direction) !== null
+    );
+  }, sameDirections);
   if (family === null) return null;
   if (!family.available || directions.length === 0) {
     return (

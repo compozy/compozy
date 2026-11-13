@@ -276,6 +276,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     moveWindowToDesktop: vi.fn(),
     focusDirection: vi.fn(),
     swapDirection: vi.fn(),
+    directionalFocusId: vi.fn(() => null),
     undoLayout: vi.fn(),
     redoLayout: vi.fn(),
     balanceFocusedLayout: vi.fn(),

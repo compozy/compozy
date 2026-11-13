@@ -271,6 +271,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   focusDirection(direction: FocusDirection): void;
   /** Swaps the focused window with its on-screen neighbour on that side of the active tab. */
   swapDirection(direction: FocusDirection): void;
+  /** The window directional focus and swaps start from: the newest focus this client asked for. */
+  directionalFocusId(): string | null;
   undoLayout(): void;
   redoLayout(): void;
   balanceFocusedLayout(): void;

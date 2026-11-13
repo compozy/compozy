@@ -1,12 +1,15 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { focusWindowCommand, openWindowCommand } from "../lib/window-manager-command-builders";
+import {
+  focusWindowCommand,
+  openWindowCommand,
+  swapWindowsCommand,
+} from "../lib/window-manager-command-builders";
 import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
 import {
   activeTabCandidates,
   directionalFocusTarget,
   directionalSwapTarget,
-  type FocusCandidate,
 } from "../lib/window-manager-navigation";
 import type {
   OsDesktopBounds,
@@ -63,7 +66,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     if (config === null) return;
     const candidates = activeTabCandidates(this.view);
     if (candidates.length === 0) return;
-    const from = this.directionalSource(candidates);
+    const from = this.directionalFocusId();
     const target = directionalFocusTarget({
       candidates,
       focusedId: from,
@@ -77,24 +80,34 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   /**
    * Trades the focused window's place with its on-screen neighbour on that side of the active tab,
    * from the newest focus this client asked for. Never wraps; nothing on that side is a no-op. The
-   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone.
+   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone. A swap pressed
+   * while an earlier one still waits picks its neighbour from the layout that one leaves, so two
+   * quick presses move the window two places instead of undoing each other.
    */
   swapDirection(direction: FocusDirection): void {
-    const from = this.directionalSource(activeTabCandidates(this.view));
-    const target = directionalSwapTarget(this.view, from, direction);
-    if (from === null || target === null) return;
-    this.swapWindows(from, target);
+    const from = this.directionalFocusId();
+    if (from === null) return;
+    const inputAt = Date.now();
+    const run = (): Promise<boolean> | boolean => {
+      const target = directionalSwapTarget(this.view, from, direction);
+      if (target === null) return false;
+      return this.dispatch({ ...swapWindowsCommand(from, target), inputAt }).completion;
+    };
+    this.swapTurn = this.swapTurn.then(run, run);
   }
 
+  private swapTurn: Promise<unknown> = Promise.resolve();
+
   /**
-   * A focus still waiting for its answer is where the operator already is: the view names the
-   * focus before it until that answer shows, and a press meanwhile must not start from there.
+   * The window directional focus and swaps start from. A focus still waiting for its answer is
+   * where the operator already is: the view names the focus before it until that answer shows,
+   * and a press meanwhile must not start from there.
    */
-  private directionalSource(candidates: readonly FocusCandidate[]): string | null {
+  directionalFocusId(): string | null {
     const pending = this.focusTurns.pendingFocus();
-    return pending !== null && candidates.some(candidate => candidate.id === pending)
-      ? pending
-      : this.view.focusedId;
+    if (pending === null) return this.view.focusedId;
+    const onScreen = activeTabCandidates(this.view).some(candidate => candidate.id === pending);
+    return onScreen ? pending : this.view.focusedId;
   }
 
   undoLayout(): void {

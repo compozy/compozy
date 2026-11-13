@@ -186,6 +186,7 @@ export function createLiveStoryShell({
     moveWindowToDesktop: fn(),
     focusDirection: fn(),
     swapDirection: fn(),
+    directionalFocusId: () => state.focusedId,
     undoLayout: fn(),
     redoLayout: fn(),
     balanceFocusedLayout: fn(),
