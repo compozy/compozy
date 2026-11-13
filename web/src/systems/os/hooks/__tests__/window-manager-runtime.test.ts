@@ -945,9 +945,29 @@ describe("WindowManagerRuntime", () => {
       expect(leftmost()).toBe("app:agents");
       runtime.pinWindow("app:tasks", true);
       expect(leftmost()).toBe("app:agents");
+      // A work-area resize moves every pixel but not the leaves: the swap still counts.
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 960, h: 700 }, origin: { x: 0, y: 0 } },
+      });
+      expect(leftmost()).toBe("app:agents");
       // ...until an Undo queued behind it makes the outcome unknowable here.
       runtime.undoLayout();
       expect(leftmost()).toBe("app:tasks");
+    });
+
+    it("Should count an unanswered Shift-drop swap for the next directional press [#1658]", async () => {
+      deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      const leftmost = () =>
+        [...runtime.directionalCandidates()].sort((a, b) => a.rect.x - b.rect.x)[0]?.id;
+
+      runtime.swapWindows("app:tasks", "app:agents");
+      expect(leftmost()).toBe("app:agents");
+      // Tasks now stands on the right: a Swap right from it has nothing to trade with.
+      runtime.swapDirection("right");
+      await vi.waitFor(() => expect(sentCommands()).toHaveLength(1));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(sentCommands()).toEqual(["window.swap"]);
     });
 
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {

@@ -1,7 +1,13 @@
 import type { OsArrangePreset } from "./os-types";
 import { leadWindowId, tabWindowIds } from "./tab-model";
 import type { TabProjection } from "./tab-projection-types";
-import type { FocusDirection, LayoutDesktop, PixelRect, WindowId } from "./window-manager-types";
+import type {
+  FocusDirection,
+  LayoutDesktop,
+  LayoutNodeId,
+  PixelRect,
+  WindowId,
+} from "./window-manager-types";
 
 interface Point {
   x: number;
@@ -118,17 +124,25 @@ export interface ActiveTabView {
   projections: Readonly<Record<string, Pick<TabProjection, "windows">>>;
 }
 
+/** A window shown in the active tab, with the layout leaf that holds it. */
+export interface ShownWindow extends FocusCandidate {
+  /** The leaf's id; a swap exchanges the windows of two leaves and leaves their ids in place. */
+  nodeId: LayoutNodeId;
+}
+
 /**
  * The windows shown on screen in the active tab, where the projection puts them. Members behind
  * a collapsed split's switcher are not candidates.
  */
-export function activeTabCandidates(view: ActiveTabView): FocusCandidate[] {
+export function activeTabCandidates(view: ActiveTabView): ShownWindow[] {
   if (view.activeDesktopId === null) return [];
   const tabId = view.activeTabIds[view.activeDesktopId];
   const projection = tabId === undefined ? undefined : view.projections[tabId];
   if (projection === undefined) return [];
   return projection.windows.flatMap(projected =>
-    projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
+    projected.shown
+      ? [{ id: projected.windowId, rect: projected.rect, nodeId: projected.nodeId }]
+      : []
   );
 }
 
