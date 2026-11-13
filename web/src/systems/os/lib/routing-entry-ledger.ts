@@ -30,7 +30,14 @@ export type RouterEntryEvent =
  *   navigation, and every report it produces is an echo. History does not say who made a replace,
  *   and router-core marks its redirects only on private state, so the path is the line: a replace
  *   to another path is the operator's or an app's (`origin/main` read every such report as
- *   intent too), and a loader redirect to another path is read as intent with it.
+ *   intent too), and a loader redirect to another path is read as intent with it. Router-core's
+ *   public events (`onBeforeNavigate`, `onBeforeLoad`, `onResolved`) do not tell them apart either.
+ *
+ *   Residual: a same-path replace an app or the operator makes while the owned entry is still
+ *   loading (a Tasks filter changed before the Tasks preload settled) reads as the loader's
+ *   continuation. With its window still focused and no activation in flight it still reaches the
+ *   window (canonical adoption); when another activation is in flight and moves focus, it is
+ *   dropped with that activation and never reaches the window's stored route.
  * - A traversal is the operator's: it lands on an entry whose report is intent, even when the
  *   coordinator wrote that entry earlier. Nothing written before it can still be reported (the
  *   router renders the entry it landed on), so it ends every echo.

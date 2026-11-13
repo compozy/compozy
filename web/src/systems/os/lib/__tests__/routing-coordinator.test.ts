@@ -1989,6 +1989,35 @@ describe("RoutingCoordinator", () => {
       }
     );
 
+    it("Should drop a same-path replace made during an owned load when a competing activation moves focus [AS-F-17 residual]", async () => {
+      const tasks = windowFixture("tasks", "/tasks");
+      const settings = windowFixture("settings", "/settings");
+      const { coordinator, store, history } = createCoordinator([tasks, settings]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(settings.route, history.current());
+      // The coordinator's own write of Tasks; its preload has not finished.
+      await coordinator.userActivateWindow(tasks.id);
+      coordinator.reportRouteMatch(tasks.route, history.current());
+      store.spies.openOrFocus.mockClear();
+      store.deferLifecycle();
+      const toSettings = coordinator.userActivateWindow(settings.id);
+
+      // The operator changes a Tasks filter before the preload settled: a same-path replace that
+      // history cannot tell from the loader's own canonicalization.
+      const filtered = route("/tasks", { status: "open" });
+      coordinator.reportRouteMatch(filtered, history.redirect());
+      store.settleLifecycle(true);
+      await toSettings;
+      coordinator.reportAuthoritativeState();
+      await Promise.resolve();
+
+      // Known loss: the filter waited for the activation and was dropped with it.
+      expect(store.getState().focusedId).toBe(settings.id);
+      expect(store.getState().windows[tasks.id]?.route).toEqual(tasks.route);
+      expect(store.spies.navigateWindow).not.toHaveBeenCalled();
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+    });
+
     it("Should end on B when A's redirect reports after B was activated [AS-F-17]", async () => {
       const a = sessionA();
       const b = sessionB();
