@@ -15,8 +15,9 @@ export interface WindowActivationStart {
 }
 
 /**
- * The window activations in flight. Each writes its own entry once its focus settles; reports
- * meanwhile defer to them. An activation a workspace switch abandoned writes nothing: the state it
+ * The window activations and open-or-focus commands in flight. Each writes its own entry once it
+ * settles; reports meanwhile defer to them, so a frame that shows the new focus first cannot
+ * replace the entry the operator leaves (#1655). An activation a workspace switch abandoned writes nothing: the state it
  * settles into belongs to the workspace switched to, whose one entry the switch writes itself.
  */
 export class WindowActivations {
@@ -42,9 +43,30 @@ export class WindowActivations {
     currentRoute: OsWindowRoute | null,
     newestIntent: number
   ): OsWindowRoute | null {
-    this.inFlight -= 1;
-    if (start.generation !== this.generation) return null;
+    if (!this.finish(start)) return null;
     return windowActivationEntry(start, state, currentRoute, newestIntent);
+  }
+
+  /**
+   * Ends an open-or-focus once its command settled; returns the entry it writes, if any. One the
+   * daemon did not apply writes nothing. `requested` is the route it asked for, written while the
+   * projection does not show the window yet.
+   */
+  endOpen(
+    start: WindowActivationStart,
+    state: ActivationState,
+    currentRoute: OsWindowRoute | null,
+    newestIntent: number,
+    outcome: { applied: boolean; requested: OsWindowRoute }
+  ): OsWindowRoute | null {
+    if (!this.finish(start) || !outcome.applied) return null;
+    return windowOpenEntry(start, state, currentRoute, newestIntent, outcome.requested);
+  }
+
+  /** Counts one activation or open out; whether it still belongs to the current workspace cycle. */
+  private finish(start: WindowActivationStart): boolean {
+    this.inFlight -= 1;
+    return start.generation === this.generation;
   }
 
   /** A workspace switch began: no activation in flight writes into what follows. */
@@ -76,4 +98,26 @@ export function windowActivationEntry(
   if (focusedId !== start.windowId) return focusedId !== start.startedOn ? focused.route : null;
   const unchanged = start.alreadyShown && sameOsWindowRoute(currentRoute, focused.route);
   return unchanged ? null : focused.route;
+}
+
+/**
+ * The one history entry a settled open-or-focus writes (#1655), or `null` for none: the opened
+ * window's route (an intent it consumed meanwhile included), else the route it was asked for. Only
+ * the newest intent writes; an open of the window that was already focused, shown and named by the
+ * URL changed nothing and writes nothing.
+ */
+export function windowOpenEntry(
+  start: WindowActivationStart,
+  state: ActivationState,
+  currentRoute: OsWindowRoute | null,
+  newestIntent: number,
+  requested: OsWindowRoute
+): OsWindowRoute | null {
+  if (start.intent !== newestIntent) return null;
+  const route = state.windows[start.windowId]?.route ?? requested;
+  const unchanged =
+    start.alreadyShown &&
+    state.focusedId === start.windowId &&
+    sameOsWindowRoute(currentRoute, route);
+  return unchanged ? null : route;
 }

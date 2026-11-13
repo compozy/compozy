@@ -31,3 +31,5 @@ back with a notice, and the next drag still works; from the CLI advance the revi
 drag → the release still applies when the dragged unit is untouched.
 
 qa-impact: 2026-09-01 walked B1–B7 on the final binary: heartbeat, 409 self-heal, heartbeat-driven refetch, online wake, stall watchdog, drop after a peer revision advance, daemon restart re-render. A reconnect fence at the same revision is now authoritative too (migration at load persists under the next revision).
+
+qa-impact: 2026-11-13 #1655. A daemon restart re-registration now asks for the desktop the client was showing (`active_desktop_id`) and refocuses the window it had focused when both still exist; a refused desktop falls back to the default without an error. Walk: desktop 2 with W focused → restart the daemon → desktop 2, W focused, no history entry added.

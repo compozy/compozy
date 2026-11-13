@@ -4,6 +4,7 @@ import {
   SCROLL_RESTORE_EVENT,
 } from "@/lib/scroll-owner";
 
+import type { KeyboardFocusHandoff } from "./keyboard-focus-handoff";
 import type { OsWindowRoute } from "./os-types";
 import { PaneScrollSettler } from "./pane-scroll-settler";
 import { sameOsWindowRoute } from "./window-manager-route";
@@ -45,8 +46,31 @@ export interface PaneHostWindows {
 }
 
 const OWNER_SELECTOR = `[${SCROLL_OWNER_ATTRIBUTE}]`;
+/** Surfaces above the desk that keep the keyboard while open: a keyboard handoff waits for them. */
+const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
 /** Input that is the operator taking a pane's scroll, ending any restore still settling there. */
 const GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+
+/**
+ * Focuses a pane root that is not focusable on its own: it takes focus programmatically for this
+ * handoff only, so a click on an empty area of the pane keeps not focusing (and activating) it.
+ */
+function focusRootOnce(root: HTMLElement): void {
+  // The window's focused chrome already marks it; the pane draws no focus ring of its own.
+  const outline = root.style.outline;
+  const release = () => {
+    root.removeAttribute("tabindex");
+    root.style.outline = outline;
+  };
+  root.tabIndex = -1;
+  root.style.outline = "none";
+  root.addEventListener("blur", release, { once: true });
+  root.focus({ preventScroll: true });
+  if (root.ownerDocument.activeElement !== root) {
+    root.removeEventListener("blur", release);
+    release();
+  }
+}
 
 /**
  * One DOM host per window, owned by a desktop's tab layer. A window's pane renders into its host
@@ -92,6 +116,11 @@ const GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
  *   the window that already has focus). The remembered element is kept while its window is not
  *   focused: the next restore after the window has focus again (a show, a move) still returns
  *   the caret where the operator left it.
+ * - A keyboard handoff (`KeyboardFocusHandoff`, a focus change this client asked for) moves DOM
+ *   focus into its window once the window's pane renders: to the element that last held focus in
+ *   that window if it is still there and rendered, else the pane's root (`preventScroll`). It
+ *   waits while an overlay (dialog, menu, listbox, the palette) holds focus and retries when focus
+ *   lands outside one; it lands only while the window holds the client's authoritative focus.
  * A container that declares itself a scroll owner (`data-scroll-owner`, the transcript) keeps its
  * own position: the host records nothing for it and, instead of writing its offset, dispatches
  * `SCROLL_RESTORE_EVENT` to it at the same moments, so one writer moves it.
@@ -103,14 +132,19 @@ export class WindowPaneHosts {
   private readonly settler = new PaneScrollSettler();
   /** Where focus last landed inside a pane, while nothing outside the panes took it since. */
   private lastFocus: { windowId: string; element: HTMLElement } | null = null;
+  /** Where focus last landed inside each window's pane, for keyboard handoffs into it. */
+  private readonly windowFocus = new Map<string, HTMLElement>();
+  private readonly handoff: KeyboardFocusHandoff | null;
+  private releaseHandoff: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private mutationObserver: MutationObserver | null = null;
   private listening: Document | null = null;
   /** Set while a host leaves its slot: the blur that causes is not the operator's. */
   private detaching = false;
 
-  constructor(windows: PaneHostWindows) {
+  constructor(windows: PaneHostWindows, handoff: KeyboardFocusHandoff | null = null) {
     this.windows = windows;
+    this.handoff = handoff;
   }
 
   /** The host for a window, created on first use; a `display: contents` box adds no layout. */
@@ -179,6 +213,7 @@ export class WindowPaneHosts {
       host.observed.clear();
       this.hosts.delete(windowId);
       if (this.lastFocus?.windowId === windowId) this.lastFocus = null;
+      this.windowFocus.delete(windowId);
       this.settler.releaseOwner(host);
     }
   }
@@ -191,7 +226,10 @@ export class WindowPaneHosts {
     this.mutationObserver = null;
     this.listening?.removeEventListener("focusin", this.handleFocusIn, true);
     this.listening?.removeEventListener("focusout", this.handleFocusOut, true);
+    this.listening?.removeEventListener("pointerdown", this.handlePointerDown, true);
     this.listening = null;
+    this.releaseHandoff?.();
+    this.releaseHandoff = null;
     this.settler.dispose();
     for (const host of this.hosts.values()) {
       host.rendered = null;
@@ -238,6 +276,8 @@ export class WindowPaneHosts {
     this.listening = document;
     document.addEventListener("focusin", this.handleFocusIn, true);
     document.addEventListener("focusout", this.handleFocusOut, true);
+    document.addEventListener("pointerdown", this.handlePointerDown, true);
+    this.releaseHandoff ??= this.handoff?.register(this.takeKeyboard) ?? null;
     if (typeof MutationObserver !== "undefined") {
       this.mutationObserver = new MutationObserver(records => this.handleMutations(records));
     }
@@ -300,6 +340,8 @@ export class WindowPaneHosts {
     host.rendered = rendered;
     if (!rendered) this.settler.releaseOwner(host);
     if (shownAgain) this.restore(host);
+    // A pane rendered for the first time (a tab visited now) takes a handoff waiting for it too.
+    else if (rendered) this.handoff?.offer(host.windowId);
   }
 
   private record(host: PaneHost, container: Element): void {
@@ -343,6 +385,11 @@ export class WindowPaneHosts {
     for (const owner of host.element.querySelectorAll(OWNER_SELECTOR)) {
       if (isRendered(owner)) owner.dispatchEvent(new Event(SCROLL_RESTORE_EVENT));
     }
+    this.restoreFocus(host);
+    this.handoff?.offer(host.windowId);
+  }
+
+  private restoreFocus(host: PaneHost): void {
     const focus = this.lastFocus;
     if (focus === null || focus.windowId !== host.windowId) return;
     const active = host.element.ownerDocument.activeElement;
@@ -352,12 +399,41 @@ export class WindowPaneHosts {
     focus.element.focus({ preventScroll: true });
   }
 
+  /** The keyboard handoff target: `false` while the window's pane cannot take focus yet. */
+  private readonly takeKeyboard = (windowId: string): boolean => {
+    const host = this.hosts.get(windowId);
+    if (host === undefined || !this.windows.isFocused(windowId)) return false;
+    const active = host.element.ownerDocument.activeElement;
+    if (active !== null && host.element.contains(active)) return true;
+    if (active?.closest(OVERLAY_SELECTOR)) return false;
+    const remembered = this.windowFocus.get(windowId);
+    const root = host.element.firstElementChild;
+    const target =
+      remembered !== undefined && host.element.contains(remembered) && isRendered(remembered)
+        ? remembered
+        : root instanceof HTMLElement && isRendered(root)
+          ? root
+          : null;
+    if (target === null) return false;
+    if (target === root && !target.hasAttribute("tabindex")) focusRootOnce(target);
+    else target.focus({ preventScroll: true });
+    return true;
+  };
+
   private readonly handleFocusIn = (event: FocusEvent): void => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const hostElement = target.closest(`[data-slot="${HOST_SLOT}"]`);
     const host = hostElement === null ? undefined : this.byElement.get(hostElement);
     this.lastFocus = host === undefined ? null : { windowId: host.windowId, element: target };
+    if (host !== undefined) this.windowFocus.set(host.windowId, target);
+    // Focus an overlay gave back on closing (the palette's trigger) lets a waiting handoff land.
+    if (target.closest(OVERLAY_SELECTOR) === null) this.handoff?.offer();
+  };
+
+  /** A pointer press is the operator placing focus: a waiting handoff no longer applies. */
+  private readonly handlePointerDown = (): void => {
+    this.handoff?.cancel();
   };
 
   /** Focus the operator moved to nothing (a click on an empty area) is not given back later. */

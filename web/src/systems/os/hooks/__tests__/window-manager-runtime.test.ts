@@ -981,6 +981,20 @@ describe("WindowManagerRuntime", () => {
       expect(sentCommands()).toEqual(["window.swap"]);
     });
 
+    it("Should report the window a directional focus targets and whether it landed [#1655]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+
+      // The shell hands the keyboard to this window once the focus lands.
+      const moved = runtime.focusDirection("right");
+      expect(moved?.windowId).toBe("app:agents");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!(splitAnswer(splitView("app:agents", 2)));
+
+      await expect(moved!.completion).resolves.toBe(true);
+      expect(runtime.getState().focusedId).toBe("app:agents");
+    });
+
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startSplitRuntime();

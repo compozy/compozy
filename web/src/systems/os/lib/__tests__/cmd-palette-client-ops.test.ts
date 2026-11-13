@@ -199,6 +199,13 @@ describe("cmd-palette client-op table — absorbed palette rows", () => {
     expect(context.shell.toggleSessions).toHaveBeenCalledOnce();
   });
 
+  it("Should route directional focus through the shell, which hands it the keyboard [#1655]", () => {
+    const context = opContext(null, null);
+    void run("window.focus.right", context);
+    expect(context.shell.focusDirection).toHaveBeenCalledExactlyOnceWith("right");
+    expect(context.manager.focusDirection).not.toHaveBeenCalled();
+  });
+
   it("Should open Processes left running through its shell owner", () => {
     const context = opContext(null, null);
     void run("processes.left_running", context);

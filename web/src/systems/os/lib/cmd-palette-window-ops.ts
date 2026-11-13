@@ -104,10 +104,10 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
     "window.nav.back",
     withFocusedWindow((context, id) => void context.manager.popWindowRoute(id).completion),
   ],
-  ["window.focus.left", context => context.manager.focusDirection("left")],
-  ["window.focus.right", context => context.manager.focusDirection("right")],
-  ["window.focus.up", context => context.manager.focusDirection("up")],
-  ["window.focus.down", context => context.manager.focusDirection("down")],
+  ["window.focus.left", context => context.shell.focusDirection("left")],
+  ["window.focus.right", context => context.shell.focusDirection("right")],
+  ["window.focus.up", context => context.shell.focusDirection("up")],
+  ["window.focus.down", context => context.shell.focusDirection("down")],
   ["window.focus.last", focusLastWindow],
   ...SWAP_DIRECTIONS.map(
     direction =>

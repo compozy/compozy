@@ -1,12 +1,13 @@
 import { SESSION_EMPTY_PATH } from "./app-catalog";
 import { createdSessionHostWindow, landCreatedSession } from "./created-session-window";
-import type { OsOpenTarget, OsWindowRoute } from "./os-types";
+import type { OsOpenTarget, OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import { mruWindowInstance } from "./window-instance-lookup";
 import type { OsRouterPort, RoutingManager } from "./routing-coordinator-contract";
 import {
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
+import { KeyboardFocusHandoff } from "./keyboard-focus-handoff";
 import { CanonicalCandidate, focusedRouteOrDesktop } from "./routing-route-decision";
 import { RoutingEntryLedger } from "./routing-entry-ledger";
 import { RouteReconciler } from "./routing-route-reconciler";
@@ -49,6 +50,11 @@ export class RoutingCoordinator {
    */
   private nextUserIntentToken = 0;
   private readonly activations = new WindowActivations();
+  /**
+   * Keyboard handoffs for the focus changes this client asks for itself (#1655); the pane hosts
+   * take them. Foreign focus (client views, snapshots) never requests one.
+   */
+  readonly keyboardFocus = new KeyboardFocusHandoff();
   private readonly entries: RoutingEntryLedger;
   private readonly canonical: CanonicalCandidate;
   private readonly reconciler: RouteReconciler;
@@ -68,6 +74,7 @@ export class RoutingCoordinator {
         this.desktopDefaultViewIntentPending = false;
       },
       reportAuthoritativeState: () => this.reportAuthoritativeState(),
+      handOffKeyboard: windowId => this.handOffKeyboard(windowId),
     });
   }
 
@@ -96,7 +103,8 @@ export class RoutingCoordinator {
       this.initialIntent = route;
       return;
     }
-    this.reconciler.queue(route);
+    // Back/Forward and links are this client's own navigation: the keyboard follows its focus.
+    this.reconciler.queue(route, { keyboard: true });
   }
 
   /**
@@ -228,21 +236,31 @@ export class RoutingCoordinator {
     if (this.phase === "ready") this.reconciler.queue(route);
   }
 
-  /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
+  /**
+   * Dock, palette, rail, menubar: open-or-focus then one history entry. Reports meanwhile defer to
+   * it as to a window activation (`activate`): a frame that shows the new focus before the command
+   * settles would otherwise replace the entry being left, and Back would stay on this window
+   * (#1655). A newer navigation that arrives meanwhile owns the URL; this open then writes nothing.
+   */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
     const intentToken = ++this.nextUserIntentToken;
+    const before = this.manager.getState();
     const outcome = this.manager.openOrFocus(target);
-    if (!(await outcome.completion)) return null;
     const id = outcome.windowId;
-    // A newer navigation arrived while the daemon held this open; it owns the
-    // URL now and the window already follows it.
-    if (intentToken !== this.nextUserIntentToken) return id;
-    // A window can consume its route intent before the opening command completes.
-    const route =
-      this.manager.getState().windows[id]?.route ??
-      target.route ??
-      defaultOsWindowRoute(target.app);
-    this.pushRoute(route);
+    const start = this.activations.begin(before, id, intentToken);
+    // A rejected completion still ends the open: the count must never leak.
+    const applied = await outcome.completion.catch(() => false);
+    const state = this.manager.getState();
+    const newest = this.nextUserIntentToken;
+    // A window can consume its route intent before the opening command completes (`endOpen`).
+    const entry = this.activations.endOpen(start, state, this.currentRoute, newest, {
+      applied,
+      requested: target.route ?? defaultOsWindowRoute(target.app),
+    });
+    if (entry !== null) this.pushRoute(entry);
+    else if (!this.activations.settling) this.reportAuthoritativeState();
+    if (!applied) return null;
+    if (intentToken === newest && state.focusedId === id) this.handOffKeyboard(id);
     return id;
   }
 
@@ -256,7 +274,10 @@ export class RoutingCoordinator {
     const isCurrent = () => intentToken === this.nextUserIntentToken;
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
     if (await outcome.completion) {
-      if (isCurrent()) this.pushRoute(target.route);
+      if (isCurrent()) {
+        this.pushRoute(target.route);
+        this.handOffKeyboard(host.id);
+      }
       return host.id;
     }
     // Unless a newer gesture owns focus: a host another client closed means choose again (a new
@@ -269,16 +290,22 @@ export class RoutingCoordinator {
   /**
    * Window activation (pointerdown, Tab, Enter — Routing Model rule 5). When
    * the activation target is a link, the link's own navigation writes the one
-   * history entry and reconciliation follows it (rule 3 coalescing).
+   * history entry and reconciliation follows it (rule 3 coalescing). `keyboard`
+   * marks an activation from a chord or the palette (tab next/previous/jump,
+   * "Focus last window"): the keyboard follows it into the window. A pointer or
+   * pane activation leaves focus where the operator put it.
    */
-  async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
+  async userFocus(
+    windowId: string,
+    opts: { viaLink?: boolean; keyboard?: boolean } = {}
+  ): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     const alreadyActive = state.focusedId === windowId && win?.shown === true;
     if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
     if (alreadyActive) return false;
-    return this.activate(windowId);
+    return this.activate(windowId, opts.keyboard === true);
   }
 
   /**
@@ -291,14 +318,14 @@ export class RoutingCoordinator {
     const win = state.windows[windowId];
     if (!win) return false;
     this.nextUserIntentToken += 1;
-    return this.activate(windowId);
+    return this.activate(windowId, true);
   }
 
   /**
    * Focuses the window, then writes the activation's one entry (`windowActivationEntry`). Reports
    * meanwhile defer to it, so the entry before a burst stays a Back target.
    */
-  private async activate(windowId: string): Promise<boolean> {
+  private async activate(windowId: string, keyboard = false): Promise<boolean> {
     const start = this.activations.begin(
       this.manager.getState(),
       windowId,
@@ -312,7 +339,9 @@ export class RoutingCoordinator {
     if (entry !== null) this.pushRoute(entry);
     // Reports deferred to activations catch up once none is left in flight.
     else if (!this.activations.settling) this.reportAuthoritativeState();
-    return start.intent === newest && state.focusedId === windowId;
+    const landed = start.intent === newest && state.focusedId === windowId;
+    if (landed && keyboard) this.handOffKeyboard(windowId);
+    return landed;
   }
 
   /**
@@ -390,6 +419,20 @@ export class RoutingCoordinator {
     this.activations.abandon();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
+  }
+
+  /**
+   * A focus this client sent without the coordinator (directional focus, which writes no entry of
+   * its own): the keyboard follows it once it lands. A newer focus that replaced it hands off itself.
+   */
+  async followKeyboard(focus: WindowManagerOpenOutcome | null): Promise<void> {
+    if (focus === null || !(await focus.completion.catch(() => false))) return;
+    this.handOffKeyboard(focus.windowId);
+  }
+
+  /** The keyboard follows a focus change this client asked for, once it is still the focus. */
+  private handOffKeyboard(windowId: string): void {
+    if (this.manager.getState().focusedId === windowId) this.keyboardFocus.request(windowId);
   }
 
   private pushRoute(route: OsWindowRoute, ...origin: [origin?: "operator"]): void {

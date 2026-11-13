@@ -1,6 +1,8 @@
 // Suite: window-manager client registration hook
-// Invariant: browser registration reuses one stable client ID, omits active_desktop_id, never
-// unregisters during React cleanup, and retries registration with bounded backoff.
+// Invariant: browser registration reuses one stable client ID, omits active_desktop_id on a page's
+// first registration and asks for the desktop it showed on a re-registration (falling back to the
+// daemon's default when refused), never unregisters during React cleanup, and retries
+// registration with bounded backoff.
 // Owning layer: the browser-client registration lifecycle.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   registerWindowManagerClient,
   unregisterWindowManagerClient,
+  WindowManagerApiError,
 } from "../../adapters/window-manager-api";
 import type { WindowManagerRegisteredClientView } from "../../lib/window-manager-types";
 import { isDesktopShell } from "../../lib/desktop-shell-bridge";
@@ -17,7 +20,9 @@ import {
 } from "../../lib/window-manager-client-identity";
 import { useWindowManagerClient } from "../use-window-manager-client";
 
-vi.mock("../../adapters/window-manager-api", () => ({
+vi.mock("../../adapters/window-manager-api", async importOriginal => ({
+  WindowManagerApiError: (await importOriginal<typeof import("../../adapters/window-manager-api")>())
+    .WindowManagerApiError,
   registerWindowManagerClient: vi.fn(),
   unregisterWindowManagerClient: vi.fn(),
 }));
@@ -269,6 +274,62 @@ describe("useWindowManagerClient", () => {
 
     expect(registerWindowManagerClient).toHaveBeenCalledTimes(2);
     expect(result.current.clientId).toBe("client:stable");
+  });
+
+  it("Should ask for the desktop it showed and report its focus on a re-registration", async () => {
+    vi.mocked(registerWindowManagerClient)
+      .mockResolvedValueOnce(client(1))
+      .mockResolvedValueOnce({ ...client(2), activeDesktopId: "desktop:two" });
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+    expect(result.current.restoredFocus).toBeNull();
+
+    // The daemon restarted and forgot this client's view.
+    act(() =>
+      result.current.reregister({ activeDesktopId: "desktop:two", focusedWindowId: "win-w" })
+    );
+    expect(result.current.restoredFocus).toBeNull();
+    await waitFor(() => expect(result.current.client?.activeDesktopId).toBe("desktop:two"));
+
+    expect(vi.mocked(registerWindowManagerClient).mock.calls.map(call => call[3])).toEqual([
+      undefined,
+      "desktop:two",
+    ]);
+    expect(result.current.restoredFocus).toBe("win-w");
+    act(() => result.current.restoreSettled());
+    expect(result.current.restoredFocus).toBeNull();
+  });
+
+  it("Should register without the desktop hint when the daemon refuses it", async () => {
+    const refused = new WindowManagerApiError("window manager desktop not found", 404, {
+      error: "window manager desktop not found",
+      code: "window_manager_desktop_not_found",
+      workspaceId: "workspace:test",
+      currentRevision: null,
+      conflicts: [],
+      diagnostics: [],
+    });
+    vi.mocked(registerWindowManagerClient)
+      .mockResolvedValueOnce(client(1))
+      .mockRejectedValueOnce(refused)
+      .mockResolvedValueOnce(client(2));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+
+    act(() =>
+      result.current.reregister({ activeDesktopId: "desktop:gone", focusedWindowId: "win-w" })
+    );
+    await waitFor(() => expect(result.current.client?.presentationRevision).toBe(2));
+
+    expect(vi.mocked(registerWindowManagerClient).mock.calls.map(call => call[3])).toEqual([
+      undefined,
+      "desktop:gone",
+      undefined,
+    ]);
+    // The refusal surfaces no error; the window is still refocused if it exists.
+    expect(result.current.error).toBeNull();
+    expect(result.current.status).toBe("registered");
+    expect(result.current.restoredFocus).toBe("win-w");
   });
 
   it("Should hide a registered client immediately when the workspace changes", async () => {

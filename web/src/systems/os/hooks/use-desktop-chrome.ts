@@ -34,7 +34,7 @@ import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
 import { useProfileSwitchWindowSweep } from "./use-profile-switch-window-sweep";
 import { useWindowScopePruning } from "./use-window-scope-pruning";
-import { useWindowManagerClient } from "./use-window-manager-client";
+import { clientRestore, useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
 
@@ -171,6 +171,21 @@ export function useDesktopChrome(
     shell.coordinator.reportAuthoritativeState();
   }, [activeWorkspaceId, client.client, client.error, manager, profileId, shell]);
 
+  // A re-registration after a lost one (a daemon restart) refocuses the window this page had
+  // focused, once the restored view is adopted (#1655). The answer is authoritative state: its
+  // report replaces the URL to that window and adds no history entry.
+  const restoredFocus = client.restoredFocus;
+  const restoreSettled = client.restoreSettled;
+  const snapshotReady = query.data !== undefined;
+  useEffect(() => {
+    if (restoredFocus === null || !snapshotReady) return;
+    const state = manager.getState();
+    if (state.client !== null && state.windows[restoredFocus] && state.focusedId !== restoredFocus) {
+      manager.focusWindow(restoredFocus, { replaceable: true });
+    }
+    restoreSettled();
+  }, [manager, restoreSettled, restoredFocus, snapshotReady]);
+
   // After the rebind above, so the sweep reads the target desk rather than the one it replaced.
   useProfileSwitchWindowSweep(shell, activeWorkspaceId);
 
@@ -213,7 +228,8 @@ export function useDesktopChrome(
     onClientCommand: (command, reply) => {
       return clientCommandChannel.execute(command.op, command.payload, reply);
     },
-    onClientInvalidated: client.reregister,
+    // The view this page showed, read before the registration it belonged to is dropped.
+    onClientInvalidated: () => client.reregister(clientRestore(manager.getState().client)),
     onError: error => manager.setLoadError(streamError(error)),
   });
 

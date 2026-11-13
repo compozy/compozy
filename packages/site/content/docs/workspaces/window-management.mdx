@@ -323,6 +323,25 @@ hidden behind an overflow control, rest the tab on the control: the overview ope
 drop on a card. You can also drag a tab row from one card to another inside the overview. A desktop
 whose last tab leaves shows a New Tab window.
 
+### Browser Back, the keyboard and reconnects
+
+Each window you open or focus yourself, from the dock, the palette, a menu, a tab or a shortcut,
+adds one entry to the browser history, and Back returns to the window you came from. Back moves
+between windows of the current project: after a project switch it opens that entry's page in the
+project you are on, the same page a reload of that address shows.
+
+After a focus change you make, the keyboard follows into the window you moved to: the field you
+last typed in there, or the window itself. It stays put while a dialog, the palette or a menu holds
+it, and a click keeps the focus it gave.
+
+`compozy window focus --client <id>` sent from the CLI, an agent or another client moves that
+client's focused window and updates its address bar in place: it adds no Back entry and does not
+take the keyboard from the field you are typing in.
+
+When the daemon restarts, an open browser or desktop client reconnects to the desktop it was
+showing and focuses the window it had focused, if both still exist; otherwise it lands on the
+default desktop.
+
 ## Declarative layouts and recovery
 
 Settings → Layouts accepts zero for the gap between split windows and for each outer inset independently.

@@ -1,6 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
+import type { KeyboardFocusHandoff } from "../lib/keyboard-focus-handoff";
 import { descendantWindowIds } from "../lib/layout-minimums";
 import type {
   OsPresentation,
@@ -74,7 +75,8 @@ export function useDeskTabPanes(
   tabs: readonly LayoutTab[],
   shownTabId: TabId | null,
   manager: Pick<WindowManagerController, "getState">,
-  windows: Readonly<Record<string, OsWindow>>
+  windows: Readonly<Record<string, OsWindow>>,
+  keyboardFocus: KeyboardFocusHandoff | null = null
 ): DeskTabPanes {
   // The windows whose panes the last render mounted: a tab holding one now adopts it.
   const [mounted, setMounted] = useState<readonly string[]>([]);
@@ -91,10 +93,13 @@ export function useDeskTabPanes(
   // Read at the moment a host acts, never from a render: focus may have moved since.
   const [hosts] = useState(
     () =>
-      new WindowPaneHosts({
-        isFocused: windowId => manager.getState().focusedId === windowId,
-        routeOf: windowId => manager.getState().windows[windowId]?.route ?? null,
-      })
+      new WindowPaneHosts(
+        {
+          isFocused: windowId => manager.getState().focusedId === windowId,
+          routeOf: windowId => manager.getState().windows[windowId]?.route ?? null,
+        },
+        keyboardFocus
+      )
   );
   const paneWindowIds = visited.flatMap(tabId => {
     const tab = tabs.find(entry => entry.id === tabId);

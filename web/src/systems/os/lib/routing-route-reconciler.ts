@@ -19,6 +19,8 @@ export interface RouteReconcilerHost {
   /** A reconciliation carrying the desktop default-view intent applied. */
   settleDesktopDefaultViewIntent(): void;
   reportAuthoritativeState(): void;
+  /** A reconciliation this client's own navigation asked for focused `windowId` (#1655). */
+  handOffKeyboard(windowId: string): void;
 }
 
 /**
@@ -57,19 +59,27 @@ export class RouteReconciler {
    * The desktop URL (`/`) opens nothing — it focuses an existing dashboard window on the active
    * desktop or leaves the desktop as-is (first run stays empty, US-001.EC-1).
    */
-  queue(route: OsWindowRoute): void {
+  queue(route: OsWindowRoute, options: { keyboard?: boolean } = {}): void {
     const current = this.current;
+    const keyboard = options.keyboard === true;
     const desktopDefaultView = carriesDesktopDefaultViewIntent(
       route,
       this.host.desktopDefaultViewIntentPending(),
       current
     );
     if (current && sameOsWindowRoute(current.route, route)) {
+      if (keyboard && current.keyboard !== true) this.current = { ...current, keyboard };
       if (!current.inFlight) this.reconcilePending();
       return;
     }
     this.nextToken += 1;
-    this.current = { token: this.nextToken, route, desktopDefaultView, inFlight: false };
+    this.current = {
+      token: this.nextToken,
+      route,
+      desktopDefaultView,
+      inFlight: false,
+      ...(keyboard ? { keyboard } : {}),
+    };
     this.reconcilePending();
   }
 
@@ -129,8 +139,10 @@ export class RouteReconciler {
         return;
       }
       if (pending.desktopDefaultView) this.host.settleDesktopDefaultViewIntent();
+      const keyboard = this.current?.keyboard === true;
       this.current = null;
       this.host.reportAuthoritativeState();
+      if (keyboard) this.host.handOffKeyboard(outcome.windowId);
     });
   }
 }
