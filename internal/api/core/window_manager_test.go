@@ -735,8 +735,9 @@ func TestWindowManagerHandlers(t *testing.T) {
 			FocusOrder json.RawMessage `json:"focus_order"`
 		}
 		decodeWindowManagerTestBody(t, clientResponse, &client)
-		if string(client.FocusOrder) != "[]" {
-			t.Fatalf("client focus_order JSON = %s, want []", client.FocusOrder)
+		// The desktop's New tab window is focused, so the order is a non-null array that names it.
+		if !strings.HasPrefix(string(client.FocusOrder), `["`) {
+			t.Fatalf("client focus_order JSON = %s, want an array", client.FocusOrder)
 		}
 	})
 

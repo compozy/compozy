@@ -753,9 +753,9 @@ func TestSubscription(t *testing.T) {
 			switched.Client == nil || switched.Client.PresentationRevision != 2 {
 			t.Fatalf("desktop.switch result = %+v", switched)
 		}
-		if len(switched.Client.FocusOrder) != 0 ||
+		if len(switched.Client.FocusOrder) == 0 || switched.Client.FocusOrder[0] != "w2" ||
 			valueOrZero(switched.Client.FocusedWindowID) != "w2" {
-			t.Fatalf("desktop.switch client view = %+v, want active tab w2 with unchanged MRU", switched.Client)
+			t.Fatalf("desktop.switch client view = %+v, want active tab w2 focused and leading the MRU", switched.Client)
 		}
 		switchUpdate := <-boundA.Updates()
 		if switchUpdate.Event != nil || switchUpdate.Client == nil ||
@@ -768,7 +768,8 @@ func TestSubscription(t *testing.T) {
 		requireNoSubscriptionUpdate(t, boundB, "cross-client desktop.switch")
 		requireNoSubscriptionUpdate(t, topologyOnly, "topology-only desktop.switch")
 
-		windowID := WindowID("w2")
+		// The switch already focused w2, so a real focus change targets w1's tab on the same desktop.
+		windowID := WindowID("w1")
 		focused := executeTestCommand(
 			t,
 			environment.manager,
@@ -1331,6 +1332,32 @@ func TestTabClientProjection(t *testing.T) {
 		r := executeTestCommand(t, e.manager, "workspace-a", &id, ActivateTabCommand{WindowID: "a"})
 		if valueOrZero(r.Client.FocusedWindowID) != "b" || tabLeadWindow(*r.Client, tab) != "b" {
 			t.Fatalf("focus memory=%+v", r.Client)
+		}
+	})
+	t.Run("Should lead a restored client's focus order with the window it focuses", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		// The durable active tab is the second one, as a reload after a daemon restart finds it:
+		// the client registers fresh, with no focus history of its own.
+		executeTestCommand(t, e.manager, "workspace-a", nil, ActivateTabCommand{WindowID: "b"})
+		view := registerTestClient(t, e.manager, "workspace-a", "restored")
+		if valueOrZero(view.FocusedWindowID) != "b" || len(view.FocusOrder) == 0 || view.FocusOrder[0] != "b" {
+			t.Fatalf("restored client = %+v, want b focused and leading the focus order", view)
+		}
+	})
+	t.Run("Should lead the focus order with the window a desktop switch focuses", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Two"})
+		openTestWindow(t, e.manager, "workspace-a", nil, "x", "d2")
+		id := ClientID("pager")
+		registerTestClient(t, e.manager, "workspace-a", id)
+		executeTestCommand(t, e.manager, "workspace-a", &id, FocusWindowCommand{WindowID: new(WindowID("a"))})
+		r := executeTestCommand(t, e.manager, "workspace-a", &id, SwitchDesktopCommand{DesktopID: "d2"})
+		focused := valueOrZero(r.Client.FocusedWindowID)
+		if r.Client.ActiveDesktopID != "d2" || focused == "" || r.Client.FocusOrder[0] != focused ||
+			!slices.Contains(r.Client.FocusOrder, "a") {
+			t.Fatalf("switched client = %+v, want the d2 focus leading and a kept behind it", r.Client)
 		}
 	})
 }

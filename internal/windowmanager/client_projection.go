@@ -202,6 +202,13 @@ func repairClientView(view ClientView, snapshot Snapshot) ClientView {
 	if view.FocusedWindowID == nil {
 		view.FocusedWindowID = focusForDesktop(view, snapshot)
 	}
+	// The focused window always leads the focus order. Every path that sets focus ends here, so
+	// focus derived from the active tab (a fresh or restored client, a desktop switch, a closed
+	// focus) enters the history and every consumer ranking instances by recency agrees with what
+	// the client shows.
+	if view.FocusedWindowID != nil {
+		view.FocusOrder = prependFocus(view.FocusOrder, *view.FocusedWindowID)
+	}
 	view.PaletteContext = derivePaletteContext(view, snapshot)
 	return view
 }
