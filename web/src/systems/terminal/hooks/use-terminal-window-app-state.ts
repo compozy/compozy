@@ -11,12 +11,13 @@ const EMPTY_WINDOWED: ReadonlySet<string> = new Set();
 
 /**
  * An id-less window that found the project at its cap. `waiting` opens the
- * terminal as soon as a slot frees; `dismissed` gave up and shows the empty
- * state. Keyed to the arrival it belongs to, so it never leaks across scopes.
+ * terminal as soon as a slot frees, `claimed` took that slot and is opening it,
+ * and `dismissed` gave up and shows the empty state. Keyed to the arrival it
+ * belongs to, so it never leaks across scopes.
  */
 interface LimitWait {
   key: string;
-  status: "waiting" | "dismissed";
+  status: "waiting" | "claimed" | "dismissed";
   /** The limit dialog's own Close was used: its dismissal keeps the wait. */
   closeRequested: boolean;
 }
@@ -196,16 +197,24 @@ export function useTerminalWindowAppState({
   }, [awaitingRoute, resolveReady, resolutionKey]);
 
   // The live catalog is the signal: a close from the dialog, another window or
-  // the CLI drops the running count, and a waiting window takes the slot.
-  const openFreedSlot = useEffectEvent(() => {
-    setLimitWait(null);
+  // the CLI drops the running count, and a waiting window claims the slot.
+  // Adjusted during render, like the scope reset above, so the dialog never
+  // shows over a window that already took its slot.
+  if (waitingForSlot && !atLimit && currentWait !== null) {
+    setLimitWait({ ...currentWait, status: "claimed" });
     setLimitOpen(false);
+  }
+  const claimedWait = currentWait?.status === "claimed" ? currentWait : null;
+  // Creating the terminal is the daemon synchronization; once per claim.
+  const lastClaimRef = useRef<LimitWait | null>(null);
+  const openClaimedSlot = useEffectEvent(() => {
     actions.onOpenTerminal?.();
   });
   useEffect(() => {
-    if (!waitingForSlot || atLimit) return;
-    openFreedSlot();
-  }, [waitingForSlot, atLimit]);
+    if (claimedWait === null || lastClaimRef.current === claimedWait) return;
+    lastClaimRef.current = claimedWait;
+    openClaimedSlot();
+  }, [claimedWait]);
 
   return {
     active,
