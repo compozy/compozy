@@ -54,3 +54,12 @@ qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless til
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 migration notice updates use the existing `snapshot` WebSocket frame.
+With two clients in one workspace/profile, acknowledge a migration in one and verify
+`snapshot.migration` disappears in both without changing topology revision, undo history,
+or firing layout/window hooks. Retry a preserved layout that still fails and verify both
+clients receive the updated error with `acknowledged: false` at the same revision. A successful
+retry publishes the converted layout and its migration status at the next topology revision.
+Clients in another workspace or profile must receive no notice update. TCP/Unix transport
+coverage is written; live QA and test execution remain deferred to the integration owner.

@@ -37,11 +37,14 @@ func (m *Manager) Migration(
 	if err != nil {
 		return status, err
 	}
+	if action != "ack" && action != "retry" {
+		return status, nil
+	}
+	snapshot, err := m.loadSnapshot(ctx, workspace)
+	if err != nil {
+		return status, err
+	}
 	if action == "retry" && status.State == "migrated" {
-		snapshot, err := m.loadSnapshot(ctx, workspace)
-		if err != nil {
-			return status, err
-		}
 		request := CommandRequest{WorkspaceID: workspace, Payload: ReplaceLayoutCommand{}}
 		projection, err := m.projectClientViews(workspace, snapshot, request)
 		if err != nil {
@@ -57,9 +60,13 @@ func (m *Manager) Migration(
 				OccurredAt:  snapshot.UpdatedAt,
 			},
 		)
+		m.publishSnapshot(snapshot)
 		for _, view := range projection.changed {
 			m.publishClient(view)
 		}
+	} else {
+		// Notice-only changes refresh subscribers without advancing topology or history.
+		m.publishSnapshot(snapshot)
 	}
 	return status, nil
 }

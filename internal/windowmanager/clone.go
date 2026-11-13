@@ -216,6 +216,10 @@ func cloneSubscriptionFence(fence SubscriptionFence) SubscriptionFence {
 }
 
 func cloneSubscriptionUpdate(update SubscriptionUpdate) SubscriptionUpdate {
+	if update.Snapshot != nil {
+		snapshot := cloneSnapshot(*update.Snapshot)
+		update.Snapshot = &snapshot
+	}
 	if update.Event != nil {
 		event := cloneEvent(*update.Event)
 		update.Event = &event

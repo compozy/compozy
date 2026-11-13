@@ -9,10 +9,13 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -26,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func TestWindowManagerHandlers(t *testing.T) {
@@ -966,12 +970,20 @@ type windowManagerHandlerFixture struct {
 
 func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 	t.Helper()
+	return newWindowManagerHandlerFixtureWithRepository(t, windowmanager.NewMemoryRepository())
+}
+
+func newWindowManagerHandlerFixtureWithRepository(
+	t *testing.T,
+	repository windowmanager.Repository,
+) windowManagerHandlerFixture {
+	t.Helper()
 	var sequence atomic.Int64
 	// Wire-contract cases assert floating opens; placement-policy defaults belong to the windowmanager suite.
 	config := windowmanager.DefaultConfig()
 	config.NewWindowPolicy = windowmanager.NewWindowFloating
 	manager, err := windowmanager.NewService(
-		windowmanager.NewMemoryRepository(),
+		repository,
 		windowmanager.NewMemoryWorkspaceResolver("workspace-a", "workspace-b"),
 		nil,
 		config,
@@ -1229,6 +1241,110 @@ func (windowManagerProfileServiceStub) Resolve(
 }
 
 func TestWindowManagerTabsCompatibility(t *testing.T) {
+	socketDir := t.TempDir()
+	for _, network := range []string{"tcp", "unix"} {
+		t.Run("Should stream migration acknowledgements and retry failures over "+network, func(t *testing.T) {
+			t.Parallel()
+			repository := &windowManagerMigrationRepositoryStub{
+				Repository: windowmanager.NewMemoryRepository(),
+				status: windowmanager.MigrationStatus{
+					State: "failed", FromVersion: 5,
+					At:    time.Date(2026, time.November, 13, 0, 0, 0, 0, time.UTC),
+					Error: &windowmanager.Diagnostic{Code: "migration.conversion_failed", Message: "original failure"},
+				},
+			}
+			f := newWindowManagerHandlerFixtureWithRepository(t, repository)
+			server := httptest.NewUnstartedServer(f.router)
+			if network == "unix" {
+				if err := server.Listener.Close(); err != nil {
+					t.Fatal(err)
+				}
+				listener, err := net.Listen("unix", filepath.Join(socketDir, "s"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				server.Listener = listener
+			}
+			server.Start()
+			t.Cleanup(server.Close)
+			dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var dialer net.Dialer
+				return dialer.DialContext(ctx, network, server.Listener.Addr().String())
+			}
+			transport := &http.Transport{DialContext: dial}
+			t.Cleanup(transport.CloseIdleConnections)
+			client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
+			dialer := websocket.Dialer{NetDialContext: dial, HandshakeTimeout: 2 * time.Second}
+			path := windowManagerTestPath("workspace-a")
+			readSnapshot := func(connection *websocket.Conn) contract.WindowManagerSnapshotFrame {
+				t.Helper()
+				if err := connection.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+					t.Fatal(err)
+				}
+				var frame contract.WindowManagerSnapshotFrame
+				if err := connection.ReadJSON(&frame); err != nil {
+					t.Fatal(err)
+				}
+				if frame.Type != contract.WindowManagerFrameSnapshot ||
+					frame.WorkspaceID != "workspace-a" || frame.Revision != 0 {
+					t.Fatalf("migration frame = %+v", frame)
+				}
+				return frame
+			}
+			connections := []*websocket.Conn{}
+			for range 2 {
+				connection, response, err := dialer.DialContext(t.Context(), "ws://window-manager"+path+"/stream", nil)
+				if err != nil {
+					closeWindowManagerDialResponse(t, response)
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := connection.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				initial := readSnapshot(connection)
+				if initial.Snapshot.Migration == nil || initial.Snapshot.Migration.State != "failed" {
+					t.Fatalf("initial migration = %+v", initial.Snapshot.Migration)
+				}
+				connections = append(connections, connection)
+			}
+			for _, action := range []string{"ack", "retry"} {
+				request, err := http.NewRequestWithContext(
+					t.Context(), http.MethodPost, "http://window-manager"+path+"/migration",
+					strings.NewReader(fmt.Sprintf(`{"action":%q}`, action)),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("Content-Type", "application/json")
+				response, err := client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var status windowmanager.MigrationStatus
+				decodeErr := json.NewDecoder(response.Body).Decode(&status)
+				closeErr := response.Body.Close()
+				if response.StatusCode != http.StatusOK || decodeErr != nil || closeErr != nil ||
+					status.State != "failed" || status.Acknowledged != (action == "ack") {
+					t.Fatalf("%s status=%d body=%+v decode=%v close=%v",
+						action, response.StatusCode, status, decodeErr, closeErr)
+				}
+				for _, connection := range connections {
+					frame := readSnapshot(connection)
+					if action == "ack" {
+						if frame.Snapshot.Migration != nil {
+							t.Fatalf("ack snapshot migration = %+v", frame.Snapshot.Migration)
+						}
+					} else if !reflect.DeepEqual(frame.Snapshot.Migration, &status) ||
+						status.Error == nil || status.Error.Message != "retry failure" {
+						t.Fatalf("retry snapshot migration=%+v, response=%+v", frame.Snapshot.Migration, status)
+					}
+				}
+			}
+		})
+	}
+
 	t.Run("Should expose migration status and validate acknowledgement actions", func(t *testing.T) {
 		t.Parallel()
 		f := newWindowManagerHandlerFixture(t)
@@ -1383,4 +1499,52 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 			"window.open.window.floating_rect",
 		)
 	})
+}
+
+// Only the repository I/O is stubbed; route handling, manager publication and sockets are real.
+type windowManagerMigrationRepositoryStub struct {
+	windowmanager.Repository
+	mu     sync.Mutex
+	status windowmanager.MigrationStatus
+}
+
+var _ windowmanager.MigrationRepository = (*windowManagerMigrationRepositoryStub)(nil)
+
+func (r *windowManagerMigrationRepositoryStub) Load(
+	ctx context.Context,
+	workspace windowmanager.WorkspaceID,
+) (windowmanager.Snapshot, error) {
+	snapshot, err := r.Repository.Load(ctx, workspace)
+	if errors.Is(err, windowmanager.ErrSnapshotNotFound) {
+		snapshot, err = windowmanager.DefaultSnapshot(workspace), nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if workspace == "workspace-a" && !r.status.Acknowledged {
+		status := r.status
+		snapshot.Migration = &status
+	}
+	return snapshot, err
+}
+
+func (r *windowManagerMigrationRepositoryStub) Migration(
+	_ context.Context,
+	_ windowmanager.WorkspaceID,
+	action string,
+	_ bool,
+) (windowmanager.MigrationStatus, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch action {
+	case "ack":
+		r.status.Acknowledged = true
+	case "retry":
+		r.status.Acknowledged = false
+		r.status.At = r.status.At.Add(time.Second)
+		r.status.Error = &windowmanager.Diagnostic{Code: "migration.conversion_failed", Message: "retry failure"}
+	case "":
+	default:
+		return r.status, windowmanager.ErrInvalidCommand
+	}
+	return r.status, nil
 }

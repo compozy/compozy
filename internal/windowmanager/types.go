@@ -304,10 +304,11 @@ type SubscriptionFence struct {
 	Client   *ClientView
 }
 
-// SubscriptionUpdate carries one ordered topology or client presentation change.
+// SubscriptionUpdate carries one ordered snapshot, topology, or client presentation change.
 type SubscriptionUpdate struct {
-	Event  *Event
-	Client *ClientView
+	Snapshot *Snapshot
+	Event    *Event
+	Client   *ClientView
 }
 
 // Subscription fences current state and later ordered updates.
