@@ -16,7 +16,7 @@ import {
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
 import {
-  adoptCanonicalRoute,
+  CanonicalCandidate,
   decideRouteReconciliation,
   focusedRouteOrDesktop,
 } from "./routing-route-decision";
@@ -65,12 +65,14 @@ export class RoutingCoordinator {
   private pendingNavigateMode: "push" | "pop" | null = null;
   private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
   private readonly entries: RoutingEntryLedger;
+  private readonly canonical: CanonicalCandidate;
 
   /** `entries` is fed by the router bridge with every history change (`RouterEntryBridge`). */
   constructor(manager: RoutingManager, router: OsRouterPort, entries = new RoutingEntryLedger()) {
     this.manager = manager;
     this.router = router;
     this.entries = entries;
+    this.canonical = new CanonicalCandidate(entries);
   }
 
   /**
@@ -82,12 +84,10 @@ export class RoutingCoordinator {
    */
   reportRouteMatch(route: OsWindowRoute, entryKey: string | null = null): void {
     // The router echoing the coordinator's own navigation is never intent: authoritative focus
-    // may have moved on since, and the URL follows it instead. During hydration every
-    // location stays the held initial intent.
+    // may have moved on since, and the URL follows it instead; its canonical form waits for
+    // settled focus (`CanonicalCandidate`). During hydration every location stays the held intent.
     if (this.phase === "ready" && this.entries.isEcho(entryKey)) {
-      const current = this.entries.isCurrent(entryKey) && !this.activations.settling;
-      const adopted = adoptCanonicalRoute(this.manager, this.currentRoute, route, current);
-      if (adopted !== null) this.currentRoute = adopted;
+      this.canonical.note(route, entryKey);
       this.reportAuthoritativeState();
       return;
     }
@@ -168,6 +168,7 @@ export class RoutingCoordinator {
     }
     // A window activation in flight writes the URL once it settles (`activate`).
     if (this.activations.settling) return;
+    this.currentRoute = this.canonical.settle(this.manager, this.currentRoute);
     const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;

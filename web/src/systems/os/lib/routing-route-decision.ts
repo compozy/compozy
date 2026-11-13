@@ -2,6 +2,7 @@ import type { resolveAppDescriptorForPath } from "./app-catalog";
 import { createdSessionHostWindow, landCreatedSession } from "./created-session-window";
 import type { OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import type { RoutingManager } from "./routing-coordinator-contract";
+import type { RoutingEntryLedger } from "./routing-entry-ledger";
 import { mruWindowInstance } from "./window-instance-lookup";
 import { sameOsWindowRoute } from "./window-manager-route";
 
@@ -76,13 +77,46 @@ export function focusedRouteOrDesktop(
 }
 
 /**
+ * The newest canonical report of the coordinator's own navigation, kept while a window activation
+ * settles: an activation that settles without moving focus (a repeated "Go to tab", a refused
+ * competing activation) must still let the focused window adopt it. Reconsidered once none is in
+ * flight, under `adoptCanonicalRoute`'s guards with the entry still the history's current one;
+ * dropped when any guard fails. A newer canonical report replaces it.
+ */
+export class CanonicalCandidate {
+  private readonly entries: Pick<RoutingEntryLedger, "isCurrent">;
+  private pending: { route: OsWindowRoute; entryKey: string | null } | null = null;
+
+  constructor(entries: Pick<RoutingEntryLedger, "isCurrent">) {
+    this.entries = entries;
+  }
+
+  /** A report of an entry history no longer shows (a re-report of the write) never displaces it. */
+  note(route: OsWindowRoute, entryKey: string | null): void {
+    if (this.entries.isCurrent(entryKey)) this.pending = { route, entryKey };
+  }
+
+  /** Call with no activation settling. Returns the route the coordinator wrote, or the adopted one. */
+  settle(
+    manager: Pick<RoutingManager, "getState" | "navigateWindow">,
+    written: OsWindowRoute | null
+  ): OsWindowRoute | null {
+    const candidate = this.pending;
+    this.pending = null;
+    if (candidate === null) return written;
+    const current = this.entries.isCurrent(candidate.entryKey);
+    return adoptCanonicalRoute(manager, written, candidate.route, current) ?? written;
+  }
+}
+
+/**
  * The router's canonical form of the coordinator's own current navigation (a loader redirect that
  * adds a session's workspace binding, a search normalization) belongs to the window it shows: its
  * stored route becomes the canonical one, with no focus change and no history write, so its data
  * scope reads the binding and the next authoritative report finds the URL already right.
  *
  * Adopted only while that navigation is still the current one: `current` says the reported entry
- * is the history's current entry and no activation is settling, the focused window still holds the
+ * is the history's current entry (`CanonicalCandidate` waits out settling activations), the focused window still holds the
  * route the coordinator wrote, and the canonical form keeps its path. Otherwise focus has moved on
  * and the canonical form is dropped; the window is canonicalized the next time it is shown.
  * Returns the adopted route, `null` when nothing was adopted or the window refused the route.

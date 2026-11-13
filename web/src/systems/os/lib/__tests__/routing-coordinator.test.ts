@@ -1701,6 +1701,64 @@ describe("RoutingCoordinator", () => {
       return { ...harness, unbound, tasks, written, bound, redirected };
     }
 
+    it("Should adopt the canonical route after a repeated activation of the same window settles [AS-F-19]", async () => {
+      const { coordinator, router, store, unbound, written, bound, redirected } =
+        await afterOwnActivationOfUnbound();
+
+      // Dock "Go to tab" on the window already shown: both reports arrive while it settles.
+      const repeat = coordinator.userActivateWindow(unbound.id);
+      coordinator.reportRouteMatch(unbound.route, written);
+      coordinator.reportRouteMatch(bound, redirected);
+      expect(store.spies.navigateWindow).not.toHaveBeenCalled();
+      await repeat;
+      coordinator.reportAuthoritativeState();
+
+      expect(store.spies.navigateWindow).toHaveBeenCalledExactlyOnceWith(unbound.id, bound);
+      expect(store.getState().windows[unbound.id]?.route).toEqual(bound);
+      expect(store.getState().focusedId).toBe(unbound.id);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should adopt the canonical route after a refused competing activation [AS-F-19]", async () => {
+      const { coordinator, router, store, unbound, tasks, written, bound, redirected } =
+        await afterOwnActivationOfUnbound();
+      store.spies.focusWindow.mockReturnValueOnce({
+        accepted: false,
+        completion: Promise.resolve(false),
+      });
+
+      const competing = coordinator.userActivateWindow(tasks.id);
+      coordinator.reportRouteMatch(unbound.route, written);
+      coordinator.reportRouteMatch(bound, redirected);
+      await competing;
+      coordinator.reportAuthoritativeState();
+
+      expect(store.getState().focusedId).toBe(unbound.id);
+      expect(store.spies.navigateWindow).toHaveBeenCalledExactlyOnceWith(unbound.id, bound);
+      expect(store.getState().windows[unbound.id]?.route).toEqual(bound);
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should drop the canonical route when the activation that settles moved focus [AS-F-19]", async () => {
+      const { coordinator, router, store, unbound, tasks, written, bound, redirected } =
+        await afterOwnActivationOfUnbound();
+
+      const competing = coordinator.userActivateWindow(tasks.id);
+      coordinator.reportRouteMatch(unbound.route, written);
+      coordinator.reportRouteMatch(bound, redirected);
+      await competing;
+      coordinator.reportAuthoritativeState();
+
+      expect(store.getState().focusedId).toBe(tasks.id);
+      expect(store.spies.navigateWindow).not.toHaveBeenCalled();
+      expect(store.getState().windows[unbound.id]?.route).toEqual(unbound.route);
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(tasks.route);
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
     it("Should adopt the canonical route of its own write for the window still focused [R10-05]", async () => {
       const { coordinator, router, store, unbound, written, bound, redirected } =
         await afterOwnActivationOfUnbound();
