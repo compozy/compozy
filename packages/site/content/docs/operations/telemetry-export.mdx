@@ -216,15 +216,18 @@ $ compozy config edit   # add the [observability.otel.headers] entry
 ```
 
 The daemon resolves refs at start. `compozy config get` shows the ref, never the resolved value.
+Short header values, such as a tenant ID, are masked when they exactly match an exported string;
+they do not enter process-wide substring redaction or rewrite unrelated saved session content.
 
 ### Agents
 
 Agents can read the keys but not change them. `compozy__config_set` refuses every
 `observability.otel.*` key with `config_trust_root_forbidden`: telemetry settings decide what leaves
 the machine and where, so only the operator sets them with `compozy config set` or
-`compozy config edit`. `compozy__config_get` reads one key per call. It shows `config.toml` values and
-defaults; `OTEL_*` values never appear, and header values read as `[REDACTED]` because the daemon masks
-every `env:`/`vault:` ref in agent-facing output. The operator reads the ref with `compozy config get`.
+`compozy config edit`. `compozy__config_get` reads one key per call. It shows effective values, including
+the daemon's `OTEL_*` environment fallback where the file does not set a value. Header values read as
+`[REDACTED]` because the daemon masks every `env:`/`vault:` ref in agent-facing output. The operator reads
+the ref with `compozy config get`.
 
 ## Read export status
 
@@ -340,6 +343,11 @@ filesystem paths, environment values, header values, credentials, error message 
 attribute values outside the registries above, or incoming `tracestate`.
 
 ## Forward to providers
+
+Provider processes no longer inherit `OTEL_*` or `TRACEPARENT` from the daemon's process environment,
+even when daemon export is off. To keep independent provider telemetry configured before this change,
+move those variables into the agent's `session_env`. To share the daemon's collector settings instead,
+enable export and `forward_to_providers` as described below.
 
 With `forward_to_providers = true` and export running, provider processes started afterwards
 receive:

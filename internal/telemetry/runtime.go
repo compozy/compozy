@@ -175,7 +175,7 @@ func initRuntime(ctx context.Context, cfg config.ObservabilityConfig, opts runti
 	if !ok {
 		return degrade(exportClassHeaderRefUnresolved)
 	}
-	rt.forgetSecrets = registerHeaderSecrets(headers)
+	opts.reg.Secrets, rt.forgetSecrets = registerHeaderSecrets(headers, opts.reg.Secrets)
 	target := exportTarget{protocol: otelCfg.Protocol, endpoint: endpoint, headers: headers, transport: opts.transport}
 	if err := rt.start(ctx, otelCfg, target, opts); err != nil {
 		opts.logger.WarnContext(ctx, "telemetry: exporter setup failed", "error_class", exportClassOther)
@@ -380,18 +380,27 @@ func resolveRef(ctx context.Context, refs SecretResolver, ref string) (string, e
 	return refs.ResolveRef(ctx, ref)
 }
 
-// registerHeaderSecrets registers resolved header values for redaction until shutdown. They are classified secrets, so
-// short values register too (dynamic discovery skips values under eight characters).
-func registerHeaderSecrets(headers map[string]string) func() {
+// registerHeaderSecrets masks header values in exports and registers longer values globally until shutdown.
+// Short headers may be ordinary tenant names or IDs: match them exactly inside telemetry without rewriting
+// unrelated persisted session content or telemetry labels that happen to contain them.
+func registerHeaderSecrets(headers map[string]string, contains func(string) bool) (func(string) bool, func()) {
+	values := newValueSet()
 	forget := make([]func(), 0, len(headers))
 	for _, value := range headers {
-		forget = append(forget, redact.RegisterRequiredSecret(value))
+		if value != "" {
+			values[value] = struct{}{}
+		}
+		forget = append(forget, redact.RegisterDynamicSecret(value))
 	}
-	return func() {
-		for _, cleanup := range forget {
-			cleanup()
+	isSecret := func(value string) bool {
+		return values.has(value) || redact.ContainsRegisteredSecret(value) || (contains != nil && contains(value))
+	}
+	cleanup := func() {
+		for _, unregister := range forget {
+			unregister()
 		}
 	}
+	return isSecret, cleanup
 }
 
 // newSampler keeps a sampled parent, and applies ratio to new traces and to unsampled remote parents, so the

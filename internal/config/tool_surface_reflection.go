@@ -85,7 +85,7 @@ func configStructNode(value reflect.Value) (any, bool) {
 		}
 	}
 	// Inactive environment endpoints bypass validation but must never expose embedded credentials.
-	if otel, ok := value.Interface().(ObservabilityOTelConfig); ok && !validOTelEndpoint(otel.Endpoint) {
+	if otel, ok := reflect.TypeAssert[ObservabilityOTelConfig](value); ok && !validOTelEndpoint(otel.Endpoint) {
 		result["endpoint"] = RedactedValue()
 	}
 	return result, true

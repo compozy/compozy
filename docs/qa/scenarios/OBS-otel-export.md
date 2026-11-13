@@ -91,6 +91,12 @@ Also check the exported catalog against `packages/site/content/docs/operations/t
 exported"): every span and metric seen in Jaeger and Prometheus is listed there, with the documented attributes
 (task_07 left this check for the finished branch).
 
+Short-header regression: configure `X-Scope-OrgID` through an environment ref with value `1`, then repeat with
+`OTEL_EXPORTER_OTLP_HEADERS=X-Scope-OrgID=1` and no file headers. Send a prompt containing
+`I used compozy version 0.6.1 for task 1.`; the saved transcript must preserve it verbatim. Ordinary resource
+and agent labels containing `1` must remain intact, while an exported attribute exactly equal to the header
+value is masked. `TestInitSendsResolvedHeaders` owns the hermetic regression; final-head CI executes it.
+
 ## 2. Status over CLI, HTTP, and UDS: ok, metrics off, degraded, forwarding
 
 Preconditions: walk 1 finished with status `ok`. For each state below, restart the daemon after the config change,

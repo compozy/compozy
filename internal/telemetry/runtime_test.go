@@ -283,6 +283,50 @@ func TestInitSendsResolvedHeaders(t *testing.T) {
 		}
 	})
 
+	// Short routing headers must not rewrite persisted text or unrelated export labels. The runtime owns both
+	// header registration and the sanitizer it installs, so this belongs with the existing header-export cases.
+	for _, value := range []string{"1", "compozy"} {
+		for _, source := range []string{"ref", "environment"} {
+			t.Run("Should scope short "+source+" header redaction to export values: "+value, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := exportConfig(func(otel *config.ObservabilityOTelConfig) {
+					otel.Headers = map[string]string{"x-tenant": "env:QA_OTLP_TENANT"}
+				})
+				if source == "environment" {
+					cfg = environmentConfig(map[string]string{"OTEL_EXPORTER_OTLP_HEADERS": "x-tenant=" + value},
+						func(otel *config.ObservabilityOTelConfig) { otel.Enabled = true })
+				}
+				const agent = "compozy-worker-1"
+				started := startRuntimeWithRegistries(t, cfg, fakeResolver{"env:QA_OTLP_TENANT": value},
+					&fakeNetwork{}, testRegistries([]string{agent, value}))
+				const transcript = "I used compozy version 0.6.1 for task 1."
+				if got := redact.String(transcript); got != transcript {
+					t.Fatalf("redacted transcript = %q, want ordinary text preserved", got)
+				}
+				started.exportSpanWith(t, trace.WithAttributes(telemetry.AttrAgent.String(agent)))
+				started.exportSpanWith(t, trace.WithAttributes(telemetry.AttrAgent.String(value)))
+
+				requests, _ := started.network.captured()
+				if len(requests) != 2 {
+					t.Fatalf("exporter sent %d requests, want two trace exports", len(requests))
+				}
+				if body := requests[0].body; !bytes.Contains(body, []byte(agent)) ||
+					!bytes.Contains(body, []byte(testServiceVersion)) {
+					t.Fatalf("trace export = %q, want unrelated agent and version labels preserved", body)
+				}
+				if !bytes.Contains(requests[1].body, []byte(telemetry.ValueInvalid)) {
+					t.Fatalf("trace export = %q, want exact header value masked", requests[1].body)
+				}
+				for _, request := range requests {
+					if got := request.header.Get("x-tenant"); got != value {
+						t.Fatalf("x-tenant = %q, want the original header value", got)
+					}
+				}
+			})
+		}
+	}
+
 	// The assertions above only prove a span without attributes carries no header value. This one puts the value
 	// where the sanitizer must catch it: a registered attribute value that contains it.
 	for _, secret := range []string{
