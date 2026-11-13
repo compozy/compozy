@@ -124,3 +124,19 @@ stay bounded, and changing filters/profile/workspace rejects a cursor from anoth
 Search a tool catalog larger than 100 entries; follow `next_offset` under the same query and
 confirm every diagnostic descriptor appears once. Check zero, negative and oversized page inputs.
 Verify CLI JSON retains history/search continuation metadata and its continuation flags round-trip.
+
+QA impact 2026-11-13 (#1628 / #1629): keep multiple hosted MCP sessions open in one
+workspace, including peers with different tool policies, and a peer in another
+workspace/profile. Repeated stream wakes within one refresh window must discover
+each provider listing scope once while retaining each peer's policy and availability.
+Change an upstream tool without advancing the epoch; both early and late projection
+builds must refresh at the end of the original listing window. Also exercise epoch
+advances, bind release, concurrent discovery, waiter cancellation and leader failure;
+failed listings must never be reused. Compare CPU and allocation profiles with the
+same sessions and providers before and after, checking that discovery scales with
+listing scopes rather than sessions. Canonical automated coverage is in
+`TestHostedServiceProjectionGenerationCache`, `TestRuntimeRegistryProjections` and
+`TestDaemonExtensionToolProvider`. This follow-up has no local QA or performance
+verdict: the operator forbids local verification on the saturated machine, so CI
+owns automated validation and the live profile remains unmeasured. Historical
+scenario verdicts above are unchanged.

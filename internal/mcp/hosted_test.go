@@ -1269,6 +1269,61 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 	})
 
+	t.Run("Should discover each provider scope once per refresh window across peer policies", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: stream rebuilds of peers in one provider scope list that provider once per
+		// epoch and refresh window, while each peer keeps its own policy filtering.
+		f := newHostedListingShareFixture(t)
+		wake := func(description string) {
+			t.Helper()
+			f.wake(t, f.full, description)
+			f.wake(t, f.restricted, description)
+			f.wake(t, f.other, description)
+		}
+		wake("revision 0")
+		if calls := f.listings(); calls != 2 {
+			t.Fatalf("first wake listed %d times, want one per provider scope", calls)
+		}
+		f.revision.Store(1)
+		f.advance(f.service.StreamRefreshInterval() / 2)
+		wake("revision 0")
+		if calls := f.listings(); calls != 2 {
+			t.Fatalf("wakes inside the refresh window listed %d times, want 2", calls)
+		}
+		f.advance(f.service.StreamRefreshInterval())
+		wake("revision 1")
+		if calls := f.listings(); calls != 4 {
+			t.Fatalf("wakes after the refresh window listed %d times, want 4", calls)
+		}
+		f.revision.Store(2)
+		f.epoch.Advance()
+		wake("revision 2")
+		if calls := f.listings(); calls != 6 {
+			t.Fatalf("wakes after an epoch advance listed %d times, want 6", calls)
+		}
+	})
+
+	t.Run("Should expire a projection built late in a listing window with that window", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: a projection built from a shared listing is never served past the listing's
+		// refresh window, so upstream changes without an epoch advance surface within one window.
+		f := newHostedListingShareFixture(t)
+		refresh := f.service.StreamRefreshInterval()
+		f.wake(t, f.full, "revision 0")
+		f.advance(refresh * 5 / 6)
+		f.wake(t, f.restricted, "revision 0")
+		if calls := f.listings(); calls != 1 {
+			t.Fatalf("late build listed %d times, want it to reuse the window's listing", calls)
+		}
+		f.revision.Store(1)
+		f.advance(refresh / 3)
+		f.wake(t, f.restricted, "revision 1")
+		f.wake(t, f.full, "revision 1")
+		if calls := f.listings(); calls != 2 {
+			t.Fatalf("wakes after the listing window listed %d times, want one rotation", calls)
+		}
+	})
+
 	for _, cached := range []bool{false, true} {
 		t.Run(
 			fmt.Sprintf("Should revalidate a consuming peer after its policy changes with cached=%t", cached),
@@ -2766,6 +2821,93 @@ func (r *hostedRegistryStub) lastCall(t *testing.T) (tools.Scope, tools.CallRequ
 	}
 	return r.scopes[len(r.scopes)-1], r.calls[len(r.calls)-1]
 }
+
+// hostedListingShareFixture binds two policy classes in one workspace and one peer in another,
+// over a counting provider whose descriptions report the current upstream revision.
+type hostedListingShareFixture struct {
+	service                 *HostedService
+	provider                *hostedCountingProvider
+	epoch                   *ProjectionEpoch
+	revision                atomic.Int64
+	clock                   atomic.Int64
+	peer                    PeerInfo
+	full, restricted, other string
+	bound                   int64
+}
+
+func newHostedListingShareFixture(t *testing.T) *hostedListingShareFixture {
+	t.Helper()
+	executable := hostedTestExecutable(t, "compozy")
+	native, err := tools.NewNativeProvider(tools.BuiltinSource(),
+		hostedRuntimeNativeTool("compozy__alpha", tools.RiskRead, true),
+		hostedRuntimeNativeTool("compozy__beta", tools.RiskRead, true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &hostedListingShareFixture{epoch: NewProjectionEpoch(), peer: hostedTestPeer(executable)}
+	f.provider = &hostedCountingProvider{
+		Provider: native,
+		decorate: func(views []tools.Descriptor, _ tools.Scope) {
+			views[0].Description = fmt.Sprint("revision ", f.revision.Load())
+		},
+	}
+	resolver := hostedPolicyResolver(func(_ context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+		inputs := tools.DefaultPolicyInputs()
+		if scope.SessionID == "sess-restricted" {
+			inputs.Session = tools.SessionToolPolicy{Enforced: true, Tools: []tools.ToolID{"compozy__alpha"}}
+		}
+		return inputs, nil
+	})
+	registry, err := tools.NewRegistry(tools.WithProviders(f.provider),
+		tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.service = newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+	f.service.projectionEpoch = f.epoch.Current
+	f.service.now = func() time.Time { return time.Unix(0, f.clock.Load()) }
+	f.full = f.bind(t, "sess-full", "ws-shared")
+	f.restricted = f.bind(t, "sess-restricted", "ws-shared")
+	f.other = f.bind(t, "sess-other", "ws-other")
+	f.bound = f.provider.calls.Load()
+	return f
+}
+
+func (f *hostedListingShareFixture) bind(t *testing.T, sessionID string, workspaceID string) string {
+	t.Helper()
+	launch, err := f.service.Launch(t.Context(), HostedLaunchRequest{SessionID: sessionID, WorkspaceID: workspaceID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.service.ArmLaunch(t.Context(), sessionID); err != nil {
+		t.Fatal(err)
+	}
+	bind, err := f.service.Bind(t.Context(),
+		HostedBindRequest{SessionID: sessionID, Nonce: hostedLaunchNonce(t, launch.Args)}, f.peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bind.BindID
+}
+
+// wake reads one stream projection and checks the peer's policy filtering and listed revision.
+func (f *hostedListingShareFixture) wake(t *testing.T, bindID string, description string) {
+	t.Helper()
+	want := []string{"compozy__alpha", "compozy__beta"}
+	if bindID == f.restricted {
+		want = want[:1]
+	}
+	response, err := f.service.StreamProjection(t.Context(), bindID, f.peer, "")
+	if err != nil || !slices.Equal(hostedToolIDs(response.Tools), want) ||
+		response.Tools[0].Descriptor.Description != description {
+		t.Fatalf("projection = %#v, error = %v, want %v with %q", response, err, want, description)
+	}
+}
+
+func (f *hostedListingShareFixture) advance(d time.Duration) { f.clock.Add(int64(d)) }
+
+// listings counts provider listings made by stream wakes, excluding bind-time bootstrap.
+func (f *hostedListingShareFixture) listings() int64 { return f.provider.calls.Load() - f.bound }
 
 type hostedCountingProvider struct {
 	tools.Provider

@@ -145,9 +145,12 @@ func (s *HostedService) boundedUnversionedProjection(
 		return cached, nil
 	}
 	var response HostedProjectionResponse
+	var builtAt time.Time
 	for attempt := 0; ; attempt++ {
+		var listingCtx context.Context
 		var err error
-		response, err = buildHostedProjection(ctx, registry, record)
+		listingCtx, builtAt = s.withProjectionListings(ctx, epoch)
+		response, err = buildHostedProjection(listingCtx, registry, record)
 		if err != nil {
 			return HostedProjectionResponse{}, err
 		}
@@ -165,7 +168,7 @@ func (s *HostedService) boundedUnversionedProjection(
 	s.mu.Lock()
 	if s.ownsBindRecord(record) {
 		s.projectionCache.storeUnversioned(record.bindID, hostedUnversionedProjection{
-			epoch: epoch, builtAt: s.now(), response: response,
+			epoch: epoch, builtAt: builtAt, response: response,
 		})
 	}
 	s.mu.Unlock()
@@ -196,6 +199,7 @@ func (s *HostedService) releaseProjectionCaches(bindIDs []string) {
 		s.projectionCache.remove(bindID)
 	}
 	s.sharedProjections.clear()
+	s.projectionListings.clear()
 	s.bindReleases.notify(nil)
 }
 
