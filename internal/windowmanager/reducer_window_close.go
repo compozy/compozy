@@ -7,7 +7,6 @@ func (r *reducer) closeWindow(s *Snapshot, c CloseWindowCommand) (bool, error) {
 	if !ok {
 		return false, ErrWindowNotFound
 	}
-	tab := s.Desktops[p.desktopIndex].Tabs[p.tabIndex]
 	entry, err := r.captureClosedEntry(s, c, p)
 	if err != nil {
 		return false, err
@@ -21,17 +20,20 @@ func (r *reducer) closeWindow(s *Snapshot, c CloseWindowCommand) (bool, error) {
 		r.changes.window(w.ID)
 		r.changes.tab(w.TabID)
 	}
-	if entry.Member != nil {
-		if d, ti, ok := findTab(s, tab.ID); ok && len(nodeWindowIDs(d.Tabs[ti].Root)) == 1 {
-			r.changes.tabUnsplit(tab.ID)
+	entry.Windows = slices.DeleteFunc(entry.Windows, func(w Window) bool {
+		if w.App != newTabApp {
+			return false
 		}
-	}
-	for _, t := range entry.Tabs {
-		if len(nodeWindowIDs(t.Root)) > 1 {
-			r.changes.tabUnsplit(t.ID)
+		for _, tab := range entry.Tabs {
+			if tab.ID == w.TabID && len(nodeWindowIDs(tab.Root)) == 1 {
+				return true
+			}
 		}
+		return false
+	})
+	if len(entry.Windows) > 0 {
+		pushClosedEntry(s, pruneClosedEntry(entry), r.config.ClosedEntryLimit)
 	}
-	pushClosedEntry(s, entry, r.config.ClosedEntryLimit)
 	r.changes.desktop(entry.DesktopID)
 	return true, nil
 }

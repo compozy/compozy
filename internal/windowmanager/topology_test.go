@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -28,9 +29,10 @@ func TestInitialSnapshot(t *testing.T) {
 func TestValidateSnapshot(t *testing.T) {
 	cases := []struct {
 		name   string
+		code   string
 		mutate func(*Snapshot)
 	}{
-		{"duplicate window", func(s *Snapshot) {
+		{"duplicate window", "topology.window_membership", func(s *Snapshot) {
 			s.Desktops[0].Tabs = append(
 				s.Desktops[0].Tabs,
 				Tab{
@@ -39,36 +41,64 @@ func TestValidateSnapshot(t *testing.T) {
 				},
 			)
 		}},
-		{"empty tab", func(s *Snapshot) { s.Desktops[0].Tabs[0].Root = LayoutNode{ID: "empty", Kind: NodeKindLeaf} }},
 		{
-			"leaf children",
+			"empty tab",
+			"topology.leaf_window_required",
+			func(s *Snapshot) { s.Desktops[0].Tabs[0].Root = LayoutNode{ID: "empty", Kind: NodeKindLeaf} },
+		},
+		{
+			"leaf children", "topology.leaf_shape",
 			func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.Children[0].Children = []LayoutNode{{ID: "hidden"}} },
 		},
-		{"split window", func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.WindowID = new(WindowID("w1")) }},
-		{"empty desktop", func(s *Snapshot) { s.Desktops[0].Tabs = nil }},
-		{"missing active", func(s *Snapshot) { s.Desktops[0].ActiveTabID = "missing" }},
-		{"pin prefix", func(s *Snapshot) {
-			s.Desktops[0].Tabs = append(
-				s.Desktops[0].Tabs,
-				Tab{
-					ID:     "pinned",
-					Pinned: true,
-					Root:   LayoutNode{ID: "pin-leaf", Kind: NodeKindLeaf, WindowID: new(WindowID("w1"))},
-				},
-			)
+		{
+			"split window",
+			"topology.split_shape",
+			func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.WindowID = new(WindowID("w1")) },
+		},
+		{"empty desktop", "topology.tab_required", func(s *Snapshot) { s.Desktops[0].Tabs = nil }},
+		{"missing active", "topology.active_tab", func(s *Snapshot) { s.Desktops[0].ActiveTabID = "missing" }},
+		{"pin prefix", "topology.tab_pinned_prefix", func(s *Snapshot) {
+			d := &s.Desktops[0]
+			root := d.Tabs[0].Root
+			d.Tabs[0].Root = root.Children[0]
+			d.Tabs = append(d.Tabs, Tab{ID: "pinned", Pinned: true, Root: root.Children[1]})
+			for _, id := range []WindowID{"w2", "w3"} {
+				w := s.Windows[id]
+				w.TabID = "pinned"
+				s.Windows[id] = w
+			}
 		}},
-		{"duplicate node", func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.Children[1].ID = "leaf-1" }},
-		{"invalid weights", func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.Weights[0] = math.NaN() }},
-		{"missing membership", func(s *Snapshot) { delete(s.Windows, "w1") }},
-		{"foreign tab", func(s *Snapshot) { w := s.Windows["w1"]; w.TabID = "foreign"; s.Windows[w.ID] = w }},
+		{
+			"duplicate node",
+			"topology.node_cycle_or_duplicate",
+			func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.Children[1].ID = "leaf-1" },
+		},
+		{
+			"invalid weights",
+			"topology.split_weight",
+			func(s *Snapshot) { s.Desktops[0].Tabs[0].Root.Weights[0] = math.NaN() },
+		},
+		{"missing membership", "topology.window_unknown", func(s *Snapshot) { delete(s.Windows, "w1") }},
+		{
+			"foreign tab",
+			"topology.window_tab",
+			func(s *Snapshot) { w := s.Windows["w1"]; w.TabID = "foreign"; s.Windows[w.ID] = w },
+		},
 	}
 	for _, c := range cases {
 		t.Run("Should reject "+c.name+" (UT-064)", func(t *testing.T) {
 			t.Parallel()
 			s := validThreeWindowSnapshot()
+			requireValidSnapshot(t, s)
 			c.mutate(&s)
-			if err := ValidateSnapshot(s); !errors.Is(err, ErrInvalidTopology) {
-				t.Fatalf("validation = %v", err)
+			err := ValidateSnapshot(s)
+			topology, ok := errors.AsType[*TopologyError](err)
+			if !ok || !errors.Is(err, ErrInvalidTopology) ||
+				!slices.ContainsFunc(topology.Diagnostics, func(d Diagnostic) bool { return d.Code == c.code }) {
+				t.Fatalf("validation = %v, want %s", err, c.code)
+			}
+			if c.name == "pin prefix" && len(topology.Diagnostics) != 1 {
+				t.Fatalf("confounded pin-prefix rejection = %+v", topology.Diagnostics)
 			}
 		})
 	}

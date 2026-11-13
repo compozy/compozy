@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -52,6 +54,13 @@ func (n *daemonNativeTools) windowOpen(
 	var input windowManagerWindowOpenInput
 	if err := decodeWindowManagerInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	app, _ := windowmanager.RetiredApp(strings.TrimSpace(input.App))
+	if strings.TrimSpace(input.RestoreWindowID) == "" && !corecmds.RegisteredApp(app) {
+		return toolspkg.ToolResult{}, windowManagerInvalidInput(
+			req.ToolID,
+			fmt.Errorf("unregistered window app %q: %w", app, windowmanager.ErrInvalidCommand),
+		)
 	}
 	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
 }

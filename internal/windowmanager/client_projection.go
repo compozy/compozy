@@ -12,8 +12,12 @@ func (m *Manager) projectClientViews(
 	snapshot Snapshot,
 	request CommandRequest,
 ) (clientViewProjection, error) {
-	_, terminalRetirement := request.Payload.(terminalRetirementCommand)
-	if request.ClientID == nil && request.Payload.CommandID() == CommandWindowNavigate && !terminalRetirement {
+	lifecycle := false
+	switch request.Payload.(type) {
+	case terminalRetirementCommand, sessionDeletionCommand, workspaceUnregisteredCommand:
+		lifecycle = true
+	}
+	if request.ClientID == nil && request.Payload.CommandID() == CommandWindowNavigate && !lifecycle {
 		return clientViewProjection{}, nil
 	}
 	m.mu.Lock()
@@ -100,6 +104,12 @@ func projectIssuedCommand(view ClientView, snapshot Snapshot, payload Command) C
 			if d, ti, ok := findTab(&snapshot, w.TabID); ok {
 				id = tabLeadWindow(view, d.Tabs[ti])
 			}
+		}
+	}
+	switch payload.(type) {
+	case OpenWindowCommand, MoveWindowCommand:
+		if window, exists := snapshot.Windows[id]; exists && window.DesktopID != view.ActiveDesktopID {
+			return view
 		}
 	}
 	if id != "" {
@@ -219,13 +229,13 @@ func focusForDesktop(view ClientView, snapshot Snapshot) *WindowID {
 	return nil
 }
 
-func firstVisibleWindow(snapshot Snapshot, id DesktopID) WindowID {
-	di, ok := desktopIndexByID(&snapshot, id)
+func firstVisibleWindow(view ClientView, snapshot Snapshot) WindowID {
+	di, ok := desktopIndexByID(&snapshot, view.ActiveDesktopID)
 	if !ok {
 		return ""
 	}
 	d := snapshot.Desktops[di]
-	ti := tabHoldingID(d.Tabs, d.ActiveTabID)
+	ti := tabHoldingID(d.Tabs, view.ActiveTab[d.ID])
 	if ti < 0 {
 		return ""
 	}
@@ -304,7 +314,28 @@ func resolvedProjectionRequest(before, after Snapshot, request CommandRequest) C
 		}
 	}
 	if id != "" {
-		request.Payload = NavigateWindowCommand{WindowID: id}
+		if command, opening := request.Payload.(OpenWindowCommand); opening {
+			command.Window.ID = id
+			request.Payload = command
+		} else {
+			request.Payload = NavigateWindowCommand{WindowID: id}
+		}
 	}
 	return request
+}
+
+func explicitClientActivation(snapshot Snapshot, client *ClientView, payload Command) (ChangeSet, bool) {
+	command, ok := payload.(ActivateTabCommand)
+	if !ok || client == nil {
+		return ChangeSet{}, false
+	}
+	window, ok := snapshot.Windows[command.WindowID]
+	if !ok || (client.ActiveDesktopID == window.DesktopID && client.ActiveTab[window.DesktopID] == window.TabID) {
+		return ChangeSet{}, false
+	}
+	return ChangeSet{
+		ClientIDs:  []ClientID{client.ClientID},
+		DesktopIDs: []DesktopID{window.DesktopID},
+		TabIDs:     []TabID{window.TabID},
+	}, true
 }

@@ -19,6 +19,46 @@ import (
 
 func TestCommandTransaction(t *testing.T) {
 	// Invariant: retired public app inputs execute as canonical apps; service transaction suite owns command admission.
+	t.Run("Should reject unregistered apps before execute or preview mutates state", func(t *testing.T) {
+		t.Parallel()
+		e := newTestEnvironmentWithOptions(
+			t,
+			DefaultConfig(),
+			[]WorkspaceID{"workspace-a"},
+			WithRegisteredApps(
+				func(app string) bool { return app == "Test" || app == newTabApp || app == "automations" },
+			),
+		)
+		before := mustSnapshot(t, e.manager, "workspace-a")
+		request := CommandRequest{
+			WorkspaceID:      "workspace-a",
+			ExpectedRevision: before.Revision,
+			Payload: OpenWindowCommand{
+				Window: WindowSpec{App: "not-a-registered-app", Route: testRoute("/unknown")},
+			},
+		}
+		if _, err := e.manager.Execute(t.Context(), request); !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("execute unknown app=%v", err)
+		}
+		if _, err := e.manager.Preview(t.Context(), request); !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("preview unknown app=%v", err)
+		}
+		if !reflect.DeepEqual(before, mustSnapshot(t, e.manager, "workspace-a")) ||
+			len(e.repository.Commits("workspace-a")) != 0 {
+			t.Fatal("rejected open changed state")
+		}
+		r := executeTestCommand(
+			t,
+			e.manager,
+			"workspace-a",
+			nil,
+			OpenWindowCommand{Window: WindowSpec{ID: "known", App: "jobs", Route: testRoute("/jobs")}},
+		)
+		if r.Snapshot.Windows["known"].App != "automations" {
+			t.Fatal("retired app alias rejected")
+		}
+	})
+
 	t.Run("Should rewrite retired app commands and report their input source [IT-014]", func(t *testing.T) {
 		t.Parallel()
 		var warnings []string
@@ -1149,6 +1189,59 @@ func TestHistory(t *testing.T) {
 }
 
 func TestTabClientProjection(t *testing.T) {
+	t.Run("Should publish explicit activation when only the caller tab changes", func(t *testing.T) {
+		t.Parallel()
+		var events []Event
+		e := newTestEnvironmentWithOptions(
+			t,
+			DefaultConfig(),
+			[]WorkspaceID{"workspace-a"},
+			WithEventObserver(func(_ context.Context, event Event) { events = append(events, event) }),
+		)
+		for _, id := range []WindowID{"a", "b"} {
+			openTestWindow(t, e.manager, "workspace-a", nil, id, "desktop-default")
+		}
+		client := ClientID("caller")
+		registerTestClient(t, e.manager, "workspace-a", client)
+		executeTestCommand(t, e.manager, "workspace-a", nil, ActivateTabCommand{WindowID: "a"})
+		before := mustSnapshot(t, e.manager, "workspace-a")
+		sub, err := e.manager.Subscribe(t.Context(), SubscriptionRequest{WorkspaceID: "workspace-a", ClientID: &client})
+		if err != nil {
+			t.Fatal(err)
+		}
+		trackSubscription(t, sub)
+		eventCount := len(events)
+		r := executeTestCommand(t, e.manager, "workspace-a", &client, ActivateTabCommand{WindowID: "a"})
+		if !r.Applied || r.Snapshot.Revision != before.Revision+1 ||
+			len(r.Snapshot.History.Undo) != len(before.History.Undo) ||
+			r.Client.ActiveTab["desktop-default"] != before.Windows["a"].TabID ||
+			len(events) != eventCount+1 {
+			t.Fatalf("activation=%+v events=%+v", r, events)
+		}
+		select {
+		case update := <-sub.Updates():
+			if update.Event == nil || update.Event.CommandID != CommandWindowTabActivate ||
+				update.Event.Revision != r.Snapshot.Revision {
+				t.Fatalf("update=%+v", update)
+			}
+		default:
+			t.Fatal("explicit activation event missing")
+		}
+	})
+	t.Run("Should focus the first window of the clients active tab", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		s := mustSnapshot(t, e.manager, "workspace-a")
+		view := ClientView{
+			ActiveDesktopID: "desktop-default",
+			ActiveTab:       map[DesktopID]TabID{"desktop-default": s.Windows["a"].TabID},
+		}
+		id, err := resolveFocusTarget(view, s, FocusWindowCommand{Direction: FocusRight})
+		if err != nil || id != "a" {
+			t.Fatalf("focus=%s error=%v", id, err)
+		}
+	})
+
 	t.Run("Should coalesce presentation focus as a tab activation (UT-060)", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)

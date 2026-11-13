@@ -409,7 +409,7 @@ func resolveFocusTarget(view ClientView, snapshot Snapshot, command FocusWindowC
 		return "", fmt.Errorf("focus target or direction is required: %w", ErrInvalidCommand)
 	}
 	if view.FocusedWindowID == nil {
-		return firstVisibleWindow(snapshot, view.ActiveDesktopID), nil
+		return firstVisibleWindow(view, snapshot), nil
 	}
 	windowID, exists := directionalWindow(snapshot, view.ActiveDesktopID, *view.FocusedWindowID, command.Direction)
 	if !exists {

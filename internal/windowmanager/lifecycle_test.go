@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -18,7 +19,7 @@ import (
 
 func TestWindowTabNavigationV3(t *testing.T) {
 	t.Run(
-		"Should cap navigation at the effective limit while retaining newest ancestors [UT-008][UT-031]",
+		"Should cap navigation at the effective limit while retaining newest ancestors",
 		func(t *testing.T) {
 			t.Parallel()
 			config := DefaultConfig()
@@ -42,7 +43,7 @@ func TestWindowTabNavigationV3(t *testing.T) {
 		},
 	)
 
-	t.Run("Should apply a lowered closed-entry limit only on the next close [UT-009]", func(t *testing.T) {
+	t.Run("Should apply a lowered closed-entry limit only on the next close", func(t *testing.T) {
 		t.Parallel()
 		config := DefaultConfig()
 		config.ClosedEntryLimit = 2
@@ -68,7 +69,7 @@ func TestWindowTabNavigationV3(t *testing.T) {
 		}
 	})
 
-	t.Run("Should push the prior route and pop it back [UT-030]", func(t *testing.T) {
+	t.Run("Should push the prior route and pop it back", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
@@ -95,7 +96,7 @@ func TestWindowTabNavigationV3(t *testing.T) {
 		}
 	})
 
-	t.Run("Should treat pop at the root as a successful no-op [UT-032]", func(t *testing.T) {
+	t.Run("Should treat pop at the root as a successful no-op", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
@@ -112,7 +113,7 @@ func TestWindowTabNavigationV3(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve navigation while dragging a tab out and collapsing two to one [UT-033]", func(t *testing.T) {
+	t.Run("Should preserve navigation while dragging a tab out and collapsing two to one", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		for _, windowID := range []WindowID{"w1", "w2"} {
@@ -614,7 +615,7 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 		}
 	})
-	t.Run("Should reuse single instance (UT-003)", func(t *testing.T) {
+	t.Run("Should activate the deprecated restore target without a commit", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)
 		client := ClientID("caller")
@@ -682,34 +683,33 @@ func TestTabsAndSplits(t *testing.T) {
 	})
 	t.Run("Should scoped close skips pins (UT-007)", func(t *testing.T) {
 		t.Parallel()
-		for _, scope := range []CloseScope{CloseScopeOthers, CloseScopeRight, CloseScopeLeft, CloseScopeAll} {
+		for _, c := range []struct {
+			scope  CloseScope
+			closed []WindowID
+		}{
+			{CloseScopeOthers, []WindowID{"b", "d"}}, {CloseScopeRight, []WindowID{"d"}},
+			{CloseScopeLeft, []WindowID{"b"}}, {CloseScopeAll, []WindowID{"b", "c", "d"}},
+		} {
 			e := threeTabs(t)
+			openTestWindow(t, e.manager, "workspace-a", nil, "d", "desktop-default")
 			executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{WindowID: "a", Pinned: true})
 			before := mustSnapshot(t, e.manager, "workspace-a")
-			r := executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "b", Scope: scope})
-			if _, ok := r.Snapshot.Windows["a"]; !ok {
-				t.Fatal("pinned tab closed")
-			}
-			want := []WindowID{"c"}
-			switch scope {
-			case CloseScopeLeft:
-				want = nil
-			case CloseScopeAll:
-				want = []WindowID{"b", "c"}
-			}
-			if len(want) == 0 {
-				if r.Applied {
-					t.Fatal("empty close applied")
-				}
-				continue
+			r := executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "c", Scope: c.scope})
+			if !r.Applied || len(r.Snapshot.ClosedEntries) != len(before.ClosedEntries)+1 {
+				t.Fatalf("scope %s: %+v", c.scope, r)
 			}
 			entry := r.Snapshot.ClosedEntries[len(r.Snapshot.ClosedEntries)-1]
-			if len(r.Snapshot.ClosedEntries) != len(before.ClosedEntries)+1 || len(entry.Windows) != len(want) {
-				t.Fatalf("scope %s entry=%+v", scope, entry)
+			var closed []WindowID
+			for _, w := range entry.Windows {
+				closed = append(closed, w.ID)
 			}
-			for _, id := range want {
-				if _, ok := r.Snapshot.Windows[id]; ok {
-					t.Fatalf("%s remains", id)
+			if !slices.Equal(closed, c.closed) {
+				t.Fatalf("scope %s closed %v, want %v", c.scope, closed, c.closed)
+			}
+			for _, id := range []WindowID{"a", "b", "c", "d"} {
+				_, exists := r.Snapshot.Windows[id]
+				if exists == slices.Contains(c.closed, id) {
+					t.Fatalf("scope %s: presence of %s = %v", c.scope, id, exists)
 				}
 			}
 		}
@@ -750,14 +750,35 @@ func TestTabsAndSplits(t *testing.T) {
 	})
 	t.Run("Should reorder clamps pin ranges and alias (UT-011)", func(t *testing.T) {
 		t.Parallel()
-		e := threeTabs(t)
-		executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{WindowID: "a", Pinned: true})
-		executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{WindowID: "b", Pinned: true})
-		for _, command := range []Command{ReorderTabCommand{WindowID: "c", Index: -100}, ReorderStackCommand{WindowID: "a", Index: 100}} {
-			r := executeTestCommand(t, e.manager, "workspace-a", nil, command)
-			if !r.Snapshot.Desktops[0].Tabs[0].Pinned || !r.Snapshot.Desktops[0].Tabs[1].Pinned ||
-				r.Snapshot.Desktops[0].Tabs[2].Pinned {
-				t.Fatalf("order=%+v", r.Snapshot.Desktops[0].Tabs)
+		for _, alias := range []bool{false, true} {
+			e := threeTabs(t)
+			openTestWindow(t, e.manager, "workspace-a", nil, "d", "desktop-default")
+			for _, id := range []WindowID{"a", "b"} {
+				executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{WindowID: id, Pinned: true})
+			}
+			for _, c := range []struct {
+				id    WindowID
+				index int
+				order []WindowID
+			}{
+				{"d", -100, []WindowID{"a", "b", "d", "c"}}, {"a", 100, []WindowID{"b", "a", "d", "c"}},
+				{"d", 100, []WindowID{"b", "a", "c", "d"}}, {"a", -100, []WindowID{"a", "b", "c", "d"}},
+			} {
+				var command Command = ReorderTabCommand{WindowID: c.id, Index: c.index}
+				if alias {
+					command = ReorderStackCommand{WindowID: c.id, Index: c.index}
+				}
+				r := executeTestCommand(t, e.manager, "workspace-a", nil, command)
+				var order []WindowID
+				for i, tab := range r.Snapshot.Desktops[0].Tabs {
+					order = append(order, nodeWindowIDs(tab.Root)[0])
+					if tab.Pinned != (i < 2) {
+						t.Fatalf("pin prefix = %+v", r.Snapshot.Desktops[0].Tabs)
+					}
+				}
+				if !slices.Equal(order, c.order) {
+					t.Fatalf("alias=%v order=%v want=%v", alias, order, c.order)
+				}
 			}
 		}
 	})
@@ -818,6 +839,14 @@ func TestTabsAndSplits(t *testing.T) {
 				ids = append(ids, "c")
 			}
 			splitTestWindows(t, e, ids...)
+			original := mustSnapshot(t, e.manager, "workspace-a")
+			d, ti, _ := findTab(&original, original.Windows["a"].TabID)
+			d.Tabs[ti].Root.Weights = []float64{.2, .8}
+			if mode == "parent" {
+				d.Tabs[ti].Root.Weights = []float64{.2, .3, .5}
+			}
+			wantRoot := cloneNode(d.Tabs[ti].Root)
+			seedTestSnapshot(t, e, original)
 			executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "b"})
 			if mode == "tab" || mode == "gone" {
 				executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "a"})
@@ -842,8 +871,24 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 			if mode == "parent" || mode == "neighbor" {
 				tab := tabFor(t, r.Snapshot, "a")
-				if !slices.Equal(nodeWindowIDs(tab.Root), ids) {
+				if !slices.Equal(nodeWindowIDs(tab.Root), ids) ||
+					valueOrZero(tab.Root.Axis) != valueOrZero(wantRoot.Axis) {
 					t.Fatalf("restored=%+v", tab.Root)
+				}
+				for i, weight := range wantRoot.Weights {
+					if math.Abs(tab.Root.Weights[i]-weight) > weightTolerance {
+						t.Fatalf("restored weights=%v want=%v", tab.Root.Weights, wantRoot.Weights)
+					}
+				}
+			} else {
+				tabs := r.Snapshot.Desktops[0].Tabs
+				index := tabHoldingID(tabs, r.Snapshot.Windows["b"].TabID)
+				want := len(tabs) - 1
+				if mode == "tab" {
+					want = tabHoldingID(tabs, original.Windows["a"].TabID) + 1
+				}
+				if index != want {
+					t.Fatalf("%s fallback index=%d want=%d", mode, index, want)
 				}
 			}
 		}
@@ -883,24 +928,50 @@ func TestTabsAndSplits(t *testing.T) {
 			t.Fatalf("member=%+v", entry)
 		}
 	})
-	t.Run("Should move whole tab across desktops (UT-038)", func(t *testing.T) {
+	t.Run("Should move whole tab across desktops without switching the caller (UT-038)", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)
 		splitTestWindows(t, e, "a", "b", "c")
 		executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Two"})
+		client := ClientID("caller")
+		before := registerTestClient(t, e.manager, "workspace-a", client)
+		root := tabFor(t, mustSnapshot(t, e.manager, "workspace-a"), "a")
 		r := executeTestCommand(
 			t,
 			e.manager,
 			"workspace-a",
-			nil,
+			&client,
 			MoveWindowCommand{WindowID: "a", DestinationDesktopID: "d2", MoveGroup: true, Placement: DropTab},
 		)
-		if len(r.Snapshot.Desktops[0].Tabs) != 1 {
+		if r.Client == nil || r.Client.ActiveDesktopID != before.ActiveDesktopID ||
+			!reflect.DeepEqual(tabFor(t, r.Snapshot, "a"), root) ||
+			len(r.Changes.TabSplit)+len(r.Changes.TabUnsplit) != 0 {
+			t.Fatalf("move=%+v", r)
+		}
+		if len(r.Snapshot.Desktops[0].Tabs) != 1 || !placeholderTab(&r.Snapshot, r.Snapshot.Desktops[0].Tabs[0]) {
 			t.Fatal("empty source has no New Tab")
 		}
 		for _, id := range []WindowID{"a", "b", "c"} {
 			if r.Snapshot.Windows[id].DesktopID != "d2" {
 				t.Fatal("member not moved")
+			}
+		}
+	})
+	t.Run("Should keep the caller on its desktop after cross-desktop open", func(t *testing.T) {
+		t.Parallel()
+		for _, generated := range []bool{false, true} {
+			e := threeTabs(t)
+			executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Two"})
+			id := WindowID("new")
+			if generated {
+				id = ""
+			}
+			client := ClientID("caller")
+			before := registerTestClient(t, e.manager, "workspace-a", client)
+			r := openTestWindow(t, e.manager, "workspace-a", &client, id, "d2")
+			if r.Client == nil || r.Client.ActiveDesktopID != before.ActiveDesktopID ||
+				valueOrZero(r.Client.FocusedWindowID) != valueOrZero(before.FocusedWindowID) {
+				t.Fatalf("open=%+v", r.Client)
 			}
 		}
 	})
@@ -940,6 +1011,75 @@ func TestTabsAndSplits(t *testing.T) {
 		)
 		if !errors.Is(err, ErrFinalDesktop) {
 			t.Fatalf("final desktop=%v", err)
+		}
+	})
+	t.Run("Should delete placeholder-only desktops without a destination (UT-039)", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Two"})
+		before := mustSnapshot(t, e.manager, "workspace-a")
+		r := executeTestCommand(t, e.manager, "workspace-a", nil, DeleteDesktopCommand{DesktopID: "d2"})
+		if len(r.Snapshot.Desktops) != 1 || !reflect.DeepEqual(r.Snapshot.Desktops[0], before.Desktops[0]) ||
+			len(r.Snapshot.Windows) != 3 {
+			t.Fatalf("delete=%+v", r.Snapshot)
+		}
+	})
+	t.Run("Should transfer real tabs and discard source placeholders (UT-039)", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Two"})
+		openTestWindow(t, e.manager, "workspace-a", nil, "real", "d2")
+		s := mustSnapshot(t, e.manager, "workspace-a")
+		placeholder := nodeWindowIDs(s.Desktops[1].Tabs[0].Root)[0]
+		r := executeTestCommand(
+			t,
+			e.manager,
+			"workspace-a",
+			nil,
+			DeleteDesktopCommand{DesktopID: "d2", DestinationID: new(DesktopID("desktop-default"))},
+		)
+		if len(r.Snapshot.Desktops[0].Tabs) != 4 || r.Snapshot.Windows["real"].DesktopID != "desktop-default" {
+			t.Fatalf("transfer=%+v", r.Snapshot)
+		}
+		if _, exists := r.Snapshot.Windows[placeholder]; exists {
+			t.Fatal("source placeholder transferred")
+		}
+	})
+	t.Run("Should not record placeholder closes for reopen", func(t *testing.T) {
+		t.Parallel()
+		e := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		before := mustSnapshot(t, e.manager, "workspace-a")
+		r := executeTestCommand(
+			t,
+			e.manager,
+			"workspace-a",
+			nil,
+			CloseWindowCommand{WindowID: "win-newtab-desktop-default"},
+		)
+		if len(r.Snapshot.ClosedEntries) != len(before.ClosedEntries) {
+			t.Fatal("placeholder can be reopened")
+		}
+		r = executeTestCommand(t, e.manager, "workspace-a", nil, ReopenCommand{})
+		if r.Applied {
+			t.Fatal("reopened placeholder")
+		}
+	})
+	t.Run("Should reopen a member in its tab after the tab moved desktop", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		splitTestWindows(t, e, "a", "b")
+		executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "b"})
+		executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Two"})
+		executeTestCommand(
+			t,
+			e.manager,
+			"workspace-a",
+			nil,
+			MoveWindowCommand{WindowID: "a", DestinationDesktopID: "d2", MoveGroup: true, Placement: DropTab},
+		)
+		r := executeTestCommand(t, e.manager, "workspace-a", nil, ReopenCommand{})
+		if r.Snapshot.Windows["b"].DesktopID != "d2" || r.Snapshot.Windows["b"].TabID != r.Snapshot.Windows["a"].TabID {
+			t.Fatalf("reopen=%+v", r.Snapshot)
 		}
 	})
 }
@@ -992,6 +1132,20 @@ func TestLifecycleTabRepair(t *testing.T) {
 						},
 					)
 				}
+				clients := []ClientID{"caller", "peer"}
+				subscriptions := make([]Subscription, 0, len(clients))
+				for _, client := range clients {
+					registerTestClient(t, e.manager, "workspace-a", client)
+					sub, err := e.manager.Subscribe(
+						t.Context(),
+						SubscriptionRequest{WorkspaceID: "workspace-a", ClientID: new(client)},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					subscriptions = append(subscriptions, trackSubscription(t, sub))
+				}
+
 				var err error
 				switch kind {
 				case "session":
@@ -1012,6 +1166,37 @@ func TestLifecycleTabRepair(t *testing.T) {
 				if len(got.Desktops[0].Tabs) != 1 || got.Desktops[0].Tabs[0].Root.Kind != NodeKindLeaf {
 					t.Fatalf("repair=%+v", got)
 				}
+				views, err := e.manager.Clients(t.Context(), "workspace-a")
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, view := range views {
+					if valueOrZero(view.FocusedWindowID) == id || slices.Contains(view.FocusOrder, id) ||
+						tabHoldingID(got.Desktops[0].Tabs, view.ActiveTab[view.ActiveDesktopID]) < 0 {
+						t.Fatalf("stale client=%+v", view)
+					}
+				}
+				for _, sub := range subscriptions {
+					repaired := false
+				updates:
+					for {
+						select {
+						case update := <-sub.Updates():
+							if update.Client != nil {
+								repaired = true
+								if valueOrZero(update.Client.FocusedWindowID) == id {
+									t.Fatal("stale client published")
+								}
+							}
+						default:
+							break updates
+						}
+					}
+					if !repaired {
+						t.Fatal("client repair was not published")
+					}
+				}
+
 				if !split {
 					for _, w := range got.Windows {
 						if w.App != "new-tab" {
@@ -1044,6 +1229,11 @@ func TestRetiredWindowCommands(t *testing.T) {
 		for _, command := range []Command{ToggleFloatingCommand{WindowID: "a"}, ZoomWindowCommand{WindowID: "a"}, ResizeWindowCommand{WindowID: "a", Frame: fullRect()}, FrameResizeLayoutCommand{}, CloseWindowCommand{WindowID: "a", Minimize: true}} {
 			before := mustSnapshot(t, e.manager, "workspace-a")
 			r := executeTestCommand(t, e.manager, "workspace-a", nil, command)
+			surface := string(command.CommandID())
+			if c, ok := command.(CloseWindowCommand); ok && c.Minimize {
+				surface = "window.close.minimize"
+			}
+			requireWindowSurfaceDeprecation(t, r.Deprecations, surface)
 			if r.Applied || len(r.Deprecations) != 1 || !reflect.DeepEqual(r.Snapshot, before) {
 				t.Fatalf("retired %s=%+v", command.CommandID(), r)
 			}
@@ -1055,6 +1245,7 @@ func TestRetiredWindowCommands(t *testing.T) {
 			nil,
 			OpenWindowCommand{Window: WindowSpec{ID: "d", App: "Test", Route: testRoute("/d"), Floating: true}},
 		)
+		requireWindowSurfaceDeprecation(t, r.Deprecations, "window.open.window.floating")
 		if tabFor(t, r.Snapshot, "d").Root.Kind != NodeKindLeaf || len(r.Deprecations) != 1 {
 			t.Fatalf("floating=%+v", r)
 		}
@@ -1066,6 +1257,7 @@ func TestRetiredWindowCommands(t *testing.T) {
 			nil,
 			MoveWindowCommand{WindowID: "b", DestinationDesktopID: "desktop-default", Placement: DropFloating},
 		)
+		requireWindowSurfaceDeprecation(t, r.Deprecations, "window.move.placement=floating")
 		if tabFor(t, r.Snapshot, "b").Root.Kind != NodeKindLeaf || len(r.Deprecations) != 1 {
 			t.Fatalf("legacy move=%+v", r)
 		}
@@ -1074,6 +1266,12 @@ func TestRetiredWindowCommands(t *testing.T) {
 			if len(r.Deprecations) != 1 {
 				t.Fatalf("adjacent tabs=%+v", r)
 			}
+			surface := "layout.arrange.arrangement=stack"
+			if _, grouping := command.(GroupWindowsCommand); grouping {
+				surface = "window.stack.group"
+			}
+			requireWindowSurfaceDeprecation(t, r.Deprecations, surface)
+
 			d := r.Snapshot.Desktops[0]
 			a := tabHoldingID(d.Tabs, r.Snapshot.Windows["a"].TabID)
 			want := []WindowID{"b"}
@@ -1087,4 +1285,17 @@ func TestRetiredWindowCommands(t *testing.T) {
 			}
 		}
 	})
+}
+
+func requireWindowSurfaceDeprecation(t *testing.T, deprecations []Deprecation, surface string) {
+	t.Helper()
+	if len(deprecations) != 1 {
+		t.Fatalf("deprecations=%+v", deprecations)
+	}
+	d := deprecations[0]
+	if d.Code != "window_manager_surface_deprecated" || d.Surface != surface || d.RemovalRelease != "v0.8.0" ||
+		d.Replacement == "" ||
+		d.Message == "" {
+		t.Fatalf("deprecation=%+v want surface=%s", d, surface)
+	}
 }

@@ -174,7 +174,11 @@ func TestSwapWindows(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)
 		r := splitTestWindows(t, e, "a", "b", "c")
-		root := tabFor(t, r.Snapshot, "a").Root
+		seeded := r.Snapshot
+		d, ti, _ := findTab(&seeded, seeded.Windows["a"].TabID)
+		d.Tabs[ti].Root.Weights = []float64{.2, .3, .5}
+		seedTestSnapshot(t, e, seeded)
+		root := tabFor(t, seeded, "a").Root
 		r = executeTestCommand(
 			t,
 			e.manager,
@@ -220,32 +224,118 @@ func TestBalanceAndResize(t *testing.T) {
 				t.Fatalf("tiny delta=%g applied", delta)
 			}
 		}
+		for _, delta := range []float64{.490001, -.490001} {
+			before := mustSnapshot(t, e.manager, "workspace-a")
+			_, err := e.manager.Execute(
+				t.Context(),
+				CommandRequest{
+					WorkspaceID:      "workspace-a",
+					ExpectedRevision: before.Revision,
+					Payload:          ResizeLayoutCommand{SplitID: root.ID, Delta: delta},
+				},
+			)
+			if !errors.Is(err, ErrInvalidCommand) ||
+				!reflect.DeepEqual(before, mustSnapshot(t, e.manager, "workspace-a")) {
+				t.Fatalf("below floor delta=%g error=%v", delta, err)
+			}
+		}
+		for _, delta := range []float64{.49, -.49} {
+			before := r.Snapshot
+			seedTestSnapshot(t, e, before)
+			result := executeTestCommand(
+				t,
+				e.manager,
+				"workspace-a",
+				nil,
+				ResizeLayoutCommand{SplitID: root.ID, Delta: delta},
+			)
+			weights := tabFor(t, result.Snapshot, "a").Root.Weights
+			if math.Abs(min(weights[0], weights[1])-.01) > weightTolerance {
+				t.Fatalf("floor weights=%v", weights)
+			}
+		}
 	})
 	t.Run("Should balance scope (UT-025)", func(t *testing.T) {
 		t.Parallel()
-		e := threeTabs(t)
-		r := splitTestWindows(t, e, "a", "b", "c")
-		root := tabFor(t, r.Snapshot, "a").Root
-		r = executeTestCommand(t, e.manager, "workspace-a", nil, ResizeLayoutCommand{SplitID: root.ID, Delta: .1})
 		for _, kind := range []string{"split", "tab", "group"} {
-			var command BalanceLayoutCommand
-			switch kind {
-			case "split":
-				command.SplitID = new(root.ID)
-			case "tab":
-				command.TabID = new(tabFor(t, r.Snapshot, "a").ID)
-			case "group":
-				command.GroupID = new(GroupID(tabFor(t, r.Snapshot, "a").ID))
+			e := threeTabs(t)
+			splitTestWindows(t, e, "a", "b", "c")
+			openTestWindow(t, e.manager, "workspace-a", nil, "d", "desktop-default")
+			moveTestWindow(t, e, "d", "c", DropBottom)
+			seeded := mustSnapshot(t, e.manager, "workspace-a")
+			desktop, ti, _ := findTab(&seeded, seeded.Windows["a"].TabID)
+			root := &desktop.Tabs[ti].Root
+			root.Weights = []float64{.2, .3, .5}
+			root.Children[2].Weights = []float64{.3, .7}
+			seedTestSnapshot(t, e, seeded)
+			command := BalanceLayoutCommand{SplitID: new(root.ID)}
+			if kind == "tab" {
+				command = BalanceLayoutCommand{TabID: new(desktop.Tabs[ti].ID)}
 			}
-			r = executeTestCommand(t, e.manager, "workspace-a", nil, command)
-			if !slices.Equal(tabFor(t, r.Snapshot, "a").Root.Weights, equalWeights(3)) {
-				t.Fatalf("%s balance=%+v", kind, r)
+			if kind == "group" {
+				command = BalanceLayoutCommand{GroupID: new(GroupID(desktop.Tabs[ti].ID))}
 			}
-			r = executeTestCommand(t, e.manager, "workspace-a", nil, ResizeLayoutCommand{SplitID: root.ID, Delta: .1})
+			r := executeTestCommand(t, e.manager, "workspace-a", nil, command)
+			got := tabFor(t, r.Snapshot, "a").Root
+			nested := []float64{.3, .7}
+			if kind != "split" {
+				nested = []float64{.5, .5}
+			}
+			if !slices.Equal(got.Weights, equalWeights(3)) || !slices.Equal(got.Children[2].Weights, nested) {
+				t.Fatalf("%s balanced root=%+v", kind, got)
+			}
 		}
 	})
 }
 func TestArrangementModes(t *testing.T) {
+	t.Run("Should preserve a nonzero anchor relative to surviving tabs (UT-029)", func(t *testing.T) {
+		t.Parallel()
+		for _, ids := range [][]WindowID{{"c", "a", "e"}, {"c", "e", "a"}, {"c", "d", "e"}} {
+			e := threeTabs(t)
+			for _, id := range []WindowID{"d", "e", "f"} {
+				openTestWindow(t, e.manager, "workspace-a", nil, id, "desktop-default")
+			}
+			r := executeTestCommand(
+				t,
+				e.manager,
+				"workspace-a",
+				nil,
+				ArrangeLayoutCommand{DesktopID: "desktop-default", WindowIDs: ids, Arrangement: ArrangementGrid},
+			)
+			var got []WindowID
+			for _, tab := range r.Snapshot.Desktops[0].Tabs {
+				got = append(got, nodeWindowIDs(tab.Root)[0])
+			}
+			want := []WindowID{"b", "c", "d", "f"}
+			if ids[1] == "d" {
+				want = []WindowID{"a", "b", "c", "f"}
+			}
+			if !slices.Equal(got, want) || !slices.Equal(nodeWindowIDs(tabFor(t, r.Snapshot, "c").Root), ids) {
+				t.Fatalf("arrange %v order=%v want=%v", ids, got, want)
+			}
+		}
+	})
+	t.Run("Should reject an invalid one-window arrangement atomically", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		before := mustSnapshot(t, e.manager, "workspace-a")
+		_, err := e.manager.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: before.Revision,
+				Payload: ArrangeLayoutCommand{
+					DesktopID:   "desktop-default",
+					WindowIDs:   []WindowID{"a"},
+					Arrangement: Arrangement("invalid"),
+				},
+			},
+		)
+		if !errors.Is(err, ErrInvalidCommand) || !reflect.DeepEqual(before, mustSnapshot(t, e.manager, "workspace-a")) {
+			t.Fatalf("invalid arrangement=%v", err)
+		}
+	})
+
 	t.Run("Should grid gathers three tabs (UT-029)", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)
@@ -262,9 +352,62 @@ func TestArrangementModes(t *testing.T) {
 				Arrangement: ArrangementGrid,
 			},
 		)
-		if len(r.Snapshot.Desktops[0].Tabs) != 1 || index != 0 ||
+		root := r.Snapshot.Desktops[0].Tabs[0].Root
+		if len(r.Snapshot.Desktops[0].Tabs) != 1 || index != 0 || root.Kind != NodeKindSplit ||
+			valueOrZero(root.Axis) != AxisVertical ||
+			valueOrZero(root.Children[0].Axis) != AxisHorizontal ||
+			!slices.Equal(root.Weights, []float64{.5, .5}) ||
 			!reflect.DeepEqual(nodeWindowIDs(r.Snapshot.Desktops[0].Tabs[0].Root), []WindowID{"a", "b", "c"}) {
 			t.Fatalf("grid=%+v", r)
+		}
+	})
+}
+
+func TestTabTransitionChanges(t *testing.T) {
+	// Invariant: split transitions describe before/after member counts, not temporary reducer states.
+	t.Run("Should not split or unsplit when rearranging within a two-member tab", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		splitTestWindows(t, e, "a", "b")
+		r := moveTestWindow(t, e, "b", "a", DropBottom)
+		if len(r.Changes.TabSplit)+len(r.Changes.TabUnsplit) != 0 {
+			t.Fatalf("changes=%+v", r.Changes)
+		}
+	})
+	t.Run("Should not split when reopening into an existing multi-member tab", func(t *testing.T) {
+		t.Parallel()
+		e := threeTabs(t)
+		splitTestWindows(t, e, "a", "b", "c")
+		executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "b"})
+		r := executeTestCommand(t, e.manager, "workspace-a", nil, ReopenCommand{})
+		if len(r.Changes.TabSplit)+len(r.Changes.TabUnsplit) != 0 {
+			t.Fatalf("changes=%+v", r.Changes)
+		}
+	})
+	t.Run("Should unsplit sources once when arrange extracts members", func(t *testing.T) {
+		t.Parallel()
+		for _, c := range []struct {
+			command Command
+			split   bool
+		}{
+			{ArrangeLayoutCommand{DesktopID: "desktop-default", WindowIDs: []WindowID{"b", "c"}, Arrangement: ArrangementHorizontal}, true},
+			{ArrangeLayoutCommand{DesktopID: "desktop-default", WindowIDs: []WindowID{"b", "c"}, Arrangement: ArrangementStack}, false},
+			{GroupWindowsCommand{TargetWindowID: "c", WindowIDs: []WindowID{"b"}}, false},
+		} {
+			e := threeTabs(t)
+			splitTestWindows(t, e, "a", "b")
+			source := mustSnapshot(t, e.manager, "workspace-a").Windows["a"].TabID
+			r := executeTestCommand(t, e.manager, "workspace-a", nil, c.command)
+			if !slices.Equal(r.Changes.TabUnsplit, []TabID{source}) {
+				t.Fatalf("%s changes=%+v", c.command.CommandID(), r.Changes)
+			}
+			var split []TabID
+			if c.split {
+				split = []TabID{r.Snapshot.Windows["b"].TabID}
+			}
+			if !slices.Equal(r.Changes.TabSplit, split) {
+				t.Fatalf("%s changes=%+v", c.command.CommandID(), r.Changes)
+			}
 		}
 	})
 }

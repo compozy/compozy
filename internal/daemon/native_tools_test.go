@@ -2854,6 +2854,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("persisted snapshot = %#v, want unmodified revision 1", persisted)
 		}
 
+		_, unknownErr := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWindowOpen,
+				Input: json.RawMessage(
+					`{"expected_revision":1,"app":"not-a-registered-app","desktop_id":"desktop-build","route":{"pathname":"/unknown","search":{}}}`,
+				),
+			},
+		)
+		if unknownErr == nil || !strings.Contains(unknownErr.Error(), "unregistered window app") {
+			t.Fatalf("native unknown app rejection=%v", unknownErr)
+		}
+		afterRejectedOpen, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil || !reflect.DeepEqual(afterRejectedOpen, persisted) {
+			t.Fatalf("rejected native open changed snapshot: %+v error=%v", afterRejectedOpen, err)
+		}
+
 		openResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDWindowOpen,
 			Input: json.RawMessage(

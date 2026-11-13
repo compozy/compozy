@@ -20,6 +20,7 @@ func (r *reducer) arrange(s *Snapshot, c ArrangeLayoutCommand) (bool, error) {
 	if index < 0 {
 		return false, ErrWindowNotFound
 	}
+	predecessors := tabIDs(s.Desktops[di].Tabs[:index])
 	for _, id := range c.WindowIDs {
 		w, ok := s.Windows[id]
 		if !ok {
@@ -50,6 +51,12 @@ func (r *reducer) arrange(s *Snapshot, c ArrangeLayoutCommand) (bool, error) {
 		r.changes.window(id)
 	}
 	d := &s.Desktops[di]
+	index = 0
+	for _, id := range predecessors {
+		if tabHoldingID(d.Tabs, id) >= 0 {
+			index++
+		}
+	}
 	tab := Tab{ID: TabID(generated), Root: root}
 	insertTab(d, tab, index)
 	assignTabWindows(s, d, tab)
@@ -57,13 +64,15 @@ func (r *reducer) arrange(s *Snapshot, c ArrangeLayoutCommand) (bool, error) {
 	r.changes.tab(tab.ID)
 	r.changes.desktop(d.ID)
 	markNodeChanges(root, &r.changes)
-	if len(c.WindowIDs) > 1 {
-		r.changes.tabSplit(tab.ID)
-	}
 	return true, nil
 }
 
 func (r *reducer) arrangeNodes(nodes []LayoutNode, a Arrangement) (LayoutNode, error) {
+	switch a {
+	case ArrangementHorizontal, ArrangementVertical, ArrangementMainStack, ArrangementGrid:
+	default:
+		return LayoutNode{}, ErrInvalidCommand
+	}
 	if len(nodes) == 1 {
 		return nodes[0], nil
 	}

@@ -22,6 +22,7 @@ type reduction struct {
 }
 
 func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
+	beforeMembers := tabMemberCounts(s)
 	var changed bool
 	var err error
 	switch c := command.(type) {
@@ -63,6 +64,7 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 			return reduction{}, err
 		}
 	}
+	r.recordTabTransitions(beforeMembers, tabMemberCounts(s))
 	return reduction{changed: changed, applied: changed, changes: r.changes.result()}, nil
 }
 

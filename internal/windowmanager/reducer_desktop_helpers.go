@@ -7,7 +7,19 @@ func setDesktopOrders(s *Snapshot) {
 		s.Desktops[i].Order = i
 	}
 }
-func desktopEmpty(d Desktop) bool { return len(d.Tabs) == 0 }
+func placeholderTab(s *Snapshot, tab Tab) bool {
+	ids := nodeWindowIDs(tab.Root)
+	return len(ids) == 1 && s.Windows[ids[0]].App == newTabApp
+}
+
+func desktopEmpty(s *Snapshot, d Desktop) bool {
+	for _, tab := range d.Tabs {
+		if !placeholderTab(s, tab) {
+			return false
+		}
+	}
+	return true
+}
 
 func nextDesktopName(s *Snapshot) string {
 	for n := 1; ; n++ {

@@ -11,12 +11,24 @@ func (r *reducer) deleteDesktop(snapshot *Snapshot, command DeleteDesktopCommand
 		return false, ErrFinalDesktop
 	}
 	source := snapshot.Desktops[index]
-	if !desktopEmpty(source) && command.DestinationID == nil {
+	if !desktopEmpty(snapshot, source) && command.DestinationID == nil {
 		return false, ErrDestinationRequired
 	}
 	if command.DestinationID != nil && *command.DestinationID == command.DesktopID {
 		return false, fmt.Errorf("destination must differ from source: %w", ErrDestinationRequired)
 	}
+	retained := source.Tabs[:0]
+	for _, tab := range source.Tabs {
+		if !placeholderTab(snapshot, tab) {
+			retained = append(retained, tab)
+			continue
+		}
+		id := nodeWindowIDs(tab.Root)[0]
+		delete(snapshot.Windows, id)
+		r.changes.window(id)
+		r.changes.tab(tab.ID)
+	}
+	source.Tabs = retained
 	if command.DestinationID != nil {
 		if err := r.transferDesktopContents(snapshot, source, *command.DestinationID); err != nil {
 			return false, err

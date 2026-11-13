@@ -137,6 +137,11 @@ func (m *Manager) reduceDurable(
 	if err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
 	}
+	if !reduced.changed {
+		if changes, activated := explicitClientActivation(working, client, payload); activated {
+			reduced = reduction{changed: true, applied: true, changes: changes}
+		}
+	}
 	if err := m.validateCommandBindings(ctx, working, payload, reduced.changes); err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
 	}

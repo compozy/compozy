@@ -5,8 +5,10 @@ package windowmanager
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -191,20 +193,25 @@ func TestMigrateSnapshotV5(t *testing.T) {
 			}
 			if three {
 				s.Windows["c"] = WindowV5{ID: "c", App: "Test", DesktopID: "d1", Route: testRoute("/c")}
-				s.Desktops[0].Groups[1].Frame.Height = .5
+				s.Desktops[0].Groups[0].Frame.Width = .3
+				s.Desktops[0].Groups[1].Frame = NormalizedRect{X: .3, Width: .7, Height: .4}
 				s.Desktops[0].Groups = append(
 					s.Desktops[0].Groups,
-					oldGroup("bottom", oldLeaf("c"), NormalizedRect{X: .5, Y: .5, Width: .5, Height: .5}),
+					oldGroup("bottom", oldLeaf("c"), NormalizedRect{X: .3, Y: .4, Width: .7, Height: .6}),
 				)
 			}
 			out := convertFixture(t, s)
 			root := out.Desktops[0].Tabs[0].Root
+			expectedWeights := []float64{.5, .5}
+			if three {
+				expectedWeights = []float64{.3, .7}
+			}
 			if len(out.Desktops[0].Tabs) != 1 || valueOrZero(root.Axis) != AxisHorizontal ||
-				!slices.Equal(root.Weights, []float64{.5, .5}) {
+				!slices.Equal(root.Weights, expectedWeights) {
 				t.Fatalf("islands=%+v", out)
 			}
 			if three &&
-				(valueOrZero(root.Children[1].Axis) != AxisVertical || !slices.Equal(root.Children[1].Weights, []float64{.5, .5})) {
+				(valueOrZero(root.Children[1].Axis) != AxisVertical || !slices.Equal(root.Children[1].Weights, []float64{.4, .6})) {
 				t.Fatalf("cut=%+v", root)
 			}
 		})
@@ -361,11 +368,34 @@ func TestMigrateSnapshotV5(t *testing.T) {
 		if len(got.Tabs) != 3 || !got.Tabs[1].Pinned || got.Member != nil {
 			t.Fatalf("closed=%+v", got)
 		}
+		for i, id := range []WindowID{"a", "b", "c"} {
+			tab := got.Tabs[i]
+			if tab.Index != len(out.Desktops[0].Tabs)+i || tab.Pinned != (id == "b") ||
+				valueOrZero(tab.Root.WindowID) != id ||
+				got.Windows[i].ID != id {
+				t.Fatalf("closed index %d = %+v", i, got)
+			}
+		}
 	})
 	t.Run("Should content and override preservation (UT-052)", func(t *testing.T) {
 		t.Parallel()
-		s := legacyFixture("a")
+		s := legacyFixture("a", "b", "c")
 		s.Desktops[0].Groups = []LayoutGroupV5{oldGroup("g", oldLeaf("a"), fullRect())}
+		s.Desktops = append(s.Desktops, DesktopV5{ID: "d2", Name: "Two", Order: 1, Floating: []WindowID{"c"}})
+		s.Desktops[0].Floating = []WindowID{"b"}
+		for _, id := range []WindowID{"a", "b", "c"} {
+			w := s.Windows[id]
+			if id == "c" {
+				w.DesktopID = "d2"
+			}
+			w.InstanceKey = new("instance-" + string(id))
+			w.Route.Search = RouteSearch{"q": json.RawMessage(`"a value"`), "enabled": json.RawMessage(`true`)}
+			w.NavStack = []RouteIntent{
+				testRoute("/before/" + string(id)),
+				{Pathname: "/search", Search: RouteSearch{"q": json.RawMessage(`"previous"`)}},
+			}
+			s.Windows[id] = w
+		}
 		s.History = json.RawMessage(`{"unknown_old_history":true}`)
 		s.Overrides = WorkspaceConfigV5{
 			RaiseOnFocus:    new(true),
@@ -374,7 +404,16 @@ func TestMigrateSnapshotV5(t *testing.T) {
 		}
 		before := encodeFixture(t, s)
 		out := convertFixture(t, s)
-		if out.Windows["a"].Route.Pathname != "/a" || len(out.Windows["a"].NavStack) != 1 ||
+		for id, beforeWindow := range s.Windows {
+			after := out.Windows[id]
+			if after.ID != id || after.App != beforeWindow.App || after.DesktopID != beforeWindow.DesktopID ||
+				!reflect.DeepEqual(after.InstanceKey, beforeWindow.InstanceKey) ||
+				!routeIntentsEqual(after.Route, beforeWindow.Route) ||
+				!reflect.DeepEqual(after.NavStack, beforeWindow.NavStack) {
+				t.Fatalf("window %s changed: %+v want=%+v", id, after, beforeWindow)
+			}
+		}
+		if len(out.Windows) != len(s.Windows) ||
 			len(out.History.Undo) != 0 ||
 			out.Overrides.RaiseOnFocus != nil ||
 			valueOrZero(out.Overrides.NewWindowPolicy) != NewWindowTab ||
@@ -401,20 +440,48 @@ func TestMigrateSnapshotV5(t *testing.T) {
 			t.Fatalf("v6 identity=%v", err)
 		}
 	})
-	t.Run("Should v3 v4 chain (UT-054)", func(t *testing.T) {
+	t.Run("Should decode actual v3 focus and v4 bytes through the frozen chain (UT-054)", func(t *testing.T) {
 		t.Parallel()
-		s := legacyFixture("a")
-		s.Desktops[0].Floating = []WindowID{"a"}
-		want := convertFixture(t, s)
-		for _, version := range []uint32{3, 4} {
-			s.Version = version
-			got, _, err := DecodeSnapshot(encodeFixture(t, s))
-			if err != nil {
+		for _, anchor := range []bool{false, true} {
+			raw := legacyFocusSnapshotJSON(t, anchor)
+			var legacy legacySnapshotV3
+			if err := json.Unmarshal(raw, &legacy); err != nil {
 				t.Fatal(err)
 			}
-			got.Revision = want.Revision
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("v%d conversion differs", version)
+			equivalent := SnapshotV5{
+				Version:     5,
+				WorkspaceID: legacy.WorkspaceID,
+				Revision:    legacy.Revision + 1,
+				Windows:     legacy.Windows,
+				Overrides:   legacy.Overrides,
+				UpdatedAt:   legacy.UpdatedAt,
+			}
+			for _, d := range legacy.Desktops {
+				equivalent.Desktops = append(
+					equivalent.Desktops,
+					DesktopV5{
+						ID:             d.ID,
+						Name:           d.Name,
+						Order:          d.Order,
+						Groups:         d.Groups,
+						Floating:       d.Floating,
+						FloatingStacks: d.FloatingStacks,
+					},
+				)
+			}
+			owner := equivalent.Windows["tasks"]
+			owner.Zoomed = true
+			equivalent.Windows["tasks"] = owner
+			want := convertFixture(t, equivalent)
+			got, _, err := DecodeSnapshot(raw)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("v3 anchor=%v differs: %+v want=%+v error=%v", anchor, got, want, err)
+			}
+			v4 := strings.NewReplacer(`"version":3`, `"version":4`, `"revision":4`, `"revision":5`, `"purpose":"standard",`, "", `"purpose":"focus","focus_owner":"tasks",`, "", `"app":"tasks"`, `"app":"tasks","zoomed":true`).
+				Replace(string(raw))
+			got, _, err = DecodeSnapshot([]byte(v4))
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("v4 anchor=%v differs: %+v error=%v", anchor, got, err)
 			}
 		}
 	})
@@ -480,4 +547,262 @@ func TestMigrateSnapshotV5(t *testing.T) {
 			t.Fatalf("closed window collision = %+v", out)
 		}
 	})
+}
+
+func legacyFocusSnapshotJSON(t *testing.T, includeAnchor bool) []byte {
+	t.Helper()
+	anchor := ""
+	if includeAnchor {
+		anchor = `,"return_anchor":{"desktop_id":"desktop-default","group_id":"group-main","parent_split_id":"split-main",
+			"child_index":0,"weight":0.5,"neighbor_ids":["settings"],"source_revision":3,
+			"source_group":{"id":"group-main","frame":{"x":0,"y":0,"width":1,"height":1},
+				"root":{"id":"split-main","kind":"split","axis":"horizontal","weights":[0.5,0.5],
+					"children":[{"id":"leaf-tasks","kind":"leaf","window_id":"tasks"},
+						{"id":"leaf-settings","kind":"leaf","window_id":"settings"}]}}}`
+	}
+	document := `{
+		"version":3,"workspace_id":"workspace-a","revision":4,
+		"desktops":[
+			{"id":"desktop-default","name":"Desktop 1","order":0,"purpose":"standard",
+				"groups":[{"id":"group-main","frame":{"x":0,"y":0,"width":1,"height":1},
+					"root":{"id":"leaf-settings","kind":"leaf","window_id":"settings"}}],
+				"floating":[],"floating_stacks":[]},
+			{"id":"desktop-focus","name":"Focus — Tasks","order":1,"purpose":"focus","focus_owner":"tasks",
+				"groups":[{"id":"group-focus","frame":{"x":0,"y":0,"width":1,"height":1},
+					"root":{"id":"leaf-focus","kind":"leaf","window_id":"tasks"}}],
+				"floating":[],"floating_stacks":[]}
+		],
+		"windows":{
+			"tasks":{"id":"tasks","app":"tasks","route":{"pathname":"/tasks","search":{}},"nav_stack":[],
+				"pinned":false,"placement":"tiled","desktop_id":"desktop-focus",
+				"floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},"minimized":false` + anchor + `},
+			"settings":{"id":"settings","app":"settings","route":{"pathname":"/settings","search":{}},"nav_stack":[],
+				"pinned":false,"placement":"tiled","desktop_id":"desktop-default",
+				"floating_rect":{"x":0.2,"y":0.2,"width":0.5,"height":0.5},"minimized":false}
+		},
+		"history":{"undo":[{"command_id":"window.zoom","before":{"desktops":[],"windows":{}},
+			"after":{"desktops":[],"windows":{}}}],"redo":[]},
+		"overrides":{},
+		"updated_at":"2026-08-30T10:00:00Z"
+	}`
+	var compact json.RawMessage
+	if err := json.Unmarshal([]byte(document), &compact); err != nil {
+		t.Fatalf("legacy fixture is not valid JSON: %v", err)
+	}
+	return []byte(document)
+}
+
+func TestMigrateLegacySnapshotV3(t *testing.T) {
+	t.Run("Should drop an empty ownerless legacy focus desktop", func(t *testing.T) {
+		t.Parallel()
+		raw := legacyFocusSnapshotJSON(t, false)
+		var legacy legacySnapshotV3
+		if err := json.Unmarshal(raw, &legacy); err != nil {
+			t.Fatal(err)
+		}
+		delete(legacy.Windows, "tasks")
+		legacy.Desktops[1].Groups = nil
+		got, _, err := DecodeSnapshot(encodeFixture(t, legacy))
+		if err != nil || len(got.Desktops) != 1 || got.Desktops[0].ID != "desktop-default" {
+			t.Fatalf("empty focus=%+v error=%v", got, err)
+		}
+	})
+	t.Run("Should reject non-v3 bytes at the v3 boundary", func(t *testing.T) {
+		t.Parallel()
+		if _, err := MigrateLegacySnapshotV3(
+			[]byte(`{"version":4}`),
+		); err == nil ||
+			!strings.Contains(err.Error(), "version 4") {
+			t.Fatalf("wrong-version error=%v", err)
+		}
+	})
+}
+
+func TestMigrateSnapshotV4(t *testing.T) {
+	t.Run("Should retain the retired app route fixture through v4 and v5 decoding", func(t *testing.T) {
+		t.Parallel()
+		raw, err := os.ReadFile("testdata/retired_app_routes.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var cases []struct {
+			App      string       `json:"app"`
+			Input    RouteIntent  `json:"input"`
+			Expected *RouteIntent `json:"expected"`
+		}
+		if err := json.Unmarshal(raw, &cases); err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range cases {
+			for _, version := range []uint32{4, 5} {
+				legacy := legacyFixture("retired")
+				legacy.Version = version
+				w := legacy.Windows["retired"]
+				w.App, w.Route, w.NavStack = c.App, c.Input, []RouteIntent{c.Input}
+				legacy.Windows[w.ID] = w
+				legacy.Desktops[0].Floating = []WindowID{w.ID}
+				got, _, err := DecodeSnapshot(encodeFixture(t, legacy))
+				if err != nil {
+					t.Fatalf("v%d %s %s: %v", version, c.App, c.Input.Pathname, err)
+				}
+				want := c.Input
+				if c.Expected != nil {
+					want = *c.Expected
+				}
+				actual := got.Windows[w.ID]
+				if actual.App != "automations" || !routeIntentsEqual(actual.Route, want) || len(actual.NavStack) != 1 ||
+					!routeIntentsEqual(actual.NavStack[0], want) {
+					t.Fatalf("v%d migrated=%+v want=%+v", version, actual, want)
+				}
+			}
+		}
+	})
+	t.Run("Should reject non-v4 bytes at the v4 boundary", func(t *testing.T) {
+		t.Parallel()
+		if _, err := MigrateSnapshotV4([]byte(`{"version":5}`)); err == nil {
+			t.Fatal("v4 boundary accepted v5 bytes")
+		}
+	})
+}
+
+// The aggregate owns reconcile/rebind across current, closed and history references.
+func retainedReferenceSnapshot() Snapshot {
+	s := validThreeWindowSnapshot()
+	window := cloneWindow(s.Windows["w1"])
+	window.ID, window.TabID = "closed", "closed-tab"
+	s.ClosedEntries = []ClosedEntry{
+		{
+			DesktopID: "desktop-default",
+			Windows:   []Window{window},
+			Tabs: []ClosedTab{
+				{
+					ID:    window.TabID,
+					Root:  LayoutNode{ID: "closed-leaf", Kind: NodeKindLeaf, WindowID: new(window.ID)},
+					Index: 1,
+				},
+			},
+		},
+	}
+	return s
+}
+
+func TestReconcileRegisteredApps(t *testing.T) {
+	t.Run("Should prune unknown apps in live closed and undo/redo state without mutating input", func(t *testing.T) {
+		t.Parallel()
+		s := retainedReferenceSnapshot()
+		unknown := s.Windows["w2"]
+		unknown.App = "retired"
+		s.Windows[unknown.ID] = unknown
+		settings := s.Windows["w3"]
+		settings.App = "settings"
+		settings.Route = testRoute("/settings/memory")
+		settings.NavStack = []RouteIntent{testRoute("/settings/memory")}
+		s.Windows[settings.ID] = settings
+		s.ClosedEntries[0].Windows[0].App = "retired"
+		s.History = History{
+			Undo: []HistoryEntry{{Before: snapshotState(s), After: snapshotState(s)}},
+			Redo: []HistoryEntry{{Before: snapshotState(s), After: snapshotState(s)}},
+		}
+		before := encodeFixture(t, s)
+		registered := func(app string) bool { return app == "One" || app == "settings" || app == newTabApp }
+		got, changed := ReconcileRegisteredApps(s, registered)
+		if !changed || len(got.Windows) != 2 || len(got.ClosedEntries) != 0 ||
+			!bytes.Equal(before, encodeFixture(t, s)) {
+			t.Fatalf("reconcile=%+v changed=%v", got, changed)
+		}
+		requireValidSnapshot(t, got)
+		states := []State{
+			snapshotState(got),
+			got.History.Undo[0].Before,
+			got.History.Undo[0].After,
+			got.History.Redo[0].Before,
+			got.History.Redo[0].After,
+		}
+		for _, state := range states {
+			if len(state.Windows) != 2 || len(state.ClosedEntries) != 0 ||
+				state.Windows["w3"].Route.Pathname != "/settings" ||
+				state.Windows["w3"].NavStack[0].Pathname != "/settings" {
+				t.Fatalf("retained state=%+v", state)
+			}
+		}
+		again, changed := ReconcileRegisteredApps(got, registered)
+		if changed || !reflect.DeepEqual(got, again) {
+			t.Fatal("reconcile is not idempotent")
+		}
+	})
+}
+
+func TestReconcileTerminalWindows(t *testing.T) {
+	t.Run("Should prune dead terminal references in live closed and undo/redo state", func(t *testing.T) {
+		t.Parallel()
+		s := retainedReferenceSnapshot()
+		for id, key := range map[WindowID]string{"w1": "gone", "w2": "live"} {
+			w := s.Windows[id]
+			w.App = "terminal"
+			w.InstanceKey = new(key)
+			w.Route = testRoute("/terminal/" + key)
+			s.Windows[id] = w
+		}
+		closed := &s.ClosedEntries[0].Windows[0]
+		closed.App, closed.InstanceKey, closed.Route = "terminal", new("gone"), testRoute("/terminal/gone")
+		s.History = History{
+			Undo: []HistoryEntry{{Before: snapshotState(s), After: snapshotState(s)}},
+			Redo: []HistoryEntry{{Before: snapshotState(s), After: snapshotState(s)}},
+		}
+		before := encodeFixture(t, s)
+		got, changed := ReconcileTerminalWindows(s, func(id string) bool { return id == "live" })
+		if !changed || !bytes.Equal(before, encodeFixture(t, s)) {
+			t.Fatal("terminal reconcile did not isolate input")
+		}
+		requireValidSnapshot(t, got)
+		for _, state := range []State{snapshotState(got), got.History.Undo[0].Before, got.History.Undo[0].After, got.History.Redo[0].Before, got.History.Redo[0].After} {
+			if _, exists := state.Windows["w1"]; exists {
+				t.Fatal("dead terminal remains")
+			}
+			if len(state.Windows) != 2 || len(state.ClosedEntries) != 0 ||
+				valueOrZero(state.Windows["w2"].InstanceKey) != "live" {
+				t.Fatalf("retained state=%+v", state)
+			}
+		}
+		if _, changed := ReconcileTerminalWindows(got, func(id string) bool { return id == "live" }); changed {
+			t.Fatal("terminal reconcile is not idempotent")
+		}
+	})
+}
+
+func TestRebindWorkspace(t *testing.T) {
+	t.Run(
+		"Should rewrite bindings in live closed and undo/redo state and preserve all other fields",
+		func(t *testing.T) {
+			t.Parallel()
+			s := retainedReferenceSnapshot()
+			route := RouteIntent{
+				Pathname: "/sessions/bound",
+				Search:   RouteSearch{"workspace": json.RawMessage(`"old"`), "q": json.RawMessage(`"keep"`)},
+			}
+			for id, w := range s.Windows {
+				w.Route = cloneRouteIntent(route)
+				w.NavStack = []RouteIntent{cloneRouteIntent(route), testRoute("/unbound")}
+				s.Windows[id] = w
+			}
+			s.ClosedEntries[0].Windows[0].Route = cloneRouteIntent(route)
+			s.ClosedEntries[0].Windows[0].NavStack = []RouteIntent{cloneRouteIntent(route)}
+			s.History = History{
+				Undo: []HistoryEntry{{Before: snapshotState(s), After: snapshotState(s)}},
+				Redo: []HistoryEntry{{Before: snapshotState(s), After: snapshotState(s)}},
+			}
+			before := encodeFixture(t, s)
+			if !RebindWorkspace(&s, "old", "new") {
+				t.Fatal("binding did not change")
+			}
+			want := bytes.ReplaceAll(before, []byte(`"old"`), []byte(`"new"`))
+			if !bytes.Equal(encodeFixture(t, s), want) {
+				t.Fatalf("rebound state=%s want=%s", encodeFixture(t, s), want)
+			}
+			requireValidSnapshot(t, s)
+			if RebindWorkspace(&s, "old", "new") {
+				t.Fatal("rebind is not idempotent")
+			}
+		},
+	)
 }

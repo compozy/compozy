@@ -178,13 +178,9 @@ func (r *reducer) insertOpenWindow(
 	if !found {
 		return ErrWindowNotFound
 	}
-	wasSingle := len(nodeWindowIDs(d.Tabs[ti].Root)) == 1
 	d.Tabs[ti].Root = root
 	assignTabWindows(snapshot, d, d.Tabs[ti])
 	r.changes.tab(active)
 	r.changes.node(root.ID)
-	if wasSingle {
-		r.changes.tabSplit(active)
-	}
 	return nil
 }

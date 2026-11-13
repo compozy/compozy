@@ -52,7 +52,7 @@ func (r *reducer) moveWindow(snapshot *Snapshot, c MoveWindowCommand) (bool, err
 			return false, err
 		}
 	}
-	r.recordMoveSourceChanges(snapshot, source, whole)
+	r.changes.tab(source.ID)
 	for _, id := range nodeWindowIDs(incoming) {
 		r.changes.window(id)
 	}
@@ -70,17 +70,6 @@ func validateMovePlacement(placement DropPlacement, targetID TabID) (bool, error
 		return false, ErrInvalidCommand
 	}
 	return edge, nil
-}
-
-func (r *reducer) recordMoveSourceChanges(snapshot *Snapshot, source Tab, whole bool) {
-	r.changes.tab(source.ID)
-	if !whole {
-		if sd, ti, exists := findTab(snapshot, source.ID); exists && len(nodeWindowIDs(sd.Tabs[ti].Root)) == 1 {
-			r.changes.tabUnsplit(source.ID)
-		}
-	} else if len(nodeWindowIDs(source.Root)) > 1 {
-		r.changes.tabUnsplit(source.ID)
-	}
 }
 
 func splitAtRoot(root, incoming LayoutNode, p DropPlacement, generate idGenerator) (LayoutNode, bool, error) {
@@ -153,7 +142,6 @@ func (r *reducer) mergeMovedTree(
 		return ErrInvalidCommand
 	}
 	target := &d.Tabs[ti]
-	wasSingle := len(nodeWindowIDs(target.Root)) == 1
 	var root LayoutNode
 	var err error
 	if c.TargetWindowID != nil {
@@ -173,9 +161,6 @@ func (r *reducer) mergeMovedTree(
 	d.ActiveTabID = target.ID
 	r.changes.tab(target.ID)
 	r.changes.node(root.ID)
-	if wasSingle {
-		r.changes.tabSplit(target.ID)
-	}
 	return nil
 }
 

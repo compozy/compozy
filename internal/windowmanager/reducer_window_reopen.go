@@ -15,6 +15,11 @@ func (r *reducer) reopenWindow(s *Snapshot) (bool, error) {
 	if !ok {
 		di = 0
 	}
+	if entry.Member != nil {
+		if destination, _, exists := findTab(s, entry.Member.TabID); exists {
+			di, _ = desktopIndexByID(s, destination.ID)
+		}
+	}
 	d := &s.Desktops[di]
 	for _, w := range entry.Windows {
 		if _, exists := s.Windows[w.ID]; exists {
@@ -80,7 +85,6 @@ func (r *reducer) reopenSplitMember(s *Snapshot, d *Desktop, id WindowID, m *Clo
 		assignTabWindows(s, td, *tab)
 		td.ActiveTabID = tab.ID
 		r.changes.tab(tab.ID)
-		r.changes.tabSplit(tab.ID)
 		return true, nil
 	}
 	return r.reopenAsTab(s, d, id, len(d.Tabs))
