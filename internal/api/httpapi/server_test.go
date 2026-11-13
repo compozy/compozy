@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -301,7 +302,19 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// Template discovery must be safe alongside Gin's first-request route-tree preparation.
+	type requestResult struct {
+		response *http.Response
+		err      error
+	}
+	responses := make(chan requestResult, 1)
+	go func() {
+		response, requestErr := http.DefaultClient.Do(req)
+		responses <- requestResult{response: response, err: requestErr}
+	}()
+	templates := server.RouteTemplates()
+	result := <-responses
+	resp, err := result.response, result.err
 	if err != nil {
 		t.Fatalf("http.DefaultClient.Do() error = %v", err)
 	}
@@ -314,6 +327,13 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	}()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if !slices.Contains(templates, "/api/status") {
+		t.Fatalf("RouteTemplates() = %v, want the mounted status route", templates)
+	}
+	templates[0] = "caller-mutated-template"
+	if slices.Contains(server.RouteTemplates(), templates[0]) {
+		t.Fatal("RouteTemplates() allowed a caller to change the telemetry route catalog")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)

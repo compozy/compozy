@@ -255,6 +255,10 @@ Walked against the `_dx.md` Compose stack (report `docs/qa/reports/2026-11-11-ot
 Automated guards for the `_spec.md` Safety Invariants and ADRs. A QA walk does not re-prove these; a failure in a walk
 that touches one of them goes back to the named suite.
 
+Route-template discovery must remain safe during the first HTTP or UDS request: each server captures its catalog
+before serving, and callers receive independent copies. The existing transport start/shutdown suites cover that
+concurrent read; `TestReferenceExtensionsEndToEnd` exercises daemon startup with the race detector in integration CI.
+
 | Invariant / decision | Guarding tests | Status |
 | --- | --- | --- |
 | SI-1 hosted run span context only under `HostedService.s.mu` | UT-031 in `internal/mcp` `TestHostedCallSpans` (50 sessions, race detector) | covered |

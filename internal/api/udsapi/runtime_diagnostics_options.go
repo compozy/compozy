@@ -1,8 +1,9 @@
 package udsapi
 
 import (
+	"slices"
+
 	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/api/ginutil"
 	"github.com/compozy/compozy/internal/doctor"
 )
 
@@ -26,7 +27,8 @@ func WithTelemetryStatus(source core.TelemetryStatusSource) Option {
 	return func(server *Server) { server.telemetryStatus = source }
 }
 
-// RouteTemplates returns the path templates of the mounted routes.
+// RouteTemplates returns a copy of the mounted templates captured before serving. Gin mutates its route tree
+// on the first request, so reading Engine.Routes after Start would race with that request.
 func (s *Server) RouteTemplates() []string {
-	return ginutil.RouteTemplates(s.engine)
+	return slices.Clone(s.routeTemplates)
 }
