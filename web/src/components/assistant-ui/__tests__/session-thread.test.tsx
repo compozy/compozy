@@ -9019,7 +9019,9 @@ describe("useThreadScrollResume", () => {
   it("Should resume the same share of a row a text size change reflowed while hidden", () => {
     const { rows, viewport, store, hideAndShow } = setupResume();
     const root = document.documentElement;
-    onTestFinished(() => root.style.removeProperty("--user-text-scale"));
+    onTestFinished(() => {
+      root.style.removeProperty("--user-text-scale");
+    });
     store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
     viewport.scrollTop = 600;
     fireEvent.scroll(viewport);
