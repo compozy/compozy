@@ -1,13 +1,23 @@
 // Suite: window-manager settings contract
-// Invariant: daemon settings enter the shared Query cache only after strict runtime validation.
+// Invariant: daemon settings enter the shared Query cache only after strict runtime validation,
+// and config keys retired with tabs and splits never fail a parse nor reach the domain config.
 // Boundary IN: window-manager settings section parsing — keymap, registry, aliases, diagnostics.
 // Boundary OUT: HTTP transport and Settings editor mutation.
 import { describe, expect, it } from "vitest";
 
+import { windowManagerWorkspaceConfigSchema } from "../window-manager-config-schema";
 import {
   parseSettingsWindowManagerSection,
   type WindowManagerSettingsWire,
 } from "../window-manager-settings-section";
+
+const RETIRED_DOMAIN_KEYS = [
+  "raiseOnFocus",
+  "dragAwayPolicy",
+  "groupMoveModifier",
+  "snap",
+  "bindings",
+];
 
 function settingsResponse(): WindowManagerSettingsWire {
   return {
@@ -44,22 +54,12 @@ function settingsResponse(): WindowManagerSettingsWire {
       focus_policy: "click_directional",
       focus_wrap: true,
       focus_follows_pointer: false,
-      raise_on_focus: true,
-      drag_away_policy: "window",
-      group_move_modifier: "alt",
       swap_modifier: "shift",
       history_limit: 100,
       nav_stack_limit: 75,
       closed_entry_limit: 30,
       desktop_transition: "slide",
       gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
-      snap: {
-        edge_band: 24,
-        corner_reach: 96,
-        exit_slack: 16,
-        repeat_ratios: [0.5, 0.33, 0.67],
-      },
-      bindings: { top_center: "zoom", bottom_center: "none" },
       shortcuts: {
         "desktop.switch.next": "control+alt+BracketRight",
       },
@@ -170,22 +170,12 @@ describe("parseSettingsWindowManagerSection.config", () => {
       focusPolicy: "click_directional",
       focusWrap: true,
       focusFollowsPointer: false,
-      raiseOnFocus: true,
-      dragAwayPolicy: "window",
-      groupMoveModifier: "alt",
       swapModifier: "shift",
       historyLimit: 100,
       navStackLimit: 75,
       closedEntryLimit: 30,
       desktopTransition: "slide",
       gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
-      snap: {
-        edgeBand: 24,
-        cornerReach: 96,
-        exitSlack: 16,
-        repeatRatios: [0.5, 0.33, 0.67],
-      },
-      bindings: { topCenter: "zoom", bottomCenter: "none" },
       shortcuts: { "desktop.switch.next": ["control+alt+BracketRight"] },
       shortcutDefaults: {
         "desktop.switch.next": ["control+shift+ArrowRight"],
@@ -229,6 +219,59 @@ describe("parseSettingsWindowManagerSection.config", () => {
     mutate(response);
 
     expect(() => parseSettingsWindowManagerSection(response)).toThrow();
+  });
+
+  it.each([
+    {
+      label: "zero values, as the daemon now serves them",
+      retired: {
+        raise_on_focus: false,
+        drag_away_policy: "",
+        group_move_modifier: "",
+        snap: { edge_band: 0, corner_reach: 0, exit_slack: 0, repeat_ratios: null },
+        bindings: { top_center: "", bottom_center: "" },
+      },
+    },
+    {
+      label: "old values carried over from an earlier config.toml",
+      retired: {
+        raise_on_focus: true,
+        drag_away_policy: "group",
+        group_move_modifier: "alt",
+        snap: { edge_band: 24, corner_reach: 96, exit_slack: 16, repeat_ratios: [0.5, 0.33] },
+        bindings: { top_center: "zoom", bottom_center: "none" },
+      },
+    },
+    { label: "values no earlier schema allowed", retired: { drag_away_policy: 7, snap: "off" } },
+  ])("Should parse retired config keys holding $label and drop them", ({ retired }) => {
+    const response = settingsResponse();
+    response.config = { ...response.config, ...retired };
+
+    const config = parseSettingsWindowManagerSection(response).config;
+
+    for (const key of RETIRED_DOMAIN_KEYS) expect(config).not.toHaveProperty(key);
+    for (const key of Object.keys(retired)) expect(config).not.toHaveProperty(key);
+    expect(config.swapModifier).toBe("shift");
+  });
+
+  it("Should parse a config that leaves every retired key out", () => {
+    const config = parseSettingsWindowManagerSection(settingsResponse()).config;
+
+    for (const key of RETIRED_DOMAIN_KEYS) expect(config).not.toHaveProperty(key);
+  });
+
+  it("Should drop retired keys from a workspace's config overrides with any value", () => {
+    const overrides = windowManagerWorkspaceConfigSchema.parse({
+      focus_wrap: false,
+      raise_on_focus: "yes",
+      drag_away_policy: "group",
+      group_move_modifier: "",
+      snap: { edge_band: 0 },
+      bindings: null,
+    });
+
+    expect(overrides.focusWrap).toBe(false);
+    for (const key of RETIRED_DOMAIN_KEYS) expect(overrides).not.toHaveProperty(key);
   });
 
   it("Should accept the tab new-window policy the daemon ships as its default", () => {

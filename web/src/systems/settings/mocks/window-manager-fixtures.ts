@@ -87,6 +87,9 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     focus_policy: "click_directional",
     focus_wrap: true,
     focus_follows_pointer: false,
+    // Retired keys: the generated `SettingsWindowManagerConfigPayload` still
+    // requires them, so this daemon payload carries them; the client parser
+    // drops them and no domain config or save holds them (remove in v0.8.0).
     raise_on_focus: true,
     drag_away_policy: "window",
     group_move_modifier: "alt",

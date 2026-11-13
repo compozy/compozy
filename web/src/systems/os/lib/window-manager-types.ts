@@ -23,7 +23,6 @@ export type LayoutAxis = "horizontal" | "vertical";
  */
 export type DropPlacement = "tab" | "left" | "right" | "top" | "bottom";
 export type FocusDirection = "left" | "right" | "up" | "down";
-export type WindowManagerEdgeCenterBinding = "none" | "reserved" | "zoom";
 export type WindowManagerNewWindowPolicy = "floating" | "beside_focus" | "tab";
 export type WindowManagerSmallViewportPolicy = "stack" | "reject";
 export type WindowManagerFocusPolicy = "click_directional" | "directional";
@@ -134,35 +133,18 @@ export interface WindowManagerGapsConfig {
   left: number;
 }
 
-export interface WindowManagerSnapConfig {
-  edgeBand: number;
-  cornerReach: number;
-  exitSlack: number;
-  repeatRatios: readonly number[];
-}
-
-export interface WindowManagerBindingsConfig {
-  topCenter: WindowManagerEdgeCenterBinding;
-  bottomCenter: WindowManagerEdgeCenterBinding;
-}
-
 export interface WindowManagerWorkspaceConfig {
   newWindowPolicy?: WindowManagerNewWindowPolicy;
   smallViewportPolicy?: WindowManagerSmallViewportPolicy;
   focusPolicy?: WindowManagerFocusPolicy;
   focusWrap?: boolean;
   focusFollowsPointer?: boolean;
-  raiseOnFocus?: boolean;
-  dragAwayPolicy?: "window" | "group";
-  groupMoveModifier?: WindowManagerDragModifier;
   swapModifier?: WindowManagerDragModifier;
   historyLimit?: number;
   navStackLimit?: number;
   closedEntryLimit?: number;
   desktopTransition?: WindowManagerDesktopTransition;
   gaps?: WindowManagerGapsConfig;
-  snap?: WindowManagerSnapConfig;
-  bindings?: WindowManagerBindingsConfig;
   shortcuts?: ShortcutTypes.WindowManagerShortcutMap;
   globalShortcuts?: ShortcutTypes.WindowManagerGlobalShortcutMap;
 }
@@ -174,17 +156,12 @@ export interface WindowManagerConfig {
   focusPolicy: WindowManagerFocusPolicy;
   focusWrap: boolean;
   focusFollowsPointer: boolean;
-  raiseOnFocus: boolean;
-  dragAwayPolicy: "window" | "group";
-  groupMoveModifier: WindowManagerDragModifier;
   swapModifier: WindowManagerDragModifier;
   historyLimit: number;
   navStackLimit: number;
   closedEntryLimit: number;
   desktopTransition: WindowManagerDesktopTransition;
   gaps: WindowManagerGapsConfig;
-  snap: WindowManagerSnapConfig;
-  bindings: WindowManagerBindingsConfig;
   /** Stored operator overrides. Empty bindings disable an action. */
   shortcuts: ShortcutTypes.WindowManagerShortcutMap;
   /** Daemon-owned defaults, served with the settings contract. */
