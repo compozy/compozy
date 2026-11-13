@@ -65,6 +65,7 @@ type commandDeps struct {
 	vaultKeyring                vault.Keyring
 	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
+	windowManagerWarning        compozyconfig.LoadOption
 	resolveHome                 func() (compozyconfig.HomePaths, error)
 	resolveHomeForWorkspace     func(workspaceRoot string) (compozyconfig.HomePaths, error)
 	ensureHome                  func(compozyconfig.HomePaths) error
@@ -117,8 +118,6 @@ func NewRootCommand() *cobra.Command {
 }
 
 func newRootCommand(deps commandDeps) *cobra.Command {
-	deps = deps.withDefaults()
-
 	cmd := &cobra.Command{
 		Use:     rootCompozyKey,
 		Version: version.Current().Version,
@@ -135,6 +134,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 			return cmd.Help()
 		},
 	}
+	deps.windowManagerWarning = windowManagerWarningOutput(cmd)
+	deps = deps.withDefaults()
 	cmd.SetVersionTemplate("compozy {{.Version}}\n")
 	cmd.InitDefaultVersionFlag()
 	if deps.commandContext == nil {

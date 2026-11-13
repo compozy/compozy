@@ -30,6 +30,11 @@ func (m *Manager) ValidateLayout(
 	if err := m.resolveWorkspace(ctx, workspaceID); err != nil {
 		return Validation{}, err
 	}
+	if m.deprecationObserver != nil {
+		m.deprecationObserver(ctx, CommandRequest{
+			WorkspaceID: workspaceID, CommandID: CommandLayoutReplace, Actor: Actor{Kind: "config"},
+		}, document.Overrides.Deprecations())
+	}
 	defaults, err := m.resolveWorkspaceDefaults(ctx, workspaceID)
 	if err != nil {
 		return Validation{}, err

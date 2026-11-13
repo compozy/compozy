@@ -2667,6 +2667,37 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("retired %s changed revision", item.id)
 			}
 		}
+		for _, placement := range []string{"", `,"placement":""`} {
+			before, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			split := call(toolspkg.ToolIDWindowMove, fmt.Sprintf(
+				`{"expected_revision":%d,"window_id":"window-a","destination_desktop_id":"desktop-default",`+
+					`"target_window_id":"window-b","placement":"right"}`, before.Revision,
+			))
+			if !split.Applied || split.Revision != before.Revision+1 {
+				t.Fatalf("split before empty placement %q result = %+v", placement, split)
+			}
+			result := call(toolspkg.ToolIDWindowMove, fmt.Sprintf(
+				`{"expected_revision":%d,"window_id":"window-a","destination_desktop_id":"desktop-default"%s}`,
+				split.Revision, placement,
+			))
+			after, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.Applied || result.Revision != split.Revision+1 || len(result.Deprecations) != 1 ||
+				after.Windows["window-a"].TabID == after.Windows["window-b"].TabID {
+				t.Fatalf("empty placement %q result = %+v", placement, result)
+			}
+			entry := result.Deprecations[0]
+			if entry.Code != "window_manager_surface_deprecated" ||
+				entry.Surface != "compozy__window_move.placement=empty" || entry.Replacement == "" ||
+				entry.RemovalRelease != "v0.8.0" || entry.Message == "" {
+				t.Fatalf("empty placement %q deprecation = %+v", placement, entry)
+			}
+		}
 		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
 		if err != nil {
 			t.Fatal(err)

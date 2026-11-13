@@ -116,11 +116,12 @@ type WindowManagerSnapshot struct {
 
 // WindowManagerLayoutDocument is the stable declarative layout wire contract.
 type WindowManagerLayoutDocument struct {
-	Version     uint32                         `json:"version"`
-	WorkspaceID windowmanager.WorkspaceID      `json:"workspace_id"`
-	Desktops    []WindowManagerDesktop         `json:"desktops"`
-	Windows     map[string]WindowManagerWindow `json:"windows"`
-	Overrides   windowmanager.WorkspaceConfig  `json:"overrides"`
+	inputOverrides json.RawMessage                `json:"-"`
+	Version        uint32                         `json:"version"`
+	WorkspaceID    windowmanager.WorkspaceID      `json:"workspace_id"`
+	Desktops       []WindowManagerDesktop         `json:"desktops"`
+	Windows        map[string]WindowManagerWindow `json:"windows"`
+	Overrides      windowmanager.WorkspaceConfig  `json:"overrides"`
 }
 
 // WindowManagerClientView is transient presentation state for one connected client.

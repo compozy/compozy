@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -259,5 +260,42 @@ func (document *WindowManagerLayoutDocument) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	*document = converted
+	if len(domain.Overrides.Deprecations()) > 0 {
+		var input struct {
+			Overrides json.RawMessage `json:"overrides"`
+		}
+		if err := json.Unmarshal(raw, &input); err != nil {
+			return err
+		}
+		document.inputOverrides = input.Overrides
+	}
 	return nil
+}
+
+// MarshalJSON keeps retired input overrides until the receiving daemon can observe their use.
+// Documents exported from the domain have no input bytes and always encode the effective config.
+func (document WindowManagerLayoutDocument) MarshalJSON() ([]byte, error) {
+	type wire WindowManagerLayoutDocument
+	if len(document.inputOverrides) == 0 {
+		return json.Marshal(wire(document))
+	}
+	input, err := windowmanager.DecodeWorkspaceConfigJSON(document.inputOverrides)
+	if err != nil {
+		return nil, err
+	}
+	normalized, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	current, err := json.Marshal(document.Overrides)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(normalized, current) {
+		return json.Marshal(wire(document))
+	}
+	return json.Marshal(struct {
+		wire
+		Overrides json.RawMessage `json:"overrides"`
+	}{wire: wire(document), Overrides: document.inputOverrides})
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -3273,55 +3274,95 @@ func TestConfigSetCarriesDaemonReloadWarnings(t *testing.T) {
 	})
 }
 
-// IT-007: CLI owns warning placement; config parsing uses the real temporary home.
+// IT-007: CLI owns warning placement across bootstrap and effective config loads.
 func TestConfigShowRetiredWindowManagerKeys(t *testing.T) {
-	t.Run("Should print retired key warnings only on stderr", func(t *testing.T) {
-		t.Parallel()
-		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+	t.Run("Should print each retired key once on stderr for every config inspection verb", func(t *testing.T) {
+		client := &stubClient{reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+			return SettingsMutationRecord{Applied: true}, nil
+		}}
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
 		home, err := deps.resolveHome()
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Setenv("COMPOZY_HOME", home.HomeDir)
+		// Exercise the production bootstrap loader as well as each verb's effective-config load.
+		deps.loadConfig = nil
+		var logs bytes.Buffer
+		previousLogger := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
 		if err := os.MkdirAll(filepath.Dir(home.ConfigFile), 0o700); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(home.ConfigFile, []byte(`[window_manager]
 raise_on_focus = "invalid"
 drag_away_policy = 123
+group_move_modifier = false
 new_window_policy = "floating"
 [window_manager.snap]
+edge_band = -4
+corner_reach = "ignored"
+exit_slack = false
 repeat_ratios = false
+[window_manager.bindings]
+top_center = 123
+bottom_center = false
 `), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		stdout, stderr, err := executeRootCommand(t, deps, "config", "show", "-o", "json")
-		if err != nil {
-			t.Fatalf("config show: %v stderr=%s", err, stderr)
+		wantWarnings := []string{
+			windowmanager.RetiredConfigWarning("new_window_policy", true),
 		}
-		var output configShowRecord
-		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
-			t.Fatal(err)
+		for _, key := range []string{
+			"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap.edge_band", "snap.corner_reach",
+			"snap.exit_slack", "snap.repeat_ratios", "bindings.top_center", "bindings.bottom_center",
+		} {
+			wantWarnings = append(wantWarnings, windowmanager.RetiredConfigWarning(key, false))
 		}
-		for _, key := range []string{"raise_on_focus", "drag_away_policy", "snap.repeat_ratios"} {
-			want := "warning: window_manager." + key + " is retired and ignored; remove it before v0.8.0."
-			if strings.Count(stderr, want) != 1 {
-				t.Fatalf("warning %s: %s", key, stderr)
-			}
-		}
-		if strings.Count(
-			stderr,
-			`warning: window_manager.new_window_policy = "floating" is deprecated; use "tab" before v0.8.0.`,
-		) != 1 {
-			t.Fatalf("policy warning: %s", stderr)
-		}
-		windowConfig := output.Config["window_manager"].(map[string]any)
-		if windowConfig["new_window_policy"] != "tab" {
-			t.Fatalf("config=%v", windowConfig)
-		}
-		for _, key := range []string{"raise_on_focus", "drag_away_policy", "snap"} {
-			if _, present := windowConfig[key]; present {
-				t.Fatalf("retired key %s retained", key)
-			}
+		slices.Sort(wantWarnings)
+		for _, verb := range []string{"show", "get", "list", "validate", "reload"} {
+			t.Run("Should warn once for config "+verb, func(t *testing.T) {
+				args := []string{"config", verb}
+				if verb == "get" {
+					args = append(args, "window_manager")
+				}
+				args = append(args, "-o", "json")
+				stdout, stderr, err := executeRootCommand(t, deps, args...)
+				if err != nil {
+					t.Fatalf("config %s: %v stderr=%s", verb, err, stderr)
+				}
+				warnings := strings.Split(strings.TrimSpace(stderr), "\n")
+				slices.Sort(warnings)
+				if !slices.Equal(warnings, wantWarnings) || logs.Len() != 0 {
+					t.Fatalf(
+						"config %s stderr = %q, slog = %q; want exactly %q",
+						verb,
+						stderr,
+						logs.String(),
+						wantWarnings,
+					)
+				}
+				if !json.Valid([]byte(stdout)) || strings.Contains(stdout, "warning:") {
+					t.Fatalf("config %s stdout = %q", verb, stdout)
+				}
+				if verb != "show" {
+					return
+				}
+				var output configShowRecord
+				if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+					t.Fatal(err)
+				}
+				windowConfig := output.Config["window_manager"].(map[string]any)
+				if windowConfig["new_window_policy"] != "tab" {
+					t.Fatalf("config = %v", windowConfig)
+				}
+				for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+					if _, present := windowConfig[key]; present {
+						t.Fatalf("retired key %s retained", key)
+					}
+				}
+			})
 		}
 	})
 }

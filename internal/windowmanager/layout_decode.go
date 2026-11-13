@@ -8,10 +8,19 @@ import (
 // UnmarshalJSON permanently accepts saved v4/v5 layouts at the document boundary.
 func (document *LayoutDocument) UnmarshalJSON(raw []byte) error {
 	var header struct {
-		Version uint32 `json:"version"`
+		Version   uint32          `json:"version"`
+		Overrides json.RawMessage `json:"overrides"`
 	}
 	if err := json.Unmarshal(raw, &header); err != nil {
 		return err
+	}
+	var overrides WorkspaceConfig
+	if len(header.Overrides) > 0 {
+		var err error
+		overrides, err = DecodeWorkspaceConfigJSON(header.Overrides)
+		if err != nil {
+			return fmt.Errorf("decode workspace overrides: %w", err)
+		}
 	}
 	if header.Version == 4 || header.Version == 5 {
 		var legacy LayoutDocumentV5
@@ -34,6 +43,7 @@ func (document *LayoutDocument) UnmarshalJSON(raw []byte) error {
 		if err != nil {
 			return fmt.Errorf("convert layout document: %w", err)
 		}
+		snapshot.Overrides.deprecations = overrides.deprecations
 		*document = LayoutDocument{
 			Version:     SnapshotVersion,
 			WorkspaceID: legacy.WorkspaceID,
@@ -49,5 +59,6 @@ func (document *LayoutDocument) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	*document = LayoutDocument(decoded)
+	document.Overrides.deprecations = overrides.deprecations
 	return nil
 }

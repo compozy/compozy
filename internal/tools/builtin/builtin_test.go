@@ -2592,6 +2592,12 @@ func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
 			valid: true,
 		},
 		{
+			name: "Should accept empty placement as a deprecated tab placement",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","placement":""}`,
+			valid: true,
+		},
+		{
 			name: "Should accept structural group relocation onto a target",
 			payload: `{"expected_revision":1,"window_id":"window-a",` +
 				`"destination_desktop_id":"desktop-b","move_group":true,` +

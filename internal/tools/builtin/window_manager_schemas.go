@@ -208,7 +208,7 @@ const windowManagerWindowMoveInputSchema = `{
 		"destination_desktop_id":{"type":"string","minLength":1},
 		"target_window_id":{"type":"string","minLength":1},
  "target_tab_id":{"type":"string","minLength":1},
-		"placement":{"type":"string","enum":["tab","floating","before","after","left","right","top","bottom","center"]},
+		"placement":{"type":"string","enum":["","tab","floating","before","after","left","right","top","bottom","center"]},
 		"floating_rect":` + windowManagerRectSchema + `,
 		"move_group":{"type":"boolean"},
 		"rebase":` + windowManagerRebaseSchema + `,

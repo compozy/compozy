@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 )
 
@@ -16,14 +17,24 @@ func WarnRetiredConfigKey(key string, translated bool) {
 	if _, warned := deprecatedConfigSurfaces.LoadOrStore(key, struct{}{}); warned {
 		return
 	}
-	message := RetiredConfigWarning(key, translated)
+	WarnSurfaceDeprecation(context.Background(), nil, RetiredConfigDeprecation(key, translated), "config")
+}
+
+// RetiredConfigDeprecation describes a config translation until v0.8.0.
+func RetiredConfigDeprecation(key string, translated bool) Deprecation {
 	replacement := "remove window_manager." + key
 	if translated {
 		replacement = `window_manager.new_window_policy = "tab"`
 	}
-	WarnSurfaceDeprecation(context.Background(), nil, Deprecation{
-		Surface: "window_manager." + key, Replacement: replacement, Message: message, RemovalRelease: "v0.8.0",
-	}, "config")
+	entry := SurfaceDeprecation("window_manager." + key)
+	entry.Replacement = replacement
+	entry.Message = RetiredConfigWarning(key, translated)
+	return entry
+}
+
+// Deprecations returns input translations for the owning service's request observer.
+func (c WorkspaceConfig) Deprecations() []Deprecation {
+	return slices.Clone(c.deprecations)
 }
 
 // RetiredConfigWarning is the operator-facing warning for a v0.7 config shim.
@@ -36,7 +47,10 @@ func RetiredConfigWarning(key string, translated bool) string {
 
 // DecodeWorkspaceConfigJSON translates retired overrides at input boundaries until v0.8.0.
 func DecodeWorkspaceConfigJSON(data []byte) (WorkspaceConfig, error) {
-	translated, err := translateWorkspaceConfigJSON(data, WarnRetiredConfigKey)
+	var deprecations []Deprecation
+	translated, err := translateWorkspaceConfigJSON(data, func(key string, translated bool) {
+		deprecations = append(deprecations, RetiredConfigDeprecation(key, translated))
+	})
 	if err != nil {
 		return WorkspaceConfig{}, err
 	}
@@ -46,6 +60,7 @@ func DecodeWorkspaceConfigJSON(data []byte) (WorkspaceConfig, error) {
 	if err := decoder.Decode(&decoded); err != nil {
 		return WorkspaceConfig{}, err
 	}
+	decoded.deprecations = deprecations
 	return decoded, nil
 }
 

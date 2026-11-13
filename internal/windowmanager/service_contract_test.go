@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,6 +18,52 @@ import (
 )
 
 func TestLayoutDocumentContract(t *testing.T) {
+	// Invariant: legacy document overrides retain the converter's canonical fields and input warnings.
+	for _, version := range []uint32{4, 5} {
+		for _, item := range []struct {
+			name         string
+			overrides    string
+			deprecations int
+		}{
+			{name: "absent overrides"},
+			{name: "empty overrides", overrides: `,"overrides":{}`},
+			{name: "empty shortcuts", overrides: `,"overrides":{"shortcuts":{}}`},
+			{
+				name: "retired overrides",
+				overrides: `,"overrides":{"new_window_policy":"floating","focus_wrap":true,` +
+					`"raise_on_focus":42,"snap":{"repeat_ratios":false},"shortcuts":{}}`,
+				deprecations: 3,
+			},
+		} {
+			t.Run(fmt.Sprintf("Should keep v%d %s canonical", version, item.name), func(t *testing.T) {
+				t.Parallel()
+				raw := []byte(fmt.Sprintf(`{
+					"version":%d,"workspace_id":"workspace-a",
+					"desktops":[{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["w1"],"floating_stacks":[]}],
+					"windows":{"w1":{"id":"w1","app":"terminal","desktop_id":"saved","placement":"floating",
+						"route":{"pathname":"/terminal/test","search":{}},"nav_stack":[]}}%s
+				}`, version, item.overrides))
+				var document LayoutDocument
+				if err := json.Unmarshal(raw, &document); err != nil {
+					t.Fatal(err)
+				}
+				snapshot, _, err := DecodeSnapshot(raw)
+				if err != nil {
+					t.Fatal(err)
+				}
+				warnings := document.Overrides.Deprecations()
+				if len(warnings) != item.deprecations {
+					t.Fatalf("override deprecations = %+v, want %d", warnings, item.deprecations)
+				}
+				want := snapshot.Overrides
+				want.deprecations = warnings
+				if !reflect.DeepEqual(document.Overrides, want) {
+					t.Fatalf("document overrides = %+v, want converted overrides %+v", document.Overrides, want)
+				}
+			})
+		}
+	}
+
 	t.Run("Should round trip two v6 tabs and reject a one-child split atomically (UT-059)", func(t *testing.T) {
 		t.Parallel()
 		source := threeTabs(t)

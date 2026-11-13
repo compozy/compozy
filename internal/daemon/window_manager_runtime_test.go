@@ -607,6 +607,152 @@ func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
 func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: retired document overrides reach the daemon observer before normalization hides them.
+	for _, item := range []struct {
+		name    string
+		forward bool
+		first   string
+	}{
+		{"Should log direct validation overrides once per surface", false, http.MethodPost},
+		{"Should log direct apply overrides once per surface", false, http.MethodPut},
+		{"Should log forwarded CLI validation overrides once per surface", true, http.MethodPost},
+		{"Should log forwarded CLI apply overrides once per surface", true, http.MethodPut},
+	} {
+		t.Run(item.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newDaemonWindowManagerFixture(t)
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+			registry, err := newWindowManagerRegistry(
+				fixture.engine, windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver}, nil,
+				fixture.resolver, windowmanager.DefaultConfig(), logger,
+				windowmanager.WithDeprecationObserver(windowManagerSurfaceDeprecationLogger(logger, &sync.Map{})),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := registry.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				WindowManager: registry, Profiles: newDaemonTestProfileManager(t, &fixture),
+			})
+			router := gin.New()
+			base := "/api/workspaces/" + fixture.workspace.ID + "/window-manager/layout"
+			router.GET("/api/workspaces/:workspace_id/window-manager/layout", handlers.ExportWindowManagerLayout)
+			router.POST(
+				"/api/workspaces/:workspace_id/window-manager/layout/validate",
+				handlers.ValidateWindowManagerLayout,
+			)
+			router.PUT("/api/workspaces/:workspace_id/window-manager/layout", handlers.ReplaceWindowManagerLayout)
+			request := func(method, path string, body []byte) *httptest.ResponseRecorder {
+				t.Helper()
+				response := httptest.NewRecorder()
+				router.ServeHTTP(
+					response,
+					httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewReader(body)),
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("%s %s status = %d, body = %s", method, path, response.Code, response.Body.String())
+				}
+				return response
+			}
+			exported := request(http.MethodGet, base, nil)
+			var document map[string]json.RawMessage
+			if err := json.Unmarshal(exported.Body.Bytes(), &document); err != nil {
+				t.Fatal(err)
+			}
+			document["overrides"] = json.RawMessage(
+				`{"raise_on_focus":"ignored","snap":{"edge_band":false},"new_window_policy":"floating"}`,
+			)
+			raw, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if item.forward {
+				var clientDocument contract.WindowManagerLayoutDocument
+				if err := json.Unmarshal(raw, &clientDocument); err != nil {
+					t.Fatal(err)
+				}
+				raw, err = json.Marshal(clientDocument)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			var revision windowmanager.Revision
+			second := http.MethodPost
+			if item.first == http.MethodPost {
+				second = http.MethodPut
+			}
+			for _, method := range []string{item.first, second, item.first} {
+				body, err := json.Marshal(map[string]any{
+					"workspace_id": fixture.workspace.ID, "document": json.RawMessage(raw),
+					"expected_revision": revision, "actor": map[string]string{"kind": "cli"},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := base
+				if method == http.MethodPost {
+					path += "/validate"
+					body, err = json.Marshal(map[string]any{
+						"workspace_id": fixture.workspace.ID, "document": json.RawMessage(raw),
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				response := request(method, path, body)
+				if method == http.MethodPost {
+					var validation contract.WindowManagerLayoutValidationResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &validation); err != nil || !validation.Valid {
+						t.Fatalf("validation = %+v, error = %v", validation, err)
+					}
+				} else {
+					var result contract.WindowManagerResult
+					if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+						t.Fatal(err)
+					}
+					revision = windowmanager.Revision(result.Snapshot.Revision)
+				}
+				lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+				if len(lines) != 3 {
+					t.Fatalf("daemon logs = %s, want exactly three surface warnings", logs.String())
+				}
+				seen := make(map[string]bool)
+				for _, line := range lines {
+					var entry map[string]any
+					if err := json.Unmarshal([]byte(line), &entry); err != nil {
+						t.Fatal(err)
+					}
+					surface, ok := entry["surface"].(string)
+					replacement, _ := entry["replacement"].(string)
+					actorKind, _ := entry["actor_kind"].(string)
+					if !ok || seen[surface] || entry["msg"] != "window_manager.deprecated_surface_used" ||
+						entry["level"] != "WARN" || replacement == "" || actorKind == "" {
+						t.Fatalf("deprecation log = %#v", entry)
+					}
+					seen[surface] = true
+				}
+				for _, key := range []string{"raise_on_focus", "snap.edge_band", "new_window_policy"} {
+					if !seen["window_manager."+key] {
+						t.Fatalf("missing %s warning: %s", key, logs.String())
+					}
+				}
+			}
+			var effective contract.WindowManagerLayoutDocument
+			if err := json.Unmarshal(request(http.MethodGet, base, nil).Body.Bytes(), &effective); err != nil {
+				t.Fatal(err)
+			}
+			if effective.Overrides.RaiseOnFocus != nil || effective.Overrides.Snap != nil ||
+				effective.Overrides.NewWindowPolicy == nil || *effective.Overrides.NewWindowPolicy != windowmanager.NewWindowTab {
+				t.Fatalf("effective overrides = %+v", effective.Overrides)
+			}
+		})
+	}
+
 	t.Run("Should isolate workspace behavior and follow active hot apply", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)

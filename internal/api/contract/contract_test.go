@@ -94,6 +94,30 @@ func TestCmdPalettePayloadJSONShape(t *testing.T) {
 
 func TestWindowManagerTabLayoutContract(t *testing.T) {
 	t.Parallel()
+	// Invariant: editing a decoded document takes precedence over its compatibility input bytes.
+	t.Run("Should encode edited effective overrides after decoding retired input", func(t *testing.T) {
+		t.Parallel()
+		var document contract.WindowManagerLayoutDocument
+		if err := json.Unmarshal([]byte(`{"version":6,"workspace_id":"workspace:test","desktops":[],"windows":{},
+			"overrides":{"raise_on_focus":"ignored","focus_wrap":true,"new_window_policy":"floating"}}`), &document); err != nil {
+			t.Fatal(err)
+		}
+		document.Overrides.FocusWrap = nil
+		document.Overrides.NewWindowPolicy = new(windowmanager.NewWindowInsert)
+		encoded, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var received windowmanager.LayoutDocument
+		if err := json.Unmarshal(encoded, &received); err != nil {
+			t.Fatal(err)
+		}
+		if received.Overrides.FocusWrap != nil || received.Overrides.NewWindowPolicy == nil ||
+			*received.Overrides.NewWindowPolicy != windowmanager.NewWindowInsert {
+			t.Fatalf("edited overrides = %+v", received.Overrides)
+		}
+	})
+
 	t.Run("Should preserve tabs and split weights through the public layout round trip", func(t *testing.T) {
 		t.Parallel()
 		axis := windowmanager.AxisHorizontal

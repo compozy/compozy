@@ -44,6 +44,8 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 		request.Payload = adjacentTabsCommand{id: c.CommandID(), target: new(c.TargetWindowID), ids: c.WindowIDs}
 	case ArrangeLayoutCommand:
 		request.Payload = canonicalArrangeCommand(c, report)
+	case ReplaceLayoutCommand:
+		deprecations = append(deprecations, c.Document.Overrides.Deprecations()...)
 	case BalanceLayoutCommand:
 		if c.GroupID != nil && *c.GroupID != "" {
 			report("layout.balance.group_id")
