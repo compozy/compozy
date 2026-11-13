@@ -500,7 +500,8 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		}
 		for _, parent := range []string{"WorkspaceConfig", "SettingsWindowManagerConfigPayload"} {
 			policy := propertySchema(t, componentSchema(t, document, parent), "new_window_policy")
-			if policy.Deprecated || policy.Description != `Deprecated value "floating": translated to "tab"; removed in v0.8.0.` {
+			if policy.Deprecated ||
+				policy.Description != `Deprecated value "floating": translated to "tab"; removed in v0.8.0.` {
 				t.Fatalf("%s.new_window_policy = %+v, want a retired-value notice with an active field", parent, policy)
 			}
 		}

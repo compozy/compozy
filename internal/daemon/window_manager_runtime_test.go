@@ -1144,7 +1144,12 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 		resolver := &windowManagerStoreWorkspaceResolver{
 			records: make(map[clientstate.WorkspaceID]windowManagerWorkspaceRecord),
 		}
-		engine, err := clientstate.Open(ctx, clientstate.DatabasePath(homePaths.HomeDir), resolver, clientstate.DefaultLimits())
+		engine, err := clientstate.Open(
+			ctx,
+			clientstate.DatabasePath(homePaths.HomeDir),
+			resolver,
+			clientstate.DefaultLimits(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1164,9 +1169,15 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			windowmanager.GlobalDesktopWorkspaceID: raw,
 			windowmanager.UserDesktopWorkspaceID:   healthy,
 		} {
-			if _, err := engine.Apply(ctx, clientstate.WorkspaceID(partition), windowManagerStateDomain,
-				[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(store.DefaultProfileID), Value: value}},
-				clientstate.ApplyOptions{}); err != nil {
+			if _, err := engine.Apply(
+				ctx,
+				clientstate.WorkspaceID(partition),
+				windowManagerStateDomain,
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(store.DefaultProfileID), Value: value},
+				},
+				clientstate.ApplyOptions{},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -1195,7 +1206,9 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 		if !d.serving.Load() || runtime.WindowManagers == nil {
 			t.Fatal("daemon did not enter serving phase")
 		}
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{WindowManager: runtime.WindowManagers, Profiles: runtime.Profiles})
+		handlers := core.NewBaseHandlers(
+			&core.BaseHandlerConfig{WindowManager: runtime.WindowManagers, Profiles: runtime.Profiles},
+		)
 		router := gin.New()
 		router.GET("/api/workspaces/:workspace_id/window-manager", handlers.GetWindowManagerSnapshot)
 		for partition, want := range map[windowmanager.WorkspaceID]int{
@@ -1210,7 +1223,11 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			}
 			if want == http.StatusOK {
 				var snapshot contract.WindowManagerSnapshot
-				if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil || len(snapshot.Desktops) != 1 || snapshot.Desktops[0].Name != "Healthy" {
+				if err := json.Unmarshal(
+					response.Body.Bytes(),
+					&snapshot,
+				); err != nil || len(snapshot.Desktops) != 1 ||
+					snapshot.Desktops[0].Name != "Healthy" {
 					t.Fatalf("healthy response=%s error=%v", response.Body, err)
 				}
 			}
@@ -1219,8 +1236,12 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		stored, err := runtime.WindowManagers.engine.Get(ctx, clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
-			windowManagerStateDomain, windowManagerSnapshotKey(store.DefaultProfileID))
+		stored, err := runtime.WindowManagers.engine.Get(
+			ctx,
+			clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+			windowManagerStateDomain,
+			windowManagerSnapshotKey(store.DefaultProfileID),
+		)
 		if err != nil || !bytes.Equal(stored.Value, raw) ||
 			!strings.Contains(string(logBytes), "window_manager.partition_reconciliation_skipped") ||
 			!strings.Contains(string(logBytes), store.DefaultProfileID) ||
@@ -1235,10 +1256,24 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), []byte(`{"version":7}`))
 		reconciler := &windowManagerSessionReconciler{registry: f.registry}
 		reconciler.SetReady()
-		if err := reconciler.ReconcileDeletedSession(t.Context(), testWindowManagerProfileID, "", "deleted"); !errors.Is(err, windowmanager.ErrUnavailable) {
+		if err := reconciler.ReconcileDeletedSession(
+			t.Context(),
+			testWindowManagerProfileID,
+			"",
+			"deleted",
+		); !errors.Is(
+			err,
+			windowmanager.ErrUnavailable,
+		) {
 			t.Fatalf("session deletion error=%v, want unavailable", err)
 		}
-		if err := f.registry.ReconcileUnregisteredWorkspace(t.Context(), f.workspace.ID); !errors.Is(err, windowmanager.ErrUnavailable) {
+		if err := f.registry.ReconcileUnregisteredWorkspace(
+			t.Context(),
+			f.workspace.ID,
+		); !errors.Is(
+			err,
+			windowmanager.ErrUnavailable,
+		) {
 			t.Fatalf("workspace unregistration error=%v, want unavailable", err)
 		}
 	})

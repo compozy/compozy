@@ -865,10 +865,15 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		status, err = f.manager.Migration(t.Context(), ws, "retry", true)
-		if err != nil || status.State != "migrated" || status.Error == nil || status.Error.Code != "migration.backup_superseded" || status.FailureRevision != 0 {
+		if err != nil || status.State != "migrated" || status.Error == nil ||
+			status.Error.Code != "migration.backup_superseded" ||
+			status.FailureRevision != 0 {
 			t.Fatalf("successful retry=%+v error=%v", status, err)
 		}
-		if !bytes.Equal(getDaemonState(t, &f, statekeys.SupersededLegacy(testWindowManagerProfileID, original)).Value, original) {
+		if !bytes.Equal(
+			getDaemonState(t, &f, statekeys.SupersededLegacy(testWindowManagerProfileID, original)).Value,
+			original,
+		) {
 			t.Fatal("retry or acknowledgement changed the superseded backup")
 		}
 		s, err = f.repository.Load(t.Context(), ws)

@@ -1440,7 +1440,28 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 			if !slices.Equal(result.Changes.DesktopIDs, []windowmanager.DesktopID{"desktop-default"}) ||
 				!slices.Equal(result.Changes.WindowIDs, []windowmanager.WindowID{windowmanager.WindowID(window)}) ||
 				!slices.Equal(result.Changes.TabIDs, wantTabs) {
-				t.Fatalf("move %s changes=%+v, want its desktop, window and source/destination tabs %v", window, result.Changes, wantTabs)
+				t.Fatalf(
+					"move %s changes=%+v, want its desktop, window and source/destination tabs %v",
+					window,
+					result.Changes,
+					wantTabs,
+				)
+			}
+		}
+		assertSplitNodeChanges := func(result contract.WindowManagerResult, target windowmanager.TabID) {
+			t.Helper()
+			tabs := result.Snapshot.Desktops[0].Tabs
+			index := slices.IndexFunc(
+				tabs,
+				func(candidate contract.WindowManagerTab) bool { return candidate.ID == target },
+			)
+			if index < 0 {
+				t.Fatalf("split target tab %s missing from snapshot", target)
+			}
+			root := tabs[index].Root
+			if root.Kind != windowmanager.NodeKindSplit ||
+				!slices.Equal(result.Changes.NodeIDs, []windowmanager.NodeID{root.ID}) {
+				t.Fatalf("split tab %s root=%+v changes=%+v", target, root, result.Changes)
 			}
 		}
 		r := execute(
@@ -1449,9 +1470,7 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 		)
 		tab := r.Snapshot.Windows["a"].TabID
 		assertMoveChanges(r, "b", sourceTabs["b"], tab)
-		if !slices.Equal(r.Changes.NodeIDs, []windowmanager.NodeID{r.Snapshot.Desktops[0].Tabs[0].Root.ID}) {
-			t.Fatalf("split node changes=%+v", r.Changes)
-		}
+		assertSplitNodeChanges(r, tab)
 		if len(r.Changes.TabSplit) != 1 || r.Changes.TabSplit[0] != tab || r.Snapshot.Windows["b"].TabID != tab {
 			t.Fatalf("member split=%+v", r)
 		}
@@ -1463,9 +1482,7 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 			),
 		)
 		assertMoveChanges(r, "c", sourceTabs["c"], tab)
-		if !slices.Equal(r.Changes.NodeIDs, []windowmanager.NodeID{r.Snapshot.Desktops[0].Tabs[0].Root.ID}) {
-			t.Fatalf("root split node changes=%+v", r.Changes)
-		}
+		assertSplitNodeChanges(r, tab)
 		if r.Snapshot.Windows["c"].TabID != tab || len(r.Changes.TabIDs) != 2 {
 			t.Fatalf("root split=%+v", r)
 		}
