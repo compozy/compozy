@@ -1,9 +1,14 @@
 /** S10: the one-time notice after the layout moved to tabs, driven by the migration status. */
 import { RefreshCw, X } from "@compozy/ui/icons";
 
-import { ActionResultBanner, Button } from "@compozy/ui";
+import { ActionResultBanner, Button, ConfirmDialog } from "@compozy/ui";
 
-export type UpgradeNoticeState = "migrated" | "failed" | "retrying";
+export type UpgradeNoticeState =
+  | "migrated"
+  | "failed"
+  | "retrying"
+  | "layout-changed"
+  | "replace-confirm";
 
 export function UpgradeNotice({
   state,
@@ -26,6 +31,36 @@ export function UpgradeNotice({
           description="3 floating windows and 2 minimized windows are tabs on this desktop. 1 pin inside a split was removed."
           title="Your windows are now tabs"
           tone="info"
+        />
+      </div>
+    );
+  }
+  if (state === "layout-changed" || state === "replace-confirm") {
+    return (
+      <div className="border-b border-line bg-canvas px-3 py-2" data-slot="os-upgrade-notice">
+        <ActionResultBanner
+          actions={
+            <>
+              <Button size="sm" variant="neutral">
+                Replace current layout
+              </Button>
+              <Button aria-label="Dismiss" onClick={onDismiss} size="icon-sm" variant="quiet">
+                <X aria-hidden="true" className="size-3.75" />
+              </Button>
+            </>
+          }
+          description="Your previous layout is saved and nothing was lost. This layout changed since, so moving the saved one to tabs replaces it."
+          title="We could not move your layout to tabs"
+          tone="warning"
+        />
+        <ConfirmDialog
+          cancelLabel="Cancel"
+          confirmLabel="Replace layout"
+          description="The tabs and windows you opened since the upgrade close, and your previous layout opens in their place as tabs."
+          onConfirm={() => undefined}
+          open={state === "replace-confirm"}
+          title="Replace current layout?"
+          tone="destructive"
         />
       </div>
     );

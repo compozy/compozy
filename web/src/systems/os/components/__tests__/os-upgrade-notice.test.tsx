@@ -2,8 +2,10 @@
 // Invariant: the notice shows while the snapshot's `migration` reports an unacknowledged
 // migration, with the counts the upgrade reported; dismissing posts `ack` and hides it at once
 // without coming back before or after the frame; a snapshot without `migration` (another client's
-// ack) hides it; a failed migration offers Retry and shows "Retrying" while it runs
-// (US-017.AC-6, EC-6, EC-8).
+// ack) hides it; a failed migration offers Retry and shows "Retrying" while it runs; a retry the
+// daemon would refuse because the layout changed since the failure (or a 409 that still arrives)
+// is offered as a confirmed "Replace current layout": confirming sends `replace: true` once,
+// cancelling sends nothing (US-017.AC-6, EC-6, EC-8; operator decision Q1 — a).
 // Owning layer: OsUpgradeNotice + useOsUpgradeNotice over the shell projection of the cached
 // snapshot. Boundary OUT: the migration HTTP adapter (mocked at the I/O boundary); the stream's
 // same-revision frame handling is owned by the stream hook suite.
@@ -13,6 +15,7 @@ import userEvent from "@testing-library/user-event";
 import type * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WindowManagerApiError } from "../../adapters/window-manager-api";
 import { DeskProfileContext } from "../../contexts/desk-profile-context";
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
@@ -33,6 +36,8 @@ vi.mock("../../adapters/window-manager-api", async importOriginal => ({
 }));
 
 const SNAPSHOT_KEY = windowManagerKeys.snapshot("workspace:test", "default");
+/** The revision of the rendered snapshot; a failure left at it can still be retried plainly. */
+const REVISION = 7;
 
 const SUMMARY = {
   desktops: 2,
@@ -61,7 +66,16 @@ function status(
 }
 
 function snapshotWith(migration: WindowManagerMigrationStatus | null): WindowManagerSnapshot {
-  return { workspaceId: "workspace:test", revision: 7, migration } as WindowManagerSnapshot;
+  return { workspaceId: "workspace:test", revision: REVISION, migration } as WindowManagerSnapshot;
+}
+
+function failedStatus(failureRevision: number): WindowManagerMigrationStatus {
+  return status({
+    state: "failed",
+    summary: null,
+    error: { code: "window_manager_invalid_snapshot", path: null, message: "bad tree" },
+    failureRevision,
+  });
 }
 
 /** The shell projection follows the cached snapshot, as the runtime publishes it. */
@@ -157,26 +171,14 @@ describe("OsUpgradeNotice", () => {
     const { frame } = renderNotice(null);
     expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
 
-    frame(
-      status({
-        state: "failed",
-        summary: null,
-        error: { code: "window_manager_invalid_snapshot", path: null, message: "bad tree" },
-        failureRevision: 4,
-      })
-    );
+    frame(failedStatus(REVISION));
     expect(screen.getByText("We could not move your layout to tabs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
   });
 
   it("Should offer Retry on a failed migration and show it running", async () => {
     const user = userEvent.setup();
-    const failed = status({
-      state: "failed",
-      summary: null,
-      error: { code: "window_manager_invalid_snapshot", path: null, message: "bad tree" },
-      failureRevision: 4,
-    });
+    const failed = failedStatus(REVISION);
     let finishRetry: (value: WindowManagerMigrationStatus) => void = () => {};
     api.updateWindowManagerMigration.mockReturnValue(
       new Promise(resolve => {
@@ -190,11 +192,86 @@ describe("OsUpgradeNotice", () => {
     expect(api.updateWindowManagerMigration).toHaveBeenCalledWith(
       "workspace:test",
       "default",
-      "retry"
+      "retry",
+      { replace: false }
     );
     expect(await screen.findByRole("button", { name: "Retrying" })).toBeDisabled();
 
     finishRetry(status());
     expect(await screen.findByText("Your windows are now tabs")).toBeInTheDocument();
+  });
+
+  it("Should offer a confirmed replace when the layout changed after the failure, sending replace once", async () => {
+    const user = userEvent.setup();
+    let finishReplace: (value: WindowManagerMigrationStatus) => void = () => {};
+    api.updateWindowManagerMigration.mockReturnValue(
+      new Promise(resolve => {
+        finishReplace = resolve;
+      })
+    );
+    renderNotice(failedStatus(REVISION - 3));
+
+    expect(screen.getByText("We could not move your layout to tabs")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Replace current layout" }));
+    expect(screen.getByText("Replace current layout?")).toBeInTheDocument();
+    expect(api.updateWindowManagerMigration).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Replace layout" }));
+    expect(api.updateWindowManagerMigration).toHaveBeenCalledTimes(1);
+    expect(api.updateWindowManagerMigration).toHaveBeenCalledWith(
+      "workspace:test",
+      "default",
+      "retry",
+      { replace: true }
+    );
+    expect(await screen.findByRole("button", { name: "Retrying" })).toBeDisabled();
+    expect(screen.queryByText("Replace current layout?")).toBeNull();
+
+    finishReplace(status());
+    expect(await screen.findByText("Your windows are now tabs")).toBeInTheDocument();
+  });
+
+  it("Should send nothing and keep the notice when the replace is cancelled", async () => {
+    const user = userEvent.setup();
+    renderNotice(failedStatus(REVISION - 3));
+
+    await user.click(screen.getByRole("button", { name: "Replace current layout" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByText("Replace current layout?")).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace current layout" })).toBeEnabled();
+    expect(api.updateWindowManagerMigration).not.toHaveBeenCalled();
+  });
+
+  it("Should keep offering the replace when a replaced conversion fails again", async () => {
+    const user = userEvent.setup();
+    const failed = failedStatus(REVISION - 3);
+    api.updateWindowManagerMigration.mockResolvedValue({
+      ...failed,
+      at: "2026-11-12T16:00:00Z",
+      error: { code: "window_manager_invalid_snapshot", path: null, message: "still bad" },
+    });
+    renderNotice(failed);
+
+    await user.click(screen.getByRole("button", { name: "Replace current layout" }));
+    await user.click(screen.getByRole("button", { name: "Replace layout" }));
+
+    expect(await screen.findByRole("button", { name: "Replace current layout" })).toBeEnabled();
+    expect(screen.getByText("We could not move your layout to tabs")).toBeInTheDocument();
+  });
+
+  it("Should turn a refused plain retry into the confirmed replace", async () => {
+    const user = userEvent.setup();
+    api.updateWindowManagerMigration.mockRejectedValueOnce(
+      new WindowManagerApiError("revision conflict", 409, null)
+    );
+    renderNotice(failedStatus(REVISION));
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("button", { name: "Replace current layout" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(api.updateWindowManagerMigration).toHaveBeenCalledTimes(1);
   });
 });

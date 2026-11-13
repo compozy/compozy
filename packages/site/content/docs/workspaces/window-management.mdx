@@ -217,9 +217,11 @@ The app then shows **Your windows are now tabs** with the number of floating and
 that became tabs. Dismissing it in one window dismisses it everywhere. If the conversion fails, the
 app shows **We could not move your layout to tabs**: your previous layout is kept, the desktop starts
 with one New tab window, and **Retry** runs the conversion again; **Dismiss** hides the notice and keeps
-the saved layout. In the app a retry is refused when you have changed the layout since the failure,
-so your new work is never replaced; `compozy layout migration retry --replace` is the way to replace
-it on purpose.
+the saved layout. Once you have changed the layout since the failure, a plain retry is refused so
+your new work is never replaced silently: the notice says so and offers **Replace current layout**,
+which asks you to confirm before the tabs and windows you opened since the upgrade close and your
+previous layout opens in their place as tabs. `compozy layout migration retry --replace` does the
+same from the command line.
 
 The same status is available to scripts and agents:
 

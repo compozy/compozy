@@ -71,7 +71,9 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `compozy__window_move`) maps to `tab` and reports the deprecation `window.move.placement=empty`. New routes `GET` and `POST
   /api/workspaces/{workspace_id}/window-manager/migration` (`WindowManagerMigrationRequest` →
   `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
-  stream frame. A failed status carries `failure_revision` (`omitempty`; the fallback snapshot is revision 0, so
+  stream frame. The Web failure notice sends `replace: true` only after the operator confirms
+  "Replace current layout", offered when the snapshot revision differs from `failure_revision` (the
+  daemon's own rule) or a plain retry answers 409; `ack` never sends it. A failed status carries `failure_revision` (`omitempty`; the fallback snapshot is revision 0, so
   a fresh failure omits it; cleared by a successful retry) and `error`,
   whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`;
   `error` is absent on every other state. New additive `superseded_backups` (integer, `minimum: 0`,

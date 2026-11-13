@@ -197,6 +197,16 @@ export const SCENES: Record<string, Scene> = {
   },
   "notice-failed": { tabs: [EMPTY], activeTabId: EMPTY.id, notice: "failed" },
   "notice-retrying": { tabs: [EMPTY], activeTabId: EMPTY.id, notice: "retrying" },
+  "notice-layout-changed": {
+    tabs: [TAB.dash, TAB.auth],
+    activeTabId: TAB.auth.id,
+    notice: "layout-changed",
+  },
+  "notice-replace-confirm": {
+    tabs: [TAB.dash, TAB.auth],
+    activeTabId: TAB.auth.id,
+    notice: "replace-confirm",
+  },
 };
 
 function narrowTwoUp() {

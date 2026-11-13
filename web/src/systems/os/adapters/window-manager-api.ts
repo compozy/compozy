@@ -210,17 +210,19 @@ export async function executeWindowManagerCommand(
 
 /**
  * `ack` dismisses the upgrade notice for every client; `retry` re-runs a failed conversion from
- * the preserved layout, refused with a revision conflict when the layout changed since.
+ * the preserved layout, refused with a revision conflict when the layout changed since unless
+ * `replace` is set, which swaps the current layout for the converted one. `ack` never replaces.
  */
 export async function updateWindowManagerMigration(
   workspaceId: string,
   profile: string,
   action: "ack" | "retry",
-  signal?: AbortSignal
+  options: { replace?: boolean; signal?: AbortSignal } = {}
 ): Promise<WindowManagerMigrationStatus> {
+  const replace = action === "retry" && options.replace === true;
   const response = await daemonFetch(
     `${apiBaseUrl}${managerUrl(workspaceId, profile, "/migration")}`,
-    { ...jsonRequest({ action, replace: false }, signal), method: "POST" }
+    { ...jsonRequest({ action, replace }, options.signal), method: "POST" }
   );
   return parseWindowManagerMigrationStatus(await requireSuccess(response, workspaceId));
 }
