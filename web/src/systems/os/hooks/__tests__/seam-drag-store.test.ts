@@ -2,7 +2,8 @@
 // Invariant: one captured pointer owns a seam drag; it commits at most one resize, fenced to the
 // revision and split of the seam it is based on, and a cancelled drag commits nothing. A re-based
 // drag keeps the seam on screen under the pointer and commits against the new seam only. The
-// shift a frame's admission lets through is the one it reports at its limit and commits.
+// shift a frame's admission lets through is the one it commits; it reports its limit once that
+// holds the frame back by a pixel or more.
 // Owning layer: the shared seam drag interaction store. Boundary OUT: pointer transport, the seam
 // preview and command I/O (useOsSplitSeam in the OS interaction hooks suite).
 import { describe, expect, it } from "vitest";
@@ -85,7 +86,7 @@ describe("seamDragLogic", () => {
     expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(-0.2);
   });
 
-  it("Should report the limit and commit the admitted shift when the admission holds a frame back", () => {
+  it("Should report the limit only for a frame held back a pixel or more, and commit the admitted shift", () => {
     const store = startedStore();
     // Inside the seam's bounds, but the split only lays out side by side up to 40px.
     store.trigger.pointerMoved({
@@ -97,6 +98,11 @@ describe("seamDragLogic", () => {
     expect(store.getSnapshot().context).toMatchObject({ deltaPx: 60.5, shownPx: 40 });
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
     expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.04);
+    // Held back by half a pixel only: no limit, and the commit is still the admitted shift.
+    store.trigger.readmitted({ admit: requestedPx => Math.trunc(requestedPx) });
+    expect(store.getSnapshot().context).toMatchObject({ deltaPx: 60.5, shownPx: 60 });
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(false);
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.06);
     // Admitted again once the layout under it lets the whole request through.
     store.trigger.readmitted({ admit: within(SEAM) });
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(false);

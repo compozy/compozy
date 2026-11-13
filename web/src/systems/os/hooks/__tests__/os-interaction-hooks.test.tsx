@@ -3025,15 +3025,20 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     const seam = stubPointerCapture(screen.getByTestId("seam"));
     fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: stored.value, clientY: 300 });
 
-    // Past both bounds (80px either way): no frame shows the row one member at a time, and each
-    // is held at a whole pixel, so the seam reports its limit.
+    // Past both bounds (80px either way): no frame shows the row one member at a time. Inside
+    // them each frame is held half a pixel back, which is no limit; past them the bound holds it
+    // back a pixel or more, and the seam reports its limit.
     for (let pointer = stored.value - 120; pointer <= stored.value + 120; pointer += 1) {
       fireEvent.pointerMove(seam, { pointerId: 4, clientX: pointer, clientY: 300 });
       flushFrames();
+      const requestedPx = pointer - stored.value + 0.5;
       const frame = project(applySeamPreviewToTab(tab, stored, previewDelta() ?? 0));
       expect(frame.collapsed).toEqual([]);
       expect(frame.seams.map(entry => entry.id)).toEqual(["split:main:0", "split:main:1"]);
-      expect(seam).toHaveAttribute("data-state", "limit");
+      expect(seam).toHaveAttribute(
+        "data-state",
+        Math.abs(requestedPx) - 80 >= 1 ? "limit" : "drag"
+      );
     }
     // Released asking for 40.5px: the last frame shows 40px, and that is what commits.
     fireEvent.pointerUp(seam, { pointerId: 4, clientX: stored.value + 40, clientY: 300 });

@@ -130,12 +130,19 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
 });
 
 /**
+ * How far a frame must be held back from the pointer before the seam reports its limit. A frame
+ * held back by less only drops a fraction of a pixel (a high-density pointer on a split whose
+ * shares tie), which is not the seam refusing to follow; it still shows and commits that frame.
+ */
+export const SEAM_LIMIT_HOLDBACK_PX = 1;
+
+/**
  * A pixel drag pushed past where its split still lays out side by side: the seam stops at the
- * admitted shift and says so.
+ * admitted shift and says so once that holds it back by `SEAM_LIMIT_HOLDBACK_PX` or more.
  */
 export function seamDragAtLimit(state: SeamDragState): boolean {
   if (state.phase !== "dragging" || state.seam === null) return false;
-  return state.shownPx !== state.deltaPx;
+  return Math.abs(state.deltaPx - state.shownPx) >= SEAM_LIMIT_HOLDBACK_PX;
 }
 
 export interface SeamDragCommit {
