@@ -200,4 +200,48 @@ describe("drop result", () => {
       })
     ).toBe(false);
   });
+
+  it("a reorder inside a split never fails the fit check", () => {
+    const tab: LayoutTab = {
+      id: "tab:three",
+      pinned: false,
+      root: {
+        id: "split:three",
+        kind: "split",
+        axis: "horizontal",
+        weights: [0.2, 0.5, 0.3],
+        children: [leaf("a"), leaf("b"), leaf("c")],
+      },
+    };
+    const minimums = {
+      a: { width: 300, height: 200 },
+      b: { width: 300, height: 200 },
+      c: { width: 300, height: 200 },
+      d: { width: 300, height: 200 },
+    };
+    // 800px cannot hold three 300px members: the split already shows one member at a time.
+    const narrow: PixelRect = { x: 0, y: 0, w: 800, h: 800 };
+    expect(projectTab({ tab, workArea: narrow, gaps: GAPS, minimums }).collapsed).toEqual([
+      expect.objectContaining({ splitId: "split:three" }),
+    ]);
+    const head = { tab, gaps: GAPS, minimums, workArea: narrow, incoming: leaf("a") };
+    const reorder = { ...head, leavingWindowId: "a" };
+
+    // a moves beside a sibling along the split's own axis, or to the root edge of that axis.
+    expect(
+      dropFits({
+        ...reorder,
+        drop: { kind: "window", windowId: "c", nodeId: "leaf:c", edge: "right" },
+      })
+    ).toBe(true);
+    expect(dropFits({ ...reorder, drop: { kind: "root", edge: "right" } })).toBe(true);
+    // A new member still cannot join a split that cannot hold it.
+    expect(
+      dropFits({
+        ...head,
+        incoming: leaf("d"),
+        drop: { kind: "window", windowId: "c", nodeId: "leaf:c", edge: "right" },
+      })
+    ).toBe(false);
+  });
 });

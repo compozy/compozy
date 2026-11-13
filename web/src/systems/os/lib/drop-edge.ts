@@ -5,6 +5,7 @@ import type {
   LayoutAxis,
   LayoutNode,
   LayoutNodeId,
+  LayoutSplitNode,
   LayoutTab,
   PixelPoint,
   PixelRect,
@@ -181,6 +182,17 @@ export interface DropFitInput {
   minimums: WindowMinimums;
 }
 
+/** Whether this split shows one member at a time in the tab as it is now. */
+function collapsedNow(input: DropFitInput, splitId: LayoutNodeId): boolean {
+  const projection = projectTab({
+    tab: input.tab,
+    workArea: input.workArea,
+    gaps: input.gaps,
+    minimums: input.minimums,
+  });
+  return projection.collapsed.some(split => split.splitId === splitId);
+}
+
 /** Where a projected tab falls short: the nodes it reports and the windows those hold. */
 interface Shortfalls {
   nodeIds: Set<LayoutNodeId>;
@@ -204,13 +216,48 @@ function shortfallsOf(tab: LayoutTab, input: DropFitInput): Shortfalls {
   return { nodeIds: new Set(projection.diagnostics.map(entry => entry.nodeId)), windowIds };
 }
 
+/** The split whose direct child is this window's leaf, or null at the root. */
+function parentSplitOf(node: LayoutNode, windowId: WindowId): LayoutSplitNode | null {
+  if (node.kind === "leaf") return null;
+  if (node.children.some(child => child.kind === "leaf" && child.windowId === windowId)) {
+    return node;
+  }
+  for (const child of node.children) {
+    const parent = parentSplitOf(child, windowId);
+    if (parent !== null) return parent;
+  }
+  return null;
+}
+
+/**
+ * The split a drop only reorders: the moved window leaves it and lands beside a sibling of the
+ * same split (or at the tab's root edge when that split is the root), along the split's own axis.
+ * Members and axis stay the same; only their order changes.
+ */
+function reorderedSplit(input: DropFitInput): LayoutSplitNode | null {
+  if (input.leavingWindowId === undefined) return null;
+  const parent = parentSplitOf(input.tab.root, input.leavingWindowId);
+  if (parent === null || EDGE_AXIS[input.drop.edge].axis !== parent.axis) return null;
+  if (input.drop.kind === "root") return parent.id === input.tab.root.id ? parent : null;
+  const target = input.drop.windowId;
+  const sibling = parent.children.some(
+    child => child.kind === "leaf" && child.windowId === target && target !== input.leavingWindowId
+  );
+  return sibling ? parent : null;
+}
+
 /**
  * A drop is offered only when its result keeps every member it adds at its pixel minimum: no
  * incoming window may land in a split that shows one member at a time or below its minimum, and
  * the drop may not make any other node fall short. A shortfall the tab already had is kept only
- * by identity — the same node, holding none of the incoming windows.
+ * by identity — the same node, holding none of the incoming windows. A head that only reorders
+ * the members of its own already-collapsed split is always offered.
  */
 export function dropFits(input: DropFitInput): boolean {
+  // A reorder inside a split that already shows one member at a time cannot fit worse: the split
+  // keeps its members and axis, so it collapses exactly as it already does.
+  const reordered = reorderedSplit(input);
+  if (reordered !== null && collapsedNow(input, reordered.id)) return true;
   const base =
     input.leavingWindowId === undefined
       ? input.tab.root
