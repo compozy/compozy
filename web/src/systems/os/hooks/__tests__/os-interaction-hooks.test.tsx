@@ -1659,6 +1659,8 @@ describe("WindowPaneHosts", () => {
         return (
           <section onFocusCapture={member.handleFocusCapture}>
             <textarea aria-label={`${windowId} composer`} />
+            {/* An overlay the pane renders on the shell, as a hidden editor's question is. */}
+            {createPortal(<button type="button">{`${windowId} overlay`}</button>, document.body)}
           </section>
         );
       }
@@ -1720,6 +1722,24 @@ describe("WindowPaneHosts", () => {
       expect(userFocus).not.toHaveBeenCalled();
       expect(shell.controller.focusWindow).not.toHaveBeenCalled();
       expect(shell.history.navigate).not.toHaveBeenCalled();
+      cleanup();
+    });
+
+    // Invariant (AS-F-21): focus landing in an overlay portaled outside the pane's DOM does not
+    // send window focus or write history, though React propagates it to the pane's handler.
+    it("Should not focus the window for focus in an overlay it portals outside the pane [AS-F-21]", () => {
+      const { shell, composer, userFocus, cleanup } = renderPanes();
+      act(() => shell.setRuntimeState({ focusedId: "window:peer" }));
+
+      act(() => screen.getByRole("button", { name: "window:primary overlay" }).focus());
+
+      expect(userFocus).not.toHaveBeenCalled();
+      expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+      expect(shell.history.navigate).not.toHaveBeenCalled();
+
+      // Focus inside the pane is still the operator choosing the window.
+      act(() => composer.focus());
+      expect(userFocus).toHaveBeenCalledOnce();
       cleanup();
     });
 
