@@ -74,7 +74,11 @@ func (h *BaseHandlers) bellNotificationItems(
 		return nil, err
 	}
 	items = append(items, upgrades...)
+	applyBellWorkspaceLabels(items, labels)
+	return items, nil
+}
 
+func applyBellWorkspaceLabels(items []contract.AttentionNotificationPayload, labels map[string]string) {
 	for index := range items {
 		if items[index].WorkspaceLabel != "" {
 			continue
@@ -83,11 +87,10 @@ func (h *BaseHandlers) bellNotificationItems(
 		if items[index].WorkspaceLabel == "" {
 			items[index].WorkspaceLabel = items[index].WorkspaceID
 			if items[index].WorkspaceID == "" {
-				items[index].WorkspaceLabel = "User"
+				items[index].WorkspaceLabel = userScopeLabel
 			}
 		}
 	}
-	return items, nil
 }
 
 func (h *BaseHandlers) sessionNotificationItems(ctx context.Context) ([]contract.AttentionNotificationPayload, error) {

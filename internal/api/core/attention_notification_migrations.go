@@ -33,7 +33,7 @@ func (h *BaseHandlers) migrationNotificationItems(
 		label := labels[string(notice.WorkspaceID)]
 		switch notice.WorkspaceID {
 		case windowmanager.UserDesktopWorkspaceID:
-			label = "User"
+			label = userScopeLabel
 		case windowmanager.GlobalDesktopWorkspaceID:
 			label = "All projects"
 		}
