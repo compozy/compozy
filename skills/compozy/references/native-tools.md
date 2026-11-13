@@ -795,7 +795,8 @@ Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired 
 unacknowledged. A successful conversion is a `layout-upgrade` bell notification ("Your windows are
 now tabs"); reading it or clearing its captured bell snapshot durably acknowledges the conversion
 and refreshes connected clients' snapshots. The bell includes all source profiles in registered
-workspaces; its receipt profile does not filter layout conversions. Migration `ack` through
+workspaces and the reserved User (`user`) and All projects (`global`) desktops; its receipt profile
+does not filter layout conversions. Unregistered project workspaces stay out. Migration `ack` through
 HTTP/UDS or `compozy layout migration ack` also removes the item. Failed conversions stay inline.
 
 `desktop_switch` and `window_focus` require a connected `client_id`.

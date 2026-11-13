@@ -76,6 +76,9 @@ func (h *BaseHandlers) bellNotificationItems(
 	items = append(items, upgrades...)
 
 	for index := range items {
+		if items[index].WorkspaceLabel != "" {
+			continue
+		}
 		items[index].WorkspaceLabel = labels[items[index].WorkspaceID]
 		if items[index].WorkspaceLabel == "" {
 			items[index].WorkspaceLabel = items[index].WorkspaceID

@@ -1040,14 +1040,16 @@ func (bellReceiptProfiles) Resolve(ctx context.Context, input profilepkg.Resolve
 
 type bellMigrationSource struct {
 	core.WindowManagerProvider
-	notices []windowmanager.MigrationNotice
-	reads   int
-	acked   []string
+	notices    []windowmanager.MigrationNotice
+	workspaces []windowmanager.WorkspaceID
+	reads      int
+	acked      []windowmanager.MigrationNotice
 }
 
 func (s *bellMigrationSource) MigrationNotifications(
-	_ context.Context, _ []windowmanager.WorkspaceID,
+	_ context.Context, workspaces []windowmanager.WorkspaceID,
 ) ([]windowmanager.MigrationNotice, error) {
+	s.workspaces = workspaces
 	s.reads++
 	return s.notices, nil
 }
@@ -1056,7 +1058,7 @@ func (s *bellMigrationSource) AcknowledgeMigrationNotification(
 	_ context.Context,
 	notice windowmanager.MigrationNotice,
 ) error {
-	s.acked = append(s.acked, notice.ProfileID)
+	s.acked = append(s.acked, notice)
 	for i := range s.notices {
 		if s.notices[i].ProfileID == notice.ProfileID && s.notices[i].WorkspaceID == notice.WorkspaceID {
 			s.notices[i].Status.Acknowledged = true
@@ -1195,6 +1197,92 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 			}
 		},
 	)
+	// Invariant: reserved desktop conversions share the project read and preserve their ack partition.
+	for _, single := range []bool{true, false} {
+		name := "Should clear reserved desktop conversions without registered projects"
+		if single {
+			name = "Should acknowledge one reserved desktop conversion alongside registered projects"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			source := &bellMigrationSource{}
+			for _, partition := range []windowmanager.WorkspaceID{
+				windowmanager.UserDesktopWorkspaceID, windowmanager.GlobalDesktopWorkspaceID, "unregistered",
+			} {
+				n := notice(store.DefaultProfileID)
+				n.WorkspaceID = partition
+				source.notices = append(source.notices, n)
+			}
+			f := newBellMigrationFixture(t, source)
+			wantPartitions := map[windowmanager.WorkspaceID]bool{
+				windowmanager.UserDesktopWorkspaceID: true, windowmanager.GlobalDesktopWorkspaceID: true,
+			}
+			if single {
+				wantPartitions["ws-1"] = true
+			} else {
+				f.Handlers.Workspaces = testutil.StubWorkspaceService{
+					ListFn: func(context.Context) ([]workspacepkg.Workspace, error) { return nil, nil },
+				}
+			}
+			before := readBellMigrationNotifications(t, f, "profile=default")
+			if before.Total != 2 || before.Finished != 2 || len(before.Items) != 2 {
+				t.Fatalf("before=%+v", before)
+			}
+			gotPartitions := make(map[windowmanager.WorkspaceID]bool)
+			for _, partition := range source.workspaces {
+				gotPartitions[partition] = true
+			}
+			if source.reads != 1 || len(source.workspaces) != len(wantPartitions) ||
+				!reflect.DeepEqual(gotPartitions, wantPartitions) {
+				t.Fatalf("aggregate reads=%d partitions=%v want=%v", source.reads, source.workspaces, wantPartitions)
+			}
+			labels := map[string]string{"user": "User", "global": "All projects"}
+			request := contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot}
+			for _, item := range before.Items {
+				if labels[item.WorkspaceID] == "" || item.WorkspaceLabel != labels[item.WorkspaceID] ||
+					item.SourceID != item.WorkspaceID ||
+					item.ID != attention.Identity(
+						"layout-upgrade",
+						item.WorkspaceID,
+						store.DefaultProfileID,
+						at.Format(time.RFC3339Nano),
+					) {
+					t.Fatalf("reserved item=%+v", item)
+				}
+				delete(labels, item.WorkspaceID)
+				if single && item.WorkspaceID == string(windowmanager.UserDesktopWorkspaceID) {
+					request.ID = item.ID
+				}
+			}
+			body, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := performRequest(t, f.Engine, http.MethodPost,
+				"/notifications/attention/acknowledge?profile=default&surface=bell", body)
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("ack status=%d body=%s", response.Code, response.Body.String())
+			}
+			wantAcked, wantRemaining := 2, 0
+			if single {
+				wantAcked, wantRemaining = 1, 1
+			}
+			if len(source.acked) != wantAcked || source.notices[2].Status.Acknowledged {
+				t.Fatalf("acked=%+v notices=%+v", source.acked, source.notices)
+			}
+			for _, acked := range source.acked {
+				if acked.ProfileID != store.DefaultProfileID || !acked.Status.At.Equal(at) ||
+					!windowmanager.IsReservedDesktopPartition(acked.WorkspaceID) ||
+					(single && acked.WorkspaceID != windowmanager.UserDesktopWorkspaceID) {
+					t.Fatalf("acknowledged wrong source=%+v", acked)
+				}
+			}
+			after := readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=marketing")
+			if after.Total != wantRemaining || source.reads != 3 {
+				t.Fatalf("remaining=%d want=%d aggregate reads=%d", after.Total, wantRemaining, source.reads)
+			}
+		})
+	}
 	for _, tc := range []struct {
 		name    string
 		summary *windowmanager.MigrationSummary

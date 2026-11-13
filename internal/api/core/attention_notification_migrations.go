@@ -30,9 +30,16 @@ func (h *BaseHandlers) migrationNotificationItems(
 	}
 	items := make([]contract.AttentionNotificationPayload, 0, len(notices))
 	for _, notice := range notices {
+		label := labels[string(notice.WorkspaceID)]
+		switch notice.WorkspaceID {
+		case windowmanager.UserDesktopWorkspaceID:
+			label = "User"
+		case windowmanager.GlobalDesktopWorkspaceID:
+			label = "All projects"
+		}
 		items = append(items, contract.AttentionNotificationPayload{
 			ID: migrationNotificationID(notice), Kind: "layout-upgrade", SourceID: string(notice.WorkspaceID),
-			WorkspaceID: string(notice.WorkspaceID), Title: "Your windows are now tabs",
+			WorkspaceID: string(notice.WorkspaceID), WorkspaceLabel: label, Title: "Your windows are now tabs",
 			Detail: migrationNotificationDetail(notice.Status.Summary), OccurredAt: notice.Status.At, Finished: true,
 		})
 	}
@@ -46,9 +53,13 @@ func (h *BaseHandlers) migrationNotifications(
 	if !ok {
 		return nil, nil
 	}
-	workspaces := make([]windowmanager.WorkspaceID, 0, len(labels))
+	// Reserved desktops have no project registration, but share the same bounded read.
+	workspaces := make([]windowmanager.WorkspaceID, 0, len(labels)+2)
+	workspaces = append(workspaces, windowmanager.UserDesktopWorkspaceID, windowmanager.GlobalDesktopWorkspaceID)
 	for id := range labels {
-		workspaces = append(workspaces, windowmanager.WorkspaceID(id))
+		if !windowmanager.IsReservedDesktopPartition(windowmanager.WorkspaceID(id)) {
+			workspaces = append(workspaces, windowmanager.WorkspaceID(id))
+		}
 	}
 	notices, err := source.MigrationNotifications(ctx, workspaces)
 	if err != nil {
@@ -56,7 +67,8 @@ func (h *BaseHandlers) migrationNotifications(
 	}
 	eligible := make([]windowmanager.MigrationNotice, 0, len(notices))
 	for _, notice := range notices {
-		if _, registered := labels[string(notice.WorkspaceID)]; registered &&
+		_, registered := labels[string(notice.WorkspaceID)]
+		if (registered || windowmanager.IsReservedDesktopPartition(notice.WorkspaceID)) &&
 			notice.Status.State == "migrated" && !notice.Status.Acknowledged && !notice.Status.At.IsZero() {
 			eligible = append(eligible, notice)
 		}

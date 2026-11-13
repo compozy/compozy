@@ -425,8 +425,10 @@ meaningful for `retry`.
   for the profile after later upgrades set them aside (see the downgrade bullet).
 - A successful conversion appears in the top bar bell as `kind: "layout-upgrade"`, titled
   "Your windows are now tabs", with the floating/minimized window and removed-pin counts. The bell
-  includes every source profile across registered workspaces; `profile` and `receipt_profile`
-  select acknowledgement receipts, not the source population. Failed conversions stay inline.
+  includes every source profile across registered workspaces and the reserved User (`user`) and
+  All projects (`global`) desktops; unregistered project workspaces stay out. `profile` and
+  `receipt_profile` select acknowledgement receipts, not the source population. Failed conversions
+  stay inline.
 - Reading the bell item or clearing its captured bell snapshot acknowledges that conversion for
   every client and surface, including its source profile. A later successful conversion has a new
   occurrence. `ack` through the migration route or CLI also removes the bell item at the next read
