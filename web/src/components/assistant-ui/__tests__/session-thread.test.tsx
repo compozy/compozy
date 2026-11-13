@@ -8978,6 +8978,8 @@ describe("useThreadScrollResume", () => {
       getTotalSize: () => rows.reduce((total, row) => total + row.size, 0),
     } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>;
     const viewport = document.createElement("div");
+    const layout = { width: 800 };
+    Object.defineProperty(viewport, "clientWidth", { configurable: true, get: () => layout.width });
     document.body.append(viewport);
     onTestFinished(() => viewport.remove());
     const store = threadScrollLogic.createStore();
@@ -8995,22 +8997,38 @@ describe("useThreadScrollResume", () => {
         viewport.dispatchEvent(new Event(SCROLL_RESTORE_EVENT));
       });
     };
-    return { rows, viewport, store, placeTurn, hook, hideAndShow };
+    return { rows, layout, viewport, store, placeTurn, hook, hideAndShow };
   }
 
-  it("Should resume the same depth into a row whose height changed while hidden", () => {
-    const { rows, viewport, store, hideAndShow } = setupResume();
+  it("Should resume the same share of a row a width change reflowed while hidden", () => {
+    const { rows, layout, viewport, store, hideAndShow } = setupResume();
     store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
     viewport.scrollTop = 600;
     fireEvent.scroll(viewport);
 
     // A narrower pane reflows the rows: each one doubles in height.
     hideAndShow(() => {
+      layout.width = 400;
       for (const row of rows) row.size = 800;
     });
 
     // Halfway into row b, as before, not the old 200px into it.
     expect(viewport.scrollTop).toBe(1_200);
+  });
+
+  it("Should keep the reader's text in a reply that grew while hidden at the same width", () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // The reply in row b streamed on: text was appended below the reader.
+    hideAndShow(() => {
+      rows[1]!.size = 1_600;
+    });
+
+    // Still 200px into row b, not halfway into the longer reply.
+    expect(viewport.scrollTop).toBe(600);
   });
 
   it("Should place a turn that started while the pane was hidden", () => {
