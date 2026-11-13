@@ -4,7 +4,8 @@
 // keeps the edits and loses its review, because Apply carries `expected_revision`
 // and must not ride a revision the daemon never checked the draft against.
 // Imported files and layouts saved before tabs and splits reach the draft only
-// as the version 6 document the daemon converted them to.
+// as the version 6 document the daemon converted them to, and an exported file
+// is that wire document, so it imports back unchanged.
 // Boundary IN: successive layout states from the query; the convert adapter.
 // Boundary OUT: canvas rendering, transport, the profile editor.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ vi.mock("../../adapters/window-manager-layouts-api", async importOriginal => ({
 }));
 
 import { renameLayoutDesktop } from "../../lib/window-manager-layout-mutations";
+import { parseWindowManagerLayoutDocument } from "../../lib/window-manager-layout-schema";
 
 import {
   useWindowManagerLayoutEditor,
@@ -210,6 +212,36 @@ describe("useWindowManagerLayoutEditor", () => {
     // The draft always belongs to the workspace being edited.
     expect(result.current.draft.workspaceId).toBe("workspace-a");
     expect(result.current.dirty).toBe(true);
+  });
+
+  it("Should export a layout file that imports back as the same draft [US-022.AC-1]", async () => {
+    apiMocks.convert.mockImplementation(
+      async (_workspace: string, _profile: string, _revision: number, wire: unknown) =>
+        parseWindowManagerLayoutDocument(wire)
+    );
+    const { result } = renderEditor(stateAt(41, "Build"));
+    act(() => result.current.updateDraft(renameDesktop(result.current.draft, "Exported")));
+    const draft = result.current.draft;
+
+    const exported = result.current.exportDocument();
+
+    // The strict wire schema refuses unknown fields, as the daemon's decoder does.
+    expect(exported).toMatchObject({ version: 6, workspace_id: "workspace-a" });
+    expect(exported).not.toHaveProperty("workspaceId");
+    expect(parseWindowManagerLayoutDocument(exported)).toEqual(draft);
+
+    act(() => result.current.reset());
+    expect(result.current.draft.desktops[0]?.name).toBe("Build");
+    const file = new File([JSON.stringify(exported, null, 2)], "layout.json", {
+      type: "application/json",
+    });
+    await act(async () => {
+      await result.current.importDocument(file);
+    });
+
+    expect(apiMocks.convert.mock.calls[0]?.[3]).toEqual(exported);
+    expect(result.current.importError).toBeNull();
+    expect(result.current.draft).toEqual(draft);
   });
 
   it("Should keep the draft and report the daemon's refusal when a file cannot be converted", async () => {

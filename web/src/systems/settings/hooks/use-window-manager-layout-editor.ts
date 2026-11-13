@@ -8,6 +8,7 @@ import {
   applyWindowManagerLayout,
   convertWindowManagerLayoutDocument,
 } from "../adapters/window-manager-layouts-api";
+import { windowManagerLayoutDocumentToWire } from "../lib/window-manager-layout-schema";
 import {
   windowManagerLayoutFingerprint,
   windowManagerLayoutReviewOptions,
@@ -306,7 +307,8 @@ export function useWindowManagerLayoutEditor(
     apply: { mutate: requestApply },
     dirty,
     draft: context.draft,
-    exportDocument: () => structuredClone(context.draft),
+    /** The draft as a layout document file: wire form, which import, `layout apply` and `layout validate` read. */
+    exportDocument: () => windowManagerLayoutDocumentToWire(context.draft),
     edit,
     importDocument,
     importError: context.phase === "error" ? (context.error?.message ?? null) : null,
