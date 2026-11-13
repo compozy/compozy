@@ -6,6 +6,7 @@ package windowmanager
 // Boundary OUT: HTTP/UDS serialization and durable bbolt encoding.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -246,7 +247,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if validation.Document.Version != SnapshotVersion || string(canonical) != string(want) {
+				if validation.Document.Version != SnapshotVersion || !bytes.Equal(canonical, want) {
 					t.Fatalf("canonical document=%s want=%s", canonical, want)
 				}
 				if after := mustSnapshot(t, environment.manager, "workspace-a"); !reflect.DeepEqual(after, before) {
