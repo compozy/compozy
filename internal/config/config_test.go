@@ -2740,6 +2740,7 @@ func TestProfileConfigOverlayRejectsMachineOnlyKeys(t *testing.T) {
 			"[observability]\nenabled = false\n",
 			"[window_manager.global_shortcuts]\nsummon = \"meta+KeyK\"\n",
 			"[tools.clarify]\ntimeout = \"5m\"\n",
+			"[client]\nrequest_timeout = \"2m\"\n",
 		}
 		for _, input := range inputs {
 			_, err := loadProfileConfigOverlayBytes([]byte(input), "profile.toml")

@@ -14,8 +14,9 @@ const (
 	MaxClientRequestTimeout = 30 * time.Minute
 )
 
-// ClientConfig controls CLI-side transport behavior. The daemon reads it too so a
-// profile can pin the same budget for every client on the machine.
+// ClientConfig controls CLI-side transport behavior. It is machine-scoped: a
+// profile or workspace layer cannot pin it, because the CLI resolves it before a
+// profile is selected for the command.
 type ClientConfig struct {
 	RequestTimeout time.Duration `toml:"request_timeout"`
 }
