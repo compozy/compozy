@@ -3427,6 +3427,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
 
 		addCheckInToolSchemaFields(baseline)
+		addSessionCatalogExcludeRootParameter(baseline, current)
 		addDaemonReadinessSchema(t, baseline, current)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
@@ -6038,6 +6039,37 @@ func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
 		t.Fatal("status daemon schema is missing the readiness property")
 	}
 	daemonProperties(baseline, false)["readiness"] = deref(readiness, 0)
+}
+
+// addSessionCatalogExcludeRootParameter admits the additive exclude_root query
+// parameter on every session catalog route that gained it, at its current index.
+func addSessionCatalogExcludeRootParameter(baseline, current map[string]any) {
+	oldPaths := baseline["paths"].(map[string]any)
+	for path, item := range current["paths"].(map[string]any) {
+		oldItem, ok := oldPaths[path].(map[string]any)
+		if !ok {
+			continue
+		}
+		newGet, ok := item.(map[string]any)["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		oldGet, ok := oldItem["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		newParameters, _ := newGet["parameters"].([]any)
+		for index, parameter := range newParameters {
+			if parameter.(map[string]any)["name"] != "exclude_root" {
+				continue
+			}
+			oldParameters, _ := oldGet["parameters"].([]any)
+			if index > len(oldParameters) {
+				index = len(oldParameters)
+			}
+			oldGet["parameters"] = slices.Insert(oldParameters, index, parameter)
+		}
+	}
 }
 
 func addCheckInToolSchemaFields(value any) {
