@@ -1,4 +1,4 @@
-import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { Button, Spinner, StarBorder, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 import type { ProductUpdateIndicatorState } from "@/systems/settings";
 
 /** What the shell hands the menubar: the indicator state and the in-place update. */
@@ -32,9 +32,12 @@ const UPDATING_CLASS = `${OFFER_CLASS} disabled:text-brand-strong`;
  *
  * It exists only while there is something to say — an offer, the update running,
  * or a failure — and is removed from the DOM, not hidden with CSS, the rest of
- * the time. Clicking the offer updates CompozyOS in place: the daemon runs one
- * operation over every part of the product and the app restarts on the new
- * version by itself. The runtime/app split never reaches this control.
+ * the time. The offer is rimmed by `StarBorder` so it cannot be missed: its
+ * glows travel only while the update is offered, the running update keeps the
+ * still rim, and a failure drops the rim for the danger pill. Clicking the
+ * offer updates CompozyOS in place: the daemon runs one operation over every
+ * part of the product and the app restarts on the new version by itself. The
+ * runtime/app split never reaches this control.
  */
 export function MenubarUpdateIndicator({
   state,
@@ -45,19 +48,21 @@ export function MenubarUpdateIndicator({
 
   if (state === "updating") {
     return (
-      <Button
-        className={UPDATING_CLASS}
-        data-slot="os-menubar-update"
-        data-state={state}
-        data-testid="os-menubar-update"
-        disabled
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        <Spinner aria-hidden="true" className="size-3.5" role="presentation" />
-        <span role="status">Updating…</span>
-      </Button>
+      <StarBorder animated={false}>
+        <Button
+          className={UPDATING_CLASS}
+          data-slot="os-menubar-update"
+          data-state={state}
+          data-testid="os-menubar-update"
+          disabled
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Spinner aria-hidden="true" className="size-3.5" role="presentation" />
+          <span role="status">Updating…</span>
+        </Button>
+      </StarBorder>
     );
   }
 
@@ -72,7 +77,7 @@ export function MenubarUpdateIndicator({
       ? "Install the new version and restart"
       : "See how to update";
 
-  return (
+  const control = (
     <Tooltip>
       <TooltipTrigger
         render={
@@ -93,4 +98,5 @@ export function MenubarUpdateIndicator({
       <TooltipContent side="bottom">{hint}</TooltipContent>
     </Tooltip>
   );
+  return failed ? control : <StarBorder>{control}</StarBorder>;
 }
