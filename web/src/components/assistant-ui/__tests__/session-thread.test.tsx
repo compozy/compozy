@@ -5222,7 +5222,7 @@ describe("SessionThread composer running semantics", () => {
 
   // Invariant (#1680): a newly staged terminal quote mounts with its own
   // collapse state, even when it repeats the previous terminal and line range.
-  // Owner: composer quote slot; canonical suite: SessionThread composer.
+  // Owner: TerminalQuoteBlock in the composer; canonical suite: SessionThread composer.
   it("mounts a replacement terminal quote collapsed after the previous one was expanded", async () => {
     const stage = (prefix: string) =>
       act(() => {

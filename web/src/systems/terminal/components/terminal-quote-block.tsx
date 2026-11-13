@@ -45,10 +45,16 @@ const TERMINAL_QUOTE_COLLAPSE_THRESHOLD = 12;
 export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps) {
   const lineCount = quote.lines.length;
   const [expanded, setExpanded] = useState(lineCount <= TERMINAL_QUOTE_COLLAPSE_THRESHOLD);
+  // Every staging builds a new quote, so a replacement excerpt starts from its
+  // own default even when it repeats the previous terminal and line range.
+  const [shownQuote, setShownQuote] = useState(quote);
+  if (shownQuote !== quote) {
+    setShownQuote(quote);
+    setExpanded(lineCount <= TERMINAL_QUOTE_COLLAPSE_THRESHOLD);
+  }
   return (
     <Collapsible
       className="tm-quote overflow-hidden rounded-lg bg-sunken"
-      data-expanded={expanded}
       data-testid="terminal-quote-block"
       onOpenChange={setExpanded}
       open={expanded}
@@ -57,13 +63,14 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
         <TerminalSquare aria-hidden="true" className="size-3 shrink-0" />
         <span className="min-w-0 truncate">
           {quote.terminalId} · lines {quote.fromLine}–{quote.toLine}
-          {expanded ? null : (
-            <span data-testid="terminal-quote-line-count">
-              {" "}
-              · {lineCount} {lineCount === 1 ? "line" : "lines"}
-            </span>
-          )}
         </span>
+        {/* The count never truncates: on a phone the source id gives way first. */}
+        {expanded ? null : (
+          <span className="shrink-0 whitespace-nowrap" data-testid="terminal-quote-line-count">
+            {" "}
+            · {lineCount} {lineCount === 1 ? "line" : "lines"}
+          </span>
+        )}
         <CollapsibleTrigger
           aria-label={expanded ? "Collapse quote" : "Expand quote"}
           className="ml-auto"
