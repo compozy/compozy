@@ -17,6 +17,65 @@ import (
 )
 
 func TestLayoutDocumentContract(t *testing.T) {
+	t.Run("Should round trip two v6 tabs and reject a one-child split atomically (UT-059)", func(t *testing.T) {
+		t.Parallel()
+		source := threeTabs(t)
+		splitTestWindows(t, source, "a", "b")
+		document, err := source.manager.ExportLayout(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		document.Overrides.FocusWrap = new(true)
+		if document.Version != 6 || len(document.Desktops[0].Tabs) != 2 || len(document.Windows) != 3 {
+			t.Fatalf("exported document = %+v", document)
+		}
+		raw, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var imported LayoutDocument
+		if err := json.Unmarshal(raw, &imported); err != nil {
+			t.Fatal(err)
+		}
+		target := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		initial := mustSnapshot(t, target.manager, "workspace-a")
+		result, err := target.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: initial.Revision, Document: imported,
+		})
+		if err != nil || !result.Applied {
+			t.Fatalf("apply = %+v, error = %v", result, err)
+		}
+		exported, err := target.manager.ExportLayout(t.Context(), "workspace-a")
+		if err != nil || !reflect.DeepEqual(exported, document) {
+			t.Fatalf("round trip = %+v, error = %v; want %+v", exported, err, document)
+		}
+		invalid := cloneLayoutDocument(document)
+		root := &invalid.Desktops[0].Tabs[0].Root
+		root.Children = root.Children[:1]
+		root.Weights = []float64{1}
+		delete(invalid.Windows, "b")
+		validation, err := target.manager.ValidateLayout(t.Context(), "workspace-a", invalid)
+		if err != nil || validation.Valid {
+			t.Fatalf("invalid validation = %+v, error = %v", validation, err)
+		}
+		found := false
+		for _, diagnostic := range validation.Diagnostics {
+			found = found || diagnostic.Code == "topology.split_size"
+		}
+		if !found {
+			t.Fatalf("missing split size diagnostic: %+v", validation)
+		}
+		_, err = target.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: result.Snapshot.Revision, Document: invalid,
+		})
+		if !errors.Is(err, ErrInvalidTopology) {
+			t.Fatalf("invalid apply error = %v", err)
+		}
+		if after := mustSnapshot(t, target.manager, "workspace-a"); !reflect.DeepEqual(after, result.Snapshot) {
+			t.Fatalf("invalid apply changed snapshot: %+v", after)
+		}
+	})
+
 	// Invariant: exported v4 layouts remain importable without mutating input; this contract suite owns it.
 	t.Run("Should validate and replace an exported v4 layout with canonical apps", func(t *testing.T) {
 		t.Parallel()
