@@ -1305,4 +1305,99 @@ describe("RoutingCoordinator", () => {
       expect(store.getState().windows[session.id]?.instanceKey).toBe("sess-a");
     });
   });
+
+  // Invariant: the router's late report of the coordinator's own latest write is an echo, never
+  // intent — authoritative focus wins and the URL follows it; locations the coordinator did not
+  // write stay intent.
+  describe("Router echoes of the coordinator's own writes", () => {
+    const sessionA = () => windowFixture("session", "/agents/general/sessions/sess-a", "sess-a");
+    const sessionB = () => windowFixture("session", "/agents/general/sessions/sess-b", "sess-b");
+
+    /** The coordinator wrote B's URL for authoritative focus B; the router has not reported it. */
+    function afterWriteOfB() {
+      const a = sessionA();
+      const b = sessionB();
+      const harness = createCoordinator([b, a]);
+      const { coordinator, store } = harness;
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(a.route);
+      store.setAuthoritativeFocus(b.id);
+      coordinator.reportAuthoritativeState();
+      expect(harness.router.replace).toHaveBeenLastCalledWith(b.route);
+      vi.mocked(harness.router.replace).mockClear();
+      vi.mocked(harness.router.navigate).mockClear();
+      store.spies.openOrFocus.mockClear();
+      store.spies.focusWindow.mockClear();
+      return { ...harness, a, b };
+    }
+
+    it.each([
+      ["F(A) S R(B)", "FSR"],
+      ["F(A) R(B) S", "FRS"],
+      ["S F(A) R(B)", "SFR"],
+      ["S R(B) F(A)", "SRF"],
+      ["R(B) F(A) S", "RFS"],
+      ["R(B) S F(A)", "RSF"],
+    ])(
+      "Should keep focus A and land the URL on A when the events arrive as %s",
+      async (_label, order) => {
+        const { coordinator, router, store, a, b } = afterWriteOfB();
+        const steps: Record<string, () => void> = {
+          F: () => store.setAuthoritativeFocus(a.id),
+          S: () => coordinator.reportAuthoritativeState(),
+          R: () => coordinator.reportRouteMatch(b.route),
+        };
+
+        for (const step of order) steps[step]?.();
+        // The stream reports every focus frame, so one more report follows the last event.
+        coordinator.reportAuthoritativeState();
+        await Promise.resolve();
+
+        expect(store.getState().focusedId).toBe(a.id);
+        expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+        expect(store.spies.focusWindow).not.toHaveBeenCalled();
+        expect(router.navigate).not.toHaveBeenCalled();
+        expect(router.replace).toHaveBeenLastCalledWith(a.route);
+      }
+    );
+
+    it("Should treat Back to an earlier pushed location as intent", async () => {
+      const tasks = windowFixture("tasks", "/tasks");
+      const settings = windowFixture("settings", "/settings/general");
+      const marketplace = windowFixture("marketplace", "/marketplace/skills");
+      const { coordinator, router, store } = createCoordinator([tasks, settings, marketplace]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(marketplace.route);
+      await coordinator.userFocus(tasks.id);
+      coordinator.reportRouteMatch(tasks.route);
+      await coordinator.userFocus(settings.id);
+      coordinator.reportRouteMatch(settings.route);
+      store.spies.openOrFocus.mockClear();
+
+      // Back pops to the pushed Tasks entry.
+      coordinator.reportRouteMatch(tasks.route);
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledWith(
+        expect.objectContaining({ app: "tasks", route: tasks.route })
+      );
+      expect(router.navigate).toHaveBeenCalledTimes(2);
+    });
+
+    it("Should treat a deep link arriving after a write as intent", async () => {
+      const { coordinator, router, store, a } = afterWriteOfB();
+      const deepLink = route("/tasks/task-42");
+
+      store.setAuthoritativeFocus(a.id);
+      coordinator.reportRouteMatch(deepLink);
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe("w-tasks"));
+      coordinator.reportAuthoritativeState();
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledWith(
+        expect.objectContaining({ app: "tasks", route: deepLink })
+      );
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -16,6 +16,7 @@ import {
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
 import { decideRouteReconciliation } from "./routing-route-decision";
+import { RoutingWriteEchoes } from "./routing-write-echoes";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -57,6 +58,7 @@ export class RoutingCoordinator {
   private nextUserIntentToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
   private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
+  private readonly echoes = new RoutingWriteEchoes();
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
     this.manager = manager;
@@ -70,6 +72,14 @@ export class RoutingCoordinator {
    * win over the target workspace's restored focus (US-016.EC-2).
    */
   reportRouteMatch(route: OsWindowRoute): void {
+    // The router echoing the coordinator's own write is never intent: authoritative focus
+    // may have moved on since, and the URL follows it instead. During hydration every
+    // location stays the held initial intent.
+    if (this.phase !== "ready") this.echoes.reset();
+    else if (this.echoes.isEcho(route)) {
+      this.reportAuthoritativeState();
+      return;
+    }
     if (isDesktopDefaultViewIntent(route)) this.desktopDefaultViewIntentPending = true;
     // The coordinator sets `currentRoute` before its own pushes and replaces, so
     // a report that differs is external intent: a link, back/forward, a deep link.
@@ -164,6 +174,7 @@ export class RoutingCoordinator {
     this.invalidateRouteReconciliation();
     this.heldRoute = route;
     this.currentRoute = route;
+    this.echoes.reset();
     this.initialIntent = null;
   }
 
@@ -367,11 +378,13 @@ export class RoutingCoordinator {
   private pushRoute(route: OsWindowRoute): void {
     this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
+    this.echoes.wrote(route, "push");
     this.router.navigate(route);
   }
 
   private replaceRoute(route: OsWindowRoute): void {
     this.currentRoute = route;
+    this.echoes.wrote(route, "replace");
     this.router.replace(route);
   }
 
