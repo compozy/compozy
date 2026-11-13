@@ -1652,13 +1652,17 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 			registerManagedHeartbeatSession(t, fixture, "sess-current")
 			now := fixture.now
 			prompter := &recordingHeartbeatPrompter{}
-			service, err := heartbeat.NewManagedWakeService(fixture.db,
+			service, err := heartbeat.NewManagedWakeService(
+				fixture.db,
 				managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-current")},
 				prompter, fixture.target.Config,
 				heartbeat.WithWakeClock(func() time.Time { return now }),
-				heartbeat.WithWakeTargetResolver(func(context.Context, heartbeat.WakeRequest) (heartbeat.AuthoringTarget, error) {
+				heartbeat.WithWakeTargetResolver(func(
+					context.Context, heartbeat.WakeRequest,
+				) (heartbeat.AuthoringTarget, error) {
 					return fixture.target, nil
-				}))
+				}),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1692,7 +1696,8 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 			}
 			now = now.Add(10 * time.Minute)
 			decision, err := service.Wake(fixture.ctx, req)
-			if err != nil || decision.Reason != heartbeat.WakeReasonHeartbeatNoPolicy || len(prompter.requestsSnapshot()) != 3 {
+			if err != nil || decision.Reason != heartbeat.WakeReasonHeartbeatNoPolicy ||
+				len(prompter.requestsSnapshot()) != 3 {
 				t.Fatalf("deleted policy wake = %+v, %v", decision, err)
 			}
 		})
@@ -1708,9 +1713,11 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 			t.Fatal(err)
 		}
 		registerManagedHeartbeatSession(t, fixture, "sess-config")
-		service, err := heartbeat.NewManagedWakeService(fixture.db,
+		service, err := heartbeat.NewManagedWakeService(
+			fixture.db,
 			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-config")},
-			&recordingHeartbeatPrompter{}, cfg)
+			&recordingHeartbeatPrompter{}, cfg,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

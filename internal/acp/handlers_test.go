@@ -3438,8 +3438,8 @@ func TestHostedToolPermissionGates(t *testing.T) {
 				}, timeNowUTC())
 			}
 			response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorSystem)
-			if err != nil {
-				t.Fatal(err)
+			if !errors.Is(err, ErrPermissionExpired) {
+				t.Fatalf("unanswered daemon gate error = %v, want ErrPermissionExpired", err)
 			}
 			assertOutcome(t, response, "reject-once")
 			collectEventsUntilCount(t, active.events, 2)

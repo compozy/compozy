@@ -247,7 +247,7 @@ func (p *AgentProcess) permissionConnectionDone() <-chan struct{} {
 // canceled it over a live connection. A lost connection is not a denial;
 // nobody could answer, so the recovered runtime must be able to ask again.
 func (p *AgentProcess) permissionExpiryCountsAsDenial(actor string, decision permissionDecision) bool {
-	if actor == "timeout" {
+	if actor == permissionActorTimeout {
 		return true
 	}
 	return actor == permissionActorProvider && decision == decisionCanceled && !p.permissionConnectionClosed()

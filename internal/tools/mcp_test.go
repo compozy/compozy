@@ -474,7 +474,9 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		}
 		key, _ := mcpDeadEntityKey(sources[0], scope.ProfileID)
 		for range deadentity.DefaultPermanentFailureThreshold {
-			if err := deadService.RecordFailure(ctx, key, deadentity.FailurePermanent, "sidecar unavailable"); err != nil {
+			if err := deadService.RecordFailure(
+				ctx, key, deadentity.FailurePermanent, "sidecar unavailable",
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -491,7 +493,9 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		executor.mu.Lock()
 		defer executor.mu.Unlock()
 		if len(executor.listedSources) != 3 || executor.listedSources[2].Owner != "healthy" {
-			t.Fatalf("source discovery = %+v, want initial sources plus one shared healthy refresh", executor.listedSources)
+			t.Fatalf(
+				"source discovery = %+v, want initial sources plus one shared healthy refresh", executor.listedSources,
+			)
 		}
 	})
 

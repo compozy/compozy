@@ -256,9 +256,13 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		) (acp.RequestPermissionResponse, error) {
 			return acp.RequestPermissionResponse{}, acp.ErrPermissionExpired
 		})
-		bridge := newToolApprovalBridge(func() sessionPermissionRequester { return requester }, time.Second, nil, nil, nil)
-		err := bridge.RequestToolApproval(t.Context(), toolspkg.Scope{SessionID: "sess-1"},
-			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}), &view)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester }, time.Second, nil, nil, nil,
+		)
+		err := bridge.RequestToolApproval(
+			t.Context(), toolspkg.Scope{SessionID: "sess-1"},
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}), &view,
+		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
 		if !strings.Contains(err.Error(), "operator to prompt the session") {
 			t.Fatalf("expired retry guidance = %v", err)

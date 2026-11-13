@@ -36,7 +36,7 @@ func (d *PermissionDenials) lookup(key string) (string, bool) {
 }
 
 func (d *PermissionDenials) Record(key string, epoch uint64) {
-	d.record(key, epoch, "timeout")
+	d.record(key, epoch, permissionActorTimeout)
 }
 
 func (d *PermissionDenials) record(key string, epoch uint64, actor string) {

@@ -16,6 +16,7 @@ const (
 	permissionSourcePolicy  = "policy"
 	permissionSourceRule    = "rule"
 	permissionActorProvider = "provider"
+	permissionActorTimeout  = "timeout"
 	// permissionActorSystem marks daemon-originated Compozy tool approvals.
 	permissionActorSystem = "system"
 	// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.

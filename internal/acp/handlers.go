@@ -280,8 +280,8 @@ func (p *AgentProcess) resolvePermissionRequest(
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
 			appliedDecision, "repeat_denied", raw)
-		if cancellationActor == permissionActorSystem && denialActor == "timeout" {
-			return acpsdk.RequestPermissionResponse{}, ErrPermissionExpired
+		if cancellationActor == permissionActorSystem && denialActor == permissionActorTimeout {
+			return acpsdk.RequestPermissionResponse{Outcome: outcome}, ErrPermissionExpired
 		}
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
@@ -310,8 +310,8 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
-	if cancellationActor == permissionActorSystem && actor == "timeout" {
-		return acpsdk.RequestPermissionResponse{}, ErrPermissionExpired
+	if cancellationActor == permissionActorSystem && actor == permissionActorTimeout {
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, ErrPermissionExpired
 	}
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
@@ -330,7 +330,7 @@ func (p *AgentProcess) awaitPendingPermission(
 	case decision := <-pending.response:
 		return decision, pending.resolvedBy
 	case <-timer.C:
-		return p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+		return p.expirePendingPermission(pending, decisionRejectOnce, permissionActorTimeout)
 	case <-p.permissionConnectionDone():
 		return p.expirePendingPermission(pending, decisionCanceled, permissionActorSystem)
 	case <-ctx.Done():
@@ -338,7 +338,7 @@ func (p *AgentProcess) awaitPendingPermission(
 			cancellationActor = permissionActorSystem
 		}
 		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
-			cancellationActor = "timeout"
+			cancellationActor = permissionActorTimeout
 		}
 		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	}

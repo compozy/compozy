@@ -2048,8 +2048,10 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			runtime.nativeTasks = append(runtime.nativeTasks, store.SessionEvent{Sequence: int64(index + 1), TurnID: "turn",
-				Type: acp.EventTypeNativeTask, Content: content, Timestamp: s.now().Add(time.Second)})
+			runtime.nativeTasks = append(runtime.nativeTasks, store.SessionEvent{
+				Sequence: int64(index + 1), TurnID: "turn", Type: acp.EventTypeNativeTask,
+				Content: content, Timestamp: s.now().Add(time.Second),
+			})
 		}
 		failure := errors.New("row read unavailable")
 		s.store = &countingNativeSubagentStore{SubagentStore: db, failID: rows[0].ID, lookupErr: failure}
