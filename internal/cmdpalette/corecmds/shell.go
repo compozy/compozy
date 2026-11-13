@@ -31,6 +31,11 @@ var arrangeWhen = []cmdpalette.Predicate{
 	},
 }
 
+var splitWindowWhen = []cmdpalette.Predicate{
+	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window"},
+	{Key: cmdpalette.ContextWindowStacked, Value: true, Reason: "needs a window in a split"},
+}
+
 var fixedShellCommands = []shellCommandDefinition{
 	{
 		id: "processes.left_running", title: "Processes left running",
@@ -148,11 +153,11 @@ func shellCommands() []cmdpalette.Descriptor {
 	definitions = append(
 		definitions,
 		shellCommandDefinition{
-			id:         "window.unsplit",
-			title:      "Move to new tab",
-			section:    coreSectionWindow,
-			icon:       "panels-top-left",
-			needsFocus: true,
+			id:      "window.unsplit",
+			title:   "Move to new tab",
+			section: coreSectionWindow,
+			icon:    "panels-top-left",
+			when:    splitWindowWhen,
 		},
 		shellCommandDefinition{
 			id:         "window.tab.move_left",
@@ -176,7 +181,7 @@ func shellCommands() []cmdpalette.Descriptor {
 	for _, placement := range placements {
 		definitions = append(definitions, shellCommandDefinition{
 			id: cmdpalette.CommandID("window.tile." + placement.id), title: placement.title,
-			section: coreSectionTiling, icon: coreIconPanelTop, needsFocus: true,
+			section: coreSectionTiling, icon: coreIconPanelTop, when: splitWindowWhen,
 		})
 	}
 	for slot := 1; slot <= 8; slot++ {

@@ -1422,20 +1422,36 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 			revision = uint64(result.Snapshot.Revision)
 			return result
 		}
+		sourceTabs := make(map[string]windowmanager.TabID)
 		for _, id := range []string{"a", "b", "c"} {
-			execute(
+			opened := execute(
 				"window.open",
 				fmt.Sprintf(
 					`{"window":{"id":%q,"app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default"}}`,
 					id,
 				),
 			)
+			sourceTabs[id] = opened.Snapshot.Windows[id].TabID
+		}
+		assertMoveChanges := func(result contract.WindowManagerResult, window string, from, to windowmanager.TabID) {
+			t.Helper()
+			wantTabs := []windowmanager.TabID{from, to}
+			slices.Sort(wantTabs)
+			if !slices.Equal(result.Changes.DesktopIDs, []windowmanager.DesktopID{"desktop-default"}) ||
+				!slices.Equal(result.Changes.WindowIDs, []windowmanager.WindowID{windowmanager.WindowID(window)}) ||
+				!slices.Equal(result.Changes.TabIDs, wantTabs) {
+				t.Fatalf("move %s changes=%+v, want its desktop, window and source/destination tabs %v", window, result.Changes, wantTabs)
+			}
 		}
 		r := execute(
 			"window.move",
 			`{"window_id":"b","destination_desktop_id":"desktop-default","target_window_id":"a","placement":"right"}`,
 		)
 		tab := r.Snapshot.Windows["a"].TabID
+		assertMoveChanges(r, "b", sourceTabs["b"], tab)
+		if !slices.Equal(r.Changes.NodeIDs, []windowmanager.NodeID{r.Snapshot.Desktops[0].Tabs[0].Root.ID}) {
+			t.Fatalf("split node changes=%+v", r.Changes)
+		}
 		if len(r.Changes.TabSplit) != 1 || r.Changes.TabSplit[0] != tab || r.Snapshot.Windows["b"].TabID != tab {
 			t.Fatalf("member split=%+v", r)
 		}
@@ -1446,14 +1462,26 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 				tab,
 			),
 		)
+		assertMoveChanges(r, "c", sourceTabs["c"], tab)
+		if !slices.Equal(r.Changes.NodeIDs, []windowmanager.NodeID{r.Snapshot.Desktops[0].Tabs[0].Root.ID}) {
+			t.Fatalf("root split node changes=%+v", r.Changes)
+		}
 		if r.Snapshot.Windows["c"].TabID != tab || len(r.Changes.TabIDs) != 2 {
 			t.Fatalf("root split=%+v", r)
 		}
 		r = execute("window.move", `{"window_id":"c","destination_desktop_id":"desktop-default","placement":"tab"}`)
+		assertMoveChanges(r, "c", tab, r.Snapshot.Windows["c"].TabID)
+		if len(r.Changes.TabSplit) != 0 || len(r.Changes.TabUnsplit) != 0 {
+			t.Fatalf("partial unsplit transitions=%+v", r.Changes)
+		}
 		if r.Snapshot.Windows["c"].TabID == tab {
 			t.Fatalf("unsplit=%+v", r)
 		}
 		r = execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default","placement":"tab"}`)
+		assertMoveChanges(r, "b", tab, r.Snapshot.Windows["b"].TabID)
+		if len(r.Changes.TabSplit) != 0 {
+			t.Fatalf("unsplit transitions=%+v", r.Changes)
+		}
 		if len(r.Changes.TabUnsplit) != 1 || r.Changes.TabUnsplit[0] != tab {
 			t.Fatalf("unsplit changes=%+v", r.Changes)
 		}
@@ -1523,7 +1551,8 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 		if r.Snapshot.Windows["a"].TabID == r.Snapshot.Windows["b"].TabID {
 			t.Fatal("legacy move did not unsplit")
 		}
-		execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default"}`)
+		execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default"}`,
+			"window.move.placement=empty")
 		r = execute("window.close", `{"window_id":"a","minimize":true,"scope":"tab"}`, "window.close.minimize")
 		if r.Applied || r.Snapshot.Windows["a"].ID != "a" {
 			t.Fatal("minimize closed window")

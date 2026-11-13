@@ -521,10 +521,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		gapsSchema := propertySchema(t, windowManagerConfigSchema, "gaps")
 		assertRequired(t, gapsSchema, "inner", "top", "right", "bottom", "left")
 		assertSchemaHasAdditionalProperties(t, gapsSchema, false)
-		snapSchema := propertySchema(t, windowManagerConfigSchema, "snap")
+		snapSchema := propertySchema(t, windowManagerConfigSchema, "snap").AllOf[0].Value
 		assertRequired(t, snapSchema, "edge_band", "corner_reach", "exit_slack", "repeat_ratios")
 		assertSchemaHasAdditionalProperties(t, snapSchema, false)
-		bindingsSchema := propertySchema(t, windowManagerConfigSchema, "bindings")
+		bindingsSchema := propertySchema(t, windowManagerConfigSchema, "bindings").AllOf[0].Value
 		assertRequired(t, bindingsSchema, "top_center", "bottom_center")
 		assertSchemaHasAdditionalProperties(t, bindingsSchema, false)
 		assertEnumValues(
@@ -1109,6 +1109,8 @@ func deprecateRetiredWindowManagerSettings(t *testing.T, baseline map[string]any
 			value = next
 		}
 		properties := value["properties"].(map[string]any)["config"].(map[string]any)["properties"].(map[string]any)
+		properties["new_window_policy"].(map[string]any)["description"] =
+			`Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
 		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
 			property, ok := properties[name].(map[string]any)
 			if !ok {
@@ -1116,6 +1118,11 @@ func deprecateRetiredWindowManagerSettings(t *testing.T, baseline map[string]any
 			}
 			property["deprecated"] = true
 			property["description"] = "Deprecated: accepted and ignored; remove before v0.8.0."
+			if name == "snap" || name == "bindings" {
+				properties[name] = map[string]any{
+					"allOf": []any{property}, "deprecated": true, "description": property["description"],
+				}
+			}
 		}
 	}
 }

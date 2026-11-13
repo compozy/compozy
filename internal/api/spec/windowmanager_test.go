@@ -479,10 +479,29 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			}
 		}
 		assertSchemaIncludesType(t, propertySchema(t, overrides, "raise_on_focus"), openapi3.TypeBoolean)
-		for _, entry := range []struct{ property, component string }{{"snap", "SnapConfig"}, {"bindings", "BindingsConfig"}} {
-			propertySchema(t, overrides, entry.property)
-			if !componentSchema(t, document, entry.component).Deprecated {
-				t.Fatalf("retired override %s has no deprecated component", entry.property)
+		marked := 0
+		for _, entry := range []struct{ parent, property, component string }{
+			{"WorkspaceConfig", "snap", "SnapConfig"},
+			{"WorkspaceConfig", "bindings", "BindingsConfig"},
+			{"SettingsWindowManagerConfigPayload", "snap", "SettingsWindowManagerSnapPayload"},
+			{"SettingsWindowManagerConfigPayload", "bindings", "SettingsWindowManagerBindingPayload"},
+		} {
+			parent := componentSchema(t, document, entry.parent)
+			propertySchema(t, parent, entry.property)
+			property := parent.Properties[entry.property].Value
+			component := componentSchema(t, document, entry.component)
+			if !property.Deprecated || !strings.Contains(property.Description, "v0.8.0") || !component.Deprecated {
+				t.Fatalf("retired %s.%s has no deprecated serialized component", entry.parent, entry.property)
+			}
+			marked++
+		}
+		if marked != 4 {
+			t.Fatalf("deprecated snap/bindings references = %d, want 4", marked)
+		}
+		for _, parent := range []string{"WorkspaceConfig", "SettingsWindowManagerConfigPayload"} {
+			policy := propertySchema(t, componentSchema(t, document, parent), "new_window_policy")
+			if policy.Deprecated || policy.Description != `Deprecated value "floating": translated to "tab"; removed in v0.8.0.` {
+				t.Fatalf("%s.new_window_policy = %+v, want a retired-value notice with an active field", parent, policy)
 			}
 		}
 	})
@@ -568,6 +587,10 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 					delete(node, "required")
 				}
 			}
+			if property, ok := properties["new_window_policy"].(map[string]any); ok {
+				property["description"] = `Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+				counts["floating_policy"]++
+			}
 			if property, ok := properties["placement"].(map[string]any); ok {
 				property["description"] = `Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
 				counts["floating_placement"]++
@@ -631,6 +654,7 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 	// Change-set fields occur in Event/Result/Preview components and commands/layout/preview responses (3+3).
 	// stack_active occurs in six component views and seven inline client/command/layout/preview/stream views.
 	want := map[string]int{
+		"floating_policy":    16, // Eight component overrides and eight inline route overrides.
 		"migration_request":  1,
 		"floating_placement": 1,
 		"stack_arrangement":  1,

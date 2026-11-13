@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 	"golang.org/x/mod/semver"
 )
 
@@ -31,6 +32,11 @@ func (r *windowManagerRegistry) expireMigrationBackups(ctx context.Context, rele
 			return err
 		}
 		for _, entry := range entries {
+			// A successful current upgrade cannot expire an earlier failed backup.
+			// Superseded keys stay discoverable for explicit workspace/profile purge.
+			if statekeys.IsSupersededLegacy(entry.Key) {
+				continue
+			}
 			profile, ok := strings.CutPrefix(entry.Key, "migration:")
 			if !ok || profile == "" || entry.Deleted {
 				continue

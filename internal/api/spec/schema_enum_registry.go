@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	specFailedKey  = "failed"
 	specStoppedKey = "stopped"
 	specNoneKey    = "none"
 	specPendingKey = "pending"
@@ -43,7 +44,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SessionProcessPolicy]():      {"keep", "terminate"},
 		reflect.TypeFor[contract.SessionProcessKind]():        {"background", "tool", "terminal"},
 		reflect.TypeFor[contract.SessionProcessOutcome](): {
-			"terminated", "already_exited", "identity_mismatch", "failed", "unproven",
+			"terminated", "already_exited", "identity_mismatch", specFailedKey, "unproven",
 		},
 		reflect.TypeFor[session.Badge](): {
 			"running",
@@ -54,7 +55,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			"waiting-for-input",
 			"done",
 			specStoppedKey,
-			"failed",
+			specFailedKey,
 			specUnknownKey,
 			"needs-attention",
 			"waiting",

@@ -116,7 +116,27 @@ func customizeSettingsWindowManagerConfigSchema(schema *openapi3.Schema) {
 	customizeWindowManagerConfigSchema(schema)
 }
 
+// OpenAPI 3.0 needs a schema wrapper to annotate a referenced retired config field.
+func finalizeWindowManagerConfigSchemas(schemas openapi3.Schemas) {
+	for _, name := range []string{"WorkspaceConfig", "SettingsWindowManagerConfigPayload"} {
+		schema := schemas[name].Value
+		for _, field := range []string{"snap", "bindings"} {
+			reference := schema.Properties[field]
+			property := *reference.Value
+			if reference.Ref != "" {
+				property = openapi3.Schema{AllOf: openapi3.SchemaRefs{reference}}
+			}
+			property.Deprecated = true
+			property.Description = "Deprecated: accepted and ignored; remove before v0.8.0."
+			schema.Properties[field] = &openapi3.SchemaRef{Value: &property}
+		}
+	}
+}
+
 func customizeWindowManagerConfigSchema(schema *openapi3.Schema) {
+	if property := schema.Properties["new_window_policy"]; property != nil && property.Value != nil {
+		property.Value.Description = `Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+	}
 	for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
 		if property := schema.Properties[name]; property != nil && property.Value != nil {
 			property.Value.Deprecated = true

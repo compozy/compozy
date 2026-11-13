@@ -35,6 +35,7 @@ func (r *windowManagerRegistry) partitionWorkspaceIDs(ctx context.Context) ([]cl
 
 func (r *windowManagerRegistry) reconcilePartitions(
 	ctx context.Context,
+	skipUnavailable bool,
 	reconcile func(*windowmanager.Manager, windowmanager.WorkspaceID) error,
 ) error {
 	partitions, err := r.desktopPartitions(ctx, "")
@@ -49,30 +50,37 @@ func (r *windowManagerRegistry) reconcilePartitions(
 		if err != nil {
 			return err
 		}
-		if err := reconcile(
-			manager,
-			windowmanager.WorkspaceID(partition.workspaceID),
-		); err != nil &&
-			!errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
-			return fmt.Errorf(
-				"daemon: reconcile profile %q partition %q: %w",
-				partition.profileID,
-				partition.workspaceID,
-				err,
-			)
+		err = reconcile(manager, windowmanager.WorkspaceID(partition.workspaceID))
+		if errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
+			continue
+		}
+		if skipUnavailable && errors.Is(err, windowmanager.ErrUnavailable) {
+			r.logger.WarnContext(ctx, "window_manager.partition_reconciliation_skipped",
+				"workspace_id", partition.workspaceID, "profile_id", partition.profileID, "error", err)
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("daemon: reconcile profile %q partition %q: %w",
+				partition.profileID, partition.workspaceID, err)
 		}
 	}
 	return nil
 }
 
 func (r *windowManagerRegistry) ReconcileUnregisteredWorkspace(ctx context.Context, workspaceID string) error {
-	return r.reconcilePartitions(ctx, func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
-		return manager.ReconcileUnregisteredWorkspace(ctx, partition, workspaceID)
-	})
+	return r.reconcilePartitions(
+		ctx, false,
+		func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+			return manager.ReconcileUnregisteredWorkspace(ctx, partition, workspaceID)
+		},
+	)
 }
 
 func (r *windowManagerRegistry) ReconcileStaleBindings(ctx context.Context) error {
-	return r.reconcilePartitions(ctx, func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+	return r.reconcilePartitions(ctx, true, func(
+		manager *windowmanager.Manager,
+		partition windowmanager.WorkspaceID,
+	) error {
 		snapshot, err := manager.Snapshot(ctx, partition)
 		if err != nil {
 			return err

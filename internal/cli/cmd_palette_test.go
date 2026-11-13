@@ -267,11 +267,15 @@ func TestCmdPaletteCommands(t *testing.T) {
 		for _, id := range windowmanager.RetiredPaletteCommandIDs() {
 			client := newClient()
 			client.invokeResult = contract.CmdPaletteInvokeResult{Status: cmdpalette.InvokeStatusOK}
-			_, stderr, err := executeRootCommand(t, newTestDeps(t, client),
+			stdout, stderr, err := executeRootCommand(t, newTestDeps(t, client),
 				"cmd-palette", "invoke", id, "--workspace", "workspace-1", "-o", "json")
 			if err != nil || client.invokeCommand != id ||
 				!strings.Contains(stderr, id) || !strings.Contains(stderr, "v0.8.0") {
 				t.Fatalf("id=%s command=%s stderr=%s error=%v", id, client.invokeCommand, stderr, err)
+			}
+			var output cmdPaletteInvokeOutputRecord
+			if err := json.Unmarshal([]byte(stdout), &output); err != nil || output.Command != id {
+				t.Fatalf("invoke output=%s error=%v, want command %s", stdout, err, id)
 			}
 		}
 	})

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -289,9 +290,8 @@ func (r *windowManagerRegistry) desktopPartitions(
 		seen := map[string]bool{}
 		for _, entry := range entries {
 			owner, partitioned := windowManagerSnapshotProfile(entry.Key)
-			if !partitioned && profileID != "" &&
-				(entry.Key == windowManagerLegacyKey(profileID) || entry.Key == windowManagerMigrationKey(profileID)) {
-				owner, partitioned = profileID, true
+			if !partitioned && profileID != "" {
+				owner, partitioned = statekeys.Profile(entry.Key)
 			}
 			if !partitioned || seen[owner] || (profileID != "" && owner != profileID) {
 				continue

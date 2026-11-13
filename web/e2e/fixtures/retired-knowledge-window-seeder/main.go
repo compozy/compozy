@@ -91,7 +91,7 @@ func run(ctx context.Context, args []string) (err error) {
 		key = statekeys.Legacy(parsed.profileID)
 	}
 	entry, err := engine.Get(ctx, workspaceID, "window_manager", key)
-	if err != nil && !(parsed.rawSnapshot != "" && errors.Is(err, clientstate.ErrNotFound)) {
+	if err != nil && (parsed.rawSnapshot == "" || !errors.Is(err, clientstate.ErrNotFound)) {
 		return fmt.Errorf("read raw stored window snapshot: %w", err)
 	}
 	encoded, err := snapshotValueForSeed(entry.Value, parsed)

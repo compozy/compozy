@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 )
 
 func TestWindowManagerRepository(t *testing.T) {
@@ -470,7 +471,7 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 
 // Migration invariants belong to the repository suite over the real client-state store.
 func TestWindowManagerSnapshotMigration(t *testing.T) {
-	t.Run("Should refuse re-upgrade without overwriting different bytes or the failed backup", func(t *testing.T) {
+	t.Run("Should re-upgrade newer legacy bytes and retain every superseded backup", func(t *testing.T) {
 		t.Parallel()
 		for _, invalid := range []bool{false, true} {
 			f := newDaemonWindowManagerFixture(t)
@@ -480,20 +481,59 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			if _, err := f.repository.Load(t.Context(), ws); err != nil {
 				t.Fatal(err)
 			}
-			status := getDaemonState(t, &f, windowManagerMigrationKey(testWindowManagerProfileID))
-			newer := bytes.Replace(daemonLegacySnapshot(t, ws, invalid), []byte(`"old"`), []byte(`"newer"`), -1)
+			newer := bytes.ReplaceAll(daemonLegacySnapshot(t, ws, invalid), []byte(`"old"`), []byte(`"newer"`))
 			putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), newer)
-			_, err := f.repository.Load(t.Context(), ws)
-			if !errors.Is(err, windowmanager.ErrUnavailable) {
-				t.Fatalf("re-upgrade invalid=%t error=%v", invalid, err)
+			status, err := f.manager.Migration(t.Context(), ws, "", false)
+			want := windowManagerMigrationMigrated
+			if invalid {
+				want = windowManagerMigrationFailed
 			}
-			if !bytes.Equal(getDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID)).Value, newer) ||
-				!bytes.Equal(
-					getDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID)).Value,
-					original,
-				) ||
-				!bytes.Equal(getDaemonState(t, &f, status.Key).Value, status.Value) {
-				t.Fatal("re-upgrade changed the current bytes, failed backup, or migration status")
+			if err != nil || status.State != want || status.Acknowledged || status.Error == nil ||
+				!strings.Contains(status.Error.Message, "1 earlier layout backup(s) were set aside") {
+				t.Fatalf("re-upgrade invalid=%t status=%+v error=%v", invalid, status, err)
+			}
+			for _, raw := range [][]byte{original, newer} {
+				key := windowManagerLegacyKey(testWindowManagerProfileID)
+				if bytes.Equal(raw, original) {
+					key = statekeys.SupersededLegacy(testWindowManagerProfileID, raw)
+				}
+				if !bytes.Equal(getDaemonState(t, &f, key).Value, raw) {
+					t.Fatalf("backup %s changed", key)
+				}
+			}
+			ack, err := f.manager.Migration(t.Context(), ws, "ack", false)
+			if err != nil || !ack.Acknowledged || ack.State != want {
+				t.Fatalf("re-upgrade ack=%+v error=%v", ack, err)
+			}
+			third := bytes.ReplaceAll(daemonLegacySnapshot(t, ws, true), []byte(`"old"`), []byte(`"third"`))
+			putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), third)
+			status, err = f.manager.Migration(t.Context(), ws, "", false)
+			if err != nil || status.State != windowManagerMigrationFailed || status.Acknowledged ||
+				status.Error == nil || !strings.Contains(status.Error.Message, "2 earlier layout backup(s)") {
+				t.Fatalf("second re-upgrade status=%+v error=%v", status, err)
+			}
+			for _, raw := range [][]byte{original, newer, third} {
+				key := statekeys.SupersededLegacy(testWindowManagerProfileID, raw)
+				if bytes.Equal(raw, third) {
+					key = windowManagerLegacyKey(testWindowManagerProfileID)
+				}
+				if !bytes.Equal(getDaemonState(t, &f, key).Value, raw) {
+					t.Fatalf("second cycle changed backup %s", key)
+				}
+			}
+			// Returning to identical input deduplicates the content-addressed archive.
+			putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), original)
+			if _, err := f.repository.Load(t.Context(), ws); err != nil {
+				t.Fatal(err)
+			}
+			archived := getDaemonState(t, &f, statekeys.SupersededLegacy(testWindowManagerProfileID, original))
+			putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), newer)
+			if _, err := f.repository.Load(t.Context(), ws); err != nil {
+				t.Fatal(err)
+			}
+			if again := getDaemonState(t, &f, archived.Key); again.Rev != archived.Rev ||
+				!bytes.Equal(again.Value, original) {
+				t.Fatal("identical superseded input was overwritten")
 			}
 		}
 	})
@@ -506,7 +546,7 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 		if _, err := f.repository.Load(t.Context(), ws); err != nil {
 			t.Fatal(err)
 		}
-		putDaemonState(t, &f, windowManagerMigrationKey("corrupt-profile"), []byte(`"invalid-status"`))
+		putDaemonState(t, &f, windowManagerMigrationKey("corrupt-profile"), []byte(`{"state":42}`))
 		putDaemonState(t, &f, windowManagerLegacyKey("corrupt-profile"), []byte(`{"original":true}`))
 		var logs bytes.Buffer
 		f.registry.logger = slog.New(slog.NewJSONHandler(&logs, nil))
@@ -676,6 +716,9 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			if _, err := f.repository.Load(t.Context(), ws); err != nil {
 				t.Fatal(err)
 			}
+			superseded := daemonLegacySnapshot(t, ws, true)
+			archiveKey := statekeys.SupersededLegacy(testWindowManagerProfileID, superseded)
+			putDaemonState(t, &f, archiveKey, superseded)
 			for _, release := range []string{"dev", "v0.7.0", "v0.8.0-rc.1"} {
 				if err := f.registry.expireMigrationBackups(t.Context(), release); err != nil {
 					t.Fatal(err)
@@ -695,6 +738,9 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			)
 			if failed && err != nil || !failed && !errors.Is(err, clientstate.ErrNotFound) {
 				t.Fatalf("failed=%t backup retention error=%v", failed, err)
+			}
+			if !bytes.Equal(getDaemonState(t, &f, archiveKey).Value, superseded) {
+				t.Fatal("a later successful migration expired superseded failed input")
 			}
 		}
 	})
@@ -771,7 +817,13 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 		if _, err := f.repository.Load(t.Context(), ws); err != nil {
 			t.Fatal(err)
 		}
-		status, err := f.repository.Migration(t.Context(), ws, "ack", false)
+		original := raw
+		raw = bytes.ReplaceAll(raw, []byte(`"old"`), []byte(`"re-upgraded"`))
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+		if _, err := f.manager.Migration(t.Context(), ws, "", false); err != nil {
+			t.Fatal(err)
+		}
+		status, err := f.manager.Migration(t.Context(), ws, "ack", false)
 		if err != nil || !status.Acknowledged || status.State != "failed" {
 			t.Fatalf("ack=%+v error=%v", status, err)
 		}
@@ -779,7 +831,7 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 		if err != nil || s.Migration != nil {
 			t.Fatalf("ack notice=%+v error=%v", s.Migration, err)
 		}
-		status, err = f.repository.Migration(t.Context(), ws, "retry", false)
+		status, err = f.manager.Migration(t.Context(), ws, "retry", false)
 		if err != nil || status.Acknowledged || status.State != "failed" {
 			t.Fatalf("failed retry=%+v error=%v", status, err)
 		}
@@ -797,7 +849,7 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := getDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID))
-		_, err = f.repository.Migration(t.Context(), ws, "retry", false)
+		_, err = f.manager.Migration(t.Context(), ws, "retry", false)
 		if !errors.Is(err, windowmanager.ErrRevisionConflict) {
 			t.Fatalf("retry fence=%v", err)
 		}
@@ -805,19 +857,22 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			t.Fatal("conflict replaced snapshot")
 		}
 		// A later converter can repair input that a previous version could not decode.
-		valid := daemonLegacySnapshot(t, ws, false)
+		valid := bytes.ReplaceAll(daemonLegacySnapshot(t, ws, false), []byte(`"old"`), []byte(`"re-upgraded"`))
 		putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID), valid)
 		// A failed converter may have installed a nonzero working revision.
 		status.FailureRevision = 1
 		if err := f.repository.writeMigrationStatus(t.Context(), ws, status, "retry"); err != nil {
 			t.Fatal(err)
 		}
-		status, err = f.repository.Migration(t.Context(), ws, "retry", true)
-		if err != nil || status.State != "migrated" || status.Error != nil || status.FailureRevision != 0 {
+		status, err = f.manager.Migration(t.Context(), ws, "retry", true)
+		if err != nil || status.State != "migrated" || status.Error == nil || status.Error.Code != "migration.backup_superseded" || status.FailureRevision != 0 {
 			t.Fatalf("successful retry=%+v error=%v", status, err)
 		}
+		if !bytes.Equal(getDaemonState(t, &f, statekeys.SupersededLegacy(testWindowManagerProfileID, original)).Value, original) {
+			t.Fatal("retry or acknowledgement changed the superseded backup")
+		}
 		s, err = f.repository.Load(t.Context(), ws)
-		if err != nil || s.Windows["old"].ID != "old" || s.Revision != 2 ||
+		if err != nil || s.Windows["re-upgraded"].ID != "re-upgraded" || s.Windows["old"].ID != "" || s.Revision != 2 ||
 			!bytes.Equal(getDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID)).Value, valid) {
 			t.Fatalf("retry snapshot=%+v error=%v", s, err)
 		}
@@ -836,6 +891,45 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			t.Fatal("future bytes changed")
 		}
 	})
+	t.Run("Should set aside a different User backup during legacy layout import", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		ws := windowmanager.WorkspaceID(f.workspace.ID)
+		target := clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID)
+		original := daemonLegacySnapshot(t, windowmanager.UserDesktopWorkspaceID, true)
+		failed, err := json.Marshal(windowmanager.MigrationStatus{State: windowManagerMigrationFailed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.engine.Apply(ctx, target, windowManagerStateDomain, []clientstate.Op{
+			{Kind: clientstate.OpPut, Key: windowManagerLegacyKey(testWindowManagerProfileID), Value: original},
+			{Kind: clientstate.OpPut, Key: windowManagerMigrationKey(testWindowManagerProfileID), Value: failed},
+		}, clientstate.ApplyOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		raw := daemonLegacySnapshot(t, ws, false)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), raw)
+		if err := migrateUserScopeLayouts(ctx, f.engine, f.workspace.ID, discardLogger()); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{statekeys.SupersededLegacy(testWindowManagerProfileID, original), windowManagerLegacyKey(testWindowManagerProfileID)} {
+			entry, err := f.engine.Get(ctx, target, windowManagerStateDomain, key)
+			want := raw
+			if statekeys.IsSupersededLegacy(key) {
+				want = original
+			}
+			if err != nil || !bytes.Equal(entry.Value, want) {
+				t.Fatalf("User backup %s=%s error=%v", key, entry.Value, err)
+			}
+		}
+		status, err := f.repository.Migration(ctx, windowmanager.UserDesktopWorkspaceID, "", false)
+		if err != nil || status.State != windowManagerMigrationMigrated || status.Error == nil ||
+			status.Error.Code != "migration.backup_superseded" {
+			t.Fatalf("User import status=%+v error=%v", status, err)
+		}
+	})
+
 	t.Run("Should purge all migration keys and move only converted snapshots to User (IT-006)", func(t *testing.T) {
 		t.Parallel()
 		f := newDaemonWindowManagerFixture(t)
@@ -875,12 +969,13 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 		if err != nil || !bytes.Equal(backup.Value, raw) {
 			t.Fatalf("User backup=%s error=%v", backup.Value, err)
 		}
+		putDaemonState(t, &f, statekeys.SupersededLegacy(testWindowManagerProfileID, raw), raw)
 		if err := f.repository.DeleteWorkspace(t.Context(), ws); err != nil {
 			t.Fatal(err)
 		}
 		assertDaemonMigrationKeysAbsent(t, &f, clientstate.WorkspaceID(ws))
-		// A backup without a snapshot still belongs to the deleted profile.
-		putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID), raw)
+		// An archive without the other three keys still belongs to the deleted profile.
+		putDaemonState(t, &f, statekeys.SupersededLegacy(testWindowManagerProfileID, raw), raw)
 		if err := f.registry.PurgeDesktopPartitions(t.Context(), testWindowManagerProfileID); err != nil {
 			t.Fatal(err)
 		}
@@ -939,10 +1034,13 @@ func getDaemonState(t *testing.T, f *daemonWindowManagerFixture, key string) cli
 }
 func assertDaemonMigrationKeysAbsent(t *testing.T, f *daemonWindowManagerFixture, ws clientstate.WorkspaceID) {
 	t.Helper()
-	for _, key := range []string{windowManagerSnapshotKey(testWindowManagerProfileID), windowManagerLegacyKey(testWindowManagerProfileID), windowManagerMigrationKey(testWindowManagerProfileID)} {
-		_, err := f.engine.Get(t.Context(), ws, windowManagerStateDomain, key)
-		if !errors.Is(err, clientstate.ErrNotFound) {
-			t.Fatalf("key %s remains: %v", key, err)
+	entries, err := f.engine.List(t.Context(), ws, windowManagerStateDomain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if owner, ok := statekeys.Profile(entry.Key); ok && owner == testWindowManagerProfileID {
+			t.Fatalf("partition key %s remains", entry.Key)
 		}
 	}
 }

@@ -76,7 +76,10 @@ func retireTerminalWindow(ctx context.Context, windows windowManagerProvider, ev
 
 // Terminal processes never survive daemon startup, so every stored terminal binding is stale at boot.
 func (r *windowManagerRegistry) reconcileBootTerminals(ctx context.Context) error {
-	return r.reconcilePartitions(ctx, func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+	return r.reconcilePartitions(ctx, true, func(
+		manager *windowmanager.Manager,
+		partition windowmanager.WorkspaceID,
+	) error {
 		return manager.RetireTerminals(ctx, partition, nil)
 	})
 }

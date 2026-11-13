@@ -34,31 +34,31 @@ func WithDeprecationObserver(observer DeprecationObserver) Option {
 type deprecationGuidance struct{ replacement, message string }
 
 var retiredSurfaceGuidance = map[string]deprecationGuidance{
-	"window.minimize": {
+	retiredWindowMinimize: {
 		"window.close",
 		"Minimize was removed. The window remains open; close it when finished.",
 	},
-	"window.merge_all": {
+	retiredWindowMergeAll: {
 		deprecationMoveToTab,
 		"Stacks were removed. Move windows to adjacent tabs instead.",
 	},
-	"window.toggle_floating": {
+	string(CommandWindowToggleFloating): {
 		deprecationMoveToTab,
 		"Floating windows were removed. Open or move a window to a tab instead.",
 	},
-	"window.zoom": {
+	string(CommandWindowZoom): {
 		deprecationMoveToTab,
 		"Zoom was removed. Move the window to its own tab instead.",
 	},
-	"window.resize": {
+	string(CommandWindowResize): {
 		"layout.resize",
 		"Window frames were removed. Resize the seam between split members instead.",
 	},
-	"layout.frame_resize": {
+	string(CommandLayoutFrameResize): {
 		"layout.resize",
 		"Layout frames were removed. Resize the seam between split members instead.",
 	},
-	"window.stack.group": {
+	string(CommandWindowStackGroup): {
 		deprecationMoveToTab,
 		"Stacks were removed. Each window becomes a tab next to the target instead.",
 	},
@@ -85,6 +85,10 @@ var retiredSurfaceGuidance = map[string]deprecationGuidance{
 	"window.open.restore_window_id": {
 		"window.tab.activate",
 		"Minimize was removed. The existing window's tab is activated instead.",
+	},
+	"window.move.placement=empty": {
+		deprecationMoveToTab,
+		`An empty placement is retired. Use placement "tab" explicitly.`,
 	},
 	"window.move.placement=floating": {
 		deprecationMoveToTab,
@@ -130,7 +134,7 @@ func SurfaceDeprecation(surface string) Deprecation {
 				"This shortcut is retired and does nothing.",
 			}
 		}
-		if surface == "window.tab.detach" {
+		if surface == retiredWindowTabDetach {
 			entry = deprecationGuidance{
 				"window.unsplit",
 				"Stacks were removed. Use window.unsplit to move a split member to its own tab.",

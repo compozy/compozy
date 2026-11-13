@@ -18125,6 +18125,10 @@ export interface components {
       title: string;
     };
     SettingsWindowManagerConfigPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       bindings: components["schemas"]["SettingsWindowManagerBindingPayload"];
       closed_entry_limit: number;
       /** @enum {string} */
@@ -18151,7 +18155,10 @@ export interface components {
       group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
       history_limit: number;
       nav_stack_limit: number;
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+       * @enum {string}
+       */
       new_window_policy: "floating" | "beside_focus" | "tab";
       /**
        * @deprecated
@@ -18163,6 +18170,10 @@ export interface components {
       };
       /** @enum {string} */
       small_viewport_policy: "stack" | "reject";
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       snap: components["schemas"]["SettingsWindowManagerSnapPayload"];
       /** @enum {string} */
       swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
@@ -22262,6 +22273,10 @@ export interface components {
       workspace_id: string;
     };
     WorkspaceConfig: {
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       bindings?: components["schemas"]["BindingsConfig"] | null;
       closed_entry_limit?: number | null;
       desktop_transition?: string | null;
@@ -22281,6 +22296,7 @@ export interface components {
       group_move_modifier?: string | null;
       history_limit?: number | null;
       nav_stack_limit?: number | null;
+      /** @description Deprecated value "floating": translated to "tab"; removed in v0.8.0. */
       new_window_policy?: string | null;
       /**
        * @deprecated
@@ -22291,6 +22307,10 @@ export interface components {
         [key: string]: string | string[];
       };
       small_viewport_policy?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       snap?: components["schemas"]["SnapConfig"] | null;
       swap_modifier?: string | null;
     };

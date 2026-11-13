@@ -9874,6 +9874,11 @@ export type SettingsWindowManagerCommandPayload = {
 };
 
 export type SettingsWindowManagerConfigPayload = {
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   bindings: SettingsWindowManagerBindingPayload;
   closed_entry_limit: number;
   desktop_transition: "slide" | "crossfade" | "instant";
@@ -9898,6 +9903,9 @@ export type SettingsWindowManagerConfigPayload = {
   group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
   history_limit: number;
   nav_stack_limit: number;
+  /**
+   * Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+   */
   new_window_policy: "floating" | "beside_focus" | "tab";
   /**
    * Deprecated: accepted and ignored; remove before v0.8.0.
@@ -9909,6 +9917,11 @@ export type SettingsWindowManagerConfigPayload = {
     [key: string]: string | Array<string>;
   };
   small_viewport_policy: "stack" | "reject";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   snap: SettingsWindowManagerSnapPayload;
   swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
 };
@@ -13221,6 +13234,11 @@ export type WorkspaceAttentionSummaryPayload = {
 };
 
 export type WorkspaceConfig = {
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   bindings?: BindingsConfig | null;
   closed_entry_limit?: number | null;
   desktop_transition?: string | null;
@@ -13242,6 +13260,9 @@ export type WorkspaceConfig = {
   group_move_modifier?: string | null;
   history_limit?: number | null;
   nav_stack_limit?: number | null;
+  /**
+   * Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+   */
   new_window_policy?: string | null;
   /**
    * Deprecated: accepted and ignored; remove before v0.8.0.
@@ -13253,6 +13274,11 @@ export type WorkspaceConfig = {
     [key: string]: string | Array<string>;
   };
   small_viewport_policy?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   snap?: SnapConfig | null;
   swap_modifier?: string | null;
 };

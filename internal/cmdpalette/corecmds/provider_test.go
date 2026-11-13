@@ -2,6 +2,7 @@ package corecmds
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -189,6 +190,26 @@ func TestProviderAbsorption(t *testing.T) {
 				command.When[1].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
 				command.When[1].Value != 2 || command.When[1].Reason != "needs two windows on this desktop" {
 				t.Errorf("command %q when = %#v, want focused window + two windows on this desktop", id, command.When)
+			}
+		}
+	})
+
+	t.Run("Should require a focused split member for unsplit and root-edge moves", func(t *testing.T) {
+		t.Parallel()
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor)
+		for _, command := range mustCommands(t) {
+			byID[command.ID] = command
+		}
+		want := []cmdpalette.Predicate{
+			{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window"},
+			{Key: cmdpalette.ContextWindowStacked, Value: true, Reason: "needs a window in a split"},
+		}
+		for _, id := range []cmdpalette.CommandID{
+			"window.unsplit", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom",
+		} {
+			command, ok := byID[id]
+			if !ok || !reflect.DeepEqual(command.When, want) {
+				t.Errorf("command %q predicates = %#v, want %#v", id, command.When, want)
 			}
 		}
 	})

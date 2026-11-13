@@ -475,7 +475,7 @@ func TestCommandTransaction(t *testing.T) {
 			CommandWindowClose,
 			CommandWindowReopen,
 			CommandWindowMove,
-			CommandWindowStackGroup,
+			CommandLayoutArrange,
 			CommandLayoutReplace,
 			CommandDesktopDelete,
 		}

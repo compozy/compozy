@@ -531,7 +531,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should open a window",
 			commandID:       contract.WindowManagerCommandWindowOpen,
-			expectedPayload: `{"window":{"id":"win-3","app":"tasks","route":{"pathname":"/tasks","search":{"status":"open"}},"desktop_id":"d1","floating_rect":{"x":0.1,"y":0.2,"width":0.5,"height":0.6},"insert_tiled":false,"stack_target_window_id":"win-1"}}`,
+			expectedPayload: `{"window":{"id":"win-3","app":"tasks","route":{"pathname":"/tasks","search":{"status":"open"}},"desktop_id":"d1","floating_rect":{"x":0.1,"y":0.2,"width":0.5,"height":0.6},"stack_target_window_id":"win-1"}}`,
 			args: []string{
 				"window", "open", "--workspace", "w1", "--revision", "7", "--id", "win-3", "--app", "tasks",
 				"--desktop", "d1", "--rect", "0.1,0.2,0.5,0.6", "--pathname", "/tasks",
@@ -543,9 +543,16 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			},
 		},
 		{
+			name:            "Should preserve the active tiled insertion flag",
+			commandID:       contract.WindowManagerCommandWindowOpen,
+			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","insert_tiled":true}}`,
+			args:            []string{"window", "open", "--workspace", "w1", "--revision", "7", "--app", "tasks", "--pathname", "/tasks", "--tiled"},
+			expectedRoute:   &windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
+		},
+		{
 			name:            "Should open an explicit floating window",
 			commandID:       contract.WindowManagerCommandWindowOpen,
-			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false,"floating":true}}`,
+			expectedPayload: `{"window":{"app":"tasks","route":{"pathname":"/tasks","search":{}},"desktop_id":"","floating":true}}`,
 			args: []string{
 				"window", "open", "--workspace", "w1", "--revision", "7", "--app", "tasks",
 				"--pathname", "/tasks", "--search-json", "{}", "--floating",
@@ -601,7 +608,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should close tabs on the left",
 			commandID:       contract.WindowManagerCommandWindowClose,
-			expectedPayload: `{"window_id":"win-1","minimize":false,"scope":"left"}`,
+			expectedPayload: `{"window_id":"win-1","scope":"left"}`,
 			args: []string{
 				"window",
 				"close",
@@ -618,7 +625,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should close every unpinned tab",
 			commandID:       contract.WindowManagerCommandWindowClose,
-			expectedPayload: `{"window_id":"win-1","minimize":false,"scope":"all"}`,
+			expectedPayload: `{"window_id":"win-1","scope":"all"}`,
 			args: []string{
 				"window",
 				"close",
@@ -707,7 +714,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should close a window group",
 			commandID:       contract.WindowManagerCommandWindowClose,
-			expectedPayload: `{"window_id":"win-1","minimize":false,"scope":"group"}`,
+			expectedPayload: `{"window_id":"win-1","scope":"group"}`,
 			args: []string{
 				"window", "close", "--workspace", "w1", "--revision", "7", "--id", "win-1", "--scope", "group",
 			},
@@ -776,7 +783,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should arrange explicit windows",
 			commandID:       contract.WindowManagerCommandLayoutArrange,
-			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"horizontal","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":""}`,
+			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"horizontal"}`,
 			args: []string{
 				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
 				"--window", "win-2", "--arrangement", "horizontal",
@@ -785,7 +792,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should arrange explicit windows keeping their tab frames whole",
 			commandID:       contract.WindowManagerCommandLayoutArrange,
-			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"main_stack","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":"","keep_frames":true}`,
+			expectedPayload: `{"desktop_id":"d1","window_ids":["win-1","win-2"],"arrangement":"main_stack","keep_frames":true}`,
 			args: []string{
 				"layout", "arrange", "--workspace", "w1", "--revision", "7", "--desktop", "d1", "--window", "win-1",
 				"--window", "win-2", "--arrangement", "main_stack", "--keep-frames",

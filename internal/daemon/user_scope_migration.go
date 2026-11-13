@@ -153,22 +153,22 @@ func userScopeLayoutMigrationOps(
 	if version >= windowmanager.SnapshotVersion {
 		return ops, nil
 	}
-	backupKey := windowManagerLegacyKey(profile)
-	backup, err := engine.Get(ctx, target, windowManagerStateDomain, backupKey)
-	if err != nil && !errors.Is(err, clientstate.ErrNotFound) {
-		return nil, err
-	}
-	if err == nil && !bytes.Equal(backup.Value, entry.Value) {
-		return nil, errors.New("resolve the User layout backup before importing different legacy bytes")
-	}
-	status, err := json.Marshal(windowmanager.MigrationStatus{
-		State: windowManagerMigrationMigrated, FromVersion: version, At: time.Now().UTC(), Summary: &summary,
-	})
+	backups, superseded, err := migrationBackupOps(
+		ctx, engine, target, profile, entry.Value, clientstate.Op{Kind: clientstate.OpPut, Value: entry.Value},
+	)
 	if err != nil {
 		return nil, err
 	}
+	status := windowmanager.MigrationStatus{
+		State: windowManagerMigrationMigrated, FromVersion: version, At: time.Now().UTC(), Summary: &summary,
+	}
+	annotateSupersededBackups(&status, superseded)
+	record, err := json.Marshal(status)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, backups...)
 	return append(ops,
-		clientstate.Op{Kind: clientstate.OpPut, Key: backupKey, Value: entry.Value, IfRev: backup.Rev},
-		clientstate.Op{Kind: clientstate.OpPut, Key: windowManagerMigrationKey(profile), Value: status},
+		clientstate.Op{Kind: clientstate.OpPut, Key: windowManagerMigrationKey(profile), Value: record},
 	), nil
 }

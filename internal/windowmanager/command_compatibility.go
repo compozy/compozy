@@ -166,6 +166,8 @@ func canonicalMoveCommand(c MoveWindowCommand, report func(string)) Command {
 	var payload Command
 	if c.Placement == DropFloating {
 		report("window.move.placement=floating")
+	} else if c.Placement == "" {
+		report("window.move.placement=empty")
 	}
 	if c.Placement == DropFloating || c.Placement == "" {
 		c.Placement = DropTab

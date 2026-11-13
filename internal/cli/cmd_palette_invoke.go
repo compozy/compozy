@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +44,8 @@ func newCmdPaletteInvokeCommand(deps commandDeps) *cobra.Command {
 			}
 			commandID = canonicalCmdPaletteCommandID(cmd, commandID)
 			command, ok := findCmdPaletteCommand(catalog.Commands, commandID)
-			if !ok {
+			// Retired IDs stay invocable through v0.7.0, without catalog entries; remove in v0.8.0.
+			if !ok && !windowmanager.RetiredPaletteCommand(commandID) {
 				return cmdPaletteCommandNotFoundError(commandID)
 			}
 			invokeArgs, err := parseCmdPaletteArgs(command, rawArgs)

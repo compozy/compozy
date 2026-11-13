@@ -13,7 +13,7 @@ func customizeWindowManagerMigrationRequestSchema(schema *openapi3.Schema) {
 }
 
 func customizeWindowManagerMigrationStatusSchema(schema *openapi3.Schema) {
-	setStringEnum(schema.Properties["state"].Value, []string{"none", "migrated", "failed"})
+	setStringEnum(schema.Properties["state"].Value, []string{specNoneKey, "migrated", specFailedKey})
 	schema.Properties["failure_revision"].Value.Description =
 		"Topology revision installed on conversion failure; cleared after a successful retry."
 }

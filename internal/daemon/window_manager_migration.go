@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,7 +18,7 @@ const (
 )
 
 func windowManagerLegacyKey(profile string) string    { return statekeys.Legacy(profile) }
-func windowManagerMigrationKey(profile string) string { return "migration:" + profile }
+func windowManagerMigrationKey(profile string) string { return statekeys.Migration(profile) }
 
 func (r *windowManagerRepository) readMigration(
 	ctx context.Context,
@@ -66,10 +65,14 @@ func (r *windowManagerRepository) migrateSnapshot(
 		)
 		status.FailureRevision = snapshot.Revision
 	}
-	backup, err := r.migrationBackupOp(ctx, workspace, entry, &status)
+	backups, superseded, err := migrationBackupOps(
+		ctx, r.service, clientstate.WorkspaceID(workspace), r.profileID, entry.Value,
+		clientstate.Op{Kind: clientstate.OpCopy, SourceKey: entry.Key, SourceRev: entry.Rev},
+	)
 	if err != nil {
 		return windowmanager.Snapshot{}, err
 	}
+	annotateSupersededBackups(&status, superseded)
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return windowmanager.Snapshot{}, err
@@ -78,12 +81,8 @@ func (r *windowManagerRepository) migrateSnapshot(
 	if err != nil {
 		return windowmanager.Snapshot{}, err
 	}
-	ops := []clientstate.Op{}
-	if backup != nil {
-		ops = append(ops, *backup)
-	}
-	ops = append(
-		ops,
+	ops := append(
+		backups,
 		clientstate.Op{
 			Kind:  clientstate.OpPut,
 			Key:   windowManagerSnapshotKey(r.profileID),
@@ -120,46 +119,6 @@ func (r *windowManagerRepository) migrateSnapshot(
 	)
 	snapshot.Migration = &status
 	return snapshot, nil
-}
-
-func (r *windowManagerRepository) migrationBackupOp(
-	ctx context.Context,
-	workspace windowmanager.WorkspaceID,
-	entry clientstate.Entry,
-	status *windowmanager.MigrationStatus,
-) (*clientstate.Op, error) {
-	legacy, err := r.service.Get(
-		ctx,
-		clientstate.WorkspaceID(workspace),
-		windowManagerStateDomain,
-		windowManagerLegacyKey(r.profileID),
-	)
-	if err != nil && !errors.Is(err, clientstate.ErrNotFound) {
-		return nil, err
-	}
-	if err == nil {
-		previous, err := r.readMigration(ctx, workspace)
-		if err != nil {
-			return nil, err
-		}
-		if previous.State == windowManagerMigrationFailed {
-			if !bytes.Equal(legacy.Value, entry.Value) {
-				return nil, fmt.Errorf("resolve the failed layout migration before replacing newer legacy bytes: %w",
-					windowmanager.ErrUnavailable)
-			}
-			if status.State != windowManagerMigrationFailed {
-				return nil, nil
-			}
-			*status = previous
-			return nil, nil
-		}
-	}
-	return &clientstate.Op{
-		Kind:      clientstate.OpCopy,
-		Key:       windowManagerLegacyKey(r.profileID),
-		SourceKey: entry.Key,
-		SourceRev: entry.Rev,
-	}, nil
 }
 
 func migrationDiagnostic(err error) *windowmanager.Diagnostic {
@@ -246,6 +205,9 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 	status.Acknowledged, status.At = false, time.Now().UTC()
 	if conversionErr != nil {
 		status.Error = migrationDiagnostic(conversionErr)
+		if err := r.annotateSupersededBackups(ctx, workspace, &status); err != nil {
+			return status, err
+		}
 		return status, r.writeMigrationStatus(ctx, workspace, status, "retry")
 	}
 	next, err := windowmanager.NextTopologyRevision(current.Revision)
@@ -255,6 +217,9 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 	snapshot.Revision, snapshot.UpdatedAt, snapshot.Migration = next, status.At, nil
 	status.State, status.Error, status.Summary = windowManagerMigrationMigrated, nil, &summary
 	status.FailureRevision = 0
+	if err := r.annotateSupersededBackups(ctx, workspace, &status); err != nil {
+		return status, err
+	}
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return status, err
@@ -280,24 +245,21 @@ func purgeWindowManagerPartition(
 	workspace clientstate.WorkspaceID,
 	profile string,
 ) error {
-	var ops []clientstate.Op
-	keys := []string{
-		windowManagerSnapshotKey(profile), windowManagerLegacyKey(profile), windowManagerMigrationKey(profile),
+	entries, err := service.List(ctx, workspace, windowManagerStateDomain)
+	if err != nil {
+		return err
 	}
-	for _, key := range keys {
-		entry, err := service.Get(ctx, workspace, windowManagerStateDomain, key)
-		if errors.Is(err, clientstate.ErrNotFound) {
-			continue
+	var ops []clientstate.Op
+	for _, entry := range entries {
+		owner, partitioned := statekeys.Profile(entry.Key)
+		if !entry.Deleted && partitioned && owner == profile {
+			ops = append(ops, clientstate.Op{Kind: clientstate.OpDelete, Key: entry.Key, IfRev: entry.Rev})
 		}
-		if err != nil {
-			return err
-		}
-		ops = append(ops, clientstate.Op{Kind: clientstate.OpDelete, Key: key, IfRev: entry.Rev})
 	}
 	if len(ops) == 0 {
 		return nil
 	}
-	_, err := service.Apply(
+	_, err = service.Apply(
 		ctx,
 		workspace,
 		windowManagerStateDomain,

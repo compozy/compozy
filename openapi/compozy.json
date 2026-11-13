@@ -35183,7 +35183,13 @@
         "additionalProperties": false,
         "properties": {
           "bindings": {
-            "$ref": "#/components/schemas/SettingsWindowManagerBindingPayload"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SettingsWindowManagerBindingPayload"
+              }
+            ],
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0."
           },
           "closed_entry_limit": {
             "type": "integer"
@@ -35246,6 +35252,7 @@
             "type": "integer"
           },
           "new_window_policy": {
+            "description": "Deprecated value \"floating\": translated to \"tab\"; removed in v0.8.0.",
             "enum": [
               "floating",
               "beside_focus",
@@ -35282,7 +35289,13 @@
             "type": "string"
           },
           "snap": {
-            "$ref": "#/components/schemas/SettingsWindowManagerSnapPayload"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SettingsWindowManagerSnapPayload"
+              }
+            ],
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0."
           },
           "swap_modifier": {
             "enum": [
@@ -48862,6 +48875,8 @@
       "WorkspaceConfig": {
         "properties": {
           "bindings": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/BindingsConfig"
@@ -48928,6 +48943,7 @@
             "type": "integer"
           },
           "new_window_policy": {
+            "description": "Deprecated value \"floating\": translated to \"tab\"; removed in v0.8.0.",
             "nullable": true,
             "type": "string"
           },
@@ -48958,6 +48974,8 @@
             "type": "string"
           },
           "snap": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SnapConfig"

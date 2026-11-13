@@ -5,14 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -22,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 func TestWindowManagerHookBridge(t *testing.T) {
@@ -1118,6 +1125,124 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 // Invariant: startup cleanup durably removes stale terminal bindings across desktop partitions.
 func TestWindowManagerBootTerminals(t *testing.T) {
 	t.Parallel()
+	t.Run("Should boot and serve a healthy partition beside an unavailable future layout", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		d := newTestDaemon(t, homePaths, &cfg)
+		logs, err := os.CreateTemp(t.TempDir(), "boot.log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := logs.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.logger = slog.New(slog.NewJSONHandler(logs, nil))
+		resolver := &windowManagerStoreWorkspaceResolver{
+			records: make(map[clientstate.WorkspaceID]windowManagerWorkspaceRecord),
+		}
+		engine, err := clientstate.Open(ctx, clientstate.DatabasePath(homePaths.HomeDir), resolver, clientstate.DefaultLimits())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if engine != nil {
+				if err := engine.Close(); err != nil {
+					t.Error(err)
+				}
+			}
+		})
+		raw := []byte(`{"version":7,"unknown":"future"}`)
+		healthy, err := json.Marshal(daemonWindowManagerSnapshot(windowmanager.UserDesktopWorkspaceID, 0, "Healthy"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for partition, value := range map[windowmanager.WorkspaceID][]byte{
+			windowmanager.GlobalDesktopWorkspaceID: raw,
+			windowmanager.UserDesktopWorkspaceID:   healthy,
+		} {
+			if _, err := engine.Apply(ctx, clientstate.WorkspaceID(partition), windowManagerStateDomain,
+				[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(store.DefaultProfileID), Value: value}},
+				clientstate.ApplyOptions{}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+		engine = nil
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		var runtime RuntimeDeps
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			runtime = deps
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+		if err := d.boot(ctx); err != nil {
+			t.Fatalf("boot with a future partition: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if !d.serving.Load() || runtime.WindowManagers == nil {
+			t.Fatal("daemon did not enter serving phase")
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{WindowManager: runtime.WindowManagers, Profiles: runtime.Profiles})
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/window-manager", handlers.GetWindowManagerSnapshot)
+		for partition, want := range map[windowmanager.WorkspaceID]int{
+			windowmanager.GlobalDesktopWorkspaceID: http.StatusServiceUnavailable,
+			windowmanager.UserDesktopWorkspaceID:   http.StatusOK,
+		} {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(ctx, http.MethodGet,
+				"/api/workspaces/"+string(partition)+"/window-manager", nil))
+			if response.Code != want {
+				t.Fatalf("partition %s: HTTP %d body=%s", partition, response.Code, response.Body)
+			}
+			if want == http.StatusOK {
+				var snapshot contract.WindowManagerSnapshot
+				if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil || len(snapshot.Desktops) != 1 || snapshot.Desktops[0].Name != "Healthy" {
+					t.Fatalf("healthy response=%s error=%v", response.Body, err)
+				}
+			}
+		}
+		logBytes, err := os.ReadFile(logs.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored, err := runtime.WindowManagers.engine.Get(ctx, clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+			windowManagerStateDomain, windowManagerSnapshotKey(store.DefaultProfileID))
+		if err != nil || !bytes.Equal(stored.Value, raw) ||
+			!strings.Contains(string(logBytes), "window_manager.partition_reconciliation_skipped") ||
+			!strings.Contains(string(logBytes), store.DefaultProfileID) ||
+			!strings.Contains(string(logBytes), string(windowmanager.GlobalDesktopWorkspaceID)) {
+			t.Fatalf("future bytes=%s error=%v logs=%s", stored.Value, err, string(logBytes))
+		}
+	})
+
+	t.Run("Should keep destructive reconciliation strict for unavailable partitions", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), []byte(`{"version":7}`))
+		reconciler := &windowManagerSessionReconciler{registry: f.registry}
+		reconciler.SetReady()
+		if err := reconciler.ReconcileDeletedSession(t.Context(), testWindowManagerProfileID, "", "deleted"); !errors.Is(err, windowmanager.ErrUnavailable) {
+			t.Fatalf("session deletion error=%v, want unavailable", err)
+		}
+		if err := f.registry.ReconcileUnregisteredWorkspace(t.Context(), f.workspace.ID); !errors.Is(err, windowmanager.ErrUnavailable) {
+			t.Fatalf("workspace unregistration error=%v, want unavailable", err)
+		}
+	})
+
 	t.Run("Should retire persisted terminals once while preserving other apps", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
