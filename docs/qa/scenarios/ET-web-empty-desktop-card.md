@@ -1,12 +1,12 @@
 ---
 id: ET-web-empty-desktop-card
 area: ET
-title: An empty desktop asks what to work on and starts a session from the first message
+title: A new or emptied desktop opens one New tab window
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A desktop with no visible windows shows, on the flat desk panel with no card around it, the question "What should we work on?" above the real session composer (placeholder "Describe a task or ask a question", an agent control preset to the project's default agent, the shared session runtime selector with provider, model, reasoning, Fast and advertised options, native attachment picker/drop/paste previews, and the round send control) and a quiet "Press ⌘K to open anything" line with the live palette chord; typing while nothing else has focus lands in the composer and the shell's chords (⌘K, the desktop-switch chords, ⌘E) keep working; Enter or Send starts a session with the chosen agent in the scope's worktree, keeps the words in the resting composer with "Starting a session…" until it exists, then opens it on this desktop as the one window filling the panel with the message, selected runtime, and attached files as its first prompt; a failed start shows the error toast and leaves the words and staged files editable; when no agent resolves the New session dialog opens with the prompt, and dismissing it leaves the words in the composer; under All projects the composer drops the agent control and sending opens New session with the project picker (User last) and the agent; the surface returns when the last window closes or is minimized and reads in both themes.
-entry_points: web desk on a new or emptied desktop; empty-desktop composer (Enter / Send); agent control; All projects composer → New session project picker; ⌘K
-qa_status: pass
+expected: A desktop is never empty: a new desktop created empty (Desktops Overview, or **New desktop** in a top-bar desktop dot's menu) and a desktop whose last tab closed or moved away both get one tab holding a **New tab** window — the crumb "New tab", the line "This tab is empty", the **Choose a destination** button, and "or press ⌘K" with the live palette chord; Choose a destination (or ⌘K) opens the palette scoped to that window and picking an app or route replaces the New tab window in place, keeping the tab; ⌘T opens the same New tab window as a new tab; a desktop whose tabs are all New tab placeholders counts as empty, so `compozy desktop delete` removes it without `--destination` and drops the placeholders. No session composer, no card, no modal.
+entry_points: web desk on a new or emptied desktop; New tab window Choose a destination; ⌘K; ⌘T; compozy desktop delete
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -31,3 +31,5 @@ Regression follow-up (#862, first-message upload): hold an attachment upload, re
 QA impact 2026-11-13 (window-tabs-split S9): a new desktop can also come from **New desktop** in a
 top-bar desktop dot's menu; walk the empty-desktop start from there once. A desktop whose last tab
 is dragged to another desktop keeps a New Tab window rather than going empty.
+
+qa-impact: 2026-11-13 window-tabs-split S10. The empty-desktop composer ("What should we work on?") was removed with tabs and splits: an empty desktop now gets one New tab window (`internal/windowmanager/empty_desktop.go`, `web/src/systems/os/apps/new-tab/new-tab-window.tsx`). Earlier passes and evidence above describe the composer and are history only. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build. Create a desktop from Desktops Overview and from a top-bar dot's menu: each shows one tab with the New tab window. Click Choose a destination, pick Tasks: the same tab now shows Tasks. Close the last tab of a desktop: a New tab window appears. Drag the only real tab of desktop 2 to desktop 1: desktop 2 keeps a New tab window. With desktop 2 holding only New tab placeholders, run `compozy desktop delete --workspace <id> --revision <r> --id <desktop-2>` without `--destination`: it succeeds and no placeholder moves to another desktop.

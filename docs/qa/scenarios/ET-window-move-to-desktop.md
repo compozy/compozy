@@ -18,7 +18,7 @@ overlaps: RT-desktop-pager-overview; ET-window-manager-public-parity; ET-window-
 
 Added 2026-09-30 for the shell rail (VC-11 move window to desktop).
 
-Walk: with three desktops, move a tiled window and then a two-tab deck from desktop 1 to desktop 3 via the Window menu; confirm desktop 1 reflows, the client stays on desktop 1, the overview shows the window on desktop 3; undo; bind `window.move_to_desktop.2` in Settings › Layouts › Shortcuts and use it; reload and confirm placement; with a single desktop confirm the item is disabled with a reason.
+Superseded walk (before tabs and splits; history only — walk the 2026-11-13 qa-impact note below): with three desktops, move a tiled window and then a two-tab deck from desktop 1 to desktop 3 via the Window menu; confirm desktop 1 reflows, the client stays on desktop 1, the overview shows the window on desktop 3; undo; bind `window.move_to_desktop.2` in Settings › Layouts › Shortcuts and use it; reload and confirm placement; with a single desktop confirm the item is disabled with a reason.
 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated

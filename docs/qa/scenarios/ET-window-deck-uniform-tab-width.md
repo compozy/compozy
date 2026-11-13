@@ -16,6 +16,8 @@ last_report:
 overlaps: ET-window-tab-close-reopen
 ---
 
+> The notes and walks below up to the 2026-11-13 qa-impact note describe decks, floating windows, snapping or zoom and are history only; walk the 2026-11-13 note.
+
 Added 2026-08-07 by the deck uniform-width change: tab width moved off the tab (content-sized,
 title-dependent) onto the deck's per-tab slot. Root cause of the old variance: the minimum-width
 token used the `--width-*` namespace, which cannot generate Tailwind's `min-w-*` utility, so tabs

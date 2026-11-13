@@ -159,7 +159,9 @@ compozy desktop delete --workspace <workspace-id> --revision <revision> --id <de
 ```
 
 Deleting the final desktop is rejected. Deleting a desktop with tabs requires a distinct explicit
-destination; its tabs move there in the same transaction.
+destination; its tabs move there in the same transaction. A desktop whose only tabs are New tab
+placeholders (app `new-tab`) counts as empty: omit `--destination`, and the placeholders are dropped,
+not moved.
 
 Client-local presentation:
 
@@ -247,7 +249,8 @@ compozy window swap --workspace <workspace-id> --revision <revision> \
   `--target`'s tab when given, else right after its source tab on the same desktop, else at the end
   of the bar. `center` with `--target` is the same as `tab` with that target.
 - `--group` moves the whole tab instead of the one window: to the destination desktop, or merged at
-  the target edge. A single-window tab always moves whole.
+  the target edge. A single-window tab always moves whole. Moving a tab to another desktop does not
+  switch any client's active desktop.
 - Moving a window onto itself, or an edge placement with neither `--target` nor `--tab`, is
   `window_manager_invalid_command`.
 - `swap` exchanges two windows of the same tab; windows in different tabs are rejected with
@@ -387,7 +390,8 @@ compozy layout migration retry --workspace <workspace-id> [--replace]
 ```
 
 HTTP/UDS: `GET …/window-manager/migration`, `POST …/window-manager/migration` with
-`{"action":"ack"}` or `{"action":"retry","replace":false}`.
+`{"action":"ack"}` or `{"action":"retry","replace":false}`; `replace` is optional and only
+meaningful for `retry`.
 
 ```json
 {
@@ -408,8 +412,10 @@ HTTP/UDS: `GET …/window-manager/migration`, `POST …/window-manager/migration
 }
 ```
 
-- `state` is `none`, `migrated`, or `failed`. A failed status carries `error` (`code`
-  `migration.conversion_failed`, `message`) and `failure_revision`.
+- `state` is `none`, `migrated`, or `failed`. A failed status carries `error` (`code`, `message`)
+  and `failure_revision`, the layout revision written at the failure. `error.code` is the
+  converter's own topology diagnostic code when it reports one, otherwise
+  `migration.conversion_failed`. A successful retry clears `error` and `failure_revision`.
 - `ack` dismisses the notice for every client and deletes nothing.
 - `retry` re-runs the conversion from the preserved original. It is valid only for `failed`;
   otherwise `window_manager_invalid_command`. When the current layout changed after the failure,
@@ -544,6 +550,9 @@ per surface to stderr and exit 0.
 | `layout arrange --arrangement stack`                                                                                                                                                                                     | listed windows become adjacent tabs                                                         | `window move --placement tab`                                          |
 | `layout arrange --frame`, `--group`, `--keep-frames`                                                                                                                                                                     | ignored                                                                                     | `layout arrange`                                                       |
 | `layout balance --group` (`group_id`)                                                                                                                                                                                    | alias of `--tab`                                                                            | `layout balance --tab`                                                 |
+| `window group --insert-index` (`insert_index`)                                                                                                                                                                           | ignored                                                                                     | `window reorder --index`                                               |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group`                                    | resolve as deprecated no-ops or aliases; not listed                                         | the live command, or none                                              |
+| Settings API `GET`/`PATCH /api/settings/window-manager` fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`, `new_window_policy: "floating"`                                          | returned with fixed values; ignored on save                                                 | omit them                                                              |
 | `compozy__window_list` `include_minimized`                                                                                                                                                                               | ignored; every window is listed                                                             | —                                                                      |
 | `changes.group_ids`, `stack_grouped`, `stack_ungrouped`; client `stack_active`; `palette_context.window_floating`, `window_stacked`                                                                                      | always empty / `{}` / `false`; `window_stacked` mirrors `window_in_split`                   | `tab_ids`, `tab_split`, `tab_unsplit`, `active_tab`, `window_in_split` |
 | Hook `window_manager.stack.activated`                                                                                                                                                                                    | fires together with `tab.activated`                                                         | `window_manager.tab.activated`                                         |

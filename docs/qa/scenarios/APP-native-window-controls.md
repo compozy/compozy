@@ -4,9 +4,9 @@ area: APP
 title: Operate the desktop window from native controls in the topbar
 persona: Dora
 journey: J-desktop-attach-daily
-expected: The packaged product window shows operating-system window controls within the 52px CompozyOS topbar without covering product controls; macOS traffic lights sit inside the 84px leading reserve before the CompozyOS mark, vertically centred in the bar; Linux follows the desktop environment's native side and button set, painted on the topbar color with symbols that follow the light or dark theme; the whole topbar drags the window while every control in it stays clickable; in-product windows keep their own quiet trailing minimize, zoom and close icon buttons, distinct from the native controls; the browser renders the topbar without the reserve or desktop controls.
+expected: The packaged product window shows operating-system window controls within the 52px CompozyOS topbar without covering product controls; macOS traffic lights sit inside the 84px leading reserve before the CompozyOS mark, vertically centred in the bar; Linux follows the desktop environment's native side and button set, painted on the topbar color with symbols that follow the light or dark theme; the whole topbar drags the window while every control in it stays clickable; in-product windows carry only their own quiet head controls — Close window, plus Move to new tab when the window is in a split — distinct from the native controls, which keep their full operating-system set (macOS close, minimize and zoom; the Linux window manager's buttons); the browser renders the topbar without the reserve or desktop controls.
 entry_points: packaged macOS product window; packaged Linux product window; web desktop in a browser
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -47,3 +47,5 @@ CompozyOS mark and paints its focus ring, so the shell now releases focus that a
 activation before any key or pointer input. Expected: after hiding and re-showing the window with the
 mouse, no control in the topbar shows a focus ring. Development evidence only; the packaged walk remains
 outstanding.
+
+qa-impact: 2026-11-13 window-tabs-split S10. In-product windows lost minimize and zoom; their head keeps Close window and, inside a split, Move to new tab. The native Electron window controls are unchanged and still minimize, zoom and close the whole app window. Walk: on packaged macOS, confirm the traffic lights still minimize and zoom the app window, and an in-product window head shows no minimize or zoom button.

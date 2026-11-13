@@ -16,6 +16,8 @@ last_report: docs/qa/reports/2026-09-01-window-manager-review-fixes.md
 overlaps: ET-profile-desktop-restoration; ET-web-window-routing-lifecycle; ET-window-manager-layout-recovery; ET-web-command-palette-shortcuts; ET-web-ui-resilience
 ---
 
+> The notes and walks below up to the 2026-11-13 qa-impact note describe decks, floating windows, snapping or zoom and are history only; walk the 2026-11-13 note.
+
 story: As a builder, I can throw, split, stack, resize, and detach windows with predictable previews and atomic final placement.
 
 scope: Include landscape and portrait viewports, one-to-many descendants, floating clamp and reachable title bars, group-move modifier, top-center zoom, Dock-safe bottom center, reduced motion, and concurrent remote edits during a gesture.

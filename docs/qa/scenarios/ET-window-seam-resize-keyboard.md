@@ -18,7 +18,7 @@ overlaps: ET-window-manager-layout-gestures; ET-web-tiled-window-shadow-flush; E
 
 Added 2026-09-30 for the shell rail (VC-03 seam resize). Tiling is gutterless by default, so the seam is the only resize handle between panes.
 
-Walk: tile two windows side by side, hover the seam (2px accent), drag it to roughly 70/30, reload; Tab to the seam and press → five times (2% each) then Shift+→ once (10%); try to push a pane below 220px (it stops); undo and redo the layout; repeat on a horizontal seam in a stacked column; switch the theme and confirm the hairline and the accent state stay visible.
+Superseded walk (before tabs and splits; history only — walk the 2026-11-13 qa-impact note below): tile two windows side by side, hover the seam (2px accent), drag it to roughly 70/30, reload; Tab to the seam and press → five times (2% each) then Shift+→ once (10%); try to push a pane below 220px (it stops); undo and redo the layout; repeat on a horizontal seam in a stacked column; switch the theme and confirm the hairline and the accent state stay visible.
 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated

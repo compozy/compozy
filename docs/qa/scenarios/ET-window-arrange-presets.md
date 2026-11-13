@@ -18,7 +18,7 @@ overlaps: ET-web-menubar-menu-set; ET-window-seam-resize-keyboard; ET-window-man
 
 Added 2026-09-30 for the shell rail (VC-04 arrange). `main_stack` is new in the `compozy__layout_arrange` / CLI enum and the palette gained `layout.arrange.main-stack` and `layout.arrange.columns` (unbound by default).
 
-Walk: open four windows on one desktop, focus the second, run each Arrange item from the Window menu and check the geometry; repeat Main and stack from the palette and from the CLI (`--arrangement main_stack`, where the first listed window takes the main column); undo each; minimize one window and confirm Arrange leaves it minimized; with one window open confirm the items explain why they are disabled.
+Superseded walk (before tabs and splits; history only — walk the 2026-11-13 qa-impact note below): open four windows on one desktop, focus the second, run each Arrange item from the Window menu and check the geometry; repeat Main and stack from the palette and from the CLI (`--arrangement main_stack`, where the first listed window takes the main column); undo each; minimize one window and confirm Arrange leaves it minimized; with one window open confirm the items explain why they are disabled.
 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated

@@ -398,11 +398,11 @@ The tree of horizontal and vertical splits inside a tab whose leaves are windows
 
 ### Window
 
-A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with OS controls injected. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window is a tab of its own or a member of a split inside a tab; it only opens or closes. Its place in the tab bar or split is distinct from its internal pathname/search route.
+A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with the window's controls injected: Close window, plus Move to new tab inside a split. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window is a tab of its own or a member of a split inside a tab; it only opens or closes. Its place in the tab bar or split is distinct from its internal pathname/search route.
 
 ### Desktop pager
 
-The minimal horizontal dot control in the menubar tray for switching the active client's desktop; an orange dot marks an off-screen desktop that needs you. It is navigation, not a persistent management panel. The tray's All desktops button opens Desktops Overview, which owns create, rename, reorder, transfer, and delete operations.
+The desktop indicators in the menubar tray, one dot per desktop, for switching the active client's desktop; an amber dot marks an off-screen desktop that needs you. Each dot has a menu (Rename, Move left, Move right, Close desktop, New desktop) and accepts a dragged tab; past seven desktops, overflow controls open Desktops Overview. The tray's All desktops button opens Desktops Overview, which also owns create, rename, reorder, tab moves, and delete with a destination; Rename and Close desktop from a dot finish on the overview card.
 
 ### Dock
 

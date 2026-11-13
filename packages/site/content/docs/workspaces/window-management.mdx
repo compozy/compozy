@@ -72,10 +72,13 @@ window's tab, and `--tiled` splits beside the client's focus.
 In the app, the tab bar at the top of the work area lists every tab of the active desktop. A tab
 shows the icon and title of its lead window (the one you focused last); a split tab shows up to three
 icons and a member count. Tabs shrink to fit, down to icon-only, and then the bar scrolls and offers a
-list of the tabs that do not fit. Pinned tabs sit at the left, icon-only. The bar is a list of tabs
-you can move through with the arrow keys; middle-click closes a tab.
+list of the tabs that do not fit. Pinned tabs sit at the left, icon-only. The bar is one tab stop:
+Left and Right move between tabs and Home and End jump to the first and last. Middle-click closes
+a tab.
 
-Drag a tab along the bar to reorder it. Right-click a tab, or focus it and press Shift+F10, for:
+Drag a tab along the bar to reorder it. Right-click a tab, or focus it and press Shift+F10, for the
+items below; an item that cannot apply is absent rather than disabled (no **Reopen closed tab** when
+nothing was closed, no **Close tabs to the right** on the last tab):
 
 | Item                                                                                              | Does                                                                         |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -83,7 +86,7 @@ Drag a tab along the bar to reorder it. Right-click a tab, or focus it and press
 | **Move left**, **Move right**                                                                     | Moves the tab one place within its pinned or unpinned range                  |
 | **Split with ▸**                                                                                  | Puts another tab's windows beside this tab's                                 |
 | **Arrange ▸**                                                                                     | **Main and stack**, **Columns**, **Grid**, and **Balance sizes** for a split |
-| **Move to desktop ▸**                                                                             | Moves the whole tab, splits included, to another desktop                     |
+| **Move to desktop ▸**                                                                             | Moves the whole tab, splits included, to another desktop; you stay here      |
 | **Close tab**                                                                                     | Closes the tab (absent on a pinned single-window tab: unpin it first)        |
 | **Close other tabs**, **Close tabs to the right**, **Close tabs to the left**, **Close all tabs** | Close unpinned tabs only                                                     |
 | **Reopen closed tab**                                                                             | Brings back the most recently closed tab or window where it was              |
@@ -203,15 +206,19 @@ layout once:
 - Windows snapped side by side become one split tab when they line up; otherwise each becomes its own
   tab.
 - A zoomed window returns to the desktop it came from, as its own tab.
-- Window positions and sizes of floating windows, the minimized and zoomed state, the pin of a
-  window that ends up inside a split, and undo history are discarded. No window, route, navigation
-  history, or desktop is lost.
+- Discarded: the positions and sizes of floating windows, island frames, the minimized and zoomed
+  state, the spot a minimized or zoomed window would have returned to, the grouping of several tabs
+  inside one pane, the pin of a window that ends up inside a split (a pinned window that becomes its
+  own tab stays pinned), the desktops that zoom created, and undo/redo history. No window, route,
+  navigation history, or desktop is lost.
 
 The app then shows **Your windows are now tabs** with the number of floating and minimized windows
 that became tabs. Dismissing it in one window dismisses it everywhere. If the conversion fails, the
 app shows **We could not move your layout to tabs**: your previous layout is kept, the desktop starts
-empty, and **Retry** runs the conversion again. A retry is refused when you have changed the layout
-since the failure, so your new work is never replaced.
+with one New tab window, and **Retry** runs the conversion again; **Dismiss** hides the notice and keeps
+the saved layout. In the app a retry is refused when you have changed the layout since the failure,
+so your new work is never replaced; `compozy layout migration retry --replace` is the way to replace
+it on purpose.
 
 The same status is available to scripts and agents:
 
@@ -224,7 +231,9 @@ compozy layout migration retry --workspace <workspace-id> --replace  # replace t
 
 `status` reports `state` (`none`, `migrated`, or `failed`), `from_version`, `acknowledged`, and a
 `summary` with `desktops`, `tabs`, `windows`, `floating_to_tabs`, `minimized_to_tabs`,
-`islands_merged`, `pins_dropped`, and `zoom_desktops_merged`; a failed status adds `error`.
+`islands_merged`, `pins_dropped`, and `zoom_desktops_merged`. A failed status adds `error` (its
+`code` is the converter's diagnostic code, or `migration.conversion_failed`) and
+`failure_revision`; a successful retry clears both.
 `compozy layout get` and `compozy__layout_get` include it as `migration` until it is acknowledged.
 
 <OperatorNote>
@@ -245,7 +254,8 @@ compozy desktop delete --workspace <workspace-id> --revision <revision> --id <de
 ```
 
 Deleting the final desktop is rejected. A desktop with tabs requires a distinct destination so the tab
-transfer and deletion happen in one transaction.
+transfer and deletion happen in one transaction. A desktop whose only tabs are New tab placeholders
+counts as empty: it is deleted without `--destination`, and the placeholders are dropped, not moved.
 
 ### Desktops in the Web shell
 
@@ -259,7 +269,7 @@ Right-click a dot, or focus it and press Shift+F10 or the menu key, for **Rename
 **Move right**, **Close desktop** and **New desktop**. Move left is absent on the first desktop,
 Move right on the last, and Close desktop on the last remaining one. Rename and Close desktop open
 the overview on that desktop's card, where you type the new name, or choose where its tabs go and
-confirm.
+confirm. A desktop that holds only blank New tab tabs closes with a plain confirm and no destination.
 
 **All desktops** in the top bar, or **Window › All desktops**, opens the overview over the work
 area. Each card shows the desktop's layout, its name and tab count, and its first four tabs with a
@@ -353,7 +363,8 @@ windows bound to it fall back to their app's list, and nothing can bring the bin
 
 ## Agent and transport access
 
-The lazy `compozy__window_manager` toolset exposes 28 desktop, window, and layout tools with structured
+The lazy `compozy__window_manager` toolset registers 33 desktop, window, and layout tools — 28 current
+and the 5 retired ones listed below — with structured
 revisions, diagnostics, capability gates, and risk classifications. Resolve `compozy__tool_info` before
 calling a tool. `compozy__window_move` splits (`placement` `left`, `right`, `top`, `bottom` with
 `target_window_id` or `target_tab_id`), unsplits (`placement: "tab"`), and moves windows or whole tabs
@@ -388,24 +399,28 @@ These surfaces still work until v0.8.0 so older scripts, agents, and configs kee
 answers with a `deprecations` entry (`code`, `surface`, `replacement`, `removal_release: "v0.8.0"`,
 `message`) or a `warning:` line on stderr, and is deleted in v0.8.0.
 
-| Retired                                                                                                                                                                              | Until v0.8.0                                         | Use instead                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ------------------------------------------- |
-| `compozy window float`, `compozy__window_float`                                                                                                                                      | Does nothing                                         | `window move --placement tab`               |
-| `compozy window zoom`, `compozy__window_zoom`                                                                                                                                        | Does nothing                                         | `window move --placement tab`               |
-| `compozy window resize`, `compozy__window_resize`                                                                                                                                    | Does nothing                                         | `layout resize`                             |
-| `compozy layout frame-resize`, `compozy__layout_frame_resize`                                                                                                                        | Does nothing                                         | `layout resize`                             |
-| `compozy window group`, `compozy__window_group`                                                                                                                                      | Places each window as a tab after the target         | `window move --placement tab`               |
-| Command IDs `window.stack.reorder`, `window.stack.set_active`                                                                                                                        | Aliases                                              | `window.tab.reorder`, `window.tab.activate` |
-| `window open --floating`, `--rect`, `--restore`                                                                                                                                      | Opens a tab; ignored; activates the window's tab     | `window open`, `window activate`            |
-| `window close --minimize`                                                                                                                                                            | Does nothing; the window stays open                  | `window close`                              |
-| `window move --placement floating`, `--rect`                                                                                                                                         | Treated as `--placement tab`; ignored                | `--placement tab`                           |
-| `layout arrange --arrangement stack`, `--frame`, `--group`, `--keep-frames`                                                                                                          | Adjacent tabs; ignored                               | `layout arrange`                            |
-| `layout balance --group`                                                                                                                                                             | Alias of `--tab`                                     | `layout balance --tab`                      |
-| `compozy__window_list` `include_minimized`                                                                                                                                           | Ignored                                              | —                                           |
-| Hook `window_manager.stack.activated`                                                                                                                                                | Fires with `tab.activated`                           | `window_manager.tab.activated`              |
-| Hooks `window_manager.stack.grouped`, `stack.ungrouped`                                                                                                                              | Load, never fire; `compozy hooks list` warns         | `window_manager.tab.split`, `tab.unsplit`   |
-| Config `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap.*`, `bindings.*`; `new_window_policy = "floating"`                                                         | Ignored with a warning; `floating` loads as `tab`    | Remove the key                              |
-| Shortcut IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.tile.top-left`, `top-right`, `bottom-left`, `bottom-right`, `window.merge_all`, `window.tab.detach` | Load and do nothing; Settings marks them **retired** | Remove the binding                          |
+| Retired                                                                                                                                                                               | Until v0.8.0                                         | Use instead                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
+| `compozy window float`, `compozy__window_float`                                                                                                                                       | Does nothing                                         | `window move --placement tab`               |
+| `compozy window zoom`, `compozy__window_zoom`                                                                                                                                         | Does nothing                                         | `window move --placement tab`               |
+| `compozy window resize`, `compozy__window_resize`                                                                                                                                     | Does nothing                                         | `layout resize`                             |
+| `compozy layout frame-resize`, `compozy__layout_frame_resize`                                                                                                                         | Does nothing                                         | `layout resize`                             |
+| `compozy window group`, `compozy__window_group`                                                                                                                                       | Places each window as a tab after the target         | `window move --placement tab`               |
+| Command IDs `window.stack.reorder`, `window.stack.set_active`                                                                                                                         | Aliases                                              | `window.tab.reorder`, `window.tab.activate` |
+| `window open --floating`, `--rect`, `--restore`                                                                                                                                       | Opens a tab; ignored; activates the window's tab     | `window open`, `window activate`            |
+| `window close --minimize`                                                                                                                                                             | Does nothing; the window stays open                  | `window close`                              |
+| `window move --placement floating`, `--rect`                                                                                                                                          | Treated as `--placement tab`; ignored                | `--placement tab`                           |
+| `layout arrange --arrangement stack`, `--frame`, `--group`, `--keep-frames`                                                                                                           | Adjacent tabs; ignored                               | `layout arrange`                            |
+| `layout balance --group`                                                                                                                                                              | Alias of `--tab`                                     | `layout balance --tab`                      |
+| `window group --insert-index` (`insert_index`)                                                                                                                                        | Ignored                                              | `window reorder --index`                    |
+| `window.move` with an empty `placement` over HTTP/UDS                                                                                                                                 | Treated as `tab`                                     | `"placement": "tab"`                        |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group` | Resolve as no-ops or aliases; not listed             | The live command for the action, or none    |
+| Settings API (`GET`/`PATCH /api/settings/window-manager`) fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`; `new_window_policy: "floating"`     | Returned with fixed values; ignored on save          | Omit them                                   |
+| `compozy__window_list` `include_minimized`                                                                                                                                            | Ignored                                              | —                                           |
+| Hook `window_manager.stack.activated`                                                                                                                                                 | Fires with `tab.activated`                           | `window_manager.tab.activated`              |
+| Hooks `window_manager.stack.grouped`, `stack.ungrouped`                                                                                                                               | Load, never fire; `compozy hooks list` warns         | `window_manager.tab.split`, `tab.unsplit`   |
+| Config `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap.*`, `bindings.*`; `new_window_policy = "floating"`                                                          | Ignored with a warning; `floating` loads as `tab`    | Remove the key                              |
+| Shortcut IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.tile.top-left`, `top-right`, `bottom-left`, `bottom-right`, `window.merge_all`, `window.tab.detach`  | Load and do nothing; Settings marks them **retired** | Remove the binding                          |
 
 Results that contain the topology (snapshots, desktops, windows, layout documents) now have the
 version 6 shape; there is no version 5 form of them.

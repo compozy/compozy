@@ -39,7 +39,11 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `--minimize`, `--placement floating`, `--arrangement stack`, `--frame`, `--keep-frames`, and `--group`
   on `layout arrange|balance`. New routes `GET` and `POST
   /api/workspaces/{workspace_id}/window-manager/migration` (`WindowManagerMigrationRequest` →
-  `MigrationStatus`); ack and retry publish a `snapshot` stream frame. Client view: `active_tab`
+  `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
+  stream frame. A failed status carries `failure_revision` (cleared by a successful retry) and `error`,
+  whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`.
+  `desktop delete` needs no `--destination` when every tab of the desktop is a New tab placeholder;
+  the placeholders are dropped, not moved. Client view: `active_tab`
   replaces `stack_active` (still sent, `{}`); `window_in_split` is new, `window_stacked` mirrors it,
   `window_floating` is `false`. `PATCH /api/settings/window-manager` ignores `raise_on_focus`,
   `drag_away_policy`, `group_move_modifier`, `snap`, `bindings` (deprecated in OpenAPI); `GET` returns
@@ -60,6 +64,10 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `window.tile.top-left|top-right|bottom-left|bottom-right`. `window.tile.left|right|top|bottom` now
   move the window to that edge of its tab. New unbound IDs: `window.unsplit`, `window.tab.move_left`,
   `window.tab.move_right`.
+- **Command palette** (public regime). Retired palette command IDs keep resolving until v0.8.0 as
+  deprecated no-ops or aliases and are no longer listed: `window.minimize`, `window.zoom`,
+  `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`,
+  `layout.frame_resize`, `window.stack.group`.
 - **Workspace data isolation.** Unchanged: `snapshot:`, `legacy:` and `migration:` are keyed per
   workspace and profile, and `purgeWindowManagerPartition` deletes all three. The active tab is per
   client (`active_tab`), with `active_tab_id` as the shared default. The boot rewrite keeps each layout
@@ -76,7 +84,8 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `native-tools.md`, `configuration.md` and `desktop.md` follow the new model.
 - **Docs.** `packages/site/content/docs/workspaces/window-management.mdx` (rewritten, with the v0.6
   upgrade and a "Retired in v0.7.0" table), `configuration/config-toml.mdx`, `configuration/shortcuts.mdx`,
-  `sessions/index.mdx`, `extensions/develop.mdx`, generated `cli/window/` (new `reorder.mdx`) and
+  `sessions/index.mdx`, `sessions/mentions.mdx`, `resources/index.mdx`, `hooks/event-catalog.mdx`
+  (new Window Manager Events family), `extensions/develop.mdx`, generated `cli/window/` (new `reorder.mdx`) and
   `cli/layout/` (new `migration/`) pages; `COPY.md` §OS Shell Terms and `docs/_memory/glossary.md`
   (Tab and Split replace Tiled group); release note `.release-notes/window-tabs-and-splits.md`
   (`breaking`, with the migration block).

@@ -4,7 +4,7 @@ area: ET
 title: Unified window head absorbs PageHead
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Every open desktop window owns one 48px unified head — identity (a 26px identity well + title for root windows, a window-local drill-in trail, or a document self-title with a state glyph), then status + ≤2 actions, then a hairline and the quiet icon controls — Close window, plus Move to new tab when the window sits in a split — with an optional 44px toolbar for peer views and listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); blurred windows dim identity and trail without a border change; focusing a window makes its head and URL authoritative without creating a second shell-level title.
+expected: Every open desktop window owns one 48px unified head — identity (a 26px identity well + title for root windows, a window-local drill-in trail, or a document self-title with a state glyph), then status + ≤2 actions, then a hairline and the quiet icon controls — Close window, plus Move to new tab when the window sits in a split — and no minimize, zoom, float or tile-to-corner control appears anywhere in the shell: not in a window head, the Window menu, a tab's context menu, the dock or its menus, the ⌘K palette list, or the shortcut cheatsheet (US-018.AC-1) with an optional 44px toolbar for peer views and listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); blurred windows dim identity and trail without a border change; focusing a window makes its head and URL authoritative without creating a second shell-level title.
 entry_points: web desktop windows; any windowed catalog or detail route
 qa_status: untested
 bug_ids:
@@ -39,3 +39,5 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 qa-impact: 2026-11-13 window-tabs-split S10. Minimize and Zoom are retired and the per-pane deck row is gone (tabs live on one tab bar per desktop). Expected rewritten: every window head carries Close window, and a window inside a split also carries Move to new tab. Walk: a window alone in a tab (Close window only), then two windows in a split (both controls on each head; Move to new tab returns that window to its own tab); confirm identity, trail, toolbar and focus dimming are unchanged. Reset for the current build.
+
+qa-impact: 2026-11-13 window-tabs-split S10. This scenario owns the retired-controls-absent check (US-018.AC-1). Walk: with a single-window tab and a split tab, inspect each window head, open Window, a tab's context menu, a dock icon's menu, ⌘K (search "minimize", "zoom", "float", "tile") and Help › Keyboard shortcuts: none offers minimize, zoom, float or a corner tile. A retired palette ID invoked directly (`window.zoom`) still resolves as a deprecated no-op until v0.8.0; that path is ET-window-retired-surfaces-deprecations.
