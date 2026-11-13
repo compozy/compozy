@@ -24,9 +24,15 @@ func warnRetiredWindowManagerOverlay(o windowManagerOverlay, dst *WindowManagerC
 		key   string
 		value any
 	}{
-		{"raise_on_focus", o.RaiseOnFocus}, {"drag_away_policy", o.DragAwayPolicy}, {"group_move_modifier", o.GroupMoveModifier},
-		{"snap.edge_band", o.Snap.EdgeBand}, {"snap.corner_reach", o.Snap.CornerReach}, {"snap.exit_slack", o.Snap.ExitSlack},
-		{"snap.repeat_ratios", o.Snap.RepeatRatios}, {"bindings.top_center", o.Bindings.TopCenter}, {"bindings.bottom_center", o.Bindings.BottomCenter},
+		{"raise_on_focus", o.RaiseOnFocus},
+		{"drag_away_policy", o.DragAwayPolicy},
+		{"group_move_modifier", o.GroupMoveModifier},
+		{"snap.edge_band", o.Snap.EdgeBand},
+		{"snap.corner_reach", o.Snap.CornerReach},
+		{"snap.exit_slack", o.Snap.ExitSlack},
+		{"snap.repeat_ratios", o.Snap.RepeatRatios},
+		{"bindings.top_center", o.Bindings.TopCenter},
+		{"bindings.bottom_center", o.Bindings.BottomCenter},
 	} {
 		if field.value != nil {
 			dst.warnRetiredKey(field.key, false)

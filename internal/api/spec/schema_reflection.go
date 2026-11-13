@@ -197,7 +197,8 @@ func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 func schemaCustomizer(_ string, t reflect.Type, tag reflect.StructTag, schema *openapi3.Schema) error {
 	if tag.Get("deprecated") == "true" {
 		schema.Deprecated = true
-		schema.Description = "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement."
+		schema.Description = "Deprecated: retained for compatibility; removed in v0.8.0. " +
+			"See the window-manager deprecation matrix for its replacement."
 	}
 	if t.Kind() == reflect.Uint64 {
 		schema.Format = "uint64"

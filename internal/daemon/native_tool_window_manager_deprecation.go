@@ -45,7 +45,10 @@ func windowManagerToolDeprecations(
 			entry.Surface = surface
 		} else {
 			field := entry.Surface
-			for _, prefix := range []string{"window.open.window.", "window.open.", "window.close.", "window.move.", "layout.arrange.", "layout.balance."} {
+			for _, prefix := range []string{
+				"window.open.window.", "window.open.", "window.close.",
+				"window.move.", "layout.arrange.", "layout.balance.",
+			} {
 				if suffix, ok := strings.CutPrefix(field, prefix); ok {
 					field = suffix
 					break

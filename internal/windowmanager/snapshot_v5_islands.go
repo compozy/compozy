@@ -54,19 +54,7 @@ func (c *snapshotConverter) mergeIslands(desktopID DesktopID, groups []LayoutGro
 				if !ok {
 					continue
 				}
-				extent := func(gs []LayoutGroupV5) float64 {
-					lo, hi := math.Inf(1), math.Inf(-1)
-					for _, g := range gs {
-						start, size := g.Frame.X, g.Frame.Width
-						if axis == AxisVertical {
-							start, size = g.Frame.Y, g.Frame.Height
-						}
-						lo = math.Min(lo, start)
-						hi = math.Max(hi, start+size)
-					}
-					return hi - lo
-				}
-				l, r := extent(left), extent(right)
+				l, r := legacyIslandExtent(left, axis), legacyIslandExtent(right, axis)
 				if !finite(l+r) || l <= 0 || r <= 0 {
 					return LayoutNodeV5{}, false
 				}
@@ -83,4 +71,17 @@ func (c *snapshotConverter) mergeIslands(desktopID DesktopID, groups []LayoutGro
 		return LayoutNodeV5{}, false
 	}
 	return merge(groups)
+}
+
+func legacyIslandExtent(groups []LayoutGroupV5, axis Axis) float64 {
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, group := range groups {
+		start, size := group.Frame.X, group.Frame.Width
+		if axis == AxisVertical {
+			start, size = group.Frame.Y, group.Frame.Height
+		}
+		lo = math.Min(lo, start)
+		hi = math.Max(hi, start+size)
+	}
+	return hi - lo
 }

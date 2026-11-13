@@ -9,6 +9,7 @@ package spec
 import (
 	"maps"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -529,6 +530,16 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 			properties, _ := node["properties"].(map[string]any)
 			for _, name := range []string{"floating", "floating_rect", "restore_window_id", "minimize", "insert_index", "frame", "group_id", "keep_frames", "group_ids", "stack_grouped", "stack_ungrouped", "stack_active", "window_floating", "window_stacked"} {
 				if property, ok := properties[name].(map[string]any); ok {
+					if alternatives, ok := property["oneOf"].([]any); ok {
+						if len(alternatives) != 2 {
+							t.Fatalf("retired %s has unexpected alternatives: %v", name, alternatives)
+						}
+						nullable, ok := alternatives[1].(map[string]any)
+						if !ok || !reflect.DeepEqual(nullable["enum"], []any{nil}) {
+							t.Fatalf("retired %s has no nullable alternative: %v", name, alternatives[1])
+						}
+						property = alternatives[0].(map[string]any)
+					}
 					property["deprecated"] = true
 					property["description"] = "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement."
 					// Reflection also carries field metadata onto collection elements.
@@ -545,7 +556,7 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 	}
 	paths := baseline["paths"].(map[string]any)
 	for path, value := range paths {
-		if strings.HasPrefix(path, "/api/window-manager") {
+		if strings.HasPrefix(path, windowManagerPath) {
 			visit(value)
 		}
 	}
@@ -555,6 +566,8 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 			visit(value)
 		}
 	}
+	// Change-set fields occur in Event/Result/Preview components and commands/layout/preview responses (3+3).
+	// stack_active occurs in six component views and seven inline client/command/layout/preview/stream views.
 	want := map[string]int{
 		"floating":          1,
 		"floating_rect":     3,

@@ -32,13 +32,17 @@ func (c *daemonClient) WindowManagerMigration(
 
 func newLayoutMigrationCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "migration", Short: "Inspect or recover the layout upgrade", Args: cobra.NoArgs}
-	for _, action := range []string{"status", "ack", appRetryMethod} {
+	for _, action := range []string{automationStatusKey, "ack", appRetryMethod} {
 		var workspace string
 		var replace bool
 		child := &cobra.Command{
-			Use:   action,
-			Short: map[string]string{"status": "Show the layout migration status", "ack": "Acknowledge the layout migration notice", appRetryMethod: "Retry the preserved layout migration"}[action],
-			Args:  cobra.NoArgs,
+			Use: action,
+			Short: map[string]string{
+				automationStatusKey: "Show the layout migration status",
+				"ack":               "Acknowledge the layout migration notice",
+				appRetryMethod:      "Retry the preserved layout migration",
+			}[action],
+			Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 				if err != nil {
@@ -49,7 +53,7 @@ func newLayoutMigrationCommand(deps commandDeps) *cobra.Command {
 					return errors.New("cli: window-manager migration client is unavailable")
 				}
 				operation := action
-				if operation == "status" {
+				if operation == automationStatusKey {
 					operation = ""
 				}
 				status, err := migrations.WindowManagerMigration(cmd.Context(), workspace, operation, replace)

@@ -91,10 +91,11 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		tags: []string{windowManagerTag, windowManagerWindowsTag, descriptorKeywordList},
 	},
 	{
-		id:           toolspkg.ToolIDWindowOpen,
-		nativeName:   "window_open",
-		title:        "Window Open",
-		description:  "Open a window as a tab or split member. Deprecated restore_window_id activates an existing window; floating and floating_rect are retired until removal in v0.8.0.",
+		id:         toolspkg.ToolIDWindowOpen,
+		nativeName: "window_open",
+		title:      "Window Open",
+		description: "Open a window as a tab or split member. Deprecated restore_window_id activates an existing window; " +
+			"floating and floating_rect are retired until removal in v0.8.0.",
 		inputSchema:  windowManagerWindowOpenInputSchema,
 		outputSchema: windowManagerCommandOutputSchema,
 		risk:         toolspkg.RiskMutating,
@@ -116,10 +117,11 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		tags: []string{windowManagerTag, windowManagerWindowsTag, "close", "minimize"},
 	},
 	{
-		id:           toolspkg.ToolIDWindowGroup,
-		nativeName:   "window_group",
-		title:        "Window Group",
-		description:  "Deprecated until v0.8.0: make each listed window an adjacent tab after the target. Use window_move with placement tab; insert_index is ignored.",
+		id:         toolspkg.ToolIDWindowGroup,
+		nativeName: "window_group",
+		title:      "Window Group",
+		description: "Deprecated until v0.8.0: make each listed window an adjacent tab after the target. " +
+			"Use window_move with placement tab; insert_index is ignored.",
 		inputSchema:  windowManagerWindowGroupInputSchema,
 		outputSchema: windowManagerCommandOutputSchema,
 		risk:         toolspkg.RiskMutating,
@@ -170,10 +172,11 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		tags: []string{windowManagerTag, windowManagerWindowsTag, "focus", descriptorKeywordClient},
 	},
 	{
-		id:           toolspkg.ToolIDWindowMove,
-		nativeName:   "window_move",
-		title:        "Window Move",
-		description:  "Move a window or complete tab to a tab or split edge; target_tab_id addresses a tab root. Floating placement and rectangles are deprecated until v0.8.0.",
+		id:         toolspkg.ToolIDWindowMove,
+		nativeName: "window_move",
+		title:      "Window Move",
+		description: "Move a window or complete tab to a tab or split edge; target_tab_id addresses a tab root. " +
+			"Floating placement and rectangles are deprecated until v0.8.0.",
 		inputSchema:  windowManagerWindowMoveInputSchema,
 		outputSchema: windowManagerCommandOutputSchema,
 		risk:         toolspkg.RiskMutating,
@@ -227,10 +230,11 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		tags: []string{windowManagerTag, windowManagerLayoutTag, "preview", "dry run"},
 	},
 	{
-		id:           toolspkg.ToolIDLayoutArrange,
-		nativeName:   "layout_arrange",
-		title:        "Layout Arrange",
-		description:  "Arrange windows into one split tab. Deprecated stack creates adjacent tabs; frame, group_id and keep_frames are ignored until removal in v0.8.0.",
+		id:         toolspkg.ToolIDLayoutArrange,
+		nativeName: "layout_arrange",
+		title:      "Layout Arrange",
+		description: "Arrange windows into one split tab. Deprecated stack creates adjacent tabs; " +
+			"frame, group_id and keep_frames are ignored until removal in v0.8.0.",
 		inputSchema:  windowManagerLayoutArrangeInputSchema,
 		outputSchema: windowManagerCommandOutputSchema,
 		risk:         toolspkg.RiskMutating,

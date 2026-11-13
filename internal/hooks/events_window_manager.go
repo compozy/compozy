@@ -63,9 +63,8 @@ func windowManagerHookEventDefinitions() []hookEventDefinition {
 func RetiredWindowManagerEventWarning(event HookEvent) string {
 	switch event {
 	case HookWindowManagerStackGrouped, HookWindowManagerStackUngrouped:
-		return string(
-			event,
-		) + " is retired and never fires; use window_manager.tab.split or window_manager.tab.unsplit for split transitions. It will be deleted in v0.8.0."
+		return string(event) + " is retired and never fires; use window_manager.tab.split or " +
+			"window_manager.tab.unsplit for split transitions. It will be deleted in v0.8.0."
 	case HookWindowManagerStackActivated:
 		return "window_manager.stack.activated is deprecated; use window_manager.tab.activated. It will be deleted in v0.8.0."
 	default:

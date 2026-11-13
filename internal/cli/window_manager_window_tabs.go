@@ -53,7 +53,8 @@ func newWindowGroupCommand(deps commandDeps) *cobra.Command {
 	flags.add(cmd)
 	cmd.Flags().StringVar(&target, "target", "", "Target window ID")
 	cmd.Flags().
-		StringVar(&windowsRaw, "windows", "", "Deprecated: comma-separated IDs to place in adjacent tabs; use window move; removed in v0.8.0")
+		StringVar(&windowsRaw, "windows", "", "Deprecated: comma-separated IDs to place in adjacent tabs; "+
+			"use window move; removed in v0.8.0")
 	cmd.Flags().IntVar(&insertIndex, "insert-index", 0, "Deprecated: ignored insertion index; removed in v0.8.0")
 	return cmd
 }

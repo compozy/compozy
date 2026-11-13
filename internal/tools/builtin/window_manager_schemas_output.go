@@ -85,6 +85,7 @@ const windowManagerPreviewOutputSchema = `{
 
 const windowManagerDeprecationsSchema = `{
  "type":"array","items":{"type":"object","properties":{
- "code":{"type":"string"},"surface":{"type":"string"},"replacement":{"type":"string"},"removal_release":{"type":"string"},"message":{"type":"string"}},
+ "code":{"type":"string"},"surface":{"type":"string"},"replacement":{"type":"string"},` +
+	`"removal_release":{"type":"string"},"message":{"type":"string"}},
  "required":["code","surface","removal_release","message"],"additionalProperties":false}
 }`

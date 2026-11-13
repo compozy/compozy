@@ -311,23 +311,23 @@ func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.
 }
 
 func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowManagerConfig, error) {
-	inner, err := windowManagerInteger("gaps.inner", defaults.Gaps.Inner, 64)
+	inner, err := windowManagerInteger("gaps.inner", defaults.Gaps.Inner)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	top, err := windowManagerInteger("gaps.top", defaults.Gaps.Top, 64)
+	top, err := windowManagerInteger("gaps.top", defaults.Gaps.Top)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	right, err := windowManagerInteger("gaps.right", defaults.Gaps.Right, 64)
+	right, err := windowManagerInteger("gaps.right", defaults.Gaps.Right)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	bottom, err := windowManagerInteger("gaps.bottom", defaults.Gaps.Bottom, 64)
+	bottom, err := windowManagerInteger("gaps.bottom", defaults.Gaps.Bottom)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	left, err := windowManagerInteger("gaps.left", defaults.Gaps.Left, 64)
+	left, err := windowManagerInteger("gaps.left", defaults.Gaps.Left)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
@@ -349,7 +349,8 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 	}, nil
 }
 
-func windowManagerInteger(path string, value float64, maximum int) (int, error) {
+func windowManagerInteger(path string, value float64) (int, error) {
+	const maximum = 64
 	if math.IsNaN(value) || math.IsInf(value, 0) || math.Trunc(value) != value ||
 		value < 0 || value > float64(maximum) {
 		return 0, fmt.Errorf(

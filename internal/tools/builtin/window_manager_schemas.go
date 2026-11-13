@@ -284,7 +284,8 @@ const windowManagerLayoutPreviewInputSchema = `{
 			"desktop.create","desktop.update","desktop.reorder","desktop.switch","desktop.delete",
 			"window.open","window.navigate","window.close","window.focus","window.move","window.resize",
 			"window.swap","window.toggle_floating",
-			"window.zoom","window.tab.reorder","window.tab.activate","window.stack.group","window.stack.reorder","window.stack.set_active","window.pin","window.reopen",
+			"window.zoom","window.tab.reorder","window.tab.activate","window.stack.group",` +
+	`"window.stack.reorder","window.stack.set_active","window.pin","window.reopen",
 			"layout.arrange","layout.resize","layout.frame_resize","layout.balance","layout.undo","layout.redo"
 		]},
 		"payload":{"type":"object"},
