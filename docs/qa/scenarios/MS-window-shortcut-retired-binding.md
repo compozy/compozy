@@ -26,7 +26,7 @@ config.toml add under `[window_manager.shortcuts]`: `"window.zoom" = "control+al
 `"window.minimize" = "meta+KeyM"`, `"window.tile.bottom-right" = "control+alt+shift+KeyK"` and
 `"window.tab.detach" = ["control+alt+KeyD", "alt+KeyD"]`; run `compozy config reload`: it succeeds.
 2) In the shell, press each chord with a window focused: no window minimizes, zooms, moves or
-detaches, and no error toast appears. 3) Open Settings › Layouts › Shortcuts: rows "Zoom window",
+detaches, and no error toast appears. 3) Open Settings › Layouts › Shortcuts in All projects (user scope): rows "Zoom window",
 "Minimize window", "Tile to bottom right" and "Detach tab" each show their stored chords, the
 "retired" flag and the hint; clicking a chord does not start recording; the add-alternate button
 is hidden. 4) Record `control+alt+KeyZ` for "Move to new tab": accepted without a conflict. 5)
@@ -35,3 +35,13 @@ window"): the row disappears and `compozy config get window_manager.shortcuts -o
 has `window.zoom`; repeat for the other three. 6) Open the command palette and Help › Keyboard
 shortcuts: neither lists minimize, zoom, float, a corner tile, merge all or detach. 7) Repeat step 1
 in the workspace config and confirm the rows appear when Settings shows the project scope.
+
+qa-impact: 2026-11-13 shortcut scope isolation. With user-scope bindings for a current command
+(for example `session.new`) and a retired command (for example `window.zoom`), select a project
+whose config has no shortcut table. The project editor lists only project-owned overrides and
+retired rows; inherited active bindings remain in the effective keymap. Record a project shortcut:
+the project file contains only that binding, with no user shortcuts, global-shortcut table,
+aliases or inherited behavior settings copied in. Repeat with existing project-owned current and
+retired bindings: recording preserves them, and Remove deletes only the selected project binding.
+The user config stays byte-for-byte unchanged; All projects still shows its retired bindings for
+removal there.

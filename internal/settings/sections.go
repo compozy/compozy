@@ -190,6 +190,7 @@ func (s *service) populateSectionEnvelope(
 		section, err := s.buildWindowManagerSection(
 			ctx,
 			cfg,
+			resolved,
 			envelope.WorkspaceID,
 			envelope.ClientID,
 			envelope.ClientProfile,

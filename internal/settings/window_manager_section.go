@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const windowManagerConfigRoot = "window_manager"
@@ -19,12 +20,21 @@ const windowManagerConfigRoot = "window_manager"
 func (s *service) buildWindowManagerSection(
 	ctx context.Context,
 	cfg *compozyconfig.Config,
+	resolved *workspacepkg.ResolvedWorkspace,
 	workspaceID string,
 	clientID string,
 	clientProfile cmdpalette.ProfileLens,
 ) (WindowManagerSection, error) {
+	editable := cloneWindowManagerConfig(cfg.WindowManager)
+	if resolved != nil {
+		var err error
+		editable, err = workspaceWindowManagerConfig(workspaceConfigPath(resolved.RootDir), editable)
+		if err != nil {
+			return WindowManagerSection{}, err
+		}
+	}
 	section := WindowManagerSection{
-		Config:            cloneWindowManagerConfig(cfg.WindowManager),
+		Config:            editable,
 		Aliases:           cloneAliases(cfg.CmdPalette.Aliases),
 		ExtensionDefaults: []WindowManagerExtensionDefault{},
 	}
@@ -239,6 +249,7 @@ func applyWindowManagerSettings(
 	editor *compozyconfig.OverlayEditor,
 	settings compozyconfig.WindowManagerConfig,
 	aliases map[string]string,
+	req SectionUpdateRequest,
 ) error {
 	root := func(path ...string) []string {
 		return append([]string{windowManagerConfigRoot}, path...)
@@ -263,32 +274,40 @@ func applyWindowManagerSettings(
 		{path: root("gaps", "bottom"), value: settings.Gaps.Bottom},
 		{path: root("gaps", "left"), value: settings.Gaps.Left},
 	}
-	if err := applyValueUpdates(editor, updates); err != nil {
-		return err
-	}
-
-	shortcutsPath := root("shortcuts")
-	if len(settings.Shortcuts) == 0 {
-		if err := editor.Delete(shortcutsPath); err != nil {
+	if req.WindowManager != nil {
+		if err := applyValueUpdates(editor, updates); err != nil {
 			return err
 		}
-	} else {
+	}
+
+	writeBindingMaps := req.WindowManager != nil && !req.WindowManagerPreserveShortcuts
+	if writeBindingMaps || req.WindowManagerShortcuts != nil {
+		shortcutsPath := root("shortcuts")
 		values := make(map[string]any, len(settings.Shortcuts))
 		for command, binding := range settings.Shortcuts {
 			values[command] = append([]string(nil), binding...)
 		}
-		if err := editor.SetTable(shortcutsPath, values); err != nil {
+		if len(values) == 0 {
+			if err := editor.Delete(shortcutsPath); err != nil {
+				return err
+			}
+		} else if err := editor.SetTable(shortcutsPath, values); err != nil {
 			return err
 		}
 	}
 
-	globalShortcutsPath := root("global_shortcuts")
-	globalValues := make(map[string]any, len(settings.GlobalShortcuts))
-	for commandID, chord := range settings.GlobalShortcuts {
-		globalValues[commandID] = chord
+	if writeBindingMaps || req.WindowManagerGlobalShortcuts != nil {
+		globalShortcutsPath := root("global_shortcuts")
+		globalValues := make(map[string]any, len(settings.GlobalShortcuts))
+		for commandID, chord := range settings.GlobalShortcuts {
+			globalValues[commandID] = chord
+		}
+		if err := editor.SetTable(globalShortcutsPath, globalValues); err != nil {
+			return err
+		}
 	}
-	if err := editor.SetTable(globalShortcutsPath, globalValues); err != nil {
-		return err
+	if req.WindowManagerAliases == nil {
+		return nil
 	}
 
 	aliasesPath := []string{cmdPaletteConfigRoot, "aliases"}
@@ -300,6 +319,16 @@ func applyWindowManagerSettings(
 		values[commandID] = alias
 	}
 	return editor.SetTable(aliasesPath, values)
+}
+
+func workspaceWindowManagerConfig(
+	path string,
+	effective compozyconfig.WindowManagerConfig,
+) (compozyconfig.WindowManagerConfig, error) {
+	// Editable binding maps belong to the selected file, independent of effective bindings.
+	effective.Shortcuts = map[string]windowmanager.ShortcutBinding{}
+	effective.GlobalShortcuts = map[string]string{}
+	return compozyconfig.ApplyWindowManagerOverlayFile(path, effective)
 }
 
 func cloneWindowManagerConfig(cfg compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
