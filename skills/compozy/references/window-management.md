@@ -423,7 +423,14 @@ meaningful for `retry`.
   retry clears `error` and `failure_revision`.
 - `superseded_backups` (integer, omitted when 0) is the number of earlier backups currently kept
   for the profile after later upgrades set them aside (see the downgrade bullet).
-- `ack` dismisses the notice for every client and deletes nothing.
+- A successful conversion appears in the top bar bell as `kind: "layout-upgrade"`, titled
+  "Your windows are now tabs", with the floating/minimized window and removed-pin counts. The bell
+  includes every source profile across registered workspaces; `profile` and `receipt_profile`
+  select acknowledgement receipts, not the source population. Failed conversions stay inline.
+- Reading the bell item or clearing its captured bell snapshot acknowledges that conversion for
+  every client and surface, including its source profile. A later successful conversion has a new
+  occurrence. `ack` through the migration route or CLI also removes the bell item at the next read
+  and dismisses the notice for every client; it deletes nothing.
 - `retry` re-runs the conversion from the preserved original. It is valid only for `failed`;
   otherwise `window_manager_invalid_command`. When the current layout changed after the failure,
   it is refused with `window_manager_revision_conflict` unless `--replace` (`"replace": true`) is

@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -1022,5 +1023,252 @@ func (profileExistenceStub) Resolve(_ context.Context, in profilepkg.ResolveInpu
 		return profilepkg.Resolution{}, &profilepkg.Error{
 			Code: "profile_not_found", Message: "profile " + in.Flag + " not found", Cause: profilepkg.ErrNotFound,
 		}
+	}
+}
+
+type bellMigrationSource struct {
+	core.WindowManagerProvider
+	notices []windowmanager.MigrationNotice
+	reads   int
+	acked   []string
+}
+
+func (s *bellMigrationSource) MigrationNotifications(
+	_ context.Context, _ []windowmanager.WorkspaceID,
+) ([]windowmanager.MigrationNotice, error) {
+	s.reads++
+	return s.notices, nil
+}
+
+func (s *bellMigrationSource) AcknowledgeMigrationNotification(
+	_ context.Context,
+	notice windowmanager.MigrationNotice,
+) error {
+	s.acked = append(s.acked, notice.ProfileID)
+	for i := range s.notices {
+		if s.notices[i].ProfileID == notice.ProfileID && s.notices[i].WorkspaceID == notice.WorkspaceID {
+			s.notices[i].Status.Acknowledged = true
+		}
+	}
+	return nil
+}
+
+var _ core.WindowManagerMigrationNotifications = (*bellMigrationSource)(nil)
+
+func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerFixture {
+	t.Helper()
+	db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	manager := attentionRouteSessionManager()
+	manager.ListPageFn = func(context.Context, session.ListQuery) (session.ListPage, error) {
+		return session.ListPage{}, nil
+	}
+	f := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+		ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+			return []workspacepkg.Workspace{{ID: "ws-1", Name: "Alpha"}}, nil
+		},
+	})
+	f.Handlers.Observer = notificationRouteObserver{Store: db}
+	f.Handlers.Profiles = profileExistenceStub{}
+	f.Handlers.WindowManager = source
+	f.Handlers.Loops = &stubLoopService{
+		listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+			return contract.LoopNodeInventoryResponse{}, nil
+		},
+		listLoopRequestsFn: func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
+			return contract.LoopRequestsResponse{}, nil
+		},
+	}
+	f.Handlers.Terminal = notificationRouteTerminal{}
+	f.Engine.GET("/notifications/attention", f.Handlers.AttentionNotifications)
+	f.Engine.POST("/notifications/attention/acknowledge", f.Handlers.AcknowledgeAttentionNotifications)
+	return f
+}
+
+// Invariant: all-profile conversion occurrences obey the bell's scope, frozen membership and copy contract.
+// Owner: core attention handler; canonical suite: session_attention_test.go.
+func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC)
+	notice := func(profile string) windowmanager.MigrationNotice {
+		return windowmanager.MigrationNotice{WorkspaceID: "ws-1", ProfileID: profile,
+			Status: windowmanager.MigrationStatus{State: "migrated", At: at}}
+	}
+	t.Run(
+		"Should include all source profiles with stable identities and only pending registered conversions",
+		func(t *testing.T) {
+			t.Parallel()
+			source := &bellMigrationSource{notices: []windowmanager.MigrationNotice{
+				notice(
+					store.DefaultProfileID,
+				),
+				notice("profile-marketing"),
+				notice("gone"),
+				notice("read"),
+				notice("failed"),
+				notice("none"),
+			}}
+			source.notices[2].WorkspaceID = "unregistered"
+			source.notices[3].Status.Acknowledged = true
+			source.notices[4].Status.State = "failed"
+			source.notices[5].Status.State = "none"
+			f := newBellMigrationFixture(t, source)
+			for _, query := range []string{"profile=default", "profile=marketing&receipt_profile=default", "all_profiles=true&receipt_profile=marketing"} {
+				response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?"+query, nil)
+				var payload contract.AttentionNotificationsResponse
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if response.Code != http.StatusOK || payload.Total != 2 || payload.Finished != 2 ||
+					payload.NeedsYou != 0 {
+					t.Fatalf("scope %s: status=%d payload=%+v", query, response.Code, payload)
+				}
+				seen := make(map[string]bool)
+				for _, item := range payload.Items {
+					seen[item.ID] = true
+					if item.Kind != "layout-upgrade" || item.Title != "Your windows are now tabs" || item.SourceID != "ws-1" ||
+						item.WorkspaceID != "ws-1" ||
+						item.WorkspaceLabel != "Alpha" ||
+						!item.OccurredAt.Equal(at) {
+						t.Fatalf("item=%+v", item)
+					}
+					wantDefault := attention.Identity(
+						"layout-upgrade",
+						"ws-1",
+						store.DefaultProfileID,
+						at.Format(time.RFC3339Nano),
+					)
+					wantMarketing := attention.Identity(
+						"layout-upgrade",
+						"ws-1",
+						"profile-marketing",
+						at.Format(time.RFC3339Nano),
+					)
+					if item.ID != wantDefault && item.ID != wantMarketing {
+						t.Fatalf("identity=%q", item.ID)
+					}
+				}
+				if len(seen) != 2 {
+					t.Fatal("profile occurrences shared an identity")
+				}
+			}
+			if source.reads != 3 {
+				t.Fatalf("source reads=%d, want one per request", source.reads)
+			}
+		},
+	)
+	for _, tc := range []struct {
+		name    string
+		summary *windowmanager.MigrationSummary
+		want    string
+	}{
+		{"Should describe an absent summary", nil, "Floating and minimized windows are tabs now."},
+		{"Should describe one floating window", &windowmanager.MigrationSummary{FloatingToTabs: 1}, "1 floating window is a tab now."},
+		{"Should describe several floating windows", &windowmanager.MigrationSummary{FloatingToTabs: 2}, "2 floating windows are tabs now."},
+		{"Should describe one minimized window", &windowmanager.MigrationSummary{MinimizedToTabs: 1}, "1 minimized window is a tab now."},
+		{"Should describe several minimized windows", &windowmanager.MigrationSummary{MinimizedToTabs: 2}, "2 minimized windows are tabs now."},
+		{"Should join moved window counts and describe one dropped pin", &windowmanager.MigrationSummary{FloatingToTabs: 1, MinimizedToTabs: 2, PinsDropped: 1}, "1 floating window and 2 minimized windows are tabs now. 1 pin inside a split was removed."},
+		{"Should describe several dropped pins with no moved windows", &windowmanager.MigrationSummary{PinsDropped: 2}, "Floating and minimized windows are tabs now. 2 pins inside splits were removed."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			n := notice(store.DefaultProfileID)
+			n.Status.Summary = tc.summary
+			f := newBellMigrationFixture(t, &bellMigrationSource{notices: []windowmanager.MigrationNotice{n}})
+			response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)
+			var payload contract.AttentionNotificationsResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if response.Code != http.StatusOK || len(payload.Items) != 1 || payload.Items[0].Detail != tc.want {
+				t.Fatalf("status=%d payload=%+v, want detail %q", response.Code, payload, tc.want)
+			}
+		})
+	}
+	for _, single := range []bool{true, false} {
+		name := "Should clear only frozen conversions including rows beyond the displayed page"
+		if single {
+			name = "Should acknowledge one conversion across receipt profiles"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			source := &bellMigrationSource{}
+			for i := range 102 {
+				source.notices = append(source.notices, notice(fmt.Sprintf("profile-%03d", i)))
+			}
+			f := newBellMigrationFixture(t, source)
+			read := func(query string) contract.AttentionNotificationsResponse {
+				t.Helper()
+				response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?"+query, nil)
+				if response.Code != http.StatusOK {
+					t.Fatalf("read status=%d body=%s", response.Code, response.Body.String())
+				}
+				var payload contract.AttentionNotificationsResponse
+				testutil.DecodeJSONResponse(t, response, &payload)
+				return payload
+			}
+			before := read("profile=default")
+			if before.Total != 102 || len(before.Items) != 100 {
+				t.Fatalf("before=%+v", before)
+			}
+			request := contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot, ID: "not-in-snapshot"}
+			ack := func(want int) {
+				t.Helper()
+				body, err := json.Marshal(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				response := performRequest(
+					t,
+					f.Engine,
+					http.MethodPost,
+					"/notifications/attention/acknowledge?profile=default&surface=bell",
+					body,
+				)
+				if response.Code != want {
+					t.Fatalf("ack status=%d body=%s", response.Code, response.Body.String())
+				}
+			}
+			ack(http.StatusConflict)
+			if len(source.acked) != 0 {
+				t.Fatal("invalid member mutated migration state")
+			}
+			request.ID = ""
+			if single {
+				request.ID = before.Items[0].ID
+			}
+			// A later successful retry of an existing source cannot be cleared by the older snapshot.
+			changed := 0
+			if single &&
+				attention.Identity(
+					"layout-upgrade",
+					"ws-1",
+					source.notices[0].ProfileID,
+					at.Format(time.RFC3339Nano),
+				) == request.ID {
+				changed = 1
+			}
+			source.notices[changed].Status.At = at.Add(time.Hour)
+			source.notices = append(source.notices, notice("later"))
+			ack(http.StatusNoContent)
+			wantAcked, wantRemaining := 101, 2
+			if single {
+				wantAcked, wantRemaining = 1, 102
+			}
+			if len(source.acked) != wantAcked {
+				t.Fatalf("acked=%d want %d", len(source.acked), wantAcked)
+			}
+			ack(http.StatusNoContent)
+			if len(source.acked) != wantAcked {
+				t.Fatal("retry repeated a source mutation")
+			}
+			after := read("profile=marketing&receipt_profile=marketing")
+			if after.Total != wantRemaining {
+				t.Fatalf("other profile total=%d want %d", after.Total, wantRemaining)
+			}
+		})
 	}
 }

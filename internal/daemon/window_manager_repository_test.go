@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 
@@ -471,6 +472,107 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 
 // Migration invariants belong to the repository suite over the real client-state store.
 func TestWindowManagerSnapshotMigration(t *testing.T) {
+	t.Run(
+		"Should acknowledge only the observed bell conversion durably and republish its profile snapshot",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newDaemonWindowManagerFixture(t)
+			ws := windowmanager.WorkspaceID(f.workspace.ID)
+			putDaemonState(
+				t,
+				&f,
+				windowManagerSnapshotKey(testWindowManagerProfileID),
+				daemonLegacySnapshot(t, ws, false),
+			)
+			before, err := f.manager.Snapshot(t.Context(), ws)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspaces := []windowmanager.WorkspaceID{ws}
+			notices, err := f.registry.MigrationNotifications(t.Context(), workspaces)
+			if err != nil || len(notices) != 1 || notices[0].ProfileID != testWindowManagerProfileID ||
+				notices[0].WorkspaceID != ws {
+				t.Fatalf("notices=%+v error=%v", notices, err)
+			}
+			subscription, err := f.manager.Subscribe(t.Context(), windowmanager.SubscriptionRequest{WorkspaceID: ws})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := subscription.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			other, err := f.registry.For("01JQPROFILEOTHER0000000000")
+			if err != nil {
+				t.Fatal(err)
+			}
+			isolated, err := other.Subscribe(t.Context(), windowmanager.SubscriptionRequest{WorkspaceID: ws})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := isolated.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := f.registry.AcknowledgeMigrationNotification(t.Context(), notices[0]); err != nil {
+				t.Fatal(err)
+			}
+			status, err := f.repository.Migration(t.Context(), ws, "", false)
+			if err != nil || !status.Acknowledged {
+				t.Fatalf("stored ack=%+v error=%v", status, err)
+			}
+			select {
+			case update := <-subscription.Updates():
+				if update.Snapshot == nil || update.Snapshot.Migration != nil ||
+					update.Snapshot.Revision != before.Revision ||
+					!reflect.DeepEqual(update.Snapshot.Desktops, before.Desktops) ||
+					!reflect.DeepEqual(update.Snapshot.History, before.History) {
+					t.Fatalf("ack snapshot=%+v", update)
+				}
+			default:
+				t.Fatal("ack did not republish the snapshot")
+			}
+			select {
+			case update := <-isolated.Updates():
+				t.Fatalf("ack crossed profile boundary: %+v", update)
+			default:
+			}
+			remaining, err := f.registry.MigrationNotifications(t.Context(), workspaces)
+			if err != nil || len(remaining) != 0 {
+				t.Fatalf("acknowledged notices=%+v error=%v", remaining, err)
+			}
+			// A later conversion survives a replay of the old occurrence, even after a read/ack race.
+			status.Acknowledged, status.At = false, status.At.Add(time.Hour)
+			record, err := json.Marshal(status)
+			if err != nil {
+				t.Fatal(err)
+			}
+			putDaemonState(t, &f, windowManagerMigrationKey(testWindowManagerProfileID), record)
+			if err := f.registry.AcknowledgeMigrationNotification(t.Context(), notices[0]); err != nil {
+				t.Fatal(err)
+			}
+			remaining, err = f.registry.MigrationNotifications(t.Context(), workspaces)
+			if err != nil || len(remaining) != 1 || !remaining[0].Status.At.Equal(status.At) {
+				t.Fatalf("later conversion=%+v error=%v", remaining, err)
+			}
+			// The migration route's canonical ack removes the bell source too.
+			if _, err := f.manager.Migration(t.Context(), ws, "ack", false); err != nil {
+				t.Fatal(err)
+			}
+			remaining, err = f.registry.MigrationNotifications(t.Context(), workspaces)
+			if err != nil || len(remaining) != 0 {
+				t.Fatalf("external ack notices=%+v error=%v", remaining, err)
+			}
+			restartDaemonWindowManagerFixture(t, &f)
+			status, err = f.repository.Migration(t.Context(), ws, "", false)
+			if err != nil || !status.Acknowledged {
+				t.Fatalf("reopened ack=%+v error=%v", status, err)
+			}
+		},
+	)
+
 	t.Run("Should re-upgrade newer legacy bytes and retain every superseded backup", func(t *testing.T) {
 		t.Parallel()
 		for _, invalid := range []bool{false, true} {

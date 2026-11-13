@@ -9,6 +9,16 @@ import (
 
 var _ attention.Store = (*Observer)(nil)
 
+func (o *Observer) AttentionSnapshotOccurrences(
+	ctx context.Context, scope attention.Scope, snapshot, occurrence string,
+) ([]string, error) {
+	store, ok := o.registry.(attention.Store)
+	if !ok {
+		return nil, errors.New("observe: attention receipt store is unavailable")
+	}
+	return store.AttentionSnapshotOccurrences(ctx, scope, snapshot, occurrence)
+}
+
 func (o *Observer) CaptureAttentionSnapshot(
 	ctx context.Context,
 	scope attention.Scope,

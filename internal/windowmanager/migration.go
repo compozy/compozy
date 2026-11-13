@@ -24,6 +24,12 @@ type MigrationStatus struct {
 	SupersededBackups int               `json:"superseded_backups,omitempty"`
 }
 
+type MigrationNotice struct {
+	WorkspaceID WorkspaceID
+	ProfileID   string
+	Status      MigrationStatus
+}
+
 type Deprecation struct {
 	Code           string `json:"code"`
 	Surface        string `json:"surface"`

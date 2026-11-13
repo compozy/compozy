@@ -792,7 +792,11 @@ root edge of the tab; `placement: "tab"` makes it its own tab; `move_group` move
 (`tab`/`group`/`others`/`right`/`left`/`all`); `layout_balance` takes `tab_id` or `split_id`.
 Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired input was used,
 `deprecations[]`. `compozy__layout_get` includes `migration` while the layout-upgrade notice is
-unacknowledged.
+unacknowledged. A successful conversion is a `layout-upgrade` bell notification ("Your windows are
+now tabs"); reading it or clearing its captured bell snapshot durably acknowledges the conversion
+and refreshes connected clients' snapshots. The bell includes all source profiles in registered
+workspaces; its receipt profile does not filter layout conversions. Migration `ack` through
+HTTP/UDS or `compozy layout migration ack` also removes the item. Failed conversions stay inline.
 
 `desktop_switch` and `window_focus` require a connected `client_id`.
 `window_navigate` changes presentation only when given one. Preview/validate never write;

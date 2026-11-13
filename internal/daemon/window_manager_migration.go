@@ -143,6 +143,18 @@ func (r *windowManagerRepository) Migration(
 	action string,
 	replace bool,
 ) (windowmanager.MigrationStatus, error) {
+	return r.migration(ctx, workspace, action, replace, time.Time{})
+}
+
+func (r *windowManagerRepository) AcknowledgeMigration(
+	ctx context.Context, workspace windowmanager.WorkspaceID, at time.Time,
+) (windowmanager.MigrationStatus, error) {
+	return r.migration(ctx, workspace, "ack", false, at)
+}
+
+func (r *windowManagerRepository) migration(
+	ctx context.Context, workspace windowmanager.WorkspaceID, action string, replace bool, at time.Time,
+) (windowmanager.MigrationStatus, error) {
 	lock := r.lockFor(workspace)
 	lock.Lock()
 	defer lock.Unlock()
@@ -157,6 +169,9 @@ func (r *windowManagerRepository) Migration(
 	}
 	switch action {
 	case "ack":
+		if !at.IsZero() && (status.State != windowManagerMigrationMigrated || !status.At.Equal(at)) {
+			return status, nil
+		}
 		status.Acknowledged = true
 		return status, r.writeMigrationStatus(ctx, workspace, status, action)
 	case "retry":

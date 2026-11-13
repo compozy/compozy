@@ -1,10 +1,27 @@
 package windowmanager
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // MigrationRepository owns the atomic stored-snapshot upgrade and its recovery record.
 type MigrationRepository interface {
 	Migration(context.Context, WorkspaceID, string, bool) (MigrationStatus, error)
+}
+
+type MigrationAcknowledgementRepository interface {
+	AcknowledgeMigration(context.Context, WorkspaceID, time.Time) (MigrationStatus, error)
+}
+
+// AcknowledgeMigration acknowledges only the successful conversion observed by the bell.
+func (m *Manager) AcknowledgeMigration(
+	ctx context.Context, workspace WorkspaceID, at time.Time,
+) (MigrationStatus, error) {
+	if at.IsZero() {
+		return MigrationStatus{}, ErrInvalidCommand
+	}
+	return m.migration(ctx, workspace, "ack", false, at)
 }
 
 // Migration reads or acknowledges the upgrade notice, or retries a preserved layout.
@@ -13,6 +30,12 @@ func (m *Manager) Migration(
 	workspace WorkspaceID,
 	action string,
 	replace bool,
+) (MigrationStatus, error) {
+	return m.migration(ctx, workspace, action, replace, time.Time{})
+}
+
+func (m *Manager) migration(
+	ctx context.Context, workspace WorkspaceID, action string, replace bool, at time.Time,
 ) (MigrationStatus, error) {
 	if err := m.resolveWorkspace(ctx, workspace); err != nil {
 		return MigrationStatus{}, err
@@ -33,7 +56,16 @@ func (m *Manager) Migration(
 		}
 		return MigrationStatus{}, ErrInvalidCommand
 	}
-	status, err := repository.Migration(ctx, workspace, action, replace)
+	var status MigrationStatus
+	if !at.IsZero() {
+		acknowledger, ok := m.repository.(MigrationAcknowledgementRepository)
+		if !ok {
+			return MigrationStatus{}, ErrInvalidCommand
+		}
+		status, err = acknowledger.AcknowledgeMigration(ctx, workspace, at)
+	} else {
+		status, err = repository.Migration(ctx, workspace, action, replace)
+	}
 	if err != nil {
 		return status, err
 	}

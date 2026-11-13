@@ -22,6 +22,45 @@ import (
 func TestEngineShouldHonorStoreContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should aggregate only live prefixed entries from selected workspace domains", func(t *testing.T) {
+		t.Parallel()
+		engine, _, _ := newTestEngine(t, testLimits())
+		for _, ws := range []WorkspaceID{"w1", "w2"} {
+			applyPut(t, engine, ws, "window-manager", "migration:profile-a", objectValue("status"), 0, ApplyOptions{})
+			applyPut(t, engine, ws, "window-manager", "snapshot:profile-a", objectValue("layout"), 0, ApplyOptions{})
+			applyPut(t, engine, ws, "other", "migration:profile-a", objectValue("unrelated"), 0, ApplyOptions{})
+		}
+		applyPut(t, engine, "w1", "window-manager", "migration:deleted", objectValue("deleted"), 0, ApplyOptions{})
+		if _, err := engine.Apply(
+			t.Context(),
+			"w1",
+			"window-manager",
+			[]Op{{Kind: OpDelete, Key: "migration:deleted"}},
+			ApplyOptions{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		entries, err := engine.DomainEntriesByPrefix(
+			t.Context(),
+			[]WorkspaceID{"w1", "w2", "missing"},
+			"window-manager",
+			"migration:",
+		)
+		if err != nil || len(entries) != 2 {
+			t.Fatalf("aggregate=%+v error=%v", entries, err)
+		}
+		for _, ws := range []WorkspaceID{"w1", "w2"} {
+			if len(entries[ws]) != 1 || entries[ws][0].Key != "migration:profile-a" ||
+				!bytes.Equal(entries[ws][0].Value, objectValue("status")) {
+				t.Fatalf("workspace %s entries=%+v", ws, entries[ws])
+			}
+		}
+		entries, err = engine.DomainEntriesByPrefix(t.Context(), []WorkspaceID{"w2"}, "window-manager", "migration:")
+		if err != nil || len(entries) != 1 || len(entries["w2"]) != 1 {
+			t.Fatalf("selected=%+v error=%v", entries, err)
+		}
+	})
+
 	t.Run("Should create and read an identical first revision (UT-001)", func(t *testing.T) {
 		t.Parallel()
 		engine, _, _ := newTestEngine(t, testLimits())
