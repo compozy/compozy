@@ -205,7 +205,7 @@ describe("RouterEntryBridge", () => {
     const written = currentKey();
 
     // A filter changed while the written entry still loads: same path, the app's own replace.
-    void router.navigate({ to: "/slow", search: { status: "open" }, replace: true });
+    void router.navigate({ href: "/slow?status=open", replace: true });
     await vi.waitFor(() => expect(router.history.location.search).toContain("status=open"));
 
     expect(currentKey()).not.toBe(written);
@@ -227,7 +227,7 @@ describe("RouterEntryBridge", () => {
       const written = currentKey();
       const guard = holdNavigations(router);
 
-      void router.navigate({ to: "/slow", search: { status: "open" }, replace: true });
+      void router.navigate({ href: "/slow?status=open", replace: true });
       await vi.waitFor(() => expect(guard.held()).toBe(true));
       expect(currentKey()).toBe(written);
       guard.answer(blocked);

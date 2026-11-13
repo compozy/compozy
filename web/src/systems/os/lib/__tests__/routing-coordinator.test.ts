@@ -2032,15 +2032,15 @@ describe("RoutingCoordinator", () => {
         const toSettings = coordinator.userActivateWindow(settings.id);
 
         // The Tasks filter, as `tasks-catalog-location.tsx` changes it: an app's replace.
-        const filtered = route("/tasks", { status: "open" });
-        void router.navigate({ to: "/tasks", search: { status: "open" }, replace: true });
+        const filtered = route("/tasks", { status: "ready" });
+        void router.navigate({ to: "/tasks", search: { status: "ready" }, replace: true });
         const letsThrough = label.startsWith("lets");
         if (letsThrough) {
-          await vi.waitFor(() => expect(router.history.location.search).toContain("status=open"));
+          await vi.waitFor(() => expect(router.history.location.search).toContain("status=ready"));
           coordinator.reportRouteMatch(filtered, currentKey());
         } else {
           await Promise.resolve();
-          expect(router.history.location.search).not.toContain("status=open");
+          expect(router.history.location.search).not.toContain("status=ready");
         }
         releaseTasks();
         store.settleLifecycle(true);
