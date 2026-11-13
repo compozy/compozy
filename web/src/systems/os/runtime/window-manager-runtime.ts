@@ -12,11 +12,7 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import type {
-  FocusDirection,
-  FocusWindowOptions,
-  WindowManagerCommandInput,
-} from "../lib/window-manager-types";
+import type { FocusDirection, FocusWindowOptions } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { buildOsDesktopRuntimeView } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -26,8 +22,6 @@ import { WindowManagerSemanticOpenCoordinator } from "./window-manager-semantic-
 
 export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements OsDesktopRuntime {
   private readonly semanticOpens: WindowManagerSemanticOpenCoordinator;
-  /** This client's commands dispatched and not yet settled. */
-  private inFlight = 0;
 
   constructor(queryClient: QueryClient) {
     super(queryClient);
@@ -99,25 +93,6 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     const focused = this.view.focusedId ? this.view.windows[this.view.focusedId] : undefined;
     if (!focused?.inSplit) return;
     this.balanceTab(focused.tabId);
-  }
-
-  /**
-   * Whether a command of this client is dispatched and not yet settled. The runtime publishes a
-   * command's snapshot before its completion settles, so its result lands while this holds.
-   */
-  commandsInFlight(): boolean {
-    return this.inFlight > 0;
-  }
-
-  protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
-    const outcome = super.dispatch(command);
-    if (!outcome.accepted) return outcome;
-    this.inFlight += 1;
-    const settle = () => {
-      this.inFlight -= 1;
-    };
-    void outcome.completion.then(settle, settle);
-    return outcome;
   }
 
   protected buildView(): OsDesktopRuntimeStore {

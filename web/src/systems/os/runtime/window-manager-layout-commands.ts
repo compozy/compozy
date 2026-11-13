@@ -19,7 +19,9 @@ import {
   unsplitWindowCommand,
 } from "../lib/window-manager-command-builders";
 import { arrangeParticipants } from "../lib/window-manager-navigation";
+import type { LayoutNodeId, WindowManagerCommandInput } from "../lib/window-manager-types";
 import { authoritativeTabBalance } from "../lib/window-manager-view";
+import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
 import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
 
 /**
@@ -27,6 +29,36 @@ import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
  * and split weights. Every method dispatches one semantic daemon command; pixels never persist.
  */
 export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime {
+  /** This client's commands dispatched and not yet settled. */
+  private inFlight = 0;
+  /** Waiters for the moment no command of this client is in flight. */
+  private settledWaiters: Array<() => void> = [];
+
+  /**
+   * Whether a command of this client is dispatched and not yet settled. The runtime publishes a
+   * command's snapshot before its completion settles, so its result lands while this holds.
+   */
+  commandsInFlight = (): boolean => this.inFlight > 0;
+
+  /** Resolves once no command of this client is in flight: at once when none is. */
+  commandsSettled = (): Promise<void> => {
+    if (this.inFlight === 0) return Promise.resolve();
+    return new Promise(resolve => this.settledWaiters.push(resolve));
+  };
+
+  protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
+    const outcome = super.dispatch(command);
+    if (!outcome.accepted) return outcome;
+    this.inFlight += 1;
+    const settle = () => {
+      this.inFlight -= 1;
+      if (this.inFlight > 0) return;
+      for (const resolve of this.settledWaiters.splice(0)) resolve();
+    };
+    void outcome.completion.then(settle, settle);
+    return outcome;
+  }
+
   /** A fenced move is refused when the window or its target is no longer where the gesture saw it. */
   moveWindow = (
     id: string,
@@ -76,18 +108,38 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
   /**
    * "Balance sizes" for a whole tab, admitted like a seam double-click (`planTabBalance`): one
    * `layout.balance` of the tab when every split, evened together, still lays out side by side
-   * wherever it does now; otherwise one `layout.balance` per split that can be evened without
-   * that, outermost first; nothing when none can.
+   * wherever it does now; otherwise the splits that can be evened without that, outermost first;
+   * nothing when none can. The plan is made against the latest layout and work area once this
+   * client's commands in flight have settled, and made again before every further split, so a
+   * layout or viewport change while a balance waits never collapses a split.
    */
   balanceTab = (tabId: string): void => {
+    this.balanceTabFrom(tabId, this.binding, new Set());
+  };
+
+  private balanceTabFrom(
+    tabId: string,
+    binding: WindowManagerRuntimeBinding | null,
+    balanced: Set<LayoutNodeId>
+  ): void {
+    if (this.inFlight > 0) {
+      void this.commandsSettled().then(() => this.balanceTabFrom(tabId, binding, balanced));
+      return;
+    }
+    if (this.binding !== binding) return;
     const plan = authoritativeTabBalance(this.view, this.workArea(), tabId);
     if (plan === null) return;
     if (plan.whole) {
       this.balanceLayout({ tabId });
       return;
     }
-    for (const splitId of plan.splitIds) this.balanceLayout({ splitId });
-  };
+    const splitId = plan.splitIds.find(id => !balanced.has(id));
+    if (splitId === undefined) return;
+    balanced.add(splitId);
+    void this.balanceLayout({ splitId }).completion.then(applied => {
+      if (applied) this.balanceTabFrom(tabId, binding, balanced);
+    });
+  }
 
   /** "Move to new tab": a split member becomes its own tab right after its source tab. */
   unsplitWindow = (windowId: string): void => {

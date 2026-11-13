@@ -258,6 +258,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     balanceLayout: vi.fn(() => acceptedOutcome()),
     balanceTab: vi.fn(),
     commandsInFlight: vi.fn(() => false),
+    commandsSettled: vi.fn(async () => {}),
     navigateWindow: vi.fn(() => acceptedOutcome()),
     retargetWindow: vi.fn(() => acceptedOutcome()),
     popWindowRoute: vi.fn(() => acceptedOutcome()),
@@ -2657,23 +2658,37 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expectCancelled(shell, seam);
   });
 
-  it("Should re-base a drag on a layout change made by this client's own non-seam command", () => {
+  it("Should re-base a drag on this client's own non-seam command and hold its release until that command settles", async () => {
     const { shell, seam } = startSeamDrag(snapshotWithSplit([0.5, 0.5]));
-
-    // A palette balance or a move of this client lands while it is still in flight.
+    let settleBalance!: () => void;
     vi.mocked(shell.controller.commandsInFlight).mockReturnValue(true);
-    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
-    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    vi.mocked(shell.controller.commandsSettled).mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        settleBalance = resolve;
+      })
+    );
 
-    // The seam shown at 560 stays under the pointer: 260px from where 30/70 lays it out.
+    // Released while a palette balance of this client is in flight: nothing is sent yet.
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+    expect(seam).toHaveAttribute("data-state", "drag");
+
+    // Its result lands: the held drag is re-based, the seam shown at 560 kept under the pointer,
+    // 260px from where 30/70 lays it out.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
     expect(seam).toHaveAttribute("data-state", "drag");
     expect(windowManagerStore.getSnapshot().context.seamPreview?.deltaPx).toBeCloseTo(260);
-    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
-    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
-      "split:main",
-      0,
-      expect.closeTo(0.26),
-      fenceAt(8)
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    await act(async () => settleBalance());
+
+    // Authored against the balanced layout: +0.26 from 30/70, never +0.06 on top of it.
+    await waitFor(() =>
+      expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+        "split:main",
+        0,
+        expect.closeTo(0.26),
+        fenceAt(8)
+      )
     );
   });
 

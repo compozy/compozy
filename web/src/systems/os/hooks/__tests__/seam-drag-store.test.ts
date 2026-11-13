@@ -84,6 +84,9 @@ describe("seamDragLogic", () => {
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
     // The limit state changes with the frame that shows the clamp, not with the pointer move.
     expect(store.getSnapshot().context.limitShown).toBe(false);
+    // A readmission before that frame does not show it either.
+    store.trigger.readmitted({ admit: within(SEAM) });
+    expect(store.getSnapshot().context.limitShown).toBe(false);
     store.trigger.framePresented({});
     expect(store.getSnapshot().context.limitShown).toBe(true);
     // The commit is clamped to the minimum: 200px of travel in a 1000px span.

@@ -63,8 +63,8 @@ export type SeamDragEvents = {
   rebased: { seam: ProjectedSeam; revision: LayoutRevision; admit: SeamShiftAdmission };
   pointerMoved: { pointerId: number; coordinate: number; admit: SeamShiftAdmission };
   /**
-   * The layout under the drag changed without moving its seam: the shift is admitted again, in
-   * the frame that publishes that layout.
+   * The layout under the drag changed without moving its seam: the shift is admitted again. The
+   * limit state follows once that shift is shown (`framePresented`).
    */
   readmitted: { admit: SeamShiftAdmission };
   /** The drag's current shift is now on screen: the limit state follows it. */
@@ -129,9 +129,7 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
     readmitted: (state, event) => {
       if (state.phase !== "dragging") return;
       const shownPx = event.admit(state.deltaPx);
-      const limitShown = atLimit(state.deltaPx, shownPx);
-      if (shownPx === state.shownPx && limitShown === state.limitShown) return;
-      return { ...state, shownPx, limitShown };
+      return shownPx === state.shownPx ? undefined : { ...state, shownPx };
     },
     framePresented: state => {
       if (state.phase !== "dragging") return;
@@ -162,11 +160,7 @@ export const SEAM_LIMIT_HOLDBACK_PX = 1;
  */
 export function seamDragAtLimit(state: SeamDragState): boolean {
   if (state.phase !== "dragging" || state.seam === null) return false;
-  return atLimit(state.deltaPx, state.shownPx);
-}
-
-function atLimit(deltaPx: number, shownPx: number): boolean {
-  return Math.abs(deltaPx - shownPx) >= SEAM_LIMIT_HOLDBACK_PX;
+  return Math.abs(state.deltaPx - state.shownPx) >= SEAM_LIMIT_HOLDBACK_PX;
 }
 
 export interface SeamDragCommit {

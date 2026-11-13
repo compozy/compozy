@@ -34,6 +34,7 @@ import {
   formatSeamFrame,
   ownBusy,
   ownPending,
+  seamInputHolds,
   trackOwnCommand,
   type SeamInputScope,
   type SeamKeyStep,
@@ -325,7 +326,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
         return false;
       }
       if (sameSeamGeometry(latest, drag.seam)) {
+        // Shown with the layout that changed it, the preview and its limit state together.
         store.trigger.readmitted({ admit });
+        showPreview();
         return true;
       }
       if (!owned || latest.orientation !== drag.seam.orientation) {
@@ -370,24 +373,33 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       // The release frame is the last one shown, and the commit sends its shift.
       showPreview();
       const scope = inputScope();
-      if (!ownBusy(manager)) {
+      if (!ownBusy(manager) && !manager.commandsInFlight()) {
         commit(false, scope.at);
         return;
       }
-      // A seam command of this client is in flight (or queued), and its result may move the
-      // layout this release would be sent against: hold the release, previewed, in line behind
-      // it; once everything ahead has settled, author it against the latest layout and send — or
-      // cancel it if its input no longer holds by then.
+      // A command of this client is in flight (or a seam command queued), and its result may
+      // move the layout this release would be sent against: hold the release, previewed, in line
+      // behind the seam commands and until every own command has settled; then author it against
+      // the latest layout and send — or cancel it if its input no longer holds by then.
       detach();
-      afterOwnCommands(manager, {
-        scope,
-        run: () => {
-          if (live) commit(true, scope.at);
-        },
-        drop: () => {
-          if (live) cancel("context-changed");
-        },
-      });
+      const drop = () => {
+        if (live) cancel("context-changed");
+      };
+      const afterOwnSettled = () => {
+        if (!live) return;
+        if (!manager.commandsInFlight()) {
+          commit(true, scope.at);
+          return;
+        }
+        void manager.commandsSettled().then(() => {
+          if (!live) return;
+          if (seamInputHolds(scope, currentSeamFrame(manager), commandClockNow())) {
+            afterOwnSettled();
+          } else drop();
+        });
+      };
+      if (ownBusy(manager)) afterOwnCommands(manager, { scope, run: afterOwnSettled, drop });
+      else afterOwnSettled();
     };
 
     element.setPointerCapture(pointerId);

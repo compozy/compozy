@@ -237,6 +237,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   balanceTab(tabId: TabId): void;
   /** Whether a command of this client is dispatched and its result not yet settled. */
   commandsInFlight(): boolean;
+  /** Resolves once no command of this client is in flight; at once when none is. */
+  commandsSettled(): Promise<void>;
   navigateWindow(
     id: string,
     route: OsWindowRoute,
