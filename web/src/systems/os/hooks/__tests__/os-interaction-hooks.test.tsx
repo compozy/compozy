@@ -3365,6 +3365,64 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(after.seams.map(entry => entry.id)).toEqual(["split:outer:0"]);
   });
 
+  it("Should not balance an odd span with layout.balance when the exact tie leaves the trailing side under its minimum (R13-03)", () => {
+    // 1000×511, a window (220px floor) over the collapsed row (256px floor: 220 + its switcher).
+    // 256 is the larger half of 511, and `layout.balance` writes exactly 0.5 | 0.5: both shares
+    // are 255.5, the tie gives the spare pixel to the first member, and the row gets 255. The
+    // balance must test those exact weights, so it resizes by the admitted shift instead.
+    // From 0.45 | 0.55 (230 | 281px) the evening shift asks for 25.55px, held to 25 (255 | 256).
+    const row = ["window:r1", "window:r2", "window:r3", "window:r4", "window:r5"];
+    const windowOverRow = (weights: number[]) =>
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights,
+          children: [
+            leafNode("window:above"),
+            {
+              id: "split:row",
+              kind: "split",
+              axis: "horizontal",
+              weights: row.map(() => 0.2),
+              children: row.map(id => leafNode(id)),
+            },
+          ],
+        },
+        ["window:above", ...row],
+        SNAPSHOT.revision
+      );
+    const project = (weights: number[]) => {
+      const snapshot = windowOverRow(weights);
+      const tab = snapshot.desktops[0]?.tabs[0];
+      if (tab === undefined) throw new Error("expected the column's tab");
+      return projectTab({
+        tab,
+        workArea: { x: 0, y: 0, w: 1000, h: 511 },
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: buildWindowManagerMinimums(snapshot),
+      });
+    };
+    expect(project([0.5, 0.5]).collapsed.map(entry => entry.splitId)).toContain("split:outer");
+    const shell = exactShell(windowOverRow([0.45, 0.55]), 1000, 511);
+    render(<SeamHarness seam={outerSeam(shell, 511)} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(25 / 511, 9),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    const delta = vi.mocked(shell.controller.resizeLayout).mock.lastCall?.[2] ?? 0;
+    const after = project([0.45 + delta, 0.55 - delta]);
+    expect(after.collapsed.map(entry => entry.splitId)).toEqual(["split:row"]);
+    expect(after.seams.map(entry => entry.id)).toEqual(["split:outer:0"]);
+  });
+
   it("Should balance a two-member split with layout.balance when the even split lays out side by side", () => {
     // 1000×600: an even split gives the collapsed row 300px, over its 256px, and the window 300px.
     const shell = exactShell(rowOverWindow([0.6, 0.4]), 1000, 600);

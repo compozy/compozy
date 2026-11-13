@@ -13,7 +13,12 @@ import type {
   OsWindow,
   OsWindowRoute,
 } from "./os-types";
-import { admitSeamShift, projectTab, type AdmittedSeamShift } from "./tab-projection";
+import {
+  admitSeamShift,
+  projectTab,
+  seamSplitFitsEven,
+  type AdmittedSeamShift,
+} from "./tab-projection";
 import { resolveActiveTabId } from "./tab-model";
 import { effectiveWindowManagerConfig } from "./window-manager-config";
 import type {
@@ -149,6 +154,24 @@ export function authoritativeSeamShift(
   target: { splitId: string; boundaryIndex: number },
   requestedPx: number
 ): AdmittedSeamShift | null {
+  const input = authoritativeSplitInput(view, workArea, target.splitId);
+  return input === null ? null : admitSeamShift(input, target, requestedPx);
+}
+
+/**
+ * Whether the seam's split lays out side by side once `layout.balance` evens it, against the
+ * authoritative layout: `seamSplitFitsEven`. Null when the split or the boundary no longer exists.
+ */
+export function authoritativeSeamSplitFitsEven(
+  view: AuthoritativeView,
+  workArea: PixelRect,
+  target: { splitId: string; boundaryIndex: number }
+): boolean | null {
+  const input = authoritativeSplitInput(view, workArea, target.splitId);
+  return input === null ? null : seamSplitFitsEven(input, target);
+}
+
+function authoritativeSplitInput(view: AuthoritativeView, workArea: PixelRect, splitId: string) {
   const { snapshot, windowManagerConfig: config } = view;
   if (snapshot === null || config === null) return null;
   const context: ProjectionContext = {
@@ -158,10 +181,8 @@ export function authoritativeSeamShift(
     focusOrder: view.client?.focusOrder ?? [],
     compact: view.presentation === "compact",
   };
-  const tab = tabWithSplit(snapshot, target.splitId);
-  return tab === null
-    ? null
-    : admitSeamShift(projectionInputFor(tab, context), target, requestedPx);
+  const tab = tabWithSplit(snapshot, splitId);
+  return tab === null ? null : projectionInputFor(tab, context);
 }
 
 function findSplitMembers(node: LayoutNode, splitId: string): number | null {

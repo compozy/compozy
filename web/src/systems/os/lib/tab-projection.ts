@@ -422,6 +422,21 @@ export interface AdmittedSeamShift {
   shiftPx: number;
 }
 
+/** Projects the tab to find a laid-out split's seam, the split's node and rect, and the context. */
+function probeSeam(input: TabProjectionInput, target: { splitId: string; boundaryIndex: number }) {
+  const probe: NonNullable<ProjectionContext["probe"]> = { splitId: target.splitId, found: null };
+  const context: ProjectionContext = { ...projectionContext(input), probe };
+  const area = windowManagerLayoutArea(pixelRect(input.workArea), input.gaps);
+  projectNode(input.tab.root, area, context, null, true);
+  const seam = context.seams.find(
+    candidate =>
+      candidate.splitId === target.splitId && candidate.boundaryIndex === target.boundaryIndex
+  );
+  const found = probe.found;
+  if (seam === undefined || found === null) return null;
+  return { seam, found, context };
+}
+
 /**
  * The one rule every frame of a seam drag goes through: the shift it shows, reports at its limit
  * and commits. A requested shift is clamped to the seam's bounds; if the split would not lay out
@@ -436,16 +451,9 @@ export function admitSeamShift(
   target: { splitId: string; boundaryIndex: number },
   requestedPx: number
 ): AdmittedSeamShift | null {
-  const probe: NonNullable<ProjectionContext["probe"]> = { splitId: target.splitId, found: null };
-  const context: ProjectionContext = { ...projectionContext(input), probe };
-  const area = windowManagerLayoutArea(pixelRect(input.workArea), input.gaps);
-  projectNode(input.tab.root, area, context, null, true);
-  const seam = context.seams.find(
-    candidate =>
-      candidate.splitId === target.splitId && candidate.boundaryIndex === target.boundaryIndex
-  );
-  const found = probe.found;
-  if (seam === undefined || found === null) return null;
+  const probed = probeSeam(input, target);
+  if (probed === null) return null;
+  const { seam, found, context } = probed;
   const fits = (shiftPx: number) =>
     fitsShifted(
       found.node,
@@ -460,4 +468,24 @@ export function admitSeamShift(
   if (shiftPx === clamped) shiftPx -= Math.sign(shiftPx);
   while (shiftPx !== 0 && !fits(shiftPx)) shiftPx -= Math.sign(shiftPx);
   return { seam, shiftPx };
+}
+
+/**
+ * Whether the laid-out split this seam belongs to still lays out side by side with literally
+ * equal weights, which is what `layout.balance` writes (`1/n` each). An exact tie gives the spare
+ * pixel of an odd span to the first member, so a shift that only nears equality can fit where the
+ * balanced split does not. Null when the tab does not lay the split out with that boundary.
+ */
+export function seamSplitFitsEven(
+  input: TabProjectionInput,
+  target: { splitId: string; boundaryIndex: number }
+): boolean | null {
+  const probed = probeSeam(input, target);
+  if (probed === null) return null;
+  const { node, rect } = probed.found;
+  const even: LayoutSplitNode = {
+    ...node,
+    weights: node.children.map(() => 1 / node.children.length),
+  };
+  return childrenFit(even, splitRects(even, rect, probed.context.innerGap), probed.context);
 }

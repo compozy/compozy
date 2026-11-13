@@ -14,6 +14,7 @@ import type {
 import {
   authoritativeSeam,
   authoritativeSeamShift,
+  authoritativeSeamSplitFitsEven,
   authoritativeSplitMembers,
   DEFAULT_WINDOW_MANAGER_WORK_AREA,
 } from "../lib/window-manager-view";
@@ -427,30 +428,27 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
   };
 
   /**
-   * Balances the two sides this seam separates. The shift that evens them goes through the same
-   * admission as a key step, against the layout at send time, so a balance never leaves the split
-   * one member at a time: it lands on the even split when that fits, on the nearest fitting shift
-   * otherwise. With two members an admitted even split is `layout.balance`; a held-back one, or a
-   * pair in a wider split (the others keep theirs), is `layout.resize` by the admitted shift. The
-   * member count is the split's when the command is sent; a seam that by then separates another
-   * pair gets nothing.
+   * Balances the two sides this seam separates, against the layout at send time, so a balance
+   * never leaves the split one member at a time. With two members, `layout.balance` when the split
+   * fits with the exactly equal weights it writes (an odd span's tie goes to the first member, so
+   * the fit is tested on those weights, not on a shift that only nears them). Otherwise, and for
+   * a pair in a wider split (the others keep theirs), `layout.resize` by the evening shift as a
+   * key step admits it: the nearest shift that fits. The member count is the split's when the
+   * command is sent; a seam that by then separates another pair gets nothing.
    */
   const onDoubleClick = () => {
     if (seam === undefined) return;
     sendSeamCommand(seam, (current, { members, inputAt }) => {
-      const requestedPx = ((current.trailingWeight - current.leadingWeight) / 2) * current.axisSpan;
-      const admitted = authoritativeSeamShift(
-        manager.getState(),
-        projectedWorkArea(),
-        current,
-        requestedPx
-      );
-      if (admitted === null) return;
+      const view = manager.getState();
+      const workArea = projectedWorkArea();
       const fence = fenceFor(current, inputAt);
-      if (members <= 2 && admitted.shiftPx === requestedPx) {
+      if (members <= 2 && authoritativeSeamSplitFitsEven(view, workArea, current) === true) {
         void sent(manager.balanceLayout({ splitId: current.splitId }, fence));
         return;
       }
+      const requestedPx = ((current.trailingWeight - current.leadingWeight) / 2) * current.axisSpan;
+      const admitted = authoritativeSeamShift(view, workArea, current, requestedPx);
+      if (admitted === null) return;
       const delta = seamWeightDelta(admitted.seam, admitted.shiftPx);
       if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
       void sent(manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fence));
