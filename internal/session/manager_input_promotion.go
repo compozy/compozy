@@ -64,10 +64,15 @@ func (m *Manager) promoteLongTurnQueuedInputsOnce(ctx context.Context, session *
 	// Injection runs on the live binding: an entry that asked for another runtime waits for its own turn.
 	live := session.runtimeBindingSnapshot().selection
 	liveRuntime := storeRuntimeSelection(&live)
-	effective := effectiveQueuedInputRuntime(session)
 	for index := range entries {
 		entry := &entries[index]
-		if !promotableQueuedInput(entry) || !sameSessionInputRuntime(effective(entry.Runtime), liveRuntime) {
+		if !promotableQueuedInput(entry) {
+			continue
+		}
+		// Runtime-less wakes use the live binding, including provider-applied defaults.
+		if runtimeSelectionFromStore(entry.Runtime) != nil && !sameSessionInputRuntime(entry.Runtime, liveRuntime) {
+			m.sessionLogger(session).DebugContext(ctx, "session: skip queued input promotion",
+				"entry_id", entry.ID, "reason", "runtime_mismatch")
 			continue
 		}
 		if declined, ok := session.promotionDeclined.Load(entry.ID); ok && declined == turnID {
