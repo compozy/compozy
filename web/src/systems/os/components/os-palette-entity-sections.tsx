@@ -1,4 +1,4 @@
-import { ArrowRightLeft, FolderGit2, Link2 } from "@compozy/ui/icons";
+import { ArrowRightLeft, CornerDownRight, FolderGit2, Link2 } from "@compozy/ui/icons";
 
 import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
@@ -29,6 +29,7 @@ export interface OsPaletteEntitySectionsProps {
   onGoToTab: (windowId: string) => void;
   onSelectWorktree: (entry: OsPaletteWorktreeResult) => void;
   onLinkSession?: (sessionId: string) => void;
+  onMoveSession?: (sessionId: string) => void;
 }
 
 /**
@@ -46,27 +47,45 @@ export function OsPaletteEntitySections({
   onGoToTab,
   onSelectWorktree,
   onLinkSession,
+  onMoveSession,
 }: OsPaletteEntitySectionsProps) {
-  const { linkSessionId } = entities;
+  const { linkSessionId, moveSessionId } = entities;
+  const showLink = Boolean(linkSessionId && onLinkSession);
+  const showMove = Boolean(moveSessionId && onMoveSession);
   return (
     <>
-      {linkSessionId && onLinkSession ? (
+      {showLink || showMove ? (
         <CommandGroup
           className={GROUP_CLASS}
           data-testid="os-palette-section-session-link"
           heading="This session"
         >
-          <CommandItem
-            className={paletteRowClass}
-            data-palette-row="session-link"
-            data-testid="os-palette-session-link"
-            forceMount
-            value="session-link"
-            onSelect={() => onLinkSession(linkSessionId)}
-          >
-            <Link2 aria-hidden="true" className="size-3.5 text-muted-foreground" />
-            Link a pull request or branch…
-          </CommandItem>
+          {linkSessionId && onLinkSession ? (
+            <CommandItem
+              className={paletteRowClass}
+              data-palette-row="session-link"
+              data-testid="os-palette-session-link"
+              forceMount
+              value="session-link"
+              onSelect={() => onLinkSession(linkSessionId)}
+            >
+              <Link2 aria-hidden="true" className="size-3.5 text-muted-foreground" />
+              Link a pull request or branch…
+            </CommandItem>
+          ) : null}
+          {moveSessionId && onMoveSession ? (
+            <CommandItem
+              className={paletteRowClass}
+              data-palette-row="session-move-under"
+              data-testid="os-palette-session-move-under"
+              forceMount
+              value="session-move-under"
+              onSelect={() => onMoveSession(moveSessionId)}
+            >
+              <CornerDownRight aria-hidden="true" className="size-3.5 text-muted-foreground" />
+              Move under another session…
+            </CommandItem>
+          ) : null}
         </CommandGroup>
       ) : null}
       {entities.sessions.length > 0 ? (

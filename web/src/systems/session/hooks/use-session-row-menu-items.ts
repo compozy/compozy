@@ -24,7 +24,8 @@ import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession, sessionTreeParentId } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
-import { sessionAdoptRefusal, sessionCanTakeOver } from "../lib/session-reparent";
+import { sessionCanTakeOver } from "../lib/session-reparent";
+import { requestSessionParentPicker } from "./use-session-parent-picker";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
@@ -195,7 +196,8 @@ export function useSessionRowMenuItems(
   items.push(...sessionDeriveMenuItems(session, requestContinue, requestFork));
   const profileMoveItem = sessionProfileMoveMenuItem(session, profileMove);
   if (profileMoveItem) items.push(profileMoveItem);
-  items.push(...sessionNestMenuItems(session, actions));
+  const moveUnderItem = sessionMoveUnderMenuItem(session, actions);
+  if (moveUnderItem) items.push(moveUnderItem);
   const { onMakeTopLevel } = actions;
   if (onMakeTopLevel && sessionBatchAction("make-top-level").eligible(session)) {
     items.push({
@@ -225,24 +227,19 @@ export function useSessionRowMenuItems(
   return items;
 }
 
-function sessionNestMenuItems(
+/**
+ * Move under…, offered on the host's own unarchived user sessions when it can
+ * move lineage. The picker states why a continued, forked or nested session
+ * cannot move, and offers Make top-level where that applies.
+ */
+function sessionMoveUnderMenuItem(
   session: SessionPayload,
   actions: SessionLifecycleActionHandlers
-): SessionRowMenuItem[] {
-  const items: SessionRowMenuItem[] = [];
-  const { onAdopt } = actions;
-  const parents = onAdopt
-    ? (actions.nestParents ?? []).filter(parent => sessionAdoptRefusal(session, parent) === null)
-    : [];
-  if (onAdopt && parents.length > 0) {
-    items.push({
-      ...sessionRowAction("nest", session),
-      choices: parents.map(parent => ({
-        id: parent.id,
-        label: getSessionDisplayTitle(parent),
-        onSelect: () => onAdopt(session, parent),
-      })),
-    });
-  }
-  return items;
+): SessionRowMenuItem | null {
+  if (!actions.onAdopt || !isUserControllableSession(session)) return null;
+  if (isSubagentSession(session) || session.archived_at !== null) return null;
+  return {
+    ...sessionRowAction("move-under", session),
+    onSelect: () => requestSessionParentPicker(session.id),
+  };
 }

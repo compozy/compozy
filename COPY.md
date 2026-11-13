@@ -337,6 +337,15 @@ A session's profile never changes; **Move to profile** copies it into another pr
 - Dialog: title "Move to profile"; description "A copy with this conversation starts in {profile}. This session is archived here and keeps its history."; usage note "Usage so far stays counted in {current profile}."; worktree note "Its worktree moves too: the branch is checked out again for {profile}."; refusals "Stop this session before moving it." · "This session has child sessions. Make them top-level first.", and the daemon's own reason (for example uncommitted worktree changes) verbatim; pending "Moving the session…"; confirm "Move to {profile}".
 - Toast: "Moved to {profile}" with "The original is archived here."
 
+### Session Parent Terms
+
+Nesting makes a session another session's child in the list; it never copies or moves the conversation. The verb is "Move under", never "adopt", "reparent", or "attach".
+
+- Verbs: "Move under…" (row menu and right-click menu, on your own unarchived sessions where the list can move lineage), "Move under another session…" (command palette, focused session), "Make top-level" (nested child's row menu and picker).
+- Picker: title "Move under another session"; description "Choose the session “{title}” moves under."; search placeholder "Move “{title}” under…" (aria "Search sessions"); groups "Top level" and "Sessions"; rows show the title and agent; "Loading sessions…", "No sessions match.", "Couldn't load sessions." with "Try again"; "Loading session…" / "Couldn't load this session." for the session itself.
+- Refusals, shown in the picker instead of parents: "Continued and forked sessions stay linked to the session they came from, so they can't move under another session." · "Make this session top-level first, then move it under another session." · "Only a top-level session can move under another session." · "Subagent sessions stay with their parent." · "Only your own sessions can move under another session." · "Unarchive this session first."
+- Toasts: "Moved “{title}” under “{parent}”" with Undo; "“{title}” is top-level again"; failure "Couldn't move the session." with the daemon's reason.
+
 ### Session Later Terms
 
 **Later** parks a session the operator will come back to: it stops, leaves the normal lists and the board columns, and comes back on its own on an optional return date. The noun is always capitalized "Later"; never "snooze", "park", "shelve", "defer", or "backlog" in UI copy ("Parked {relative}" is the only use of "park", as a timestamp).

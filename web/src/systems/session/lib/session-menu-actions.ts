@@ -38,7 +38,7 @@ export const SESSION_MENU_ACTIONS = {
   continue: { label: "Continue with another agent…", icon: ArrowRightLeft },
   fork: { label: "Fork session…", icon: GitFork },
   "move-to-profile": { label: "Move to profile", icon: UserRound },
-  nest: { label: "Nest under…", icon: CornerDownRight },
+  "move-under": { label: "Move under…", icon: CornerDownRight },
   "make-top-level": {
     label: "Make top-level",
     icon: CornerLeftUp,
