@@ -23,8 +23,17 @@ import { OsWindowSurface } from "./os-window-surface";
  * returning to it never reloads its surface.
  */
 export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId: string }) {
-  const pane = useOsWindowPane(windowId);
-  const { member, contentHost, deskBound, dragged, visible } = pane;
+  // Destructured at the call: the overlay host's callback ref stays its own binding.
+  const {
+    member,
+    contentHost,
+    setOverlayHost,
+    deskBound,
+    dragged,
+    visible,
+    classifyNavigation,
+    startHeadDrag,
+  } = useOsWindowPane(windowId);
   const { win, focused, liveDataEnabled, windowBinding } = member;
   if (!win) return null;
   const appId = osAppId(win.app);
@@ -35,7 +44,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
 
   return (
     <OsWindowSurface
-      onClickCapture={pane.classifyNavigation}
+      onClickCapture={classifyNavigation}
       onFocusCapture={member.handleFocusCapture}
       onPointerDownCapture={member.handlePointerDownCapture}
       onPointerEnter={member.handlePointerEnter}
@@ -50,7 +59,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
       slotStore={ensureWindowSlotStore(windowId)}
       // The runtime animates in-window drills against this one named body.
       bodyTransitionName={focused && win.shown ? "os-window-body" : undefined}
-      onHeadPointerDown={pane.startHeadDrag}
+      onHeadPointerDown={startHeadDrag}
       className={dragged ? "relative opacity-45" : "relative"}
       hidden={!visible}
       // Named region landmark per window: assistive tech can jump between
@@ -95,7 +104,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
         )}
       </OverlayContainerContext.Provider>
       <div
-        ref={pane.setOverlayHost}
+        ref={setOverlayHost}
         data-slot="os-window-overlays"
         // contain-paint makes portaled fixed-position scrims resolve against
         // this box, so a dialog dims and travels with its window only.

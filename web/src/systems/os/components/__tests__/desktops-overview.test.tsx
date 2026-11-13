@@ -11,7 +11,7 @@
 // payloads, and DesktopLayoutThumbnail.
 // Boundary OUT: TanStack Query snapshots, the tab drag store and its hit tests, window-manager
 // coordination, mutations, revisions, and persistence.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -224,8 +224,13 @@ describe("DesktopsOverview", () => {
     const callbacks = renderOverview();
 
     fireEvent.contextMenu(card("Build"));
-    await user.click(await screen.findByRole("menuitem", { name: "Move a tab" }));
-    await user.click(await screen.findByRole("menuitem", { name: /^Agents/ }));
+    // Keyboard path into each nested submenu: highlight the trigger row, then ArrowRight.
+    const moveTab = await screen.findByRole("menuitem", { name: "Move a tab" });
+    act(() => moveTab.focus());
+    await user.keyboard("{ArrowRight}");
+    const agents = await screen.findByRole("menuitem", { name: /^Agents/ });
+    act(() => agents.focus());
+    await user.keyboard("{ArrowRight}");
     await user.click(await screen.findByRole("menuitem", { name: "Research" }));
     expect(callbacks.onMoveTab).toHaveBeenCalledWith("agents", "research");
   });

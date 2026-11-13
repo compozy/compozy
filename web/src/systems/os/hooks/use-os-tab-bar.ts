@@ -219,4 +219,5 @@ export function useOsTabBar() {
   };
 }
 
-export type OsTabBarModel = ReturnType<typeof useOsTabBar>;
+/** The bar's render data and commands; the strip's callback ref travels apart from it. */
+export type OsTabBarModel = Omit<ReturnType<typeof useOsTabBar>, "stripRef">;

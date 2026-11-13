@@ -3,6 +3,7 @@ import { RefreshCw, X } from "@compozy/ui/icons";
 
 import { useOsUpgradeNotice, type UpgradeNoticeState } from "../hooks/use-os-upgrade-notice";
 import { upgradeNoticeDescription } from "../lib/upgrade-notice-description";
+import type { WindowManagerMigrationSummary } from "../lib/window-manager-types";
 
 const NOTICE_FRAME = "border-b border-line bg-canvas px-3 py-2";
 

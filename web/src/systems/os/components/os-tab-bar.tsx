@@ -126,11 +126,14 @@ function barDragView(drag: TabDragState): OsTabBarDragView {
  */
 export function OsTabBarView({
   bar,
+  stripRef,
   drag = IDLE_DRAG,
   onTabPointerDown,
   className,
 }: {
   bar: OsTabBarModel;
+  /** Measures the strip; its own prop so the bar model holds no ref. */
+  stripRef?: (element: HTMLDivElement | null) => void;
   drag?: OsTabBarDragView;
   onTabPointerDown?: (tabId: string, event: PointerEvent<HTMLElement>) => void;
   className?: string;
@@ -143,7 +146,7 @@ export function OsTabBarView({
       data-slot="os-tab-bar"
     >
       <div
-        ref={bar.stripRef}
+        ref={stripRef}
         className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         data-slot="os-tab-strip"
       >
@@ -194,13 +197,14 @@ export type OsTabBarProps = { className?: string };
 
 /** The live tab bar bound to the shell's window manager, with its drags and their ghost. */
 export function OsTabBar({ className }: OsTabBarProps) {
-  const bar = useOsTabBar();
+  const { stripRef, ...bar } = useOsTabBar();
   const drag = useOsTabDrag();
   const { startTabDrag } = useOsTabDragStart();
   return (
     <>
       <OsTabBarView
         bar={bar}
+        stripRef={stripRef}
         drag={barDragView(drag)}
         onTabPointerDown={startTabDrag}
         className={className}
