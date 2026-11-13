@@ -25,7 +25,7 @@ import {
   windowManagerSnapshotOptions,
 } from "../lib/window-manager-query";
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
-import { ROUTE_WRITE_STATE_KEY } from "../lib/routing-write-echoes";
+import { ROUTE_WRITE_STATE_KEY, type RouteWriteId } from "../lib/routing-write-echoes";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
@@ -51,7 +51,7 @@ export interface DesktopChromeModel {
 function navigateTo(
   router: ReturnType<typeof useRouter>,
   route: { pathname: string; search: Record<string, unknown> },
-  writeId: number,
+  writeId: RouteWriteId,
   replace: boolean
 ): void {
   const href = `${route.pathname}${router.options.stringifySearch(route.search)}`;

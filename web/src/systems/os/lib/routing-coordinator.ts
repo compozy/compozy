@@ -16,7 +16,7 @@ import {
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
 import { decideRouteReconciliation } from "./routing-route-decision";
-import { RoutingWriteEchoes } from "./routing-write-echoes";
+import { RoutingWriteEchoes, type RouteWriteId } from "./routing-write-echoes";
 import { startWindowActivation, windowActivationEntry } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
@@ -75,7 +75,7 @@ export class RoutingCoordinator {
    * win over the target workspace's restored focus (US-016.EC-2). `writeId` is the coordinator
    * write the reported history entry carries (`routeWriteIdOf`), `null` for any other entry.
    */
-  reportRouteMatch(route: OsWindowRoute, writeId: number | null = null): void {
+  reportRouteMatch(route: OsWindowRoute, writeId: RouteWriteId | null = null): void {
     // The router echoing the coordinator's own write is never intent: authoritative focus
     // may have moved on since, and the URL follows it instead. During hydration every
     // location stays the held initial intent.

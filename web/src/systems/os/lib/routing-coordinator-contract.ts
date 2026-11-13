@@ -5,6 +5,7 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "./os-types";
+import type { RouteWriteId } from "./routing-write-echoes";
 import type { FocusWindowOptions } from "./window-manager-types";
 
 /**
@@ -13,9 +14,9 @@ import type { FocusWindowOptions } from "./window-manager-types";
  */
 export interface OsRouterPort {
   /** Pushes one history entry reflecting the location. */
-  navigate(route: OsWindowRoute, writeId: number): void;
+  navigate(route: OsWindowRoute, writeId: RouteWriteId): void;
   /** Truths up hydration or remote authority without manufacturing history. */
-  replace(route: OsWindowRoute, writeId: number): void;
+  replace(route: OsWindowRoute, writeId: RouteWriteId): void;
 }
 
 export type RoutingManager = {

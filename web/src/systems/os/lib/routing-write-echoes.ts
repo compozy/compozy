@@ -8,11 +8,24 @@ const REPLACED_WRITE_LIMIT = 8;
  */
 export const ROUTE_WRITE_STATE_KEY = "compozyRouteWrite";
 
-/** The write id a reported location's history state carries, if the coordinator wrote it. */
-export function routeWriteIdOf(state: unknown): number | null {
+/**
+ * A coordinator write's identity: a random token of the `RoutingWriteEchoes` that made it, then
+ * its ordinal there. History state outlives the page, so entries written before a reload or by
+ * another coordinator in the same tab carry another token and never equal a write of this one.
+ */
+export type RouteWriteId = string;
+
+/** The write id a reported location's history state carries, if a coordinator wrote it. */
+export function routeWriteIdOf(state: unknown): RouteWriteId | null {
   if (typeof state !== "object" || state === null) return null;
   const id = (state as Record<string, unknown>)[ROUTE_WRITE_STATE_KEY];
-  return typeof id === "number" ? id : null;
+  return typeof id === "string" ? id : null;
+}
+
+function randomWriterToken(): string {
+  const bytes = new Uint8Array(8);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /**
@@ -34,20 +47,22 @@ export function routeWriteIdOf(state: unknown): number | null {
  * none. The router reports in write order, so nothing older can still arrive.
  */
 export class RoutingWriteEchoes {
-  private nextId = 0;
+  private readonly writer = randomWriterToken();
+  private ordinal = 0;
   /**
    * Unreported writes, oldest first: the last created the current entry, the others created
    * entries a later `replace` removed from history.
    */
-  private pending: number[] = [];
+  private pending: RouteWriteId[] = [];
 
   /** Records a write and returns the id its history entry carries. */
-  wrote(mode: "push" | "replace"): number {
-    this.nextId += 1;
+  wrote(mode: "push" | "replace"): RouteWriteId {
+    this.ordinal += 1;
+    const id = `${this.writer}:${this.ordinal}`;
     // A push leaves the current entry in history as a Back target; a replace removes it.
     const gone = mode === "replace" ? this.pending : this.pending.slice(0, -1);
-    this.pending = [...gone.slice(1 - REPLACED_WRITE_LIMIT), this.nextId];
-    return this.nextId;
+    this.pending = [...gone.slice(1 - REPLACED_WRITE_LIMIT), id];
+    return id;
   }
 
   /** A location the router already shows without a write (a held decision route). */
@@ -56,7 +71,7 @@ export class RoutingWriteEchoes {
   }
 
   /** Consumes one router report; true when its entry was created by a pending write. */
-  isEcho(writeId: number | null): boolean {
+  isEcho(writeId: RouteWriteId | null): boolean {
     const index = writeId === null ? -1 : this.pending.indexOf(writeId);
     if (index < 0) {
       this.reset();
