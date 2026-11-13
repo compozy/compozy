@@ -54,5 +54,24 @@ func validClosedMember(entry ClosedEntry) bool {
 		m.ChildIndex < 0 || !finite(m.Weight) || m.Weight <= 0 || m.Weight >= 1 || m.NeighborID == "" || !edge {
 		return false
 	}
-	return len(m.NeighborIDs) == 0 || (len(m.NeighborIDs) >= 2 && slices.Contains(m.NeighborIDs, m.NeighborID))
+	return validNeighborBranch(m.NeighborIDs, m.NeighborID, entry.Windows[0].ID)
+}
+
+// validNeighborBranch accepts an absent branch or at least two distinct,
+// non-empty window IDs that include the neighbor and exclude the member.
+func validNeighborBranch(ids []WindowID, neighbor, member WindowID) bool {
+	if len(ids) == 0 {
+		return true
+	}
+	if len(ids) < 2 || !slices.Contains(ids, neighbor) {
+		return false
+	}
+	seen := make(map[WindowID]bool, len(ids))
+	for _, id := range ids {
+		if id == "" || id == member || seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
+	return true
 }

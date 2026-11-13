@@ -137,7 +137,10 @@ func (r *reducer) restoreBranch(root LayoutNode, member *ClosedMember, leaf Layo
 	}
 	if sameWindowSet(nodeWindowIDs(root), member.NeighborIDs) {
 		next, err := r.splitBeside(root, member, leaf)
-		return next, err == nil, err
+		if err != nil {
+			return root, false, err
+		}
+		return flattenNode(next), true, nil
 	}
 	if root.Kind != NodeKindSplit {
 		return root, false, nil
