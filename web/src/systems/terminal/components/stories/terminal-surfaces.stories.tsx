@@ -438,6 +438,33 @@ export const QuoteBlock: Story = {
   ),
 };
 
+/** A large selection, expanded: the excerpt scrolls inside a viewport-bounded body. */
+export const QuoteBlockLarge: Story = {
+  name: "Quote in the composer — large selection",
+  render: () => (
+    <TerminalVisualStage width="block">
+      <div className="p-4">
+        <TerminalQuoteBlock
+          onRemove={NOOP}
+          quote={buildTerminalQuote({
+            terminalId: DEV_SERVER_TERMINAL.id,
+            fromLine: 1,
+            lines: Array.from({ length: 300 }, (_, index) =>
+              index % 3 === 0 ? `step ${index + 1}` : `    at frame ${index + 1} (src/app.ts)`
+            ),
+          })}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole("button", { name: "Expand quote" }));
+    const excerpt = canvas.getByTestId("terminal-quote-lines");
+    await expect(excerpt.scrollHeight).toBeGreaterThan(excerpt.clientHeight);
+  },
+  tags: ["play-fn"],
+};
+
 /** With no session, the gesture offers a way in rather than dead-ending. */
 export const SelectionWithoutSession: Story = {
   name: "Selection — no active session",
