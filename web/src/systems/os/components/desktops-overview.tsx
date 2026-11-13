@@ -69,8 +69,8 @@ export interface DesktopOverviewAction {
 export interface DesktopsOverviewProps {
   open: boolean;
   /**
-   * The desk's overlay host: the overview covers the desk only, leaving the
-   * topbar and rail in place. Omitted, it covers the viewport.
+   * The shell's overlay host: the overview covers the tab bar and the desk, leaving the
+   * menubar and rail in place. Omitted, it covers the viewport.
    */
   container?: HTMLElement | null;
   state: DesktopsOverviewState;
@@ -170,7 +170,8 @@ export function DesktopsOverview({
           aria-describedby={undefined}
           className={cn(
             "inset-0 h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none",
-            "flex flex-col gap-5 overflow-y-auto rounded-none bg-overlay-scrim px-8 py-7 shadow-none backdrop-blur-md",
+            // The dialog's overlay is the one scrim; the popup itself stays clear.
+            "flex flex-col gap-5 overflow-y-auto rounded-none bg-transparent px-8 py-7 shadow-none",
             "origin-center transition-[opacity,scale] duration-shell-base ease-spring",
             "data-starting-style:scale-98.5 data-starting-style:opacity-0 motion-reduce:transition-none"
           )}
@@ -208,7 +209,7 @@ export function DesktopsOverview({
               <Empty
                 icon={MonitorUp}
                 title="No desktops"
-                description="Add a desktop to arrange windows."
+                description="Add a desktop to open tabs on it."
                 action={
                   <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
                 }

@@ -3,10 +3,11 @@
 // each card shows its name, tab count, thumbnail and first tabs with "+N more"; choosing a tab or
 // a thumbnail emits one semantic callback and closes the overlay; rename, Move left / Move right
 // and Move a tab emit one callback each; closing uses the in-place confirm, asks for a destination
-// when the desktop has tabs and is absent on the last desktop; Escape inside a card's rename or
-// confirm leaves the overlay open; opened from a desktop indicator's Rename or Close desktop, the
-// card starts in that action with focus inside it (US-015.EC-2); async states stay recoverable; the thumbnail draws the active
-// tab's split tree once per window, by weight.
+// when the desktop has a tab other than a blank New Tab and is absent on the last desktop; Escape
+// anywhere in a card with a pending rename or confirm (the destination picker included) leaves the
+// overlay open; opened from a desktop indicator's Rename or Close desktop, the card starts in that
+// action with focus inside it, once (US-015.EC-2); async states stay recoverable; the thumbnail
+// draws the active tab's split tree once per window, by weight.
 // Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, callback
 // payloads, and DesktopLayoutThumbnail.
 // Boundary OUT: TanStack Query snapshots, the tab drag store and its hit tests, window-manager
@@ -48,6 +49,8 @@ function tab(id: string, ...members: OsWindow[]): DesktopOverviewTab {
 const DASHBOARD = osWindow("dashboard", "dashboard");
 const AGENTS = osWindow("agents", "agents");
 const TASKS = osWindow("tasks", "tasks");
+// v6 never leaves a desktop without a tab: an emptied desktop holds one blank New Tab.
+const NEW_TAB = osWindow("blank", "new-tab");
 
 const DESKTOPS: DesktopOverviewItem[] = [
   {
@@ -69,9 +72,9 @@ const DESKTOPS: DesktopOverviewItem[] = [
   {
     id: "research",
     name: "Research",
-    tabs: [],
-    activeTabId: null,
-    activeRoot: null,
+    tabs: [tab("tab-blank", NEW_TAB)],
+    activeTabId: "tab-blank",
+    activeRoot: { id: "n-blank", kind: "leaf", windowId: "blank" },
   },
 ];
 
@@ -146,7 +149,7 @@ describe("DesktopsOverview", () => {
     expect(within(build).getByLabelText("Needs you")).toBeInTheDocument();
     const tabs = within(build).getByRole("list", { name: "Tabs on Build" });
     expect(within(tabs).getByRole("button", { name: "Go to Agents and 1 more" })).toBeVisible();
-    expect(within(card("Research")).getByText("0 tabs")).toBeInTheDocument();
+    expect(within(card("Research")).getByText("1 tab")).toBeInTheDocument();
     expect(card("Control")).toHaveAttribute("aria-current", "true");
   });
 
@@ -262,6 +265,21 @@ describe("DesktopsOverview", () => {
     expect(callbacks.onOpenChange).not.toHaveBeenCalled();
   });
 
+  it("FB-F-12: Should cancel the close on Escape from the destination picker and keep the overview open", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+    const build = card("Build");
+
+    await user.click(within(build).getByRole("button", { name: "Close Build" }));
+    act(() => within(build).getByRole("combobox").focus());
+    await user.keyboard("{Escape}");
+    expect(within(build).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(within(build).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(within(build).getByRole("button", { name: "Close Build" })).toHaveFocus();
+    expect(callbacks.onDeleteDesktop).not.toHaveBeenCalled();
+    expect(callbacks.onOpenChange).not.toHaveBeenCalled();
+  });
+
   it("US-015.EC-2: Should open on a desktop's destination-and-confirm close from its indicator menu", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview({ desktopAction: { desktopId: "build", action: "close" } });
@@ -292,15 +310,56 @@ describe("DesktopsOverview", () => {
     expect(callbacks.onRenameDesktop).toHaveBeenCalledWith("research", "Notes");
   });
 
-  it("Should close a desktop without tabs with no destination", async () => {
+  it("Should not reopen the indicator menu's close after a rename on the same card", async () => {
+    const user = userEvent.setup();
+    renderOverview({ desktopAction: { desktopId: "build", action: "close" } });
+    const build = card("Build");
+
+    await waitFor(() =>
+      expect(within(build).getByRole("button", { name: "Cancel" })).toHaveFocus()
+    );
+    await user.click(within(build).getByRole("button", { name: "Rename" }));
+    await user.keyboard("{Escape}");
+    expect(within(build).queryByLabelText("Desktop name")).not.toBeInTheDocument();
+    expect(within(build).getByRole("button", { name: "Close Build" })).toBeVisible();
+    expect(within(build).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(within(build).queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("FB-F-07: Should close a desktop holding only a blank New Tab with no destination", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview();
     const research = card("Research");
 
     await user.click(within(research).getByRole("button", { name: "Close Research" }));
     expect(within(research).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(within(research).queryByText(/^Move \d+ tabs? to/)).not.toBeInTheDocument();
     await user.click(within(research).getByRole("button", { name: "Confirm: Close Research" }));
     expect(callbacks.onDeleteDesktop).toHaveBeenCalledWith("research", null);
+  });
+
+  it("FB-F-07: Should ask for a destination when a blank New Tab sits beside a real tab", async () => {
+    const user = userEvent.setup();
+    const mixed: DesktopOverviewItem = {
+      ...DESKTOPS[2]!,
+      tabs: [tab("tab-blank", NEW_TAB), tab("tab-dashboard-2", osWindow("dash-2", "dashboard"))],
+    };
+    const callbacks = renderOverview({
+      state: {
+        status: "ready",
+        desktops: [DESKTOPS[0]!, DESKTOPS[1]!, mixed],
+        activeDesktopId: "control",
+      },
+    });
+    const research = card("Research");
+
+    await user.click(within(research).getByRole("button", { name: "Close Research" }));
+    expect(within(research).getByText("Move 2 tabs to")).toBeInTheDocument();
+    const confirm = within(research).getByRole("button", { name: "Confirm: Close Research" });
+    expect(confirm).toBeDisabled();
+    await user.selectOptions(within(research).getByRole("combobox"), "Control");
+    await user.click(confirm);
+    expect(callbacks.onDeleteDesktop).toHaveBeenCalledWith("research", "control");
   });
 
   it("US-014.EC-2: Should offer no close on the last desktop", () => {

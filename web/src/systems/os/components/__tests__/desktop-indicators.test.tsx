@@ -3,7 +3,8 @@
 // mark off-screen desktops that need you; a click switches; the desktop menu opens from the pointer
 // and the menu keys with Rename, Move left, Move right, Close desktop and New desktop, an item
 // absent where it cannot apply (US-015.AC-3, EC-1); during a tab drag every desktop is a labelled
-// drop target and resting on an overflow control opens the overview once (US-016.AC-1, EC-2).
+// drop target, named for a window during a window-head drag, and resting on an overflow control
+// opens the overview once (US-016.AC-1, EC-2).
 // Boundary IN: DesktopIndicators control projection, callbacks, accessibility, keyboard
 // navigation, the desktop menu, drop-target markup, the overflow drag hover and the desktop
 // needs-you projection.
@@ -254,6 +255,17 @@ describe("DesktopIndicators", () => {
     );
     expect(screen.queryByRole("button", { name: /^Desktop \d/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show 2 later desktops" })).toHaveTextContent("+2");
+  });
+
+  it("Should name the drop targets for a window while a window head is dragged", () => {
+    renderIndicators({ dragSourceDesktopId: "build", dragKind: "window" });
+
+    const target = screen.getByRole("button", { name: "Move window to Review" });
+    expect(target.closest(`[${DESKTOP_DROP_TARGET_ATTRIBUTE}]`)).toHaveAttribute(
+      DESKTOP_DROP_TARGET_ATTRIBUTE,
+      "review"
+    );
+    expect(screen.queryByRole("button", { name: /^Move tab to/ })).not.toBeInTheDocument();
   });
 });
 

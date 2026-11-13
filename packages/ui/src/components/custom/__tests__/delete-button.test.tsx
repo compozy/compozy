@@ -1,7 +1,8 @@
 // Suite: in-place confirm delete button
 // Invariant: the bin opens a cancel/confirm pair without acting; only the check confirms, and only
 // when confirmation is available; the cross and Escape cancel and return focus to the bin; each
-// phase is announced; an uncontrolled button rests again after the confirmed hold; a button mounted
+// phase is announced; a button rests again after the confirmed hold, a controlled one by telling its
+// owner; a button mounted
 // open asks for confirmation with focus on the cross.
 // Boundary IN: DeleteButton phases, focus, keyboard, callbacks, live region.
 // Boundary OUT: what the host deletes and how it reacts.
@@ -98,6 +99,32 @@ describe("DeleteButton", () => {
         "rest"
       );
       expect(callbacks.onPhaseChange).toHaveBeenLastCalledWith("rest");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should tell a controlled owner to rest after the confirmed hold", () => {
+    vi.useFakeTimers();
+    try {
+      const onPhaseChange = vi.fn();
+      render(
+        <DeleteButton
+          confirmedDuration={500}
+          label="Close Review"
+          phase="confirmed"
+          onConfirm={vi.fn()}
+          onPhaseChange={onPhaseChange}
+        />
+      );
+      expect(onPhaseChange).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(500));
+      expect(onPhaseChange).toHaveBeenCalledExactlyOnceWith("rest");
+      // The owner decides: until it passes "rest", the controlled button keeps its phase.
+      expect(screen.getByRole("group", { name: "Close Review" })).toHaveAttribute(
+        "data-phase",
+        "confirmed"
+      );
     } finally {
       vi.useRealTimers();
     }

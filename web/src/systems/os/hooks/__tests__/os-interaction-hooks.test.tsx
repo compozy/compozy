@@ -41,6 +41,7 @@ import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-pale
 import { adjacentShortcutItem } from "../../lib/adjacent-shortcut-item";
 import { shortcutAttentionTarget } from "../use-desktop-shell-body";
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
+import { useDesktopCardDrag } from "../use-desktop-card-drag";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
@@ -1375,5 +1376,107 @@ describe("useVisitedTabs", () => {
 
     rerender({ tabIds: ["a", "c"], active: "c" });
     expect(result.current).toEqual(["a", "c"]);
+  });
+});
+
+describe("useDesktopCardDrag", () => {
+  /** A grid of three 100px cards in a row, a at 0, b at 100, c at 200. */
+  function cardGrid(order: readonly string[]) {
+    const grid = document.createElement("div");
+    grid.dataset.slot = "desktops-overview-grid";
+    grid.getBoundingClientRect = () => new DOMRect(0, 0, 300, 100);
+    const cards = new Map<string, HTMLElement>();
+    order.forEach((id, position) => {
+      const card = document.createElement("div");
+      card.dataset.slot = "desktop-card";
+      card.dataset.cardDesktopId = id;
+      card.getBoundingClientRect = () => new DOMRect(position * 100, 0, 100, 100);
+      grid.append(card);
+      cards.set(id, card);
+    });
+    return cards;
+  }
+
+  function pointer(type: "pointermove" | "pointerup", clientX: number) {
+    const event = new MouseEvent(type, { bubbles: true, clientX, clientY: 50 });
+    Object.defineProperty(event, "pointerId", { value: 1 });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+  }
+
+  function press(
+    start: (id: string, event: ReactPointerEvent<HTMLElement>) => void,
+    card: HTMLElement
+  ) {
+    act(() =>
+      start(card.dataset.cardDesktopId!, {
+        button: 0,
+        pointerId: 1,
+        clientX: 50,
+        clientY: 50,
+        currentTarget: card,
+        target: card,
+      } as unknown as ReactPointerEvent<HTMLElement>)
+    );
+  }
+
+  it("Should preview the landing gap and send one reorder on release", () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useDesktopCardDrag(["a", "b", "c"], onReorder));
+    const cards = cardGrid(["a", "b", "c"]);
+
+    press(result.current.start, cards.get("a")!);
+    pointer("pointermove", 52);
+    expect(result.current.drag).toBeNull();
+    pointer("pointermove", 250);
+    expect(result.current.drag).toMatchObject({ desktopId: "a", index: 2, width: 100 });
+    expect(result.current.previewOrder).toEqual(["b", "c", "a"]);
+    pointer("pointerup", 250);
+
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith("a", 2);
+    expect(result.current.drag).toBeNull();
+    expect(result.current.previewOrder).toEqual(["a", "b", "c"]);
+  });
+
+  it("Should cancel on Escape without sending a reorder or closing the overview", () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useDesktopCardDrag(["a", "b", "c"], onReorder));
+    const cards = cardGrid(["a", "b", "c"]);
+
+    press(result.current.start, cards.get("a")!);
+    pointer("pointermove", 250);
+    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    act(() => {
+      window.dispatchEvent(escape);
+    });
+
+    expect(escape.defaultPrevented).toBe(true);
+    expect(result.current.drag).toBeNull();
+    pointer("pointermove", 150);
+    pointer("pointerup", 150);
+    expect(result.current.drag).toBeNull();
+    expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  it("Should cancel when the desktop order changes under the drag", () => {
+    const onReorder = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ order }: { order: readonly string[] }) => useDesktopCardDrag(order, onReorder),
+      { initialProps: { order: ["a", "b", "c"] as readonly string[] } }
+    );
+    const cards = cardGrid(["a", "b", "c"]);
+
+    press(result.current.start, cards.get("a")!);
+    pointer("pointermove", 250);
+    expect(result.current.drag).not.toBeNull();
+    rerender({ order: ["b", "a", "c"] });
+
+    expect(result.current.drag).toBeNull();
+    expect(result.current.previewOrder).toEqual(["b", "a", "c"]);
+    pointer("pointermove", 250);
+    pointer("pointerup", 250);
+    expect(result.current.drag).toBeNull();
+    expect(onReorder).not.toHaveBeenCalled();
   });
 });

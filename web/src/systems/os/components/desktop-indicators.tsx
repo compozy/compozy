@@ -24,6 +24,11 @@ export interface DesktopIndicatorsProps extends Omit<React.ComponentProps<"nav">
   canSwitchDesktop?: boolean;
   /** A tab is being dragged from this desktop: the indicators are drop targets. */
   dragSourceDesktopId?: string | null;
+  /**
+   * What the drag moves: a whole tab, or one window leaving its split (a window head), which
+   * lands on the target desktop as its own tab.
+   */
+  dragKind?: "tab" | "window";
   /** The desktop the dragged tab would move to on release. */
   dropTargetDesktopId?: string | null;
   /** The overflow control the dragged tab rests on. */
@@ -61,6 +66,7 @@ export function DesktopIndicators({
   activeDesktopId,
   canSwitchDesktop = true,
   dragSourceDesktopId = null,
+  dragKind = "tab",
   dropTargetDesktopId = null,
   overflowHover = null,
   onSelectDesktop,
@@ -184,7 +190,7 @@ export function DesktopIndicators({
                   {dragging ? (
                     <button
                       {...controlProps(control)}
-                      aria-label={`Move tab to ${desktop.name}`}
+                      aria-label={`Move ${dragKind} to ${desktop.name}`}
                       className={cn(
                         "flex h-7 items-center gap-1.5 rounded-sm border border-dashed px-2 text-meta font-medium",
                         target

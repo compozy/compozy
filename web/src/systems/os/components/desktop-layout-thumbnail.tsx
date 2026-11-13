@@ -77,7 +77,7 @@ export function DesktopLayoutThumbnail({
         {tabIds.slice(0, STRIP_TABS).map(tabId => (
           <span
             className={cn(
-              "h-full max-w-8 flex-1 rounded-[2px]",
+              "h-full max-w-8 flex-1 rounded-xxs",
               tabId === activeTabId ? "bg-fg/25" : "bg-fg/8"
             )}
             key={tabId}

@@ -340,29 +340,34 @@ function DesktopShellScopedBody({
             transition={transition}
             onTransitionComplete={onTransitionComplete}
           />
-          <DesktopManagerSurfaces
-            model={managerSurfaces}
-            needsYouDesktopIds={pager.needsYouDesktopIds}
-            switchShortcuts={desktopSwitchShortcuts}
-            onCreateDesktop={() => manager.createDesktop()}
-            onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
-            onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
-            onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
-            onDeleteDesktop={(desktopId, destinationId) =>
-              manager.deleteDesktop(desktopId, destinationId)
-            }
-            onMoveTab={(windowId, destinationDesktopId) =>
-              manager.moveWindowToDesktop(windowId, destinationDesktopId)
-            }
-            onOpenChange={onDesktopManagerOpenChange}
-            onRetry={() => manager.refreshSnapshot()}
-            onResolveConflict={() => {
-              manager.clearConflict();
-              manager.refreshSnapshot();
-            }}
-          />
         </div>
       </div>
+      <DesktopManagerSurfaces
+        // The overview covers the tab bar and the desk, as the window-desktops prototype does.
+        className={cn(
+          "row-span-2 row-start-2",
+          desktop.presentation !== "compact" ? "col-start-2 rounded-tl-lg" : "col-span-full"
+        )}
+        model={managerSurfaces}
+        needsYouDesktopIds={pager.needsYouDesktopIds}
+        switchShortcuts={desktopSwitchShortcuts}
+        onCreateDesktop={() => manager.createDesktop()}
+        onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
+        onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
+        onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
+        onDeleteDesktop={(desktopId, destinationId) =>
+          manager.deleteDesktop(desktopId, destinationId)
+        }
+        onMoveTab={(windowId, destinationDesktopId) =>
+          manager.moveWindowToDesktop(windowId, destinationDesktopId)
+        }
+        onOpenChange={onDesktopManagerOpenChange}
+        onRetry={() => manager.refreshSnapshot()}
+        onResolveConflict={() => {
+          manager.clearConflict();
+          manager.refreshSnapshot();
+        }}
+      />
       {/* Route matches mount here as sync-controllers; they render null. */}
       <Outlet />
       <OsCommandPalette

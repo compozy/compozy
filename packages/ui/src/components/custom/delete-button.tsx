@@ -19,7 +19,10 @@ export interface DeleteButtonProps extends Omit<
   cancelLabel?: string;
   /** Accessible name of the confirm check; defaults to `Confirm: <label>`. */
   confirmLabel?: string;
-  /** Controlled phase; omitted, the button runs itself. */
+  /**
+   * Controlled phase; omitted, the button runs itself. A controlled button mounted `"open"` starts
+   * with focus on the cross, and hears `"rest"` through `onPhaseChange` after the confirmed hold.
+   */
   phase?: DeleteButtonPhase;
   /**
    * The phase an uncontrolled button mounts in. `"open"` mounts it asking for confirmation, with
@@ -32,7 +35,7 @@ export interface DeleteButtonProps extends Omit<
   disabled?: boolean;
   onConfirm?: () => void;
   onCancel?: () => void;
-  /** How long the confirmed check holds before an uncontrolled button returns to rest (ms). */
+  /** How long the confirmed check holds before the button returns to rest (ms). */
   confirmedDuration?: number;
 }
 

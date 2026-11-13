@@ -16,8 +16,8 @@ export interface UseDeleteButtonInput {
 
 /**
  * The delete button's phase machine: controlled or own phase, focus moved to the cross on open
- * and back to the bin on cancel, and the confirmed check held briefly before an uncontrolled
- * button rests again.
+ * and back to the bin on cancel, and the confirmed check held briefly before the button rests
+ * again (a controlled button hears "rest" through onPhaseChange).
  */
 export function useDeleteButton({
   phase,
@@ -31,9 +31,10 @@ export function useDeleteButton({
   const reduced = useReducedMotionConfig() === true;
   const binRef = React.useRef<HTMLButtonElement | null>(null);
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
-  // Where focus goes once the next phase has rendered its controls.
+  // Where focus goes once the next phase has rendered its controls; a button mounted open (by
+  // either phase prop) starts on the cross.
   const focusNext = React.useRef<"bin" | "cancel" | null>(
-    defaultPhase === "open" ? "cancel" : null
+    (phase ?? defaultPhase) === "open" ? "cancel" : null
   );
 
   const go = (next: DeleteButtonPhase, focus: "bin" | "cancel" | null) => {
@@ -54,12 +55,12 @@ export function useDeleteButton({
     onPhaseChange?.("rest");
   });
 
-  // An uncontrolled button holds the confirmed check briefly, then rests again.
+  // The button holds the confirmed check briefly, then rests again; a controlled owner hears it.
   React.useEffect(() => {
-    if (phase !== undefined || ownPhase !== "confirmed") return;
+    if (current !== "confirmed") return;
     const timer = setTimeout(() => settle(), confirmedDuration);
     return () => clearTimeout(timer);
-  }, [phase, ownPhase, confirmedDuration]);
+  }, [current, confirmedDuration]);
 
   const cancel = () => {
     go("rest", "bin");

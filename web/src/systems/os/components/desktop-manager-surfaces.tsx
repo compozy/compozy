@@ -1,3 +1,4 @@
+import { cn } from "@compozy/ui";
 import { useState } from "react";
 
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
@@ -53,6 +54,8 @@ export interface DesktopManagerSurfacesProps {
   onOpenChange: (open: boolean) => void;
   onRetry: () => void;
   onResolveConflict: () => void;
+  /** Places the overlay host in the shell grid: the area the overview covers. */
+  className?: string;
 }
 
 export function DesktopManagerSurfaces({
@@ -68,8 +71,10 @@ export function DesktopManagerSurfaces({
   onOpenChange,
   onRetry,
   onResolveConflict,
+  className,
 }: DesktopManagerSurfacesProps) {
-  // The overview portals into this desk-sized host so it covers the desk only.
+  // The overview portals into this host, which the shell places over the tab bar and the desk;
+  // the menubar and the rail stay in place.
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const { coordinator } = useOsShell();
   const { startOverviewTabDrag, dropTargetDesktopId, dropSurface } = useDesktopOverviewDrag();
@@ -99,8 +104,11 @@ export function DesktopManagerSurfaces({
       <div
         ref={setOverlayHost}
         data-slot="os-desk-overlays"
-        // contain-paint makes the portaled overview resolve against the desk.
-        className="contain-paint pointer-events-none absolute inset-0 z-40 [&:not(:empty)]:pointer-events-auto"
+        // contain-paint makes the portaled overview resolve against this area.
+        className={cn(
+          "pointer-events-none relative z-40 min-h-0 min-w-0 contain-paint [&:not(:empty)]:pointer-events-auto",
+          className
+        )}
       />
       <DesktopsOverview
         open={model.overlay?.kind === "desktops-overview"}

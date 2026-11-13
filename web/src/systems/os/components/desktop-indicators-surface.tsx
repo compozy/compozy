@@ -1,3 +1,4 @@
+import { useSelector } from "@xstate/store-react";
 import { useState } from "react";
 
 import { useDesktopOverflowDragHover } from "../hooks/use-desktop-overflow-drag-hover";
@@ -10,6 +11,7 @@ import {
   type DesktopOverflowRequest,
 } from "../lib/desktop-indicator-controls";
 import type { LayoutDesktop } from "../lib/window-manager-types";
+import { osTabDragStore } from "../stores/os-tab-drag-store";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { DesktopIndicators } from "./desktop-indicators";
 
@@ -40,6 +42,10 @@ export function DesktopIndicatorsSurface({
   const [nav, setNav] = useState<HTMLElement | null>(null);
   const dragSourceDesktopId = useOsTabDragSourceDesktop();
   const dropTargetDesktopId = useOsTabDragDesktopTarget();
+  // A window head moves one window out of its split; a tab moves the whole tab.
+  const dragKind = useSelector(osTabDragStore, snapshot =>
+    snapshot.context.session?.source.kind === "head" ? "window" : "tab"
+  );
   const items: DesktopIndicatorItem[] = desktops.map(desktop => ({
     id: desktop.id,
     name: desktop.name,
@@ -65,6 +71,7 @@ export function DesktopIndicatorsSurface({
       canSwitchDesktop={canSwitchDesktop}
       desktops={items}
       dragSourceDesktopId={dragSourceDesktopId}
+      dragKind={dragKind}
       dropTargetDesktopId={dropTargetDesktopId}
       overflowHover={overflowHover}
       onCloseDesktop={desktopId =>

@@ -12,7 +12,15 @@ import {
   cn,
 } from "@compozy/ui";
 import { GripVertical, Pencil } from "@compozy/ui/icons";
-import { useState, type PointerEvent, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
@@ -21,13 +29,18 @@ import type { OsAppId, OsWindow } from "../lib/os-types";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
 import { DesktopOverviewCardMenu } from "./desktop-overview-card-menu";
 import { DesktopOverviewTabRow } from "./desktop-overview-tab-row";
-import type { DesktopOverviewItem } from "./desktops-overview";
+import type { DesktopOverviewItem, DesktopOverviewTab } from "./desktops-overview";
 
 /** Tab rows a card lists before it counts the rest as "+N more" (US-014.EC-3). */
 const DESKTOP_CARD_TAB_ROWS = 4;
 
 function tabCount(count: number): string {
   return `${count} tab${count === 1 ? "" : "s"}`;
+}
+
+/** A tab holding only a blank New Tab: closing its desktop has nothing to move (FB-F-07). */
+function isPlaceholderTab(tab: DesktopOverviewTab): boolean {
+  return tab.members.length === 1 && tab.members[0]!.app === "new-tab";
 }
 
 export interface DesktopOverviewCardProps {
@@ -54,15 +67,20 @@ export interface DesktopOverviewCardProps {
   onMoveTab: (leadWindowId: string, destinationDesktopId: string) => void;
 }
 
-/** Where a desktop that is being closed sends its tabs; empty until one is chosen. */
+/**
+ * A pending close: the confirm's phase and where the desktop's tabs go, empty until one is chosen.
+ * The card owns the phase, so a remount (after a rename) cannot reopen the confirm by itself.
+ */
 interface Closing {
+  phase: "open" | "confirmed";
   destinationId: string;
 }
 
 /**
  * One desktop in the overview: its layout thumbnail (which switches to it), name and tab count,
  * rename and close, and its tabs. Closing opens the in-place confirm; a desktop with tabs asks
- * where they go before the check is available (US-014.EC-1). The last desktop has no close.
+ * where they go before the check is available (US-014.EC-1), unless its only tabs are blank New
+ * Tabs. Escape anywhere on the card cancels a pending close. The last desktop has no close.
  */
 export function DesktopOverviewCard({
   desktop,
@@ -86,13 +104,30 @@ export function DesktopOverviewCard({
 }: DesktopOverviewCardProps) {
   const [renaming, setRenaming] = useState(initialAction === "rename");
   const [closing, setClosing] = useState<Closing | null>(
-    initialAction === "close" ? { destinationId: "" } : null
+    initialAction === "close" ? { phase: "open", destinationId: "" } : null
   );
+  const closeRef = useRef<HTMLDivElement | null>(null);
+  // Set when the card, not the delete button, cancels the confirm; focus then returns to the bin.
+  const refocusBin = useRef(false);
+  useEffect(() => {
+    if (closing !== null || !refocusBin.current) return;
+    refocusBin.current = false;
+    closeRef.current?.querySelector<HTMLElement>('[data-slot="delete-button-bin"]')?.focus();
+  }, [closing]);
   const needsYou = desktop.needsYou === true && !active;
   const shown = desktop.tabs.slice(0, DESKTOP_CARD_TAB_ROWS);
   const hidden = desktop.tabs.length - shown.length;
   const destinations = desktops.filter(candidate => candidate.id !== desktop.id);
-  const needsDestination = desktop.tabs.length > 0;
+  const needsDestination = desktop.tabs.some(tab => !isPlaceholderTab(tab));
+  // The destination picker sits outside the delete button, so Escape there reaches the card first;
+  // it cancels the confirm and stays inside the overview (FB-F-12).
+  const cancelCloseOnEscape = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Escape" || closing?.phase !== "open") return;
+    event.preventDefault();
+    event.stopPropagation();
+    refocusBin.current = true;
+    setClosing(null);
+  };
   const apps = new Map<string, OsAppId>();
   for (const tab of desktop.tabs) for (const member of tab.members) apps.set(member.id, member.app);
 
@@ -124,6 +159,7 @@ export function DesktopOverviewCard({
         data-card-desktop-id={desktop.id}
         data-drop-target={dropTarget ? "true" : undefined}
         data-slot="desktop-card"
+        onKeyDown={cancelCloseOnEscape}
         onPointerDown={onCardPointerDown}
       >
         <button
@@ -179,7 +215,8 @@ export function DesktopOverviewCard({
               </DesktopCardAction>
               {desktops.length > 1 ? (
                 <DeleteButton
-                  defaultPhase={initialAction === "close" ? "open" : undefined}
+                  ref={closeRef}
+                  phase={closing?.phase ?? "rest"}
                   canConfirm={!needsDestination || (closing?.destinationId ?? "") !== ""}
                   disabled={busy}
                   label={`Close ${desktop.name}`}
@@ -187,8 +224,12 @@ export function DesktopOverviewCard({
                     onDelete(needsDestination ? (closing?.destinationId ?? null) : null)
                   }
                   onPhaseChange={phase => {
-                    if (phase === "open") setClosing({ destinationId: "" });
                     if (phase === "rest") setClosing(null);
+                    else
+                      setClosing(previous => ({
+                        phase,
+                        destinationId: phase === "open" ? "" : (previous?.destinationId ?? ""),
+                      }));
                   }}
                 />
               ) : null}
@@ -202,7 +243,9 @@ export function DesktopOverviewCard({
               className="flex-1"
               disabled={busy}
               value={closing.destinationId}
-              onChange={event => setClosing({ destinationId: event.currentTarget.value })}
+              onChange={event =>
+                setClosing({ phase: "open", destinationId: event.currentTarget.value })
+              }
             >
               {closing.destinationId === "" ? (
                 <NativeSelectOption value="">Choose a desktop</NativeSelectOption>
