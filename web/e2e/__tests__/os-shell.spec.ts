@@ -1410,8 +1410,11 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   await pager.getByRole("button", { name: "Desktop 2 of 8: Desktop 2" }).click();
   await expect(activeDesktop(appPage, "desktop-e2e-2")).toHaveAttribute("data-active", "true");
   await expect(tasks).toBeHidden();
-  // A fresh desktop holds one New Tab window.
-  await expect(appPage.getByTestId("new-tab-empty")).toBeVisible();
+  // A fresh desktop holds one New Tab window. Every desktop keeps its own New tab window
+  // mounted behind `inert`, so scope to the desktop the pager just activated.
+  const desktopTwo = activeDesktop(appPage, "desktop-e2e-2");
+  await expect(desktopTwo.locator('[data-app="new-tab"]')).toHaveCount(1);
+  await expect(desktopTwo.getByTestId("new-tab-empty")).toBeVisible();
   const vault = await openDockApp(appPage, "Vault", "vault");
   const vaultID = await windowID(vault);
   await expect(vault).toBeVisible();
