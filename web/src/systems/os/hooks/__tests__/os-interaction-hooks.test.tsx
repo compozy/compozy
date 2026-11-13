@@ -2231,25 +2231,25 @@ describe("useOsSplitSeam gesture lifecycle", () => {
   });
 
   it("Should keep a drag through a sibling seam's own resize and send it against the moved bounds", async () => {
-    const shell = exactShell(snapshotWithSplit([0.4, 0.4, 0.2]));
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
     const first: ProjectedSeam = {
       ...EXACT_SEAM,
-      rect: { x: 400, y: 0, w: 0, h: 700 },
-      value: 400,
-      maxValue: 580,
-      leadingWeight: 0.4,
+      rect: { x: 300, y: 0, w: 0, h: 700 },
+      value: 300,
+      maxValue: 480,
+      leadingWeight: 0.3,
       trailingWeight: 0.4,
     };
     const sibling: ProjectedSeam = {
       ...EXACT_SEAM,
       id: "split:main:1",
       boundaryIndex: 1,
-      rect: { x: 800, y: 0, w: 0, h: 700 },
-      value: 800,
-      minValue: 620,
+      rect: { x: 700, y: 0, w: 0, h: 700 },
+      value: 700,
+      minValue: 520,
       maxValue: 780,
       leadingWeight: 0.4,
-      trailingWeight: 0.2,
+      trailingWeight: 0.3,
     };
     render(
       <>
@@ -2261,18 +2261,18 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     const settle = deferResize(shell);
     fireEvent.keyDown(screen.getByTestId("sibling"), { key: "ArrowLeft" });
     const seam = stubPointerCapture(screen.getByTestId("seam"));
-    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 400, clientY: 300 });
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 300, clientY: 300 });
 
-    // The sibling's -0.02 lands (40/38/22): this drag carries on, its trailing side now 380px.
-    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.4, 0.38, 0.22], 8) }));
+    // The sibling's -0.02 lands (30/38/32): this drag carries on, its trailing side now 380px.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.38, 0.32], 8) }));
     expect(seam).toHaveAttribute("data-state", "drag");
-    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 600, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 500, clientY: 300 });
     flushFrames();
     expect(seam).toHaveAttribute("data-state", "limit");
-    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 600, clientY: 300 });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 500, clientY: 300 });
     await settle();
 
-    // Stopped at 560, the moved floor, not the press-time 580.
+    // Stopped at 460, the moved floor, not the press-time 480.
     expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
       "split:main",
       0,
