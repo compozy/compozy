@@ -1,8 +1,8 @@
 // Suite: palette domain search projection
 // Invariant: domain rows honor the destination (a project, User — never an aggregate — or All
-// projects) in filters and labels, per-domain landing
-// routes, automation rows of both kinds, server catalog totals, and an optional visible cap without a numeric
-// sentinel for uncapped pushed views.
+// projects) in filters and labels, per-domain landing routes, extension rows that name a
+// disabled state instead of a health word, automation rows of both kinds, server catalog totals,
+// and an optional visible cap without a numeric sentinel for uncapped pushed views.
 // Owning layer: unit — the domain-search helpers.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -17,6 +17,7 @@ import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
   agentRoute,
+  extensionRowDetail,
   loopRoute,
   marketplaceEntryRoute,
   paletteTaskFilters,
@@ -113,6 +114,18 @@ describe("os-palette-domain-search helpers", () => {
         workspaceId: "@user",
       })
     ).toEqual({ pathname: "/marketplace/ops%2Fextension", search: { scope: "user" } });
+  });
+
+  it("Should read a disabled extension row as disabled, never as a health word", () => {
+    expect(extensionRowDetail({ enabled: false, state: "disabled", health: "healthy" })).toBe(
+      "disabled"
+    );
+    expect(extensionRowDetail({ enabled: false, state: "disabled", health: "unknown" })).toBe(
+      "disabled"
+    );
+    expect(extensionRowDetail({ enabled: true, state: "active", health: "unhealthy" })).toBe(
+      "unhealthy"
+    );
   });
 
   it("Should select a Vault secret by ref instead of filtering by its display name", () => {

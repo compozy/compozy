@@ -291,16 +291,28 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 	})
 }
 
-// DeleteWorkspace unregisters a workspace.
+// DeleteWorkspace unregisters a workspace. A removal held after its registration was deleted
+// (an unusable layout answered 503) has no registration left; repeating the request by workspace
+// ID resumes it.
 func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
-	workspace, err := h.Workspaces.Get(c.Request.Context(), workspaceRefFromRoute(c))
-	if err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+	ref := workspaceRefFromRoute(c)
+	workspace, lookupErr := h.Workspaces.Get(c.Request.Context(), ref)
+	if lookupErr != nil && !errors.Is(lookupErr, workspacepkg.ErrWorkspaceNotFound) {
+		h.respondError(c, StatusForWorkspaceError(lookupErr), lookupErr)
 		return
 	}
+	workspaceID := workspace.ID
+	if lookupErr != nil {
+		workspaceID = ref
+	}
 
-	if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+	if err := h.Workspaces.Unregister(c.Request.Context(), workspaceID); err != nil {
+		if lookupErr != nil && errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			h.respondError(c, StatusForWorkspaceError(lookupErr), lookupErr)
+			return
+		}
+		status, removalErr := workspaceRemovalError(workspaceID, err)
+		h.respondError(c, status, removalErr)
 		return
 	}
 

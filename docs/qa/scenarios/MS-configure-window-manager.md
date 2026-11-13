@@ -89,3 +89,11 @@ and `compozy config get window_manager.history_limit` is unchanged. 4) Record th
 actions in the shortcut table and confirm the second is blocked with the owner named. 5) Edit the
 Project layout (move a seam), Review changes, Apply layout, and confirm the other project's layout
 and `compozy config show` are unchanged. Reset for the current build.
+
+QA impact 2026-11-13 (#1659): a project-scope shortcut edit stores only the project delta. With
+`focus_policy` set in the user config, record one shortcut at project scope and confirm the project
+`config.toml` gains `[window_manager.shortcuts]` and no scalar, gap, `global_shortcuts` or alias key;
+then change `focus_policy` at user scope and confirm the project shows the new value. A project file
+that already holds copied scalars loads the same values; the next project save removes the copies
+equal to the inherited value and keeps the differing ones. Not walked yet; covered by
+`TestUpdateSectionWindowManager` until the next window-manager QA cycle.

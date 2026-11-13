@@ -1470,7 +1470,7 @@ test("native context menu copies text and preserves spelling preferences after r
     .tabBar.locator('[data-testid^="os-tab-menu-"]')
     .first()
     .click({ button: "right" });
-  await expect(reopenedProduct.getByRole("menuitem", { name: "Close other tabs" })).toBeVisible();
+  await expect(reopenedProduct.getByRole("menuitem", { name: "Close", exact: true })).toBeVisible();
   await reopenedProduct.keyboard.press("Escape");
 
   const definitionPath = join(reopened.home, "context-menu-loop.json");

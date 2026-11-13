@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -227,6 +228,92 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 	}
 	if len(deleted) != 0 {
 		t.Fatalf("Delete() calls = %#v, want none before failed unregister", deleted)
+	}
+}
+
+func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	held := fmt.Errorf(
+		"workspace: commit unregister %q: daemon: reconcile profile %q partition %q: %w",
+		"ws_alpha", "prof_1", "ws_beta", windowmanager.ErrUnavailable,
+	)
+	calls := 0
+	workspaces := stubWorkspaceService{
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			// The held removal already deleted the registration; only its pending deletion remains.
+			if calls > 0 {
+				return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		UnregisterFn: func(_ context.Context, id string) error {
+			if id != "ws_alpha" {
+				t.Fatalf("Unregister() id = %q, want ws_alpha", id)
+			}
+			calls++
+			if calls == 1 {
+				return held
+			}
+			return nil
+		},
+	}
+	engine := newTestRouter(
+		t,
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+	)
+
+	resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("delete workspace status = %d, want %d; body=%s",
+			resp.Code, http.StatusServiceUnavailable, resp.Body.String())
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, resp, &payload)
+	// HTTP masks 5xx messages; the code is the contract here, and UDS carries the detail.
+	if payload.Code != string(contract.WindowManagerErrorUnavailable) {
+		t.Fatalf("code = %q, want %q", payload.Code, contract.WindowManagerErrorUnavailable)
+	}
+
+	retry := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if retry.Code != http.StatusNoContent {
+		t.Fatalf("retry status = %d, want %d; body=%s", retry.Code, http.StatusNoContent, retry.Body.String())
+	}
+}
+
+func TestDeleteWorkspaceHandlerKeepsServerErrorWhenRemovalFailsBeyondLayouts(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	workspaces := stubWorkspaceService{
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		UnregisterFn: func(context.Context, string) error {
+			return errors.Join(
+				fmt.Errorf(
+					"daemon: reconcile profile %q partition %q: %w",
+					"prof_1", "ws_beta", windowmanager.ErrUnavailable,
+				),
+				errors.New("daemon: reconcile profile partition: store closed"),
+			)
+		},
+	}
+	engine := newTestRouter(
+		t,
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+	)
+
+	resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("delete workspace status = %d, want %d; body=%s",
+			resp.Code, http.StatusInternalServerError, resp.Body.String())
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, resp, &payload)
+	if payload.Code == string(contract.WindowManagerErrorUnavailable) {
+		t.Fatalf("code = %q, want no retry code for a failure a retry cannot finish", payload.Code)
 	}
 }
 

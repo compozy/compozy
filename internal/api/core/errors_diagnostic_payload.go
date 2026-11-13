@@ -37,7 +37,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			payload.Code = code
 		}
 	}
-	enrichWorkspaceBusyError(&payload, err)
+	enrichWorkspaceLifecycleError(&payload, err)
 	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
 		payload.Code = workspaceRootMissingCode
 	}
@@ -100,6 +100,11 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	payload.Diagnostic = errorDiagnosticItem(message, err)
 	enrichSessionInputError(&payload, err)
 	return payload
+}
+
+func enrichWorkspaceLifecycleError(payload *contract.ErrorPayload, err error) {
+	enrichWorkspaceBusyError(payload, err)
+	enrichWorkspaceRemovalError(payload, err)
 }
 
 func enrichWorkspaceBusyError(payload *contract.ErrorPayload, err error) {

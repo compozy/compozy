@@ -126,6 +126,11 @@ func deleteWorkspaceOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: "Removal held by a desktop layout that could not be read; retry finishes it",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

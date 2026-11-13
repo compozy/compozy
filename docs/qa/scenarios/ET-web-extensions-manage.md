@@ -57,3 +57,10 @@ the CLI and API for the same profile. The cross-surface contract is owned by
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-11-13 (issue #1659): disabling or enabling an extension (web toggle or CLI) now
+refreshes the command palette's Agents and Extensions rows through the existing palette stream, and
+the palette row of a disabled extension reads `disabled` instead of a health word; the CLI
+`extension list`/`info` no longer report `healthy` for a disabled extension. Flag only: while
+walking the disable/re-enable step, open the palette's Extensions and Agents views and confirm both
+follow without a reload. Palette grammar is owned by `ET-palette-domain-views`.

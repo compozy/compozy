@@ -10,7 +10,14 @@ import type { TerminalInputRequest } from "../types";
  * Settings. Input, resize, and stream acknowledgements stay on the socket.
  */
 export interface TerminalWindowActions {
+  /** Creates a terminal for this window. */
   onOpenTerminal?: () => void;
+  /**
+   * Identifies the last create this window asked for that was refused (its
+   * submission time), or `null`. A window that claimed a freed slot at the cap
+   * falls back to its empty state once a refusal newer than its claim arrives.
+   */
+  openTerminalRefusal?: number | null;
   /** Retargets the host route to a terminal the id-less window adopted. */
   retargetTerminal?: (terminalId: string) => void;
   /**

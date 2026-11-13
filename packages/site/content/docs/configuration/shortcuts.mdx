@@ -58,7 +58,9 @@ compozy config set 'window_manager.shortcuts.window.focus.left' \
 ```
 
 For workspace-scoped changes, use the command-palette verbs. They update the complete keymap
-atomically through the daemon:
+atomically through the daemon. A project keymap is a full copy: it replaces the user keymap for
+that project. The other window settings inherit per key, so a project shortcut edit stores only
+the keymap, and a later user change to a setting such as `focus_policy` still reaches the project:
 
 ```bash
 compozy cmd-palette bind window.focus.left control+ArrowLeft --workspace acme

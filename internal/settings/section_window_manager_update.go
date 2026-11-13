@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -57,6 +58,14 @@ func (s *service) updateWindowManagerSection(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	base := windowManagerWriteBase{current: loaded.config}
+	if loaded.scope == ScopeWorkspace {
+		inherited, _, err := s.loadConfig(ctx, ScopeUser, "", "")
+		if err != nil {
+			return MutationResult{}, fmt.Errorf("settings: load inherited window-manager config: %w", err)
+		}
+		base.inherited = &inherited
+	}
 	// Capture the active baseline before the first write, including a cold-service Save.
 	if loaded.scope == ScopeUser {
 		if _, err := s.ensureActiveConfigState(ctx); err != nil {
@@ -71,7 +80,7 @@ func (s *service) updateWindowManagerSection(
 		loaded.workspaceID,
 		loaded.workspaceRoot,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return applyWindowManagerSettings(editor, desired, desiredAliases)
+			return applyWindowManagerSettings(editor, desired, desiredAliases, &base)
 		},
 	)
 	if err != nil {

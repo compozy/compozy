@@ -153,6 +153,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     },
     hasActiveSession: activeSessionWindowId !== null && activeSessionId !== null,
     openTerminal,
+    openTerminalRefusal: create.refusal,
     retargetTerminal,
     // Another terminal beside this one: a fresh window opens as the tab right
     // after this one. `new` marks deliberate creation, so the resolver there opens a

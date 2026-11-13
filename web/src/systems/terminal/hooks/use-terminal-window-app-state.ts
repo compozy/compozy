@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import type { TerminalInfo } from "../types";
+import { useTerminalLimitWait } from "./use-terminal-limit-wait";
 import { useTerminalScopeCleanup } from "./use-terminal-scope-cleanup";
 import { useTerminalStore } from "./use-terminal-store";
 
@@ -57,6 +58,8 @@ export interface TerminalWindowAppState {
   resolving: boolean;
   openTerminal: (() => void) | undefined;
   setLimitOpen: (open: boolean) => void;
+  /** The limit dialog's Close: frees a slot this window may be waiting for. */
+  closeLimitTerminal: (terminalId: string) => void;
 }
 
 /**
@@ -66,7 +69,9 @@ export interface TerminalWindowAppState {
  * window shows, and the journal is a local overlay on top of it. The id-less
  * `/terminal` route resolves itself — it adopts the most recent running
  * terminal no other window is showing, or opens a fresh one — so launching the
- * app always lands in a working terminal rather than a picker.
+ * app always lands in a working terminal rather than a picker. At the cap it
+ * waits: the first time the project drops below the limit — whoever closed a
+ * terminal — it opens one, unless the limit dialog was dismissed first.
  */
 export function useTerminalWindowAppState({
   workspaceId,
@@ -111,11 +116,29 @@ export function useTerminalWindowAppState({
   const activeProfile = active?.profile_name ?? profile;
   useTerminalScopeCleanup({ workspaceId, profile: activeProfile, terminals, store });
 
+  const awaitingRoute = routeOwned && requestedTerminalId === null && !readOnly;
+  // One resolution per arrival at the id-less route in a scope: re-renders and
+  // StrictMode's doubled effect land on the same key and are ignored, while
+  // navigating away and back produces a new arrival.
+  const resolutionKey = `${scope}::${requestedTerminalId ?? "auto"}`;
+  const limitWait = useTerminalLimitWait({
+    awaitingRoute,
+    resolutionKey,
+    atLimit,
+    setLimitOpen,
+    onOpenTerminal: actions.onOpenTerminal,
+    openRefusal: actions.openTerminalRefusal ?? null,
+    onCloseTerminal: actions.onCloseTerminal,
+  });
+  const resolving = awaitingRoute && !limitWait.dismissed;
+
   // The daemon refuses a create at the cap, so the offer becomes the way out.
+  // A window with no terminal of its own keeps waiting behind the dialog.
   const openTerminal =
     actions.onOpenTerminal && !readOnly
       ? () => {
           if (atLimit) {
+            limitWait.wait();
             setLimitOpen(true);
             return;
           }
@@ -123,11 +146,6 @@ export function useTerminalWindowAppState({
         }
       : undefined;
 
-  const resolving = routeOwned && requestedTerminalId === null && !readOnly;
-  // One resolution per arrival at the id-less route in a scope: re-renders and
-  // StrictMode's doubled effect land on the same key and are ignored, while
-  // navigating away and back produces a new arrival.
-  const resolutionKey = `${scope}::${requestedTerminalId ?? "auto"}`;
   const lastResolutionKeyRef = useRef<string | null>(null);
   const resolveDestination = useEffectEvent(() => {
     const adoptable = createIntent
@@ -143,7 +161,7 @@ export function useTerminalWindowAppState({
     // Adopting or creating a terminal because the window landed on `/terminal`
     // is a synchronization with the daemon, keyed to that arrival — exactly
     // what an effect is for.
-    if (!resolving) {
+    if (!awaitingRoute) {
       lastResolutionKeyRef.current = resolutionKey;
       return;
     }
@@ -153,7 +171,7 @@ export function useTerminalWindowAppState({
     lastResolutionKeyRef.current = resolutionKey;
     if (previousKey === resolutionKey) return;
     resolveDestination();
-  }, [resolving, resolveReady, resolutionKey]);
+  }, [awaitingRoute, resolveReady, resolutionKey]);
 
   return {
     active,
@@ -172,7 +190,8 @@ export function useTerminalWindowAppState({
     missingRequested,
     resolving,
     openTerminal,
-    setLimitOpen,
+    setLimitOpen: limitWait.changeLimitOpen,
+    closeLimitTerminal: limitWait.closeLimitTerminal,
   };
 }
 

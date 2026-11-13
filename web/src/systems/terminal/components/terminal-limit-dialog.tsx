@@ -35,8 +35,7 @@ export interface TerminalLimitDialogProps {
  *
  * The daemon refuses the create, so the honest answer is the way out rather
  * than a greyed-out plus: the running terminals you could close are the body
- * of the dialog. The cause names the config key that decides the cap, so
- * raising it is a findable action instead of a mystery.
+ * of the dialog. Raising the cap is one step away in Settings.
  */
 export function TerminalLimitDialog({
   open,
@@ -95,10 +94,7 @@ export function TerminalLimitDialog({
             );
           })}
         </div>
-        <DialogFooter className="justify-between gap-3" variant="ruled">
-          <span className="font-mono text-eyebrow text-subtle">
-            terminal_limit_reached · terminal.max_per_workspace {limit}
-          </span>
+        <DialogFooter className="justify-end gap-3" variant="ruled">
           <span className="flex items-center gap-1">
             {onOpenSettings ? (
               <Button onClick={onOpenSettings} type="button" variant="ghost">

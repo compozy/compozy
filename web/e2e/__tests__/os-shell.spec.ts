@@ -1923,8 +1923,9 @@ test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W and offers Unpin unt
   await shell.tab(tasksTab).click({ button: "right" });
   await expect(appPage.getByRole("menuitem", { name: "Unpin tab" })).toBeVisible();
   await expect(appPage.getByRole("menuitem", { name: "Close tab", exact: true })).toHaveCount(0);
-  // Bulk close skips pinned tabs.
-  await appPage.getByRole("menuitem", { name: "Close other tabs" }).click();
+  // Bulk close (Close ▸ Other tabs) skips pinned tabs.
+  await appPage.getByTestId(`os-tab-close-menu-${tasksTab}`).click();
+  await appPage.getByRole("menuitem", { name: "Other tabs", exact: true }).click();
   await expect(shell.tab(agentsTab)).toHaveCount(0);
   await expect(shell.tab(tasksTab)).toBeVisible();
 
@@ -2155,7 +2156,7 @@ test("Tabs-split E2E-014 / E2E-037: two clients keep independent active tabs and
 });
 
 // Invariant: dragging a tab along the bar reorders it within its range and the order persists;
-// the tab menu's Move left takes it one place back; a pinned tab sits icon-only at the left after
+// the tab menu's Move ▸ Left takes it one place back; a pinned tab sits icon-only at the left after
 // reload (US-004, US-005). Owner: tab drag store + `window.tab.reorder`; canonical suite: this file.
 test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pinned tab stays left", async ({
   appPage,
@@ -2195,9 +2196,10 @@ test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pin
   await expect(shell.tabs).toHaveCount(order.length);
   expect(await barTabIds(appPage)).toEqual(expected);
 
-  // The tab menu's Move left takes it one place back.
+  // The tab menu's Move ▸ Left takes it one place back.
   await shell.tab(moved).click({ button: "right" });
-  await appPage.getByRole("menuitem", { name: "Move left", exact: true }).click();
+  await appPage.getByTestId(`os-tab-move-menu-${moved}`).click();
+  await appPage.getByRole("menuitem", { name: "Left", exact: true }).click();
   const movedLeft = [order[0], order[2], moved, order[3], ...order.slice(4)];
   await expect
     .poll(async () =>

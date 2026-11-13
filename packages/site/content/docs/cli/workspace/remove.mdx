@@ -7,6 +7,14 @@ description: "Remove a workspace registration and stopped session history"
 
 Remove a workspace registration and stopped session history
 
+### Synopsis
+
+Remove a workspace registration and stopped session history.
+
+When a stored desktop layout cannot be read, the removal stays pending: the command prints the
+profile and project whose layout failed (HTTP 503, code window_manager_unavailable) and exits
+non-zero. Run it again with the workspace ID once that layout is readable to finish the removal.
+
 ```
 compozy workspace remove <name-or-id> [flags]
 ```

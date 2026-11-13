@@ -147,12 +147,17 @@ func (r *windowManagerRepository) Load(
 	if err != nil {
 		return snapshot, err
 	}
-	status, err := r.readMigration(ctx, workspaceID)
+	// Only a surfaced notice reports its backup count; a load without one skips the domain listing.
+	status, err := r.readMigrationRecord(ctx, workspaceID)
 	if err != nil {
 		return snapshot, err
 	}
 	snapshot.Migration = nil
 	if status.State != "none" && !status.Acknowledged {
+		status, err = r.countSupersededBackups(ctx, workspaceID, status)
+		if err != nil {
+			return snapshot, err
+		}
 		snapshot.Migration = &status
 	}
 	return snapshot, nil
