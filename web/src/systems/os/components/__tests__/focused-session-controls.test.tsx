@@ -1,6 +1,7 @@
 // Suite: the shell's focused-window session controls
 // Invariant: the sidebar shortcut toggles the sidebar of the focused session window, including a
-// window that never chose a worktree, not the shell entry the body resolves worktrees from.
+// window that never chose a worktree; the shell's worktree selection stays unchanged while
+// the last-used sidebar preference follows the toggle, as the sidebar store specifies.
 // Owning layer: FocusedSessionControlsHost, which the shell body's ⌘B and session cycling read.
 // No prior suite owned the shell's side of the toggle (the rail's store owns it per scope).
 // Boundary IN: the host, the real useSessionSidebarState and its persisted store.
@@ -13,7 +14,11 @@ import {
   resolveSessionSidebarScope,
   sessionSidebarStore,
 } from "@/systems/session/hooks/use-session-sidebar-state";
-import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
+import {
+  activeWorkspaceStore,
+  selectWorktreeForScope,
+  SHELL_WORKTREE_SCOPE,
+} from "@/systems/workspace";
 
 import {
   FocusedSessionControlsHost,
@@ -43,6 +48,8 @@ describe("FocusedSessionControlsHost", () => {
       scopeId: SHELL_WORKTREE_SCOPE,
       open: false,
     });
+    selectWorktreeForScope(SHELL_WORKTREE_SCOPE, "workspace-one", "worktree-one");
+    const worktreeSelections = activeWorkspaceStore.getSnapshot().context.worktreeByScope;
     // The shell body sits under the shell entry this window's worktree resolves from; the host
     // sits under the focused window itself, as `FocusedWindowScope` provides it.
     render(
@@ -62,14 +69,16 @@ describe("FocusedSessionControlsHost", () => {
         </WindowScopeContext>
       </WindowScopeContext>
     );
-    expect(controlsRef.current?.sidebar.open).toBe(true);
+    const windowOpen = controlsRef.current?.sidebar.open;
+    expect(windowOpen).toBe(true);
 
     act(() => controlsRef.current?.sidebar.toggle());
 
-    // The rail the session pane reads (its own window scope) flips. The shell entry then holds
-    // the last-used state, as `use-session-sidebar-state.test.ts` owns; it is not asserted here.
     const byScope = sessionSidebarStore.getSnapshot().context.byScope;
-    expect(resolveSessionSidebarScope(byScope, SESSION_WINDOW).open).toBe(false);
-    expect(controlsRef.current?.sidebar.open).toBe(false);
+    // The window's rail and last-used preference flip; the shell's worktree pick stays.
+    expect(byScope[SESSION_WINDOW]?.open).toBe(!windowOpen);
+    expect(resolveSessionSidebarScope(byScope, SHELL_WORKTREE_SCOPE).open).toBe(!windowOpen);
+    expect(activeWorkspaceStore.getSnapshot().context.worktreeByScope).toEqual(worktreeSelections);
+    expect(controlsRef.current?.sidebar.open).toBe(!windowOpen);
   });
 });
