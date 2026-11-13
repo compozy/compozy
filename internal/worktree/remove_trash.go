@@ -67,7 +67,11 @@ func (s *Service) stageRemoval(workspace Workspace, item Worktree, commonDir str
 	if managedRoot == "" || filepath.Base(item.ID) != item.ID || item.ID == "." || item.ID == "" {
 		return "", nil
 	}
-	trash := filepath.Join(managedRoot, trashDirectory)
+	trash, err := canonicalTrashPath(managedRoot)
+	if err != nil {
+		s.logTrashError(err)
+		return "", nil
+	}
 	for _, protected := range []string{commonDir, workspace.Root, trash} {
 		within, err := fileutil.PathWithinRoot(item.Path, protected)
 		if err != nil || within {
@@ -224,15 +228,33 @@ func (s *Service) trashRoots(ctx context.Context) ([]string, error) {
 		}
 	}
 	s.trash.mu.Lock()
-	defer s.trash.mu.Unlock()
 	for path := range s.trash.roots {
 		roots[path] = struct{}{}
 	}
-	result := make([]string, 0, len(roots))
+	s.trash.mu.Unlock()
+	canonical := make(map[string]struct{}, len(roots))
 	for path := range roots {
+		resolved, err := canonicalTrashPath(filepath.Dir(path))
+		if err != nil {
+			resolveErr = errors.Join(resolveErr, err)
+			continue
+		}
+		canonical[resolved] = struct{}{}
+	}
+	result := make([]string, 0, len(canonical))
+	for path := range canonical {
 		result = append(result, path)
 	}
 	return result, resolveErr
+}
+
+// Resolve configured root aliases, but leave the trash entry itself subject to the ownership checks.
+func canonicalTrashPath(managedRoot string) (string, error) {
+	root, err := fileutil.CanonicalPathWithExistingPrefix(managedRoot)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, trashDirectory), nil
 }
 
 func (s *Service) collectTrashRoot(

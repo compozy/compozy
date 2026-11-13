@@ -88,3 +88,8 @@ with a clean Git status. After a non-force late-change refusal and a failed rest
 prune Git registration, then retry, restart and collect: the refused bytes and branch must remain,
 the record must stay `removing`, and no removed event may be emitted. The existing real-Git
 lifecycle suite owns these recovery and data-preservation invariants.
+
+Repeat the post-Git-cleanup state-write failure and approved-cleanup rollback cases with the managed
+root configured through a directory symlink. Retry and boot recovery must reach `removed`; failed
+Git cleanup must restore a usable `ready` checkout with clean status. Collection must finish through
+the alias while a symlink at the trash directory itself remains refused.

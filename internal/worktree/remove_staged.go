@@ -19,7 +19,10 @@ func (s *Service) restoreStagedRemoval(workspace Workspace, item Worktree) (stri
 	if managedRoot == "" || item.ID == "" || item.ID == "." || filepath.Base(item.ID) != item.ID {
 		return "", nil
 	}
-	trash := filepath.Join(managedRoot, trashDirectory)
+	trash, err := canonicalTrashPath(managedRoot)
+	if err != nil {
+		return filepath.Join(managedRoot, trashDirectory, item.ID), err
+	}
 	staged := filepath.Join(trash, item.ID)
 	info, err := os.Lstat(staged)
 	if errors.Is(err, os.ErrNotExist) {

@@ -164,7 +164,9 @@ pointers and orphaned checkouts use synchronous removal. After the staged safety
 CompozyOS saves durable removal approval before clearing Git registration. If that cleanup finishes
 before an interrupted state write, recovery uses the approval to finish the removal record without
 restoring a checkout with missing Git metadata. An external Git prune without that approval keeps
-the record `removing` and preserves staged bytes for recovery.
+the record `removing` and preserves staged bytes for recovery. Managed roots reached through
+parent-directory symlinks use their resolved location consistently for staging, recovery and cleanup;
+the trash directory itself must still pass the ownership and symlink checks.
 
 A failed fenced-target read restores the original record to `ready`. If an interrupted removal
 leaves a record `removing`, repeat removal by its ID to reconcile it without restarting the daemon;

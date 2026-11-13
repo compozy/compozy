@@ -73,10 +73,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	})
 
 	for _, restart := range []bool{false, true} {
-		name := fmt.Sprintf("Should finish staged Git cleanup after state write failure restart=%t", restart)
+		name := fmt.Sprintf("Should recover staged Git cleanup through a linked root restart=%t", restart)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			f := newRealGitFixture(t)
+			f.useSymlinkedWorktreesRoot()
 			item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
 				ProfileID: testWorktreeProfileID, Name: "Staged state recovery",
 			})
@@ -186,9 +187,10 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should restore a clean checkout after approved Git cleanup fails", func(t *testing.T) {
+	t.Run("Should restore a clean checkout through a linked root after Git cleanup fails", func(t *testing.T) {
 		t.Parallel()
 		f := newRealGitFixture(t)
+		f.useSymlinkedWorktreesRoot()
 		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
 			ProfileID: testWorktreeProfileID, Name: "Approved cleanup rollback",
 		})
@@ -3228,6 +3230,20 @@ func newRealGitFixtureWithCommit(t *testing.T, withCommit bool) *realGitFixture 
 	fixture.settings = settings
 	fixture.service = fixture.newService(runner)
 	return fixture
+}
+
+// The lifecycle suite owns removal, recovery and clean rollback through configured root aliases.
+func (f *realGitFixture) useSymlinkedWorktreesRoot() {
+	f.t.Helper()
+	if err := os.MkdirAll(f.worktreesRoot, 0o700); err != nil {
+		f.t.Fatal(err)
+	}
+	alias := filepath.Join(f.t.TempDir(), "linked-worktrees")
+	if err := os.Symlink(f.worktreesRoot, alias); err != nil {
+		f.t.Skipf("worktrees root symlink unavailable: %v", err)
+	}
+	f.worktreesRoot = alias
+	f.service = f.newService(f.runner)
 }
 
 func (f *realGitFixture) newService(runner GitRunner) *Service {
