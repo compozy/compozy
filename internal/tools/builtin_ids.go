@@ -320,6 +320,8 @@ const (
 	ToolIDAutomationRunsList ToolID = "compozy__automation_runs_list"
 	// ToolIDAutomationRunsGet reads one automation run record through the automation manager.
 	ToolIDAutomationRunsGet ToolID = "compozy__automation_runs_get"
+	// ToolIDAutomationRunsCancel settles an orphaned automation run without interrupting live execution.
+	ToolIDAutomationRunsCancel ToolID = "compozy__automation_runs_cancel"
 	// ToolIDAutomationSuggestionsList lists workspace-scoped automation suggestions.
 	ToolIDAutomationSuggestionsList ToolID = "compozy__automation_suggestions_list"
 	// ToolIDAutomationSuggestionsAccept accepts one suggestion and creates its Job.

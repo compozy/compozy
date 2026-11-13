@@ -3,14 +3,85 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
+// shutdownRuntimeWorkers tears down the background workers and stops the sessions side by side, each
+// under its own budget, and returns once both have finished. The serial prelude before them is
+// bounded separately. Worker joins that wait on a prompt end with the session that owns it instead
+// of spending their budget first. No provider can be spawned by a worker still running: the session
+// manager refuses every start once shutdown has begun.
 func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
-	workersCtx, cancel := context.WithTimeout(ctx, defaultShutdownTimeout/2)
+	d.shutdownPrelude(ctx, targets, errs)
+	// The workers budget starts after the prelude, so neither side begins on a context it spent.
+	workersCtx, cancel := context.WithTimeout(ctx, shutdownWorkersBudget)
 	defer cancel()
-	d.shutdownBackgroundWorkers(workersCtx, targets, errs)
-	targets.runtimeWorkers.shutdown(workersCtx, errs)
-	d.shutdownRuntimeSessions(ctx, targets, errs)
+
+	// Each side collects into its own slice; they are merged after both goroutines are joined.
+	var workerErrs, sessionErrs []error
+	var teardown sync.WaitGroup
+	teardown.Go(func() {
+		d.timeConcurrentShutdownStep(ctx, "stop_workers", func() {
+			d.shutdownBackgroundWorkers(workersCtx, targets, &workerErrs)
+			targets.runtimeWorkers.shutdown(workersCtx, &workerErrs)
+		})
+	})
+	teardown.Go(func() {
+		d.timeConcurrentShutdownStep(ctx, "stop_sessions", func() {
+			d.shutdownRuntimeSessions(ctx, targets, &sessionErrs)
+		})
+	})
+	teardown.Wait()
+	*errs = append(*errs, workerErrs...)
+	*errs = append(*errs, sessionErrs...)
+}
+
+// shutdownPrelude runs the serial steps that must finish before any session stops. Each step owns a
+// small allocation of the teardown: a slow workspace-deletion drain or watcher join is abandoned to
+// the session stop that follows instead of spending the time the workers and the sessions need.
+func (d *Daemon) shutdownPrelude(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	d.timeConcurrentShutdownStep(ctx, "drain_workspace_deletions", func() {
+		drainCtx, cancel := context.WithTimeout(ctx, shutdownPreludeWait(ctx))
+		defer cancel()
+		drainWorkspaceDeletions(drainCtx, targets, errs)
+	})
+	// Resource watchers stop before any session does: a refresh must not race a stopping session.
+	// Their allocation is taken after the drain, so a drain that spent its own cannot starve them.
+	watchersCtx, cancel := context.WithTimeout(ctx, shutdownPreludeWait(ctx))
+	defer cancel()
+	stopResourceWatchers(watchersCtx, targets, errs)
+}
+
+// shutdownSessionDependencies closes what an in-flight tool call or a stopping session still uses.
+// It runs only after every session has stopped, so those calls are not failed by the teardown itself.
+func shutdownSessionDependencies(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	if targets.stdioMCP != nil {
+		appendWrappedError(errs, "daemon: close stdio MCP sessions", targets.stdioMCP.Close(ctx))
+	}
+	if targets.terminals != nil {
+		appendWrappedError(errs, "daemon: shutdown terminal runtime", targets.terminals.Shutdown(ctx))
+	}
+}
+
+// stopResourceWatchers stops the skills and loops watchers; both are a cancel and a short join.
+func stopResourceWatchers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	// Both are signaled before either is joined, so one slow join cannot leave the other running.
+	if targets.skillsCancel != nil {
+		targets.skillsCancel()
+	}
+	if targets.loopsCancel != nil {
+		targets.loopsCancel()
+	}
+	appendWrappedError(
+		errs,
+		"daemon: stop skills watcher",
+		stopSkillsWatcher(ctx, targets.skillsCancel, targets.skillsDone),
+	)
+	appendWrappedError(
+		errs,
+		"daemon: stop loops watcher",
+		stopLoopWatcher(ctx, targets.loopsCancel, targets.loopsDone),
+	)
 }
 
 func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
@@ -31,16 +102,6 @@ func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdow
 	}
 	appendWrappedError(
 		errs,
-		"daemon: stop skills watcher",
-		stopSkillsWatcher(ctx, targets.skillsCancel, targets.skillsDone),
-	)
-	appendWrappedError(
-		errs,
-		"daemon: stop loops watcher",
-		stopLoopWatcher(ctx, targets.loopsCancel, targets.loopsDone),
-	)
-	appendWrappedError(
-		errs,
 		"daemon: stop loop effect relay",
 		stopLoopEffectRelay(ctx, targets.effectRelayCancel, targets.effectRelayDone),
 	)
@@ -57,9 +118,6 @@ func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdow
 	}
 	if targets.automation != nil {
 		appendWrappedError(errs, "daemon: shutdown automation", targets.automation.Shutdown(ctx))
-	}
-	if targets.mcpStdioPool != nil {
-		appendWrappedError(errs, "daemon: close stdio MCP sessions", targets.mcpStdioPool.Close(ctx))
 	}
 	if targets.retention != nil {
 		appendWrappedError(errs, "daemon: shutdown observability retention", targets.retention.ShutdownRetention(ctx))
@@ -88,7 +146,6 @@ func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdow
 	if targets.sessionWakeBridge != nil {
 		appendWrappedError(errs, "daemon: shutdown session wake bridge", targets.sessionWakeBridge.shutdown(ctx))
 	}
-	shutdownWorkspaceAndTerminals(ctx, targets, errs)
 }
 
 type replyWatchQuiescer interface {

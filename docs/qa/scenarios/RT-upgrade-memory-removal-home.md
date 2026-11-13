@@ -4,7 +4,7 @@ area: RT
 title: Upgrade a memory-enabled home through the final migration release
 persona: Dora
 journey: J-validate-compozy-hard-cut
-expected: Run the archival walkthrough on v0.6.0, resolve deferred writes and remove retired declarations, then upgrade to v0.6.1 with migrated state intact. v0.6.1 rejects active retired declarations without rewriting files; permanent SQL migrations and catalog recovery remain.
+expected: Run the archival walkthrough on v0.6.0, resolve deferred writes and remove retired declarations, then upgrade to v0.6.1 with migrated state intact. v0.6.1 rejects active retired declarations without rewriting files; permanent SQL migrations and catalog recovery remain. From the release that fixes #1618, a home that skipped that cleanup still starts: retired config settings are archived on load (or loaded inactive when the file cannot be rewritten), AGENT.md hook matchers with the retired keys are ignored, and an extension whose packaged resources no longer load is skipped with a warning.
 entry_points: legacy fixture binary on a lab COMPOZY_HOME, v0.6.0 archival build, then v0.6.1 on the same home; compozy daemon start; config.toml; compozy status -o json; compozy automation triggers -o json; compozy session list|history; compozy agent soul validate; compozy extension list -o json; Web desktop root with the saved layout
 qa_status: untested
 bug_ids:
@@ -109,7 +109,8 @@ keep `teardown.json` with `clean: true`. Files may stay for forensics; processes
 
 QA impact 2026-10-07 (memory removal): new in this change; no prior verdict. Automated owners: the global and session
 upgrade integration suites, the config archive tests, and the layout reconcile tests; this scenario is the real
-run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) were removed in v0.6.1
+run. The shims (config archive, SOUL, tool-ID, and extension ignore filters) were removed in v0.6.1;
+the config archive and the AGENT.md hook-matcher rule are back until v0.7.0 (see the last section)
 and this scenario retires with them, except the session recovery boundary in step 4, which is permanent: move
 its checks into a durable recovery scenario before retiring this one.
 
@@ -160,3 +161,29 @@ SOUL memory_policy, retired hook matchers, manifest memory entries and memory.co
 are rejected. Exact retired policy atoms are no longer filtered. Retired IDs stay reserved and
 permanent session-catalog recovery remains. Memory files and retained extension state stay intact.
 CI owns the current-head owning-suite run; the earlier walkthrough receipt does not verify v0.6.1.
+
+## Upgrade from v0.6.0 without a manual step (#1618)
+
+v0.6.1 could not start on a home whose files still held values v0.6.0 accepted. The fixed release
+restores the shims that guard a start, for one generation (removal: v0.7.0). On a disposable home
+written by v0.6.0, without running any cleanup first:
+
+1. Leave `[memory]`, a retired role table, `[session.compaction]`, a `memory.consolidated`
+   `[[automation.triggers]]` entry and a `compaction_reason` hook matcher active in the global
+   `config.toml`, and the same in a workspace `.compozy/config.toml` that v0.6.0 never loaded. Start
+   the runtime: it becomes ready, each file gains the commented archive block with the old values
+   intact, `config.retired_keys_archived` is logged once per file, and a restart changes nothing.
+2. Make the global config directory read-only and repeat: the runtime still starts, the file bytes
+   are unchanged, `config.retired_keys_archive_failed` names the path and reason, and the archive
+   appears on the first start after the directory is writable again.
+3. Put a global `AGENT.md` whose hook matcher carries `compaction_reason` in `agents/`: the runtime
+   starts, the agent loads with the key ignored, `agent.retired_entries_ignored` is logged, and the
+   file is byte-identical.
+4. Install an extension whose automation resource declares a `memory.consolidated` trigger: the
+   runtime starts, `extension.resources.skipped` names that extension and the reason, its resources
+   are absent, and every other extension loads.
+
+SOUL `memory_policy`, `SKILL.md` matchers, manifest memory entries and retired policy atoms keep the
+v0.6.1 behavior above. Automated owners in CI: `TestLoadPersistedConfigArchivesRetiredMemory`,
+`TestAgentHookRetiredMatcherCompatibility`, `TestBootArchivesRetiredMemorySettingsIntegration` and
+`TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions`. The live upgrade walk is unexecuted.

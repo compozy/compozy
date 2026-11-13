@@ -24,7 +24,7 @@ import { waitForE2EProductReady } from "./bootstrap/e2e-product-ready";
 import type { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
 import { monitorProductRuntime } from "./bootstrap/runtime-reconnect";
 import { bootstrapSnapshot } from "./boot/bootstrap-state";
-import { isForwardedBootMethod } from "./boot/boot-contract";
+import { createBootControl } from "./boot/boot-control";
 import { createControlHandler } from "./control/control-handler";
 import { ControlMethodError } from "./control/control-contract";
 import { ControlServer } from "./control/control-server";
@@ -271,22 +271,17 @@ async function start(): Promise<void> {
   controlServer = await ControlServer.start(paths.appSocket, token, controlHandler, error => {
     logger.error("serve app control request", error);
   });
-  ipcMain.handle("boot:control", async (_event, method: unknown, params: unknown) => {
-    if (method === "open_logs") {
-      const failure = await shell.openPath(paths.logs);
-      if (failure) throw new Error(failure);
-      return { opened: true };
-    }
-    if (method === "quit") {
-      void quitCleanly();
-      return { quitting: true };
-    }
-    if (typeof method !== "string") throw new Error("The boot action is invalid.");
-    if (isForwardedBootMethod(method)) {
-      return await controlHandler(method, params);
-    }
-    throw new Error("The boot action is not supported.");
+  const bootControl = createBootControl({
+    openLogs: async () => await shell.openPath(paths.logs),
+    openConfig: async () => await shell.openPath(paths.config),
+    openExternal: async url => await shell.openExternal(url),
+    targetVersion: () => statePublisher.snapshot().to_version,
+    quit: () => void quitCleanly(),
+    forward: async (method, params) => await controlHandler(method, params),
   });
+  ipcMain.handle("boot:control", async (_event, method: unknown, params: unknown) =>
+    bootControl(method, params)
+  );
 
   const runner = new BootstrapRunner({
     bundlePath: resources.bundle,
@@ -318,7 +313,7 @@ async function start(): Promise<void> {
       const runtime = await runner.run(async event => {
         if (bootstrapAbort.signal.aborted) return;
         await statePublisher.publish(
-          bootstrapSnapshot(event, paths.bootstrapLog, statePublisher.snapshot().attempt)
+          bootstrapSnapshot(event, paths.bootstrapLog, statePublisher.snapshot())
         );
       }, bootstrapAbort.signal);
       if (bootstrapAbort.signal.aborted) return;
@@ -345,6 +340,8 @@ async function start(): Promise<void> {
             stopped: () => bootstrapAbort.signal.aborted,
             publish: async snapshot => await statePublisher.publish(snapshot),
             reloadProduct: async () => await product?.reload(),
+            productLoaded: () => product?.isLoaded() ?? false,
+            home: paths.home,
             showBoot: showBootWindow,
             renderBoot: snapshot => boot?.render(snapshot),
             closeProduct: async () => {

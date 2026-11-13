@@ -54,7 +54,9 @@ func nativeAutomationToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, err),
 			toolspkg.ReasonDependencyMissing,
 		)
-	case errors.Is(err, automationpkg.ErrFireLimitReached),
+	case errors.Is(err, automationpkg.ErrRunActive),
+		errors.Is(err, automationpkg.ErrRunReservationConflict),
+		errors.Is(err, automationpkg.ErrFireLimitReached),
 		errors.Is(err, automationpkg.ErrSuggestionResolved),
 		errors.Is(err, automationpkg.ErrSuggestionPendingCap),
 		errors.Is(err, automationpkg.ErrConcurrencyLimitReached),

@@ -10,6 +10,32 @@ import (
 	"strings"
 )
 
+// CancelAutomationRun Cancel an orphaned automation run
+func (c *Client) CancelAutomationRun(ctx context.Context, params CancelAutomationRunParams) (*RunResponse, error) {
+	path := "/api/automation/runs/{id}/cancel"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelLoopNodeParams carries the path, query, and header parameters.
+type CancelLoopNodeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Profile     *string `url:"profile"`
+}
+
 // CancelLoopNode Cancel one Loop node
 func (c *Client) CancelLoopNode(ctx context.Context, params CancelLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel"
@@ -408,31 +434,4 @@ type ClearSessionParentParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ClearSessionParent Make an adopted child session top-level, or take over a stopped spawned worker
-func (c *Client) ClearSessionParent(ctx context.Context, params ClearSessionParentParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearSessionRuntimeParams carries the path, query, and header parameters.
-type ClearSessionRuntimeParams struct {
-	WorkspaceID      string  `url:"workspace_id"`
-	SessionID        string  `url:"session_id"`
-	ExpectedRevision int64   `url:"expected_revision"`
-	Profile          *string `url:"profile"`
 }

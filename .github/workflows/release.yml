@@ -8,6 +8,7 @@ on:
   pull_request:
     types:
       - opened
+      - reopened
       - synchronize
       - labeled
     branches:
@@ -164,7 +165,7 @@ jobs:
   # Run the GoReleaser dry-run on every release PR.
   dry-run:
     name: Dry-Run Build Validation
-    needs: dry-run-identity
+    needs: [dry-run-identity, integration]
     if: |
       github.event_name == 'pull_request' &&
       (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
@@ -714,87 +715,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Run the full integration suite on a fresh runner: on release or ci:full PRs, and on
-  # every routine push to main so integration regressions surface when they
-  # merge instead of at release time. Release-merge pushes are skipped (their
-  # release PR already ran it); superseded main pushes cancel via concurrency.
+  # Release PRs use the same integration lane as CI. Only this caller runs it
+  # for release PRs, and dry-run cannot start until every shard has succeeded.
   integration:
-    name: Full Integration Suite (${{ matrix.shard_index }})
+    name: Release integration
     if: |
-      (github.event_name == 'pull_request' &&
-       (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
-       (startsWith(github.event.pull_request.title, 'build: release ') ||
-        startsWith(github.base_ref, 'release/v') ||
-        contains(github.event.pull_request.labels.*.name, 'ci:full'))) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-       !startsWith(github.event.head_commit.message, 'release:') &&
-       !startsWith(github.event.head_commit.message, 'ci(release):') &&
-       !(startsWith(github.event.head_commit.message, 'build: release ') ||
-         startsWith(github.event.head_commit.message, 'build: prepare release ')))
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        shard_index: [0, 1, 2, 3, 4, 5, 6, 7]
-    env:
-      COMPOZY_GO_TEST_P: "1"
-      COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
-      COMPOZY_GO_TEST_SHARD_TOTAL: "8"
-      COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/integration-results
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Install ripgrep
-        run: |
-          # Only Ubuntu supplies this dependency; unrelated runner repositories
-          # must not block preflight when their indexes are inconsistent.
-          test -f /etc/apt/sources.list.d/ubuntu.sources
-          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
-          bash .github/scripts/apt-mirror-fallback.sh
-          sudo apt-get "${apt_sources[@]}" update
-          sudo apt-get "${apt_sources[@]}" install --yes ripgrep
-          rg --version
-
-      - name: Prepare Go temporary directory
-        env:
-          GOTMPDIR: ${{ runner.temp }}/go-tmp
-        run: mkdir -p "$GOTMPDIR"
-
-      - uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          install-gotestsum: "true"
-
-      - uses: ./.github/actions/setup-bun
-        with:
-          install-playwright: "false"
-
-      - name: Build integration fixture dependencies
-        run: bun run turbo run build --filter=@compozy/extension-react --filter=@compozy/client
-
-      - name: Run full integration suite
-        env:
-          CI: "true"
-          CGO_ENABLED: 0
-          GOTMPDIR: ${{ runner.temp }}/go-tmp
-        run: make test-integration
-
-      - name: Upload integration timing and failure artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: integration-artifacts-${{ matrix.shard_index }}
-          path: |
-            /tmp/integration-results
-            coverage.out
-            test-results.xml
-            /tmp/compozy-e2e-*
-          if-no-files-found: ignore
-          retention-days: 14
+      github.event_name == 'pull_request' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    uses: ./.github/workflows/go-integration.yml
 
   # Resolve the explicit release identity exactly once.
   release-plan:

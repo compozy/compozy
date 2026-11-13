@@ -30,9 +30,11 @@ const bootstrapStageMigrate bootstrapStage = "migrate"
 // writeBootstrapMigrationProgress tells the desktop the replacement is upgrading data, not failing to start.
 func writeBootstrapMigrationProgress(cmd *cobra.Command, progress contract.RestartProgress) error {
 	percent := restartProgressPercent(progress)
+	completed, total := max(progress.Completed, 0), max(progress.Total, 0)
 	return writeBootstrapEvent(cmd, bootstrapEvent{
 		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusStarted,
 		Resolution: bootstrapResolutionProvision, Stage: bootstrapStageMigrate, Percent: &percent,
+		Completed: &completed, Total: &total, Migration: progress.Stage,
 		Message: fmt.Sprintf("Upgrading CompozyOS data (%d%%).", percent),
 	})
 }
@@ -49,6 +51,10 @@ func writeBootstrapFailure(
 	}
 	if compatibilityFailure, ok := errors.AsType[*bootstrapCompatibilityFailure](cause); ok {
 		event.Compatibility = new(compatibilityFailure.bootstrapCompatibility)
+	}
+	if configFailure, ok := errors.AsType[*bootstrapConfigFailure](cause); ok {
+		event.Classification = bootstrapProbeConfigInvalid
+		event.Config = configFailure.detail()
 	}
 	if err := writeBootstrapEvent(cmd, event); err != nil {
 		return err

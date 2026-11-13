@@ -4258,7 +4258,7 @@ func testHarnessReentryBridgeDuplicateTerminalNotificationsStayIdempotent(t *tes
 	})
 	firstRunID = submission.Run.ID
 	completion := completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
-	waitForTaskRuntimeCondition(t, harnessReentryWaitTimeout, func() bool {
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
 		return sessions.syntheticPromptCount() == 1
 	})
 
@@ -4323,11 +4323,11 @@ func testHarnessReentryBridgePreservesSyntheticWakeFIFO(t *testing.T) {
 	firstRunID = first.Run.ID
 
 	completeDetachedHarnessRunForTest(t, runtime, first.Run.ID, "sess-owner")
-	waitForTaskRuntimeCondition(t, harnessReentryWaitTimeout, func() bool {
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
 		return sessions.syntheticPromptCount() == 1
 	})
 	completeDetachedHarnessRunForTest(t, runtime, second.Run.ID, "sess-owner")
-	waitForTaskRuntimeCondition(t, harnessReentryWaitTimeout, func() bool {
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
 		return sessions.syntheticPromptCount() == 2
 	})
 
@@ -4767,7 +4767,7 @@ func waitForDetachedHarnessReentryState(
 	t.Helper()
 
 	var got detachedHarnessRunMetadata
-	waitForTaskRuntimeCondition(t, harnessReentryWaitTimeout, func() bool {
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
 		run, err := runtime.store.GetTaskRun(testutil.Context(t), runID)
 		if err != nil {
 			return false
@@ -4814,7 +4814,7 @@ func waitForEventSummaryTypes(
 	t.Helper()
 
 	var got []string
-	waitForTaskRuntimeCondition(t, harnessReentryWaitTimeout, func() bool {
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
 		got = eventSummaryTypesForRunSession(t, runtime, sessionID)
 		for _, want := range wantTypes {
 			if !slices.Contains(got, want) {
@@ -4825,11 +4825,6 @@ func waitForEventSummaryTypes(
 	})
 	return got
 }
-
-// harnessReentryWaitTimeout bounds waits for the re-entry bridge's asynchronous store writes. A wake lands through
-// several serialized SQLite writes while the scenarios run in parallel with the rest of the package, so under -race
-// on a loaded machine it can take seconds; the poll still returns as soon as the condition holds.
-const harnessReentryWaitTimeout = 15 * time.Second
 
 func waitForTaskRuntimeCondition(t *testing.T, timeout time.Duration, check func() bool) {
 	t.Helper()

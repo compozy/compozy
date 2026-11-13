@@ -55,11 +55,14 @@ func TestDaemonE2EOTelExportReportsDegradedMetrics(t *testing.T) {
 		}
 
 		otel := waitForOTelStatus(ctx, t, harness, func(otel *compozycontract.OTelStatusPayload) bool {
-			return otel.Metrics.LastErrorClass == "http_401"
+			return otel.Metrics.LastErrorClass == "http_401" && !otel.Traces.LastExportAt.IsZero()
 		})
 		if otel.State != "degraded" || otel.Metrics.FailedExports == 0 || !otel.Traces.Enabled ||
 			otel.Traces.LastErrorClass != "" {
 			t.Fatalf("status otel = %+v, want degraded metrics and healthy traces", otel)
+		}
+		if keys := receiver.headerValues("/v1/traces"); len(keys) == 0 || keys[0] != e2eOTLPKey {
+			t.Fatalf("receiver trace api-key headers = %v, want a successful authenticated trace export", keys)
 		}
 		if keys := receiver.headerValues("/v1/metrics"); len(keys) == 0 || keys[0] != e2eOTLPKey {
 			t.Fatalf("receiver api-key headers = %v, want the env:TEST_OTLP_KEY value", keys)

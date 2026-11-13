@@ -5195,15 +5195,164 @@ func turnIDs(history []store.TurnHistory) []string {
 	return ids
 }
 
+// Invariant: one events.db upgrades exactly once however many owners open it, and a failed
+// apply is accepted only when the stream is verifiably at the embedded head afterwards.
+// Owner: sessiondb migration apply; real SQLite files, no fakes beyond the injected apply error.
+func TestSessionDBConcurrentMigrationApply(t *testing.T) {
+	t.Parallel()
+	owner := testSessionDBOwner("sess-concurrent-upgrade")
+	openBehind := func(t *testing.T) (*sql.DB, string) {
+		t.Helper()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, sessionMigrationPrefixBefore(t, "00011_schema.sql"))
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stamp := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+		usage := acp.TokenUsage{
+			TurnID: "turn-cost-0", CostAmount: new(3.0), CostCurrency: new("USD"), Timestamp: stamp,
+		}
+		content, err := transcript.MarshalAgentEvent(
+			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: usage.TurnID, Usage: &usage},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range []struct {
+			query string
+			args  []any
+		}{
+			{
+				`INSERT INTO session_db_owner(singleton, session_id, workspace_id) VALUES (1,?,?)`,
+				[]any{owner.SessionID, owner.WorkspaceID},
+			},
+			{
+				`INSERT INTO events(id,sequence,turn_id,type,agent_name,content,timestamp) VALUES (?,1,?,'done','coder',?,?)`,
+				[]any{usage.TurnID, usage.TurnID, content, store.FormatTimestamp(stamp)},
+			},
+			{
+				`INSERT INTO token_usage(turn_id,total_tokens,cost_amount,cost_currency,timestamp) VALUES (?,5,3,'USD',?)`,
+				[]any{usage.TurnID, store.FormatTimestamp(stamp)},
+			},
+		} {
+			if _, err := db.ExecContext(ctx, statement.query, statement.args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return db, path
+	}
+
+	t.Run("Should upgrade one database through concurrent owners", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		behind, path := openBehind(t)
+		if err := behind.Close(); err != nil {
+			t.Fatal(err)
+		}
+		type openResult struct {
+			db  *SessionDB
+			err error
+		}
+		start := make(chan struct{})
+		results := make(chan openResult, 4)
+		var openers sync.WaitGroup
+		for range 4 {
+			openers.Go(func() {
+				<-start
+				db, err := OpenSessionDB(ctx, owner, path)
+				results <- openResult{db: db, err: err}
+			})
+		}
+		close(start)
+		openers.Wait()
+		close(results)
+		for result := range results {
+			if result.err != nil {
+				t.Errorf("concurrent OpenSessionDB() error = %v", result.err)
+				continue
+			}
+			status, err := store.Status(ctx, result.db.db, MigrationStream())
+			if err != nil || status.Version != usageCostMigrationVersion ||
+				status.AppliedCount != usageCostMigrationVersion {
+				t.Errorf("migration history = %+v, %v; want every version through %d",
+					status, err, usageCostMigrationVersion)
+			}
+			rows, err := result.db.ListTokenUsage(ctx)
+			if err != nil || len(rows) != 1 || rows[0].CostAmount == nil || *rows[0].CostAmount != 3 ||
+				rows[0].ReportedCostAmount == nil || *rows[0].ReportedCostAmount != 3 ||
+				rows[0].TotalTokens == nil || *rows[0].TotalTokens != 5 {
+				t.Errorf("usage after concurrent upgrade = %+v, %v", rows, err)
+			}
+			if err := result.db.Close(ctx); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		}
+	})
+
+	applyFailure := errors.New("migration statement failed")
+	failingApply := func(context.Context, *sql.DB, store.MigrationStream) error { return applyFailure }
+
+	t.Run("Should keep the apply error while the database is behind", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		behind, path := openBehind(t)
+		t.Cleanup(func() {
+			if err := behind.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		err := applySessionMigrationsWith(ctx, behind, MigrationStream(), path, failingApply)
+		if !errors.Is(err, applyFailure) {
+			t.Fatalf("apply on a behind database error = %v, want %v", err, applyFailure)
+		}
+		status, err := store.Status(ctx, behind, MigrationStream())
+		if err != nil || status.Version != usageCostMigrationVersion-1 {
+			t.Fatalf("migration history = %+v, %v; want untouched version %d",
+				status, err, usageCostMigrationVersion-1)
+		}
+	})
+
+	t.Run("Should settle a failed apply once another owner brought the database current", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		current, path := openBehind(t)
+		t.Cleanup(func() {
+			if err := current.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		if err := store.Apply(ctx, current, MigrationStream()); err != nil {
+			t.Fatal(err)
+		}
+		if err := applySessionMigrationsWith(ctx, current, MigrationStream(), path, failingApply); err != nil {
+			t.Fatalf("apply on a current database error = %v, want settled", err)
+		}
+	})
+}
+
 // Invariant: migration 11 preserves raw monetary evidence and all non-cost usage,
 // while canonical history and the per-turn ledger agree after upgrade and reopen.
+// A database that already carries the migration's column without version 11
+// recorded reaches the same state with a complete version history.
 func TestSessionDBUsageCostMigration(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name           string
 		missing        bool
+		column         bool // reported_cost_amount exists before version 11 is recorded
+		normalized     int  // leading turns already stored in the version 11 shape
+		unreported     bool // normalized turns' usage projections lack reported_cost_amount
+		mismatched     bool // reported_cost_amount exists with a definition migration 11 never published
 		amounts, costs []float64
 	}{
+		{name: "Should complete migration 11 when its column exists without the recorded version", column: true, amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should keep already normalized turns when completing migration 11", column: true, normalized: 2, amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should restore a missing report from the normalized canonical turn", column: true, normalized: 2, unreported: true, amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
+		{name: "Should leave a mismatched reported cost column to fail migration 11", mismatched: true, amounts: []float64{1, 3}, costs: []float64{1, 2}},
+		{name: "Should derive costs from canonical history when the column exists and a usage projection is missing", column: true, missing: true, amounts: []float64{1, 3, 4, 0.5, 2}, costs: []float64{1, 2, 1, 0, 1.5}},
 		{name: "Should preserve raw reports while charging zero for a dropped counter", amounts: []float64{1, 3, 0.5, 2}, costs: []float64{1, 2, 0, 1.5}},
 		{name: "Should resume increments from a lagging restored counter", amounts: []float64{10, 12, 11.5, 12.5}, costs: []float64{10, 2, 0, 1}},
 		{name: "Should derive costs from canonical history when a usage projection is missing", missing: true, amounts: []float64{1, 3, 4, 0.5, 2}, costs: []float64{1, 2, 1, 0, 1.5}},
@@ -5227,6 +5376,22 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
+			if tc.column {
+				if _, err := old.ExecContext(
+					ctx,
+					`ALTER TABLE token_usage ADD COLUMN reported_cost_amount real NULL`,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.mismatched {
+				if _, err := old.ExecContext(
+					ctx,
+					`ALTER TABLE token_usage ADD COLUMN reported_cost_amount text NOT NULL DEFAULT ''`,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
 			amounts, costs := tc.amounts, tc.costs
 			for i, amount := range amounts {
 				turn := fmt.Sprintf("turn-cost-%d", i)
@@ -5237,6 +5402,9 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 					CostCurrency: new("USD"),
 					TotalTokens:  new(int64(5)),
 					Timestamp:    stamp,
+				}
+				if i < tc.normalized {
+					usage.CostAmount, usage.ReportedCostAmount = new(costs[i]), new(amount)
 				}
 				content, err := transcript.MarshalAgentEvent(
 					acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turn, Usage: &usage},
@@ -5258,11 +5426,28 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 				if tc.missing && i == 1 {
 					continue
 				}
+				if i < tc.normalized && !tc.unreported {
+					if _, err := old.ExecContext(
+						ctx,
+						`INSERT INTO token_usage(turn_id,total_tokens,cache_read_tokens,cost_amount,reported_cost_amount,cost_currency,timestamp) VALUES (?,5,4,?,?,'USD',?)`,
+						turn,
+						costs[i],
+						amount,
+						store.FormatTimestamp(stamp),
+					); err != nil {
+						t.Fatal(err)
+					}
+					continue
+				}
+				projected := amount
+				if i < tc.normalized {
+					projected = costs[i]
+				}
 				if _, err := old.ExecContext(
 					ctx,
 					`INSERT INTO token_usage(turn_id,total_tokens,cache_read_tokens,cost_amount,cost_currency,timestamp) VALUES (?,5,4,?,'USD',?)`,
 					turn,
-					amount,
+					projected,
 					store.FormatTimestamp(stamp),
 				); err != nil {
 					t.Fatal(err)
@@ -5271,10 +5456,30 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 			if err := old.Close(); err != nil {
 				t.Fatal(err)
 			}
+			if tc.mismatched {
+				ledger, err := OpenSessionDB(ctx, owner, path)
+				if err == nil {
+					if closeErr := ledger.Close(ctx); closeErr != nil {
+						t.Error(closeErr)
+					}
+					t.Fatal("OpenSessionDB() error = nil, want migration 11 to reject the mismatched column")
+				}
+				if !strings.Contains(err.Error(), "duplicate column name") {
+					t.Fatalf("OpenSessionDB() error = %v, want the duplicate column failure of migration 11", err)
+				}
+				return
+			}
 			for range 2 {
 				ledger, err := OpenSessionDB(ctx, owner, path)
 				if err != nil {
 					t.Fatal(err)
+				}
+				status, err := store.Status(ctx, ledger.db, MigrationStream())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if status.Version != usageCostMigrationVersion || status.AppliedCount != usageCostMigrationVersion {
+					t.Fatalf("migration history=%+v, want every version through %d", status, usageCostMigrationVersion)
 				}
 				rows, err := ledger.ListTokenUsage(ctx)
 				if err != nil {

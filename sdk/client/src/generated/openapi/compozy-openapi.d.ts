@@ -1130,6 +1130,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/automation/runs/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel an orphaned automation run */
+    post: operations["cancelAutomationRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/automation/suggestions": {
     parameters: {
       query?: never;
@@ -10040,6 +10057,12 @@ export interface components {
       user_home_dir: string;
       version: string;
     };
+    DaemonReadinessPayload: {
+      phase: string;
+      /** Format: date-time */
+      since: string;
+      step?: string;
+    };
     DaemonStatusPayload: {
       active_sessions: number;
       gateway?: components["schemas"]["GatewayStatusPayload"] | null;
@@ -10047,6 +10070,7 @@ export interface components {
       http_port: number;
       min_app_version: string;
       pid: number;
+      readiness?: components["schemas"]["DaemonReadinessPayload"] | null;
       schema_streams: components["schemas"]["SchemaStreamStatus"][];
       socket: string;
       /** Format: date-time */
@@ -29658,6 +29682,68 @@ export interface operations {
       };
     };
   };
+  cancelAutomationRun: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Automation run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Canceled run or unchanged terminal run */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RunResponse"];
+        };
+      };
+      /** @description Automation run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Run may still be executing or changed concurrently */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listAutomationSuggestionsAggregate: {
     parameters: {
       query?: {
@@ -39765,6 +39851,15 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Replacement runtime failed its restart pre-flight; the running daemon was kept */
+      409: {
         headers: {
           [name: string]: unknown;
         };

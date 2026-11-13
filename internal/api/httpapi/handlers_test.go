@@ -441,6 +441,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/agents/:name/memory/validate",
 		"POST /api/automation/jobs",
 		"POST /api/automation/jobs/:id/trigger",
+		"POST /api/automation/runs/:id/cancel",
 		"POST /api/automation/triggers",
 		"POST /api/workspaces/:workspace_id/worktrees",
 		"POST /api/workspaces/:workspace_id/worktrees/adopt",

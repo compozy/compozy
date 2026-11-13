@@ -28,6 +28,12 @@ const (
 	bootstrapProbeStaleRecord        bootstrapProbeClass = "stale-record"
 	bootstrapProbePortConflict       bootstrapProbeClass = "port-conflict"
 	bootstrapProbeUnavailable        bootstrapProbeClass = "unavailable"
+	// bootstrapProbeConfigInvalid marks a config load failure in this process; no daemon answered.
+	bootstrapProbeConfigInvalid bootstrapProbeClass = "config-invalid"
+	// bootstrapProbeMutationBusy marks a wait on, or a failure behind, another process's runtime mutation.
+	bootstrapProbeMutationBusy bootstrapProbeClass = "mutation-in-progress"
+	// bootstrapProbeUnlaunchable marks a runtime binary that cannot be executed; no retry changes it.
+	bootstrapProbeUnlaunchable bootstrapProbeClass = "runtime-unlaunchable"
 )
 
 type bootstrapProbe struct {

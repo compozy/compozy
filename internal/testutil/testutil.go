@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+// defaultTimeout is the plain-build budget for Context; Scaled stretches it
+// under -race.
 const defaultTimeout = 45 * time.Second
 
 var (
@@ -30,7 +32,7 @@ func Context(t testing.TB) context.Context {
 		// Cleanup callbacks need a fresh timeout after the test context is canceled.
 		parent = context.WithoutCancel(parent)
 	}
-	ctx, cancel := context.WithTimeout(parent, defaultTimeout)
+	ctx, cancel := context.WithTimeout(parent, Scaled(t, defaultTimeout))
 	t.Cleanup(cancel)
 	return ctx
 }

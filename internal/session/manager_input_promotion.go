@@ -5,10 +5,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
 
-// promoteLongTurnQueuedInputs delivers queued messages from other sessions, and coalesced wakes, into a
+// promoteLongTurnQueuedInputs delivers queued messages from other sessions and child/monitor wakes, into a
 // target whose turn has outlived session.messaging.queue_promote_after, as injected steering. A long Goal or
 // orchestration turn may never reach "after the turn", so without this the message would wait for
 // as long as the turn runs. Promotion keeps each entry's identity, so its reply watch still binds to
@@ -18,6 +19,27 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 	if m == nil || m.inputQueue == nil || session == nil {
 		return
 	}
+	// One pass runs at a time, but a request that arrives while a pass runs is never dropped: that pass
+	// listed the queue before the new entry was admitted, so it runs again once it ends.
+	session.inputPromotionRerun.Store(true)
+	if !session.inputPromotionActive.CompareAndSwap(false, true) {
+		return
+	}
+	for {
+		session.inputPromotionRerun.Store(false)
+		m.promoteLongTurnQueuedInputsOnce(ctx, session)
+		if session.inputPromotionRerun.Load() {
+			continue
+		}
+		session.inputPromotionActive.Store(false)
+		// A request that raced the release saw the pass still active and returned; take it over.
+		if !session.inputPromotionRerun.Load() || !session.inputPromotionActive.CompareAndSwap(false, true) {
+			return
+		}
+	}
+}
+
+func (m *Manager) promoteLongTurnQueuedInputsOnce(ctx context.Context, session *Session) {
 	after := m.messagingConfig().QueuePromoteAfter
 	if after <= 0 {
 		return
@@ -26,16 +48,13 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 	if !ok || m.now().Sub(startedAt) < after {
 		return
 	}
-	if _, ok := m.injectedSteerer(session.processHandle()); !ok {
-		return
-	}
-	if !session.inputPromotionActive.CompareAndSwap(false, true) {
-		return
-	}
-	defer session.inputPromotionActive.Store(false)
 	entries, err := m.inputQueue.List(ctx, session.ID)
 	if err != nil {
 		m.sessionLogger(session).Warn("session: list queued input for promotion failed", "error", err)
+		return
+	}
+	m.logOldestQueuedSyntheticAge(ctx, session, entries)
+	if _, ok := m.injectedSteerer(session.processHandle()); !ok {
 		return
 	}
 	if operatorInputWaits(entries) {
@@ -62,10 +81,32 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 	}
 }
 
+func (m *Manager) logOldestQueuedSyntheticAge(
+	ctx context.Context, session *Session, entries []store.SessionInputQueueEntry,
+) {
+	var oldest *store.SessionInputQueueEntry
+	for index := range entries {
+		entry := &entries[index]
+		if entry.OwnerKind == store.SessionInputOwnerSynthetic && entry.Status == store.SessionInputQueueStatusQueued &&
+			(oldest == nil || entry.EnqueuedAt.Before(oldest.EnqueuedAt)) {
+			oldest = entry
+		}
+	}
+	if oldest != nil {
+		m.sessionLogger(session).InfoContext(ctx, "session.input_queue.synthetic_age",
+			"entry_id", oldest.ID, "oldest_queued_synthetic_age_ms", max(m.now().Sub(oldest.EnqueuedAt).Milliseconds(), 0))
+	}
+}
+
 func promotableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 	eligible := entry.OwnerKind == "" && entry.OriginClass == store.SessionInputOriginClassAgent
 	if entry.OwnerKind == store.SessionInputOwnerSynthetic {
 		eligible = entry.SyntheticPrompt.CoalescedWakes() > 0
+		if entry.SyntheticPrompt != nil {
+			meta, err := syntheticPromptMeta(entry.SyntheticPrompt)
+			eligible = eligible || err == nil && meta != nil &&
+				(meta.Kind == acp.PromptSyntheticKindSessionReply || isSpawnWakeMeta(meta))
+		}
 	}
 	return eligible &&
 		entry.Mode == store.SessionInputQueueModeQueue && entry.Status == store.SessionInputQueueStatusQueued &&
@@ -122,6 +163,14 @@ func (m *Manager) promoteQueuedInput(
 		(err == nil || errors.Is(err, errSteerDeliveredUnresolved))
 	if !watched {
 		session.promotedSteers.Delete(entryID)
+	}
+	if errors.Is(err, errSpawnWakeStale) {
+		meta, decodeErr := syntheticPromptMeta(staged.SyntheticPrompt)
+		if decodeErr == nil {
+			m.handleQueuedInputDispatchError(session, session.ID, queuedInputFromEntry(&staged),
+				promptRequest{turnID: turnID, meta: acp.PromptMeta{Synthetic: meta}}, err)
+			return "", false
+		}
 	}
 	if err == nil && staged.SteerDelivery != store.SteerDeliveryInterruptFallback {
 		return staged.SteerDelivery, true

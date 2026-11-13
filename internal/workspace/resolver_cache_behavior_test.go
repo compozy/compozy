@@ -113,6 +113,22 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		}
 		r.InvalidateAll()
 		assertSkills()
+
+		// Invariant: a held phase discovers a workspace once instead of once per TTL window, still
+		// honors explicit invalidation, and returns to the age bound when released.
+		writeSkill(t, dir)
+		r.HoldSnapshots()
+		now = now.Add(2 * time.Second)
+		assertSkills()
+		r.InvalidateAll()
+		assertSkills("alpha")
+		if err := os.Remove(filepath.Join(dir, skillDefinitionFile)); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(2 * time.Second)
+		assertSkills("alpha")
+		r.ReleaseSnapshots()
+		assertSkills()
 	})
 	t.Run("Should isolate cached config and invalidate every watched input", func(t *testing.T) {
 		t.Parallel()

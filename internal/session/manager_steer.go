@@ -110,12 +110,22 @@ func (m *Manager) injectSteeringInput(
 		session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
-		origin, originErr := decodePromptOrigin(entry.Origin)
-		if originErr != nil {
-			cancel()
-			return "", nil, originErr
+		request, err := m.injectedSteerInputRequest(session, entry)
+		if err == nil {
+			err = m.validateSpawnWake(ctx, session.ID, request.meta.Synthetic)
 		}
-		session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
+		if err != nil {
+			cancel()
+			return "", nil, err
+		}
+		origin := request.meta.Origin
+		if err := m.trackCreatorSteerInput(steerCtx, session, entry, origin); err != nil {
+			cancel()
+			m.sessionLogger(session).WarnContext(ctx, "session: creator steering deferred before provider handoff",
+				"entry_id", entry.ID, "error", err)
+			return store.SteerDeliveryInterruptFallback, nil, nil
+		}
+		session.raiseTurnHop(entry.TargetTurnID, promptMetaHop(request.meta))
 		text := entry.Text
 		if providerText != "" {
 			text = providerText
@@ -139,6 +149,9 @@ func (m *Manager) injectSteeringInput(
 		} else if !errors.Is(steerErr, acp.ErrSteerTurnMismatch) {
 			m.sessionLogger(session).
 				Warn("session: live steer failed; falling back", "entry_id", entry.ID, "error", steerErr)
+		}
+		if delivery == store.SteerDeliveryInterruptFallback {
+			session.forgetCreatorSteerInput(entry.ID)
 		}
 	}
 	return delivery, completion, nil

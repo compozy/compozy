@@ -138,6 +138,9 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	creatorSteerTurnID string
+	creatorSteerInputs map[string]creatorSteerInput
+
 	checkInToolsStatus           string
 	interactionLifecycleMu       sync.Mutex
 	lifecycleNotifyMu            sync.Mutex // Orders creation and terminal callbacks across activation hooks.
@@ -311,6 +314,8 @@ type Session struct {
 	providerRedactions         []func()
 	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
 	inputPromotionActive atomic.Bool
+	// inputPromotionRerun records a promotion request made while a pass runs, so that pass repeats.
+	inputPromotionRerun atomic.Bool
 	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous
 	// fallback returns the message to after-turn delivery instead of leaving it as a queued steer.
 	promotedSteers sync.Map

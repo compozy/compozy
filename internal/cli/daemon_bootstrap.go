@@ -42,18 +42,37 @@ type bootstrapDaemon struct {
 }
 
 type bootstrapEvent struct {
-	Type           string                  `json:"type"`
-	Phase          bootstrapPhase          `json:"phase"`
-	Status         string                  `json:"status"`
-	Resolution     bootstrapResolution     `json:"resolution,omitempty"`
-	Attempt        int                     `json:"attempt,omitzero"`
-	BackoffMS      int64                   `json:"backoff_ms,omitzero"`
-	Classification bootstrapProbeClass     `json:"classification,omitempty"`
-	Message        string                  `json:"message"`
-	Stage          bootstrapStage          `json:"stage,omitempty"`
-	Percent        *int                    `json:"pct,omitempty"`
-	Daemon         *bootstrapDaemon        `json:"daemon,omitzero"`
-	Compatibility  *bootstrapCompatibility `json:"compatibility,omitzero"`
+	Type           string              `json:"type"`
+	Phase          bootstrapPhase      `json:"phase"`
+	Status         string              `json:"status"`
+	Resolution     bootstrapResolution `json:"resolution,omitempty"`
+	Attempt        int                 `json:"attempt,omitzero"`
+	BackoffMS      int64               `json:"backoff_ms,omitzero"`
+	Classification bootstrapProbeClass `json:"classification,omitempty"`
+	Message        string              `json:"message"`
+	Stage          bootstrapStage      `json:"stage,omitempty"`
+	Percent        *int                `json:"pct,omitempty"`
+	// Completed and Total count a migrate stage's work; Total is 0 while the stage is still counting.
+	Completed *int64 `json:"completed,omitempty"`
+	Total     *int64 `json:"total,omitempty"`
+	// Migration names the runtime's migration stage so the desktop can say what it counts.
+	Migration     string                  `json:"migration,omitempty"`
+	Versions      *bootstrapVersions      `json:"versions,omitzero"`
+	Daemon        *bootstrapDaemon        `json:"daemon,omitzero"`
+	Compatibility *bootstrapCompatibility `json:"compatibility,omitzero"`
+	// Config is set only on a config load failure, which is terminal and never retried.
+	Config *bootstrapConfigError `json:"config,omitzero"`
+	// Readiness is the lifecycle phase and step of a daemon that reports them.
+	Readiness *bootstrapReadiness `json:"readiness,omitzero"`
+	// Wait is set while the bootstrap waits on another process instead of spending an attempt.
+	Wait *bootstrapWait `json:"wait,omitzero"`
+}
+
+// bootstrapVersions names the runtime transition a provisioning run performs. From is set only
+// when the run replaces an installed runtime.
+type bootstrapVersions struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to"`
 }
 
 type bootstrapCompatibility struct {
@@ -75,17 +94,25 @@ type bootstrapOptions struct {
 	minimumRuntime string
 	appVersion     string
 	channel        string
+	// readyPhase is the daemon lifecycle phase reported as ready; the default waits for `running`.
+	readyPhase bootstrapReadyPhase
 }
 
 var daemonBootstrapAttemptGate bootstrapAttemptGate
 
 func newDaemonBootstrapCommand(deps commandDeps) *cobra.Command {
 	options := bootstrapOptions{}
+	readyPhase := string(bootstrapReadyPhaseReady)
 	cmd := &cobra.Command{
 		Use:   bootstrapEventType,
 		Short: "Resolve, provision, and start the desktop runtime",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			phase, err := parseBootstrapReadyPhase(readyPhase)
+			if err != nil {
+				return err
+			}
+			options.readyPhase = phase
 			return runDaemonBootstrap(cmd, deps, options)
 		},
 	}
@@ -93,6 +120,10 @@ func newDaemonBootstrapCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&options.minimumRuntime, "minimum-runtime", ">=0.0.0", "Minimum compatible runtime version")
 	cmd.Flags().StringVar(&options.appVersion, "app-version", "", "Desktop app version for compatibility checks")
 	cmd.Flags().StringVar(&options.channel, "channel", "development", "Desktop app release channel")
+	cmd.Flags().StringVar(
+		&readyPhase, "ready-phase", readyPhase,
+		"Daemon lifecycle phase reported as ready: ready, or serving to finish while sessions still resume",
+	)
 	return cmd
 }
 
@@ -147,9 +178,13 @@ type bootstrapExecution struct {
 
 // resolveAndStart attaches to a compatible daemon or provisions and starts the selected runtime.
 func (e *bootstrapExecution) resolveAndStart() error {
-	status, running, err := probeBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths)
+	probe := bootstrapDaemonProbe{deps: e.deps, homePaths: e.homePaths, readyPhase: e.options.readyPhase}
+	status, running, err := probe.status(e.cmd.Context())
 	if err == nil && running {
 		return e.attachRunning(status)
+	}
+	if _, ok := errors.AsType[*bootstrapConfigFailure](err); ok {
+		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeConfigInvalid, err)
 	}
 	if err := cleanupStaleBootstrapDaemonRecord(e.homePaths, e.deps); err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
@@ -221,7 +256,7 @@ func writeAttachedBootstrap(cmd *cobra.Command, options bootstrapOptions, status
 	return writeBootstrapEvent(cmd, bootstrapEvent{
 		Type: bootstrapEventType, Phase: bootstrapPhaseReady, Status: bootstrapStatusCompleted,
 		Resolution: bootstrapResolutionAttach, Message: "Attached to the running CompozyOS runtime.",
-		Daemon: daemon,
+		Daemon: daemon, Readiness: bootstrapReadinessFromStatus(status),
 	})
 }
 
@@ -235,13 +270,16 @@ func (e *bootstrapExecution) start(resolution bootstrapResolution, runtimePath s
 		}); err != nil {
 			return err
 		}
-		status, startErr := runBootstrapDaemonDetached(e.cmd.Context(), e.deps, e.homePaths, runtimePath)
+		status, startErr := e.launch(resolution, attempt, runtimePath)
 		lastErr = startErr
 		if lastErr == nil {
 			return e.writeStarted(status, resolution, attempt, owned)
 		}
 		if busy, ok := errors.AsType[*bootstrapLockOwnerBusy](startErr); ok {
 			return e.attachBootingOwner(busy.pid)
+		}
+		if class, terminal := e.terminalStartFailure(startErr); terminal != nil {
+			return writeBootstrapFailure(e.cmd, bootstrapPhaseFailed, class, terminal)
 		}
 		if e.cmd.Context().Err() != nil || bootstrapShouldGiveUp(attempt) {
 			break
@@ -286,7 +324,7 @@ func (e *bootstrapExecution) writeStarted(
 	return writeBootstrapEvent(e.cmd, bootstrapEvent{
 		Type: bootstrapEventType, Phase: bootstrapPhaseReady, Status: bootstrapStatusCompleted,
 		Resolution: resolution, Attempt: attempt, Message: "The CompozyOS runtime is ready.",
-		Daemon: daemon,
+		Daemon: daemon, Readiness: bootstrapReadinessFromStatus(status),
 	})
 }
 
@@ -347,21 +385,14 @@ func bootstrapRuntimePath(homePaths compozyconfig.HomePaths) string {
 	return filepath.Join(homePaths.BinDir, name)
 }
 
-func probeBootstrapDaemon(
-	ctx context.Context,
-	deps commandDeps,
-	homePaths compozyconfig.HomePaths,
-) (DaemonStatus, bool, error) {
-	probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths}
-	return probe.status(ctx)
-}
-
 // runBootstrapDaemonDetached owns the startup mutation lock until readiness, exit, or cancellation.
 func runBootstrapDaemonDetached(
 	ctx context.Context,
 	deps commandDeps,
 	homePaths compozyconfig.HomePaths,
 	binaryPath string,
+	readyPhase bootstrapReadyPhase,
+	observe bootstrapStartObserver,
 ) (status DaemonStatus, returnErr error) {
 	updateLock, err := acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(homePaths))
 	if err != nil {
@@ -373,20 +404,30 @@ func runBootstrapDaemonDetached(
 	if _, running, err := daemonInfo(homePaths, deps); err != nil {
 		return DaemonStatus{}, err
 	} else if running {
-		status, healthy, probeErr := probeBootstrapDaemon(ctx, deps, homePaths)
+		probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths, readyPhase: readyPhase}
+		status, healthy, probeErr := probe.status(ctx)
 		if probeErr == nil && healthy {
 			return status, nil
 		}
-		return DaemonStatus{}, errors.Join(errors.New("cli: daemon is listening but unhealthy"), probeErr)
+		if _, ok := errors.AsType[*bootstrapConfigFailure](probeErr); ok {
+			return DaemonStatus{}, probeErr
+		}
+		if _, ok := errors.AsType[*bootstrapStatusFailure](probeErr); ok {
+			return DaemonStatus{}, errors.Join(errors.New("cli: daemon is listening but unhealthy"), probeErr)
+		}
+		if probeErr == nil {
+			return DaemonStatus{}, errors.New("cli: the recorded daemon stopped before it answered")
+		}
+		return DaemonStatus{}, fmt.Errorf("cli: probe the recorded daemon: %w", probeErr)
 	}
 	child, err := deps.spawnBootstrapRuntime(ctx, homePaths, binaryPath)
 	if err != nil {
-		return DaemonStatus{}, err
+		return DaemonStatus{}, classifyBootstrapSpawnFailure(err)
 	}
 	if child == nil {
 		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
 	}
-	status, err = waitForDaemonStart(ctx, deps, child)
+	status, err = waitForBootstrapDaemonStart(ctx, deps, child, observe)
 	if err != nil && ctx.Err() == nil {
 		return DaemonStatus{}, classifyBootstrapLockOwner(deps, homePaths, child.PID(), err)
 	}

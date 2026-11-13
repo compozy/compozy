@@ -1,0 +1,365 @@
+/*
+ * Desktop boot window redesign (#1549), in the brand manual's grammar (`packages/brand`):
+ * ink ground, the gradient symbol as the only shape, progress drawn with points on one 8 px
+ * pitch, grey by default with only the live edge lit, display type for the one headline.
+ * No rings, glows or tinted backgrounds. Atmosphere (`horizon`, 25%) enters only the screens
+ * that hold nothing else, dark theme only, never behind text.
+ *
+ * The production page is standalone, CSP-locked HTML (`desktop/pages/boot.{html,css,js}`), so
+ * this is plain CSS over an alias block: porting replaces the aliases with `boot-tokens.css`.
+ * Split like the production page: `boot-panel.css` holds the journey panel, `boot-runner.css`
+ * the waiting game.
+ * Only `opacity` and `transform` animate; every loop stops under reduced motion.
+ */
+
+.boot-stage {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding: 32px;
+  background: var(--color-canvas);
+}
+
+/* Draft-only chrome: the OS window around the page (hidden title bar, native traffic lights). */
+.boot-frame {
+  position: relative;
+  inline-size: 880px;
+  max-inline-size: 100%;
+  block-size: 540px;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px var(--color-line-strong),
+    var(--shadow-overlay);
+}
+.boot-frame__lights {
+  position: absolute;
+  inset-block-start: 13px;
+  inset-inline-start: 14px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+.boot-frame__lights span {
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--color-line-strong);
+}
+
+.boot {
+  --b-ink: var(--color-rail);
+  --b-panel: var(--color-canvas);
+  --b-surface: var(--color-surface-2);
+  --b-line: var(--color-line);
+  --b-line-strong: var(--color-line-strong);
+  --b-fg: var(--color-fg);
+  --b-strong: var(--color-fg-strong);
+  --b-fg-2: var(--color-fg-2);
+  --b-muted: var(--color-muted-foreground);
+  --b-point: var(--color-line);
+  --b-point-done: var(--color-neutral);
+  --b-primary: var(--color-primary);
+  --b-primary-hover: var(--color-primary-hover);
+  --b-primary-ink: var(--color-primary-foreground);
+  --b-brand: var(--color-brand-strong);
+  --b-live: var(--color-brand-cyan);
+  --b-success: var(--color-success);
+  --b-warning: var(--color-warning);
+  --b-danger: var(--color-destructive);
+  --b-focus: var(--shadow-focus-ring);
+  --b-sans: var(--font-sans);
+  --b-mono: var(--font-mono);
+  --b-display: var(--font-display);
+  --b-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --b-ease-loop: cubic-bezier(0.45, 0, 0.2, 1);
+  --b-ease-drift: var(--ease-in-out);
+  --b-drift: 24s;
+
+  --tone: var(--b-live);
+
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 40px;
+  block-size: 100%;
+  padding: 62px 32px 28px 40px;
+  overflow: hidden;
+  background: var(--b-ink);
+  color: var(--b-fg);
+  font-family: var(--b-sans);
+  font-size: 13.5px;
+  font-weight: 450;
+  line-height: 20px;
+  letter-spacing: -0.006em;
+}
+:root:not(.dark) .boot {
+  --b-live: var(--color-brand);
+  --b-point: var(--color-line-strong);
+}
+.boot[data-tone="success"] {
+  --tone: var(--b-success);
+}
+.boot[data-tone="warning"] {
+  --tone: var(--b-warning);
+}
+.boot[data-tone="danger"] {
+  --tone: var(--b-danger);
+}
+.boot[data-layout="center"] {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  text-align: center;
+}
+
+/* Atmosphere: only where nothing else is on screen, dark only, a slow drift. */
+.boot__atmosphere {
+  display: none;
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  inline-size: 100%;
+  block-size: 46%;
+  object-fit: cover;
+  object-position: 50% 50%;
+  opacity: 0.25;
+  /* The raster ground is #000; screen keeps only its light on the ink ground. */
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(transparent, #000 35%);
+  mask-image: linear-gradient(transparent, #000 35%);
+  pointer-events: none;
+  animation: boot-drift var(--b-drift) var(--b-ease-drift) infinite alternate;
+}
+.dark .boot[data-layout="center"] .boot__atmosphere {
+  display: block;
+}
+
+/* ── Lead: symbol, headline, version, the one-line reason ────────────────────────────── */
+
+.boot__lead {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-inline-size: 0;
+}
+.boot[data-layout="center"] .boot__lead {
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  max-inline-size: 460px;
+  padding-block-end: 56px;
+}
+.boot__symbol {
+  flex: none;
+  inline-size: 56px;
+  block-size: 56px;
+  animation: boot-enter 260ms var(--b-ease) both;
+}
+.boot[data-layout="center"] .boot__symbol {
+  inline-size: 96px;
+  block-size: 96px;
+}
+.boot__title {
+  margin: 26px 0 0;
+  color: var(--b-strong);
+  font-family: var(--b-display);
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 38px;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.boot[data-layout="center"] .boot__title {
+  margin-block-start: 28px;
+  font-size: 30px;
+  line-height: 36px;
+}
+.boot__versions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-block-start: 14px;
+}
+.boot__version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  block-size: 24px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--b-line-strong);
+  color: var(--b-muted);
+  font-family: var(--b-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.boot__version-pill b {
+  color: var(--b-strong);
+  font-weight: 500;
+}
+.boot__version-pill svg {
+  inline-size: 10px;
+  block-size: 10px;
+}
+.boot__link {
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  background: none;
+  color: var(--b-brand);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.boot__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.boot__detail {
+  max-inline-size: 34ch;
+  margin: 16px 0 0;
+  color: var(--b-muted);
+  font-size: 14px;
+  line-height: 21px;
+  text-wrap: pretty;
+}
+.boot[data-layout="center"] .boot__detail {
+  max-inline-size: 44ch;
+  margin-block-start: 12px;
+}
+.boot__error-code {
+  margin: 10px 0 0;
+  color: var(--b-muted);
+  font-family: var(--b-mono);
+  font-size: 11.5px;
+}
+
+/* The one mono line: state mark + word, elapsed clock, latest runtime line. */
+.boot__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin-block-start: auto;
+  color: var(--b-muted);
+  font-family: var(--b-mono);
+  font-size: 11.5px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.boot[data-layout="center"] .boot__status {
+  position: absolute;
+  inset-block-end: 0;
+  margin: 0;
+}
+.boot__status-mark {
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.boot[data-alive="true"] .boot__status-mark {
+  animation: boot-blink 2.4s var(--b-ease-loop) infinite;
+}
+.boot__status-word {
+  color: var(--b-fg);
+}
+.boot__status-activity {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.boot__status-activity::before {
+  content: "·";
+  margin-inline-end: 8px;
+}
+
+/* ── Points: the brand's unit. Grey by default, only the live edge is lit. ───────────── */
+
+.boot__points {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rows), 8px);
+  grid-auto-columns: 8px;
+  justify-content: start;
+}
+.boot__point {
+  position: relative;
+  inline-size: 8px;
+  block-size: 8px;
+}
+.boot__point::before,
+.boot__point::after {
+  content: "";
+  position: absolute;
+  inset: 2.5px;
+  border-radius: 50%;
+}
+.boot__point::before {
+  background: var(--b-point);
+}
+.boot__point::after {
+  background: var(--tone);
+  opacity: 0;
+}
+.boot__point[data-on="done"]::before {
+  background: var(--b-point-done);
+}
+.boot__point[data-on="live"]::after {
+  opacity: 1;
+  animation: boot-blink 2.4s var(--b-ease-loop) infinite;
+}
+/* Unknown total: one lit band keeps crossing the field, so it never looks frozen. */
+.boot__points[data-mode="sweep"] .boot__point::after {
+  animation: boot-sweep 2.4s linear infinite;
+  animation-delay: calc(var(--c) * (2400ms / var(--cols)) - 2400ms);
+}
+.boot__pulse {
+  margin-block-start: 22px;
+}
+
+@keyframes boot-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes boot-sweep {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0;
+  }
+}
+@keyframes boot-drift {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.05) translateX(1.5%);
+  }
+}
+@keyframes boot-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* Reduced motion is a full version: final frame, nothing drifts, the clock still counts. */
+@media (prefers-reduced-motion: reduce) {
+  .boot *,
+  .boot *::before,
+  .boot *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

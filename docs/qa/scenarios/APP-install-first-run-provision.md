@@ -6,7 +6,7 @@ persona: Lea
 journey: J-desktop-first-run
 expected: A machine with no runtime goes installer → guided offline provisioning with visible verify, install, and start phases for the bundled lockstep runtime → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the non-interactive boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable; BUG-20260817-desktop-release-channel-provenance; BUG-20260817-signed-macos-x64-digest-drift; BUG-20260817-desktop-smoke-local-isolation
 fix_status: fixed
 retest_status: pass
@@ -100,3 +100,5 @@ First-run regression: every persisted `starting` record, including the intermedi
 `stage: ready` record, includes the current positive attempt. Check `app status -o json`
 through startup and after a retry without relaxing schema validation. Bootstrap-state
 projection tests own attempt propagation; Desktop first-run E2E owns real startup.
+
+2026-11-12 boot window redesign (#1549): the first run opens the redesigned boot window (Window: 880 by 540 with the title bar hidden on macOS. Every non-terminal state shows the pulsing state mark with the elapsed clock. The window reads "Setting up CompozyOS" with the target version pill and the step list Verify, Install, Start, Connect, marking done steps with their duration. While the window waits, the waiting game runs on its own in the left column, and Space takes control. Walk addition: the step list advances in order, the version pill names the bundled runtime, and the window hands off to the product with no frozen frame. Owning suites: desktop `boot-journey`, `bootstrap-state`, `boot-control` and E2E-001/002/007. Status reset to untested.

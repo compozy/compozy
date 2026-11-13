@@ -64,6 +64,7 @@ const (
 	cliSeedKey               = "seed"
 	cliSeverityValue         = "Severity"
 	cliSourcesValue          = "Sources"
+	cliCancelIDUse           = "cancel <id>"
 	cliRunsKey               = "runs"
 	cliStatusHeader          = "STATUS"
 	cliStateHeader           = "STATE"

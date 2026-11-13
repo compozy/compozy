@@ -23,6 +23,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 		workspaceArchiveAction,
 		agentInstanceAdoptAction,
 		"ensure-main",
+		agentInstanceClearMainAction,
 		agentInstanceReportsAction,
 		agentInstanceCheckAction,
 		agentInstanceAwayAction,
@@ -156,6 +157,11 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 		return fmt.Sprintf("Checks %s for %s in %s\n", action, label, scope)
 	case "ensure-main":
 		return fmt.Sprintf("Main session: %s\n", instance.MainSessionID)
+	case agentInstanceClearMainAction:
+		return fmt.Sprintf(
+			"%s main session cleared in %s. Queued inputs and memory are kept.\nMain session: %s\n",
+			label, scope, instance.MainSessionID,
+		)
 	default:
 		return instanceText(instance)
 	}
@@ -198,6 +204,9 @@ type agentInstanceOptions struct {
 }
 
 func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, action string, args []string) error {
+	if err := refuseAgentInstanceClearMain(deps, action); err != nil {
+		return err
+	}
 	base, err := clientFromDeps(deps)
 	if err != nil {
 		return err
@@ -243,6 +252,9 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 			return err
 		}
 		return writeInstanceOutput(cmd, result, instanceReportsText(result))
+	}
+	if action == agentInstanceClearMainAction {
+		return clearAgentInstanceMain(cmd, base, client, id)
 	}
 	return mutateAgentInstance(cmd, client, action, id)
 }
@@ -373,6 +385,8 @@ func mutateAgentInstance(cmd *cobra.Command, client agentInstancesClient, action
 }
 
 const (
+	agentInstanceClearMainAction = "clear-main"
+
 	agentInstanceAdoptAction    = "adopt"
 	agentInstanceChecksOff      = "off"
 	agentInstanceAwayAction     = "away"

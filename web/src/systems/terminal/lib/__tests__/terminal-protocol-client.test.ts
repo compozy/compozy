@@ -40,12 +40,15 @@ function buildClient(
     autoParse?: boolean;
     screen?: () => TerminalScreenFixture;
     deferScreen?: boolean;
+    deferTicket?: boolean;
     ticketResponse?: () => { body: unknown; status: number };
+    attachDeadline?: (run: () => void, delayMs: number) => () => void;
   } = {}
 ) {
   const stub = stubTerminalFetch({
     screen: options.screen,
     deferScreen: options.deferScreen,
+    deferTicket: options.deferTicket,
     ...(options.ticketResponse ? { ticketResponse: options.ticketResponse } : {}),
   });
   restoreFetch = stub.restore;
@@ -71,6 +74,7 @@ function buildClient(
       const timer = setTimeout(run, 0);
       return () => clearTimeout(timer);
     },
+    ...(options.attachDeadline ? { attachDeadline: options.attachDeadline } : {}),
     handlers: {
       onStatus: status => statuses.push(status),
       onInputEnabledChange: enabled => inputEnabled.push(enabled),
@@ -105,6 +109,27 @@ const GAP_FRAME = serverControlFrame(TERMINAL_SERVER_OP.gap, {
   to_seq: "49252",
   dropped_bytes: 49_152,
 });
+
+/** Attach deadlines the test fires by hand, instead of waiting ten seconds. */
+function manualAttachDeadlines() {
+  const armed: Array<{ run: () => void; delayMs: number; cancelled: boolean }> = [];
+  return {
+    armed,
+    schedule: (run: () => void, delayMs: number) => {
+      const entry = { run, delayMs, cancelled: false };
+      armed.push(entry);
+      return () => {
+        entry.cancelled = true;
+      };
+    },
+    /** Lets the current attempt's deadline pass. */
+    expire: () => {
+      const entry = armed.at(-1);
+      if (!entry || entry.cancelled) throw new Error("no live attach deadline");
+      entry.run();
+    },
+  };
+}
 
 function sentOpcodes(socket: FakeTerminalSocket): number[] {
   return socket.sent.map(frame => frame[0]);
@@ -155,6 +180,100 @@ describe("TerminalProtocolClient", () => {
     // different one.
     expect(sockets.sockets[0].path).toContain("ticket=tkt-1");
     expect(sockets.sockets[1].path).toContain("ticket=tkt-2");
+    client.stop();
+  });
+
+  it("Should retry an attempt that never reaches ATTACHED instead of waiting forever", async () => {
+    // #1607: a socket stuck in CONNECTING fires neither open nor close.
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, calls, streamErrors } = buildClient({
+      attachDeadline: deadlines.schedule,
+    });
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    expect(deadlines.armed[0].delayMs).toBeGreaterThan(0);
+
+    deadlines.expire();
+
+    expect(sockets.sockets[0].closed).toBe(true);
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    // The stalled pass is never reused: the retry mints its own.
+    expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(2);
+    expect(sockets.sockets[1].path).toContain("ticket=tkt-2");
+
+    sockets.last().open();
+    sockets.last().deliver(attachedFrame());
+    expect(statuses.at(-1)).toBe("connected");
+    // Attached in time: this attempt's deadline can no longer fire.
+    expect(deadlines.armed.at(-1)?.cancelled).toBe(true);
+    expect(streamErrors).toEqual([]);
+    client.stop();
+  });
+
+  it("Should cancel a mint that outlives its deadline and ignore its late pass", async () => {
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, fetchStub } = buildClient({
+      attachDeadline: deadlines.schedule,
+      deferTicket: true,
+    });
+    client.start();
+    await vi.waitFor(() => expect(fetchStub.heldTickets()).toHaveLength(1));
+
+    deadlines.expire();
+
+    expect(fetchStub.heldTickets()[0].aborted).toBe(true);
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await vi.waitFor(() => expect(fetchStub.heldTickets()).toHaveLength(2));
+    expect(fetchStub.heldTickets()[1].aborted).toBe(false);
+
+    // The abandoned mint answers anyway: its socket is closed, never adopted.
+    fetchStub.resolveTicket(0, "tkt-late");
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    expect(sockets.sockets[0].path).toContain("ticket=tkt-late");
+    expect(sockets.sockets[0].closed).toBe(true);
+
+    fetchStub.resolveTicket(1, "tkt-retry");
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    const retry = sockets.last();
+    expect(retry.path).toContain("ticket=tkt-retry");
+    retry.open();
+    retry.deliver(attachedFrame());
+    expect(retry.closed).toBe(false);
+    expect(statuses.at(-1)).toBe("connected");
+    client.stop();
+  });
+
+  it("Should state a retryable failure after repeated stalled attempts", async () => {
+    const deadlines = manualAttachDeadlines();
+    const { client, sockets, statuses, streamErrors } = buildClient({
+      attachDeadline: deadlines.schedule,
+    });
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    // Never opens.
+    deadlines.expire();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    // Opens, then stays silent: no ATTACHED either.
+    sockets.last().open();
+    deadlines.expire();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(3));
+    expect(streamErrors).toEqual([]);
+    deadlines.expire();
+
+    expect(sockets.sockets.every(socket => socket.closed)).toBe(true);
+    expect(streamErrors).toEqual([
+      {
+        error: {
+          code: "attach_timeout",
+          message: "The terminal did not connect after 3 attempts.",
+        },
+      },
+    ]);
+    expect(statuses.at(-1)).toBe("closed");
+    // Give any wrongly scheduled reconnect its chance to fire.
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(sockets.sockets).toHaveLength(3);
     client.stop();
   });
 

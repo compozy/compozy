@@ -1768,3 +1768,105 @@ func TestNativeAutomationJobTriggerAdmission(t *testing.T) {
 		})
 	}
 }
+
+func TestAutomationRunsCancelScope(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name               string
+		callerWorkspace    string
+		requestedWorkspace string
+		runWorkspace       string
+		foreignProfile     bool
+		operator           bool
+		wantReason         toolspkg.ReasonCode
+	}{
+		{
+			name:            "Should cancel in the bound workspace",
+			callerWorkspace: "ws-a",
+			runWorkspace:    "ws-a",
+		},
+		{
+			name:            "Should hide another workspace when input omits it",
+			callerWorkspace: "ws-a",
+			runWorkspace:    "ws-b",
+			wantReason:      toolspkg.ReasonToolUnknown,
+		},
+		{
+			name:               "Should reject an explicit conflicting workspace",
+			callerWorkspace:    "ws-a",
+			requestedWorkspace: "ws-b",
+			runWorkspace:       "ws-b",
+			wantReason:         toolspkg.ReasonScopeMismatch,
+		},
+		{
+			name:               "Should preserve operator workspace selection",
+			callerWorkspace:    "ws-a",
+			requestedWorkspace: "ws-b",
+			runWorkspace:       "ws-b",
+			operator:           true,
+		},
+		{
+			name:               "Should preserve unbound workspace selection",
+			requestedWorkspace: "ws-b",
+			runWorkspace:       "ws-b",
+		},
+		{
+			name:            "Should hide another profile before cancellation",
+			callerWorkspace: "ws-a",
+			runWorkspace:    "ws-a",
+			foreignProfile:  true,
+			wantReason:      toolspkg.ReasonToolUnknown,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			job := nativeAutomationJobFixture("job-cancel", automationpkg.JobSourceDynamic)
+			job.Scope, job.WorkspaceID = automationpkg.AutomationScopeWorkspace, tc.runWorkspace
+			run := automationpkg.Run{
+				ID: "run-cancel", JobID: job.ID,
+				ProfileID: store.DefaultProfileID, Status: automationpkg.RunRunning,
+			}
+			if tc.foreignProfile {
+				run.ProfileID = strings.Repeat("b", 26)
+			}
+			calls := 0
+			adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{Automation: apitest.StubAutomationManager{
+				GetRunFn: func(context.Context, string) (automationpkg.Run, error) { return run, nil },
+				GetJobFn: func(context.Context, string) (automationpkg.Job, error) { return job, nil },
+				CancelRunFn: func(_ context.Context, id string) (automationpkg.Run, error) {
+					calls++
+					if id != run.ID {
+						t.Fatalf("CancelRun id = %q", id)
+					}
+					run.Status = automationpkg.RunCancelled
+					return run, nil
+				},
+			}}}
+			input, err := json.Marshal(map[string]string{"run_id": run.ID, "workspace": tc.requestedWorkspace})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := adapter.automationRunsCancel(t.Context(), toolspkg.Scope{
+				ProfileID: store.DefaultProfileID, WorkspaceID: tc.callerWorkspace, Operator: tc.operator,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationRunsCancel, Input: input})
+			if tc.wantReason != "" {
+				if tc.wantReason == toolspkg.ReasonScopeMismatch {
+					requireToolReason(t, err, toolspkg.ErrToolDenied, tc.wantReason)
+				} else {
+					requireToolReason(t, err, toolspkg.ErrToolNotFound, tc.wantReason)
+				}
+				if calls != 0 {
+					t.Fatalf("unauthorized cancellation calls = %d", calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 {
+				t.Fatalf("CancelRun calls = %d", calls)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"status":"canceled"`))
+		})
+	}
+}

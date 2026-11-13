@@ -54,6 +54,9 @@ func editAgentDefFileInDirectory(
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
 	}
 
+	if parsed.Kind == retiredAgentKind {
+		parsed.Kind = AgentKindAlwaysOn
+	}
 	agent, err := agentDefFromParsedFile(path, parts, parsed)
 	if err != nil {
 		return AgentDef{}, err

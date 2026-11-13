@@ -1939,6 +1939,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		// Fresh migration replay has its own open/migration suite. This case
+		// owns row/status preservation on reopen and starts from the template.
+		copyCurrentSchemaGlobalDBSeed(t, path)
 		first, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
@@ -2006,7 +2009,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 	})
 
 	t.Run("Should apply destructive cuts once and remove pre-lineage loop history", func(t *testing.T) {
-		t.Parallel()
+		// This case owns the full historical replay, not just reopen behavior.
+		// Run it before the parallel migration subtests: competing full upgrades
+		// can exhaust its five-minute operation budget under race instrumentation.
 
 		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)

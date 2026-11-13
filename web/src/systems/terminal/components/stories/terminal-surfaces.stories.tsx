@@ -363,6 +363,26 @@ export const SkippedContent: Story = {
 };
 
 /**
+ * Attach attempts kept stalling before the daemon's first frame.
+ *
+ * The client stops retrying after repeated stalls rather than spinning on
+ * "Reconnecting…" forever, and hands the next attempt to the person.
+ */
+export const AttachTimeout: Story = {
+  name: "Attach timed out",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="h-24 bg-terminal-bg" />
+      <TerminalStreamNotice
+        code="attach_timeout"
+        message="The terminal did not connect after 3 attempts."
+        onReconnect={NOOP}
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/**
  * VC-22 — a recording, mid-replay.
  *
  * The clock is frozen by handing the player a scheduler that never fires, then

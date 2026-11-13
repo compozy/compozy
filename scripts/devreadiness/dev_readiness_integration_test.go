@@ -70,9 +70,7 @@ func main() {
 			{"init", "--quiet"},
 			{"add", "."},
 			{"-c", "user.name=Dev Test", "-c", "user.email=dev@example.com", "commit", "--quiet", "--no-gpg-sign", "-m", "fixture"},
-			// Like --no-gpg-sign above, --no-sign keeps the fixture independent of the developer's git config:
-			// with tag.gpgsign=true, git would create a signed tag and fail waiting for a tag message.
-			{"tag", "--no-sign", "v0.1.1"},
+			{"tag", "v0.1.1"},
 		} {
 			command := exec.CommandContext(t.Context(), "git", args...)
 			command.Dir = root

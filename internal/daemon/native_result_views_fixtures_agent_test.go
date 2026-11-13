@@ -125,7 +125,7 @@ func nativeAgentInstanceViewFixtures(t *testing.T) []nativeResultViewFixture {
 		ResolvedAppearance: map[string]any{"color": "blue"},
 	}
 	var rows []nativeResultViewFixture
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume} {
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceClearMain, toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume} {
 		views := agentInstanceRecordViews
 		if id == toolspkg.ToolIDAgentInstanceCreate {
 			views = agentInstanceCreateViews

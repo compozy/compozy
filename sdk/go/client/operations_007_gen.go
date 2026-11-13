@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// DisableSkillParams carries the path, query, and header parameters.
+type DisableSkillParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+	ForAgent  *string `url:"for_agent"`
+}
+
+// DisableSkill Disable one skill
+func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*SkillActionResponse, error) {
+	path := "/api/skills/{name}/disable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DismissAutomationSuggestionParams carries the path, query, and header parameters.
+type DismissAutomationSuggestionParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SuggestionID string `url:"suggestion_id"`
+}
+
 // DismissAutomationSuggestion Durably dismiss one automation suggestion
 func (c *Client) DismissAutomationSuggestion(ctx context.Context, params DismissAutomationSuggestionParams) (*AutomationSuggestionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss"
@@ -403,29 +441,4 @@ func (c *Client) ExecuteWindowManagerCommand(ctx context.Context, params Execute
 type ExportWindowManagerLayoutParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ExportWindowManagerLayout Export one declarative window layout
-func (c *Client) ExportWindowManagerLayout(ctx context.Context, params ExportWindowManagerLayoutParams) (*WindowManagerLayoutDocument, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerLayoutDocument
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExposeSkillParams carries the path, query, and header parameters.
-type ExposeSkillParams struct {
-	Name     string  `url:"name"`
-	Profile  *string `url:"profile"`
-	ForAgent *string `url:"for_agent"`
 }

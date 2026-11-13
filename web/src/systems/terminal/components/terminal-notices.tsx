@@ -68,7 +68,10 @@ export function TerminalStreamNotice({
   // subscriber list cannot: retrying before someone leaves only repeats the
   // same refusal, even when the caller has a reconnect callback available.
   const retryable =
-    code === "ticket_expired" || code === "ticket_invalid" || code === "slow_consumer";
+    code === "ticket_expired" ||
+    code === "ticket_invalid" ||
+    code === "slow_consumer" ||
+    code === "attach_timeout";
   const detail =
     code === "subscriber_limit_reached" && message.trim() !== "" ? message : copy.detail;
   // Warning is reserved for the audit-blocked pause. Other refusals are

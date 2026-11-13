@@ -534,6 +534,74 @@ func TestManagerProjectsLiveResourcesByProfile(t *testing.T) {
 		t.Parallel()
 		testProjectManifestResourcesForProfile(t)
 	})
+	// Invariant: only a package's own unreadable resources withdraw its projection; a registry
+	// failure reaches the caller so publication never continues without the package.
+	t.Run("Should withdraw a broken package and propagate a registry failure", func(t *testing.T) {
+		t.Parallel()
+		testManagerProjectionFailureClassification(t)
+	})
+}
+
+func testManagerProjectionFailureClassification(t *testing.T) {
+	t.Helper()
+	withDaemonVersion(t, "0.6.0")
+	env := newRegistryTestEnv(t)
+	profileID := insertActiveRegistryProfile(t, env, "marketing")
+	workspaceID := "ws-projection-failures"
+	if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+ (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, workspaceID, t.TempDir(), "Projection",
+		store.FormatTimestamp(env.installedAt), store.FormatTimestamp(env.installedAt)); err != nil {
+		t.Fatal(err)
+	}
+	fixture := createManagerTestExtension(t, `[extension]
+name = "projection-failure-kit"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+[[resources.skills]]
+path = "skills/shared"
+`, map[string]string{"skills/shared/SKILL.md": managerSkillFile("shared", "Scoped skill")})
+	scope := InstallationScope{ProfileID: profileID, WorkspaceID: workspaceID}
+	if err := env.registry.Install(
+		fixture.manifest,
+		fixture.dir,
+		fixture.checksum,
+		WithInstallScope(scope),
+	); err != nil {
+		t.Fatal(err)
+	}
+	info, err := env.registry.Get(fixture.manifest.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The manager is never started, so every projection reads the package from the registry.
+	manager := NewManager(env.registry)
+	key := InstanceKey{Name: fixture.manifest.Name, WorkspaceID: workspaceID}
+	lens := ProfileLens{ID: profileID, Name: "marketing"}
+
+	projected, enabled, err := manager.ProjectForProfile(t.Context(), key, lens)
+	if err != nil || !enabled || len(projected.Skills) != 1 {
+		t.Fatalf("healthy projection = %#v, enabled=%v, err=%v", projected, enabled, err)
+	}
+
+	writeFile(t, info.ManifestPath, "not = [valid")
+	projected, enabled, err = manager.ProjectForProfile(t.Context(), key, lens)
+	if err != nil || enabled || projected == nil || projected.Status.LastError == "" ||
+		len(projected.Skills) != 0 || projected.Status.WorkspaceID != workspaceID {
+		t.Fatalf("broken package projection = %#v, enabled=%v, err=%v, want withdrawn", projected, enabled, err)
+	}
+
+	if _, err := env.db.ExecContext(t.Context(), `DROP TABLE extension_dev_links`); err != nil {
+		t.Fatal(err)
+	}
+	projected, enabled, err = manager.ProjectForProfile(t.Context(), key, lens)
+	if err == nil || !strings.Contains(err.Error(), "extension_dev_links") || enabled || projected != nil {
+		t.Fatalf(
+			"registry failure projection = %#v, enabled=%v, err=%v, want propagated error",
+			projected,
+			enabled,
+			err,
+		)
+	}
 }
 
 func testManagerInstallationReadIsolation(t *testing.T) {

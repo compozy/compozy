@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { build, type BuildOptions } from "esbuild";
 
 import { resolveDesktopBuildChannel } from "../src/release/build-channel";
+import { writeBootAssets } from "./boot-assets";
 
 const root = join(import.meta.dir, "..");
 const output = join(root, "dist");
@@ -17,28 +18,40 @@ const canonicalTokens = await readFile(
   join(root, "..", "packages", "ui", "src", "tokens.css"),
   "utf8"
 );
+// Boot page aliases → canonical @compozy/ui tokens (approved prototype: web/src/drafts/desktop-boot).
 const bootTokenMap = {
-  canvas: "color-canvas",
+  ink: "color-rail",
+  panel: "color-canvas",
+  surface: "color-surface-2",
+  line: "color-line",
+  "line-strong": "color-line-strong",
+  point: "color-line",
+  "point-done": "color-neutral",
   fg: "color-fg",
   strong: "color-fg-strong",
-  muted: "color-subtle",
-  action: "color-brand",
-  "action-hover": "color-brand-hover",
-  "action-ink": "color-brand-ink",
+  "fg-2": "color-fg-2",
+  muted: "color-muted-foreground",
+  primary: "color-primary",
+  "primary-hover": "color-primary-hover",
+  "primary-ink": "color-primary-foreground",
+  "brand-text": "color-brand-strong",
+  // Volt-to-cyan is the live signal on ink; paper keeps the brand blue (tokens-light re-declares it).
+  live: "color-brand-cyan",
   selection: "color-brand-tint",
   "focus-ring": "theme-shadow-focus-ring",
   success: "color-success",
   danger: "color-destructive",
   warning: "color-warning",
-  info: "color-info",
-  line: "color-line",
-  // Boot controls are secondary pills: the product's rest and hover fills.
-  surface: "color-surface-2",
-  "surface-hover": "color-selected",
-  "surface-hover-shadow": "theme-shadow-card",
   sans: "font-sans",
   mono: "font-mono",
+  display: "font-display",
+  ease: "ease-out",
 } as const;
+/** Light-theme overrides for aliases whose light value comes from another canonical token. */
+const bootLightOverrides: Partial<Record<keyof typeof bootTokenMap, string>> = {
+  live: "color-brand",
+  point: "color-line-strong",
+};
 const lightTokens = await readFile(
   join(root, "..", "packages", "ui", "src", "tokens-light.css"),
   "utf8"
@@ -63,13 +76,17 @@ const bootTokens = Object.entries(bootTokenMap).map(([bootName, canonicalName]) 
 // nativeTheme.themeSource to the stored preference before the boot window exists.
 // Tokens the light theme does not re-declare (fonts) keep their dark value.
 const bootLightTokens = Object.entries(bootTokenMap).flatMap(([bootName, canonicalName]) => {
-  const value = tokenValue(lightTokens, canonicalName);
+  const override = bootLightOverrides[bootName as keyof typeof bootTokenMap];
+  const value = override
+    ? (tokenValue(lightTokens, override) ?? tokenValue(canonicalTokens, override))
+    : tokenValue(lightTokens, canonicalName);
   return value ? [`    --${bootName}: ${value};`] : [];
 });
 await writeFile(
   join(output, "pages", "boot-tokens.css"),
   `/* Generated from packages/ui/src/tokens.css and tokens-light.css by build-main.ts. */\n` +
-    `:root {\n  color-scheme: dark;\n${bootTokens.join("\n")}\n}\n` +
+    `:root {\n  color-scheme: dark;\n${bootTokens.join("\n")}\n` +
+    `  --ease-loop: cubic-bezier(0.45, 0, 0.2, 1);\n}\n` +
     `@media (prefers-color-scheme: light) {\n  :root {\n    color-scheme: light;\n` +
     `${bootLightTokens.join("\n")}\n  }\n}\n`,
   "utf8"
@@ -82,6 +99,8 @@ const sharedOptions = {
   target: "node22",
   sourcemap: true,
 } satisfies BuildOptions;
+
+await writeBootAssets(root, join(output, "pages"));
 
 await Promise.all([
   build({
@@ -107,8 +126,8 @@ await Promise.all([
     external: ["electron"],
   }),
   build({
-    entryPoints: [join(root, "src", "state", "public-safe-text.ts")],
-    outfile: join(output, "pages", "public-safe-text.js"),
+    entryPoints: [join(root, "src", "boot", "page", "main.ts")],
+    outfile: join(output, "pages", "boot.js"),
     bundle: true,
     platform: "browser",
     format: "esm",

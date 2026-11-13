@@ -174,6 +174,10 @@ export interface TerminalFetchStub {
   ): void;
   /** How many screen reads are waiting to be released. */
   pendingScreenReads(): number;
+  /** Mints held open by `deferTicket`, in request order, with their abort state. */
+  heldTickets(): Array<{ aborted: boolean }>;
+  /** Answers the held mint at `index` with `ticket`, even if it was aborted. */
+  resolveTicket(index: number, ticket: string): void;
   restore(): void;
 }
 
@@ -190,8 +194,15 @@ export function stubTerminalFetch(handlers: {
   ticketResponse?: () => { body: unknown; status: number };
   screen?: () => TerminalScreenFixture;
   deferScreen?: boolean;
+  /**
+   * Holds every mint open until the test answers it. The request's signal is
+   * recorded rather than honoured, so a test can also deliver a late answer to
+   * a mint the client already gave up on.
+   */
+  deferTicket?: boolean;
 }): TerminalFetchStub {
   const calls: string[] = [];
+  const heldTickets: Array<{ signal: AbortSignal | null; resolve: (body: unknown) => void }> = [];
   const pendingScreens: Array<(body: unknown) => void> = [];
   const original = globalThis.fetch;
   const defaultScreen = {
@@ -201,9 +212,15 @@ export function stubTerminalFetch(handlers: {
     busy: false,
     untrusted: true,
   };
-  const stub = vi.fn(async (input: RequestInfo | URL) => {
+  const stub = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     calls.push(url);
+    if (url.includes("/attach-ticket") && handlers.deferTicket) {
+      const body = await new Promise<unknown>(resolve =>
+        heldTickets.push({ signal: init?.signal ?? null, resolve })
+      );
+      return jsonResponse(body, 201);
+    }
     if (url.includes("/attach-ticket")) {
       if (handlers.ticketResponse) {
         const response = handlers.ticketResponse();
@@ -228,6 +245,9 @@ export function stubTerminalFetch(handlers: {
   return {
     calls,
     pendingScreenReads: () => pendingScreens.length,
+    heldTickets: () => heldTickets.map(held => ({ aborted: held.signal?.aborted ?? false })),
+    resolveTicket: (index, ticket) =>
+      heldTickets[index]?.resolve({ ticket, expires_at: "2026-08-25T12:00:30Z" }),
     resolveScreen: body => {
       const resolve = pendingScreens.shift();
       resolve?.({ ...defaultScreen, ...body });

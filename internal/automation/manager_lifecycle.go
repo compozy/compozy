@@ -24,6 +24,10 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
+	if err := m.reconcileRuns(ctx); err != nil {
+		return fmt.Errorf("automation: reconcile unfinished runs: %w", err)
+	}
+
 	syncStats, err := m.syncConfigDefinitions(ctx)
 	if err != nil {
 		return fmt.Errorf("automation: sync config definitions: %w", err)
@@ -37,12 +41,11 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
-	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
 	scheduler, triggerEngine, err := m.buildRuntimes(ctx)
 	if err != nil {
-		runtimeCancel()
 		return err
 	}
+	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
 
 	if err := m.loadSchedulerRegistrations(ctx, jobs, scheduler); err != nil {
 		return errors.Join(

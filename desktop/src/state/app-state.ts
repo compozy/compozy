@@ -27,6 +27,18 @@ export interface PublicShellError {
   readonly log_path: string;
 }
 
+/** What a boot is waiting on right now. The boot window shows it; app.json never records it. */
+export interface BootProgress {
+  /** The runtime lifecycle phase the bootstrap observed, such as "starting" or "serving". */
+  readonly readiness?: string;
+  /** The runtime's own name for its current step, such as "resumeBootInterruptedSessions". */
+  readonly step?: string;
+  /** Set while another process's runtime update, restart or start holds the mutation lock. */
+  readonly wait?: "runtime_mutation";
+  /** The process holding that lock, when it recorded itself. */
+  readonly owner_pid?: number;
+}
+
 export interface ShellSnapshot {
   readonly state: ShellStateName;
   readonly stage?: "download" | "verify" | "install" | "migrate" | "start" | "ready";
@@ -35,10 +47,26 @@ export interface ShellSnapshot {
   readonly owned?: boolean;
   readonly target?: "app" | "runtime";
   readonly pct?: number;
+  /** Determinate data-upgrade work: units done and the stage total (0 while still counting). */
+  readonly completed?: number;
+  readonly total?: number;
+  /** What `completed`/`total` count, so the window can say "sessions" instead of a bare number. */
+  readonly work?: "sessions" | "records";
+  /** The runtime transition this boot performs: the replaced version (upgrades only) and the target. */
+  readonly from_version?: string;
+  readonly to_version?: string;
   readonly runtime?: string;
   readonly needed?: string;
   readonly newer?: boolean;
   readonly error?: PublicShellError;
+  readonly boot?: BootProgress;
+}
+
+/** The snapshot as app.json records it; `boot` is live detail outside the app-state schema. */
+function persistedSnapshot(snapshot: ShellSnapshot): Record<string, unknown> {
+  const persisted: Record<string, unknown> = { ...snapshot };
+  delete persisted.boot;
+  return persisted;
 }
 
 export interface DiagnosticReport {
@@ -235,7 +263,7 @@ export class AppStatePublisher {
       app_version: this.#appVersion,
       channel: this.#channel,
       diagnostic_report: this.diagnosticReport(),
-      ...snapshot,
+      ...persistedSnapshot(snapshot),
       update: projectAppUpdateState(this.#operation),
     };
     const write = this.#publication.then(async () => {

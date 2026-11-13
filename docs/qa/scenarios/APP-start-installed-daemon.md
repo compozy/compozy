@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: Opening the app with the runtime installed but stopped shows starting progress and lands in the product UI after required boot work. Readiness polling windows do not kill a live daemon or restart its boot work. Observation continues until readiness, actual exit, or caller cancellation; actual boot failures retain bounded retries. The started runtime survives app quit with `compozy status` healthy.
 entry_points: dock/launcher icon with an installed, stopped runtime; compozy app open
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent
 fix_status: fixed
 retest_status: pass
@@ -58,3 +58,5 @@ journey owns the real CLI walk. CI owns execution; no local run or platform
 verdict is claimed. The separate schema maximum of 3 versus CLI retry budget of 5
 needs a compatibility-contract decision; this repair neither clamps counts nor
 changes that bound.
+
+2026-11-12 boot window redesign (#1549): starting an installed runtime stays in the centered layout, with the symbol, "Starting CompozyOS", a sweeping point line and the brand `horizon` Atmosphere behind it in dark theme only. A retry shows `attempt N of 5` next to the clock. Walk addition: the window shows no step list or version pill when nothing is installed or upgraded. Status reset to untested.

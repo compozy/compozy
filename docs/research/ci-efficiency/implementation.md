@@ -160,3 +160,68 @@ violations while preserving shadowed parameter controls.
 Import resolution also preserves `bun:test` declarations and their aliases.
 The canonical plugin suite passes 49 tests without cache; actual Oxlint parsing
 rejects Bun skips and disabled deadlines while accepting bounded deadlines.
+
+## Full integration lane restructuring (W1)
+
+The full integration matrix is defined once in `go-integration.yml`. CI owns main
+pushes, nightly, manual and opt-in PR runs. Release PRs call the same workflow from
+Release, and `Dry-Run Build Validation` requires all integration shards to succeed.
+The CI heavy aggregator explicitly allows that release-owned call instead of
+starting a duplicate matrix. Main CI runs already use non-cancelling concurrency.
+
+Three shards own daemon, two own globaldb and three own all other integration
+packages. Each group uses duration-weighted LPT assignment and independent cache
+keys. Every package receives an exact top-level test regex. Discovery compares the
+actual Go-selected test files with and without the integration tag, including
+external test packages and platform constraints. It parses declarations without
+compiling test binaries. Untagged unit tests stay in the race unit lane. Functions
+matched by the canonical runtime/nightly E2E plans stay in those lanes, including
+transport and harness contracts; their package alone does not exclude other tests.
+
+Integration keeps race detection and `-parallel=4`, disabling checkptr only for
+modernc as the unit lane already does. The weekly full checkptr audit is unchanged.
+Globaldb already had current-schema copies and historical prefix templates; W1
+uses the current-family template for the ordinary reopen case. Production open
+bootstraps that family once per package, including the telemetry sibling and its
+identity; raw SQL prefix snapshots remain historical fixtures. Migration-specific
+cases still replay their migration tails, including the historical destructive-cut
+case. That full historical replay runs before its parallel sibling upgrades so
+CPU contention cannot consume its five-minute operation budget. No assertion or
+operation deadline is relaxed.
+
+The integration census accepts completed timing events from partial/failed matrices
+and successful runs in either CI or Release, including same-repository PRs. It
+retains separate artifact directories because group-local shard filenames repeat.
+Unobserved weights remain intact. Qualified test timings supersede package-based
+bootstrap weights as receipts accumulate; unit timings are not substituted.
+The initial package weights come from completed package summaries in all eight
+shards of main Release run 43245729994. Split-package seconds are summed across
+shards; they include the old duplicate unit work and are bootstrap weights, not
+predictions for the new tagged-only lane.
+
+The baseline job wall times (including setup) are 41.40 / 50.34 / 97.43 minutes
+(minimum / median / maximum), totaling 490.85 runner-minutes. This uses the complete
+job durations rather than the analysis's approximate execution-only estimate.
+
+The first complete PR run, [43293868078](https://github.com/compozy/compozy/actions/runs/43293868078),
+on `9e59a1bcde14d9e1393cf033cef7fd8bb2ad4f2e` passed all eight shards:
+
+| Full job wall time, including setup | Minimum | Median | Maximum | Runner-minutes |
+| --- | ---: | ---: | ---: | ---: |
+| Main baseline 43245729994 | 41.40 min | 50.34 min | 97.43 min | 490.85 |
+| PR 43293868078 | 13.07 min | 22.23 min | 29.03 min | 174.20 |
+
+This single completed sample reduces total runner time by 64.5% and the slowest
+shard by 70.2%; it is not a repeated benchmark or a forecast for main cache hits.
+The 75 package invocations report total wall time separately from test
+execution time: the slowest invocation took 21m45s in total, with 13m28s reported
+for test execution. `go test -timeout` applies to the test binary, not compilation.
+Those receipts support a 60-minute job ceiling and a 20-minute integration test
+binary timeout. The E2E runner retains its separate 45-minute timeout. Per-test
+operation deadlines, race detection and preservation assertions are unchanged.
+
+Validation is CI-only by operator direction. PR #1617 records current-head CI
+and reviewer evidence; the timeout reduction requires a new full CI run. Native
+tools, hooks,
+configuration, public APIs/CLI, user/workspace data, the official product skill and
+product UI/QA scenarios are unaffected; delivery instructions change with the lane.

@@ -170,6 +170,22 @@
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__agent_instance_clear_main",
+    "native_name": "agent_instance_clear_main",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "e27518ccd3e279eb80b08deb08de5e752862b79cecc748bfed282ea3c3049614",
+    "output_schema_digest": "54f4684f87640e3044efe51eb94cabad7b67e5717e3f38ecf4a688a2f90e4efe",
+    "result_contract": "compact_full",
+    "compact_output_schema_digest": "54f4684f87640e3044efe51eb94cabad7b67e5717e3f38ecf4a688a2f90e4efe",
+    "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__agent_instance_create",
     "native_name": "agent_instance_create",
     "toolsets": [
@@ -557,6 +573,21 @@
     "result_contract": "compact_full",
     "compact_output_schema_digest": "9e1aa409a8c4bbb9618dfaf90b20ae5572bcc9ed1a58ed521123dce7f4917fdd",
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_runs_cancel",
+    "native_name": "automation_runs_cancel",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "acf72109a6aa993a6302de18ed87c6bced5bf77a625d021060ffb4a9f445e946",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
   },
   {
     "tool_id": "compozy__automation_runs_get",

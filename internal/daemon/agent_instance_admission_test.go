@@ -343,7 +343,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 			}
 		})
 	}
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceAway, toolspkg.ToolIDAgentInstanceSeen, toolspkg.ToolIDAgentInstanceCheckIns} {
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceClearMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceAway, toolspkg.ToolIDAgentInstanceSeen, toolspkg.ToolIDAgentInstanceCheckIns} {
 		t.Run("Should deny another instance through "+id.String(), func(t *testing.T) {
 			t.Parallel()
 			api := &core.AgentInstanceAPI{
@@ -1555,6 +1555,83 @@ func TestNativeInstanceEnsureMainDryRun(t *testing.T) {
 				}
 			} else if !errors.Is(err, agentinstance.ErrNotFound) {
 				t.Fatalf("missing target lost error identity: %v", err)
+			}
+		})
+	}
+}
+
+// Invariant: clearing an instance main is an operator recovery. It clears exactly the instance's
+// main session and keeps the instance record; agent sessions, dry runs and instances without a
+// main are refused before any session is touched.
+// Owner: daemon native instance tools; canonical suite: agent_instance_admission_test.go.
+func TestNativeInstanceClearMain(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		operator bool
+		main     string
+		input    string
+		wantCode toolspkg.ErrorCode
+		wantErr  error
+		cleared  string
+	}{
+		{
+			name: "Should clear the main session for the operator", operator: true,
+			main: "sess-main", input: `{"id":"target"}`, cleared: "sess-main",
+		},
+		{
+			name: "Should refuse the instance's own agent session",
+			main: "sess-main", input: `{"id":"target"}`, wantErr: agentinstance.ErrForbidden,
+		},
+		{
+			name: "Should reject a dry run without clearing", operator: true,
+			main: "sess-main", input: `{"id":"target","dry_run":true}`, wantCode: toolspkg.ErrorCodeInvalidInput,
+		},
+		{
+			name: "Should reject an instance without a main session", operator: true,
+			input: `{"id":"target"}`, wantCode: toolspkg.ErrorCodeInvalidInput,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cleared := ""
+			api := &core.AgentInstanceAPI{
+				Store: nativeInstanceTargetStore{target: agentinstance.Instance{
+					ID: "target", AgentName: "coder", ProfileID: "profile", MainSessionID: tc.main,
+				}},
+				Authority: agentinstance.Authority{Callers: &instanceAdmissionInputs{
+					caller: agentinstance.Caller{InstanceID: "target", AgentName: "coder", ProfileID: "profile"},
+				}},
+			}
+			native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				AgentInstances: func() *core.AgentInstanceAPI { return api },
+				Sessions: &testutil.StubSessionManager{
+					ClearFn: func(_ context.Context, id string) (*session.Session, error) {
+						cleared = id
+						return &session.Session{ID: id}, nil
+					},
+				},
+			}}
+			_, err := native.agentInstanceCall(
+				t.Context(),
+				toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile", Operator: tc.operator},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceClearMain, Input: []byte(tc.input)},
+			)
+			switch {
+			case tc.wantErr != nil:
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("clear main error = %v, want %v", err, tc.wantErr)
+				}
+			case tc.wantCode != "":
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || toolErr.Code != tc.wantCode {
+					t.Fatalf("clear main error = %v, want %s", err, tc.wantCode)
+				}
+			case err != nil:
+				t.Fatalf("clear main error = %v", err)
+			}
+			if cleared != tc.cleared {
+				t.Fatalf("cleared session = %q, want %q", cleared, tc.cleared)
 			}
 		})
 	}

@@ -51,7 +51,7 @@ func newApprovalShowCommand(deps commandDeps) *cobra.Command {
 
 func newApprovalCancelCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "cancel <id>",
+		Use:   cliCancelIDUse,
 		Short: "Cancel one pending tool approval",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

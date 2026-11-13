@@ -81,7 +81,7 @@ func Meter(scope string) metric.Meter {
 
 // ExportRequested reports whether cfg asks Init to start export, which may still come up degraded.
 func ExportRequested(cfg config.ObservabilityConfig) bool {
-	return cfg.Enabled && cfg.OTel.Enabled && !cfg.OTel.EnvDisabled()
+	return cfg.Enabled && cfg.OTel.Enabled && !cfg.OTel.EnvDisabled() && (cfg.OTel.Traces || cfg.OTel.Metrics)
 }
 
 // Init installs the global providers for cfg. Disabled or inactive export installs no-op providers. When export

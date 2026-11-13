@@ -8,6 +8,8 @@ export interface DesktopPaths {
   readonly appToken: string;
   readonly bootstrapLog: string;
   readonly commandLineToolMarker: string;
+  /** The global `config.toml` the runtime and the bootstrap load. */
+  readonly config: string;
   readonly desktopLog: string;
   readonly logs: string;
   readonly operation: string;
@@ -35,6 +37,7 @@ export function resolveDesktopPaths(environment: NodeJS.ProcessEnv = process.env
     appToken: join(home, "app.token"),
     bootstrapLog: join(logs, "desktop-bootstrap.jsonl"),
     commandLineToolMarker: join(home, "desktop-cli-command.json"),
+    config: join(home, "config.toml"),
     desktopLog: join(logs, "desktop.log"),
     logs,
     operation: join(home, "update-operation.json"),

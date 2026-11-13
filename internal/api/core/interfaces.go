@@ -274,6 +274,7 @@ type AutomationManager interface {
 	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
 	Runs(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
 	GetRun(ctx context.Context, id string) (automationpkg.Run, error)
+	CancelRun(ctx context.Context, id string) (automationpkg.Run, error)
 	Status(ctx context.Context) (automationpkg.ManagerStatus, error)
 	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
 	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)

@@ -155,24 +155,12 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 	if !scope.AllProfiles && instance.ProfileID != scope.ProfileID {
 		return agentinstance.ErrNotFound
 	}
-	if (action == "away" || action == "mark_seen") && !scope.Operator {
+	if (action == "away" || action == "mark_seen" || action == nativeInstanceActionClearMain) && !scope.Operator {
 		return agentinstance.ErrForbidden
 	}
-	verb := action
-	if action == nativeInstanceActionGet || action == nativeInstanceActionCheckIns {
-		verb = nativeInstanceActionReports
-	}
-	if action == "checks" {
-		if input.Enabled == nil {
-			return errors.New("enabled is required")
-		}
-		verb = "checks_off"
-		if *input.Enabled {
-			verb = "checks_on"
-		}
-	}
-	if action == nativeInstanceActionCheck && input.DryRun {
-		verb = "check_dry_run"
+	verb, err := nativeInstanceAuthorityVerb(input, action)
+	if err != nil {
+		return err
 	}
 	if err := api.Authority.Authorize(ctx, actor, instance, verb); err != nil {
 		return err
@@ -200,6 +188,26 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 		markNativeCrossing(ctx, decision)
 	}
 	return nil
+}
+
+// nativeInstanceAuthorityVerb maps a native instance action to the authority verb it must hold.
+func nativeInstanceAuthorityVerb(input nativeInstanceInput, action string) (string, error) {
+	switch {
+	case action == nativeInstanceActionGet || action == nativeInstanceActionCheckIns:
+		return nativeInstanceActionReports, nil
+	case action == "checks":
+		if input.Enabled == nil {
+			return "", errors.New("enabled is required")
+		}
+		if *input.Enabled {
+			return "checks_on", nil
+		}
+		return "checks_off", nil
+	case action == nativeInstanceActionCheck && input.DryRun:
+		return "check_dry_run", nil
+	default:
+		return action, nil
+	}
 }
 
 func nativeInstanceList(

@@ -41,8 +41,14 @@ func (d *Daemon) applySystemDefaults() {
 		binary, err := os.Executable()
 		d.executable = func() (string, error) { return binary, err }
 	}
+	if d.exitProcess == nil {
+		d.exitProcess = os.Exit
+	}
 	if d.startDetached == nil {
 		d.startDetached = defaultDetachedStart
+	}
+	if d.preflightReplacement == nil {
+		d.preflightReplacement = defaultRestartPreflight
 	}
 	if d.getenv == nil {
 		d.getenv = os.Getenv

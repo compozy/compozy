@@ -2026,6 +2026,12 @@ export type DaemonIdentityPayload = {
   version: string;
 };
 
+export type DaemonReadinessPayload = {
+  phase: string;
+  since: string;
+  step?: string;
+};
+
 export type DaemonStatusPayload = {
   active_sessions: number;
   gateway?: GatewayStatusPayload | null;
@@ -2033,6 +2039,7 @@ export type DaemonStatusPayload = {
   http_port: number;
   min_app_version: string;
   pid: number;
+  readiness?: DaemonReadinessPayload | null;
   schema_streams: Array<SchemaStreamStatus>;
   socket: string;
   started_at: string;
@@ -18956,6 +18963,54 @@ export type GetAutomationRunResponses = {
 
 export type GetAutomationRunResponse = GetAutomationRunResponses[keyof GetAutomationRunResponses];
 
+export type CancelAutomationRunData = {
+  body?: never;
+  path: {
+    /**
+     * Automation run id
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/automation/runs/{id}/cancel";
+};
+
+export type CancelAutomationRunErrors = {
+  /**
+   * Automation run not found
+   */
+  404: ErrorPayload;
+  /**
+   * Run may still be executing or changed concurrently
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Automation manager is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type CancelAutomationRunError = CancelAutomationRunErrors[keyof CancelAutomationRunErrors];
+
+export type CancelAutomationRunResponses = {
+  /**
+   * Canceled run or unchanged terminal run
+   */
+  200: RunResponse;
+};
+
+export type CancelAutomationRunResponse =
+  CancelAutomationRunResponses[keyof CancelAutomationRunResponses];
+
 export type ListAutomationSuggestionsAggregateData = {
   body?: never;
   path?: never;
@@ -26755,6 +26810,10 @@ export type TriggerSettingsRestartErrors = {
    * Forbidden
    */
   403: ErrorPayload;
+  /**
+   * Replacement runtime failed its restart pre-flight; the running daemon was kept
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */

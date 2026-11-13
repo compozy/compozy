@@ -38,7 +38,7 @@ ready: #<number> <head-sha>
 Read all of it fresh from GitHub, and refuse on the first failure.
 
 ```bash
-gh pr view <n> --json state,isDraft,baseRefName,headRefOid,title,mergeable,mergeStateStatus,statusCheckRollup
+gh pr view <n> --json state,isDraft,baseRefName,headRefOid,headRefName,author,title,mergeable,mergeStateStatus,statusCheckRollup
 gh api --paginate repos/compozy/compozy/pulls/<n>/reviews
 gh api graphql --paginate -F n=<n> -f query='query($n:Int!,$endCursor:String){repository(owner:"compozy",name:"compozy"){pullRequest(number:$n){reviewThreads(first:100,after:$endCursor){pageInfo{hasNextPage endCursor}nodes{isResolved}}}}}'
 ```
@@ -46,7 +46,7 @@ gh api graphql --paginate -F n=<n> -f query='query($n:Int!,$endCursor:String){re
 1. **Target.** The pull request is open, not a draft, and targets `main`.
 2. **Head.** `headRefOid` starts with the handed-off SHA. Use the full `headRefOid` from here on.
 3. **Title.** It matches `<type>: <description>` or `<type>!: <description>`. If it mentions the product, it says `CompozyOS`, never bare `Compozy`, because squash subjects reach the release notes.
-4. **CI.** CI may be pending or red. There is no merge queue; `main` may go red briefly and is fixed right after. Record every non-green check on the merged head in the post-merge summary.
+4. **CI.** Exempt head branches `release/v*` and authors `dependabot[bot]`, `dependabot-preview[bot]` and `renovate[bot]` from the PR body requirement, including release PRs opened before the workflow shipped. For every other PR, require the latest `PR body` check on the exact head to be `completed/success`; missing, pending, failed, cancelled or skipped refuses the handoff. Read its annotations or job log and name the failed rule in the refusal (or name the missing/pending check). Other CI may be pending or red. There is no merge queue; `main` may go red briefly and is fixed right after. Record every non-green check on the merged head in the post-merge summary.
 5. **Reviewers.** Apply the CodeRabbit rounds, heavy-round and fallback criterion in HEARTBEAT.md step 2 to every handoff. Every review thread on every page is resolved.
 6. **Mergeability.** `mergeable` is `MERGEABLE`.
 

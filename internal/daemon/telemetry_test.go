@@ -357,11 +357,21 @@ func TestTelemetryModelClassifierOnlyWhenExportIsRequested(t *testing.T) {
 		name        string
 		obsEnabled  bool
 		otelEnabled bool
+		traces      bool
+		metrics     bool
 		want        bool
 	}{
-		{name: "Should build no classifier when export is disabled", obsEnabled: true},
-		{name: "Should build no classifier when observability is off", otelEnabled: true},
-		{name: "Should build the classifier when export is requested", obsEnabled: true, otelEnabled: true, want: true},
+		{name: "Should build no classifier when export is disabled", obsEnabled: true, traces: true},
+		{name: "Should build no classifier when observability is off", otelEnabled: true, traces: true},
+		{name: "Should build no classifier when both signals are off", obsEnabled: true, otelEnabled: true},
+		{
+			name:       "Should build the classifier for traces only",
+			obsEnabled: true, otelEnabled: true, traces: true, want: true,
+		},
+		{
+			name:       "Should build the classifier for metrics only",
+			obsEnabled: true, otelEnabled: true, metrics: true, want: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -370,6 +380,8 @@ func TestTelemetryModelClassifierOnlyWhenExportIsRequested(t *testing.T) {
 			state := &bootState{modelCatalog: &modelCatalogRuntime{}}
 			state.cfg.Observability.Enabled = tc.obsEnabled
 			state.cfg.Observability.OTel.Enabled = tc.otelEnabled
+			state.cfg.Observability.OTel.Traces = tc.traces
+			state.cfg.Observability.OTel.Metrics = tc.metrics
 			if got := telemetryModelClassifier(state) != nil; got != tc.want {
 				t.Fatalf("telemetryModelClassifier() built = %t, want %t", got, tc.want)
 			}

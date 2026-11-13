@@ -527,6 +527,44 @@ func TestApplyOTelEnvironment(t *testing.T) {
 		},
 	)
 
+	t.Run("Should redact invalid environment endpoints without blocking inactive export", func(t *testing.T) {
+		t.Parallel()
+
+		for _, endpoint := range []string{
+			"https://collector.example/?auth=opaque-789456",
+			"https://user:opaque-789456@collector.example/",
+			"https://collector.example/#opaque-789456",
+			"https://collector.example/?auth=%zz-opaque-789456",
+			"http://collector.example:invalid/opaque-789456",
+		} {
+			t.Run("Should hide "+endpoint, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := DefaultWithHome(HomePaths{})
+				ApplyOTelEnvironment(&cfg, func(key string) string {
+					if key == otelEnvEndpoint {
+						return endpoint
+					}
+					return ""
+				})
+				if err := cfg.Observability.OTel.Validate(true); err != nil {
+					t.Fatalf("Validate() error = %v, want inactive environment ignored", err)
+				}
+				values := RedactedConfigMap(&cfg)
+				entry, ok := EntryByPath(FlattenConfigEntries(values), "observability.otel.endpoint")
+				if !ok || entry.Value != RedactedValue() {
+					t.Fatalf("endpoint entry = %#v, %t; want redacted", entry, ok)
+				}
+				if strings.Contains(fmt.Sprint(values), "opaque-789456") {
+					t.Fatal("config map exposed endpoint credentials")
+				}
+				if cfg.Observability.OTel.Endpoint != endpoint {
+					t.Fatal("config inspection changed the effective endpoint")
+				}
+			})
+		}
+	})
+
 	t.Run("Should keep literal environment header values out of rendered config", func(t *testing.T) {
 		t.Parallel()
 

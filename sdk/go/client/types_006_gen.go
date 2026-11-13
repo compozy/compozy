@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// DeleteProfileResponse is a daemon API value.
+type DeleteProfileResponse struct {
+	Deleted bool                  `json:"deleted"`
+	Removed ProfileRemovalSummary `json:"removed"`
+}
+
+// DeleteResourceRequest is a daemon API value.
+type DeleteResourceRequest struct {
+	ExpectedVersion int64 `json:"expected_version"`
+}
+
 // DependencyKind is a daemon API value.
 type DependencyKind string
 

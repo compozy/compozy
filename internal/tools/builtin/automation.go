@@ -224,34 +224,12 @@ var automationTools = []toolspkg.Descriptor{
 		[]string{automationAutomationKey, automationTriggersKey, automationRunsKey, historyTag},
 		[]string{"automation trigger history", "trigger runs"},
 	),
-	nativeAutomationDescriptor(
-		toolspkg.ToolIDAutomationRunsList,
-		"automation_runs_list",
-		"Automation Runs List",
-		"List persisted automation run records.",
-		automationRunsListInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		[]string{automationAutomationKey, automationRunsKey, historyTag},
-		[]string{"automation runs", "run history"},
-	),
-	nativeAutomationDescriptor(
-		toolspkg.ToolIDAutomationRunsGet,
-		"automation_runs_get",
-		"Automation Runs Get",
-		"Read one persisted automation run record.",
-		automationRunIDInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		[]string{automationAutomationKey, automationRunsKey},
-		[]string{"automation run details", "run record"},
-	),
 }
 
 func automationDescriptors() []toolspkg.Descriptor {
-	return append(automationTools, automationSuggestionDescriptors()...)
+	descriptors := append([]toolspkg.Descriptor(nil), automationTools...)
+	descriptors = append(descriptors, automationRunDescriptors()...)
+	return append(descriptors, automationSuggestionDescriptors()...)
 }
 
 func nativeAutomationDescriptor(

@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -179,6 +180,138 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("resumed counter=%+v %v", wake, err)
 		}
 	})
+
+	// Invariant (#1616): a provider account/backend mismatch on the instance main is a permanent load
+	// failure. Repeated instance maintenance tries the stored provider thread once, leaves one failure
+	// row, and a real ACP process receives the held input once on a fresh thread with replayed context.
+	t.Run("Should rotate the main provider thread once and drain its held input", func(t *testing.T) {
+		home, deps, resolved, diagnostics, daemon := newBoundedRebuildFixture(t, true, false)
+		db := daemon.registry.(*globaldb.GlobalDB)
+		now := time.Now().UTC()
+		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name,
+			RootDir: resolved.RootDir, CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		driver := &providerMismatchLoadDriver{ACPDriverAdapter: session.NewACPDriverAdapter(
+			acp.New(acp.WithProviderPreStarter(daemon.providerPreStarter)),
+		)}
+		manager := newHarnessIntegrationManager(
+			t,
+			home,
+			deps,
+			resolved,
+			driver,
+			session.WithHostedMCPLauncher(deps.HostedMCP),
+			session.WithSessionCatalog(db),
+			session.WithSessionInputQueueStore(db),
+			session.WithEventLedger(db),
+		)
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		main, err := manager.Create(
+			t.Context(),
+			&session.CreateOpts{AgentName: "rebuild-agent", Workspace: resolved.ID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		promptBoundedRebuild(t, manager, main.ID, "bind before provider change")
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: resolved.ID,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Stop(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		held, err := manager.SendPrompt(t.Context(), main.ID, session.SendPromptOpts{
+			InstanceTarget: &store.InstancePromptTarget{
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: resolved.ID,
+				AgentName:   main.AgentName,
+			},
+			Message:        "work after provider change",
+			MessageID:      "held-provider-change",
+			IdempotencyKey: "held-provider-change",
+			Origin: &acp.PromptOriginMeta{
+				Kind:        acp.PromptOriginKindSession,
+				SessionID:   "peer",
+				WorkspaceID: resolved.ID,
+				Hop:         1,
+			},
+		})
+		if err != nil || held.Delivery != "held" {
+			t.Fatalf("held=%+v %v", held, err)
+		}
+		if _, err := db.Instances().Resume(t.Context(), instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{sessions: manager}
+		current, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for wake := range 3 {
+			if err := releaseInstanceInputs(t.Context(), state, db.Instances(), current); err != nil {
+				t.Fatalf("instance maintenance wake %d: %v", wake, err)
+			}
+		}
+		waitForConditionWithin(t, "held input delivered after provider mismatch", 10*time.Second, func() bool {
+			row, err := db.GetSessionInputQueueEntry(t.Context(), main.ID, held.QueueEntryID)
+			return err == nil && row.Status == store.SessionInputQueueStatusSent
+		})
+		waitForConditionWithin(t, "fresh provider thread prompt completed", 10*time.Second, func() bool {
+			records, err := acpmock.ReadDiagnostics(diagnostics)
+			return err == nil && len(acpmock.PromptDiagnostics(records)) == 2
+		})
+		if got := driver.loads.Load(); got != 1 {
+			t.Fatalf("session/load attempts = %d, want 1", got)
+		}
+		records, err := acpmock.ReadDiagnostics(diagnostics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if !strings.Contains(prompts[1].Prompt, "<compozy_context_replay>") ||
+			!strings.Contains(prompts[1].Prompt, "work after provider change") {
+			t.Fatalf("fresh thread prompt lacks replayed context or held work: %q", prompts[1].Prompt)
+		}
+		failures, err := manager.Events(t.Context(), main.ID, store.EventQuery{Type: acp.EventTypeError})
+		if err != nil || len(failures) != 1 {
+			t.Fatalf("load failure rows = %d, %v, want 1", len(failures), err)
+		}
+	})
+}
+
+// providerMismatchLoadDriver refuses every session/load the way codex-acp does after
+// `model_provider` changes; fresh sessions reach the real ACP driver.
+type providerMismatchLoadDriver struct {
+	*session.ACPDriverAdapter
+	loads atomic.Int32
+}
+
+func (d *providerMismatchLoadDriver) Start(ctx context.Context, opts acp.StartOpts) (*session.AgentProcess, error) {
+	if opts.ResumeSessionID == "" {
+		return d.ACPDriverAdapter.Start(ctx, opts)
+	}
+	d.loads.Add(1)
+	return nil, acp.WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+		"%w: load session %q for %q: %w",
+		acp.ErrLoadSessionFailed,
+		opts.ResumeSessionID,
+		opts.AgentName,
+		&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: map[string]any{
+			"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+		}},
+	))
 }
 
 // Invariant (IT-020): a native proposal stays inert until HTTP approval, then a real new session offers it.
@@ -1217,7 +1350,9 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 			}
 			t.Fatalf("child monitor turn did not settle: %v; child: %+v", ctx.Err(), child.Info())
 		}
-		waitForCondition(t, "child wake and peer delivered", func() bool {
+		// The released peer and takeover inputs still run as real ACP turns after the wake settles,
+		// so their delivery shares the race-scaled turn budget rather than the 2s state-poll default.
+		testutil.Eventually(t, "child wake and peer delivered", 15*time.Second, func() bool {
 			for _, id := range []string{wakeID, peer.QueueEntryID, takeover.QueueEntryID} {
 				row, err := db.GetSessionInputQueueEntry(ctx, child.ID, id)
 				if err != nil || row.Status != store.SessionInputQueueStatusSent {
@@ -1290,9 +1425,10 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 					}
 				}()
 			}
-			waitForCondition(
+			testutil.Eventually(
 				t,
 				"parent work started",
+				15*time.Second,
 				func() bool { return main.IsPrompting() && main.CurrentTurnID() != "" },
 			)
 			caller := session.SubagentCaller{
@@ -1310,7 +1446,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 				Task:    "child work",
 				Title:   "First child prompt",
 				Mode:    "wait",
-				Timeout: 10 * time.Second,
+				Timeout: testutil.Scaled(t, 10*time.Second),
 			})
 			if err != nil || child.ChildSessionID == nil {
 				t.Fatalf("child=%+v error=%v", child, err)
@@ -1328,7 +1464,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 					t.Fatalf("held child=%+v error=%v", rows, err)
 				}
 			}
-			waitForRuntimeCondition(
+			testutil.Eventually(
 				t,
 				"in-flight parent finished after pause",
 				10*time.Second,
@@ -1415,15 +1551,18 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 				if t.Failed() {
 					wake, _ := db.Instances().WakeState(context.Background(), instance.ID)
 					occurrence, _ := db.Instances().Occurrence(context.Background(), instance.ID, check.OccurrenceID)
+					captured, captureErr := os.ReadFile(pauseHookCapture)
 					t.Logf(
-						"failed check: wake=%+v occurrence=%+v prompting=%v",
+						"failed check: wake=%+v occurrence=%+v prompting=%v pause hooks=%q (%v)",
 						wake,
 						occurrence,
 						manager.IsPrompting(triageID),
+						captured,
+						captureErr,
 					)
 				}
 			})
-			waitForRuntimeCondition(t, "real ACP check started", 15*time.Second, func() bool {
+			testutil.Eventually(t, "real ACP check started", 15*time.Second, func() bool {
 				wake, err := db.Instances().WakeState(t.Context(), instance.ID)
 				triageID = wake.TriageSessionID
 				return err == nil && triageID != "" && manager.IsPrompting(triageID)
@@ -1454,7 +1593,7 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 					t.Fatalf("pause=%d %s", status, raw)
 				}
 			}
-			waitForRuntimeCondition(t, "check cancelled and settled", 15*time.Second, func() bool {
+			testutil.Eventually(t, "check cancelled and settled", 15*time.Second, func() bool {
 				occurrence, err := db.Instances().Occurrence(t.Context(), instance.ID, check.OccurrenceID)
 				return err == nil && occurrence.Result == "cancelled" && !manager.IsPrompting(triageID)
 			})
@@ -1467,7 +1606,7 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 				t.Fatalf("instance=%+v error=%v", paused, err)
 			}
 			// IT-029: the pause dispatches its lifecycle hook exactly once and raises exactly one report.
-			waitForRuntimeCondition(t, "one pause hook", 10*time.Second, func() bool {
+			testutil.Eventually(t, "one pause hook", 10*time.Second, func() bool {
 				raw, err := os.ReadFile(pauseHookCapture)
 				return err == nil && bytes.Count(raw, []byte("\n")) >= 1
 			})
@@ -1921,7 +2060,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
 			t.Fatal(err)
 		}
-		waitForRuntimeCondition(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
+		testutil.Eventually(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
 			runs, err := db.Instances().ManagedRuns(t.Context(), instance.ID, "")
 			if err != nil || len(runs) != 1 {
 				return false
@@ -1955,7 +2094,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("instance resume=%d %s", status, raw)
 		}
-		waitForRuntimeCondition(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
+		testutil.Eventually(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
 			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
 			if err != nil || own.Status != looppkg.StatusRunning || own.PauseRequested {
 				return false
@@ -1963,7 +2102,7 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 			other, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(operatorChild.runID))
 			return err == nil && (other.Status == looppkg.StatusPaused || other.PauseRequested)
 		})
-		waitForRuntimeCondition(t, "resumed Goal claimed a new managed turn", 15*time.Second, func() bool {
+		testutil.Eventually(t, "resumed Goal claimed a new managed turn", 15*time.Second, func() bool {
 			turns, err := db.ListGoalTurns(t.Context(), turnQuery)
 			return err == nil && len(turns.Turns) > 0 && manager.IsPrompting(children[0].sessionID)
 		})
@@ -1981,11 +2120,11 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("immediate instance resume=%d %s", status, raw)
 		}
-		waitForRuntimeCondition(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
+		testutil.Eventually(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
 			own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
 			return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
 		})
-		waitForRuntimeCondition(
+		testutil.Eventually(
 			t,
 			"operator-owned Goal remains paused after racing resume",
 			20*time.Second,
@@ -2053,113 +2192,55 @@ func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
 	t.Fatal("session_prompt descriptor is missing")
 }
 
-// Invariant: boot rejects retired global files; workspace discovery diagnoses and omits them.
+// Invariant: boot and discovery migrate persisted kind: stays_on definitions without changing
+// unrelated bytes (#1618; shim removal: v0.7.0).
 // Owner: daemon resource publication/discovery. Canonical suite: admission integration.
-func TestAgentKindRetirementBootIntegration(t *testing.T) {
-	const retiredDefinition = "---\nname: retired\nkind: stays_on\n---\nWatch.\n"
-	seed := func(t *testing.T, paths []string) {
-		t.Helper()
-		for _, path := range paths {
+func TestAgentKindAliasBootIntegration(t *testing.T) {
+	t.Run("Should migrate persisted definitions on boot and discovery", func(t *testing.T) {
+		var paths []string
+		seed := func(path string) {
+			t.Helper()
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(path, []byte(retiredDefinition), 0600); err != nil {
+			if err := os.WriteFile(
+				path,
+				[]byte("---\nname: retired\nkind: stays_on\n---\nWatch.\n"),
+				0600,
+			); err != nil {
 				t.Fatal(err)
 			}
+			paths = append(paths, path)
 		}
-	}
-	assertUnchanged := func(t *testing.T, paths []string) {
-		t.Helper()
-		for _, path := range paths {
-			body, err := os.ReadFile(path)
-			if err != nil || string(body) != retiredDefinition {
-				t.Fatalf("rejected definition changed %s: %q %v", path, body, err)
-			}
-		}
-	}
-
-	t.Run("Should reject retired global definitions and boot after canonical recovery", func(t *testing.T) {
-		home := testHomePaths(t)
-		paths := []string{
-			filepath.Join(home.AgentsDir, "retired", "AGENT.md"),
-			filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"),
-		}
-		seed(t, paths)
-		d := newTestDaemon(t, home, testConfigPtr(t, home))
-		if err := d.boot(t.Context()); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) ||
-			!strings.Contains(err.Error(), "always_on") {
-			t.Fatalf("boot error = %v, want rejected retired kind with replacement guidance", err)
-		}
-		assertUnchanged(t, paths)
-
-		canonical := strings.Replace(retiredDefinition, "kind: stays_on", "kind: always_on", 1)
-		for _, path := range paths {
-			if err := os.WriteFile(path, []byte(canonical), 0600); err != nil {
-				t.Fatal(err)
-			}
-		}
-		d = newTestDaemon(t, home, testConfigPtr(t, home))
-		if err := d.boot(t.Context()); err != nil {
-			t.Fatalf("boot after canonical recovery: %v", err)
-		}
-		t.Cleanup(func() {
-			if err := d.Shutdown(context.Background()); err != nil {
-				t.Error(err)
-			}
-		})
-		for _, path := range paths {
-			body, err := os.ReadFile(path)
-			if err != nil || string(body) != canonical {
-				t.Fatalf("canonical definition changed %s: %q %v", path, body, err)
-			}
-		}
-	})
-
-	t.Run("Should diagnose retired workspace definitions without cataloging or rewriting them", func(t *testing.T) {
 		home := testHomePaths(t)
 		d := newTestDaemon(t, home, testConfigPtr(t, home))
+		seed(filepath.Join(home.AgentsDir, "retired", "AGENT.md"))
+		seed(filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"))
 		if err := d.boot(t.Context()); err != nil {
 			t.Fatalf("boot error = %v", err)
 		}
+
 		t.Cleanup(func() {
 			if err := d.Shutdown(context.Background()); err != nil {
 				t.Error(err)
 			}
 		})
-		root := canonicalDaemonRoot(t, t.TempDir())
-		paths := []string{
-			filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"),
-			filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"),
-		}
-		seed(t, paths)
-		resolver, ok := d.workspaceResolver.(workspacepkg.ProfileRegistrationResolver)
-		if !ok {
-			t.Fatal("workspace resolver does not support profile registration")
-		}
-		resolved, err := resolver.ResolveOrRegisterForProfile(
-			t.Context(),
-			root,
-			compozyconfig.DefaultProfileDirName,
-		)
-		if err != nil {
-			t.Fatalf("resolve workspace with default profile: %v", err)
-		}
-		for _, agent := range resolved.Agents {
-			if agent.Name == "retired" {
-				t.Fatal("retired definition entered the agent catalog")
-			}
-		}
 		for _, path := range paths {
-			found := false
-			for _, diagnostic := range resolved.AgentDiagnostics {
-				if diagnostic.Path == path && strings.Contains(diagnostic.Message, "always_on") {
-					found = true
-				}
-			}
-			if !found {
-				t.Fatalf("missing retired-kind diagnostic for %s: %#v", path, resolved.AgentDiagnostics)
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+				t.Fatalf("boot did not migrate %s: %q %v", path, body, err)
 			}
 		}
-		assertUnchanged(t, paths)
+
+		root := t.TempDir()
+		seed(filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"))
+		seed(filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"))
+		resolveDaemonWorkspace(t, d.workspaceResolver, root)
+		for _, path := range paths {
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != "---\nname: retired\nkind: always_on\n---\nWatch.\n" {
+				t.Fatalf("definition changed: %q %v", body, err)
+			}
+		}
 	})
 }

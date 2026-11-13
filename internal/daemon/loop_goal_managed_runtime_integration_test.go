@@ -1301,11 +1301,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PrepareActionPrompt() error = %v", err)
 		}
-		select {
-		case <-promptStarted:
-		case <-time.After(time.Second):
-			t.Fatal("managed driver prompt did not start")
-		}
+		testutil.Receive(t, "managed driver prompt start", time.Second, promptStarted)
 
 		aggregate, err := looppkg.NewService(
 			fixture.goalStore,
@@ -1338,11 +1334,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CancelRun() error = %v", err)
 		}
-		select {
-		case <-promptCanceled:
-		case <-time.After(time.Second):
-			t.Fatal("managed driver prompt lease was not canceled")
-		}
+		testutil.Receive(t, "managed driver prompt lease cancellation", time.Second, promptCanceled)
 		result, err := fixture.runtime.AwaitActionPrompt(testutil.Context(t), ticket)
 		if err != nil {
 			t.Fatalf("AwaitActionPrompt(after Cancel) error = %v", err)
@@ -1446,7 +1438,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		case <-promptStarted:
 		case err := <-errC:
 			t.Fatalf("Goal Execute() before prompt error = %v", err)
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.Scaled(t, 2*time.Second)):
 			t.Fatal("managed Goal prompt did not start")
 		}
 
@@ -1492,7 +1484,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		case raw = <-resultC:
 		case err := <-errC:
 			t.Fatalf("Goal Execute() error = %v", err)
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.Scaled(t, 2*time.Second)):
 			t.Fatal("Goal Execute() did not settle the paused prompt")
 		}
 		if raw.Control == nil || raw.Control.Disposition != looppkg.ActionDispositionPaused ||

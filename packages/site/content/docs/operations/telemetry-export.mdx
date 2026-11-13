@@ -197,6 +197,8 @@ Their values are checked only while export can run (`[observability] enabled`, `
 and at least one of `traces` or `metrics`), so variables set for other tools never block a daemon that exports
 nothing. Only the daemon's process environment counts; a workspace `.env` file never sets them.
 `compozy config get` resolves them the same way, from the environment of the shell that runs it.
+Invalid environment endpoints are redacted in config inspection even while export is inactive;
+credentials belong in header refs, never in endpoint URLs.
 
 ### Header secrets
 

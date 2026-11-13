@@ -310,23 +310,29 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 }
 
-func TestStartResumeUsesLoadSession(t *testing.T) {
+func TestStartClaudeStaleModelPicker(t *testing.T) {
 	t.Parallel()
-	// Invariant: a resume-only ACP agent retains its native conversation without transcript replay.
-	// Owner: ACP driver; canonical start negotiation suite with a subprocess at the protocol boundary.
-	// Invariant: authenticated Claude resumes negotiate the exact pin despite a stale built-in picker.
+	// Owner: ACP driver; canonical start negotiation suite with a subprocess protocol boundary.
+	// Invariant: authenticated Claude starts negotiate the exact pin despite a stale built-in picker.
 	for _, tc := range []struct {
 		name      string
 		model     string
 		response  string
 		inputOnly bool
+		resume    bool
 	}{
-		{name: "Opus", model: "claude-opus-5-5"},
-		{name: "Fable", model: "claude-fable-5-2"},
-		{name: "input only", model: "claude-opus-5-5", inputOnly: true},
-		{name: "provider refusal", model: "claude-opus-5-5", response: "reject"},
-		{name: "unconfirmed model", model: "claude-opus-5-5", response: "unconfirmed"},
-		{name: "ignored startup option", model: "claude-opus-5-5", response: "ignored"},
+		{name: "fresh Opus", model: "claude-opus-5-5"},
+		{name: "resumed Opus", model: "claude-opus-5-5", resume: true},
+		{name: "fresh Fable", model: "claude-fable-5-2"},
+		{name: "resumed Fable", model: "claude-fable-5-2", resume: true},
+		{name: "fresh input only", model: "claude-opus-5-5", inputOnly: true},
+		{name: "resumed input only", model: "claude-opus-5-5", inputOnly: true, resume: true},
+		{name: "fresh provider refusal", model: "claude-opus-5-5", response: "reject"},
+		{name: "resumed provider refusal", model: "claude-opus-5-5", response: "reject", resume: true},
+		{name: "fresh unconfirmed model", model: "claude-opus-5-5", response: "unconfirmed"},
+		{name: "resumed unconfirmed model", model: "claude-opus-5-5", response: "unconfirmed", resume: true},
+		{name: "fresh ignored startup option", model: "claude-opus-5-5", response: "ignored"},
+		{name: "resumed ignored startup option", model: "claude-opus-5-5", response: "ignored", resume: true},
 	} {
 		t.Run("Should preserve the authenticated full model with stale picker and "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -347,12 +353,16 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 					return providers.ProviderAuthCommandResult{Stdout: `{"loggedIn":true}`}, nil
 				},
 			}
+			resumeID, wantSessionID := "", "sess-new"
+			if tc.resume {
+				resumeID, wantSessionID = "existing-claude", "existing-claude"
+			}
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 			proc, err := driver.Start(t.Context(), StartOpts{
 				AgentName: "helper", ProviderName: "claude", ProviderConfig: &provider,
 				ProviderAuthEnv: probe, Command: command, Cwd: t.TempDir(),
 				Env:             helperEnvWithCapture("load_claude_stale_models", tc.response, capture),
-				ResumeSessionID: "existing-claude", PreferredModel: tc.model, InputOnly: tc.inputOnly,
+				ResumeSessionID: resumeID, PreferredModel: tc.model, InputOnly: tc.inputOnly,
 			})
 			if probes.Load() != 1 {
 				t.Fatalf("authenticated probes = %d, want 1", probes.Load())
@@ -360,11 +370,23 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 			if proc != nil {
 				t.Cleanup(func() { stopProcess(t, driver, proc) })
 			}
+			if attempts := len(captureRequestParamsForMethod(t, capture, acpsdk.AgentMethodInitialize)); attempts != 1 {
+				t.Fatalf("startup attempts = %d, want 1", attempts)
+			}
+			wantSetters := 1
+			if tc.response == "ignored" {
+				wantSetters = 0
+			}
+			setters := len(captureRequestParamsForMethod(t, capture, acpsdk.AgentMethodSessionSetConfigOption))
+			if setters != wantSetters {
+				t.Fatalf("model setters = %d, want %d", setters, wantSetters)
+			}
 			if tc.response != "" {
 				diagnostic, ok := ProviderFailureDiagnosticFromError(err)
 				failure, _ := FailureFromError(err, store.FailurePrompt)
 				if err == nil || proc != nil || !ok || diagnostic.Action != ProviderFailureActionChangeModel ||
-					failure == nil || failure.Kind != store.FailureProtocol {
+					failure == nil || failure.Kind != store.FailureProtocol ||
+					!strings.Contains(err.Error(), tc.model) || !strings.Contains(err.Error(), `provider "claude"`) {
 					t.Fatalf("model refusal = %v, process = %v, diagnostic = %#v", err, proc, diagnostic)
 				}
 				return
@@ -373,8 +395,8 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 				t.Fatal(err)
 			}
 			option, ok := ModelConfigOption(proc.CapsSnapshot().ConfigOptions)
-			if proc.SessionID != "existing-claude" || !ok || option.CurrentValueID != tc.model {
-				t.Fatalf("resumed conversation/model = %q / %#v", proc.SessionID, option)
+			if proc.SessionID != wantSessionID || !ok || option.CurrentValueID != tc.model {
+				t.Fatalf("started conversation/model = %q / %#v", proc.SessionID, option)
 			}
 			request := decodeCapturedSetSessionConfigOptionRequest(t,
 				captureRequestParams(t, capture, acpsdk.AgentMethodSessionSetConfigOption))
@@ -383,6 +405,12 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartResumeUsesLoadSession(t *testing.T) {
+	t.Parallel()
+	// Invariant: a resume-only ACP agent retains its native conversation without transcript replay.
+	// Owner: ACP driver; canonical start negotiation suite with a subprocess at the protocol boundary.
 
 	t.Run("Should keep an already observed full model absent from the picker without resetting it", func(t *testing.T) {
 		t.Parallel()
@@ -2266,6 +2294,75 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 
 			if got := IsLoadSessionResourceMissing(tc.err); got != tc.want {
 				t.Fatalf("IsLoadSessionResourceMissing() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// Invariant: only the provider's account/backend mismatch wording on a failed session/load is a
+// permanent failure that may rotate to a fresh provider thread; other load failures stay retryable.
+// Owner: ACP failure classification; canonical suite: client_start_contract_test.go.
+func TestLoadSessionRequiresFreshThread(t *testing.T) {
+	t.Parallel()
+
+	loadFailure := func(reqErr *acpsdk.RequestError) error {
+		return WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+			"%w: load session %q for %q: %w", ErrLoadSessionFailed, "sess-existing", "helper", reqErr,
+		))
+	}
+	mismatch := map[string]any{
+		"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+	}
+	tests := []struct {
+		name         string
+		err          error
+		wantMismatch bool
+		wantFresh    bool
+	}{
+		{
+			name:         "Should classify the provider backend mismatch as permanent",
+			err:          loadFailure(&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: mismatch}),
+			wantMismatch: true,
+			wantFresh:    true,
+		},
+		{
+			name: "Should keep a missing provider session on the fresh thread path",
+			err: loadFailure(&acpsdk.RequestError{
+				Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing",
+			}),
+			wantFresh: true,
+		},
+		{
+			name:      "Should keep an unsupported session load on the fresh thread path",
+			err:       fmt.Errorf("%w: agent %q", ErrAgentDoesNotSupportSession, "helper"),
+			wantFresh: true,
+		},
+		{
+			name: "Should keep a generic internal load error transient",
+			err:  loadFailure(&acpsdk.RequestError{Code: -32603, Message: "Internal error"}),
+		},
+		{
+			name: "Should keep a load error that only names the current provider transient",
+			err: loadFailure(&acpsdk.RequestError{
+				Code: -32603, Message: "Internal error",
+				Data: map[string]any{"details": "your current provider is cliproxyapi and it is overloaded"},
+			}),
+		},
+		{
+			name: "Should ignore the mismatch wording outside a session load failure",
+			err:  &acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: mismatch},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsLoadSessionProviderMismatch(tc.err); got != tc.wantMismatch {
+				t.Fatalf("IsLoadSessionProviderMismatch() = %v, want %v", got, tc.wantMismatch)
+			}
+			if got := LoadSessionRequiresFreshThread(tc.err); got != tc.wantFresh {
+				t.Fatalf("LoadSessionRequiresFreshThread() = %v, want %v", got, tc.wantFresh)
 			}
 		})
 	}

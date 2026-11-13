@@ -206,7 +206,18 @@ also supplied. An explicit reliability flag wins over the preserved value. Switc
 If the same job still has an automation run in `scheduled` or `running` when the next fire is due,
 CompozyOS records the new occurrence as `canceled` with metadata reason `self_overlap`, advances the
 cursor, and evaluates the following cycle normally. A `skip_missed` fire beyond grace uses reason
-`misfire_grace_exceeded`. Both reasons remain visible in run history. Loop-target jobs become
+`misfire_grace_exceeded`. Both reasons remain visible in run history.
+
+On startup, unfinished runs whose sessions are missing or stopped become `failed` with
+`error: "orphaned_after_restart"` and an end time, preserving their history. These recovered
+runs no longer block self-overlap; runs with live sessions remain blocking. To settle a stuck
+run whose session is missing or stopped, use `compozy automation runs cancel <run-id>`.
+If session metadata cannot be read, startup logs a warning and preserves that run while
+continuing recovery of other runs.
+Live sessions and sessionless admissions are refused; stop live executions through their
+owning lifecycle first.
+
+Loop-target jobs become
 `delegated` after a Loop starts; the Loop's own concurrency policy governs later overlap.
 
 When a catch-up Loop start is accepted, the created `loop_run.start_metadata` includes the

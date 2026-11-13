@@ -132,7 +132,7 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 		metadataRaw string
 	)
 	cmd := &cobra.Command{
-		Use:   "cancel <id>",
+		Use:   cliCancelIDUse,
 		Short: "Cancel a task tree",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {

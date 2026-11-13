@@ -93,7 +93,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 		StringVar(&untilRaw, "until", "", automationRunUntilHelp)
 	cmd.Flags().IntVar(&last, "last", 50, "Maximum runs per page (0 uses 50; maximum 200)")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after page.next_cursor (time filters must be RFC3339)")
-	cmd.AddCommand(newAutomationRunsGetCommand(deps))
+	cmd.AddCommand(newAutomationRunsGetCommand(deps), newAutomationRunsCancelCommand(deps))
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
@@ -360,4 +360,27 @@ func validateAutomationLast(last int) error {
 		return fmt.Errorf("cli: --last must be between 0 and 200: %d", last)
 	}
 	return nil
+}
+
+func newAutomationRunsCancelCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: cliCancelIDUse, Short: "Cancel an orphaned automation run",
+		Long: "Cancel a run whose session is missing or stopped, preserving its history. " +
+			"Stop live sessions through session stop first. " +
+			"Admissions without a session and delegated executions are refused. Terminal runs are unchanged.",
+		Args: exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			run, err := client.CancelAutomationRun(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, automationRunBundle(run))
+		},
+	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }

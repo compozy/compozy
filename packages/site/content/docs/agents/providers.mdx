@@ -119,8 +119,8 @@ failure if that window expires. A custom `auth_status_command` continues to sele
 command for that route.
 
 A valid login does not guarantee that the Claude adapter's built-in model picker is current.
-When reloading a pinned full Claude model ID, CompozyOS supplies that exact ID through Claude's
-startup custom-model option, then requires the normal ACP advertisement and acknowledgement.
+When starting or reloading a pinned full Claude model ID, CompozyOS supplies that exact ID through
+Claude's startup custom-model option, then requires the normal ACP advertisement and acknowledgement.
 If the loaded session already reports that exact model, it keeps it without re-setting it.
 No family alias or older model is substituted. A refused or unconfirmed model remains a
 configuration failure with model guidance, rather than a request to sign in.

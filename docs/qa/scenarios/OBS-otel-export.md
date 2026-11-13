@@ -102,6 +102,7 @@ auth, and socket path from the lab manifest, as in RT-001). Compare the `otel` o
 | --- | --- | --- | --- |
 | ok | none (walk 1) | `ok · http/protobuf → localhost:4318 · traces ok, metrics ok · sample 1.0` | `state: ok`, both signals `enabled: true`, `last_export_at` set, `failed_exports: 0`, `dropped_spans: 0`, `forward_to_providers: false` |
 | metrics off | `config set observability.otel.metrics false` | `… · traces ok, metrics off · sample 1.0` | `metrics.enabled: false`, `state: ok` |
+| both signals off | `traces false`; `metrics false` | `disabled` | both signals `enabled: false`; no telemetry model-catalog read at boot |
 | degraded, unreachable | `metrics true`; `config set observability.otel.endpoint http://127.0.0.1:1` | `degraded · http/protobuf → 127.0.0.1:1 · traces unavailable (N failed), metrics unavailable (N failed) · sample 1.0` | `state: degraded`, `last_error_class: unavailable` on both signals |
 | degraded, unresolved header | endpoint back to `http://localhost:4318`; `compozy config edit` adds `[observability.otel.headers] "api-key" = "env:QA_OTLP_MISSING"` with the variable unset | both signals `header_ref_unresolved` | `state: degraded`, `failed_exports: 0`; the daemon log masks the ref as `[REDACTED]` and never shows a value |
 | degraded, 401 (optional) | Collector override with a `bearertokenauth` receiver on 4319, daemon header `"Authorization" = "env:QA_OTLP_AUTH"` set to a wrong token | `… metrics http_401 (N failed)` (and traces) | `last_error_class: http_401` |
@@ -117,6 +118,13 @@ Reuses: UT-025/UT-026 (`TestStatusCommandReturnsDaemonStatus` renders every `_dx
 (401 on metrics, header sent, key absent from the log), `TestBootedDaemonWiresTelemetryThroughBothTransports`
 (HTTP and UDS carry the status). Remains: the real daemon across restarts, real connection refusal, and cross-surface
 equality; the 401 leg is optional because E2E-002 owns it.
+
+With export disabled, start the isolated daemon with a fictitious credential-bearing environment endpoint
+(`OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example/?auth=QA-ENDPOINT-CANARY`). Boot must succeed;
+`compozy config get observability.otel.endpoint` and `compozy__config_get` must mask the endpoint and
+never expose the canary. Repeat with URL userinfo and fragments. Restore the environment before walk 3.
+The config boundary owns automated coverage in `TestApplyOTelEnvironment`; the daemon composition suite
+`TestTelemetryModelClassifierOnlyWhenExportIsRequested` owns the both-signals-off catalog invariant.
 
 ## 3. Web and desktop requests join their trace
 

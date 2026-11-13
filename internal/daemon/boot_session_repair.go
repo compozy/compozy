@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/sessiondb"
 
 	"github.com/compozy/compozy/internal/toolruntime"
 
@@ -47,11 +46,15 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		}
 		return fmt.Errorf("daemon: boot session inventory recovery failed: %w", err)
 	}
-	infos, err = upgradeBootSessionDatabases(ctx, state, infos)
+	// Proofs from the previous boot let unchanged sessions skip their database open and repair pass.
+	watermarks := loadBootSessionWatermarks(d.homePaths, state.logger)
+	defer watermarks.save(state.logger)
+	infos, err = upgradeBootSessionDatabases(ctx, state, infos, d.migrationProgressReporter(), watermarks)
 	if err != nil {
 		return err
 	}
-	if err := captureBootRestartInterruptions(ctx, state.sessions, infos); err != nil {
+	unsettled := bootUnsettledSessions(infos, watermarks)
+	if err := captureBootRestartInterruptions(ctx, state.sessions, unsettled); err != nil {
 		return err
 	}
 	recoverBootStaleInputDispatches(ctx, state)
@@ -61,39 +64,8 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err := reconcileBootDerivedSessionEvents(ctx, state, infos); err != nil {
 		return err
 	}
-
-	for _, info := range infos {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("daemon: boot session repair canceled: %w", err)
-		}
-		needed, err := bootSessionNeedsRepair(ctx, state.sessions, info)
-		if err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
-			}
-			state.logger.Warn("daemon: inspect restart repair failed", "session_id", info.ID, "error", err)
-			continue
-		}
-		if !needed {
-			continue
-		}
-
-		result, repairErr := state.sessions.RepairSession(
-			ctx,
-			session.RepairOpts{SessionID: info.ID},
-		)
-		if repairErr != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
-			}
-			state.logger.Warn(
-				"daemon: boot session repair failed",
-				"session_id", info.ID,
-				"error", repairErr,
-			)
-			continue
-		}
-		logBootSessionRepair(state, result)
+	if err := repairBootSessionHistories(ctx, state, unsettled, watermarks); err != nil {
+		return err
 	}
 	return recoverBootSessionHealth(ctx, state)
 }
@@ -114,50 +86,6 @@ func logBootSessionRepair(state *bootState, result *session.RepairResult) {
 		"issues", len(result.Issues),
 		"error_issues", errorIssues,
 	)
-}
-
-type sessionDatabaseUpgrader interface {
-	UpgradeSessionDatabase(context.Context, string) error
-}
-
-func upgradeBootSessionDatabases(
-	ctx context.Context,
-	state *bootState,
-	infos []*session.Info,
-) ([]*session.Info, error) {
-	upgrader, ok := state.sessions.(sessionDatabaseUpgrader)
-	if !ok {
-		return infos, nil
-	}
-	ready := make([]*session.Info, 0, len(infos))
-	for _, info := range infos {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", err)
-		}
-		if info == nil || strings.TrimSpace(info.ID) == "" {
-			continue
-		}
-		if err := upgrader.UpgradeSessionDatabase(ctx, info.ID); err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return nil, fmt.Errorf("daemon: retained session database upgrade canceled: %w", ctxErr)
-			}
-			identityRefused := errors.Is(err, sessiondb.ErrSessionDBOwnerMismatch) ||
-				errors.Is(err, sessiondb.ErrSessionDBOwnerMissing) ||
-				errors.Is(err, sessiondb.ErrSessionDBFamilyChanged)
-			if identityRefused &&
-				!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-				state.logger.WarnContext(ctx, "daemon: retained session database refused",
-					"session_id", info.ID,
-					"workspace_id", info.WorkspaceID,
-					"error", err,
-				)
-				continue
-			}
-			return nil, fmt.Errorf("daemon: upgrade retained session database %q: %w", info.ID, err)
-		}
-		ready = append(ready, info)
-	}
-	return ready, nil
 }
 
 func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos []*session.Info) error {

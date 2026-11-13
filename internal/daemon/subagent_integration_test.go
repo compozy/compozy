@@ -4704,7 +4704,9 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		heldSettled := make(chan struct{})
 		go func() {
+			defer close(heldSettled)
 			for range held.Events {
 			}
 		}()
@@ -4732,9 +4734,9 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		db := d.registry.(*globaldb.GlobalDB)
 		id := store.ReplyWatchID(target.ID, "long-question")
 
-		// Several quiet episodes past QuietAfter + StopGrace (2s ticks): the armed watch on a working target
-		// is the sender's only work, so without it the sender would be stopped well inside this window.
-		time.Sleep(15 * time.Second)
+		// Several quiet episodes past QuietAfter + StopGrace: the armed watch on a working target is the
+		// sender's only work, so without it the sender would be stopped well inside this window.
+		superviseQuietWindow(t, m, 12*time.Second)
 		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive {
 			t.Fatalf("waiting orchestrator = %+v, %v; want active", info, err)
 		}
@@ -4744,7 +4746,8 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 		if err := m.Stop(t.Context(), target.ID); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(10 * time.Second)
+		testutil.Receive(t, "stopped target turn settled", 15*time.Second, heldSettled)
+		superviseQuietWindow(t, m, 8*time.Second)
 		if info, err := m.Status(t.Context(), sender.ID); err != nil || info.State != session.StateActive ||
 			info.StopReason != "" || info.Supervision.QuietWarning != nil {
 			t.Fatalf("idle orchestrator = %+v, %v; want active without a quiet warning", info, err)
@@ -4771,6 +4774,21 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			return err == nil && len(rows) == 1
 		})
 	})
+}
+
+// superviseQuietWindow runs the daemon's supervision pass synchronously at every second of a
+// window instead of sleeping through it, so each quiet episode the periodic worker would inspect is
+// inspected even when -race starves the worker. The window stays inside the work-signal freshness
+// bound (2 x toolruntime.SweepInterval), so every pass sees the same signals a real-time pass would.
+func superviseQuietWindow(t *testing.T, m *session.Manager, window time.Duration) {
+	t.Helper()
+	start := time.Now()
+	for offset := time.Duration(0); offset <= window; offset += time.Second {
+		// Production logs supervision errors without failing; the caller asserts the session outcome.
+		if err := m.Supervise(t.Context(), start.Add(offset)); err != nil {
+			t.Logf("supervision pass at +%s: %v", offset, err)
+		}
+	}
 }
 
 // Invariant: a queue lease a previous daemon process left in dispatching settles as failed with the
@@ -4917,7 +4935,9 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			outcome := <-created
+			// A creation that never observes the answer above would otherwise block on its approval until the
+			// go test deadline aborts the whole package with no label.
+			outcome := testutil.Receive(t, "native instance creation result", 30*time.Second, created)
 			result, err := outcome.result, outcome.err
 			if err != nil {
 				t.Fatalf(

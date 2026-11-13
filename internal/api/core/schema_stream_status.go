@@ -56,7 +56,12 @@ func (h *BaseHandlers) daemonStatusPayload(
 	if h.DrainController != nil && h.DrainController.DrainState() == contract.DrainStateDraining {
 		daemonStatus = string(contract.DrainStateDraining)
 	}
+	var readiness *contract.DaemonReadinessPayload
+	if reporter, ok := h.DrainController.(DaemonReadinessReporter); ok {
+		readiness = reporter.DaemonReadiness()
+	}
 	return contract.DaemonStatusPayload{
+		Readiness:      readiness,
 		Status:         daemonStatus,
 		PID:            h.PID(),
 		StartedAt:      h.StartedAt,

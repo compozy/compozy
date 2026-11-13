@@ -7216,6 +7216,11 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 		if statusPayload.Daemon.Status != string(contract.DrainStateDraining) {
 			t.Fatalf("daemon status = %q, want %q", statusPayload.Daemon.Status, contract.DrainStateDraining)
 		}
+		// Invariant: status carries the controller's lifecycle phase beside the unchanged status value.
+		if got := statusPayload.Daemon.Readiness; got == nil || got.Phase != contract.DaemonReadinessStopping ||
+			got.Step != "close_admission" {
+			t.Fatalf("daemon readiness = %#v, want the stopping phase and its step", got)
+		}
 
 		doctorResponse := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=daemon", nil)
 		if doctorResponse.Code != http.StatusOK {
@@ -7255,6 +7260,9 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 		if activeStatusResponse.Code != http.StatusOK || activeStatus.Daemon.Status != "running" {
 			t.Fatalf("active daemon status = %d %#v, want running", activeStatusResponse.Code, activeStatus.Daemon)
 		}
+		if got := activeStatus.Daemon.Readiness; got == nil || got.Phase != contract.DaemonReadinessReady {
+			t.Fatalf("active daemon readiness = %#v, want the ready phase", got)
+		}
 	})
 }
 
@@ -7284,6 +7292,13 @@ func (c *testDrainController) DrainState() contract.DrainState {
 		return contract.DrainStateDraining
 	}
 	return contract.DrainStateActive
+}
+
+func (c *testDrainController) DaemonReadiness() *contract.DaemonReadinessPayload {
+	if c.draining.Load() {
+		return &contract.DaemonReadinessPayload{Phase: contract.DaemonReadinessStopping, Step: "close_admission"}
+	}
+	return &contract.DaemonReadinessPayload{Phase: contract.DaemonReadinessReady}
 }
 
 func (c *testDrainController) DrainStatus(context.Context) (contract.DrainStatusResponse, error) {

@@ -410,6 +410,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
 			"POST /api/automation/jobs",
 			"POST /api/automation/jobs/:id/trigger",
+			"POST /api/automation/runs/:id/cancel",
 			"POST /api/automation/triggers",
 			"POST /api/workspaces/:workspace_id/worktrees",
 			"POST /api/workspaces/:workspace_id/worktrees/adopt",

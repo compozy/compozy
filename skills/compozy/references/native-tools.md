@@ -1189,6 +1189,12 @@ does not produce a lost-wake report; stopping the main session still reports its
   Request `result_view: "full"` for poll timestamps and `last_item_count`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
+- `compozy__agent_instance_clear_main` is operator only and takes the instance selector. It
+  discards the main session's conversation and starts a fresh provider thread under the same
+  session ID; queued inputs, agent memory and the instance are kept. It is refused while the
+  main is running a turn, for an instance without a main, and with `dry_run`. A provider
+  account/backend mismatch does not need it: the main rotates its provider thread and replays
+  the transcript on its next wake.
 - `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
   Results contain `state` (`running` or `finished`), and completed `result`, `reason`, and
   optional `report_id`. Reads stay within the authorized profile and instance.
@@ -1456,3 +1462,16 @@ Compact `compozy__agent_heartbeat_status` retains the policy `snapshot_id`.
 
 Compact session records retain outstanding `reply_watches` with watch ID, target session,
 message ID, state and creation time, at the same paths and values as the full record.
+
+### Recovering orphaned automation runs
+
+Daemon startup reconciles unfinished `scheduled`/`running` automation runs before scheduling:
+missing or stopped sessions become `failed` with `error: "orphaned_after_restart"` and an end time.
+History and attribution remain intact; live sessions continue to block self-overlap.
+Use `compozy__automation_runs_cancel {"run_id":"<id>"}` to settle a run whose session is missing
+or stopped as `canceled` with `error: "operator_canceled"`. Optional `workspace` and the caller's
+profile restrict the lookup. Terminal runs are unchanged, so cancellation is idempotent.
+Live sessions, delegated executions and admissions with no session are refused; use the owning
+session/Loop/Task stop surface first. CLI: `compozy automation runs cancel <id> -o json`.
+HTTP/UDS: `POST /api/automation/runs/{id}/cancel`, returning the existing `{run: ...}` DTO;
+live or concurrent execution conflicts return 409. No separate finish operation is needed.

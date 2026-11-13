@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -234,19 +235,24 @@ type Daemon struct {
 	signalProcess          func(int, syscall.Signal) error
 	processAlive           func(int) bool
 	executable             func() (string, error)
+	exitProcess            func(int)
 	startDetached          detachedStartFunc
+	preflightReplacement   restartPreflightFunc
 	signalCh               <-chan os.Signal
 	verifyBoundaries       bool
 	boundaryRoot           string
 	getenv                 func(string) string
 
-	readyCh            chan struct{}
-	readyClosed        bool
-	booting            bool
-	shutdown           *daemonShutdownOperation
-	restartRequested   bool
-	config             compozyconfig.Config
-	admission          admission.Gate
+	readyCh          chan struct{}
+	readyClosed      bool
+	booting          bool
+	shutdown         *daemonShutdownOperation
+	restartRequested bool
+	config           compozyconfig.Config
+	admission        admission.Gate
+	readiness        readinessTracker
+	// serving is set once the listeners are up; later boot steps run in the serving phase.
+	serving            atomic.Bool
 	providerPreStarter *providers.PreStarter
 	// providerAuthVerdicts keeps the last live provider sign-in verdict for settings and provider list.
 	providerAuthVerdicts *providers.AuthVerdicts

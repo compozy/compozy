@@ -1696,3 +1696,29 @@ func TestAutomationJobTriggerWaitFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestAutomationRunsCancel(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cancel the selected run and print its structured receipt", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			cancelAutomationRunFn: func(_ context.Context, id string) (RunRecord, error) {
+				if id != "run-stuck" {
+					t.Fatalf("cancel id = %q", id)
+				}
+				return RunRecord{ID: id, Status: automationpkg.RunCancelled, Error: "operator_canceled"}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "automation", "runs", "cancel", "run-stuck", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got RunRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.ID != "run-stuck" || got.Status != automationpkg.RunCancelled || got.Error != "operator_canceled" {
+			t.Fatalf("cancel receipt = %#v", got)
+		}
+	})
+}

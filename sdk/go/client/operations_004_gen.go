@@ -10,6 +10,33 @@ import (
 	"strings"
 )
 
+// ClearSessionParent Make an adopted child session top-level, or take over a stopped spawned worker
+func (c *Client) ClearSessionParent(ctx context.Context, params ClearSessionParentParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClearSessionRuntimeParams carries the path, query, and header parameters.
+type ClearSessionRuntimeParams struct {
+	WorkspaceID      string  `url:"workspace_id"`
+	SessionID        string  `url:"session_id"`
+	ExpectedRevision int64   `url:"expected_revision"`
+	Profile          *string `url:"profile"`
+}
+
 // ClearSessionRuntime Clear the default runtime for future prompts
 func (c *Client) ClearSessionRuntime(ctx context.Context, params ClearSessionRuntimeParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
@@ -418,32 +445,4 @@ func (c *Client) CreateSession(ctx context.Context, params CreateSessionParams, 
 type CreateSessionFolderParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// CreateSessionFolder Create a session folder
-func (c *Client) CreateSessionFolder(ctx context.Context, params CreateSessionFolderParams, body CreateSessionFolderRequest) (*SessionFolderResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFolderResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateSupportBundle Create a support bundle
-func (c *Client) CreateSupportBundle(ctx context.Context, body CreateSupportBundleRequest) (*SupportBundleOperationResponse, error) {
-	path := "/api/support/bundles"
-	var out SupportBundleOperationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

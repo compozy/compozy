@@ -191,6 +191,9 @@ func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manag
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(h.turnIDs),
+		// The fake driver keeps a prompt stream open after its process stops, so a shutdown stop
+		// would otherwise spend the whole production grace waiting for a terminal event.
+		WithDaemonShutdownTurnGrace(20 * time.Millisecond),
 		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        runtimeProviderClaude,
 			ModelID:           claudeProvider.Models.Default,
@@ -1428,15 +1431,7 @@ func assertContextRebuiltMarkerCount(t *testing.T, events []store.SessionEvent, 
 
 func waitForCondition(t *testing.T, label string, condition func() bool) {
 	t.Helper()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", label)
+	testutil.Eventually(t, label, 10*time.Second, condition)
 }
 
 func (d *fakeDriver) Kill(_ context.Context, proc *AgentProcess) error {
@@ -1522,4 +1517,10 @@ func (r *userLifecycleResolver) ResolveUser(
 	resolved.ProfileID = profileID
 	resolved.ProfileName = "default"
 	return resolved, nil
+}
+
+// simulateDaemonRestart clears the shutdown marker the way a new daemon process starts without one,
+// for tests that drive shutdown and the following boot through one Manager.
+func simulateDaemonRestart(manager *Manager) {
+	manager.daemonShutdown.Store(nil)
 }
