@@ -101,6 +101,6 @@ func (n *daemonNativeTools) previewWindowManagerCommand(
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
 	preview.Deprecations = windowManagerToolDeprecations(req.ToolID, preview.Deprecations)
-	payload := newWindowManagerPreviewResult(command.CommandID(), preview)
+	payload := newWindowManagerPreviewResult(command.CommandID(), &preview)
 	return layoutPreviewViews.result(req.View, payload)
 }

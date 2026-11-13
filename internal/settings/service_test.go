@@ -230,9 +230,6 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if got, want := envelope.WindowManager.Config.HistoryLimit, 50; got != want {
 					t.Fatalf("WindowManager history limit = %d, want %d", got, want)
 				}
-				if got, want := envelope.WindowManager.Config.Bindings.TopCenter, "zoom"; got != want {
-					t.Fatalf("WindowManager top-center binding = %q, want %q", got, want)
-				}
 			},
 		},
 		{
@@ -934,10 +931,6 @@ bottom_center = 42
 			want := cloneWindowManagerConfig(current.WindowManager)
 			want.HistoryLimit++
 			desired := cloneWindowManagerConfig(want)
-			desired.RaiseOnFocus = true
-			desired.DragAwayPolicy, desired.GroupMoveModifier = "retired", "retired"
-			desired.Snap = compozyconfig.WindowManagerSnapConfig{EdgeBand: -1, RepeatRatios: []float64{0}}
-			desired.Bindings = compozyconfig.WindowManagerBindingConfig{TopCenter: "stack"}
 			changed := diffWindowManagerSettings(current.WindowManager, current.CmdPalette.Aliases, desired, current.CmdPalette.Aliases)
 			if !slices.Equal(changed, []string{"window_manager.history_limit"}) {
 				t.Fatalf("changed fields = %v, want only the kept option", changed)
@@ -962,7 +955,7 @@ bottom_center = 42
 					}
 				}
 			} else {
-				for _, line := range strings.Split(strings.TrimSpace(tc.legacy), "\n") {
+				for line := range strings.SplitSeq(strings.TrimSpace(tc.legacy), "\n") {
 					if !strings.Contains(contents, line) {
 						t.Fatalf("save changed authored line %q:\n%s", line, contents)
 					}

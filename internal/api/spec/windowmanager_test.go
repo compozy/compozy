@@ -7,6 +7,7 @@
 package spec
 
 import (
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -18,6 +19,47 @@ import (
 )
 
 func TestWindowManagerOpenAPIContract(t *testing.T) {
+	t.Run("Should mark retired command and projection fields without changing live fields", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for component, fields := range map[string][]string{
+			"WindowManagerWindowSpecPayload":     {"floating", "floating_rect"},
+			"WindowManagerOpenWindowPayload":     {"restore_window_id"},
+			"WindowManagerCloseWindowPayload":    {"minimize"},
+			"WindowManagerGroupWindowsPayload":   {"insert_index"},
+			"WindowManagerMoveWindowPayload":     {"floating_rect"},
+			"WindowManagerResizeWindowPayload":   {"frame"},
+			"WindowManagerToggleFloatingPayload": {"floating_rect"},
+			"WindowManagerArrangeLayoutPayload":  {"frame", "group_id", "keep_frames"},
+			"WindowManagerGroupFrameEditPayload": {"group_id", "frame"},
+			"WindowManagerBalanceLayoutPayload":  {"group_id"},
+			"ChangeSet":                          {"group_ids", "stack_grouped", "stack_ungrouped"},
+			"WindowManagerClientView":            {"stack_active"},
+			"WindowManagerPaletteContext":        {"window_floating", "window_stacked"},
+		} {
+			for _, field := range fields {
+				property := propertySchema(t, componentSchema(t, document, component), field)
+				if !property.Deprecated || !strings.Contains(property.Description, "v0.8.0") {
+					t.Fatalf("%s.%s lacks its removal metadata: %#v", component, field, property)
+				}
+			}
+		}
+		for component, fields := range map[string][]string{
+			"WindowManagerWindowSpecPayload":    {"insert_tiled", "stack_target_window_id"},
+			"WindowManagerMoveWindowPayload":    {"placement", "move_group", "target_tab_id"},
+			"WindowManagerArrangeLayoutPayload": {"arrangement"},
+		} {
+			for _, field := range fields {
+				if propertySchema(t, componentSchema(t, document, component), field).Deprecated {
+					t.Fatalf("live field %s.%s deprecated", component, field)
+				}
+			}
+		}
+	})
+
 	t.Run("Should expose only the exact window-manager routes on HTTP and UDS", func(t *testing.T) {
 		t.Parallel()
 		expected := map[string]string{
@@ -467,4 +509,54 @@ func componentSchema(t *testing.T, document *openapi3.T, name string) *openapi3.
 		t.Fatalf("component schema %q is missing or unresolved", name)
 	}
 	return schemaRef.Value
+}
+
+// Deprecations annotate the frozen v6 contract; the strict schema comparison still owns every field and type.
+func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	counts := map[string]int{}
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, _ := node["properties"].(map[string]any)
+			for _, name := range []string{"floating", "floating_rect", "restore_window_id", "minimize", "insert_index", "frame", "group_id", "keep_frames", "group_ids", "stack_grouped", "stack_ungrouped", "stack_active", "window_floating", "window_stacked"} {
+				if property, ok := properties[name].(map[string]any); ok {
+					property["deprecated"] = true
+					property["description"] = "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement."
+					// Reflection also carries field metadata onto collection elements.
+					for _, key := range []string{"items", "additionalProperties"} {
+						if child, ok := property[key].(map[string]any); ok {
+							child["deprecated"] = true
+							child["description"] = property["description"]
+						}
+					}
+					counts[name]++
+				}
+			}
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	for path, value := range paths {
+		if strings.HasPrefix(path, "/api/window-manager") {
+			visit(value)
+		}
+	}
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name, value := range components {
+		if strings.HasPrefix(name, "WindowManager") {
+			visit(value)
+		}
+	}
+	want := map[string]int{"floating": 1, "floating_rect": 3, "restore_window_id": 1, "minimize": 1, "insert_index": 1, "frame": 3, "group_id": 3, "keep_frames": 1, "group_ids": 6, "stack_grouped": 6, "stack_ungrouped": 6, "stack_active": 13, "window_floating": 1, "window_stacked": 1}
+	if !maps.Equal(counts, want) {
+		t.Fatalf("approved retired wire annotations = %v, want %v", counts, want)
+	}
 }

@@ -37,10 +37,10 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 		request.Payload = canonicalMoveCommand(c, report)
 	case ReorderStackCommand:
 		report(string(c.CommandID()))
-		request.Payload = ReorderTabCommand{WindowID: c.WindowID, Index: c.Index}
+		request.Payload = ReorderTabCommand(c)
 	case SetStackActiveCommand:
 		report(string(c.CommandID()))
-		request.Payload = ActivateTabCommand{WindowID: c.WindowID}
+		request.Payload = ActivateTabCommand(c)
 	case GroupWindowsCommand:
 		report(string(c.CommandID()))
 		request.Payload = adjacentTabsCommand{target: new(c.TargetWindowID), ids: c.WindowIDs}

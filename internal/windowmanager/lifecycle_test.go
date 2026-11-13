@@ -502,7 +502,7 @@ func TestWorkspaceBindingRetirement(t *testing.T) {
 		"Should retire bound windows and prevent navigation history and reopen from restoring them",
 		func(t *testing.T) {
 			t.Parallel()
-			env := newTestEnvironment(t, floatingConfig(), "workspace-a")
+			env := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 			opened := openTestWindow(t, env.manager, "workspace-a", nil, "bound", "desktop-default")
 			route := testRoute("/loops/runs/run-one")
 			route.Search["workspace"] = json.RawMessage(`"workspace-b"`)

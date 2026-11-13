@@ -369,7 +369,7 @@ func TestMigrateSnapshotV5(t *testing.T) {
 		s.History = json.RawMessage(`{"unknown_old_history":true}`)
 		s.Overrides = WorkspaceConfigV5{
 			RaiseOnFocus:    new(true),
-			NewWindowPolicy: new(NewWindowFloating),
+			NewWindowPolicy: new(NewWindowPolicy("floating")),
 			HistoryLimit:    new(12),
 		}
 		before := encodeFixture(t, s)

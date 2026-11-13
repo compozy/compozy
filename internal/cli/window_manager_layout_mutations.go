@@ -51,7 +51,7 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
@@ -186,7 +186,7 @@ func newLayoutResizeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
@@ -229,7 +229,7 @@ func newLayoutFrameResizeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
@@ -306,7 +306,7 @@ func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
@@ -355,7 +355,7 @@ func newLayoutHistoryCommand(
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)

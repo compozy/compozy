@@ -97,7 +97,7 @@ func newWindowManagerCommandResult(
 
 func newWindowManagerPreviewResult(
 	commandID windowmanager.CommandID,
-	preview windowmanager.Preview,
+	preview *windowmanager.Preview,
 ) windowManagerPreviewResult {
 	return windowManagerPreviewResult{
 		Deprecations: append([]windowmanager.Deprecation{}, preview.Deprecations...),
@@ -210,7 +210,6 @@ func windowManagerToolError(id toolspkg.ToolID, err error) error {
 	case errors.Is(err, windowmanager.ErrWindowBindingInvalid), errors.Is(err, windowmanager.ErrInvalidCommand),
 		errors.Is(err, windowmanager.ErrInvalidTopology),
 		errors.Is(err, windowmanager.ErrDestinationRequired),
-		errors.Is(err, windowmanager.ErrNotStacked),
 		errors.Is(err, windowmanager.ErrWindowPinned):
 		code, cause, reason = toolspkg.ErrorCodeInvalidInput, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid
 	case errors.Is(err, windowmanager.ErrClosed):

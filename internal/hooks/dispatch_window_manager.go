@@ -52,7 +52,7 @@ func (h *Hooks) DispatchWindowManagerWindowClosed(
 
 // DispatchWindowManagerStackGrouped is a load-only compatibility no-op until v0.8.0.
 func (h *Hooks) DispatchWindowManagerStackGrouped(
-	ctx context.Context,
+	_ context.Context,
 	payload WindowManagerStackGroupedPayload,
 ) (WindowManagerStackGroupedPayload, error) {
 	return payload, nil
@@ -60,7 +60,7 @@ func (h *Hooks) DispatchWindowManagerStackGrouped(
 
 // DispatchWindowManagerStackUngrouped is a load-only compatibility no-op until v0.8.0.
 func (h *Hooks) DispatchWindowManagerStackUngrouped(
-	ctx context.Context,
+	_ context.Context,
 	payload WindowManagerStackUngroupedPayload,
 ) (WindowManagerStackUngroupedPayload, error) {
 	return payload, nil

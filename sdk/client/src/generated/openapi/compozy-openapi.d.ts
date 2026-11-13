@@ -9294,9 +9294,21 @@ export interface components {
     ChangeSet: {
       client_ids?: string[];
       desktop_ids?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_ids?: string[];
       node_ids?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_grouped?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_ungrouped?: string[];
       tab_ids?: string[];
       tab_split?: string[];
@@ -9693,6 +9705,10 @@ export interface components {
       kind: string;
       palette_context: components["schemas"]["WindowManagerPaletteContext"];
       presentation_revision: number;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_active: {
         [key: string]: string;
       };
@@ -13634,6 +13650,10 @@ export interface components {
       /** Format: int64 */
       tokens: number;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+     */
     NormalizedRect: {
       /** Format: double */
       height: number;
@@ -21416,12 +21436,24 @@ export interface components {
       arrangement: "horizontal" | "vertical" | "grid" | "stack" | "main_stack";
       desktop_id: string;
       frame: components["schemas"]["NormalizedRect"];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_id: string;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       keep_frames?: boolean;
       resource_id?: string;
       window_ids: string[];
     };
     WindowManagerBalanceLayoutPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_id?: string | null;
       split_id?: string | null;
       tab_id?: string | null;
@@ -21463,6 +21495,10 @@ export interface components {
       kind: string;
       palette_context: components["schemas"]["WindowManagerPaletteContext"];
       presentation_revision: number;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_active: {
         [key: string]: string;
       };
@@ -21473,6 +21509,10 @@ export interface components {
       workspace_id: string;
     };
     WindowManagerCloseWindowPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       minimize: boolean;
       /** @enum {string} */
       scope?: "tab" | "group" | "others" | "right" | "left" | "all";
@@ -21891,9 +21931,17 @@ export interface components {
     };
     WindowManagerGroupFrameEditPayload: {
       frame: components["schemas"]["NormalizedRect"];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_id: string;
     };
     WindowManagerGroupWindowsPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       insert_index?: number | null;
       target_window_id: string;
       window_ids: string[];
@@ -21980,6 +22028,10 @@ export interface components {
         }
     );
     WindowManagerOpenWindowPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       restore_window_id?: string | null;
       window: components["schemas"]["WindowManagerWindowSpecPayload"];
     };
@@ -21989,9 +22041,17 @@ export interface components {
       focused_session_state?: string;
       scope_global: boolean;
       shell_desktop: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       window_floating: boolean;
       window_focused: boolean;
       window_in_split: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       window_stacked: boolean;
       workspace_trusted: boolean;
     };
@@ -22109,6 +22169,10 @@ export interface components {
     WindowManagerWindowSpecPayload: {
       app: string;
       desktop_id: string;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       floating?: boolean;
       floating_rect: components["schemas"]["NormalizedRect"];
       id?: string;

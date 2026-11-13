@@ -259,6 +259,9 @@ func runConfigSetCommand(
 	if err := requireOperatorForAgentOverride(deps, path); err != nil {
 		return err
 	}
+	if handled, err := ignoreRetiredWindowManagerConfigSet(cmd, target, path, args[1], redacted); handled {
+		return err
+	}
 	if err := prepareConfigMutationTarget(target, path); err != nil {
 		return err
 	}
@@ -267,6 +270,7 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
+	value = translateRetiredWindowManagerConfigSetValue(cmd, path, value)
 	if err := validateSkillSourceConfigValue(target.Scope(), path, value); err != nil {
 		return err
 	}

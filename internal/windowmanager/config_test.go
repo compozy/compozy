@@ -19,7 +19,7 @@ func TestEffectiveConfig(t *testing.T) {
 	t.Run("Should apply every workspace override without aliasing caller-owned collections", func(t *testing.T) {
 		t.Parallel()
 		defaults := DefaultConfig()
-		newWindowPolicy := NewWindowFloating
+		newWindowPolicy := NewWindowInsert
 		smallViewportPolicy := SmallViewportReject
 		focusPolicy := FocusDirectional
 		focusWrap := true
@@ -51,18 +51,15 @@ func TestEffectiveConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("effectiveConfig() error = %v", err)
 		}
-		if effective.NewWindowPolicy != NewWindowTab ||
+		if effective.NewWindowPolicy != NewWindowInsert ||
 			effective.SmallViewportPolicy != SmallViewportReject ||
 			effective.FocusPolicy != FocusDirectional || !effective.FocusWrap || !effective.FocusFollowsPointer ||
-			effective.RaiseOnFocus ||
-			effective.DragAwayPolicy != "" ||
-			effective.GroupMoveModifier != "" ||
 			effective.SwapModifier != dragModifierControl ||
 			effective.HistoryLimit != 7 || effective.NavStackLimit != 8 || effective.ClosedEntryLimit != 9 ||
 			effective.DesktopTransition != DesktopTransitionInstant {
 			t.Fatalf("effective behavioral config = %+v", effective)
 		}
-		if effective.Gaps != gaps || effective.Bindings != (BindingsConfig{}) || len(effective.Snap.RepeatRatios) != 0 ||
+		if effective.Gaps != gaps ||
 			!slices.Equal(effective.Shortcuts["layout.balance"], ShortcutBinding{"meta+shift+KeyB"}) {
 			t.Fatalf("effective structural config = %+v", effective)
 		}
@@ -384,6 +381,11 @@ func TestConfigValidation(t *testing.T) {
 		wantError string
 	}{
 		{
+			name:      "Should reject floating in effective config outside boundary translation",
+			mutate:    func(config *Config) { config.NewWindowPolicy = "floating" },
+			wantError: `new window policy "floating": window manager invalid command`,
+		},
+		{
 			name:      "Should reject an unknown new-window policy",
 			mutate:    func(config *Config) { config.NewWindowPolicy = "cascade" },
 			wantError: `new window policy "cascade": window manager invalid command`,
@@ -596,7 +598,7 @@ func TestRetiredWorkspaceOverrides(t *testing.T) {
 			t.Fatal(err)
 		}
 		effective, err := effectiveConfig(DefaultConfig(), overrides)
-		if err != nil || effective.NewWindowPolicy != NewWindowTab || effective.Snap.EdgeBand != 0 {
+		if err != nil || effective.NewWindowPolicy != NewWindowTab {
 			t.Fatalf("effective=%+v err=%v", effective, err)
 		}
 		encoded, err := json.Marshal(overrides)

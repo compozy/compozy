@@ -65,7 +65,7 @@ var fixedShellCommands = []shellCommandDefinition{
 		id:                 "window.nav.back",
 		title:              "Back",
 		section:            coreSectionShell,
-		icon:               "arrow-left",
+		icon:               coreIconArrowLeft,
 		needsFocus:         true,
 		availabilityExempt: true,
 	},
@@ -79,7 +79,7 @@ var fixedShellCommands = []shellCommandDefinition{
 		availabilityExempt: true,
 	},
 	{id: "window.close", title: "Close window", section: coreSectionWindow, icon: "x-square", needsFocus: true},
-	{id: "window.focus.left", title: "Focus left", section: coreSectionWindow, icon: "arrow-left"},
+	{id: "window.focus.left", title: "Focus left", section: coreSectionWindow, icon: coreIconArrowLeft},
 	{id: "window.focus.right", title: "Focus right", section: coreSectionWindow, icon: "arrow-right"},
 	{id: "window.focus.up", title: "Focus up", section: coreSectionWindow, icon: "arrow-up"},
 	{id: "window.focus.down", title: "Focus down", section: coreSectionWindow, icon: "arrow-down"},
@@ -147,7 +147,7 @@ func shellCommands() []cmdpalette.Descriptor {
 	definitions := append([]shellCommandDefinition(nil), fixedShellCommands...)
 	definitions = append(definitions,
 		shellCommandDefinition{id: "window.unsplit", title: "Move to new tab", section: coreSectionWindow, icon: "panels-top-left", needsFocus: true},
-		shellCommandDefinition{id: "window.tab.move_left", title: "Move tab left", section: coreSectionTabs, icon: "arrow-left", needsFocus: true},
+		shellCommandDefinition{id: "window.tab.move_left", title: "Move tab left", section: coreSectionTabs, icon: coreIconArrowLeft, needsFocus: true},
 		shellCommandDefinition{id: "window.tab.move_right", title: "Move tab right", section: coreSectionTabs, icon: "arrow-right", needsFocus: true},
 	)
 	placements := []struct{ id, title string }{

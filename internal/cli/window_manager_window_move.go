@@ -65,7 +65,7 @@ func runWindowMoveCommand(
 	if err != nil {
 		return err
 	}
-	return writeCommandOutput(cmd, windowManagerResultBundle(result))
+	return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 }
 
 func windowMovePayload(
@@ -154,7 +154,7 @@ func newWindowSwapCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
@@ -192,7 +192,7 @@ func newWindowFloatCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
@@ -226,7 +226,7 @@ func newWindowZoomCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)

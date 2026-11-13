@@ -303,7 +303,6 @@ func applyWindowManagerSettings(
 }
 
 func cloneWindowManagerConfig(cfg compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
-	cfg.Snap.RepeatRatios = append([]float64(nil), cfg.Snap.RepeatRatios...)
 	cfg.Shortcuts = windowmanager.CloneShortcutMap(cfg.Shortcuts)
 	cfg.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts)
 	return cfg

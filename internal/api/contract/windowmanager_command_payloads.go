@@ -37,15 +37,15 @@ type WindowManagerWindowSpecPayload struct {
 	InstanceKey         *string                      `json:"instance_key,omitzero"`
 	Route               windowmanager.RouteIntent    `json:"route"`
 	DesktopID           windowmanager.DesktopID      `json:"desktop_id"`
-	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect"`
+	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect" deprecated:"true"`
 	InsertTiled         bool                         `json:"insert_tiled"`
-	Floating            bool                         `json:"floating,omitzero"`
+	Floating            bool                         `json:"floating,omitzero" deprecated:"true"`
 	StackTargetWindowID *windowmanager.WindowID      `json:"stack_target_window_id,omitzero"`
 }
 
 type WindowManagerOpenWindowPayload struct {
 	Window          WindowManagerWindowSpecPayload `json:"window"`
-	RestoreWindowID *windowmanager.WindowID        `json:"restore_window_id,omitzero"`
+	RestoreWindowID *windowmanager.WindowID        `json:"restore_window_id,omitzero" deprecated:"true"`
 }
 
 type WindowManagerNavigateWindowPayload struct {
@@ -57,14 +57,14 @@ type WindowManagerNavigateWindowPayload struct {
 
 type WindowManagerCloseWindowPayload struct {
 	WindowID windowmanager.WindowID   `json:"window_id"`
-	Minimize bool                     `json:"minimize"`
+	Minimize bool                     `json:"minimize" deprecated:"true"`
 	Scope    windowmanager.CloseScope `json:"scope,omitempty"`
 }
 
 type WindowManagerGroupWindowsPayload struct {
 	TargetWindowID windowmanager.WindowID   `json:"target_window_id"`
 	WindowIDs      []windowmanager.WindowID `json:"window_ids"`
-	InsertIndex    *int                     `json:"insert_index,omitzero"`
+	InsertIndex    *int                     `json:"insert_index,omitzero" deprecated:"true"`
 }
 
 type WindowManagerReorderStackPayload struct {
@@ -94,13 +94,13 @@ type WindowManagerMoveWindowPayload struct {
 	DestinationDesktopID windowmanager.DesktopID       `json:"destination_desktop_id"`
 	TargetWindowID       *windowmanager.WindowID       `json:"target_window_id,omitzero"`
 	Placement            windowmanager.DropPlacement   `json:"placement"`
-	FloatingRect         *windowmanager.NormalizedRect `json:"floating_rect,omitzero"`
+	FloatingRect         *windowmanager.NormalizedRect `json:"floating_rect,omitzero" deprecated:"true"`
 	MoveGroup            bool                          `json:"move_group"`
 }
 
 type WindowManagerResizeWindowPayload struct {
 	WindowID windowmanager.WindowID       `json:"window_id"`
-	Frame    windowmanager.NormalizedRect `json:"frame"`
+	Frame    windowmanager.NormalizedRect `json:"frame" deprecated:"true"`
 }
 
 type WindowManagerSwapWindowsPayload struct {
@@ -110,7 +110,7 @@ type WindowManagerSwapWindowsPayload struct {
 
 type WindowManagerToggleFloatingPayload struct {
 	WindowID     windowmanager.WindowID        `json:"window_id"`
-	FloatingRect *windowmanager.NormalizedRect `json:"floating_rect,omitzero"`
+	FloatingRect *windowmanager.NormalizedRect `json:"floating_rect,omitzero" deprecated:"true"`
 }
 
 type WindowManagerZoomWindowPayload struct {
@@ -121,11 +121,11 @@ type WindowManagerArrangeLayoutPayload struct {
 	DesktopID   windowmanager.DesktopID      `json:"desktop_id"`
 	WindowIDs   []windowmanager.WindowID     `json:"window_ids"`
 	Arrangement windowmanager.Arrangement    `json:"arrangement"`
-	Frame       windowmanager.NormalizedRect `json:"frame"`
-	GroupID     windowmanager.GroupID        `json:"group_id"`
+	Frame       windowmanager.NormalizedRect `json:"frame" deprecated:"true"`
+	GroupID     windowmanager.GroupID        `json:"group_id" deprecated:"true"`
 	ResourceID  string                       `json:"resource_id,omitempty"`
 	// KeepFrames is accepted through v0.7 and ignored by the compatibility boundary.
-	KeepFrames bool `json:"keep_frames,omitzero"`
+	KeepFrames bool `json:"keep_frames,omitzero" deprecated:"true"`
 }
 
 type WindowManagerResizeLayoutPayload struct {
@@ -135,8 +135,8 @@ type WindowManagerResizeLayoutPayload struct {
 }
 
 type WindowManagerGroupFrameEditPayload struct {
-	GroupID windowmanager.GroupID        `json:"group_id"`
-	Frame   windowmanager.NormalizedRect `json:"frame"`
+	GroupID windowmanager.GroupID        `json:"group_id" deprecated:"true"`
+	Frame   windowmanager.NormalizedRect `json:"frame" deprecated:"true"`
 }
 
 type WindowManagerFrameResizeLayoutPayload struct {
@@ -146,7 +146,7 @@ type WindowManagerFrameResizeLayoutPayload struct {
 
 type WindowManagerBalanceLayoutPayload struct {
 	TabID   *windowmanager.TabID   `json:"tab_id,omitzero"`
-	GroupID *windowmanager.GroupID `json:"group_id,omitzero"`
+	GroupID *windowmanager.GroupID `json:"group_id,omitzero" deprecated:"true"`
 	SplitID *windowmanager.NodeID  `json:"split_id,omitzero"`
 }
 

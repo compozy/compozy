@@ -37,9 +37,6 @@ func TestWindowManagerConfig(t *testing.T) {
 		if got.Gaps != (WindowManagerGapsConfig{}) {
 			t.Fatalf("WindowManager.Gaps = %#v, want flush zero gaps", got.Gaps)
 		}
-		if got.Bindings != (WindowManagerBindingConfig{}) || len(got.Snap.RepeatRatios) != 0 {
-			t.Fatalf("retired defaults retained: %#v / %#v", got.Bindings, got.Snap)
-		}
 		if got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=
 			windowmanager.DefaultGlobalSummonChord {
 			t.Fatalf("GlobalShortcuts = %#v, want summon default", got.GlobalShortcuts)
@@ -95,9 +92,6 @@ top_center = "none"
 			windowManager.Gaps.Left != 0 {
 			t.Fatalf("WindowManager.Gaps = %#v, want merged 12/14 with default left 0", windowManager.Gaps)
 		}
-		if windowManager.Bindings != (WindowManagerBindingConfig{}) {
-			t.Fatalf("retired bindings retained: %#v", windowManager.Bindings)
-		}
 	})
 
 	t.Run("Should apply only the workspace window manager overlay onto active defaults", func(t *testing.T) {
@@ -108,7 +102,6 @@ top_center = "none"
 		base.HistoryLimit = 80
 		base.NavStackLimit = 90
 		base.ClosedEntryLimit = 30
-		base.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
 		base.Shortcuts = map[string]windowmanager.ShortcutBinding{"window.focus.left": {"alt+KeyH"}}
 		base.GlobalShortcuts = map[string]string{
 			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
@@ -154,12 +147,9 @@ right = 14
 			t.Fatalf("window manager global shortcuts = %#v", got.GlobalShortcuts)
 		}
 
-		if len(got.Snap.RepeatRatios) != 0 {
-			t.Fatal("retired snap retained in effective overlay")
-		}
 		got.Shortcuts["desktop.switch.next"][0] = "meta+ArrowRight"
 		got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] = "meta+KeyK"
-		if base.Snap.RepeatRatios[0] != 0.5 || base.Shortcuts["window.focus.left"][0] != "alt+KeyH" {
+		if base.Shortcuts["window.focus.left"][0] != "alt+KeyH" {
 			t.Fatalf("ApplyWindowManagerOverlayFile() aliased active defaults: %#v", base)
 		}
 		if base.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=

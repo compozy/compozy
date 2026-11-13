@@ -26,7 +26,6 @@ const (
 	shortcutWindowTileTopAction          = "window.tile.top"
 	shortcutWindowTileBottomAction       = "window.tile.bottom"
 	shortcutCheatsheetAction             = "shortcuts.cheatsheet"
-	shortcutWindowMinimizeAction         = "window.minimize"
 	shortcutWindowTabNewAction           = "window.tab.new"
 	shortcutWindowTabReopenAction        = "window.tab.reopen"
 )

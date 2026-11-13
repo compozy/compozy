@@ -21,7 +21,6 @@ type DragAwayPolicy string
 type DesktopTransition string
 
 const (
-	NewWindowFloating          NewWindowPolicy     = "floating"
 	NewWindowInsert            NewWindowPolicy     = "beside_focus"
 	NewWindowTab               NewWindowPolicy     = "tab"
 	SmallViewportStack         SmallViewportPolicy = "stack"
@@ -70,17 +69,12 @@ type Config struct {
 	FocusPolicy         FocusPolicy                `json:"focus_policy"`
 	FocusWrap           bool                       `json:"focus_wrap"`
 	FocusFollowsPointer bool                       `json:"focus_follows_pointer"`
-	RaiseOnFocus        bool                       `json:"-"`
-	DragAwayPolicy      DragAwayPolicy             `json:"-"`
-	GroupMoveModifier   string                     `json:"-"`
 	SwapModifier        string                     `json:"swap_modifier"`
 	HistoryLimit        int                        `json:"history_limit"`
 	NavStackLimit       int                        `json:"nav_stack_limit"`
 	ClosedEntryLimit    int                        `json:"closed_entry_limit"`
 	DesktopTransition   DesktopTransition          `json:"desktop_transition"`
 	Gaps                GapsConfig                 `json:"gaps"`
-	Snap                SnapConfig                 `json:"-"`
-	Bindings            BindingsConfig             `json:"-"`
 	Shortcuts           map[string]ShortcutBinding `json:"shortcuts,omitempty"`
 }
 
@@ -133,7 +127,7 @@ func validateConfig(config Config) error {
 
 func validateBehaviorConfig(config Config) error {
 	switch config.NewWindowPolicy {
-	case NewWindowFloating, NewWindowInsert, NewWindowTab:
+	case NewWindowInsert, NewWindowTab:
 	default:
 		return fmt.Errorf("new window policy %q: %w", config.NewWindowPolicy, ErrInvalidCommand)
 	}
@@ -202,11 +196,6 @@ func validateBindingsConfig(config Config) error {
 
 func canonicalConfig(config Config) (Config, error) {
 	result := cloneConfig(config)
-	result.RaiseOnFocus, result.DragAwayPolicy, result.GroupMoveModifier = false, "", ""
-	result.Snap, result.Bindings = SnapConfig{}, BindingsConfig{}
-	if result.NewWindowPolicy == NewWindowFloating {
-		result.NewWindowPolicy = NewWindowTab
-	}
 	shortcuts, err := CanonicalStoredShortcutsV2(result.Shortcuts)
 	if err != nil {
 		return Config{}, err

@@ -1324,7 +1324,7 @@ func TestWindowBindingValidation(t *testing.T) {
 	for _, binding := range []string{"ws-missing", workspaceaccess.UserSelector, "workspace-a"} {
 		t.Run("Should validate global command binding "+binding, func(t *testing.T) {
 			t.Parallel()
-			env := newTestEnvironment(t, floatingConfig(), GlobalDesktopWorkspaceID, "workspace-a")
+			env := newTestEnvironment(t, DefaultConfig(), GlobalDesktopWorkspaceID, "workspace-a")
 			raw, err := json.Marshal(binding)
 			if err != nil {
 				t.Fatal(err)
@@ -1356,7 +1356,7 @@ func TestWindowBindingValidation(t *testing.T) {
 func TestWindowBindingLifecycleValidation(t *testing.T) {
 	t.Run("Should load stale bindings but reject restoring navigating or importing them in global", func(t *testing.T) {
 		t.Parallel()
-		env := newTestEnvironment(t, floatingConfig(), GlobalDesktopWorkspaceID, "workspace-a")
+		env := newTestEnvironment(t, DefaultConfig(), GlobalDesktopWorkspaceID, "workspace-a")
 		route := RouteIntent{
 			Pathname: "/loops/run-one",
 			Search:   RouteSearch{"workspace": json.RawMessage(`"workspace-a"`)},
@@ -1415,7 +1415,7 @@ func TestWindowBindingLifecycleValidation(t *testing.T) {
 	})
 	t.Run("Should accept foreign bindings in a project partition", func(t *testing.T) {
 		t.Parallel()
-		env := newTestEnvironment(t, floatingConfig(), "workspace-a")
+		env := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		executeTestCommand(
 			t,
 			env.manager,

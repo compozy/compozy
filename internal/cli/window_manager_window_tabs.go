@@ -47,12 +47,12 @@ func newWindowGroupCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&target, "target", "", "Target window ID")
-	cmd.Flags().StringVar(&windowsRaw, "windows", "", "Comma-separated window IDs to join")
+	cmd.Flags().StringVar(&windowsRaw, "windows", "", "Deprecated: comma-separated IDs to place in adjacent tabs; use window move; removed in v0.8.0")
 	cmd.Flags().IntVar(&insertIndex, "insert-index", 0, "Deprecated: ignored insertion index; removed in v0.8.0")
 	return cmd
 }
@@ -168,7 +168,7 @@ func executeWindowTabCommand(
 	if err != nil {
 		return err
 	}
-	return writeCommandOutput(cmd, windowManagerResultBundle(result))
+	return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 }
 
 func newWindowReorderCommand(deps commandDeps) *cobra.Command {

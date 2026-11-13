@@ -979,9 +979,8 @@ func newWindowManagerHandlerFixtureWithRepository(
 ) windowManagerHandlerFixture {
 	t.Helper()
 	var sequence atomic.Int64
-	// Wire-contract cases assert floating opens; placement-policy defaults belong to the windowmanager suite.
+	// Placement-policy defaults belong to the windowmanager suite.
 	config := windowmanager.DefaultConfig()
-	config.NewWindowPolicy = windowmanager.NewWindowFloating
 	manager, err := windowmanager.NewService(
 		repository,
 		windowmanager.NewMemoryWorkspaceResolver("workspace-a", "workspace-b"),

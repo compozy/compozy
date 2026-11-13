@@ -25,6 +25,82 @@ import (
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Parallel()
+	t.Run("Should warn once and ignore every retired window-manager mutation", func(t *testing.T) {
+		t.Parallel()
+		for _, key := range []string{
+			"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap.edge_band", "snap.corner_reach",
+			"snap.exit_slack", "snap.repeat_ratios", "bindings.top_center", "bindings.bottom_center",
+		} {
+			t.Run(key, func(t *testing.T) {
+				t.Parallel()
+				client := &stubClient{reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+					t.Fatal("retired mutation reached the daemon")
+					return SettingsMutationRecord{}, nil
+				}}
+				deps := newDefaultProfileWorkspaceTestDeps(t, client)
+				home, err := deps.resolveHome()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(filepath.Dir(home.ConfigFile), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				const before = "[window_manager]\nhistory_limit = 61\nraise_on_focus = true\n"
+				if err := os.WriteFile(home.ConfigFile, []byte(before), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				out, stderr, err := executeRootCommand(t, deps, "config", "set", "window_manager."+key, "arbitrary retired value", "--scope", "user", "-o", "json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				var record configSetRecord
+				if err := json.Unmarshal([]byte(out), &record); err != nil {
+					t.Fatal(err)
+				}
+				if record.Path != "window_manager."+key || record.Applied || record.RestartRequired || record.ApplyRecordID != "" {
+					t.Fatalf("ignored mutation receipt = %#v", record)
+				}
+				warning := windowmanager.RetiredConfigWarning(key, false)
+				if strings.TrimSpace(stderr) != warning {
+					t.Fatalf("stderr = %q, want one warning %q", stderr, warning)
+				}
+				after, err := os.ReadFile(home.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(after) != before {
+					t.Fatalf("retired mutation changed config: %s", after)
+				}
+			})
+		}
+	})
+	t.Run("Should translate the retired floating policy before writing", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		out, stderr, err := executeRootCommand(t, deps, "config", "set", "window_manager.new_window_policy", "floating", "--scope", "user", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.Value != "tab" || strings.TrimSpace(stderr) != windowmanager.RetiredConfigWarning("new_window_policy", true) {
+			t.Fatalf("translation = %#v, stderr = %q", record, stderr)
+		}
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := compozyconfig.LoadGlobalConfig(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.WindowManager.NewWindowPolicy != compozyconfig.WindowNewPolicyTab {
+			t.Fatalf("stored policy = %s", cfg.WindowManager.NewWindowPolicy)
+		}
+	})
+
 	t.Run("Should persist reference-only session environment declarations", func(t *testing.T) {
 		t.Parallel()
 		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
@@ -219,8 +295,12 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(window manager) error = %v", err)
 		}
-		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 0 {
-			t.Fatalf("retired WindowManager.Snap.RepeatRatios retained: %#v", got)
+		contents, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(contents), "repeat_ratios") {
+			t.Fatalf("config set persisted retired ratios: %s", contents)
 		}
 		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
 			got,

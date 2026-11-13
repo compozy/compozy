@@ -3298,6 +3298,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		addSettingsMCPHeaderPresence(t, baseline)
 		deprecateRetiredWindowManagerSettings(t, baseline)
+		deprecateRetiredWindowManagerWireFields(t, baseline)
+		addWindowManagerTabHookSchemas(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}
@@ -6711,4 +6713,34 @@ func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
 		any(map[string]any{"in": "query", "name": "wait", "schema": map[string]any{"type": "boolean"}}),
 		any(map[string]any{"in": "query", "name": "timeout", "schema": map[string]any{"type": "string"}}),
 	)
+}
+
+// window-tabs-split adds three tab events without removing the deprecated stack events.
+func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	changes := 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case map[string]any:
+			if values, ok := node["enum"].([]any); ok {
+				if index := slices.Index(values, any("window_manager.layout.applied")); index >= 0 {
+					node["enum"] = slices.Insert(values, index,
+						any("window_manager.tab.split"), any("window_manager.tab.unsplit"), any("window_manager.tab.activated"))
+					changes++
+				}
+			}
+			for _, child := range node {
+				walk(child)
+			}
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		}
+	}
+	walk(baseline)
+	if changes != 5 {
+		t.Fatalf("approved window-manager tab hooks: updated %d historical enums, want 5", changes)
+	}
 }

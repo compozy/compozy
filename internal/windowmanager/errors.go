@@ -28,7 +28,6 @@ var (
 	ErrContextRevisionExhausted      = errors.New("window manager context revision exhausted")
 	ErrTopologyRevisionExhausted     = errors.New("window manager topology revision exhausted")
 	ErrClosed                        = errors.New("window manager closed")
-	ErrNotStacked                    = errors.New("window manager window not stacked")
 	ErrWindowPinned                  = errors.New("window manager window pinned")
 )
 

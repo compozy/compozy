@@ -93,7 +93,7 @@ func windowManagerChangeBundle[T any](value T, summary windowManagerChangeSummar
 	}
 }
 
-func windowManagerResultBundle(result contract.WindowManagerResult) outputBundle {
+func windowManagerResultBundle(result *contract.WindowManagerResult) outputBundle {
 	return windowManagerChangeBundle(result, windowManagerChangeSummary{
 		humanTitle:      "Window manager result",
 		toonName:        "window_manager_result",
@@ -107,7 +107,7 @@ func windowManagerResultBundle(result contract.WindowManagerResult) outputBundle
 	})
 }
 
-func windowManagerPreviewBundle(preview contract.WindowManagerPreview) outputBundle {
+func windowManagerPreviewBundle(preview *contract.WindowManagerPreview) outputBundle {
 	return windowManagerChangeBundle(preview, windowManagerChangeSummary{
 		humanTitle:      "Window manager preview",
 		toonName:        "window_manager_preview",

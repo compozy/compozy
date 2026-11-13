@@ -1,6 +1,7 @@
 package corecmds
 
 const (
+	coreIconArrowLeft     = "arrow-left"
 	coreAppAgents         = "agents"
 	coreAppExtensions     = "extensions"
 	coreAppFiles          = "files"

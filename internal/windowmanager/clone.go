@@ -177,7 +177,6 @@ func cloneWorkspaceConfig(config WorkspaceConfig) WorkspaceConfig {
 }
 
 func cloneConfig(config Config) Config {
-	config.Snap = cloneSnapConfig(config.Snap)
 	config.Shortcuts = CloneShortcutMap(config.Shortcuts)
 	return config
 }

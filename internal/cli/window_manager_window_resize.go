@@ -46,11 +46,11 @@ func newWindowResizeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&windowID, "id", "", "Window ID")
-	cmd.Flags().StringVar(&rectRaw, windowManagerRectFlag, "", "Frame as x,y,width,height in normalized coordinates")
+	cmd.Flags().StringVar(&rectRaw, windowManagerRectFlag, "", "Deprecated: ignored frame; use layout resize; removed in v0.8.0")
 	return cmd
 }

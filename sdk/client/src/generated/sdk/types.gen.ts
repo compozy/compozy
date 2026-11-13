@@ -1278,9 +1278,24 @@ export type ChangePatchPayload = {
 export type ChangeSet = {
   client_ids?: Array<string>;
   desktop_ids?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   group_ids?: Array<string>;
   node_ids?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_grouped?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_ungrouped?: Array<string>;
   tab_ids?: Array<string>;
   tab_split?: Array<string>;
@@ -1656,6 +1671,11 @@ export type ContractWindowManagerClientView = {
   kind: string;
   palette_context: WindowManagerPaletteContext;
   presentation_revision: number;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_active: {
     [key: string]: string;
   };
@@ -13097,9 +13117,19 @@ export type WindowManagerPaletteContext = {
   focused_session_state?: string;
   scope_global: boolean;
   shell_desktop: boolean;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   window_floating: boolean;
   window_focused: boolean;
   window_in_split: boolean;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   window_stacked: boolean;
   workspace_trusted: boolean;
 };

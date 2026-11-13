@@ -181,11 +181,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.AxisHorizontal),
 			string(windowmanager.AxisVertical),
 		},
-		reflect.TypeFor[windowmanager.WindowPlacement](): {
-			string(windowmanager.WindowPlacementTiled),
-			string(windowmanager.WindowPlacementStacked),
-			string(windowmanager.WindowPlacementFloating),
-		},
 		reflect.TypeFor[windowmanager.NavigateMode](): {
 			"replace",
 			string(windowmanager.NavigatePush),

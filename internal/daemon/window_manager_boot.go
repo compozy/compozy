@@ -295,9 +295,6 @@ func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.
 		FocusPolicy:         windowmanager.FocusPolicy(cfg.FocusPolicy),
 		FocusWrap:           cfg.FocusWrap,
 		FocusFollowsPointer: cfg.FocusFollowsPointer,
-		RaiseOnFocus:        cfg.RaiseOnFocus,
-		DragAwayPolicy:      windowmanager.DragAwayPolicy(cfg.DragAwayPolicy),
-		GroupMoveModifier:   cfg.GroupMoveModifier,
 		SwapModifier:        cfg.SwapModifier,
 		HistoryLimit:        cfg.HistoryLimit,
 		NavStackLimit:       cfg.NavStackLimit,
@@ -307,35 +304,28 @@ func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.
 			Inner: float64(cfg.Gaps.Inner), Top: float64(cfg.Gaps.Top),
 			Right: float64(cfg.Gaps.Right), Bottom: float64(cfg.Gaps.Bottom), Left: float64(cfg.Gaps.Left),
 		},
-		Snap: windowmanager.SnapConfig{
-			EdgeBand: float64(cfg.Snap.EdgeBand), CornerReach: float64(cfg.Snap.CornerReach),
-			ExitSlack: float64(cfg.Snap.ExitSlack), RepeatRatios: append([]float64(nil), cfg.Snap.RepeatRatios...),
-		},
-		Bindings: windowmanager.BindingsConfig{
-			TopCenter: cfg.Bindings.TopCenter, BottomCenter: cfg.Bindings.BottomCenter,
-		},
 		Shortcuts: windowmanager.CloneShortcutMap(cfg.Shortcuts),
 	}
 }
 
 func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowManagerConfig, error) {
-	inner, err := windowManagerInteger("gaps.inner", defaults.Gaps.Inner, 0, 64)
+	inner, err := windowManagerInteger("gaps.inner", defaults.Gaps.Inner, 64)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	top, err := windowManagerInteger("gaps.top", defaults.Gaps.Top, 0, 64)
+	top, err := windowManagerInteger("gaps.top", defaults.Gaps.Top, 64)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	right, err := windowManagerInteger("gaps.right", defaults.Gaps.Right, 0, 64)
+	right, err := windowManagerInteger("gaps.right", defaults.Gaps.Right, 64)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	bottom, err := windowManagerInteger("gaps.bottom", defaults.Gaps.Bottom, 0, 64)
+	bottom, err := windowManagerInteger("gaps.bottom", defaults.Gaps.Bottom, 64)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	left, err := windowManagerInteger("gaps.left", defaults.Gaps.Left, 0, 64)
+	left, err := windowManagerInteger("gaps.left", defaults.Gaps.Left, 64)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
@@ -345,9 +335,6 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 		FocusPolicy:         string(defaults.FocusPolicy),
 		FocusWrap:           defaults.FocusWrap,
 		FocusFollowsPointer: defaults.FocusFollowsPointer,
-		RaiseOnFocus:        defaults.RaiseOnFocus,
-		DragAwayPolicy:      string(defaults.DragAwayPolicy),
-		GroupMoveModifier:   defaults.GroupMoveModifier,
 		SwapModifier:        defaults.SwapModifier,
 		HistoryLimit:        defaults.HistoryLimit,
 		NavStackLimit:       defaults.NavStackLimit,
@@ -360,13 +347,13 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 	}, nil
 }
 
-func windowManagerInteger(path string, value float64, minimum int, maximum int) (int, error) {
+func windowManagerInteger(path string, value float64, maximum int) (int, error) {
 	if math.IsNaN(value) || math.IsInf(value, 0) || math.Trunc(value) != value ||
-		value < float64(minimum) || value > float64(maximum) {
+		value < 0 || value > float64(maximum) {
 		return 0, fmt.Errorf(
 			"daemon: active window-manager %s must be an integer between %d and %d, got %v",
 			path,
-			minimum,
+			0,
 			maximum,
 			value,
 		)

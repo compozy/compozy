@@ -7,6 +7,15 @@ import (
 
 const legacyNodeKindStack NodeKind = "stack"
 
+// WindowPlacement is retained only for permanent v3/v4/v5 migration.
+type WindowPlacement string
+
+const (
+	WindowPlacementTiled    WindowPlacement = "tiled"
+	WindowPlacementStacked  WindowPlacement = "stacked"
+	WindowPlacementFloating WindowPlacement = "floating"
+)
+
 type SnapshotV5 struct {
 	Version       uint32                `json:"version"`
 	WorkspaceID   WorkspaceID           `json:"workspace_id"`

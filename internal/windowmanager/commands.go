@@ -332,11 +332,11 @@ type ChangeSet struct {
 	TabUnsplit     []TabID     `json:"tab_unsplit,omitempty"`
 	DesktopIDs     []DesktopID `json:"desktop_ids,omitempty"`
 	WindowIDs      []WindowID  `json:"window_ids,omitempty"`
-	GroupIDs       []GroupID   `json:"group_ids,omitempty"`
+	GroupIDs       []GroupID   `json:"group_ids,omitempty" deprecated:"true"`
 	NodeIDs        []NodeID    `json:"node_ids,omitempty"`
 	ClientIDs      []ClientID  `json:"client_ids,omitempty"`
-	StackGrouped   []NodeID    `json:"stack_grouped,omitempty"`
-	StackUngrouped []NodeID    `json:"stack_ungrouped,omitempty"`
+	StackGrouped   []NodeID    `json:"stack_grouped,omitempty" deprecated:"true"`
+	StackUngrouped []NodeID    `json:"stack_ungrouped,omitempty" deprecated:"true"`
 }
 
 // Result reports one applied or no-op command.

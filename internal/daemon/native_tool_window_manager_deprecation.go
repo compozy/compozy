@@ -28,8 +28,8 @@ func windowManagerToolDeprecations(toolID toolspkg.ToolID, entries []windowmanag
 		} else {
 			field := entry.Surface
 			for _, prefix := range []string{"window.open.window.", "window.open.", "window.close.", "window.move.", "layout.arrange.", "layout.balance."} {
-				if strings.HasPrefix(field, prefix) {
-					field = strings.TrimPrefix(field, prefix)
+				if suffix, ok := strings.CutPrefix(field, prefix); ok {
+					field = suffix
 					break
 				}
 			}

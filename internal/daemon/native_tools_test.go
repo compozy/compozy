@@ -2642,6 +2642,15 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("retired %s changed revision", item.id)
 			}
 		}
+		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantWindowIDs := make([]windowmanager.WindowID, 0, len(snapshot.Windows))
+		for id := range snapshot.Windows {
+			wantWindowIDs = append(wantWindowIDs, id)
+		}
+		slices.Sort(wantWindowIDs)
 		for _, include := range []bool{false, true} {
 			listed, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDWindowList, Input: json.RawMessage(fmt.Sprintf(`{"include_minimized":%v}`, include))})
 			if err != nil {
@@ -2655,8 +2664,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			if include {
 				want = 1
 			}
-			if len(payload.Windows) != 2 || len(payload.Deprecations) != want {
+			if len(payload.Windows) != len(snapshot.Windows) || len(payload.Deprecations) != want {
 				t.Fatalf("listed=%+v", payload)
+			}
+			windowIDs := make([]windowmanager.WindowID, 0, len(payload.Windows))
+			for _, window := range payload.Windows {
+				windowIDs = append(windowIDs, window.ID)
+			}
+			slices.Sort(windowIDs)
+			if !slices.Equal(windowIDs, wantWindowIDs) {
+				t.Fatalf("listed windows = %v, want every open window %v", windowIDs, wantWindowIDs)
 			}
 			if include && (payload.Deprecations[0].Surface != "compozy__window_list.include_minimized" || payload.Deprecations[0].Replacement == "") {
 				t.Fatalf("deprecation=%+v", payload.Deprecations)
@@ -2687,7 +2704,6 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("preview mutated revision: %+v err=%v", after, err)
 			}
 		}
-
 	})
 
 	t.Run("Should execute window manager tools through scoped revisioned state", func(t *testing.T) {

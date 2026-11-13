@@ -28,11 +28,11 @@ func (c *daemonClient) WindowManagerMigration(ctx context.Context, workspace, ac
 
 func newLayoutMigrationCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "migration", Short: "Inspect or recover the layout upgrade", Args: cobra.NoArgs}
-	for _, action := range []string{"status", "ack", "retry"} {
+	for _, action := range []string{"status", "ack", appRetryMethod} {
 		var workspace string
 		var replace bool
 		child := &cobra.Command{
-			Use: action, Short: map[string]string{"status": "Show the layout migration status", "ack": "Acknowledge the layout migration notice", "retry": "Retry the preserved layout migration"}[action], Args: cobra.NoArgs,
+			Use: action, Short: map[string]string{"status": "Show the layout migration status", "ack": "Acknowledge the layout migration notice", appRetryMethod: "Retry the preserved layout migration"}[action], Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 				if err != nil {
@@ -54,7 +54,7 @@ func newLayoutMigrationCommand(deps commandDeps) *cobra.Command {
 			},
 		}
 		child.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
-		if action == "retry" {
+		if action == appRetryMethod {
 			child.Flags().BoolVar(&replace, "replace", false, "Replace a layout changed after the failed migration")
 		}
 		cmd.AddCommand(child)

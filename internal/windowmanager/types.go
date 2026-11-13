@@ -58,14 +58,6 @@ const (
 	AxisVertical   Axis = "vertical"
 )
 
-type WindowPlacement string
-
-const (
-	WindowPlacementTiled    WindowPlacement = "tiled"
-	WindowPlacementStacked  WindowPlacement = "stacked"
-	WindowPlacementFloating WindowPlacement = "floating"
-)
-
 // RouteSearch is a canonical JSON object containing durable route search state.
 type RouteSearch map[string]json.RawMessage
 
@@ -168,7 +160,7 @@ type ClientView struct {
 	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitzero"`
 	FocusOrder           []WindowID                   `json:"focus_order"`
 	ActiveTab            map[DesktopID]TabID          `json:"active_tab"`
-	StackActive          map[NodeID]WindowID          `json:"stack_active"`
+	StackActive          map[NodeID]WindowID          `json:"stack_active" deprecated:"true"`
 	PaletteContext       PaletteContext               `json:"palette_context"`
 	GlobalShortcuts      []GlobalShortcutRegistration `json:"global_shortcuts"`
 	ConnectedAt          time.Time                    `json:"connected_at"`
@@ -178,9 +170,9 @@ type ClientView struct {
 // PaletteContext is the volatile, client-targeted availability snapshot.
 type PaletteContext struct {
 	WindowFocused       bool         `json:"window_focused"`
-	WindowFloating      bool         `json:"window_floating"`
+	WindowFloating      bool         `json:"window_floating" deprecated:"true"`
 	WindowInSplit       bool         `json:"window_in_split"`
-	WindowStacked       bool         `json:"window_stacked"`
+	WindowStacked       bool         `json:"window_stacked" deprecated:"true"`
 	DesktopWindowCount  int          `json:"desktop_window_count"`
 	ScopeGlobal         bool         `json:"scope_global"`
 	ShellDesktop        bool         `json:"shell_desktop"`

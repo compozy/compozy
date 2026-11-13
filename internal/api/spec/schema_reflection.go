@@ -194,7 +194,11 @@ func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 	return openapi3.NewSchemaRef("", schema)
 }
 
-func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *openapi3.Schema) error {
+func schemaCustomizer(_ string, t reflect.Type, tag reflect.StructTag, schema *openapi3.Schema) error {
+	if tag.Get("deprecated") == "true" {
+		schema.Deprecated = true
+		schema.Description = "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement."
+	}
 	if t.Kind() == reflect.Uint64 {
 		schema.Format = "uint64"
 		schema.Min = new(float64(0))

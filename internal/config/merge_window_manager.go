@@ -44,8 +44,6 @@ type windowManagerBindingOverlay struct {
 }
 
 func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
-	dst.RaiseOnFocus, dst.DragAwayPolicy, dst.GroupMoveModifier = false, "", ""
-	dst.Snap, dst.Bindings = WindowManagerSnapConfig{}, WindowManagerBindingConfig{}
 	applyStringPointer(o.NewWindowPolicy, &dst.NewWindowPolicy)
 	if dst.NewWindowPolicy == WindowNewPolicyFloating {
 		dst.warnRetiredKey("new_window_policy", true)

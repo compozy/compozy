@@ -2,6 +2,9 @@ package config
 
 import "github.com/compozy/compozy/internal/windowmanager"
 
+// WindowNewPolicyFloating is translated only at public boundaries until v0.8.0.
+const WindowNewPolicyFloating = "floating"
+
 // Retired window-manager keys are accepted with any value until v0.8.0.
 // WithWindowManagerWarning routes compatibility warnings to the caller's output.
 func WithWindowManagerWarning(warn func(string, bool)) LoadOption {

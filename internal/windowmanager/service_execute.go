@@ -86,8 +86,6 @@ func isObservableCommand(commandID CommandID) bool {
 		CommandWindowOpen,
 		CommandWindowClose,
 		CommandWindowMove,
-		CommandWindowResize,
-		CommandWindowToggleFloating,
 		CommandWindowStackGroup,
 		CommandWindowTabActivate,
 		CommandWindowReopen,

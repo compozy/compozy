@@ -44,7 +44,7 @@ func warnWindowManagerDeprecations(cmd *cobra.Command, deprecations []windowmana
 			"window.move", "window move", "window.open", "window open", "window.close", "window close",
 			"layout.resize", "layout resize", "layout.arrange", "layout arrange", "layout.balance.tab_id", "layout balance --tab",
 		).Replace(deprecation.Replacement)
-		cmd.PrintErrln(fmt.Sprintf("warning: `%s` is deprecated; %s Use %s. It will be deleted in %s.",
+		cmd.PrintErrln(fmt.Sprintf("warning: %#q is deprecated; %s Use %s. It will be deleted in %s.",
 			surface, deprecation.Message, replacement, deprecation.RemovalRelease))
 	}
 }

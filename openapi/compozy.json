@@ -4470,7 +4470,11 @@
             "type": "array"
           },
           "group_ids": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "items": {
+              "deprecated": true,
+              "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
               "type": "string"
             },
             "type": "array"
@@ -4482,13 +4486,21 @@
             "type": "array"
           },
           "stack_grouped": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "items": {
+              "deprecated": true,
+              "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
               "type": "string"
             },
             "type": "array"
           },
           "stack_ungrouped": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "items": {
+              "deprecated": true,
+              "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
               "type": "string"
             },
             "type": "array"
@@ -6000,8 +6012,12 @@
           },
           "stack_active": {
             "additionalProperties": {
+              "deprecated": true,
+              "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
               "type": "string"
             },
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "object"
           },
           "workspace_id": {
@@ -19589,6 +19605,8 @@
         "type": "object"
       },
       "NormalizedRect": {
+        "deprecated": true,
+        "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
         "properties": {
           "height": {
             "format": "double",
@@ -45580,9 +45598,13 @@
             "$ref": "#/components/schemas/NormalizedRect"
           },
           "group_id": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "string"
           },
           "keep_frames": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "boolean"
           },
           "resource_id": {
@@ -45608,6 +45630,8 @@
         "additionalProperties": false,
         "properties": {
           "group_id": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "nullable": true,
             "type": "string"
           },
@@ -45770,8 +45794,12 @@
           },
           "stack_active": {
             "additionalProperties": {
+              "deprecated": true,
+              "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
               "type": "string"
             },
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "object"
           },
           "workspace_id": {
@@ -45817,6 +45845,8 @@
         "additionalProperties": false,
         "properties": {
           "minimize": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "boolean"
           },
           "scope": {
@@ -47641,6 +47671,8 @@
             "$ref": "#/components/schemas/NormalizedRect"
           },
           "group_id": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "string"
           }
         },
@@ -47654,6 +47686,8 @@
         "additionalProperties": false,
         "properties": {
           "insert_index": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "nullable": true,
             "type": "integer"
           },
@@ -47990,6 +48024,8 @@
         "additionalProperties": false,
         "properties": {
           "restore_window_id": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "nullable": true,
             "type": "string"
           },
@@ -48030,6 +48066,8 @@
             "type": "boolean"
           },
           "window_floating": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "boolean"
           },
           "window_focused": {
@@ -48039,6 +48077,8 @@
             "type": "boolean"
           },
           "window_stacked": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "boolean"
           },
           "workspace_trusted": {
@@ -48559,6 +48599,8 @@
             "type": "string"
           },
           "floating": {
+            "deprecated": true,
+            "description": "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.",
             "type": "boolean"
           },
           "floating_rect": {

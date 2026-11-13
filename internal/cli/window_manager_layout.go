@@ -96,7 +96,7 @@ func newLayoutPreviewCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			warnWindowManagerDeprecations(cmd, preview.Deprecations)
-			return writeCommandOutput(cmd, windowManagerPreviewBundle(preview))
+			return writeCommandOutput(cmd, windowManagerPreviewBundle(&preview))
 		},
 	}
 	flags.add(cmd)
@@ -194,7 +194,7 @@ func newLayoutApplyCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
