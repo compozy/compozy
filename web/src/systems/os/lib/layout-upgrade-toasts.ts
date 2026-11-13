@@ -26,14 +26,19 @@ function writeToasted(ids: string[]): void {
  * off already account for it). `told` keeps the page's own record when storage is unavailable.
  * The stored record keeps exactly the told occurrences the list still holds: one that left the
  * list (read, dismissed) never comes back, and one still listed is never forgotten, so the record
- * is bounded by the list rather than by a count that could drop an unread occurrence.
+ * is bounded by the list rather than by a count that could drop an unread occurrence. Storage is
+ * read only when the list holds an occurrence `told` does not have yet.
  */
 export function takeUntoldLayoutUpgrades(
   rows: readonly OsAttentionRow[],
   told: Set<string>
 ): OsLayoutUpgradeAttentionRow[] {
-  const stored = readToasted();
-  for (const id of stored) told.add(id);
+  // Storage is read only for an occurrence this page has not seen, not on every render.
+  const unseen = rows.some(
+    row => row.kind === "layout-upgrade" && !row.stale && !told.has(row.notificationId ?? row.id)
+  );
+  if (!unseen) return [];
+  for (const id of readToasted()) told.add(id);
   const untold: OsLayoutUpgradeAttentionRow[] = [];
   for (const row of rows) {
     if (row.kind !== "layout-upgrade" || row.stale) continue;

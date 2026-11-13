@@ -3,7 +3,7 @@
 // even before the attention catalog resolves the sending session.
 // A layout upgrade is offered to the toast once per occurrence per client, across reloads.
 // Owning layer: OS notifier. No prior suite owned this delivery-to-jump mapping.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OsAttentionRow, OsLayoutUpgradeAttentionRow } from "../../lib/attention-model";
 import { takeUntoldLayoutUpgrades } from "../../lib/layout-upgrade-toasts";
@@ -114,6 +114,22 @@ describe("takeUntoldLayoutUpgrades", () => {
     expect(stored).toHaveLength(70);
     expect(stored).not.toContain("occ-0");
     expect(stored).toContain("occ-70");
+  });
+
+  it("Should read storage only for an occurrence the page has not seen", () => {
+    const told = new Set<string>();
+    const row = layoutUpgrade("occ-1");
+    expect(takeUntoldLayoutUpgrades([row], told)).toEqual([row]);
+    const read = vi.spyOn(Storage.prototype, "getItem");
+
+    // The notifier re-renders with the same list.
+    expect(takeUntoldLayoutUpgrades([row], told)).toEqual([]);
+    expect(read).not.toHaveBeenCalled();
+
+    const next = layoutUpgrade("occ-2");
+    expect(takeUntoldLayoutUpgrades([row, next], told)).toEqual([next]);
+    expect(read).toHaveBeenCalledOnce();
+    read.mockRestore();
   });
 
   it("Should keep telling once per page when storage is unreadable", () => {
