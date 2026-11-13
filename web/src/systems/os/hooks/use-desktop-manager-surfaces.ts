@@ -8,6 +8,7 @@ import {
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import {
+  useDesktopOverviewDesktopAction,
   useDesktopOverviewSegmentRequest,
   usePendingWindowManagerCommand,
   useWindowManagerConflict,
@@ -19,6 +20,7 @@ import {
 export function useDesktopManagerSurfaces() {
   const overlay = useWindowManagerOverlay();
   const overviewSegmentRequest = useDesktopOverviewSegmentRequest();
+  const overviewDesktopAction = useDesktopOverviewDesktopAction();
   const conflict = useWindowManagerConflict();
   const diagnostic = useWindowManagerDiagnostic();
   const pending = usePendingWindowManagerCommand();
@@ -71,6 +73,7 @@ export function useDesktopManagerSurfaces() {
     diagnostic,
     hydration,
     overlay,
+    overviewDesktopAction,
     overviewSegmentRequest,
     pending,
   };

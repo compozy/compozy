@@ -9,7 +9,7 @@ export {
   type MenubarUpdateModel,
 } from "./menubar/menubar-update-indicator";
 export { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "./os-workspaces-overview";
-export { DesktopPager, type DesktopPagerProps } from "./desktop-pager";
+export { DesktopIndicators, type DesktopIndicatorsProps } from "./desktop-indicators";
 export { DesktopsOverview, type DesktopsOverviewProps } from "./desktops-overview";
 export { OsWallpaper, type OsWallpaperProps, type OsWallpaperKind } from "./os-wallpaper";
 export { OsWindowSurface, type OsWindowSurfaceProps } from "./os-window-surface";

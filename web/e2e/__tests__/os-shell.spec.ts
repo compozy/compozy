@@ -2523,13 +2523,14 @@ test("Tabs-split E2E-010: directional focus, tile left, Split with, and undo/red
   await expect.poll(() => tabMembers(tasksID)).toEqual([agentsID, tasksID]);
 });
 
-// Invariant: the overview lists every desktop's tabs; a tab row dragged onto another card moves
+// Invariant: a tab dragged onto a top-bar desktop indicator moves to that desktop and each bar
+// reflects it; the overview lists every desktop's tabs; a tab row dragged onto another card moves
 // the whole tab there; choosing a tab switches to its desktop, activates it and closes the
 // overview; a card dragged onto another reorders desktops; Escape closes and leaves the desktop
 // as it was; closing a desktop with tabs asks for a destination and moves them, closing none
-// (US-014, US-016). Owner: desktops overview + tab drag store `desktop` target + desktop
-// commands; canonical suite: this file.
-test("Tabs-split E2E-011: the overview lists tabs per desktop, moves a dragged tab, jumps, reorders and closes into a destination", async ({
+// (US-014, US-015, US-016). Owner: desktop indicators + desktops overview + tab drag store
+// `desktop` target + desktop commands; canonical suite: this file.
+test("Tabs-split E2E-011: a tab dragged onto a desktop indicator moves there; the overview lists tabs per desktop, moves a dragged tab, jumps, reorders and closes into a destination", async ({
   appPage,
   runtime,
 }) => {
@@ -2548,8 +2549,38 @@ test("Tabs-split E2E-011: the overview lists tabs per desktop, moves a dragged t
   if (!agentsTab) throw new Error("Agents must sit in an authoritative tab");
   const firstTabs = desktopTabIds(snapshot, "desktop-default");
 
-  // S9 owns the first E2E-011 step: drag a tab onto its top-bar indicator, and each desktop's
-  // bar reflects the move. It lands with the indicators; the overview steps follow.
+  const tasksTab = tabForWindow(snapshot, tasksID)?.id;
+  if (!tasksTab) throw new Error("Tasks must sit in an authoritative tab");
+  const indicators = appPage.getByRole("navigation", { name: "Desktops" });
+  const dragTabOntoIndicator = async (tabId: string, desktopName: string) => {
+    await startPointerDrag(appPage, await boxCenter(shell.tab(tabId)));
+    // During the drag every indicator grows into a labelled drop target.
+    const target = indicators.getByRole("button", { name: `Move tab to ${desktopName}` });
+    await movePointer(appPage, await boxCenter(target));
+    await expect(target).toHaveAttribute("data-drop-target", "true");
+    await appPage.mouse.up();
+  };
+
+  await test.step("a tab dragged onto a top-bar indicator moves there and each bar shows it", async () => {
+    await dragTabOntoIndicator(tasksTab, "Second");
+    await expect
+      .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
+      .toMatchObject({ desktop_id: second, tab_id: tasksTab });
+    await expect(shell.tab(tasksTab)).toHaveCount(0);
+    await indicators.getByRole("button", { name: "Desktop 2 of 2: Second" }).click();
+    await expect(activeDesktop(appPage, second)).toHaveAttribute("data-active", "true");
+    await expect(shell.tab(tasksTab)).toBeVisible();
+
+    // And back, so the overview steps start from the fixture's own tabs.
+    await dragTabOntoIndicator(tasksTab, "Desktop 1");
+    await expect
+      .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
+      .toMatchObject({ desktop_id: "desktop-default", tab_id: tasksTab });
+    await expect(shell.tab(tasksTab)).toHaveCount(0);
+    await indicators.getByRole("button", { name: "Desktop 1 of 2: Desktop 1" }).click();
+    await expect(activeDesktop(appPage, "desktop-default")).toHaveAttribute("data-active", "true");
+    await expect(shell.tab(tasksTab)).toBeVisible();
+  });
 
   const overview = appPage.locator('[data-slot="desktops-overview"]');
   const openOverview = async () => {

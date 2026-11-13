@@ -1,5 +1,6 @@
 import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 import type {
+  DesktopOverviewDesktopAction,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -39,6 +40,12 @@ export function selectDesktopOverviewSegmentRequest(
   state: WindowManagerStoreState
 ): DesktopOverviewSegmentRequest | null {
   return state.overviewSegmentRequest;
+}
+
+export function selectDesktopOverviewDesktopAction(
+  state: WindowManagerStoreState
+): DesktopOverviewDesktopAction | null {
+  return state.overviewDesktopAction;
 }
 
 export function selectDesktopTransitionIntent(

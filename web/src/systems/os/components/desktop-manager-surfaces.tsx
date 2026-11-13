@@ -3,7 +3,11 @@ import { useState } from "react";
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useTabSessions } from "../hooks/use-os-tab-bar";
-import { useOsTabDragDesktopTarget, useOsTabDragStart } from "../hooks/use-os-tab-drag";
+import {
+  useOsTabDragDesktopTarget,
+  useOsTabDragSourceDesktop,
+  useOsTabDragStart,
+} from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
 import {
   DesktopsOverview,
@@ -74,6 +78,9 @@ export function DesktopManagerSurfaces({
   const { coordinator } = useOsShell();
   const { startOverviewTabDrag } = useOsTabDragStart();
   const dropTargetDesktopId = useOsTabDragDesktopTarget();
+  // While a tab is dragged the overview is a drop surface: never modal, so it cannot trap focus,
+  // make the dragged tab inert or take the release as an outside press.
+  const dropSurface = useOsTabDragSourceDesktop() !== null;
   const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => ({
     ...desktop,
     needsYou: needsYouDesktopIds.has(desktop.id),
@@ -108,6 +115,8 @@ export function DesktopManagerSurfaces({
         container={overlayHost}
         state={overview}
         initialFocusSegment={model.overviewSegmentRequest}
+        desktopAction={model.overviewDesktopAction}
+        dropSurface={dropSurface}
         busy={model.pending !== null}
         canMutate={model.canMutate}
         onOpenChange={onOpenChange}

@@ -22,7 +22,7 @@ import { DesktopMenubar } from "./desktop-menubar";
 import type { MenubarUpdateModel } from "./menubar/menubar-update-indicator";
 import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
-import { DesktopPagerSurface } from "./desktop-pager-surface";
+import { DesktopIndicatorsSurface } from "./desktop-indicators-surface";
 import { DesktopSessionDialogs, WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
 import { ProcessesLeftRunningHost } from "@/systems/session";
 
@@ -280,7 +280,7 @@ function DesktopShellScopedBody({
         onRemoveWorktree={worktreeDialogs.requestRemove}
         onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
         pager={
-          <DesktopPagerSurface
+          <DesktopIndicatorsSurface
             activeDesktopId={pager.activeDesktopId}
             desktops={pager.desktops}
             needsYouDesktopIds={pager.needsYouDesktopIds}

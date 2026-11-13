@@ -27,3 +27,7 @@ QA impact 2026-10-19 (#825): a just-created session now lands in an existing Ses
 QA impact 2026-10-20 (#862): select a runtime before a session exists, change reasoning/Fast where advertised, reload to confirm text/runtime persistence, attach a file and send once. Confirm the resulting session owns the selected runtime and file, then compare both composers. Repeat at a narrow viewport and retain the All projects composer canary (no "Pick a project" anywhere). Local file selections remain browser-memory drafts until a session owns their upload.
 
 Regression follow-up (#862, first-message upload): hold an attachment upload, remove the file, then close/reopen both before upload cleanup settles and after manually sending the remaining text. The removed file must never return; the text must not send again. Also manually submit a first-message composer while its upload is pending and verify reopening cannot replay the handoff.
+
+QA impact 2026-11-13 (window-tabs-split S9): a new desktop can also come from **New desktop** in a
+top-bar desktop dot's menu; walk the empty-desktop start from there once. A desktop whose last tab
+is dragged to another desktop keeps a New Tab window rather than going empty.

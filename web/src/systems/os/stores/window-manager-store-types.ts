@@ -34,6 +34,12 @@ export interface DesktopOverviewSegmentRequest {
   readonly anchorDesktopId: DesktopId;
 }
 
+/** A desktop menu action the overview finishes on its card: rename, or close with a destination. */
+export interface DesktopOverviewDesktopAction {
+  readonly desktopId: DesktopId;
+  readonly action: "rename" | "close";
+}
+
 export interface DesktopTransitionIntent {
   readonly fromDesktopId: DesktopId;
   readonly toDesktopId: DesktopId;
@@ -97,6 +103,7 @@ export interface WindowManagerStoreState {
   readonly workArea: WindowManagerWorkArea | null;
   readonly activeOverlay: WindowManagerOverlay | null;
   readonly overviewSegmentRequest: DesktopOverviewSegmentRequest | null;
+  readonly overviewDesktopAction: DesktopOverviewDesktopAction | null;
   readonly transitionIntent: DesktopTransitionIntent | null;
   readonly routeIntents: Readonly<Record<string, WindowRouteIntent>>;
   readonly paletteIntent: WindowPaletteIntent | null;
@@ -120,6 +127,7 @@ export type WindowManagerStoreEvents = {
   overlayOpened: { overlay: WindowManagerOverlay };
   overlayClosed: {};
   overviewSegmentRequested: { request: DesktopOverviewSegmentRequest };
+  overviewDesktopActionRequested: { request: DesktopOverviewDesktopAction };
   desktopStateObserved: {
     activeDesktopId: string;
     reconciledIntent: DesktopTransitionIntent | null;

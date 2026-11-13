@@ -20,6 +20,11 @@ export interface DeleteButtonProps extends Omit<
   confirmLabel?: string;
   /** Controlled phase; omitted, the button runs itself. */
   phase?: DeleteButtonPhase;
+  /**
+   * The phase an uncontrolled button mounts in. `"open"` mounts it asking for confirmation, with
+   * focus on the cross, as if the bin had just been pressed.
+   */
+  defaultPhase?: Exclude<DeleteButtonPhase, "confirmed">;
   onPhaseChange?: (phase: DeleteButtonPhase) => void;
   /** Confirm stays unavailable until this is true (for example, until a destination is chosen). */
   canConfirm?: boolean;
@@ -49,6 +54,7 @@ function DeleteButton({
   cancelLabel = "Cancel",
   confirmLabel,
   phase,
+  defaultPhase = "rest",
   onPhaseChange,
   canConfirm = true,
   disabled = false,
@@ -58,14 +64,16 @@ function DeleteButton({
   className,
   ...props
 }: DeleteButtonProps) {
-  const [ownPhase, setOwnPhase] = React.useState<DeleteButtonPhase>("rest");
+  const [ownPhase, setOwnPhase] = React.useState<DeleteButtonPhase>(defaultPhase);
   const current = phase ?? ownPhase;
   const reduced = useReducedMotionConfig() === true;
   const transition = reduced ? INSTANT : SPRING;
   const binRef = React.useRef<HTMLButtonElement | null>(null);
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
   // Where focus goes once the next phase has rendered its controls.
-  const focusNext = React.useRef<"bin" | "cancel" | null>(null);
+  const focusNext = React.useRef<"bin" | "cancel" | null>(
+    defaultPhase === "open" ? "cancel" : null
+  );
 
   const go = (next: DeleteButtonPhase, focus: "bin" | "cancel" | null) => {
     focusNext.current = focus;

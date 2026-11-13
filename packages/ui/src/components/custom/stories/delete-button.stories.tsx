@@ -25,6 +25,9 @@ export const Rest: Story = {};
 
 export const Open: Story = { args: { phase: "open" } };
 
+/** Uncontrolled, mounted asking for confirmation: a host that opens straight into the confirm. */
+export const DefaultOpen: Story = { args: { defaultPhase: "open" } };
+
 /** Confirm waits for a precondition, such as a destination for the removed item's contents. */
 export const ConfirmUnavailable: Story = { args: { phase: "open", canConfirm: false } };
 

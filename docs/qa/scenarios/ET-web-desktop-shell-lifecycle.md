@@ -204,3 +204,8 @@ recovers on the next catalog observation even when the rows are unchanged. With 
 CPU throttled 6x, a 20 s idle window on both peers recorded 6 and 4 long tasks of
 71–130 ms before the change and none after. The workspace hook suites cover both
 behaviors; repeated unmodified E2E-023 runs passed with 0 ms peer-convergence tasks.
+
+QA impact 2026-11-13 (window-tabs-split S9): the topbar pager was replaced by the desktop
+indicators. On boot and during stream loss confirm the dots render, switching is
+`aria-disabled` and the dot menu does not open until a registered client is live, and that
+reconnect re-enables both without a remount of the desk.

@@ -59,3 +59,8 @@ roles, focus containment, and absence of retained-focus aria-hidden warnings.
 
 Focused evidence and limits: [2026-10-29 overlay focus report](../reports/2026-10-29-overlay-focus-handoff.md).
 Historical unrelated menu coverage remains unchanged.
+
+qa-impact: 2026-11-13 window-tabs-split S9: the tray's desktop dots gained a context menu (Rename,
+Move left, Move right, Close desktop, New desktop) and grow into drop targets during a tab drag.
+They stay outside every `role="menubar"`; confirm menubar traversal skips them. Behavior is owned
+by RT-desktop-pager-overview.

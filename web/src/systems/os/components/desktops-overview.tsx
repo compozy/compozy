@@ -60,6 +60,12 @@ export interface DesktopOverviewFocusSegment {
   readonly hiddenDesktopIds: readonly string[];
 }
 
+/** A desktop menu action the overview opens on: that card starts renaming, or closing. */
+export interface DesktopOverviewAction {
+  readonly desktopId: string;
+  readonly action: "rename" | "close";
+}
+
 export interface DesktopsOverviewProps {
   open: boolean;
   /**
@@ -69,6 +75,13 @@ export interface DesktopsOverviewProps {
   container?: HTMLElement | null;
   state: DesktopsOverviewState;
   initialFocusSegment?: DesktopOverviewFocusSegment | null;
+  /** Opened from a desktop indicator's menu: the card finishes the action, focus lands in it. */
+  desktopAction?: DesktopOverviewAction | null;
+  /**
+   * A tab is being dragged: the overview is a drop surface and is not modal, so it neither traps
+   * focus nor makes the dragged tab inert, and the release is not an outside press.
+   */
+  dropSurface?: boolean;
   busy?: boolean;
   canMutate?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -105,6 +118,8 @@ export function DesktopsOverview({
   container = null,
   state,
   initialFocusSegment,
+  desktopAction = null,
+  dropSurface = false,
   busy = false,
   canMutate = true,
   onOpenChange,
@@ -124,8 +139,10 @@ export function DesktopsOverview({
   const initialFocusRef = useRef<HTMLButtonElement | null>(null);
   const ready = state.status === "ready" ? state : null;
   const empty = ready?.desktops.length === 0;
-  const requestedFocusDesktopId =
-    nearestHiddenDesktopId(initialFocusSegment) ?? ready?.activeDesktopId ?? null;
+  // A menu action focuses inside its card (the rename field, the close confirm), not the thumbnail.
+  const requestedFocusDesktopId = desktopAction
+    ? null
+    : (nearestHiddenDesktopId(initialFocusSegment) ?? ready?.activeDesktopId ?? null);
   const initialFocusDesktopId =
     ready?.desktops.some(desktop => desktop.id === requestedFocusDesktopId) === true
       ? requestedFocusDesktopId
@@ -136,7 +153,7 @@ export function DesktopsOverview({
     <OverlayContainerContext value={container}>
       <Dialog
         open={open}
-        modal
+        modal={!dropSurface}
         disablePointerDismissal={false}
         onOpenChange={(next, details) => {
           // The All desktops button toggles the overview itself; an outside
@@ -204,6 +221,7 @@ export function DesktopsOverview({
                 busy={mutationsDisabled}
                 initialFocusDesktopId={initialFocusDesktopId}
                 initialFocusRef={initialFocusRef}
+                desktopAction={desktopAction}
                 sessionOf={sessionOf}
                 dropTargetDesktopId={dropTargetDesktopId}
                 onOpenChange={onOpenChange}

@@ -5,6 +5,7 @@ import { DeskProfileContext } from "../contexts/desk-profile-context";
 
 import type { PaletteViewFrame } from "../lib/palette-view-stack";
 import {
+  selectDesktopOverviewDesktopAction,
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,
@@ -12,6 +13,7 @@ import {
   selectWindowManagerDiagnostic,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,
+  type DesktopOverviewDesktopAction,
   type DesktopOverviewSegmentRequest,
   type DesktopTransitionIntent,
   type PendingWindowManagerCommand,
@@ -46,6 +48,12 @@ export function useWindowManagerOverlay(): WindowManagerOverlay | null {
 export function useDesktopOverviewSegmentRequest(): DesktopOverviewSegmentRequest | null {
   return useSelector(windowManagerStore, snapshot =>
     selectDesktopOverviewSegmentRequest(snapshot.context)
+  );
+}
+
+export function useDesktopOverviewDesktopAction(): DesktopOverviewDesktopAction | null {
+  return useSelector(windowManagerStore, snapshot =>
+    selectDesktopOverviewDesktopAction(snapshot.context)
   );
 }
 

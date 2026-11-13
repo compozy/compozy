@@ -1,7 +1,8 @@
 // Suite: in-place confirm delete button
 // Invariant: the bin opens a cancel/confirm pair without acting; only the check confirms, and only
 // when confirmation is available; the cross and Escape cancel and return focus to the bin; each
-// phase is announced; an uncontrolled button rests again after the confirmed hold.
+// phase is announced; an uncontrolled button rests again after the confirmed hold; a button mounted
+// open asks for confirmation with focus on the cross.
 // Boundary IN: DeleteButton phases, focus, keyboard, callbacks, live region.
 // Boundary OUT: what the host deletes and how it reacts.
 import { act, render, screen } from "@testing-library/react";
@@ -63,6 +64,22 @@ describe("DeleteButton", () => {
     expect(confirm).toBeDisabled();
     await user.click(confirm);
     expect(callbacks.onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("Should mount open with focus on the cross when the default phase is open", async () => {
+    const user = userEvent.setup();
+    const callbacks = setup({ defaultPhase: "open" });
+
+    expect(screen.getByRole("group", { name: "Close Review" })).toHaveAttribute(
+      "data-phase",
+      "open"
+    );
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(callbacks.onPhaseChange).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Close Review" })).toHaveFocus();
   });
 
   it("Should return an uncontrolled button to rest after the confirmed hold", async () => {

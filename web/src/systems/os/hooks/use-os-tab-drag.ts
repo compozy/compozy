@@ -384,6 +384,13 @@ export function useOsTabDrag() {
   return useSelector(osTabDragStore, snapshot => snapshot.context);
 }
 
+/** The desktop a tab or window head is dragged from, while a drag is under way; else null. */
+export function useOsTabDragSourceDesktop(): string | null {
+  return useSelector(osTabDragStore, snapshot =>
+    snapshot.context.phase === "dragging" ? (snapshot.context.session?.desktopId ?? null) : null
+  );
+}
+
 /** The desktop a dragged tab would move to on release, for highlighting its drop target. */
 export function useOsTabDragDesktopTarget(): string | null {
   return useSelector(osTabDragStore, snapshot => {

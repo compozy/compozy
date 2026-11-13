@@ -10,6 +10,7 @@ import {
 import type { SeamPreview } from "../lib/seam-preview";
 import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 import type {
+  DesktopOverviewDesktopAction,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -74,6 +75,7 @@ function bindingScopedState(
     connectionStatus: "idle",
     activeOverlay: null,
     overviewSegmentRequest: null,
+    overviewDesktopAction: null,
     transitionIntent: null,
     routeIntents: {},
     paletteIntent: null,
@@ -116,11 +118,19 @@ export function createWindowManagerStore() {
             ? { ...event.overlay }
             : { kind: "desktops-overview" },
         overviewSegmentRequest: null,
+        overviewDesktopAction: null,
       }),
       overlayClosed: state =>
-        state.activeOverlay === null && state.overviewSegmentRequest === null
+        state.activeOverlay === null &&
+        state.overviewSegmentRequest === null &&
+        state.overviewDesktopAction === null
           ? undefined
-          : { ...state, activeOverlay: null, overviewSegmentRequest: null },
+          : {
+              ...state,
+              activeOverlay: null,
+              overviewSegmentRequest: null,
+              overviewDesktopAction: null,
+            },
       overviewSegmentRequested: (state, event: { request: DesktopOverviewSegmentRequest }) => ({
         ...state,
         activeOverlay: { kind: "desktops-overview" },
@@ -128,6 +138,17 @@ export function createWindowManagerStore() {
           ...event.request,
           hiddenDesktopIds: [...event.request.hiddenDesktopIds],
         },
+        overviewDesktopAction: null,
+      }),
+      // The indicator menu's Rename and Close desktop finish on the overview card (US-015.EC-2).
+      overviewDesktopActionRequested: (
+        state,
+        event: { request: DesktopOverviewDesktopAction }
+      ) => ({
+        ...state,
+        activeOverlay: { kind: "desktops-overview" },
+        overviewSegmentRequest: null,
+        overviewDesktopAction: { ...event.request },
       }),
       desktopStateObserved: (
         state,
@@ -290,6 +311,7 @@ export type WindowManagerStoreApi = ReturnType<typeof createWindowManagerStore>;
 export const windowManagerStore = createWindowManagerStore();
 
 export type {
+  DesktopOverviewDesktopAction,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -305,6 +327,7 @@ export type {
 } from "./window-manager-store-types";
 
 export {
+  selectDesktopOverviewDesktopAction,
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,

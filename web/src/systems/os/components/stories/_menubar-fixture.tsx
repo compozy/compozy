@@ -26,7 +26,8 @@ import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { DesktopMenubar } from "../desktop-menubar";
 import type { MenubarUpdateModel } from "../menubar/menubar-update-indicator";
-import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
+import type { DesktopIndicatorItem } from "../../lib/desktop-indicator-controls";
+import { DesktopIndicators } from "../desktop-indicators";
 import { createLiveStoryShell, createStoryShell } from "./_shell-fixture";
 import { DesktopShell } from "./_desktop";
 
@@ -63,7 +64,7 @@ const ATTENTION: OsAttentionModel = {
 };
 
 /** Four desktops; Review holds a session that needs you (amber dot while off-screen). */
-const PAGER_DESKTOPS: DesktopPagerItem[] = [
+const PAGER_DESKTOPS: DesktopIndicatorItem[] = [
   { id: "control", name: "Control" },
   { id: "build", name: "Build" },
   { id: "review", name: "Review", needsYou: true },
@@ -130,11 +131,15 @@ export function MenubarFixture({
                 onSelectWorktree={fn()}
                 onCreateWorktree={fn()}
                 pager={
-                  <DesktopPager
+                  <DesktopIndicators
                     desktops={PAGER_DESKTOPS}
                     activeDesktopId="build"
                     onSelectDesktop={fn()}
                     onOpenOverview={fn()}
+                    onRenameDesktop={fn()}
+                    onReorderDesktop={fn()}
+                    onCloseDesktop={fn()}
+                    onCreateDesktop={fn()}
                   />
                 }
               />

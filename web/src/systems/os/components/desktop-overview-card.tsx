@@ -39,6 +39,8 @@ export interface DesktopOverviewCardProps {
   sessionOf: (win: OsWindow) => SessionPayload | undefined;
   /** A dragged tab is over this card and would move here on release. */
   dropTarget?: boolean;
+  /** Opened from the desktop's indicator menu: the card starts renaming or closing. */
+  initialAction?: "rename" | "close";
   /** The floating copy of a card being dragged to a new position. */
   lifted?: boolean;
   thumbnailRef?: RefObject<HTMLButtonElement | null>;
@@ -70,6 +72,7 @@ export function DesktopOverviewCard({
   busy,
   sessionOf,
   dropTarget = false,
+  initialAction,
   lifted = false,
   thumbnailRef,
   onSwitch,
@@ -81,8 +84,10 @@ export function DesktopOverviewCard({
   onDelete,
   onMoveTab,
 }: DesktopOverviewCardProps) {
-  const [renaming, setRenaming] = useState(false);
-  const [closing, setClosing] = useState<Closing | null>(null);
+  const [renaming, setRenaming] = useState(initialAction === "rename");
+  const [closing, setClosing] = useState<Closing | null>(
+    initialAction === "close" ? { destinationId: "" } : null
+  );
   const needsYou = desktop.needsYou === true && !active;
   const shown = desktop.tabs.slice(0, DESKTOP_CARD_TAB_ROWS);
   const hidden = desktop.tabs.length - shown.length;
@@ -174,6 +179,7 @@ export function DesktopOverviewCard({
               </DesktopCardAction>
               {desktops.length > 1 ? (
                 <DeleteButton
+                  defaultPhase={initialAction === "close" ? "open" : undefined}
                   canConfirm={!needsDestination || (closing?.destinationId ?? "") !== ""}
                   disabled={busy}
                   label={`Close ${desktop.name}`}

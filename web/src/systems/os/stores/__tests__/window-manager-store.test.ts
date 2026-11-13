@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createWindowManagerStore,
+  selectDesktopOverviewDesktopAction,
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,
@@ -154,6 +155,34 @@ describe("window manager store", () => {
     });
     expect(selectWindowManagerConnectionStatus(state(store))).toBe("idle");
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
+  });
+
+  it("Should open the overview on a desktop menu action and drop it with the overview", () => {
+    const store = createWindowManagerStore();
+    store.trigger.overviewSegmentRequested({
+      request: { direction: "later", hiddenDesktopIds: ["desktop:six"], anchorDesktopId: "a" },
+    });
+
+    store.trigger.overviewDesktopActionRequested({
+      request: { desktopId: "desktop:build", action: "close" },
+    });
+    expect(selectWindowManagerOverlay(state(store))).toEqual({ kind: "desktops-overview" });
+    expect(selectDesktopOverviewDesktopAction(state(store))).toEqual({
+      desktopId: "desktop:build",
+      action: "close",
+    });
+    // One entry reason at a time: the action replaces the overflow request and the reverse.
+    expect(selectDesktopOverviewSegmentRequest(state(store))).toBeNull();
+
+    store.trigger.overlayClosed();
+    expect(selectWindowManagerOverlay(state(store))).toBeNull();
+    expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();
+
+    store.trigger.overviewDesktopActionRequested({
+      request: { desktopId: "desktop:build", action: "rename" },
+    });
+    store.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } });
+    expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();
   });
 
   it("Should keep one exclusive overlay and scope an overflow request to the overview", () => {

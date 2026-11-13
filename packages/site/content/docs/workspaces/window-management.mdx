@@ -140,9 +140,35 @@ compozy desktop delete --workspace <workspace-id> --revision <revision> --id <de
 ```
 
 Deleting the final desktop is rejected. A non-empty desktop requires a distinct destination so the
-window transfer and deletion happen in one transaction. The Web shell exposes the same desktops as
-a minimal dot pager in the top bar, next to an **All desktops** button that opens full management on
-demand.
+window transfer and deletion happen in one transaction.
+
+### Desktops in the Web shell
+
+The top bar shows one dot per desktop, the active desktop as a wider pill and an amber dot for a
+desktop you are not on that needs you. Click a dot to switch to that desktop; the arrow keys move
+between dots and the `desktop.switch.1`–`9`, next and previous shortcuts keep working. Past seven
+desktops the bar shows five around the active one, and an overflow control on either side opens the
+desktops overview at the hidden desktops.
+
+Right-click a dot, or focus it and press Shift+F10 or the menu key, for **Rename**, **Move left**,
+**Move right**, **Close desktop** and **New desktop**. Move left is absent on the first desktop,
+Move right on the last, and Close desktop on the last remaining one. Rename and Close desktop open
+the overview on that desktop's card, where you type the new name, or choose where its tabs go and
+confirm.
+
+**All desktops** in the top bar, or **Window › All desktops**, opens the overview over the work
+area. Each card shows the desktop's layout, its name and tab count, and its first four tabs with a
+count of the rest. Click the layout to switch to the desktop, or click a tab to jump to it; either
+closes the overview. A card's pencil renames it, its context menu has **Move left**, **Move right**
+and **Move a tab ▸**, and dragging a card to another position reorders the desktops. The bin on a
+card closes that desktop in place: a desktop with tabs first asks which desktop receives them, and
+only then offers the check that confirms. Escape cancels the close, then closes the overview.
+
+To move a tab to another desktop, drag it from the tab bar onto that desktop's dot. While you drag,
+the dots grow into labelled targets, and the tab moves with all its split windows. If the desktop is
+hidden behind an overflow control, rest the tab on the control: the overview opens and takes the
+drop on a card. You can also drag a tab row from one card to another inside the overview. A desktop
+whose last tab leaves shows a New Tab window.
 
 ## Declarative layouts and recovery
 

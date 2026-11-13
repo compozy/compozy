@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 
 import { Icon, ThemeToggle, cn } from "@compozy/ui";
 
-import { DesktopPager } from "@/systems/os/components/desktop-pager";
+import { DesktopIndicators } from "@/systems/os/components/desktop-indicators";
 import { OsDock, OsRailButton } from "@/systems/os/components/os-dock";
 import { OsMenuBar } from "@/systems/os/components/os-menubar";
 import type { OsDockItemData } from "@/systems/os/lib/os-dock-model";
@@ -109,10 +109,14 @@ export function WindowShell({
         onDesktopsClick={onOpenOverview}
         pager={
           pager ?? (
-            <DesktopPager
+            <DesktopIndicators
               activeDesktopId={activeDesktopId}
               desktops={desktops.map(({ id, name, needsYou }) => ({ id, name, needsYou }))}
               onOpenOverview={() => onOpenOverview?.()}
+              onCloseDesktop={() => undefined}
+              onCreateDesktop={() => undefined}
+              onRenameDesktop={() => undefined}
+              onReorderDesktop={() => undefined}
               onSelectDesktop={() => undefined}
             />
           )

@@ -4,7 +4,8 @@
 // a thumbnail emits one semantic callback and closes the overlay; rename, Move left / Move right
 // and Move a tab emit one callback each; closing uses the in-place confirm, asks for a destination
 // when the desktop has tabs and is absent on the last desktop; Escape inside a card's rename or
-// confirm leaves the overlay open; async states stay recoverable; the thumbnail draws the active
+// confirm leaves the overlay open; opened from a desktop indicator's Rename or Close desktop, the
+// card starts in that action with focus inside it (US-015.EC-2); async states stay recoverable; the thumbnail draws the active
 // tab's split tree once per window, by weight.
 // Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, callback
 // payloads, and DesktopLayoutThumbnail.
@@ -253,6 +254,36 @@ describe("DesktopsOverview", () => {
     expect(within(build).getByRole("button", { name: "Close Build" })).toHaveFocus();
     expect(callbacks.onDeleteDesktop).not.toHaveBeenCalled();
     expect(callbacks.onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("US-015.EC-2: Should open on a desktop's destination-and-confirm close from its indicator menu", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview({ desktopAction: { desktopId: "build", action: "close" } });
+    const build = card("Build");
+
+    await waitFor(() =>
+      expect(within(build).getByRole("button", { name: "Cancel" })).toHaveFocus()
+    );
+    const confirm = within(build).getByRole("button", { name: "Confirm: Close Build" });
+    expect(confirm).toBeDisabled();
+    // Only the asked desktop opens its confirm.
+    expect(within(card("Control")).getByRole("button", { name: "Close Control" })).toBeVisible();
+    await user.selectOptions(within(build).getByRole("combobox"), "Control");
+    await user.click(confirm);
+    expect(callbacks.onDeleteDesktop).toHaveBeenCalledWith("build", "control");
+  });
+
+  it("US-015.AC-3: Should open on a desktop's rename field from its indicator menu", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview({
+      desktopAction: { desktopId: "research", action: "rename" },
+    });
+
+    const name = within(card("Research")).getByLabelText("Desktop name");
+    await waitFor(() => expect(name).toHaveFocus());
+    await user.clear(name);
+    await user.type(name, "Notes{Enter}");
+    expect(callbacks.onRenameDesktop).toHaveBeenCalledWith("research", "Notes");
   });
 
   it("Should close a desktop without tabs with no destination", async () => {

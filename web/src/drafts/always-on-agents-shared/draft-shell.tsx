@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import { Icon, Kbd, Pill, ThemeToggle, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
-import { DesktopPager } from "@/systems/os/components/desktop-pager";
+import { DesktopIndicators } from "@/systems/os/components/desktop-indicators";
 import { OsDock, OsRailButton } from "@/systems/os/components/os-dock";
 import { OsMenuBar, type OsMenuBarProps } from "@/systems/os/components/os-menubar";
 import { OsWindowSurface } from "@/systems/os/components/os-window-surface";
@@ -77,7 +77,10 @@ export interface DraftTab {
 /** `OsTabBar` without the window manager: one plate per tab on the bar's own surface. */
 function DraftTabBar({ tabs, activeId }: { tabs: readonly DraftTab[]; activeId: string }) {
   return (
-    <div className="flex h-10 min-w-0 items-center gap-1 bg-rail pr-2 pl-1.5" data-slot="os-tab-bar">
+    <div
+      className="flex h-10 min-w-0 items-center gap-1 bg-rail pr-2 pl-1.5"
+      data-slot="os-tab-bar"
+    >
       <div aria-label="Tabs" className="flex min-w-0 flex-1 items-center gap-1" role="tablist">
         {tabs.map(tab => (
           <div
@@ -159,10 +162,14 @@ export function DraftShell({
         ))}
         notifications={notifications}
         pager={
-          <DesktopPager
+          <DesktopIndicators
             activeDesktopId="build"
             desktops={DESKTOPS}
             onOpenOverview={() => undefined}
+            onCloseDesktop={() => undefined}
+            onCreateDesktop={() => undefined}
+            onRenameDesktop={() => undefined}
+            onReorderDesktop={() => undefined}
             onSelectDesktop={() => undefined}
           />
         }

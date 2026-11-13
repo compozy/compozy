@@ -4,7 +4,11 @@ import { Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { useDesktopCardDrag } from "../hooks/use-desktop-card-drag";
 import { DesktopOverviewCard, DesktopOverviewCardGap } from "./desktop-overview-card";
-import type { DesktopsOverviewProps, DesktopsOverviewState } from "./desktops-overview";
+import type {
+  DesktopOverviewAction,
+  DesktopsOverviewProps,
+  DesktopsOverviewState,
+} from "./desktops-overview";
 
 type DesktopsOverviewGridProps = Pick<
   DesktopsOverviewProps,
@@ -23,6 +27,7 @@ type DesktopsOverviewGridProps = Pick<
   sessionOf: NonNullable<DesktopsOverviewProps["sessionOf"]>;
   initialFocusDesktopId: string | null;
   initialFocusRef: React.RefObject<HTMLButtonElement | null>;
+  desktopAction: DesktopOverviewAction | null;
 };
 
 const CARD_SELECTOR = '[data-slot="desktops-overview-card"]:not(:disabled)';
@@ -65,6 +70,7 @@ export function DesktopsOverviewGrid({
   sessionOf,
   initialFocusDesktopId,
   initialFocusRef,
+  desktopAction,
   dropTargetDesktopId,
   onOpenChange,
   onSwitchDesktop,
@@ -94,6 +100,9 @@ export function DesktopsOverviewGrid({
         desktops={state.desktops}
         dropTarget={!floating && dropTargetDesktopId === desktop.id}
         index={index}
+        initialAction={
+          !floating && desktopAction?.desktopId === desktop.id ? desktopAction.action : undefined
+        }
         lifted={floating}
         sessionOf={sessionOf}
         thumbnailRef={
