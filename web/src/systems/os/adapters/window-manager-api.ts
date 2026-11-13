@@ -218,7 +218,7 @@ export async function updateWindowManagerMigration(
   action: "ack" | "retry",
   signal?: AbortSignal
 ): Promise<WindowManagerMigrationStatus> {
-  const response = await runtimeFetch(
+  const response = await daemonFetch(
     `${apiBaseUrl}${managerUrl(workspaceId, profile, "/migration")}`,
     { ...jsonRequest({ action, replace: false }, signal), method: "POST" }
   );
