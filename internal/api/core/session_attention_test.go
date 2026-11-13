@@ -1317,9 +1317,7 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 			return performRequest(t, f.Engine, http.MethodPost,
 				"/notifications/attention/acknowledge?profile=default&surface=bell", body)
 		}
-		if response := ack(); response.Code != http.StatusInternalServerError {
-			t.Fatalf("failed source ack status=%d body=%s", response.Code, response.Body.String())
-		}
+		assertAPIErrorResponse(t, ack(), http.StatusInternalServerError, "window store unavailable")
 		if len(source.acked) != 2 {
 			t.Fatalf("a failing source stopped the others: acked=%+v", source.acked)
 		}
