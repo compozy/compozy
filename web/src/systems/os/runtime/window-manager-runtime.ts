@@ -49,7 +49,10 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     if (changed) this.semanticOpens.reset();
   }
 
-  /** Moves focus between the windows on screen in the active tab, by projected geometry. */
+  /**
+   * Moves focus between the windows on screen in the active tab, by projected geometry, from the
+   * newest focus this client asked for.
+   */
   focusDirection(direction: FocusDirection): void {
     const config = this.view.windowManagerConfig;
     const activeDesktopId = this.view.activeDesktopId;
@@ -57,15 +60,23 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     const tabId = this.view.activeTabIds[activeDesktopId];
     const projection = tabId === undefined ? undefined : this.view.projections[tabId];
     if (projection === undefined) return;
+    const candidates = projection.windows.flatMap(projected =>
+      projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
+    );
+    // A focus still waiting for its answer is where the operator already is: the view names the
+    // focus before it until that answer shows, and a press meanwhile must not start from there.
+    const pending = this.focusTurns.pendingFocus();
+    const from =
+      pending !== null && candidates.some(candidate => candidate.id === pending)
+        ? pending
+        : this.view.focusedId;
     const target = directionalFocusTarget({
-      candidates: projection.windows.flatMap(projected =>
-        projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
-      ),
-      focusedId: this.view.focusedId,
+      candidates,
+      focusedId: from,
       direction,
       wrap: config.focusWrap,
     });
-    if (target === null || target === this.view.focusedId) return;
+    if (target === null || target === from) return;
     this.dispatch(focusWindowCommand(target, { replaceable: true }));
   }
 
@@ -190,9 +201,10 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     this.dispatch(focusWindowCommand(id, options));
 
   /**
-   * Calls `listener` after the runtime adopts an authoritative client view it held behind this
-   * client's focuses. Views adopted on arrival (`setClient`) and command answers are not reported
-   * here: their callers already act on them.
+   * Calls `listener` after the runtime releases an authoritative client view it held behind this
+   * client's focuses, adopted or ignored as older. Views adopted on arrival (`setClient`) are not
+   * reported here: their caller already acts on them. A focus answer is not reported either; the
+   * stream view its daemon published first was held, so its release reports for both.
    */
   onHeldClientAdopted = (listener: () => void): (() => void) =>
     this.focusTurns.onHeldViewAdopted(listener);

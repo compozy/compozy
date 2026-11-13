@@ -787,6 +787,118 @@ describe("WindowManagerRuntime", () => {
       runtime.setClient(focusedView("app:b", 2));
       expect(runtime.getState().client?.presentationRevision).toBe(2);
     });
+
+    it("Should still send a focus whose caller acts on its result when the registration restarts before its turn [R10-03]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+
+      runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // An open's landing and a later click queue behind the click in flight.
+      const landing = runtime.focusWindow("app:b");
+      const click = runtime.focusWindow("app:c", REPLACEABLE);
+      // The same binding registers again before either turn comes.
+      runtime.setClient(null);
+      runtime.setClient({ ...focusedView("app:c", 1), attachmentToken: "attachment-2" });
+      answers[0]!(answer(null));
+
+      // The landing still runs and shows its answer under the new registration; the click,
+      // presentation for the registration that ended, is not sent.
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(answer(focusedView("app:b", 2)));
+      await expect(landing.completion).resolves.toBe(true);
+      await expect(click.completion).resolves.toBe(false);
+      expect(sentCommands()).toEqual(["focus app:a", "focus app:b"]);
+      expect(runtime.getState().focusedId).toBe("app:b");
+    });
+  });
+
+  describe("directional focus behind an answer", () => {
+    // Tasks on the left of Agents in one split tab; this client starts on Tasks.
+    const splitSnapshot = snapshotWithSplitTab();
+    const splitView = (windowId: string, presentationRevision: number) => ({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      profileId: "marketing",
+      clientId: "client:web",
+      presentationRevision,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: windowId,
+      focusOrder: [windowId],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    const splitAnswer = (client: ReturnType<typeof splitView>): CommandAnswer => ({
+      snapshot: splitSnapshot,
+      applied: true,
+      changes: { ...EMPTY_CHANGES, clientIds: ["client:web"] },
+      diagnostics: [],
+      client,
+      deprecations: [],
+      rebasedFrom: null,
+    });
+
+    function startSplitRuntime() {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(
+        windowManagerKeys.snapshot("workspace:test", "marketing"),
+        splitSnapshot
+      );
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+      });
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.start();
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient(splitView("app:tasks", 1));
+      onTestFinished(() => runtime.stop());
+      return runtime;
+    }
+
+    it("Should step from the focus still waiting for its answer, not the view before it", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+
+      runtime.focusDirection("right");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!(splitAnswer(splitView("app:agents", 2)));
+      await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:agents"));
+      // Left is sent; before its answer shows, the view still names Agents.
+      runtime.focusDirection("left");
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      expect(runtime.getState().focusedId).toBe("app:agents");
+      // Right again starts from Tasks, where the operator already is (E2E-010).
+      runtime.focusDirection("right");
+      answers[1]!(splitAnswer(splitView("app:tasks", 3)));
+      await vi.waitFor(() => expect(answers).toHaveLength(3));
+      answers[2]!(splitAnswer(splitView("app:agents", 4)));
+
+      await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:agents"));
+      expect(sentCommands()).toEqual(["focus app:agents", "focus app:tasks", "focus app:agents"]);
+    });
+
+    it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      const reported = vi.fn();
+      runtime.onHeldClientAdopted(reported);
+
+      runtime.focusDirection("right");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // The daemon publishes the client event before it answers: the view waits behind the focus.
+      runtime.setClient(splitView("app:agents", 2));
+      expect(runtime.getState().focusedId).toBe("app:tasks");
+      // The answer shows the same view; only the held view's release can report it, so the URL
+      // follows the new pane (use-desktop-chrome wires this listener to the coordinator).
+      answers[0]!(splitAnswer(splitView("app:agents", 2)));
+
+      await vi.waitFor(() => expect(reported).toHaveBeenCalledOnce());
+      expect(runtime.getState().focusedId).toBe("app:agents");
+    });
   });
 
   it("Should hold a command that carries its input time to the deadline counted from that input", async () => {
