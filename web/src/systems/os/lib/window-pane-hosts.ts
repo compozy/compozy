@@ -406,18 +406,19 @@ export class WindowPaneHosts {
     const active = host.element.ownerDocument.activeElement;
     if (active !== null && host.element.contains(active)) return true;
     if (active?.closest(OVERLAY_SELECTOR)) return false;
+    const document = host.element.ownerDocument;
     const remembered = this.windowFocus.get(windowId);
+    if (remembered !== undefined && host.element.contains(remembered) && isRendered(remembered)) {
+      remembered.focus({ preventScroll: true });
+      // A control that cannot take focus now (a send button disabled after sending) falls back.
+      if (document.activeElement === remembered) return true;
+    }
     const root = host.element.firstElementChild;
-    const target =
-      remembered !== undefined && host.element.contains(remembered) && isRendered(remembered)
-        ? remembered
-        : root instanceof HTMLElement && isRendered(root)
-          ? root
-          : null;
-    if (target === null) return false;
-    if (target === root && !target.hasAttribute("tabindex")) focusRootOnce(target);
-    else target.focus({ preventScroll: true });
-    return true;
+    if (!(root instanceof HTMLElement) || !isRendered(root)) return false;
+    if (root.hasAttribute("tabindex")) root.focus({ preventScroll: true });
+    else focusRootOnce(root);
+    // A pane that cannot take focus yet keeps the handoff waiting.
+    return document.activeElement === root;
   };
 
   private readonly handleFocusIn = (event: FocusEvent): void => {

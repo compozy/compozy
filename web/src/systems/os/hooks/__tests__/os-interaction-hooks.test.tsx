@@ -1707,6 +1707,24 @@ describe("WindowPaneHosts", () => {
       expect(surface.hasAttribute("tabindex")).toBe(false);
     });
 
+    it("Should land on the window itself when the element it last held cannot take focus", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, focus, surface, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      focus.windowId = "other";
+      composer.focus();
+      // A send button disabled after sending, still mounted.
+      field.disabled = true;
+
+      focus.windowId = "w";
+      handoff.request("w");
+
+      expect(document.activeElement).toBe(surface);
+    });
+
     it("Should wait for a window in a tab that shows a frame later", () => {
       const handoff = new KeyboardFocusHandoff();
       const { hosts, surface, field, first, box } = setup(handoff);
