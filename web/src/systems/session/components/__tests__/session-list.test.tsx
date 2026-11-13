@@ -973,6 +973,31 @@ describe("SessionList subagents", () => {
     expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
   });
 
+  // Invariant (#1644): a continued child renders in its original parent's thread beside the
+  // stopped session it continues; continuing a top-level session keeps the new row top-level.
+  it("Should render a continued child inside its original parent's thread", () => {
+    const continued = (id: string, source: string, treeParent?: string) =>
+      row(id, {
+        lineage: { ...lineage(source), kind: "continue", auto_stop_on_parent: false },
+        ...(treeParent ? { tree_parent_session_id: treeParent } : {}),
+      });
+    renderList({
+      sessions: [
+        row("parent"),
+        row("worker", { state: "stopped", lineage: lineage("parent") }),
+        continued("worker-next", "worker", "parent"),
+        row("solo"),
+        continued("solo-next", "solo"),
+      ],
+    });
+
+    const thread = screen.getByTestId("session-sidebar-thread-parent");
+    expect(within(thread).getByTestId("session-sidebar-session-worker")).toBeVisible();
+    expect(within(thread).getByTestId("session-sidebar-session-worker-next")).toBeVisible();
+    expect(within(thread).queryByTestId("session-sidebar-session-solo-next")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-solo-next")).toBeVisible();
+  });
+
   // Invariant (#1474): an open child list shows six children in list order, then "Show N more"
   // reveals the rest and "Show less" folds back; the same control ends the subagent list.
   describe("child session cap", () => {
