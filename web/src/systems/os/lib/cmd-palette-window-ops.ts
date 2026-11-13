@@ -18,6 +18,8 @@ import { leadWindowId, resolveActiveTabId } from "./tab-model";
 const TAB_JUMP_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 const DESKTOP_SWITCH_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid", "main-stack", "columns"];
+/** `window.tile.*` keeps its ids and now moves the focused window to that root edge of its tab. */
+const TILE_EDGES = ["left", "right", "top", "bottom"] as const;
 
 function focusedWindowId(context: PaletteClientOpContext): string | null {
   return currentState(context).focusedId;
@@ -32,7 +34,10 @@ function activateBarTab(
   const desktop = state.desktops.find(candidate => candidate.id === state.activeDesktopId);
   if (desktop === undefined || desktop.tabs.length === 0) return;
   const activeTabId = state.activeTabIds[desktop.id] ?? resolveActiveTabId(desktop, null);
-  const activeIndex = Math.max(0, desktop.tabs.findIndex(tab => tab.id === activeTabId));
+  const activeIndex = Math.max(
+    0,
+    desktop.tabs.findIndex(tab => tab.id === activeTabId)
+  );
   const index = resolve(desktop.tabs.length, activeIndex);
   const tab = index === undefined ? undefined : desktop.tabs[index];
   if (tab === undefined || tab.id === activeTabId) return;
@@ -102,6 +107,19 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
   ["window.focus.up", context => context.manager.focusDirection("up")],
   ["window.focus.down", context => context.manager.focusDirection("down")],
   ["window.focus.last", focusLastWindow],
+  ["window.unsplit", withFocusedWindow((context, id) => context.manager.unsplitWindow(id))],
+  ["window.tab.move_left", withFocusedWindow((context, id) => context.manager.moveTab(id, "left"))],
+  [
+    "window.tab.move_right",
+    withFocusedWindow((context, id) => context.manager.moveTab(id, "right")),
+  ],
+  ...TILE_EDGES.map(
+    edge =>
+      [
+        `window.tile.${edge}`,
+        withFocusedWindow((context, id) => context.manager.tileWindow(id, edge)),
+      ] as const
+  ),
   ["window.tab.new", context => context.shell.openNewTab(focusedWindowId(context))],
   ["window.tab.reopen", context => void context.manager.reopenWindow().completion],
   ["window.tab.next", context => activateBarTab(context, (count, index) => (index + 1) % count)],

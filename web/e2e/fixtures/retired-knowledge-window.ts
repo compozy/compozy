@@ -41,24 +41,7 @@ export async function seedRetiredKnowledgeWindow(
   runtime: BrowserRuntime,
   seed: RetiredKnowledgeWindowSeed
 ): Promise<RetiredKnowledgeLegacySnapshot> {
-  if (runtime.mode !== "launch" || runtime.paths === undefined) {
-    throw new Error("retired Knowledge window seeding requires a launch-mode isolated runtime");
-  }
-
-  // Client state has one writer. Seed the retired topology only after the
-  // isolated daemon releases its store, then let the caller inspect raw state.
-  await stopRegisteredDaemon({
-    cliShim: runtime.paths.cliShim,
-    homeDir: runtime.paths.homeDir,
-    operatorHomeDir: runtime.paths.operatorHomeDir,
-    repoRoot,
-  });
-
   const args = [
-    "run",
-    "./web/e2e/fixtures/retired-knowledge-window-seeder",
-    "--home",
-    runtime.paths.homeDir,
     "--workspace",
     seed.workspaceId,
     "--session-window",
@@ -81,6 +64,64 @@ export async function seedRetiredKnowledgeWindow(
       String(seed.rect.height)
     );
   }
+  return runLegacyWindowSeeder(runtime, args);
+}
+
+/**
+ * The previous release's placements for the layout upgrade: each listed window
+ * leaves its single-window tab. A snapped pair merges into one split only when
+ * every other window on its desktop floats or is minimized.
+ */
+export interface LegacyWindowLayoutSeed {
+  workspaceId: string;
+  floating?: readonly string[];
+  minimized?: readonly string[];
+  snapped?: readonly [string, string];
+  pinned?: readonly string[];
+}
+
+export async function seedLegacyWindowLayout(
+  runtime: BrowserRuntime,
+  seed: LegacyWindowLayoutSeed
+): Promise<RetiredKnowledgeLegacySnapshot> {
+  return runLegacyWindowSeeder(runtime, [
+    "--workspace",
+    seed.workspaceId,
+    "--floating",
+    (seed.floating ?? []).join(","),
+    "--minimized",
+    (seed.minimized ?? []).join(","),
+    "--snapped",
+    (seed.snapped ?? []).join(","),
+    "--pinned",
+    (seed.pinned ?? []).join(","),
+  ]);
+}
+
+async function runLegacyWindowSeeder(
+  runtime: BrowserRuntime,
+  seederArgs: readonly string[]
+): Promise<RetiredKnowledgeLegacySnapshot> {
+  if (runtime.mode !== "launch" || runtime.paths === undefined) {
+    throw new Error("legacy window seeding requires a launch-mode isolated runtime");
+  }
+
+  // Client state has one writer. Seed the retired topology only after the
+  // isolated daemon releases its store, then let the caller inspect raw state.
+  await stopRegisteredDaemon({
+    cliShim: runtime.paths.cliShim,
+    homeDir: runtime.paths.homeDir,
+    operatorHomeDir: runtime.paths.operatorHomeDir,
+    repoRoot,
+  });
+
+  const args = [
+    "run",
+    "./web/e2e/fixtures/retired-knowledge-window-seeder",
+    "--home",
+    runtime.paths.homeDir,
+    ...seederArgs,
+  ];
   const { stdout } = await execFileAsync("go", args, {
     cwd: repoRoot,
     maxBuffer: 16 * 1024 * 1024,

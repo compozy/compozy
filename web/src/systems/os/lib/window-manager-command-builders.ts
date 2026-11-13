@@ -1,3 +1,4 @@
+import type { DropEdge } from "./drop-edge";
 import type {
   MoveWindowInput,
   OsArrangePreset,
@@ -6,7 +7,13 @@ import type {
   OsOpenTarget,
   OsWindowRoute,
 } from "./os-types";
-import type { WindowManagerCommandInput } from "./window-manager-types";
+import type {
+  DesktopId,
+  LayoutTab,
+  TabId,
+  WindowId,
+  WindowManagerCommandInput,
+} from "./window-manager-types";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
 /**
@@ -133,6 +140,75 @@ export function moveWindowCommand(id: string, input: MoveWindowInput): WindowMan
       move_group: input.moveGroup ?? false,
     },
   };
+}
+
+/** The window facts a split command needs: a single-window tab has nothing to unsplit or tile. */
+type SplitMember = Readonly<{ id: WindowId; desktopId: DesktopId; tabId: TabId; inSplit: boolean }>;
+
+/** "Move to new tab": a split member becomes its own tab right after its source tab (US-010). */
+export function unsplitWindowCommand(window: SplitMember): WindowManagerCommandInput | null {
+  if (!window.inSplit) return null;
+  return {
+    ...moveWindowCommand(window.id, { destinationDesktopId: window.desktopId, placement: "tab" }),
+    rebase: { windowId: window.id, tabId: window.tabId },
+  };
+}
+
+/**
+ * `window.tile.left|right|top|bottom`: the window moves to that root edge of its own tab
+ * (US-012.AC-2). A single-window tab has no edge to move to.
+ */
+export function tileWindowCommand(
+  window: SplitMember,
+  edge: DropEdge
+): WindowManagerCommandInput | null {
+  if (!window.inSplit) return null;
+  return {
+    ...moveWindowCommand(window.id, {
+      destinationDesktopId: window.desktopId,
+      targetTabId: window.tabId,
+      placement: edge,
+    }),
+    rebase: { windowId: window.id, tabId: window.tabId },
+  };
+}
+
+/**
+ * "Split with ▸": the chosen tab joins `hostTabId` as a split, on the right (US-012.AC-3). The
+ * chosen tab moves whole, so a split tab brings its members.
+ */
+export function splitWithCommand(
+  desktopId: DesktopId,
+  hostTabId: TabId,
+  chosenLeadId: WindowId
+): WindowManagerCommandInput {
+  return {
+    ...moveWindowCommand(chosenLeadId, {
+      destinationDesktopId: desktopId,
+      targetTabId: hostTabId,
+      placement: "right",
+      moveGroup: true,
+    }),
+    rebase: { windowId: chosenLeadId, tabId: hostTabId },
+  };
+}
+
+/**
+ * The bar index "Move left" / "Move right" reaches: one step within the tab's pinned or unpinned
+ * range, or null at the range's edge, where the item is absent.
+ */
+export function adjacentTabIndex(
+  tabs: readonly LayoutTab[],
+  tabId: TabId,
+  direction: "left" | "right"
+): number | null {
+  const index = tabs.findIndex(tab => tab.id === tabId);
+  const tab = tabs[index];
+  if (tab === undefined) return null;
+  const pins = tabs.filter(candidate => candidate.pinned).length;
+  const [first, last] = tab.pinned ? [0, pins - 1] : [pins, tabs.length - 1];
+  const next = direction === "left" ? index - 1 : index + 1;
+  return next < first || next > last ? null : next;
 }
 
 export function swapWindowsCommand(

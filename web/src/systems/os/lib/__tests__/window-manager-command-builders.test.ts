@@ -2,19 +2,24 @@
 // Invariant: every tab-model gesture becomes one daemon command in its v6 wire shape: opens are
 // tabs (after a named window's tab, or a split beside focus), closes never send `minimize`, tab
 // reorder/activate use `window.tab.*`, moves carry `target_tab_id`/`move_group`, and an arrange
-// preset becomes one `layout.arrange` with no retired frame fields.
+// preset becomes one `layout.arrange` with no retired frame fields; unsplit, tile-to-root-edge,
+// split-with and move left/right are `window.move` / `window.tab.reorder` (US-010, US-012).
 // Owning layer: web/src/systems/os/lib/window-manager-command-builders.ts
 import { describe, expect, it } from "vitest";
 
 import type { OsArrangePreset } from "../os-types";
 import {
   activateTabCommand,
+  adjacentTabIndex,
   arrangeLayoutCommand,
   balanceLayoutCommand,
   closeWindowCommand,
   moveWindowCommand,
   openWindowCommand,
   reorderTabCommand,
+  splitWithCommand,
+  tileWindowCommand,
+  unsplitWindowCommand,
 } from "../window-manager-command-builders";
 
 describe("openWindowCommand", () => {
@@ -113,5 +118,65 @@ describe("balanceLayoutCommand", () => {
       split_id: "split:a",
     });
     expect(balanceLayoutCommand({})).toBeNull();
+  });
+});
+
+describe("split commands", () => {
+  const member = { id: "w-b", desktopId: "desktop:a", tabId: "tab:ab", inSplit: true };
+
+  it("Should unsplit a member into its own tab after its source tab [US-010.AC-1]", () => {
+    expect(unsplitWindowCommand(member)).toEqual({
+      commandId: "window.move",
+      payload: {
+        window_id: "w-b",
+        destination_desktop_id: "desktop:a",
+        placement: "tab",
+        move_group: false,
+      },
+      rebase: { windowId: "w-b", tabId: "tab:ab" },
+    });
+    // The only window of its tab has nothing to unsplit (US-010.EC-1).
+    expect(unsplitWindowCommand({ ...member, inSplit: false })).toBeNull();
+  });
+
+  it("Should tile a member to its own tab's root edge [US-012.AC-2]", () => {
+    expect(tileWindowCommand(member, "left")?.payload).toEqual({
+      window_id: "w-b",
+      destination_desktop_id: "desktop:a",
+      target_tab_id: "tab:ab",
+      placement: "left",
+      move_group: false,
+    });
+    expect(tileWindowCommand({ ...member, inSplit: false }, "top")).toBeNull();
+  });
+
+  it("Should join the chosen tab whole on the host tab's right [US-012.AC-3]", () => {
+    expect(splitWithCommand("desktop:a", "tab:host", "w-chosen").payload).toEqual({
+      window_id: "w-chosen",
+      destination_desktop_id: "desktop:a",
+      target_tab_id: "tab:host",
+      placement: "right",
+      move_group: true,
+    });
+  });
+});
+
+describe("adjacentTabIndex", () => {
+  const tab = (id: string, pinned = false) => ({
+    id,
+    pinned,
+    root: { id: `leaf:${id}`, kind: "leaf" as const, windowId: `w-${id}` },
+  });
+  const tabs = [tab("pin", true), tab("a"), tab("b"), tab("c")];
+
+  it("Should step one place within the tab's range and stop at its edges", () => {
+    expect(adjacentTabIndex(tabs, "b", "left")).toBe(1);
+    expect(adjacentTabIndex(tabs, "b", "right")).toBe(3);
+    // A regular tab never moves among the pins; the last tab has no Move right.
+    expect(adjacentTabIndex(tabs, "a", "left")).toBeNull();
+    expect(adjacentTabIndex(tabs, "c", "right")).toBeNull();
+    // A pinned tab stays among the pins.
+    expect(adjacentTabIndex(tabs, "pin", "right")).toBeNull();
+    expect(adjacentTabIndex(tabs, "missing", "left")).toBeNull();
   });
 });

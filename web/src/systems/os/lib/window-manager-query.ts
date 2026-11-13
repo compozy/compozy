@@ -2,7 +2,10 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { isReservedDesktopPartition } from "@/systems/workspace";
 
-import { fetchWindowManagerSnapshot } from "../adapters/window-manager-api";
+import {
+  fetchWindowManagerMigration,
+  fetchWindowManagerSnapshot,
+} from "../adapters/window-manager-api";
 import { fetchWindowManagerSettings } from "../adapters/window-manager-settings-api";
 import type { WindowManagerSnapshot } from "./window-manager-types";
 
@@ -36,7 +39,28 @@ export const windowManagerKeys = {
   // switch would show the previous profile's desks from cache (US-026).
   snapshot: (workspaceId: string, profile: string) =>
     [...windowManagerKeys.snapshots(), workspaceId.trim(), profile.trim()] as const,
+  migration: (workspaceId: string, profile: string) =>
+    [...windowManagerKeys.all, "migration", workspaceId.trim(), profile.trim()] as const,
 };
+
+/**
+ * Re-read of the upgrade notice's status while one is showing. Acknowledging publishes no layout
+ * event, so another client learns of it from this read: on focus, and every 15 s at most.
+ */
+export const WINDOW_MANAGER_MIGRATION_REFRESH_MS = 15_000;
+
+export function windowManagerMigrationOptions(workspaceId: string, profile: string) {
+  const normalized = workspaceId.trim();
+  const normalizedProfile = profile.trim();
+  return queryOptions({
+    queryKey: windowManagerKeys.migration(normalized, normalizedProfile),
+    queryFn: ({ signal }) => fetchWindowManagerMigration(normalized, normalizedProfile, signal),
+    enabled: normalized !== "" && normalizedProfile !== "",
+    refetchInterval: WINDOW_MANAGER_MIGRATION_REFRESH_MS,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+}
 
 export function windowManagerSnapshotOptions(workspaceId: string, profile: string) {
   const normalized = workspaceId.trim();

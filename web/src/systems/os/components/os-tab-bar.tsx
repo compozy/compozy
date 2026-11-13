@@ -153,7 +153,7 @@ export function OsTabBarView({
               {index === pinnedCount && pinnedCount > 0 ? (
                 <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-line-strong" />
               ) : null}
-              <OsTabMenu bar={bar} model={model}>
+              <OsTabMenu bar={bar} model={model} sessionOf={sessionOf}>
                 <OsTab
                   tabId={model.tab.id}
                   members={model.members}

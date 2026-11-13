@@ -3,7 +3,8 @@
 // its pinned or unpinned range and activates nothing; past the bar it splits into the active tab
 // (or the previously active one when it is itself active); a head held still over a tab for 400ms
 // previews that tab; cancel restores everything and emits no command; a drop emits exactly one
-// command fenced to the layout the drag started from (UT-034–UT-036).
+// command fenced to the layout the drag started from (UT-034–UT-036); a head dropped on the bar
+// becomes its own unpinned tab at the marker (US-010.AC-2).
 // Boundary IN: named store events with resolved pointer zones, the dwell timer, emitted intents.
 // Boundary OUT: DOM hit testing, the window-manager runtime and the daemon.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HEAD_DWELL_MS } from "../../lib/drop-edge";
 import {
   createOsTabDragStore,
+  unsplitIntent,
   type TabDragIntent,
   type TabDragSession,
 } from "../os-tab-drag-store";
@@ -23,6 +25,7 @@ function tabSession(tabId: string, overrides: Partial<TabDragSession> = {}): Tab
     revision: 7,
     source: { kind: "tab", tabId, windowId: `win:${tabId}`, nodeId: `leaf:${tabId}` },
     tabOrder: TAB_ORDER,
+    tabLeads: TAB_ORDER.map(id => `win:${id}`),
     pinnedCount: 1,
     activeTabId: "tab:a",
     splitTabId: tabId === "tab:a" ? "tab:c" : "tab:a",
@@ -206,9 +209,46 @@ describe("tab drag store", () => {
     vi.advanceTimersByTime(100);
     expect(context().contentTabId).toBe("tab:b");
     expect(context().dwell).toBeNull();
-    // No insertion marker for a head in this slice: dropping on the bar sends nothing.
-    expect(context().insertionIndex).toBeNull();
-    expect(context().target).toBeNull();
+    // The marker stays where the head is while it dwells: dropping here still unsplits.
+    expect(context().insertionIndex).toBe(2);
+    expect(context().target).toEqual({ kind: "unsplit", index: 2 });
+  });
+
+  it("US-010.AC-2: a head dropped on the bar becomes its own tab at the marker", () => {
+    const { store, intents, context } = setup(headSession());
+    // An unsplit tab is unpinned: the marker never goes among the pinned tabs.
+    store.trigger.moved({
+      point: { x: 5, y: 20 },
+      zone: { kind: "bar", index: 0, overTabId: "tab:pin" },
+      swapHeld: false,
+    });
+    expect(context()).toMatchObject({ insertionIndex: 1, target: { kind: "unsplit", index: 1 } });
+    store.trigger.moved({
+      point: { x: 600, y: 20 },
+      zone: { kind: "bar", index: 4, overTabId: null },
+      swapHeld: false,
+    });
+    expect(context().insertionIndex).toBe(4);
+    store.trigger.released();
+    expect(intents).toEqual([
+      {
+        kind: "unsplit",
+        windowId: "win:a1",
+        input: { destinationDesktopId: "desktop:1", placement: "tab", targetWindowId: "win:tab:c" },
+        reorderIndex: null,
+        fence: { expectedRevision: 7, rebase: { windowId: "win:a1", sourceNodeId: "leaf:a1" } },
+      },
+    ]);
+  });
+
+  it("US-010.AC-2: the marker right after the source tab, or first in the bar, needs no anchor", () => {
+    const afterSource = unsplitIntent(headSession(), 2);
+    expect(afterSource.input).toEqual({ destinationDesktopId: "desktop:1", placement: "tab" });
+    expect(afterSource.reorderIndex).toBeNull();
+    // Before the pinned-free bar's first tab no tab precedes the marker: move, then one reorder.
+    const first = unsplitIntent({ ...headSession(), pinnedCount: 0 }, 0);
+    expect(first.input).toEqual({ destinationDesktopId: "desktop:1", placement: "tab" });
+    expect(first.reorderIndex).toBe(0);
   });
 
   it("UT-036: leaving the tab before the dwell ends previews nothing", () => {

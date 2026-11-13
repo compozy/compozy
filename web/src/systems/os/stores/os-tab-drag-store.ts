@@ -32,6 +32,8 @@ export interface TabDragSession {
   source: TabDragSource;
   /** The bar's tab order at press time. */
   tabOrder: readonly TabId[];
+  /** The lead window of each tab in `tabOrder`: what an unsplit drop names as its anchor. */
+  tabLeads: readonly WindowId[];
   pinnedCount: number;
   /** The tab this client showed before the drag; Escape returns to it. */
   activeTabId: TabId | null;
@@ -43,8 +45,8 @@ export interface TabDragSession {
 }
 
 /**
- * Where the pointer is, resolved by the shell's hit test. S5 adds an unsplit drop for heads on
- * the bar and S8/S9 add a `desktop` zone; each is a new variant, the gesture rules stay here.
+ * Where the pointer is, resolved by the shell's hit test. S8/S9 add a `desktop` zone; each is a
+ * new variant, the gesture rules stay here.
  */
 export type TabDragZone =
   | { kind: "bar"; index: number; overTabId: TabId | null }
@@ -53,6 +55,8 @@ export type TabDragZone =
 
 export type TabDragTarget =
   | { kind: "reorder"; index: number }
+  /** A head dropped on the bar becomes its own tab before the tab at `index` (US-010.AC-2). */
+  | { kind: "unsplit"; index: number }
   | { kind: "window"; tabId: TabId; windowId: WindowId; nodeId: LayoutNodeId; edge: DropEdge }
   | { kind: "root"; tabId: TabId; edge: DropEdge }
   | { kind: "swap"; windowId: WindowId; nodeId: LayoutNodeId };
@@ -61,6 +65,17 @@ export type TabDragTarget =
 export type TabDragIntent =
   | { kind: "reorder"; windowId: WindowId; index: number; fence: WindowManagerCommandFence }
   | { kind: "move"; windowId: WindowId; input: MoveWindowInput; fence: WindowManagerCommandFence }
+  /**
+   * `window.move` with placement `tab`, anchored on the tab before the marker; `reorderIndex` is
+   * the one follow-up reorder for a marker no tab precedes (the bar's first position).
+   */
+  | {
+      kind: "unsplit";
+      windowId: WindowId;
+      input: MoveWindowInput;
+      reorderIndex: number | null;
+      fence: WindowManagerCommandFence;
+    }
   | {
       kind: "swap";
       firstWindowId: WindowId;
@@ -105,6 +120,42 @@ function distance(a: PixelPoint, b: PixelPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+/** An unsplit window becomes an unpinned tab (US-010.EC-3): its marker stays after the pins. */
+function unpinnedInsertion(session: TabDragSession, index: number): number {
+  return Math.max(session.pinnedCount, Math.min(index, session.tabOrder.length));
+}
+
+/**
+ * The one move an unsplit drop sends. The daemon places the new tab right after the target
+ * window's tab, or right after its source tab with no target, so the tab before the marker is the
+ * anchor; only the bar's first position has no anchor and takes a follow-up reorder.
+ */
+export function unsplitIntent(
+  session: TabDragSession,
+  insertionIndex: number
+): Extract<TabDragIntent, { kind: "unsplit" }> {
+  const { source } = session;
+  const sourceIndex = session.tabOrder.indexOf(source.tabId);
+  const anchorIndex = insertionIndex - 1;
+  const anchorTabId = session.tabOrder[anchorIndex];
+  const anchorLead = session.tabLeads[anchorIndex];
+  const afterSource = anchorIndex === sourceIndex || anchorTabId === undefined;
+  return {
+    kind: "unsplit",
+    windowId: source.windowId,
+    input: {
+      destinationDesktopId: session.desktopId,
+      placement: "tab",
+      ...(afterSource || anchorLead === undefined ? {} : { targetWindowId: anchorLead }),
+    },
+    reorderIndex: anchorTabId === undefined ? insertionIndex : null,
+    fence: {
+      expectedRevision: session.revision,
+      rebase: { windowId: source.windowId, sourceNodeId: source.nodeId },
+    },
+  };
+}
+
 /** The insertion index clamped to the source's range: pinned tabs among pinned, others after. */
 function clampedInsertion(session: TabDragSession, index: number): number {
   const sourceIndex = session.tabOrder.indexOf(session.source.tabId);
@@ -141,7 +192,10 @@ function contentTarget(
   return { kind: "window", tabId, ...drop };
 }
 
-function fence(session: TabDragSession, target: TabDragTarget): WindowManagerCommandFence {
+function fence(
+  session: TabDragSession,
+  target: Exclude<TabDragTarget, { kind: "unsplit" }>
+): WindowManagerCommandFence {
   const { windowId, nodeId } = session.source;
   const rebase =
     target.kind === "reorder"
@@ -167,6 +221,7 @@ export function tabDragIntent(state: TabDragState): TabDragIntent | null {
       fence: fence(session, target),
     };
   }
+  if (target.kind === "unsplit") return unsplitIntent(session, target.index);
   if (target.kind === "swap") {
     return {
       kind: "swap",
@@ -204,7 +259,9 @@ function onBar(
       dwell: null,
     };
   }
-  // A head over the bar dwells on the tab under it; the drop on the bar itself belongs to S5.
+  // A head over the bar shows an insertion marker (drop = unsplit there) and dwells on the tab
+  // under it: held still, that tab's content becomes the drop target (US-008.AC-3).
+  const insertionIndex = unpinnedInsertion(session, zone.index);
   const over = zone.overTabId;
   let dwell: TabDragState["dwell"] = null;
   if (over !== null && over !== state.contentTabId) {
@@ -212,7 +269,13 @@ function onBar(
       state.dwell?.tabId === over && distance(state.dwell.anchor, point) <= DWELL_SLOP_PX;
     dwell = held ? state.dwell : { tabId: over, anchor: point };
   }
-  return { ...state, mode: null, insertionIndex: null, target: null, dwell };
+  return {
+    ...state,
+    mode: "reorder",
+    insertionIndex,
+    target: { kind: "unsplit", index: insertionIndex },
+    dwell,
+  };
 }
 
 function onContent(

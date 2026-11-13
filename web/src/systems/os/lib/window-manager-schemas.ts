@@ -194,28 +194,26 @@ const migrationStatusSchema = z
     error: diagnosticSchema.nullish(),
     failure_revision: safeRevisionSchema.optional(),
   })
-  .transform(
-    (status): WindowManagerMigrationStatus => ({
-      state: status.state,
-      fromVersion: status.from_version ?? null,
-      at: status.at ?? null,
-      acknowledged: status.acknowledged,
-      summary: status.summary
-        ? {
-            desktops: status.summary.desktops,
-            tabs: status.summary.tabs,
-            windows: status.summary.windows,
-            floatingToTabs: status.summary.floating_to_tabs,
-            minimizedToTabs: status.summary.minimized_to_tabs,
-            islandsMerged: status.summary.islands_merged,
-            pinsDropped: status.summary.pins_dropped,
-            zoomDesktopsMerged: status.summary.zoom_desktops_merged,
-          }
-        : null,
-      error: status.error ?? null,
-      failureRevision: status.failure_revision ?? null,
-    })
-  );
+  .transform((status): WindowManagerMigrationStatus => ({
+    state: status.state,
+    fromVersion: status.from_version ?? null,
+    at: status.at ?? null,
+    acknowledged: status.acknowledged,
+    summary: status.summary
+      ? {
+          desktops: status.summary.desktops,
+          tabs: status.summary.tabs,
+          windows: status.summary.windows,
+          floatingToTabs: status.summary.floating_to_tabs,
+          minimizedToTabs: status.summary.minimized_to_tabs,
+          islandsMerged: status.summary.islands_merged,
+          pinsDropped: status.summary.pins_dropped,
+          zoomDesktopsMerged: status.summary.zoom_desktops_merged,
+        }
+      : null,
+    error: status.error ?? null,
+    failureRevision: status.failure_revision ?? null,
+  }));
 
 const deprecationSchema = z
   .object({
@@ -225,15 +223,13 @@ const deprecationSchema = z
     removal_release: z.string(),
     message: z.string(),
   })
-  .transform(
-    (deprecation): WindowManagerDeprecation => ({
-      code: deprecation.code,
-      surface: deprecation.surface,
-      replacement: deprecation.replacement ?? null,
-      removalRelease: deprecation.removal_release,
-      message: deprecation.message,
-    })
-  );
+  .transform((deprecation): WindowManagerDeprecation => ({
+    code: deprecation.code,
+    surface: deprecation.surface,
+    replacement: deprecation.replacement ?? null,
+    removalRelease: deprecation.removal_release,
+    message: deprecation.message,
+  }));
 
 export const windowManagerSnapshotSchema = z
   .strictObject({
@@ -404,6 +400,11 @@ export const windowManagerErrorSchema = z
 
 export function parseWindowManagerSnapshot(value: unknown): WindowManagerSnapshot {
   return windowManagerSnapshotSchema.parse(value);
+}
+
+/** `GET|POST …/window-manager/migration`: the upgrade notice's status. */
+export function parseWindowManagerMigrationStatus(value: unknown): WindowManagerMigrationStatus {
+  return migrationStatusSchema.parse(value);
 }
 
 export function parseWindowManagerClientView(value: unknown): WindowManagerAttachedClientView {

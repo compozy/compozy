@@ -3,7 +3,7 @@
 // one controller or shell call; tab ops walk the active desktop's tab bar.
 // Owning layer: web/src/systems/os/lib/cmd-palette-client-ops.ts
 // Canonical suite: this file (split from the dispatch seam suite).
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { paletteClientOp } from "../cmd-palette-client-ops";
 import { opContext, tabBarFixture } from "./cmd-palette-dispatch-fixtures";
@@ -80,6 +80,46 @@ describe("cmd-palette client-op table — tabs", () => {
     const context = opContext(tabBarFixture(), "w-2");
     void run("window.tab.jump.8", context);
     expect(context.shell.activateWindow).not.toHaveBeenCalled();
+  });
+});
+
+describe("cmd-palette client-op table — splits", () => {
+  it("Should route unsplit, tab moves and the retargeted tiles to the focused window [US-012]", () => {
+    const context = opContext(tabBarFixture(), "w-2");
+    void run("window.unsplit", context);
+    void run("window.tab.move_left", context);
+    void run("window.tab.move_right", context);
+    for (const edge of ["left", "right", "top", "bottom"]) void run(`window.tile.${edge}`, context);
+
+    expect(context.manager.unsplitWindow).toHaveBeenCalledExactlyOnceWith("w-2");
+    expect(vi.mocked(context.manager.moveTab).mock.calls).toEqual([
+      ["w-2", "left"],
+      ["w-2", "right"],
+    ]);
+    expect(vi.mocked(context.manager.tileWindow).mock.calls).toEqual([
+      ["w-2", "left"],
+      ["w-2", "right"],
+      ["w-2", "top"],
+      ["w-2", "bottom"],
+    ]);
+  });
+
+  it("Should no-op split ops without a focused window and keep retired ids unhandled [US-018]", () => {
+    const context = opContext(null, null);
+    void run("window.unsplit", context);
+    void run("window.tile.left", context);
+    expect(context.manager.unsplitWindow).not.toHaveBeenCalled();
+    expect(context.manager.tileWindow).not.toHaveBeenCalled();
+    for (const retired of [
+      "window.minimize",
+      "window.zoom",
+      "window.toggle_floating",
+      "window.tile.top-left",
+      "window.merge_all",
+      "window.tab.detach",
+    ]) {
+      expect(paletteClientOp(retired)).toBeNull();
+    }
   });
 });
 

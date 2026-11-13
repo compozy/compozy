@@ -96,12 +96,13 @@ function LiveOsSplitSeam({ slot }: { slot: OsSplitSeamSlot }) {
     slot.seam,
     slot.memberCount
   );
-  if (slot.seam === undefined) return <OsSplitSeam axis={slot.axis} />;
+  if (slot.seam === undefined) return <OsSplitSeam axis={slot.axis} gap={slot.gap} />;
   const { leadingWeight, trailingWeight } = slot.seam;
   const pair = leadingWeight + trailingWeight;
   return (
     <OsSplitSeam
       axis={slot.axis}
+      gap={slot.gap}
       valueNow={pair > 0 ? Math.round((leadingWeight / pair) * 100) : undefined}
       state={state}
       onPointerDown={onPointerDown}
@@ -158,6 +159,7 @@ function DeskLayer({
 }) {
   const { coordinator } = useOsShell();
   const projections = useDesktop(state => state.projections);
+  const gaps = useDesktop(state => state.windowManagerConfig?.gaps);
   const { incoming, interactive, style } = desktopLayerView({
     model,
     reducedMotion,
@@ -216,6 +218,7 @@ function DeskLayer({
               renderWindow={renderWindow}
               renderSeam={renderSeam}
               onShowMember={windowId => void coordinator.userFocus(windowId)}
+              gaps={gaps}
             >
               <DropZones tabId={tabId} drag={drag} projection={projection} />
             </OsSplitView>

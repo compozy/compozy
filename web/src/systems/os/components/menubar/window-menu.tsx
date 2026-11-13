@@ -37,6 +37,13 @@ const MOVE_SLOT_COMMANDS = Array.from({ length: MOVE_TO_DESKTOP_SLOT_COUNT }, (_
  * first slot, and move by desktop id through the same move boundary.
  */
 const MOVE_FAMILY_COMMAND = MOVE_SLOT_COMMANDS[0]!;
+/** Window › Arrange: the presets in `COPY.md` order, then Balance sizes. */
+const ARRANGE_COMMANDS = [
+  "layout.arrange.main-stack",
+  "layout.arrange.columns",
+  "layout.arrange.grid",
+] as const;
+const BALANCE_COMMAND = "layout.balance";
 /** Why "Move to desktop" has nothing to offer on a single desktop. */
 const MOVE_NEEDS_DESKTOP_REASON = "needs another desktop";
 function menuGroup(id: string, content: React.ReactNode) {
@@ -79,11 +86,11 @@ function MoveToDesktopItem({
 }
 
 /**
- * Window menu: Move to desktop (the focused window's whole tab), All desktops, Close.
- * Grouping and order are curated here (BR-17); directional focus and layout undo/redo stay
- * palette and keyboard commands. Every item's label, chord, availability and reason are
- * projections of the registry, so an item shows the same truth as its palette row and its
- * chord. The Arrange group returns with the tab model's arrange presets (S5).
+ * Window menu: Move to new tab (a split member), Arrange ▸ with Balance, Move to desktop (the
+ * focused window's whole tab), All desktops, Close. Grouping and order are curated here (BR-17);
+ * directional focus and layout undo/redo stay palette and keyboard commands. Every item's label,
+ * chord, availability and reason are projections of the registry, so an item shows the same truth
+ * as its palette row and its chord.
  */
 export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
   const registry = usePaletteRegistry();
@@ -95,12 +102,32 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
     has(target.slotCommandId ?? MOVE_FAMILY_COMMAND)
   );
   const canMoveToDesktop = MOVE_SLOT_COMMANDS.some(has);
+  const arrangeCommands = [...ARRANGE_COMMANDS, BALANCE_COMMAND].filter(has);
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Window</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-window">
         <MenubarCommandGroups
           groups={[
+            menuGroup(
+              "split",
+              has("window.unsplit") ? (
+                <MenubarCommandItem commandId="window.unsplit" onRun={onRun} />
+              ) : null
+            ),
+            menuGroup(
+              "arrange",
+              arrangeCommands.length > 0 ? (
+                <MenubarSub>
+                  <MenubarSubTrigger data-testid="os-menu-arrange">Arrange</MenubarSubTrigger>
+                  <MenubarSubContent>
+                    {arrangeCommands.map(commandId => (
+                      <MenubarCommandItem key={commandId} commandId={commandId} onRun={onRun} />
+                    ))}
+                  </MenubarSubContent>
+                </MenubarSub>
+              ) : null
+            ),
             menuGroup(
               "move",
               reachableTargets.length > 0 ? (

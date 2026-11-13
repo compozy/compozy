@@ -363,10 +363,7 @@ describe("OsDock", () => {
       "aria-current",
       "true"
     );
-    expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute(
-      "data-state",
-      "running"
-    );
+    expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute("data-state", "running");
     expect(screen.getByRole("button", { name: "Agents" })).toHaveAttribute("data-state", "closed");
   });
 
@@ -1080,9 +1077,9 @@ describe("OsDock", () => {
       })
     );
 
+    // A plain click on the focused app keeps its window: the dock has no minimize (US-018.AC-1).
     act(() => result.current.handleSelect("tasks"));
-    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
-    expect(dockShell.coordinator.userMinimize).toHaveBeenCalledWith(task.id);
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledExactlyOnceWith(task.id);
   });
 
   it("Should report pointer modifiers but treat keyboard activation as a plain click", () => {

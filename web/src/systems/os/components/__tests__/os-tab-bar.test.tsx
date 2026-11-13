@@ -2,7 +2,8 @@
 // Invariant: the bar renders the active desktop's tabs in order with the client's active tab
 // selected, activates a tab through its lead window, closes it by button, middle click, and menu
 // (never a pinned tab by middle click), skips pinned tabs in bulk closes, and opens the overflow
-// list only when tabs at the floor no longer fit.
+// list only when tabs at the floor no longer fit. The tab menu offers a menu equivalent for every
+// drag (Move left/right within the pin range, Split with ▸, Arrange ▸) and no retired control.
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -13,10 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@compozy/ui";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import type {
-  WindowManagerCommandOutcome,
-  WindowManagerController,
-} from "../../lib/os-types";
+import type { WindowManagerCommandOutcome, WindowManagerController } from "../../lib/os-types";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import type {
   LayoutTab,
@@ -165,6 +163,10 @@ function renderBar(options: { tabs?: LayoutTab[]; focusOrder?: string[] } = {}) 
     pinWindow: vi.fn(() => outcome()),
     reopenWindow: vi.fn(() => outcome()),
     moveWindowToDesktop: vi.fn(),
+    moveTab: vi.fn(),
+    splitWithTab: vi.fn(),
+    arrangeLayout: vi.fn(),
+    balanceLayout: vi.fn(),
   } as unknown as WindowManagerController;
   const coordinator = {
     userFocus: vi.fn(async () => true),
@@ -276,6 +278,57 @@ describe("OsTabBar", () => {
       "aria-disabled",
       "true"
     );
+  });
+
+  it("Should move a tab one step within its range and leave out moves past the range [US-012]", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar();
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    // The first regular tab cannot move among the pins.
+    await user.click(await screen.findByRole("menuitem", { name: "Move right" }));
+    expect(screen.queryByRole("menuitem", { name: "Move left" })).toBeNull();
+    expect(manager.moveTab).toHaveBeenCalledExactlyOnceWith("w-tasks", "right");
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:vault"));
+    await user.click(await screen.findByRole("menuitem", { name: "Move left" }));
+    expect(screen.queryByRole("menuitem", { name: "Move right" })).toBeNull();
+    expect(manager.moveTab).toHaveBeenLastCalledWith("w-vault", "left");
+  });
+
+  it("Should split with another tab and arrange or balance from the tab menu [US-012.AC-3, AC-4]", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar();
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    act(() => screen.getByTestId("os-tab-split-with-menu-tab:tasks").focus());
+    await user.keyboard("{ArrowRight}");
+    // Every other tab is offered, never the tab itself.
+    expect(await screen.findByTestId("os-tab-split-with-tab:vault")).toBeInTheDocument();
+    expect(screen.queryByTestId("os-tab-split-with-tab:tasks")).toBeNull();
+    await user.click(screen.getByTestId("os-tab-split-with-tab:vault"));
+    expect(manager.splitWithTab).toHaveBeenCalledExactlyOnceWith("tab:tasks", "tab:vault");
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    act(() => screen.getByTestId("os-tab-arrange-menu-tab:split").focus());
+    await user.keyboard("{ArrowRight}");
+    await user.click(await screen.findByRole("menuitem", { name: "Grid" }));
+    expect(manager.arrangeLayout).toHaveBeenCalledExactlyOnceWith("w-agents", "grid");
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    act(() => screen.getByTestId("os-tab-arrange-menu-tab:split").focus());
+    await user.keyboard("{ArrowRight}");
+    await user.click(await screen.findByRole("menuitem", { name: "Balance sizes" }));
+    expect(manager.balanceLayout).toHaveBeenCalledExactlyOnceWith({ tabId: "tab:split" });
+  });
+
+  it("Should offer no retired window control in the tab menu [US-018.AC-1]", async () => {
+    renderBar();
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:split"));
+    await screen.findByRole("menuitem", { name: "Pin tab" });
+    for (const retired of [/minimi[sz]e/i, /zoom/i, /float/i, /maximi[sz]e/i, /corner|quarter/i]) {
+      expect(screen.queryByRole("menuitem", { name: retired })).toBeNull();
+    }
   });
 
   it("Should open a New Tab after the active tab and raise its destination picker", async () => {

@@ -1,13 +1,16 @@
 // Suite: OS split view
 // Invariant: a tab's split tree lays out its members by the snapshot's weights with read-only
 // separators, and a collapsed split keeps every member mounted while its switcher names them and
-// asks the shell to show the picked one.
+// asks the shell to show the picked one. Configured gaps lay out exactly as the projection allots
+// them — outer gaps pad the content and each seam spans the inner gap — so drop zones and seams
+// drawn from the projection sit on the panes.
 // Owning layer: OsSplitView rendering a TabProjection's collapsed set. Projection math: lib/tab-projection.
 // Boundary OUT: window panes (renderWindow) and focus commands (onShowMember).
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { OsWindow } from "../../lib/os-types";
+import type { ProjectionGaps } from "../../lib/tab-projection-types";
 import type { CollapsedSplit, LayoutNode } from "../../lib/window-manager-types";
 import { OsSplitView } from "../os-split-view";
 
@@ -54,11 +57,12 @@ const ROOT: LayoutNode = {
   ],
 };
 
-function renderSplit(collapsed: CollapsedSplit[] = []) {
+function renderSplit(collapsed: CollapsedSplit[] = [], gaps?: ProjectionGaps) {
   const onShowMember = vi.fn();
   const { container } = render(
     <OsSplitView
       collapsed={collapsed}
+      gaps={gaps}
       onShowMember={onShowMember}
       renderWindow={windowId => <div data-testid={`pane-${windowId}`} />}
       root={ROOT}
@@ -110,5 +114,26 @@ describe("OsSplitView", () => {
     fireEvent.click(within(switcher).getByRole("button", { name: "Loops" }));
 
     expect(onShowMember).toHaveBeenCalledWith("w-loops");
+  });
+
+  it("Should pad the content by the outer gaps and space members by the inner gap", () => {
+    const { container } = renderSplit([], { inner: 8, top: 4, right: 6, bottom: 4, left: 6.4 });
+
+    const view = container.querySelector<HTMLElement>('[data-slot="os-split-view"]')!;
+    expect([
+      view.style.paddingTop,
+      view.style.paddingRight,
+      view.style.paddingBottom,
+      view.style.paddingLeft,
+    ]).toEqual(["4px", "6px", "4px", "6px"]);
+    const [vertical, horizontal] = screen.getAllByRole("separator");
+    expect(vertical!.style.width).toBe("8px");
+    expect(horizontal!.style.height).toBe("8px");
+  });
+
+  it("Should take no layout space for a seam without an inner gap", () => {
+    renderSplit();
+    const [vertical] = screen.getAllByRole("separator");
+    expect(vertical!.style.width).toBe("0px");
   });
 });

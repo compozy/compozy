@@ -124,8 +124,8 @@ describe("cmd-palette availability (UT-096, UT-097, UT-098, UT-100, UT-101)", ()
   });
 
   it("Should keep a partially relevant command visible with the daemon's reason verbatim [UT-098]", () => {
-    const mergeAll = command({
-      id: "window.merge_all",
+    const arrange = command({
+      id: "layout.arrange.two-up",
       when: [
         {
           key: "desktop.windowCount",
@@ -135,7 +135,7 @@ describe("cmd-palette availability (UT-096, UT-097, UT-098, UT-100, UT-101)", ()
         },
       ],
     });
-    expect(resolvePaletteAvailability(mergeAll, snapshot(), reachable)).toEqual({
+    expect(resolvePaletteAvailability(arrange, snapshot(), reachable)).toEqual({
       visible: true,
       available: false,
       reason: "needs two windows on this desktop",

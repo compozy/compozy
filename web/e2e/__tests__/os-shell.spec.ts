@@ -24,6 +24,7 @@ import {
 } from "../fixtures/os-navigation";
 import {
   restartRetiredKnowledgeWindowRuntime,
+  seedLegacyWindowLayout,
   seedRetiredKnowledgeWindow,
 } from "../fixtures/retired-knowledge-window";
 import { createWorktreeRepo } from "../fixtures/worktree-repo";
@@ -2142,9 +2143,8 @@ test("Tabs-split E2E-014 / E2E-037: two clients keep independent active tabs and
 });
 
 // Invariant: dragging a tab along the bar reorders it within its range and the order persists;
-// a pinned tab sits icon-only at the left after reload (US-004, US-005). Owner: tab drag store +
-// `window.tab.reorder`; canonical suite: this file. The "Move left" step of E2E-004 lands with
-// the tab menu's Move left/right in S5.
+// the tab menu's Move left takes it one place back; a pinned tab sits icon-only at the left after
+// reload (US-004, US-005). Owner: tab drag store + `window.tab.reorder`; canonical suite: this file.
 test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pinned tab stays left", async ({
   appPage,
   runtime,
@@ -2182,6 +2182,17 @@ test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pin
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(shell.tabs).toHaveCount(order.length);
   expect(await barTabIds(appPage)).toEqual(expected);
+
+  // The tab menu's Move left takes it one place back.
+  await shell.tab(moved).click({ button: "right" });
+  await appPage.getByRole("menuitem", { name: "Move left", exact: true }).click();
+  const movedLeft = [order[0], order[2], moved, order[3], ...order.slice(4)];
+  await expect
+    .poll(async () =>
+      desktopTabIds(await windowManagerSnapshot(runtime, workspace.id), "desktop-default")
+    )
+    .toEqual(movedLeft);
+  await expect.poll(() => barTabIds(appPage)).toEqual(movedLeft);
 
   await shell.tab(landing).click({ button: "right" });
   await appPage.getByRole("menuitem", { name: "Pin tab" }).click();
@@ -2364,6 +2375,348 @@ test("Tabs-split E2E-008: seam drag persists, double-click balances, and arrow k
   await appPage.keyboard.press("ArrowRight");
   await expect.poll(leading).toBeCloseTo(0.52, 3);
   await expect(seam).toHaveAttribute("aria-valuenow", "52");
+});
+
+// Invariant: a split member leaves for its own tab, right after the split, by its head button,
+// the Window menu or a head dropped on the bar; closing a member collapses the split and reopening
+// restores it on the same side (US-010, US-011, US-006.AC-3). Owner: window head, tab drag store
+// and `window.move` placement tab; canonical suite: this file.
+test("Tabs-split E2E-009: Move to new tab unsplits a member, and a closed member reopens on its side", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("unsplit fixture needs two windows");
+  const shell = osShellSelectors(appPage);
+  const members = async () => {
+    const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+    return tab ? nodeWindowIds(tab.root) : [];
+  };
+  const unsplit = async () => {
+    const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+    const order = desktopTabIds(snapshot, "desktop-default");
+    const tasksTab = tabForWindow(snapshot, tasksID);
+    const agentsTab = tabForWindow(snapshot, agentsID);
+    return {
+      tasks: tasksTab ? nodeWindowIds(tasksTab.root) : [],
+      agents: agentsTab ? nodeWindowIds(agentsTab.root) : [],
+      next: order.indexOf(agentsTab?.id ?? "") === order.indexOf(tasksTab?.id ?? "") + 1,
+    };
+  };
+  const twoTabs = { tasks: [tasksID], agents: [agentsID], next: true };
+  const splitAgain = async () => {
+    await splitWindowBeside(runtime, workspace.id, agentsID, tasksID, "right");
+    await expect.poll(members).toEqual([tasksID, agentsID]);
+    await showTab(appPage, runtime, workspace.id, tasksID);
+    await expect(shell.window(agentsID)).toBeVisible();
+  };
+  const moveToNewTab = (windowId: string) =>
+    shell.window(windowId).getByRole("button", { name: "Move to new tab" });
+
+  // The head's button.
+  await splitAgain();
+  await expect(moveToNewTab(tasksID)).toBeVisible();
+  await moveToNewTab(agentsID).click();
+  await expect.poll(unsplit).toEqual(twoTabs);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  // A window alone in its tab offers no way out of a split.
+  await expect(moveToNewTab(tasksID)).toHaveCount(0);
+
+  // The Window menu acts on the focused member.
+  await splitAgain();
+  await focusWindow(appPage, shell.window(agentsID));
+  await openMenu(appPage, "Window");
+  await menubarCommandItem(appPage, "window.unsplit").click();
+  await expect.poll(unsplit).toEqual(twoTabs);
+
+  // A head dropped on the bar becomes its own tab at the marker.
+  await splitAgain();
+  const lastTab = await requiredBox(shell.tabs.last());
+  const head = shell.window(agentsID).locator('[data-slot="os-window-head"]');
+  await startPointerDrag(appPage, await boxCenter(head));
+  await movePointer(appPage, {
+    x: lastTab.x + lastTab.width * 0.8,
+    y: lastTab.y + lastTab.height / 2,
+  });
+  await expect(appPage.locator('[data-slot="os-tab-insertion"]')).toBeVisible();
+  await appPage.mouse.up();
+  await expect.poll(unsplit).toEqual(twoTabs);
+
+  // Closing a member collapses the split; reopening puts it back on the same side.
+  await splitAgain();
+  await shell.window(agentsID).getByRole("button", { name: "Close window" }).click();
+  await expect.poll(members).toEqual([tasksID]);
+  await expect(shell.window(agentsID)).toHaveCount(0);
+  await expect(shell.window(tasksID)).toBeVisible();
+  await appPage.keyboard.press("ControlOrMeta+Shift+T");
+  await expect.poll(members).toEqual([tasksID, agentsID]);
+  await expect(shell.window(agentsID)).toBeVisible();
+  const [left, right] = await Promise.all([
+    requiredBox(shell.window(tasksID)),
+    requiredBox(shell.window(agentsID)),
+  ]);
+  expect(left.x).toBeLessThan(right.x);
+});
+
+// Invariant: inside a split the arrows move focus between members, the tile shortcut sends the
+// focused member to the tab's root edge, "Split with ▸" joins another tab, and undo/redo replay a
+// split (US-012). Owner: shortcut dispatch, tab menu and `window.move`/`layout.undo`.
+test("Tabs-split E2E-010: directional focus, tile left, Split with, and undo/redo of a split", async ({
+  appPage,
+  runtime,
+}) => {
+  // `meta+KeyZ` follows the platform's primary modifier; pin the Mac one as E2E-003 does.
+  await appPage.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "platform", { get: () => "MacIntel" });
+  });
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, [
+    "tasks",
+    "agents",
+    "marketplace",
+  ]);
+  if (!tasksID || !agentsID) throw new Error("split shortcut fixture needs three tabs");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  const opened = await windowManagerSnapshot(runtime, workspace.id);
+  const tasksTab = opened.windows[tasksID]?.tab_id ?? "";
+  const agentsTab = opened.windows[agentsID]?.tab_id ?? "";
+  const tabMembers = async (windowId: string) => {
+    const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), windowId);
+    return tab ? nodeWindowIds(tab.root) : [];
+  };
+
+  // Split with ▸ joins the chosen tab to this one's right.
+  await shell.tab(tasksTab).click({ button: "right" });
+  await appPage.getByTestId(`os-tab-split-with-menu-${tasksTab}`).click();
+  await appPage.getByTestId(`os-tab-split-with-${agentsTab}`).click();
+  await expect.poll(() => tabMembers(tasksID)).toEqual([tasksID, agentsID]);
+  await expect(shell.tab(agentsTab)).toHaveCount(0);
+  await expect(shell.window(agentsID)).toBeVisible();
+
+  // Undo takes the split back; redo replays it.
+  await focusWindow(appPage, shell.window(tasksID));
+  await appPage.keyboard.press("Meta+KeyZ");
+  await expect.poll(() => tabMembers(tasksID)).toEqual([tasksID]);
+  await expect.poll(() => tabMembers(agentsID)).toEqual([agentsID]);
+  await appPage.keyboard.press("Meta+Shift+KeyZ");
+  await expect.poll(() => tabMembers(tasksID)).toEqual([tasksID, agentsID]);
+  await expect(shell.window(agentsID)).toBeVisible();
+
+  // The arrows move focus between members.
+  const clientID = await browserClientId(appPage);
+  const focused = async () =>
+    (await windowManagerClient(runtime, workspace.id, clientID)).focused_window_id;
+  await focusWindow(appPage, shell.window(tasksID));
+  await expect.poll(focused).toBe(tasksID);
+  await appPage.keyboard.press("Control+ArrowRight");
+  await expect.poll(focused).toBe(agentsID);
+  await appPage.keyboard.press("Control+ArrowLeft");
+  await expect.poll(focused).toBe(tasksID);
+
+  // Tile left sends the focused member to the tab's left edge.
+  await appPage.keyboard.press("Control+ArrowRight");
+  await expect.poll(focused).toBe(agentsID);
+  await appPage.keyboard.press("Control+Alt+ArrowLeft");
+  await expect.poll(() => tabMembers(tasksID)).toEqual([agentsID, tasksID]);
+});
+
+// Invariant: a stored v5 layout opens as tabs: floating and minimized windows become their own
+// tabs, a side-by-side snapped pair one split tab and a split stays a split; the notice counts
+// what moved, survives a reload, and once dismissed is gone after a reload and in every client
+// (US-017). Owner: v5 converter + migration status + upgrade notice; canonical suite: this file.
+test("Tabs-split E2E-012: a v5 layout opens as tabs and the upgrade notice is dismissed for every client", async ({
+  appPage,
+  browser,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const [floatingID, snappedID, minimizedID, splitLeadID, splitMemberID] = await openFixtureWindows(
+    runtime,
+    workspace.id,
+    ["tasks", "agents", "marketplace", "agents", "tasks"]
+  );
+  if (!floatingID || !snappedID || !minimizedID || !splitLeadID || !splitMemberID) {
+    throw new Error("v5 fixture needs five windows");
+  }
+  // The split lives on its own desktop: a snapped pair only joins when it is the desktop's sole
+  // tiled content.
+  const created = await executeWindowManagerCommand(runtime, workspace.id, {
+    commandId: "desktop.create",
+    payload: { desktop_id: "", name: "Split desk" },
+  });
+  const splitDesk = created.snapshot.desktops.find(desktop => desktop.id !== "desktop-default");
+  if (!splitDesk) throw new Error("fixture must create a second desktop");
+  for (const id of [splitLeadID, splitMemberID]) {
+    await executeWindowManagerCommand(runtime, workspace.id, {
+      commandId: "window.move",
+      payload: {
+        window_id: id,
+        destination_desktop_id: splitDesk.id,
+        placement: "tab",
+        move_group: false,
+      },
+    });
+  }
+  await splitWindowBeside(runtime, workspace.id, splitMemberID, splitLeadID, "right");
+  const opened = await windowManagerSnapshot(runtime, workspace.id);
+  const fixtureIDs = [floatingID, snappedID, minimizedID];
+  const others = Object.values(opened.windows)
+    .filter(window => window.desktop_id === "desktop-default" && !fixtureIDs.includes(window.id))
+    .map(window => window.id);
+  const [snappedLeftID, ...floatingOthers] = others;
+  if (!snappedLeftID) throw new Error("the default desktop keeps its boot window");
+  const floating = [floatingID, ...floatingOthers];
+
+  await appPage.goto("about:blank");
+  const seeded = await seedLegacyWindowLayout(runtime, {
+    workspaceId: workspace.id,
+    floating,
+    minimized: [minimizedID],
+    snapped: [snappedLeftID, snappedID],
+    pinned: [snappedID],
+  });
+  expect(seeded.version).toBe(5);
+  expect(seeded.windows[floatingID]?.placement).toBe("floating");
+  await restartRetiredKnowledgeWindowRuntime(runtime);
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await prepareShell(appPage, runtime);
+
+  const loaded = await windowManagerSnapshot(runtime, workspace.id);
+  expect(loaded.version).toBe(6);
+  const arrangement = (windowId: string) => {
+    const tab = tabForWindow(loaded, windowId);
+    return tab?.root.kind === "split"
+      ? { axis: tab.root.axis, members: nodeWindowIds(tab.root), pinned: tab.pinned }
+      : { members: tab ? nodeWindowIds(tab.root) : [], pinned: tab?.pinned };
+  };
+  expect(arrangement(snappedID)).toEqual({
+    axis: "horizontal",
+    members: [snappedLeftID, snappedID],
+    pinned: false,
+  });
+  expect(arrangement(splitLeadID)).toMatchObject({ members: [splitLeadID, splitMemberID] });
+  for (const id of [...floating, minimizedID]) {
+    expect(arrangement(id)).toEqual({ members: [id], pinned: false });
+  }
+
+  const description = `${floating.length} floating ${floating.length === 1 ? "window" : "windows"} and 1 minimized window are tabs now. 1 pin inside a split was removed.`;
+  const notice = appPage.locator('[data-slot="os-upgrade-notice"]');
+  await expect(notice).toHaveAttribute("data-state", "migrated");
+  await expect(notice).toContainText("Your windows are now tabs");
+  await expect(notice).toContainText(description);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(notice).toContainText(description);
+
+  const peer = await openPeerPage(browser, runtime);
+  try {
+    const peerNotice = peer.locator('[data-slot="os-upgrade-notice"]');
+    await expect(peerNotice).toContainText(description);
+
+    await notice.getByRole("button", { name: "Dismiss" }).click();
+    await expect(notice).toHaveCount(0);
+    // The peer rereads the migration status on its refresh interval.
+    await expect(peerNotice).toHaveCount(0, { timeout: 30_000 });
+  } finally {
+    await peer.context().close();
+  }
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(osShellSelectors(appPage).tabs.first()).toBeVisible();
+  await expect(notice).toHaveCount(0);
+  const later = await openPeerPage(browser, runtime);
+  try {
+    await expect(osShellSelectors(later).tabs.first()).toBeVisible();
+    await expect(later.locator('[data-slot="os-upgrade-notice"]')).toHaveCount(0);
+  } finally {
+    await later.context().close();
+  }
+});
+
+const RETIRED_CONTROL =
+  /minimi[sz]e|zoom|float|top[- ]left|top[- ]right|bottom[- ]left|bottom[- ]right/i;
+const RETIRED_COMMANDS = [
+  "window.minimize",
+  "window.zoom",
+  "window.toggle_floating",
+  "window.tile.top-left",
+  "window.tile.top-right",
+  "window.tile.bottom-left",
+  "window.tile.bottom-right",
+  "window.merge_all",
+  "window.tab.detach",
+];
+
+// Invariant: no surface offers a retired control: the window head, tab menu, Window menu, dock and
+// shortcut cheatsheet carry no minimize, zoom, float or corner tile (US-018). Owner: those
+// surfaces plus the daemon catalog (the cheatsheet rows follow the S6 catalog).
+test("Tabs-split E2E-013: no minimize, zoom, float or corner-tile control is left in the shell", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("retired-control fixture needs two windows");
+  await splitWindowBeside(runtime, workspace.id, agentsID, tasksID, "right");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  await expect(shell.window(agentsID)).toBeVisible();
+
+  // Window head: Move to new tab and Close, nothing else.
+  for (const id of [tasksID, agentsID]) {
+    const controls = shell.window(id).locator('[data-slot="os-window-control"]');
+    await expect
+      .poll(() => controls.evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-label"))))
+      .toEqual(["Move to new tab", "Close window"]);
+  }
+
+  // Tab menu.
+  const tasksTab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)?.id;
+  if (!tasksTab) throw new Error("the split must sit in a tab");
+  await shell.tab(tasksTab).click({ button: "right" });
+  const tabMenu = appPage.getByRole("menu");
+  await expect(tabMenu).toBeVisible();
+  await expect(tabMenu).not.toContainText(RETIRED_CONTROL);
+  await appPage.keyboard.press("Escape");
+
+  // Window menu and its Arrange submenu.
+  await openMenu(appPage, "Window");
+  await expect(appPage.getByTestId("os-menu-window")).not.toContainText(RETIRED_CONTROL);
+  for (const id of RETIRED_COMMANDS) {
+    await expect(menubarCommandItem(appPage, id)).toHaveCount(0);
+  }
+  await appPage.getByTestId("os-menu-arrange").click();
+  const arrange = appPage.getByRole("menu").last();
+  await expect(arrange).toContainText("Balance sizes");
+  await expect(arrange).not.toContainText(RETIRED_CONTROL);
+  await appPage.keyboard.press("Escape");
+  await appPage.keyboard.press("Escape");
+
+  // Dock buttons and an app's menu.
+  const dock = appPage.locator('[data-slot="os-dock"]:visible');
+  await expect(dock.getByRole("button", { name: RETIRED_CONTROL })).toHaveCount(0);
+  await dock.getByRole("button", { name: "Tasks" }).click({ button: "right" });
+  const dockMenu = appPage.getByTestId("os-dock-app-menu-tasks");
+  await expect(dockMenu).toBeVisible();
+  await expect(dockMenu).not.toContainText(RETIRED_CONTROL);
+  await appPage.keyboard.press("Escape");
+
+  // Shortcut cheatsheet.
+  await openMenu(appPage, "Help");
+  await appPage.getByRole("menuitem", { name: /^Keyboard shortcuts/ }).click();
+  const shortcuts = appPage.getByTestId("os-shortcuts-dialog");
+  await expect(shortcuts.getByTestId("os-shortcut-row-window.close")).toBeVisible();
+  for (const id of RETIRED_COMMANDS) {
+    await expect(shortcuts.getByTestId(`os-shortcut-row-${id}`)).toHaveCount(0);
+  }
+  const windowRows = await shortcuts
+    .locator('[data-testid^="os-shortcut-row-window."]')
+    .allTextContents();
+  expect(windowRows.filter(row => RETIRED_CONTROL.test(row))).toEqual([]);
 });
 
 test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque identity", async ({

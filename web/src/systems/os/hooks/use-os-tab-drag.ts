@@ -73,12 +73,15 @@ function dragSession(
   );
   if (desktop === undefined || desktop.id !== state.activeDesktopId) return null;
   const tabOrder = desktop.tabs.map(tab => tab.id);
+  const focusOrder = state.client?.focusOrder ?? [];
+  const tabLeads = desktop.tabs.map(tab => leadWindowId(tab, focusOrder) ?? "");
   const activeTabId = state.activeTabIds[desktop.id] ?? null;
   return {
     desktopId: desktop.id,
     revision,
     source,
     tabOrder,
+    tabLeads,
     pinnedCount: desktop.tabs.filter(tab => tab.pinned).length,
     activeTabId,
     splitTabId: splitTabFor(state, tabOrder, source.tabId, activeTabId),
@@ -207,6 +210,13 @@ function dispatchIntent(manager: WindowManagerController, intent: TabDragIntent)
     case "move":
       manager.moveWindow(intent.windowId, intent.input, intent.fence);
       return;
+    case "unsplit": {
+      const { reorderIndex, windowId } = intent;
+      void manager.moveWindow(windowId, intent.input, intent.fence).completion.then(applied => {
+        if (applied && reorderIndex !== null) manager.reorderTab(windowId, reorderIndex);
+      });
+      return;
+    }
     case "swap":
       manager.swapWindows(intent.firstWindowId, intent.secondWindowId, intent.fence);
       return;

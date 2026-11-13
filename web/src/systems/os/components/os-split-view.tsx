@@ -13,6 +13,7 @@ import type { SessionPayload } from "@/systems/session";
 
 import { descendantWindowIds } from "../lib/layout-minimums";
 import type { OsWindow } from "../lib/os-types";
+import type { ProjectionGaps } from "../lib/tab-projection-types";
 import type {
   CollapsedSplit,
   LayoutAxis,
@@ -29,6 +30,8 @@ interface SplitViewContextValue {
   renderWindow: (windowId: string) => ReactNode;
   renderSeam: (seam: OsSplitSeamSlot) => ReactNode;
   onShowMember: (windowId: string) => void;
+  /** Pixels between two members: what each seam occupies, as the projection lays it out. */
+  innerGap: number;
 }
 
 /** One seam's place in the tree, with its projection when the split is laid out. */
@@ -38,6 +41,8 @@ export interface OsSplitSeamSlot {
   axis: LayoutAxis;
   /** Members of the split this seam belongs to. */
   memberCount: number;
+  /** The inner gap the seam spans; 0 lays members edge to edge with the line drawn over them. */
+  gap: number;
   seam: ProjectedSeam | undefined;
 }
 
@@ -51,6 +56,8 @@ function useSplitView(): SplitViewContextValue {
 
 export interface OsSplitSeamProps {
   axis: LayoutAxis;
+  /** The inner gap the seam spans, in pixels; the projection allots exactly this between members. */
+  gap?: number;
   /** Leading member's share, in percent, for assistive tech. */
   valueNow?: number;
   state?: "drag" | "limit";
@@ -65,6 +72,7 @@ export interface OsSplitSeamProps {
  */
 export function OsSplitSeam({
   axis,
+  gap = 0,
   valueNow,
   state,
   onPointerDown,
@@ -83,10 +91,10 @@ export function OsSplitSeam({
       aria-valuenow={interactive ? valueNow : undefined}
       tabIndex={interactive ? 0 : undefined}
       className={cn(
-        "group/seam relative z-10 shrink-0 bg-line outline-none",
-        row ? "w-px" : "h-px",
+        "group/seam relative z-10 shrink-0 outline-none",
         interactive && (row ? "cursor-col-resize" : "cursor-row-resize")
       )}
+      style={row ? { width: gap } : { height: gap }}
       data-slot="os-split-seam"
       data-state={state}
       onDoubleClick={onDoubleClick}
@@ -95,10 +103,21 @@ export function OsSplitSeam({
     >
       {/* Hit area wider than the visible line. */}
       <span className={cn("absolute", row ? "inset-y-0 -inset-x-1.5" : "inset-x-0 -inset-y-1.5")} />
+      {/* The hairline sits centered in the gap, so a zero gap takes no layout space. */}
+      <span
+        className={cn(
+          "pointer-events-none absolute bg-line",
+          row
+            ? "inset-y-0 left-1/2 w-px -translate-x-1/2"
+            : "inset-x-0 top-1/2 h-px -translate-y-1/2"
+        )}
+      />
       <span
         className={cn(
           "pointer-events-none absolute rounded-pill transition-colors duration-fast",
-          row ? "inset-y-0 -left-px w-0.75" : "inset-x-0 -top-px h-0.75",
+          row
+            ? "inset-y-0 left-1/2 w-0.75 -translate-x-1/2"
+            : "inset-x-0 top-1/2 h-0.75 -translate-y-1/2",
           interactive && "group-hover/seam:bg-brand group-focus-visible/seam:bg-brand",
           "group-focus-visible/seam:shadow-focus-ring",
           state === "drag" && "bg-brand",
@@ -119,7 +138,12 @@ export function OsSplitSeam({
   );
 }
 
-const renderInertSeam = (slot: OsSplitSeamSlot) => <OsSplitSeam axis={slot.axis} />;
+const renderInertSeam = (slot: OsSplitSeamSlot) => <OsSplitSeam axis={slot.axis} gap={slot.gap} />;
+
+/** The projection's rule for a configured gap: a finite, non-negative whole pixel count. */
+function gapPixels(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
 
 function MemberTitle({ win }: { win: OsWindow }) {
   const { sessionOf } = useSplitView();
@@ -181,6 +205,7 @@ function Node({ node }: { node: LayoutNode }) {
                 boundaryIndex: index - 1,
                 axis: node.axis,
                 memberCount: node.children.length,
+                gap: view.innerGap,
                 seam: view.seams.get(`${node.id}:${index - 1}`),
               })
             : null}
@@ -210,6 +235,11 @@ export interface OsSplitViewProps {
   renderSeam?: (slot: OsSplitSeamSlot) => ReactNode;
   /** Shows a collapsed split's member: focusing it makes it the one shown. */
   onShowMember: (windowId: string) => void;
+  /**
+   * The configured gaps, laid out exactly as the projection allots them: the outer gaps pad the
+   * content, the inner gap separates members. Drop zones and seams read the same projection.
+   */
+  gaps?: ProjectionGaps;
   className?: string;
   /** Overlays above the content: drop zones while a tab or window head is dragged. */
   children?: ReactNode;
@@ -229,6 +259,7 @@ export function OsSplitView({
   seams = [],
   renderSeam = renderInertSeam,
   onShowMember,
+  gaps,
   className,
   children,
 }: OsSplitViewProps) {
@@ -240,12 +271,19 @@ export function OsSplitView({
     renderWindow,
     renderSeam,
     onShowMember,
+    innerGap: gapPixels(gaps?.inner),
   };
   return (
     <SplitViewContext value={value}>
       <div
         className={cn("relative flex min-h-0 min-w-0 flex-1 bg-canvas", className)}
         data-slot="os-split-view"
+        style={{
+          paddingTop: gapPixels(gaps?.top),
+          paddingRight: gapPixels(gaps?.right),
+          paddingBottom: gapPixels(gaps?.bottom),
+          paddingLeft: gapPixels(gaps?.left),
+        }}
       >
         <Node node={root} />
         {children}

@@ -210,6 +210,14 @@ export interface WindowManagerController extends OsDesktopRuntime {
     fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
+  /** "Move to new tab": a split member becomes its own tab right after its source tab. */
+  unsplitWindow(windowId: string): void;
+  /** Moves a split member to a root edge of its own tab. */
+  tileWindow(windowId: string, edge: "left" | "right" | "top" | "bottom"): void;
+  /** Joins `chosenTabId` to `hostTabId` as a split with the chosen tab on the right. */
+  splitWithTab(hostTabId: TabId, chosenTabId: TabId): void;
+  /** Moves the window's tab one step left or right within its pinned or unpinned range. */
+  moveTab(windowId: string, direction: "left" | "right"): void;
   resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
   balanceLayout(target: { tabId?: string; splitId?: string }): void;
   navigateWindow(

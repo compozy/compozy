@@ -47,5 +47,6 @@ export function useOsWindowMember(windowId: string) {
       }
     },
     close: () => void coordinator.userClose(windowId),
+    unsplit: () => manager.unsplitWindow(windowId),
   };
 }

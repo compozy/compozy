@@ -8,7 +8,7 @@ import {
   useTopbarSlotValue,
   type TopbarSlotStore,
 } from "@compozy/ui";
-import { X } from "@compozy/ui/icons";
+import { ArrowUpRight, X } from "@compozy/ui/icons";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -88,8 +88,8 @@ function OsWindowHeadControl({
 }
 
 /**
- * One window's head, toolbar and body. The head carries the window's identity and its controls;
- * a window is a plain box in its tab's split, so the only control here is Close.
+ * One window's head, toolbar and body. The head carries the window's identity and its controls:
+ * Close, and inside a split "Move to new tab" (US-018.AC-2). There is no minimize or zoom.
  */
 export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section">, "title"> {
   title: React.ReactNode;
@@ -99,6 +99,8 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
   focused?: boolean;
   /** Closes this window; omitted renders a head without controls. */
   onClose?: () => void;
+  /** Inside a split: "Move to new tab" gives the window its own tab. Omitted outside a split. */
+  onUnsplit?: () => void;
   /** Starts a drag by the head: the window moves inside its split, or its tab moves. */
   onHeadPointerDown?: (event: React.PointerEvent<HTMLElement>) => void;
   headClassName?: string;
@@ -117,6 +119,7 @@ export function OsWindowSurface({
   leading,
   focused = true,
   onClose,
+  onUnsplit,
   onHeadPointerDown,
   headClassName,
   slotStore,
@@ -138,12 +141,20 @@ export function OsWindowSurface({
           data-slot="os-window-head"
           data-scrolled={scrolled ? "" : undefined}
           onPointerDown={onHeadPointerDown}
-          // S5 adds the window head's split controls (Move to new tab) beside Close.
           controls={
-            onClose ? (
-              <OsWindowHeadControl label="Close window" onClick={onClose}>
-                <X aria-hidden="true" className="size-3.75" />
-              </OsWindowHeadControl>
+            onClose || onUnsplit ? (
+              <span className="flex items-center gap-0.5" data-slot="os-window-controls">
+                {onUnsplit ? (
+                  <OsWindowHeadControl label="Move to new tab" onClick={onUnsplit}>
+                    <ArrowUpRight aria-hidden="true" className="size-3.75" />
+                  </OsWindowHeadControl>
+                ) : null}
+                {onClose ? (
+                  <OsWindowHeadControl label="Close window" onClick={onClose}>
+                    <X aria-hidden="true" className="size-3.75" />
+                  </OsWindowHeadControl>
+                ) : null}
+              </span>
             ) : undefined
           }
           title={title}

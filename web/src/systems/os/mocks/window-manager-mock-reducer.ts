@@ -6,10 +6,10 @@ import type { windowManagerSnapshotFixture } from "./fixtures";
  * desktops and splits, and arrange into one split tab. It is not a second source of truth.
  */
 export type MockSnapshot = typeof windowManagerSnapshotFixture;
-type MockDesktop = MockSnapshot["desktops"][number];
-type MockTab = MockDesktop["tabs"][number];
-type MockNode = MockTab["root"];
-type MockWindow = MockSnapshot["windows"][string];
+export type MockDesktop = MockSnapshot["desktops"][number];
+export type MockTab = MockDesktop["tabs"][number];
+export type MockNode = MockTab["root"];
+export type MockWindow = MockSnapshot["windows"][string];
 
 export interface MockClosedEntry {
   desktopId: string;
@@ -38,7 +38,7 @@ export class MockCommandError extends Error {
 }
 
 let generated = 0;
-function generateId(prefix: string): string {
+export function generateId(prefix: string): string {
   generated += 1;
   return `${prefix}-mock-${generated}`;
 }
@@ -48,11 +48,11 @@ export function nodeWindowIds(node: MockNode): string[] {
   return (node.children ?? []).flatMap(nodeWindowIds);
 }
 
-function leaf(windowId: string): MockNode {
+export function leaf(windowId: string): MockNode {
   return { id: generateId("node"), kind: "leaf", window_id: windowId };
 }
 
-function equalWeights(count: number): number[] {
+export function equalWeights(count: number): number[] {
   return Array.from({ length: count }, () => 1 / count);
 }
 
@@ -76,7 +76,7 @@ function removeLeaf(node: MockNode, windowId: string): MockNode | null {
   };
 }
 
-function findTabOf(
+export function findTabOf(
   snapshot: MockSnapshot,
   windowId: string
 ): { desktop: MockDesktop; index: number; tab: MockTab } {
@@ -88,20 +88,20 @@ function findTabOf(
   throw new MockCommandError("window-not-found", `Window not found: ${windowId}`, windowId);
 }
 
-function desktopById(snapshot: MockSnapshot, desktopId: string): MockDesktop {
+export function desktopById(snapshot: MockSnapshot, desktopId: string): MockDesktop {
   const desktop = snapshot.desktops.find(candidate => candidate.id === desktopId);
   if (!desktop) throw new MockCommandError("invalid-command", `Unknown desktop ${desktopId}.`);
   return desktop;
 }
 
 /** Inserts within the tab's pinned or unpinned range, like the daemon's `insertTab`. */
-function insertTab(desktop: MockDesktop, tab: MockTab, index: number): void {
+export function insertTab(desktop: MockDesktop, tab: MockTab, index: number): void {
   const pins = desktop.tabs.filter(candidate => candidate.pinned).length;
   const [min, max] = tab.pinned ? [0, pins] : [pins, desktop.tabs.length];
   desktop.tabs.splice(Math.min(max, Math.max(min, index)), 0, tab);
 }
 
-function assignTab(snapshot: MockSnapshot, desktop: MockDesktop, tab: MockTab): void {
+export function assignTab(snapshot: MockSnapshot, desktop: MockDesktop, tab: MockTab): void {
   for (const id of nodeWindowIds(tab.root)) {
     const window = snapshot.windows[id];
     if (window) snapshot.windows[id] = { ...window, desktop_id: desktop.id, tab_id: tab.id };
@@ -109,7 +109,7 @@ function assignTab(snapshot: MockSnapshot, desktop: MockDesktop, tab: MockTab): 
 }
 
 /** Drops a window from its tab; an emptied tab leaves the bar and the default moves on. */
-function detachWindow(snapshot: MockSnapshot, windowId: string): void {
+export function detachWindow(snapshot: MockSnapshot, windowId: string): void {
   const { desktop, index, tab } = findTabOf(snapshot, windowId);
   const root = removeLeaf(tab.root, windowId);
   if (root !== null) {
@@ -120,7 +120,7 @@ function detachWindow(snapshot: MockSnapshot, windowId: string): void {
   repairActiveTab(desktop, index);
 }
 
-function repairActiveTab(desktop: MockDesktop, removedIndex: number): void {
+export function repairActiveTab(desktop: MockDesktop, removedIndex: number): void {
   if (desktop.tabs.some(tab => tab.id === desktop.active_tab_id)) return;
   const neighbor = desktop.tabs[Math.min(removedIndex, desktop.tabs.length - 1)];
   desktop.active_tab_id = neighbor?.id ?? "";
@@ -314,76 +314,6 @@ export function pinTab(snapshot: MockSnapshot, windowId: string, pinned: boolean
   const pins = placement.desktop.tabs.filter(candidate => candidate.pinned).length;
   insertTab(placement.desktop, tab, pins);
   return { windowIds: [], tabIds: [tab.id], desktopIds: [placement.desktop.id] };
-}
-
-const EDGE_AXIS: Record<string, { axis: "horizontal" | "vertical"; before: boolean }> = {
-  left: { axis: "horizontal", before: true },
-  right: { axis: "horizontal", before: false },
-  top: { axis: "vertical", before: true },
-  bottom: { axis: "vertical", before: false },
-};
-
-/** `window.move`: a tab after the target's tab (or at the bar's end), or a split at an edge. */
-export function moveWindow(
-  snapshot: MockSnapshot,
-  input: {
-    windowId: string;
-    destinationDesktopId: string;
-    targetWindowId?: string;
-    targetTabId?: string;
-    placement: string;
-    moveGroup: boolean;
-  }
-): MockReduction {
-  const source = findTabOf(snapshot, input.windowId);
-  const destination = desktopById(snapshot, input.destinationDesktopId);
-  const whole = input.moveGroup || nodeWindowIds(source.tab.root).length === 1;
-  const incoming: MockNode = whole ? source.tab.root : leaf(input.windowId);
-  if (whole) {
-    source.desktop.tabs.splice(source.index, 1);
-    repairActiveTab(source.desktop, source.index);
-  } else {
-    detachWindow(snapshot, input.windowId);
-  }
-  const targetTabId =
-    input.targetTabId ??
-    (input.targetWindowId ? snapshot.windows[input.targetWindowId]?.tab_id : undefined);
-  const edge = EDGE_AXIS[input.placement];
-  const targetIndex = destination.tabs.findIndex(tab => tab.id === targetTabId);
-  const target = destination.tabs[targetIndex];
-  let shown: MockTab;
-  if (edge && target) {
-    const children = edge.before ? [incoming, target.root] : [target.root, incoming];
-    shown = {
-      ...target,
-      root: {
-        id: generateId("node"),
-        kind: "split",
-        axis: edge.axis,
-        weights: [0.5, 0.5],
-        children,
-      },
-    };
-    destination.tabs[targetIndex] = shown;
-  } else {
-    shown = whole ? source.tab : { id: generateId("tab"), pinned: false, root: incoming };
-    const index =
-      target !== undefined
-        ? targetIndex + 1
-        : destination.id === source.desktop.id
-          ? source.index
-          : destination.tabs.length;
-    insertTab(destination, shown, index);
-  }
-  assignTab(snapshot, destination, shown);
-  destination.active_tab_id = shown.id;
-  return {
-    windowIds: nodeWindowIds(incoming),
-    tabIds: [source.tab.id, shown.id],
-    desktopIds: [source.desktop.id, destination.id],
-    focus: input.windowId,
-    show: { desktopId: destination.id, tabId: shown.id },
-  };
 }
 
 function arrangeNodes(nodes: MockNode[], arrangement: string): MockNode {

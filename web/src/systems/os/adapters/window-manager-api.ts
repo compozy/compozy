@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   parseWindowManagerCommandResult,
   parseWindowManagerError,
+  parseWindowManagerMigrationStatus,
   parseWindowManagerRegisteredClientView,
   parseWindowManagerSnapshot,
 } from "../lib/window-manager-schemas";
@@ -13,6 +14,7 @@ import type {
   WindowManagerCommandInput,
   WindowManagerCommandResult,
   WindowManagerErrorPayload,
+  WindowManagerMigrationStatus,
   WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
@@ -204,6 +206,35 @@ export async function executeWindowManagerCommand(
     }
   );
   return parseWindowManagerCommandResult(await requireSuccess(response, workspaceId));
+}
+
+export async function fetchWindowManagerMigration(
+  workspaceId: string,
+  profile: string,
+  signal?: AbortSignal
+): Promise<WindowManagerMigrationStatus> {
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${managerUrl(workspaceId, profile, "/migration")}`,
+    { signal }
+  );
+  return parseWindowManagerMigrationStatus(await requireSuccess(response, workspaceId));
+}
+
+/**
+ * `ack` dismisses the upgrade notice for every client; `retry` re-runs a failed conversion from
+ * the preserved layout, refused with a revision conflict when the layout changed since.
+ */
+export async function updateWindowManagerMigration(
+  workspaceId: string,
+  profile: string,
+  action: "ack" | "retry",
+  signal?: AbortSignal
+): Promise<WindowManagerMigrationStatus> {
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${managerUrl(workspaceId, profile, "/migration")}`,
+    { ...jsonRequest({ action, replace: false }, signal), method: "POST" }
+  );
+  return parseWindowManagerMigrationStatus(await requireSuccess(response, workspaceId));
 }
 
 export function buildWindowManagerStreamUrl(

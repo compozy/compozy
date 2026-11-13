@@ -35,6 +35,7 @@ import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
 import { LiveOsDeskLayer } from "./os-desk-layer";
 import { OsTabBar } from "./os-tab-bar";
+import { OsUpgradeNotice } from "./os-upgrade-notice";
 import { AgentCreateHostProvider, AgentCreateScreen } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -313,50 +314,54 @@ function DesktopShellScopedBody({
           // The desk is a panel inset into the chrome: a hairline where it meets
           // the tab bar and rail, flush with the window's right and bottom edges.
           // It clips its children so split panes follow the rounded corner; the
-          // desk layer sits inside the border, so projection never sees it.
-          "relative row-start-3 min-h-0 overflow-hidden border-t border-line",
+          // desk layer sits inside the border, so projection never sees it. The
+          // upgrade notice takes its height above the content area.
+          "relative row-start-3 flex min-h-0 flex-col overflow-hidden border-t border-line",
           desktop.presentation !== "compact"
             ? "col-start-2 rounded-tl-lg border-l"
             : "col-span-full"
         )}
       >
-        <OsWallpaper wallpaper={desktop.wallpaper} />
-        <DaemonRecoveryNoticeHost className="absolute top-3 left-1/2 z-30 w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 shadow-pop" />
-        {model.activeWorkspaceId !== null ? (
-          <WorkspaceProfilesHint
-            hints={model.workspaceProfileHints}
-            workspaceId={model.activeWorkspaceId}
+        <OsUpgradeNotice />
+        <div data-slot="os-desk-content" className="relative min-h-0 flex-1">
+          <OsWallpaper wallpaper={desktop.wallpaper} />
+          <DaemonRecoveryNoticeHost className="absolute top-3 left-1/2 z-30 w-[min(42rem,calc(100%-1.5rem))] -translate-x-1/2 shadow-pop" />
+          {model.activeWorkspaceId !== null ? (
+            <WorkspaceProfilesHint
+              hints={model.workspaceProfileHints}
+              workspaceId={model.activeWorkspaceId}
+            />
+          ) : null}
+          {desktop.windowIds.map(windowId => (
+            <OsAppPreloader key={windowId} windowId={windowId} />
+          ))}
+          <LiveOsDeskLayer
+            reducedMotion={reducedMotion}
+            transition={transition}
+            onTransitionComplete={onTransitionComplete}
           />
-        ) : null}
-        {desktop.windowIds.map(windowId => (
-          <OsAppPreloader key={windowId} windowId={windowId} />
-        ))}
-        <LiveOsDeskLayer
-          reducedMotion={reducedMotion}
-          transition={transition}
-          onTransitionComplete={onTransitionComplete}
-        />
-        <DesktopManagerSurfaces
-          model={managerSurfaces}
-          needsYouDesktopIds={pager.needsYouDesktopIds}
-          switchShortcuts={desktopSwitchShortcuts}
-          onCreateDesktop={() => manager.createDesktop()}
-          onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
-          onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
-          onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
-          onDeleteDesktop={(desktopId, destinationId) =>
-            manager.deleteDesktop(desktopId, destinationId)
-          }
-          onMoveWindow={(windowId, destinationDesktopId) =>
-            manager.moveWindowToDesktop(windowId, destinationDesktopId)
-          }
-          onOpenChange={onDesktopManagerOpenChange}
-          onRetry={() => manager.refreshSnapshot()}
-          onResolveConflict={() => {
-            manager.clearConflict();
-            manager.refreshSnapshot();
-          }}
-        />
+          <DesktopManagerSurfaces
+            model={managerSurfaces}
+            needsYouDesktopIds={pager.needsYouDesktopIds}
+            switchShortcuts={desktopSwitchShortcuts}
+            onCreateDesktop={() => manager.createDesktop()}
+            onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
+            onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
+            onReorderDesktop={(desktopId, order) => manager.reorderDesktop(desktopId, order)}
+            onDeleteDesktop={(desktopId, destinationId) =>
+              manager.deleteDesktop(desktopId, destinationId)
+            }
+            onMoveWindow={(windowId, destinationDesktopId) =>
+              manager.moveWindowToDesktop(windowId, destinationDesktopId)
+            }
+            onOpenChange={onDesktopManagerOpenChange}
+            onRetry={() => manager.refreshSnapshot()}
+            onResolveConflict={() => {
+              manager.clearConflict();
+              manager.refreshSnapshot();
+            }}
+          />
+        </div>
       </div>
       {/* Route matches mount here as sync-controllers; they render null. */}
       <Outlet />

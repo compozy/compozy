@@ -77,6 +77,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
       leading={projectBadgeLead(app, windowBinding.badge, windowId)}
       focused={focused}
       onClose={member.close}
+      onUnsplit={win.inSplit ? member.unsplit : undefined}
       slotStore={ensureWindowSlotStore(windowId)}
       // The runtime animates in-window drills against this one named body.
       bodyTransitionName={focused && win.shown ? "os-window-body" : undefined}

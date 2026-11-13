@@ -18,7 +18,8 @@ export interface PaletteClientOpRuntimeState {
   windows: Record<string, { id: string; desktopId: string }>;
   client: { focusOrder: string[] };
   /** Desktop-order tests read only `id` and `order`; tab ops read the active desktop's bar. */
-  desktops: (Pick<LayoutDesktop, "id" | "order"> & Partial<Pick<LayoutDesktop, "tabs" | "activeTabId">>)[];
+  desktops: (Pick<LayoutDesktop, "id" | "order"> &
+    Partial<Pick<LayoutDesktop, "tabs" | "activeTabId">>)[];
   windowManagerConfig: Record<string, never>;
 }
 
@@ -32,7 +33,9 @@ export function tabBarFixture(overrides: Partial<TabBarFixture> = {}): TabBarFix
   return { tabs: ["w-1", "w-2", "w-3"], activeWindowId: "w-2", ...overrides };
 }
 
-function barDesktop(bar: TabBarFixture): Pick<LayoutDesktop, "id" | "order" | "tabs" | "activeTabId"> {
+function barDesktop(
+  bar: TabBarFixture
+): Pick<LayoutDesktop, "id" | "order" | "tabs" | "activeTabId"> {
   return {
     id: "desktop:a",
     order: 0,
@@ -98,6 +101,9 @@ export function opContext(bar: TabBarFixture | null, focusedId: string | null) {
     closeWindow: vi.fn(() => Promise.resolve(true)),
     arrangeLayout: vi.fn(),
     focusDirection: vi.fn(),
+    unsplitWindow: vi.fn(),
+    tileWindow: vi.fn(),
+    moveTab: vi.fn(),
   } as unknown as WindowManagerController & { getState: () => PaletteClientOpRuntimeState };
   return {
     manager,

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { type SessionPayload, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-import type { OsCloseScope, OsWindow } from "../lib/os-types";
+import type { OsArrangePreset, OsCloseScope, OsWindow } from "../lib/os-types";
 import { leadWindowId, resolveActiveTabId, tabWindowIds } from "../lib/tab-model";
 import { allocateTabWidths, type TabWidthAllocation } from "../lib/tab-width";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
@@ -188,6 +188,20 @@ export function useOsTabBar() {
       const model = modelOf(tabId);
       if (model) manager.moveWindowToDesktop(model.leadId, desktopId);
     },
+    /** "Move left" / "Move right": one step within the tab's pinned or unpinned range. */
+    moveTab: (tabId: string, direction: "left" | "right") => {
+      const model = modelOf(tabId);
+      if (model) manager.moveTab(model.leadId, direction);
+    },
+    /** "Split with ▸": the chosen tab joins this one as a split, on the right. */
+    splitWith: (tabId: string, chosenTabId: string) => manager.splitWithTab(tabId, chosenTabId),
+    /** "Arrange ▸": one split tab from this tab's windows and one window of every other tab. */
+    arrange: (tabId: string, preset: OsArrangePreset) => {
+      const model = modelOf(tabId);
+      if (model) manager.arrangeLayout(model.leadId, preset);
+    },
+    /** "Balance sizes": evens every split of the tab. */
+    balance: (tabId: string) => manager.balanceLayout({ tabId }),
     reopen: () => void manager.reopenWindow(),
     /** Opens a New Tab right after the active tab and raises its destination picker. */
     openNewTab: () => {

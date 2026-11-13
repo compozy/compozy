@@ -12,7 +12,6 @@ import {
   editWeights,
   focusWindow,
   MockCommandError,
-  moveWindow,
   nodeWindowIds,
   openWindow,
   pinTab,
@@ -23,6 +22,7 @@ import {
   type MockReduction,
   type MockSnapshot,
 } from "./window-manager-mock-reducer";
+import { moveWindow } from "./window-manager-mock-move";
 
 type WindowManagerClient = ReturnType<typeof windowManagerClientFixture>;
 type WindowManagerSnapshotFactory = (workspaceId: string) => MockSnapshot;

@@ -20,6 +20,9 @@ import (
 type options struct {
 	homeDir, workspaceID, profileID, sessionWindowID, knowledgeWindowID string
 	rect                                                                windowmanager.NormalizedRect
+	// Legacy placements for the layout-upgrade scenario: windows that leave
+	// their tiled tab for the floating layer, minimized, or a snapped half.
+	floating, minimized, snapped, pinned []windowmanager.WindowID
 }
 
 type workspaceResolver struct{ database *globaldb.GlobalDB }
@@ -90,7 +93,14 @@ func run(ctx context.Context, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := addRetiredKnowledgeWindow(&snapshot, parsed); err != nil {
+	if err := applyLegacyPlacements(&snapshot, parsed); err != nil {
+		return err
+	}
+	if parsed.knowledgeWindowID != "" {
+		if err := addRetiredKnowledgeWindow(&snapshot, parsed); err != nil {
+			return err
+		}
+	} else if err := stampSeededRevision(&snapshot); err != nil {
 		return err
 	}
 	encoded, err := json.Marshal(snapshot)
@@ -202,6 +212,10 @@ func addRetiredKnowledgeWindow(snapshot *windowmanager.SnapshotV5, parsed option
 	if !foundDesktop {
 		return fmt.Errorf("session desktop %q is missing", session.DesktopID)
 	}
+	return stampSeededRevision(snapshot)
+}
+
+func stampSeededRevision(snapshot *windowmanager.SnapshotV5) error {
 	revision, err := windowmanager.NextTopologyRevision(snapshot.Revision)
 	if err != nil {
 		return err
@@ -223,6 +237,10 @@ func parseOptions(args []string) (options, error) {
 	flags.StringVar(&parsed.profileID, "profile", store.DefaultProfileID, "owning profile id")
 	flags.StringVar(&parsed.sessionWindowID, "session-window", "", "existing registered session window id")
 	flags.StringVar(&parsed.knowledgeWindowID, "knowledge-window", "", "retired knowledge window id")
+	floating := flags.String("floating", "", "comma-separated windows moved to the floating layer")
+	minimized := flags.String("minimized", "", "comma-separated windows moved to the floating layer, minimized")
+	snapped := flags.String("snapped", "", "two comma-separated windows snapped to the left and right halves")
+	pinned := flags.String("pinned", "", "comma-separated windows pinned in the legacy layout")
 	flags.Float64Var(&parsed.rect.X, "x", 0.55, "knowledge floating x")
 	flags.Float64Var(&parsed.rect.Y, "y", 0.1, "knowledge floating y")
 	flags.Float64Var(&parsed.rect.Width, "width", 0.4, "knowledge floating width")
@@ -230,12 +248,17 @@ func parseOptions(args []string) (options, error) {
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
+	parsed.floating, parsed.minimized = windowList(*floating), windowList(*minimized)
+	parsed.snapped, parsed.pinned = windowList(*snapped), windowList(*pinned)
 	if strings.TrimSpace(parsed.homeDir) == "" || strings.TrimSpace(parsed.workspaceID) == "" ||
-		strings.TrimSpace(parsed.profileID) == "" || strings.TrimSpace(parsed.sessionWindowID) == "" ||
-		strings.TrimSpace(parsed.knowledgeWindowID) == "" {
-		return options{}, errors.New(
-			"retired knowledge window seeder requires home, workspace, session-window, and knowledge-window",
-		)
+		strings.TrimSpace(parsed.profileID) == "" {
+		return options{}, errors.New("legacy window seeder requires home and workspace")
+	}
+	if (parsed.knowledgeWindowID == "") != (parsed.sessionWindowID == "") {
+		return options{}, errors.New("a retired knowledge window requires both session-window and knowledge-window")
+	}
+	if len(parsed.snapped) != 0 && len(parsed.snapped) != 2 {
+		return options{}, errors.New("snapped takes exactly two windows")
 	}
 	return parsed, nil
 }
