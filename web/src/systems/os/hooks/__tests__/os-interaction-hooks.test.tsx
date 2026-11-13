@@ -1542,8 +1542,9 @@ function HeadDragHarness({ windowId, onBack }: { windowId: string; onBack: () =>
   );
 }
 
-// Invariant: a tab or window-head drag sends its one command on release, and a press that stays
-// below the drag threshold is a plain click on whatever control is under it.
+// Invariant: a tab or window-head drag sends its one command on release and always tears down,
+// even when that command throws; a press that stays below the drag threshold, or starts on a
+// control inside the head, is a plain click on that control.
 // Owning layer: the pointer-to-drag-store wiring in useOsTabDragStart; the gesture rules
 // themselves are owned by the drag store suite.
 describe("useOsTabDragStart pointer gestures", () => {
@@ -1595,7 +1596,73 @@ describe("useOsTabDragStart pointer gestures", () => {
     await waitFor(() => expect(osTabDragStore.getSnapshot().context.settling).toBeNull());
   });
 
-  it("Should leave a head control's click alone when the press never becomes a drag", () => {
+  it("Should not capture a head press that never becomes a drag", () => {
+    const shell = renderSplitHead();
+    const head = stubPointerCapture(screen.getByTestId("head"));
+
+    fireEvent.pointerDown(head, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 12, clientY: 10 });
+
+    // Capturing at press would route the click to the head instead of what is under it.
+    expect(head.setPointerCapture).not.toHaveBeenCalled();
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+  });
+
+  it("Should never arm a drag from a control inside the head, even when the press moves", () => {
+    const shell = renderSplitHead();
+    const head = stubPointerCapture(screen.getByTestId("head"));
+    const back = screen.getByRole("button", { name: "Back" });
+
+    fireEvent.pointerDown(back, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    fireEvent.pointerMove(window, { pointerId: 3, clientX: 40, clientY: 10 });
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 40, clientY: 10 });
+    fireEvent.click(back);
+
+    expect(onHeadBack).toHaveBeenCalledOnce();
+    expect(head.setPointerCapture).not.toHaveBeenCalled();
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should leave the next gesture clean when a drop's dispatch throws", () => {
+    const { shell, tabs } = renderTabBar();
+    vi.mocked(shell.controller.reorderTab).mockImplementationOnce(() => {
+      throw new Error("dispatch failed");
+    });
+    // jsdom reports a listener's exception as a window error; the test owns that report.
+    const onError = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener("error", onError);
+
+    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 1, clientX: 50, clientY: 15 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 15 });
+    expect(document.documentElement.style.userSelect).toBe("none");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 15 });
+    window.removeEventListener("error", onError);
+
+    expect(shell.controller.reorderTab).toHaveBeenCalledOnce();
+    expect(document.documentElement.style.userSelect).toBe("");
+    expect(tabs[0]!.hasPointerCapture(1)).toBe(false);
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({ phase: "idle", settling: null });
+
+    // The listeners of the failed gesture are gone: one more drag sends exactly one more command.
+    fireEvent.pointerDown(tabs[1]!, { button: 0, pointerId: 2, clientX: 150, clientY: 15 });
+    fireEvent.pointerMove(window, { pointerId: 2, clientX: 10, clientY: 15 });
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 10, clientY: 15 });
+
+    expect(shell.controller.reorderTab).toHaveBeenCalledTimes(2);
+    expect(shell.controller.reorderTab).toHaveBeenLastCalledWith("window:b", 0, {
+      expectedRevision: SNAPSHOT.revision,
+      rebase: { windowId: "window:b" },
+    });
+  });
+
+  const onHeadBack = vi.fn();
+
+  /** One split tab whose primary window's head is rendered with a Back control. */
+  function renderSplitHead() {
+    onHeadBack.mockClear();
     const shell = createShell();
     shell.setRuntimeState({
       desktops: [
@@ -1614,24 +1681,39 @@ describe("useOsTabDragStart pointer gestures", () => {
       ],
       activeTabIds: { "desktop:main": "tab:main" },
     });
-    const onBack = vi.fn();
-    render(<HeadDragHarness windowId="window:primary" onBack={onBack} />, {
+    render(<HeadDragHarness windowId="window:primary" onBack={onHeadBack} />, {
       wrapper: shell.wrapper,
     });
-    const head = stubPointerCapture(screen.getByTestId("head"));
-    const back = screen.getByRole("button", { name: "Back" });
+    return shell;
+  }
 
-    fireEvent.pointerDown(back, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
-    expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
-    fireEvent.pointerUp(window, { pointerId: 3, clientX: 12, clientY: 10 });
-    fireEvent.click(back);
-
-    // Capturing at press would route the click to the head instead of the control.
-    expect(head.setPointerCapture).not.toHaveBeenCalled();
-    expect(onBack).toHaveBeenCalledOnce();
-    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
-    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
-  });
+  /** Three single-window tabs on a 300px bar, each 100px wide. */
+  function renderTabBar() {
+    const shell = createShell();
+    const windows = Object.fromEntries(
+      ["a", "b", "c"].map(name => [
+        `window:${name}`,
+        windowFixture(`window:${name}`, { tabId: `tab:${name}`, nodeId: `leaf:window:${name}` }),
+      ])
+    );
+    shell.setRuntimeState({
+      windows,
+      desktops: [
+        desktopWith(
+          ["a", "b", "c"].map(name => ({ id: `tab:${name}`, root: leafNode(`window:${name}`) }))
+        ),
+      ],
+      activeTabIds: { "desktop:main": "tab:a" },
+    });
+    render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, { wrapper: shell.wrapper });
+    screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
+    const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
+      const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
+      tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 30);
+      return tab;
+    });
+    return { shell, tabs };
+  }
 });
 
 const SEAM: ProjectedSeam = {
@@ -1650,14 +1732,52 @@ const SEAM: ProjectedSeam = {
   trailingWindowIds: ["window:peer"],
 };
 
-function SeamHarness({ seam }: { seam: ProjectedSeam | undefined }) {
-  const { state, onPointerDown } = useOsSplitSeam(seam, 2);
-  return <div data-state={state} data-testid="seam" onPointerDown={onPointerDown} />;
+function SeamHarness({
+  seam,
+  memberCount = 2,
+}: {
+  seam: ProjectedSeam | undefined;
+  memberCount?: number;
+}) {
+  const { state, onPointerDown, onKeyDown, onDoubleClick } = useOsSplitSeam(seam, memberCount);
+  return (
+    <div
+      data-state={state}
+      data-testid="seam"
+      tabIndex={0}
+      onDoubleClick={onDoubleClick}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+    />
+  );
+}
+
+/** The authoritative snapshot with one split tab whose split carries these weights. */
+function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): WindowManagerSnapshot {
+  return {
+    ...SNAPSHOT,
+    revision,
+    desktops: [
+      desktopWith([
+        {
+          id: "tab:main",
+          root: {
+            id: "split:main",
+            kind: "split",
+            axis: "horizontal",
+            weights,
+            children: [leafNode("window:primary"), leafNode("window:peer")],
+          },
+        },
+      ]),
+    ],
+  };
 }
 
 // Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it started
-// from; Escape and a change of the context it was drawn in (US-009.EC-2) cancel it, restore the
-// shares and send nothing.
+// from; Escape, a cancelled or lost pointer, unmounting and a change of the context it was drawn
+// in — including the split's weights — (US-009.EC-2) cancel it, restore the shares and send
+// nothing. Keyboard and pair-balance resizes carry the same fence.
 // Owning layer: the seam gesture hook over the shared seam drag store (hooks/seam-drag-store).
 describe("useOsSplitSeam gesture lifecycle", () => {
   let frames: FrameRequestCallback[] = [];
@@ -1670,16 +1790,16 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     });
   }
 
-  function startSeamDrag() {
+  function startSeamDrag(snapshot: WindowManagerSnapshot = SNAPSHOT) {
     const shell = createShell();
-    shell.setRuntimeState({ activeTabIds: { "desktop:main": "tab:main" } });
+    shell.setRuntimeState({ snapshot, activeTabIds: { "desktop:main": "tab:main" } });
     frames = [];
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       frames.push(callback);
       return frames.length;
     });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    render(<SeamHarness seam={SEAM} />, { wrapper: shell.wrapper });
+    const { unmount } = render(<SeamHarness seam={SEAM} />, { wrapper: shell.wrapper });
     const seam = stubPointerCapture(screen.getByTestId("seam"));
     fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
     fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
@@ -1690,7 +1810,14 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       deltaPx: 60,
     });
     expect(seam).toHaveAttribute("data-state", "drag");
-    return { shell, seam };
+    return { shell, seam, unmount };
+  }
+
+  /** The drag ended without a commit: the shares are back and a late release sends nothing. */
+  function expectCancelled(shell: ReturnType<typeof createShell>, seam: HTMLElement) {
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
   }
 
   afterEach(() => {
@@ -1733,5 +1860,68 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       { expectedRevision: SNAPSHOT.revision, rebase: { splitId: "split:main", boundaryIndex: 0 } }
     );
     await waitFor(() => expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull());
+  });
+  it("Should cancel when the pointer is cancelled", () => {
+    const { shell, seam } = startSeamDrag();
+
+    fireEvent.pointerCancel(seam, { pointerId: 4 });
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should cancel when the seam loses pointer capture", () => {
+    const { shell, seam } = startSeamDrag();
+
+    fireEvent(seam, new Event("lostpointercapture", { bubbles: true }));
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should cancel when the seam unmounts mid-drag", () => {
+    const { shell, seam, unmount } = startSeamDrag();
+
+    unmount();
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should cancel when someone else changes the split's weights mid-drag", () => {
+    const { shell, seam } = startSeamDrag(snapshotWithSplit([0.5, 0.5]));
+
+    // The preview showed 50/50 moving; committing its delta onto 30/70 would land elsewhere.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should fence an arrow-key resize and a pair balance like a drag", () => {
+    const shell = createShell();
+    const wide: ProjectedSeam = { ...SEAM, leadingWeight: 0.3, trailingWeight: 0.5 };
+    render(<SeamHarness memberCount={3} seam={wide} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const fence = {
+      expectedRevision: SNAPSHOT.revision,
+      rebase: { splitId: "split:main", boundaryIndex: 0 },
+    };
+
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.doubleClick(seam);
+
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      1,
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      fence
+    );
+    // A three-member split evens only this pair: 0.3 and 0.5 become 0.4 each.
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.1),
+      fence
+    );
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
   });
 });

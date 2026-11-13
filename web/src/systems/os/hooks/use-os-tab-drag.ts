@@ -326,10 +326,21 @@ function trackGesture(
     update();
     const dragged = osTabDragStore.getSnapshot().context.phase === "dragging";
     // `released` emits the drop: release while the `dropped` listener is still subscribed,
-    // then tear the gesture down.
-    osTabDragStore.trigger.released();
-    stop();
-    if (dragged) swallowNextClick();
+    // then tear the gesture down even when the drop's dispatch throws, so no listener, capture
+    // or selection lock outlives this gesture.
+    try {
+      osTabDragStore.trigger.released();
+    } catch (error) {
+      // The command never left: no answer will clear a reorder's held bar order.
+      osTabDragStore.trigger.settled();
+      throw error;
+    } finally {
+      stop();
+      if (osTabDragStore.getSnapshot().context.phase !== "idle") {
+        osTabDragStore.trigger.cancelled();
+      }
+      if (dragged) swallowNextClick();
+    }
   };
   const onCancel = () => {
     osTabDragStore.trigger.cancelled();
@@ -359,6 +370,22 @@ function trackGesture(
   osTabDragStore.trigger.pressed({ session, point });
 }
 
+/** Controls that own their press: a press that starts on one never arms a drag. */
+const INTERACTIVE_CONTROL_SELECTOR =
+  "button, a[href], input, textarea, select, [contenteditable='true'], [role='button'], [role='menuitem']";
+
+/**
+ * Whether a press started on a control inside the drag source (a head's back button, crumbs or
+ * app actions; a tab's close button). The source itself may be a control — a tab is a button —
+ * and still drags.
+ */
+function pressedOnInnerControl(event: ReactPointerEvent<HTMLElement>): boolean {
+  const origin = event.target instanceof Element ? event.target : null;
+  const control = origin?.closest(INTERACTIVE_CONTROL_SELECTOR);
+  if (!control) return false;
+  return control !== event.currentTarget && event.currentTarget.contains(control);
+}
+
 /**
  * Starts tab and window-head drags. Nothing reaches the daemon until the drop: the bar order and
  * the shown tab are local previews, and the drop sends one command fenced to the layout the drag
@@ -372,8 +399,7 @@ export function useOsTabDragStart() {
     anyDesktop = false
   ) => {
     if (event.button !== 0 || osTabDragStore.getSnapshot().context.phase !== "idle") return;
-    const origin = event.target instanceof Element ? event.target : null;
-    if (origin?.closest("input, textarea, select, [contenteditable='true']")) return;
+    if (pressedOnInnerControl(event)) return;
     const state = manager.getState();
     const session = dragSession(state, pick(state), anyDesktop);
     if (session !== null) trackGesture(manager, session, event);

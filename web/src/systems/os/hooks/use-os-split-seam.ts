@@ -6,7 +6,8 @@ import {
   type GestureCancelReason,
 } from "../lib/layout-gesture-cancellation";
 import { seamWeightDelta } from "../lib/seam-preview";
-import type { ProjectedSeam } from "../lib/window-manager-types";
+import type { WindowManagerCommandFence } from "../lib/os-types";
+import type { LayoutNode, ProjectedSeam } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import {
   SEAM_WEIGHT_EPSILON,
@@ -28,11 +29,24 @@ function clearPreview(): void {
   windowManagerStore.trigger.seamPreviewCleared();
 }
 
+/** The committed weights of one split in the authoritative snapshot (never the live preview). */
+function committedWeights(nodes: readonly LayoutNode[], splitId: string): string | null {
+  for (const node of nodes) {
+    if (node.kind !== "split") continue;
+    if (node.id === splitId) return node.weights.join(",");
+    const nested = committedWeights(node.children, splitId);
+    if (nested !== null) return nested;
+  }
+  return null;
+}
+
 /**
- * What a seam drag is drawn against: the client binding, the shown desktop and tab, and the work
- * area. Hidden tabs stay mounted, so a tab or desktop switch must cancel a drag explicitly.
+ * What a seam drag is drawn against: the client binding, the shown desktop and tab, the work area
+ * and the split's committed weights. Hidden tabs stay mounted, so a tab or desktop switch must
+ * cancel a drag explicitly; weights changed by someone else would rebase the drag's delta onto
+ * shares its preview never showed.
  */
-function useSeamGestureContext(): string {
+function useSeamGestureContext(splitId: string | undefined): string {
   const binding = useSelector(windowManagerStore, snapshot => {
     const value = snapshot.context.binding;
     return value === null ? "" : `${value.workspaceId}/${value.profileId}/${value.clientId}`;
@@ -45,7 +59,14 @@ function useSeamGestureContext(): string {
     const desktopId = state.activeDesktopId ?? "";
     return `${desktopId}/${state.activeTabIds[desktopId] ?? ""}`;
   });
-  return `${binding}|${shown}|${area}`;
+  const weights = useDesktop(state => {
+    if (splitId === undefined) return "";
+    const roots = (state.snapshot?.desktops ?? []).flatMap(desktop =>
+      desktop.tabs.map(tab => tab.root)
+    );
+    return committedWeights(roots, splitId) ?? "";
+  });
+  return `${binding}|${shown}|${area}|${weights}`;
 }
 
 export type OsSplitSeamState = "drag" | "limit" | undefined;
@@ -54,7 +75,7 @@ export type OsSplitSeamState = "drag" | "limit" | undefined;
  * One seam's gesture. A pointer drag previews the two sides' shares through the shared seam
  * preview, stops at either side's pixel minimum, and commits one `layout.resize` fenced to the
  * revision it started from. Escape, a cancelled or lost pointer, a context change (another tab,
- * desktop, binding or work area) and unmounting cancel it and restore the shares. Arrow keys
+ * desktop, binding or work area, or the split's weights changed by someone else) and unmounting cancel it and restore the shares. Arrow keys
  * resize in steps and a double-click balances the two sides.
  */
 export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: number) {
@@ -64,7 +85,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     if (snapshot.context.phase !== "dragging") return undefined;
     return seamDragAtLimit(snapshot.context) ? "limit" : "drag";
   });
-  const contextKey = useSeamGestureContext();
+  const contextKey = useSeamGestureContext(seam?.splitId);
   const cancelRef = useRef<((reason: GestureCancelReason) => void) | null>(null);
 
   // A drag outlives neither its seam nor the context it was drawn in.
@@ -76,6 +97,14 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     cancelRef.current?.("context-changed");
   }, [store, seamId, contextKey]);
   useEffect(() => () => cancelRef.current?.("disposed"), []);
+
+  /** Keyboard and balance commands are fenced like a drag: to this revision and this seam. */
+  const fenceFor = (target: ProjectedSeam): WindowManagerCommandFence | undefined => {
+    const revision = manager.getState().snapshot?.revision;
+    if (revision === undefined) return undefined;
+    const { splitId, boundaryIndex } = target;
+    return { expectedRevision: revision, rebase: { splitId, boundaryIndex } };
+  };
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     const revision = manager.getState().snapshot?.revision;
@@ -158,7 +187,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     event.preventDefault();
     const delta = seamWeightDelta(seam, direction * seamKeyStep(event) * seam.axisSpan);
     if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
-      manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta);
+      manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam));
     }
   };
 
@@ -174,7 +203,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     }
     const delta = (seam.trailingWeight - seam.leadingWeight) / 2;
     if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
-      manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta);
+      manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam));
     }
   };
 
