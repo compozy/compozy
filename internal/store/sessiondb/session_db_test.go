@@ -2782,7 +2782,7 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 					Raw: json.RawMessage(fmt.Sprintf(`{"rawInput": {"command": "echo '<%d>' && true"}}`, i))},
 			)
 			if i%3 != 2 {
-				result := fmt.Sprintf(`{"status":"completed","rawOutput":{"stdout":"%s"}}`, strings.Repeat("ok ", i*40))
+				result := fmt.Sprintf(`{"status":"completed","rawOutput":{"stdout":%q}}`, strings.Repeat("ok ", i*40))
 				stream = append(stream, acp.AgentEvent{
 					Type: acp.EventTypeToolResult, TurnID: "turn-long", ToolCallID: call, Raw: json.RawMessage(result),
 				})
