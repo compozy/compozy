@@ -25,6 +25,7 @@ import {
   windowManagerSnapshotOptions,
 } from "../lib/window-manager-query";
 import { RoutingCoordinator, type OsRouterPort } from "../lib/routing-coordinator";
+import { ROUTE_WRITE_STATE_KEY } from "../lib/routing-write-echoes";
 import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier";
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
@@ -50,11 +51,14 @@ export interface DesktopChromeModel {
 function navigateTo(
   router: ReturnType<typeof useRouter>,
   route: { pathname: string; search: Record<string, unknown> },
+  writeId: number,
   replace: boolean
 ): void {
   const href = `${route.pathname}${router.options.stringifySearch(route.search)}`;
-  if (replace) router.history.replace(href);
-  else router.history.push(href);
+  // The entry keeps its own state, so its report names this write even after Back or Forward.
+  const state = { [ROUTE_WRITE_STATE_KEY]: writeId };
+  if (replace) router.history.replace(href, state);
+  else router.history.push(href, state);
 }
 
 function streamError(error: Error | WindowManagerErrorPayload): Error {
@@ -112,8 +116,8 @@ export function useDesktopChrome(
   const [clientCommandChannel] = useState(() => new ClientCommandChannel());
   const [shell] = useState<OsShellHandle>(() => {
     const port: OsRouterPort = {
-      navigate: route => navigateTo(router, route, false),
-      replace: route => navigateTo(router, route, true),
+      navigate: (route, writeId) => navigateTo(router, route, writeId, false),
+      replace: (route, writeId) => navigateTo(router, route, writeId, true),
     };
     return {
       projection: manager.projectionAtom,

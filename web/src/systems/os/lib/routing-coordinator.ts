@@ -17,6 +17,7 @@ import {
 } from "./routing-default-view-intent";
 import { decideRouteReconciliation } from "./routing-route-decision";
 import { RoutingWriteEchoes } from "./routing-write-echoes";
+import { startWindowActivation, windowActivationEntry } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -71,14 +72,15 @@ export class RoutingCoordinator {
    * Sync-controllers report every matched location here (cause: route-pop).
    * During hydration the location is held as the final focus intent — on a
    * workspace switch this is exactly the cross-workspace deep link that must
-   * win over the target workspace's restored focus (US-016.EC-2).
+   * win over the target workspace's restored focus (US-016.EC-2). `writeId` is the coordinator
+   * write the reported history entry carries (`routeWriteIdOf`), `null` for any other entry.
    */
-  reportRouteMatch(route: OsWindowRoute): void {
+  reportRouteMatch(route: OsWindowRoute, writeId: number | null = null): void {
     // The router echoing the coordinator's own write is never intent: authoritative focus
     // may have moved on since, and the URL follows it instead. During hydration every
     // location stays the held initial intent.
     if (this.phase !== "ready") this.echoes.reset();
-    else if (this.echoes.isEcho(route)) {
+    else if (this.echoes.isEcho(writeId)) {
       this.reportAuthoritativeState();
       return;
     }
@@ -290,26 +292,26 @@ export class RoutingCoordinator {
   }
 
   /**
-   * One activation writes one entry (rule 5) once its focus settles, if it is still the newest
-   * intent and focus ended on its window or moved: the window focused then, whatever the answer (a
-   * replaced focus or a repeat the daemon answers unapplied still ends there). Reports meanwhile
-   * defer to it, so the entry before a burst stays a Back target; unmoved focus writes nothing.
+   * Focuses the window, then writes the activation's one entry (`windowActivationEntry`). Reports
+   * meanwhile defer to it, so the entry before a burst stays a Back target.
    */
   private async activate(windowId: string): Promise<boolean> {
-    const intent = this.nextUserIntentToken;
-    const startedOn = this.manager.getState().focusedId;
+    const start = startWindowActivation(
+      this.manager.getState(),
+      windowId,
+      this.nextUserIntentToken
+    );
     this.activationsInFlight += 1;
     // A rejected completion still ends the activation: the count must never leak.
     await this.manager.focusWindow(windowId, { replaceable: true }).completion.catch(() => false);
     this.activationsInFlight -= 1;
-    const { focusedId, windows } = this.manager.getState();
-    const focused = focusedId === null ? undefined : windows[focusedId];
-    const newest = intent === this.nextUserIntentToken;
-    const landed = focusedId === windowId || focusedId !== startedOn;
-    if (newest && focused && landed) this.pushRoute(focused.route);
+    const state = this.manager.getState();
+    const newest = this.nextUserIntentToken;
+    const entry = windowActivationEntry(start, state, this.currentRoute, newest);
+    if (entry !== null) this.pushRoute(entry);
     // Reports deferred to activations catch up once none is left in flight.
     else if (this.activationsInFlight === 0) this.reportAuthoritativeState();
-    return newest && focusedId === windowId;
+    return start.intent === newest && state.focusedId === windowId;
   }
 
   /**
@@ -397,14 +399,12 @@ export class RoutingCoordinator {
   private pushRoute(route: OsWindowRoute): void {
     this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
-    this.echoes.wrote(route, "push");
-    this.router.navigate(route);
+    this.router.navigate(route, this.echoes.wrote("push"));
   }
 
   private replaceRoute(route: OsWindowRoute): void {
     this.currentRoute = route;
-    this.echoes.wrote(route, "replace");
-    this.router.replace(route);
+    this.router.replace(route, this.echoes.wrote("replace"));
   }
 
   /**

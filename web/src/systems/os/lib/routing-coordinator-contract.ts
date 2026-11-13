@@ -7,11 +7,15 @@ import type {
 } from "./os-types";
 import type { FocusWindowOptions } from "./window-manager-types";
 
+/**
+ * The coordinator's history writes. Each carries the write id the new entry's history state must
+ * hold under `ROUTE_WRITE_STATE_KEY`, so the entry's later report names the write that created it.
+ */
 export interface OsRouterPort {
   /** Pushes one history entry reflecting the location. */
-  navigate(route: OsWindowRoute): void;
+  navigate(route: OsWindowRoute, writeId: number): void;
   /** Truths up hydration or remote authority without manufacturing history. */
-  replace(route: OsWindowRoute): void;
+  replace(route: OsWindowRoute, writeId: number): void;
 }
 
 export type RoutingManager = {
