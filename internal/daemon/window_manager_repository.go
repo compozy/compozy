@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 // desktops are per-profile working state, so one workspace holds one document
 // per profile rather than one document overall (US-026).
 func windowManagerSnapshotKey(profileID string) string {
-	return windowManagerSnapshotKeyStem + ":" + profileID
+	return statekeys.Snapshot(profileID)
 }
 
 // windowManagerSnapshotProfile reports the profile a stored aggregate key owns.

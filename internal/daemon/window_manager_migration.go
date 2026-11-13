@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 	windowManagerMigrationFailed   = "failed"
 )
 
-func windowManagerLegacyKey(profile string) string    { return "legacy:" + profile }
+func windowManagerLegacyKey(profile string) string    { return statekeys.Legacy(profile) }
 func windowManagerMigrationKey(profile string) string { return "migration:" + profile }
 
 func (r *windowManagerRepository) readMigration(

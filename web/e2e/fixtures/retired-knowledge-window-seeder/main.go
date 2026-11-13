@@ -15,10 +15,12 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 )
 
 type options struct {
 	homeDir, workspaceID, profileID, sessionWindowID, knowledgeWindowID string
+	rawSnapshot, rawKey                                                 string
 	rect                                                                windowmanager.NormalizedRect
 	// Legacy placements for the layout-upgrade scenario: windows that leave
 	// their tiled tab for the floating layer, minimized, or a snapped half.
@@ -84,28 +86,17 @@ func run(ctx context.Context, args []string) (err error) {
 	}
 	defer func() { err = errors.Join(err, engine.Close()) }()
 	workspaceID := clientstate.WorkspaceID(parsed.workspaceID)
-	key := "snapshot:" + parsed.profileID
+	key := statekeys.Snapshot(parsed.profileID)
+	if parsed.rawSnapshot != "" && parsed.rawKey == "legacy" {
+		key = statekeys.Legacy(parsed.profileID)
+	}
 	entry, err := engine.Get(ctx, workspaceID, "window_manager", key)
-	if err != nil {
+	if err != nil && !(parsed.rawSnapshot != "" && errors.Is(err, clientstate.ErrNotFound)) {
 		return fmt.Errorf("read raw stored window snapshot: %w", err)
 	}
-	snapshot, err := legacySnapshotForSeed(entry.Value)
+	encoded, err := snapshotValueForSeed(entry.Value, parsed)
 	if err != nil {
 		return err
-	}
-	if err := applyLegacyPlacements(&snapshot, parsed); err != nil {
-		return err
-	}
-	if parsed.knowledgeWindowID != "" {
-		if err := addRetiredKnowledgeWindow(&snapshot, parsed); err != nil {
-			return err
-		}
-	} else if err := stampSeededRevision(&snapshot); err != nil {
-		return err
-	}
-	encoded, err := json.Marshal(snapshot)
-	if err != nil {
-		return fmt.Errorf("encode seeded snapshot: %w", err)
 	}
 	if _, err := engine.Apply(ctx, workspaceID, "window_manager", []clientstate.Op{
 		{Kind: clientstate.OpPut, Key: key, Value: encoded, IfRev: entry.Rev},
@@ -120,6 +111,35 @@ func run(ctx context.Context, args []string) (err error) {
 		return fmt.Errorf("print raw seeded snapshot: %w", err)
 	}
 	return nil
+}
+
+func snapshotValueForSeed(current []byte, parsed options) ([]byte, error) {
+	if parsed.rawSnapshot != "" {
+		encoded, err := os.ReadFile(parsed.rawSnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("read raw snapshot file: %w", err)
+		}
+		return encoded, nil
+	}
+	snapshot, err := legacySnapshotForSeed(current)
+	if err != nil {
+		return nil, err
+	}
+	if err := applyLegacyPlacements(&snapshot, parsed); err != nil {
+		return nil, err
+	}
+	if parsed.knowledgeWindowID != "" {
+		if err := addRetiredKnowledgeWindow(&snapshot, parsed); err != nil {
+			return nil, err
+		}
+	} else if err := stampSeededRevision(&snapshot); err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("encode seeded snapshot: %w", err)
+	}
+	return encoded, nil
 }
 
 // Seed the previous release's persisted shape so cold boot exercises both the
@@ -232,6 +252,8 @@ func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("retired-knowledge-window-seeder", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	var parsed options
+	flags.StringVar(&parsed.rawSnapshot, "raw-snapshot", "", "file bytes to persist without layout conversion")
+	flags.StringVar(&parsed.rawKey, "raw-key", "snapshot", "raw target key: snapshot or legacy")
 	flags.StringVar(&parsed.homeDir, "home", "", "isolated CompozyOS home")
 	flags.StringVar(&parsed.workspaceID, "workspace", "", "workspace id")
 	flags.StringVar(&parsed.profileID, "profile", store.DefaultProfileID, "owning profile id")
@@ -248,6 +270,9 @@ func parseOptions(args []string) (options, error) {
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
+	if err := validateRawOptions(flags, parsed); err != nil {
+		return options{}, err
+	}
 	parsed.floating, parsed.minimized = windowList(*floating), windowList(*minimized)
 	parsed.snapped, parsed.pinned = windowList(*snapped), windowList(*pinned)
 	if strings.TrimSpace(parsed.homeDir) == "" || strings.TrimSpace(parsed.workspaceID) == "" ||
@@ -261,4 +286,39 @@ func parseOptions(args []string) (options, error) {
 		return options{}, errors.New("snapped takes exactly two windows")
 	}
 	return parsed, nil
+}
+
+func validateRawOptions(flags *flag.FlagSet, parsed options) error {
+	rawRequested, keyRequested := false, false
+	var conflicts []string
+	flags.Visit(func(option *flag.Flag) {
+		switch option.Name {
+		case "raw-snapshot":
+			rawRequested = true
+		case "raw-key":
+			keyRequested = true
+		case "home", "workspace", "profile":
+		default:
+			conflicts = append(conflicts, "--"+option.Name)
+		}
+	})
+	if !rawRequested {
+		if keyRequested {
+			return errors.New("--raw-key requires --raw-snapshot")
+		}
+		return nil
+	}
+	if strings.TrimSpace(parsed.rawSnapshot) == "" {
+		return errors.New("--raw-snapshot requires a file")
+	}
+	if parsed.rawKey != "snapshot" && parsed.rawKey != "legacy" {
+		return errors.New("--raw-key must be snapshot or legacy")
+	}
+	if len(conflicts) > 0 {
+		return fmt.Errorf(
+			"--raw-snapshot cannot be combined with layout-building flags: %s",
+			strings.Join(conflicts, ", "),
+		)
+	}
+	return nil
 }
