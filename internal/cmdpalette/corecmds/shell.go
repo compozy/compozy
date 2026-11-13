@@ -186,7 +186,7 @@ func shellCommands() []cmdpalette.Descriptor {
 			section: coreSectionTiling, icon: coreIconPanelTop, when: splitWindowWhen,
 		})
 	}
-	// Swap trades the focused window's place with its on-screen neighbour on that side of its tab.
+	// Swap trades the focused window's place with its on-screen neighbor on that side of its tab.
 	swaps := []struct{ id, title, icon string }{
 		{"left", "Swap left", coreIconArrowLeft}, {"right", "Swap right", coreIconArrowRight},
 		{"up", "Swap up", coreIconArrowUp}, {"down", "Swap down", coreIconArrowDown},

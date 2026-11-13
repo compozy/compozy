@@ -193,7 +193,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should ship swap directions bindable and unbound so stored arrow overrides still resolve", func(t *testing.T) {
+	t.Run("Should ship swap directions unbound so stored arrow overrides resolve", func(t *testing.T) {
 		t.Parallel()
 		swaps := []string{"window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down"}
 		defaults := DefaultKeymap()
