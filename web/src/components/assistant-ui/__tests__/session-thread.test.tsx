@@ -88,6 +88,7 @@ import {
   composeQuotedPrompt,
   peekSessionTerminalQuote,
   sessionStore,
+  stageSessionTerminalQuote,
 } from "@/systems/session";
 import {
   buildTerminalQuote,
@@ -5217,6 +5218,34 @@ describe("SessionThread composer running semantics", () => {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
+  });
+
+  // Invariant (#1680): a newly staged terminal quote mounts with its own
+  // collapse state, even when it repeats the previous terminal and line range.
+  // Owner: composer quote slot; canonical suite: SessionThread composer.
+  it("mounts a replacement terminal quote collapsed after the previous one was expanded", async () => {
+    const stage = (prefix: string) =>
+      act(() => {
+        stageSessionTerminalQuote({
+          sessionId: primarySessionFixture.id,
+          terminalId: "term-4f21c9a03b7e",
+          fromLine: 1,
+          lines: Array.from({ length: 40 }, (_, index) => `${prefix} ${index + 1}`),
+        });
+      });
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-input");
+
+    stage("column a");
+    await userEvent.click(await screen.findByRole("button", { name: "Expand quote" }));
+    expect(screen.getByTestId("terminal-quote-lines")).toHaveTextContent("column a 40");
+
+    stage("column b");
+    expect(await screen.findByRole("button", { name: "Expand quote" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.queryByTestId("terminal-quote-lines")).not.toBeInTheDocument();
   });
 
   // Invariant: decorating URL text never changes the authored draft, including
