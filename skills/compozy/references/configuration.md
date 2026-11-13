@@ -27,6 +27,7 @@
 - Terminal
 - Shell session preferences
 - Provider usage
+- OpenTelemetry export
 - User-scope execution directory
 
 ## Desired State And Apply Lifecycle
@@ -709,6 +710,54 @@ reread the routed Keychain item through `security` after a noninteractive metada
 metadata prevents the read. An item change racing that check can briefly prompt; a 1.5-second
 background timeout terminates the reader and reports `keychain_read_timeout`. Explicit local
 refreshes may request OS authorization; agents cannot request interactive refreshes. CompozyOS never exchanges Claude Code refresh tokens.
+
+## OpenTelemetry Export
+
+`[observability.otel]` exports daemon traces and metrics over OTLP. It is global-only and every key
+is `restart-required` (apply reports `restart-daemon`). Workspace config that sets it fails to load
+(`observability.otel settings are global-only`), workspace-scope writes are rejected, and profile
+overlays deny the `observability` block. Export also needs `observability.enabled = true`.
+
+| Key                                       | Default            | Notes                                                                                   |
+| ----------------------------------------- | ------------------ | --------------------------------------------------------------------------------------- |
+| `observability.otel.enabled`              | `false`            | Master switch.                                                                          |
+| `observability.otel.protocol`             | `"http/protobuf"`  | `"http/protobuf"` or `"grpc"`.                                                          |
+| `observability.otel.endpoint`             | `""`               | `""` → `OTEL_EXPORTER_OTLP_ENDPOINT` → `http://localhost:4318` (`grpc`: `:4317`).       |
+| `observability.otel.traces` / `.metrics`  | `true`             | Per-signal switches.                                                                    |
+| `observability.otel.sample_ratio`         | `1.0`              | `0`–`1`; new traces and unsampled parents. A sampled external parent is always kept.    |
+| `observability.otel.metric_interval`      | `"60s"`            | Minimum `"5s"`.                                                                         |
+| `observability.otel.service_name`         | `"compozy-daemon"` | `^[A-Za-z0-9._-]{1,64}$`.                                                               |
+| `observability.otel.slow_db_write_ms`     | `50`               | `db.write` span threshold; `0` disables write spans.                                    |
+| `observability.otel.forward_to_providers` | `false`            | Operator policy: providers started afterwards receive OTLP env and `TRACEPARENT`.       |
+| `observability.otel.headers.<name>`       | none               | `env:` or `vault:observability/` refs only; edited in the file (`compozy config edit`). |
+
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, and
+`OTEL_SERVICE_NAME` fill only values `config.toml` does not set (a written value wins even when it
+equals the default; an empty `endpoint` is not set; a non-empty headers table replaces env headers).
+Only the process environment counts, never a workspace `.env`. They are validated only while export can run
+(`observability.enabled`, `otel.enabled`, and a signal on). `OTEL_SDK_DISABLED=true` or both signals off reads `disabled`;
+`OTEL_RESOURCE_ATTRIBUTES` is ignored.
+
+Operator-only: `compozy__config_set` refuses every `observability.otel.*` key with
+`config_trust_root_forbidden`. Agents read keys with `compozy__config_get` (header values read as `[REDACTED]`: agent-facing
+output masks every `env:`/`vault:` ref, so only the operator's `compozy config get` shows them;
+`OTEL_*` values never appear) and runtime state from `compozy status --json` `.otel` or
+`GET /api/status`: `state` (`disabled`, `inactive_observability_disabled`, `ok`, `degraded`),
+`protocol`, `endpoint_host`, `sample_ratio`, `forward_to_providers`, `traces`/`metrics`
+(`enabled`, `last_export_at`, `last_error_class`, `failed_exports`), and `dropped_spans`. Error
+classes: `http_400`, `http_401`, `http_403`, `http_404`, `http_413`, `http_429`, `http_5xx`,
+`unavailable`, `deadline_exceeded`, `tls`, `header_ref_unresolved`, `other`. A missing `otel`
+object means an older daemon (unknown). Exports carry IDs and registered names only, never prompt
+text, tool payloads, paths, or secrets.
+
+Provider forwarding: with `forward_to_providers = true` and export running (not disabled, inactive,
+or degraded at start), providers started afterwards receive `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS` (`name=<resolved value>`),
+`OTEL_RESOURCE_ATTRIBUTES` (`compozy.session_id=…,compozy.agent=…`), and `TRACEPARENT` from the
+sampled `acp.process.spawn` span. **This is an operator policy, not covered by the daemon privacy
+guarantee:** the provider decides what it exports (possibly prompt text or tool payloads) and
+receives the resolved header values. Agent-defined `OTEL_*` values win. Status shows
+`forward_to_providers: true` and the human line ends with `forwarding to providers`.
 
 ## User-scope execution directory
 

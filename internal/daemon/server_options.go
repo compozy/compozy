@@ -72,6 +72,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithSkillResourceSyncer(deps.SkillResources),
 		httpapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
 		httpapi.WithHostLoadSnapshotSource(deps.HostLoad),
+		httpapi.WithTelemetryStatus(deps.TelemetryStatus),
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
 		httpapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
@@ -84,8 +85,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
 		)
 	}
-	options = append(options, httpProjectFileOptions(deps)...)
-	return options
+	return append(options, httpProjectFileOptions(deps)...)
 }
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 	options := []udsapi.Option{
@@ -156,6 +156,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithSkillResourceSyncer(deps.SkillResources),
 		udsapi.WithRuntimeMemorySnapshotSource(deps.RuntimeMemory),
 		udsapi.WithHostLoadSnapshotSource(deps.HostLoad),
+		udsapi.WithTelemetryStatus(deps.TelemetryStatus),
 		udsapi.WithDeadEntitySource(deps.DeadEntities),
 		udsapi.WithExtensionService(deps.Extensions),
 		udsapi.WithHostedMCP(deps.HostedMCP),

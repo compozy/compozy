@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// SessionAttachResponse is a daemon API value.
+type SessionAttachResponse struct {
+	Session SessionPayload       `json:"session"`
+	Attach  SessionAttachPayload `json:"attach"`
+}
+
 // SessionAttachmentPayload is a daemon API value.
 type SessionAttachmentPayload struct {
 	ID        string    `json:"id"`

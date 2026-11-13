@@ -2,7 +2,9 @@
 // Invariant: the control exists only while there is something to say, and its
 // one click updates CompozyOS in place — or, when this install cannot update
 // itself, opens Settings for the detail. A retryable failure keeps the action here.
-// Boundary IN: DOM presence, accessible name, and which callback activation runs.
+// The border animation runs only while the update is offered, never while it is busy.
+// Boundary IN: DOM presence, accessible name, which callback activation runs, and
+// which state animates the StarBorder.
 // Boundary OUT: which snapshots map to which state — settingsUpdateIndicatorState,
 // owned by systems/settings/lib/__tests__/update-presentation.test.ts. Pill visuals
 // are a visual contract verified by story screenshots, not asserted here.
@@ -17,14 +19,14 @@ import { MenubarUpdateIndicator } from "../menubar-update-indicator";
 function renderIndicator(state: ProductUpdateIndicatorState, canUpdate = true) {
   const onUpdate = vi.fn();
   const onOpenUpdates = vi.fn();
-  render(
+  const { unmount } = render(
     <MenubarUpdateIndicator
       onOpenUpdates={onOpenUpdates}
       onUpdate={canUpdate ? onUpdate : undefined}
       state={state}
     />
   );
-  return { onUpdate, onOpenUpdates };
+  return { onUpdate, onOpenUpdates, unmount };
 }
 
 describe("MenubarUpdateIndicator", () => {
@@ -95,5 +97,21 @@ describe("MenubarUpdateIndicator", () => {
 
     expect(onOpenUpdates).toHaveBeenCalledTimes(1);
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("Should animate the border only while an update is offered", () => {
+    const starBorder = () =>
+      screen.getByTestId("os-menubar-update").closest('[data-slot="star-border"]');
+
+    const offered = renderIndicator("available");
+    expect(starBorder()).toHaveAttribute("data-animated", "true");
+    offered.unmount();
+
+    const running = renderIndicator("updating");
+    expect(starBorder()).toHaveAttribute("data-animated", "false");
+    running.unmount();
+
+    renderIndicator("failed");
+    expect(starBorder()).toBeNull();
   });
 });

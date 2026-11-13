@@ -85,6 +85,7 @@ func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payl
 			err,
 		)
 	}
+	o.recordObservedEvent(ctx, snapshot, event)
 }
 
 func (o *Observer) validateObservedEvent(

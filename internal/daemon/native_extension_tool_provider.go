@@ -22,6 +22,7 @@ type daemonExtensionToolProvider struct {
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionAvailabilityProvider = (*daemonExtensionToolProvider)(nil)
+var _ toolspkg.ProjectionScopeProvider = (*daemonExtensionToolProvider)(nil)
 
 // newDaemonScopedExtensionToolProvider validates workspace scope while preserving an absent provider as nil.
 func newDaemonScopedExtensionToolProvider(
@@ -55,6 +56,14 @@ func (p *daemonExtensionToolProvider) ProjectionGeneration(
 		return "", false
 	}
 	return source.ProjectionGeneration(ctx, canonical)
+}
+
+// ProjectionScope forwards the inner listing scope; an inner provider without one keeps every field.
+func (p *daemonExtensionToolProvider) ProjectionScope(scope toolspkg.Scope) toolspkg.Scope {
+	if inner, ok := p.inner.(toolspkg.ProjectionScopeProvider); ok {
+		return inner.ProjectionScope(scope)
+	}
+	return scope
 }
 
 func (p *daemonExtensionToolProvider) List(

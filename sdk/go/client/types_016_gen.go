@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// ReplyWatchPayload is a daemon API value.
+type ReplyWatchPayload struct {
+	ID              string    `json:"id"`
+	TargetSessionID string    `json:"target_session_id"`
+	MessageID       string    `json:"message_id"`
+	State           string    `json:"state"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// ReplyWatchRefPayload is a daemon API value.
+type ReplyWatchRefPayload struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
 // RerunLoopRequest is a daemon API value.
 type RerunLoopRequest struct {
 	FromNode  string `json:"from_node"`
@@ -430,13 +445,4 @@ type RunLoopResponse struct {
 	Run    *LoopRunPayload  `json:"run,omitzero"`
 	DryRun *LoopPlanPayload `json:"dry_run,omitzero"`
 	WebURL string           `json:"web_url,omitempty"`
-}
-
-// RunOutcome is a daemon API value.
-type RunOutcome struct {
-	Status    Status    `json:"status"`
-	Cause     string    `json:"cause"`
-	ActorKind string    `json:"actor_kind,omitempty"`
-	ActorRef  string    `json:"actor_ref,omitempty"`
-	At        time.Time `json:"at"`
 }

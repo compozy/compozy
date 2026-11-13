@@ -175,6 +175,25 @@ func (g *SessionRepo) ListSessions(
 	return sessions, nil
 }
 
+// SessionInstanceID returns the agent instance bound to one session, or "" when unbound.
+func (g *SessionRepo) SessionInstanceID(ctx context.Context, sessionID string) (string, error) {
+	if err := g.checkReady(ctx, "read session instance"); err != nil {
+		return "", err
+	}
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return "", errors.New("store: session id is required")
+	}
+	instanceID, err := g.readQueries.GetSessionInstanceID(ctx, target)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("%w: %s", store.ErrSessionNotFound, target)
+		}
+		return "", fmt.Errorf("store: read session instance %q: %w", target, err)
+	}
+	return instanceID.String, nil
+}
+
 func sessionListOrderClause(sortKey string) string {
 	switch strings.TrimSpace(sortKey) {
 	case sessionListSortActivity:

@@ -1,0 +1,1 @@
+217:{"time":"2026-11-11T02:34:33.561667212-03:00","level":"WARN","msg":"telemetry: header ref unresolved","header":"api-key","ref":"[REDACTED]"}

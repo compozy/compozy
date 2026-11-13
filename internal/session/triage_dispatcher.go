@@ -136,7 +136,7 @@ func (d *TriageDispatcher) cleanup(ctx context.Context, id, workspaceID string, 
 }
 
 func (m *Manager) SweepTriageSessions(ctx context.Context, cutoff time.Time) error {
-	infos, err := m.ListAll(ctx)
+	infos, err := m.listTriageInventory(ctx)
 	if err != nil {
 		return err
 	}

@@ -147,6 +147,7 @@ type Manager struct {
 	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
+	metadataCacheGeneration    uint64
 	restartInputsHeld          sync.Map
 	daemonShutdown             atomic.Pointer[daemonShutdownStop]
 	daemonShutdownTurnGrace    time.Duration
@@ -231,6 +232,7 @@ type Manager struct {
 	inputAugmenter             PromptInputAugmenter
 	commandService             CommandService
 	inputQueue                 *inputqueue.Service
+	queuedTurnLinks            queuedTurnLinks
 	inputQueueStore            store.SessionInputQueueStore
 	promptAdmissionStore       store.SessionPromptAdmissionStore
 	attachmentOpener           AttachmentOpener
@@ -244,6 +246,7 @@ type Manager struct {
 	hooks                      HookSet
 	agentResolver              AgentResolver
 	providerSecrets            ProviderSecretResolver
+	providerTelemetryEnv       func() []string
 	profileNames               ProfileNameResolver
 	modelCatalog               modelcatalog.Service
 	skillRegistry              SkillRegistry

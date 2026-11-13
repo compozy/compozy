@@ -27,6 +27,7 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 | REL | Release and distribution (installers, registries, channels, provenance) |
 | SITE | Public documentation site (published receipts and user-visible release truth) |
 | APP | Desktop app shell (CompozyOS app: install/provisioning, runtime resolution, app/runtime updates, links, window lifecycle, `compozy app` CLI) |
+| OBS | Observability export (OTLP traces and metrics to an external collector, export status, trace propagation, provider forwarding) |
 
 NB is retired. Its dated reports remain historical evidence and its ids must not be reused.
 

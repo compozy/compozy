@@ -1,0 +1,76 @@
+name: Transcript append benchmarks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/transcript-benchmarks.yml"
+      - "internal/store/sessiondb/transcript_*.go"
+      - "internal/store/sessiondb/session_db.go"
+      - "internal/store/sessiondb/perf_bench_test.go"
+      - "internal/transcript/**"
+      - "go.mod"
+      - "go.sum"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transcript-benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  append-benchmarks:
+    name: Transcript append allocation comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CGO_ENABLED: 0
+      GOMAXPROCS: 2
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+
+      - name: Check out the comparison baseline
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: baseline
+          persist-credentials: false
+
+      - name: Measure base and head sequentially on the same runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/transcript-benchmarks"
+          printf 'base=%s\nhead=%s\n' "$BASE_SHA" "$HEAD_SHA" | tee "$RUNNER_TEMP/transcript-benchmarks/commits.txt"
+          (
+            cd baseline
+            go test ./internal/store/sessiondb -run '^$' -bench '^BenchmarkSessionDBAppendLongAssistantTurn$' -benchmem -benchtime=40x -count=3 -timeout=45m
+          ) | tee "$RUNNER_TEMP/transcript-benchmarks/base.txt"
+          go test ./internal/store/sessiondb -run '^$' -bench '^BenchmarkSessionDBAppendLongAssistantTurn$' -benchmem -benchtime=40x -count=3 -timeout=45m | tee "$RUNNER_TEMP/transcript-benchmarks/head.txt"
+
+      - name: Publish benchmark samples
+        if: always()
+        shell: bash
+        run: |
+          for report in "$RUNNER_TEMP"/transcript-benchmarks/*.txt; do
+            test -f "$report" || continue
+            printf '\n### %s\n\n```text\n' "$(basename "$report")" >> "$GITHUB_STEP_SUMMARY"
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: transcript-benchmarks-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/transcript-benchmarks
+          if-no-files-found: error
+          retention-days: 14

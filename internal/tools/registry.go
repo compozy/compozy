@@ -30,6 +30,7 @@ type RuntimeRegistry struct {
 	processor             ResultProcessor
 	events                ToolEventSink
 	projectionInvalidator func()
+	callTracer            CallTracer
 	projectionGeneration  ProjectionGenerationResolver
 	defaultMaxResultBytes int64
 	sensitiveFields       []string
@@ -255,9 +256,13 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 }
 
 // Call runs the central provider-agnostic registry dispatch pipeline.
-func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
+func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (result ToolResult, err error) {
 	if r != nil && r.projectionInvalidator != nil {
 		defer r.projectionInvalidator()
+	}
+	ctx, span := r.startCallSpan(ctx, req.ToolID)
+	if span != nil {
+		defer func() { span.End(err) }()
 	}
 	return r.dispatch(ctx, scope, req)
 }

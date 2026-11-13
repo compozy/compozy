@@ -4324,6 +4324,34 @@ func (c *familyArchiveCatalog) SetSessionArchived(
 
 func TestManagerListAllMetadataCache(t *testing.T) {
 	t.Parallel()
+	t.Run("Should not cache metadata invalidated during a read", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		reads := 0
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			reads++
+			meta, err := store.ReadSessionMeta(path)
+			if err == nil && reads == 1 {
+				manager.forgetInventoryMetadata(meta.ID)
+			}
+			return meta, err
+		}
+		for attempt := range 3 {
+			infos, err := manager.ListAll(t.Context())
+			if err != nil || len(infos) != 1 || infos[0].ID != "sess-read-000" {
+				t.Fatalf("inventory after attempt %d = %#v, error = %v", attempt, infos, err)
+			}
+			manager.metadataCacheMu.Lock()
+			_, cached := manager.metadataCache[infos[0].ID]
+			manager.metadataCacheMu.Unlock()
+			if cached != (attempt > 0) {
+				t.Fatalf("metadata cached after attempt %d = %v", attempt, cached)
+			}
+		}
+		if reads != 2 {
+			t.Fatalf("metadata reads = %d, want an invalidated read and one cached read", reads)
+		}
+	})
 	t.Run("Should skip metadata removed during reading without an unreadable warning", func(t *testing.T) {
 		t.Parallel()
 		manager := newWorkspaceSessionReadFixture(t, 1, 1)

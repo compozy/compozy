@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// RunOutcome is a daemon API value.
+type RunOutcome struct {
+	Status    Status    `json:"status"`
+	Cause     string    `json:"cause"`
+	ActorKind string    `json:"actor_kind,omitempty"`
+	ActorRef  string    `json:"actor_ref,omitempty"`
+	At        time.Time `json:"at"`
+}
+
 // RunPayload is a daemon API value.
 type RunPayload struct {
 	WorkspaceID     *string        `json:"workspace_id,omitempty"`
@@ -433,10 +442,4 @@ type SessionAttachPayload struct {
 	AttachedTo      string    `json:"attached_to"`
 	AttachExpiresAt time.Time `json:"attach_expires_at"`
 	AttachedAt      time.Time `json:"attached_at"`
-}
-
-// SessionAttachResponse is a daemon API value.
-type SessionAttachResponse struct {
-	Session SessionPayload       `json:"session"`
-	Attach  SessionAttachPayload `json:"attach"`
 }

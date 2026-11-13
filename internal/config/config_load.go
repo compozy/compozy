@@ -158,16 +158,13 @@ func loadWithHome(
 	warning func(string, bool),
 ) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
-	if warning != nil {
-		seen := make(map[string]bool)
-		cfg.WindowManager.retiredKeyWarning = func(key string, translated bool) {
-			if seen[key] {
-				return
-			}
-			seen[key] = true
-			warning(key, translated)
-		}
-	}
+	cfg.WindowManager.retiredKeyWarning = windowManagerWarningOnce(warning)
+	// The daemon applies the same layer at boot, so config inspection reports what it exports with. Process
+	// environment only: OTel export is operator policy, never set from a workspace .env file.
+	ApplyOTelEnvironment(&cfg, func(key string) string {
+		value, _ := processEnvLookup(key)
+		return value
+	})
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
 	}
@@ -228,4 +225,18 @@ func loadWithHome(
 	}
 
 	return cfg, nil
+}
+
+func windowManagerWarningOnce(warning func(string, bool)) func(string, bool) {
+	if warning == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	return func(key string, translated bool) {
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		warning(key, translated)
+	}
 }

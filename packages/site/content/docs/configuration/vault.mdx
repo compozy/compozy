@@ -22,15 +22,16 @@ CompozyOS accepts two secret ref families:
 
 Supported Vault namespaces are:
 
-| Namespace    | Typical refs                                                                               |
-| ------------ | ------------------------------------------------------------------------------------------ |
-| `providers`  | `vault:providers/openrouter/api-key`                                                       |
-| `profiles`   | `vault:profiles/studio/providers/openrouter/api-key`                                       |
-| `automation` | `vault:automation/deploy-webhook/signing-secret`                                           |
-| `mcp`        | `vault:mcp/global/github/env/GITHUB_TOKEN`, `vault:mcp/ws/acme/linear/oauth/client-secret` |
-| `hooks`      | `vault:hooks/post-task/GITHUB_TOKEN`                                                       |
-| `extensions` | `vault:extensions/slack/app-token`                                                         |
-| `sessions`   | `vault:sessions/sess_123/github-token`                                                     |
+| Namespace       | Typical refs                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `providers`     | `vault:providers/openrouter/api-key`                                                       |
+| `profiles`      | `vault:profiles/studio/providers/openrouter/api-key`                                       |
+| `automation`    | `vault:automation/deploy-webhook/signing-secret`                                           |
+| `mcp`           | `vault:mcp/global/github/env/GITHUB_TOKEN`, `vault:mcp/ws/acme/linear/oauth/client-secret` |
+| `hooks`         | `vault:hooks/post-task/GITHUB_TOKEN`                                                       |
+| `extensions`    | `vault:extensions/slack/app-token`                                                         |
+| `sessions`      | `vault:sessions/sess_123/github-token`                                                     |
+| `observability` | `vault:observability/newrelic-license`                                                     |
 
 Session Vault entries are normal Vault records under the `sessions` namespace. CompozyOS filters them by
 the deterministic prefix `vault:sessions/<session_id>/`; there is no separate session-secret table.

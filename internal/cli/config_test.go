@@ -763,6 +763,49 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 		})
 	}
 
+	t.Run("Should report a daemon restart for the OTel export switch [UT-008]", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		out, _, err := executeRootCommand(t, deps, "config", "set", "observability.otel.enabled", "true", "-o", "json")
+		if err != nil {
+			t.Fatalf("config set observability.otel.enabled error = %v", err)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set observability.otel.enabled) error = %v", err)
+		}
+		if record.Value != true || record.Lifecycle != "restart-required" || record.NextAction != "restart-daemon" ||
+			record.Applied || !record.RestartRequired || record.RestartScope != "daemon" {
+			t.Fatalf(
+				"config set observability.otel.enabled record = %#v, want saved restart-required daemon restart",
+				record,
+			)
+		}
+	})
+
+	t.Run("Should reject an OTel endpoint carrying a secret without saving or echoing it", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		const endpoint = "https://user:s3cret@collector.example:4318/otlp?token=s3cret"
+		out, stderr, err := executeRootCommand(t, deps, "config", "set", "observability.otel.endpoint", endpoint)
+		if want := "observability.otel.endpoint must be an http(s) URL with a host"; err == nil ||
+			!strings.Contains(err.Error(), want) {
+			t.Fatalf("config set observability.otel.endpoint error = %v, want %q", err, want)
+		}
+		if strings.Contains(err.Error()+out+stderr, "s3cret") {
+			t.Fatalf("config set echoed the secret: err=%v stdout=%q stderr=%q", err, out, stderr)
+		}
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+			t.Fatalf("global config stat error = %v, want no file written", err)
+		}
+	})
+
 	t.Run("Should reject global-only Marketplace catalog writes at workspace scope", func(t *testing.T) {
 		t.Parallel()
 
@@ -2855,6 +2898,76 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				path:        "roles.coordinator.ttl",
 				wantKind:    configSetDuration,
 				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel export switch [UT-008]",
+				path:        "observability.otel.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel protocol [UT-008]",
+				path:        "observability.otel.protocol",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel endpoint [UT-008]",
+				path:        "observability.otel.endpoint",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel trace switch [UT-008]",
+				path:        "observability.otel.traces",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel metric switch [UT-008]",
+				path:        "observability.otel.metrics",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel sample ratio [UT-008]",
+				path:        "observability.otel.sample_ratio",
+				wantKind:    configSetFloat,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel metric interval [UT-008]",
+				path:        "observability.otel.metric_interval",
+				wantKind:    configSetDuration,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel service name [UT-008]",
+				path:        "observability.otel.service_name",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the OTel slow write threshold [UT-008]",
+				path:        "observability.otel.slow_db_write_ms",
+				wantKind:    configSetInt,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow OTel provider forwarding [UT-008]",
+				path:        "observability.otel.forward_to_providers",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should leave the OTel header table to file edits",
+				path:        "observability.otel.headers",
+				wantAllowed: false,
+			},
+			{
+				name:        "Should leave single OTel header refs to file edits",
+				path:        "observability.otel.headers.api-key",
+				wantAllowed: false,
 			},
 			{name: "Should reject removed dream agent", path: "memory.dream.agent", wantAllowed: false},
 			{name: "Should reject removed dream enabled", path: "memory.dream.enabled", wantAllowed: false},

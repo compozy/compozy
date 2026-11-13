@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -73,6 +74,153 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 				}
 				if got := resolve(); got != baseline {
 					t.Fatalf("agent after deletion = %q, want %q", got, baseline)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reload skills config only after a file the loader reads changes", func(t *testing.T) {
+		t.Parallel()
+		for _, layer := range []string{
+			"user", "workspace", "profile", "workspace-profile", "dotenv",
+			"user-mcp", "workspace-mcp", "profile-mcp", "workspace-profile-mcp",
+		} {
+			t.Run("Should reload after a "+layer+" edit", func(t *testing.T) {
+				t.Parallel()
+				home := newTestHomePaths(t)
+				ws := Workspace{ID: "ws_skills_config", Name: "repo", RootDir: t.TempDir()}
+				workspaceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
+				paths := map[string]string{
+					"user":      home.ConfigFile,
+					"workspace": filepath.Join(workspaceDir, compozyconfig.ConfigName),
+					"profile":   filepath.Join(home.ProfilesDir, "design", compozyconfig.ConfigName),
+					"workspace-profile": filepath.Join(
+						workspaceDir, compozyconfig.ProfilesDirName, "design", compozyconfig.ConfigName,
+					),
+					"dotenv":        compozyconfig.WorkspaceDotEnvFile(ws.RootDir),
+					"user-mcp":      filepath.Join(home.HomeDir, compozyconfig.MCPJSONName),
+					"workspace-mcp": filepath.Join(workspaceDir, compozyconfig.MCPJSONName),
+					"profile-mcp":   filepath.Join(home.ProfilesDir, "design", compozyconfig.MCPJSONName),
+					"workspace-profile-mcp": filepath.Join(
+						workspaceDir, compozyconfig.ProfilesDirName, "design", compozyconfig.MCPJSONName,
+					),
+				}
+				var loads atomic.Int32
+				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
+					WithProfileConfigLoader(func(rootDir, profileName string) (compozyconfig.Config, error) {
+						loads.Add(1)
+						return compozyconfig.LoadForHome(home,
+							compozyconfig.WithWorkspaceRoot(rootDir), compozyconfig.WithProfile(profileName))
+					}))
+				customSources := func() []string {
+					t.Helper()
+					got, err := r.SkillsConfig(ws, "design")
+					if err != nil {
+						t.Fatalf("SkillsConfig() error = %v", err)
+					}
+					return got.CustomSources
+				}
+				assertLoads := func(want int32) {
+					t.Helper()
+					if got := loads.Load(); got != want {
+						t.Fatalf("config loads = %d, want %d", got, want)
+					}
+				}
+				for range 3 {
+					customSources()
+				}
+				assertLoads(1)
+
+				content, want := "[skills]\ncustom_sources = [\"/opt/team-skills\"]\n", []string{"/opt/team-skills"}
+				if layer == "dotenv" {
+					content, want = "COMPOZY_SKILLS_WATCHER_TEST=1\n", nil
+				} else if strings.HasSuffix(layer, "-mcp") {
+					content, want = "{\"mcpServers\":{}}\n", nil
+				}
+				writeFile(t, paths[layer], content)
+				got := customSources()
+				if !slices.Equal(got, want) {
+					t.Fatalf("custom sources after %s edit = %v, want %v", layer, got, want)
+				}
+				for i := range got {
+					got[i] = "mutated"
+				}
+				if again := customSources(); !slices.Equal(again, want) {
+					t.Fatalf("custom sources after caller mutation = %v, want isolated %v", again, want)
+				}
+				assertLoads(2)
+
+				writeFile(t, paths[layer], content+"\n")
+				customSources()
+				customSources()
+				assertLoads(3)
+
+				if err := os.Remove(paths[layer]); err != nil {
+					t.Fatal(err)
+				}
+				if got := customSources(); len(got) != 0 {
+					t.Fatalf("custom sources after deletion = %v, want none", got)
+				}
+				customSources()
+				assertLoads(4)
+
+				r.Invalidate(ws.ID)
+				customSources()
+				assertLoads(5)
+
+				r.InvalidateAll()
+				customSources()
+				assertLoads(6)
+			})
+		}
+	})
+
+	t.Run("Should not publish a skills config load overtaken by invalidation", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name       string
+			invalidate func(*Resolver, string)
+		}{
+			{
+				name:       "Should reload after InvalidateAll runs during the load",
+				invalidate: func(r *Resolver, _ string) { r.InvalidateAll() },
+			},
+			{
+				name:       "Should reload after Invalidate of the workspace runs during the load",
+				invalidate: func(r *Resolver, workspaceID string) { r.Invalidate(workspaceID) },
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				home := newTestHomePaths(t)
+				ws := Workspace{ID: "ws_skills_config_race", Name: "repo", RootDir: t.TempDir()}
+				var loads atomic.Int32
+				firstLoadStarted, releaseFirstLoad := make(chan struct{}), make(chan struct{})
+				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
+					WithProfileConfigLoader(func(rootDir, profileName string) (compozyconfig.Config, error) {
+						if loads.Add(1) == 1 {
+							close(firstLoadStarted)
+							<-releaseFirstLoad
+						}
+						return compozyconfig.LoadForHome(home,
+							compozyconfig.WithWorkspaceRoot(rootDir), compozyconfig.WithProfile(profileName))
+					}))
+				firstErr := make(chan error, 1)
+				go func() {
+					_, err := r.SkillsConfig(ws, "design")
+					firstErr <- err
+				}()
+				<-firstLoadStarted
+				test.invalidate(r, ws.ID)
+				close(releaseFirstLoad)
+				if err := <-firstErr; err != nil {
+					t.Fatalf("SkillsConfig(overtaken load) error = %v", err)
+				}
+				if _, err := r.SkillsConfig(ws, "design"); err != nil {
+					t.Fatalf("SkillsConfig(after invalidation) error = %v", err)
+				}
+				if got := loads.Load(); got != 2 {
+					t.Fatalf("config loads = %d, want 2: the load overtaken by invalidation was reused", got)
 				}
 			})
 		}

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestScheduleSpecValidate(t *testing.T) {
@@ -396,6 +398,61 @@ func TestDefaultsAndEnumValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsAutomationID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept every generated job and trigger id", func(t *testing.T) {
+		t.Parallel()
+
+		ids := []string{
+			configJobID(AutomationScopeGlobal, "", "nightly"),
+			configTriggerID(AutomationScopeWorkspace, "ws_0123456789abcdef", "on-push"),
+			suggestionJobID("00000000000000000000000000", "ws_0123456789abcdef", "catalog:v1:review"),
+		}
+		for _, prefix := range []string{"job", "trg"} {
+			id, err := store.NewID(prefix)
+			if err != nil {
+				t.Fatalf("store.NewID(%q) error = %v", prefix, err)
+			}
+			ids = append(ids, id)
+		}
+		for _, id := range ids {
+			if !IsAutomationID(id) {
+				t.Fatalf("IsAutomationID(%q) = false, want true", id)
+			}
+		}
+	})
+
+	t.Run("Should reject caller-authored free text", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"", "nightly report for ana", "my-job", "/home/ana/job", "wbh_0123456789abcdef"} {
+			if IsAutomationID(value) {
+				t.Fatalf("IsAutomationID(%q) = true, want false", value)
+			}
+		}
+	})
+
+	// A caller-authored id is free text, so one that merely contains a generated shape must not pass for it.
+	t.Run("Should reject a generated id embedded in other text", func(t *testing.T) {
+		t.Parallel()
+
+		for _, id := range []string{
+			"job-0123456789abcdef", "trg-0123456789abcdef", "jobcfg_0123456789abcdef", "trgcfg_0123456789abcdef",
+			"jobsug_0123456789abcdef",
+		} {
+			if !IsAutomationID(id) {
+				t.Fatalf("IsAutomationID(%q) = false, want the generated shape accepted", id)
+			}
+			for _, embedded := range []string{"/home/ana/" + id, id + " for ana", id + "0", "x" + id} {
+				if IsAutomationID(embedded) {
+					t.Fatalf("IsAutomationID(%q) = true, want false for a generated id inside other text", embedded)
+				}
+			}
+		}
+	})
 }
 
 func TestJobValidate(t *testing.T) {

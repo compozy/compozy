@@ -191,6 +191,7 @@ func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets *shutdownT
 	if targets.hooks != nil {
 		targets.hooks.Close()
 	}
+	targets.telemetry.shutdown(ctx, d.runtimeLogger())
 }
 
 func (d *Daemon) runtimeLogger() *slog.Logger {

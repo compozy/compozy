@@ -39,6 +39,9 @@ WHERE id = sqlc.arg(id);
 -- name: GetSessionTranscriptEpoch :one
 SELECT transcript_epoch FROM sessions WHERE id = sqlc.arg(id);
 
+-- name: GetSessionInstanceID :one
+SELECT instance_id FROM sessions WHERE id = sqlc.arg(id);
+
 -- name: EnsureSessionTranscriptEpoch :one
 UPDATE sessions
 SET transcript_epoch = sqlc.arg(minimum), updated_at = sqlc.arg(updated_at)

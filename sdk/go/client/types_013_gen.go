@@ -212,6 +212,26 @@ type NodeUsage struct {
 	Tokens int64 `json:"tokens"`
 }
 
+// OTelSignalStatusPayload is a daemon API value.
+type OTelSignalStatusPayload struct {
+	Enabled        bool      `json:"enabled"`
+	LastExportAt   time.Time `json:"last_export_at,omitzero"`
+	LastErrorClass string    `json:"last_error_class,omitempty"`
+	FailedExports  int64     `json:"failed_exports"`
+}
+
+// OTelStatusPayload is a daemon API value.
+type OTelStatusPayload struct {
+	State              string                  `json:"state"`
+	Protocol           string                  `json:"protocol,omitempty"`
+	EndpointHost       string                  `json:"endpoint_host,omitempty"`
+	SampleRatio        float64                 `json:"sample_ratio"`
+	ForwardToProviders bool                    `json:"forward_to_providers"`
+	Traces             OTelSignalStatusPayload `json:"traces"`
+	Metrics            OTelSignalStatusPayload `json:"metrics"`
+	DroppedSpans       int64                   `json:"dropped_spans"`
+}
+
 // ObserveFailureHealthPayload is a daemon API value.
 type ObserveFailureHealthPayload struct {
 	Status string                        `json:"status"`
@@ -418,32 +438,4 @@ type OverviewOutcomeDayPayload struct {
 	Completed int    `json:"completed"`
 	Failed    int    `json:"failed"`
 	Canceled  int    `json:"canceled"`
-}
-
-// OverviewOutcomesPayload is a daemon API value.
-type OverviewOutcomesPayload struct {
-	WindowDays int                         `json:"window_days"`
-	Days       []OverviewOutcomeDayPayload `json:"days"`
-	Completed  int                         `json:"completed"`
-	Failed     int                         `json:"failed"`
-	Canceled   int                         `json:"canceled"`
-	SuccessPct float64                     `json:"success_pct"`
-}
-
-// OverviewProfileUsagePayload is a daemon API value.
-type OverviewProfileUsagePayload struct {
-	ProfileID   string `json:"profile_id"`
-	ProfileName string `json:"profile_name"`
-	Color       string `json:"profile_color"`
-	Icon        string `json:"profile_icon,omitempty"`
-	Emoji       string `json:"profile_emoji,omitempty"`
-	Archived    bool   `json:"profile_archived"`
-	Tokens      int64  `json:"tokens"`
-}
-
-// OverviewPulseBucketPayload is a daemon API value.
-type OverviewPulseBucketPayload struct {
-	Weekday int `json:"weekday"`
-	Hour    int `json:"hour"`
-	Events  int `json:"events"`
 }

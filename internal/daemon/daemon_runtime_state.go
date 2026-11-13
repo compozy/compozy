@@ -51,6 +51,7 @@ type daemonRuntimeState struct {
 	hooks             hookRuntime
 	extensions        extensionRuntime
 	observer          Observer
+	telemetry         *telemetrySlot
 	resourceReconcile resources.ReconcileDriver
 	supportBundles    supportBundleShutdowner
 	backgroundUpdates *backgroundUpdateRuntime

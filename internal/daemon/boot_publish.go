@@ -34,6 +34,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		hooks:                 state.hooks,
 		extensions:            state.currentExtensionRuntime(),
 		observer:              state.observer,
+		telemetry:             state.telemetry,
 		resourceReconcile:     state.resourceReconcile,
 		supportBundles:        state.supportBundles,
 		backgroundUpdates:     state.backgroundUpdates,

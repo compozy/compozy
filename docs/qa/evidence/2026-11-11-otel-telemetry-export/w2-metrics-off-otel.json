@@ -1,0 +1,53 @@
+{
+ "cli": {
+  "state": "ok",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": false,
+  "traces": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:33:59.324018905Z",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": false,
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ },
+ "http": {
+  "state": "ok",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": false,
+  "traces": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:33:59.324018905Z",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": false,
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ },
+ "uds": {
+  "state": "ok",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": false,
+  "traces": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:33:59.324018905Z",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": false,
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ }
+}

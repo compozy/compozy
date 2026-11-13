@@ -222,6 +222,7 @@ func (m *Manager) finishPromptPump(
 	out chan<- acp.AgentEvent,
 	fatal *promptPumpFatal,
 ) {
+	outcome, outcomeErr := promptTurnOutcome(turnState, fatal)
 	var before *Info
 	if session != nil {
 		session.supervisionInspectMu.Lock()
@@ -274,6 +275,7 @@ func (m *Manager) finishPromptPump(
 			service.OnTurnSettled(lifecycleCtx, session.ID, turnState.turnID)
 		}
 	}
+	endPromptTurnTrace(session, turnState, outcome, outcomeErr)
 	if session == nil {
 		closePromptOutput(out)
 		return

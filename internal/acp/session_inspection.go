@@ -14,6 +14,9 @@ type SessionInspectionRequest struct {
 	Command   string
 	Cwd       string
 	Env       []string
+	// TelemetryProvider labels the inspection's acp.process.spawn span without setting a provider name, which would
+	// also run the provider pre-start.
+	TelemetryProvider string
 }
 
 // SessionModelInspection retains options for each independently selected transport model.
@@ -104,7 +107,7 @@ func inspectSession(
 		return errors.New("acp: session inspection context is required")
 	}
 	driver := New()
-	proc, err := driver.Start(ctx, StartOpts{
+	proc, err := driver.Start(withSpawnProvider(ctx, req.TelemetryProvider), StartOpts{
 		AgentName:  strings.TrimSpace(req.AgentName),
 		Command:    strings.TrimSpace(req.Command),
 		Cwd:        strings.TrimSpace(req.Cwd),

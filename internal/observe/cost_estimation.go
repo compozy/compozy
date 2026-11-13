@@ -154,7 +154,27 @@ func (o *Observer) aggregateObservedUsage(
 	); err != nil {
 		return fmt.Errorf("observe: record token usage: %w", err)
 	}
+	o.eventMetrics.RecordUsage(ctx, AcceptedUsage{
+		Provider:         snapshot.provider,
+		Model:            snapshot.model,
+		Agent:            snapshot.agentName,
+		InputTokens:      derefOrZero(event.Usage.InputTokens),
+		OutputTokens:     derefOrZero(event.Usage.OutputTokens),
+		CacheReadTokens:  derefOrZero(event.Usage.CacheReadTokens),
+		CacheWriteTokens: derefOrZero(event.Usage.CacheWriteTokens),
+		CostAmount:       derefOrZero(costAmount),
+		CostCurrency:     derefOrZero(costCurrency),
+		CostStatus:       modelcatalog.CostStatus(costStatus),
+	})
 	return nil
+}
+
+func derefOrZero[T any](value *T) T {
+	if value == nil {
+		var zero T
+		return zero
+	}
+	return *value
 }
 
 func findObservedModel(models []modelcatalog.Model, provider string, model string) *modelcatalog.Model {

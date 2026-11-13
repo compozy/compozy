@@ -242,6 +242,7 @@ type StatusPayload struct {
 	Skills           SkillRuntimeStatusPayload        `json:"skills"`
 	Config           ConfigRuntimeStatusPayload       `json:"config"`
 	LogTail          LogTailStatusPayload             `json:"log_tail"`
+	OTel             *OTelStatusPayload               `json:"otel,omitzero"`
 }
 
 // SteerCapability is a daemon API value.

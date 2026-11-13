@@ -63,6 +63,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithEventLedger(deps.EventLedger),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
+			session.WithProviderTelemetryEnv(deps.ProviderTelemetryEnv),
 			session.WithProfileNameResolver(deps.ProfileNames),
 			session.WithModelCatalog(deps.ModelCatalog),
 			session.WithSoulSnapshotStore(deps.SoulStore),

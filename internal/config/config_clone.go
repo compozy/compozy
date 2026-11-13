@@ -20,6 +20,7 @@ func CloneConfig(source *Config) Config {
 		source.ModelCatalog.Sources.ModelsDev.Enabled,
 	)
 	cloned.Agents.Overrides = maps.Clone(source.Agents.Overrides)
+	cloned.Observability.OTel = source.Observability.OTel.clone()
 	cloned.Roles = CloneRolesConfig(&source.Roles)
 	cloned.RoleSources = CloneRoleFieldSources(source.RoleSources)
 	cloned.Skills.Sources = cloneStrings(source.Skills.Sources)

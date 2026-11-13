@@ -1,0 +1,28 @@
+{
+  "tool_id": "compozy__config_get",
+  "status": "completed",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "observability.otel.headers.api-key"
+      }
+    ],
+    "structured": {
+      "entry": {
+        "path": "observability.otel.headers.api-key",
+        "redacted": false,
+        "value": "[REDACTED]"
+      },
+      "scope": "user",
+      "workspace_root": ""
+    },
+    "preview": "observability.otel.headers.api-key",
+    "truncated": false,
+    "bytes": 323,
+    "duration_ms": 0
+  },
+  "truncated": false,
+  "duration_ms": 0,
+  "events": []
+}

@@ -1901,6 +1901,45 @@ func TestReloadChangedPaths(t *testing.T) {
 		}
 	})
 
+	t.Run("Should list every changed OTel export key as restart required [UT-009]", func(t *testing.T) {
+		t.Parallel()
+
+		current := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		desired := current
+		otel := &desired.Observability.OTel
+		otel.Enabled = true
+		otel.Protocol = "grpc"
+		otel.Endpoint = "http://collector.local:4317"
+		otel.Headers = map[string]string{"api-key": "vault:observability/nr"}
+		otel.Traces = false
+		otel.Metrics = false
+		otel.SampleRatio = 0.25
+		otel.MetricInterval = 30 * time.Second
+		otel.ServiceName = "compozy-dev"
+		otel.SlowDBWriteMS = 0
+		otel.ForwardToProviders = true
+
+		want := []string{
+			"observability.otel.enabled",
+			"observability.otel.protocol",
+			"observability.otel.endpoint",
+			"observability.otel.headers",
+			"observability.otel.traces",
+			"observability.otel.metrics",
+			"observability.otel.sample_ratio",
+			"observability.otel.metric_interval",
+			"observability.otel.service_name",
+			"observability.otel.slow_db_write_ms",
+			"observability.otel.forward_to_providers",
+		}
+		if got := reloadChangedPaths(&current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.RestartRequired {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.RestartRequired)
+		}
+	})
+
 	t.Run("Should classify role mutations as live", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "tool_denied",
+    "message": "tool invocation denied",
+    "tool_id": "compozy__config_set",
+    "reason_codes": [
+      "config_trust_root_forbidden"
+    ]
+  }
+}
+error: tool_denied: tool invocation denied
