@@ -371,9 +371,32 @@ function trackGesture(
   osTabDragStore.trigger.pressed({ session, point });
 }
 
-/** Controls that own their press: a press that starts on one never arms a drag. */
-const INTERACTIVE_CONTROL_SELECTOR =
-  "button, a[href], input, textarea, select, [contenteditable='true'], [role='button'], [role='menuitem']";
+/**
+ * Controls that own their press: a press that starts on one never arms a drag. Native controls,
+ * plus every ARIA widget role a head publisher may put on a plain element (a `span` checkbox, a
+ * custom slider thumb, a `div` combobox).
+ */
+const INTERACTIVE_CONTROL_SELECTOR = [
+  "button",
+  "a[href]",
+  "input",
+  "textarea",
+  "select",
+  "[contenteditable='true']",
+  ...[
+    "button",
+    "menuitem",
+    "checkbox",
+    "switch",
+    "radio",
+    "slider",
+    "tab",
+    "option",
+    "combobox",
+    "textbox",
+    "link",
+  ].map(role => `[role='${role}']`),
+].join(", ");
 
 /**
  * Parts of a drag source that are controls yet stay its grab surface: a window head's title

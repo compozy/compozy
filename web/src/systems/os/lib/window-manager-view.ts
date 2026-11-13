@@ -21,6 +21,7 @@ import type {
   LayoutNode,
   LayoutTab,
   PixelRect,
+  ProjectedSeam,
   TabId,
   TabProjection,
   WindowManagerClientView,
@@ -115,6 +116,37 @@ function withSeamPreview(
     return tabs.some((tab, index) => tab !== desktop.tabs[index]) ? { ...desktop, tabs } : desktop;
   });
   return changed ? { ...snapshot, desktops } : snapshot;
+}
+
+/**
+ * One seam as the authoritative snapshot lays it out, before any live preview: the same seam a
+ * seam preview is clamped against, so a gesture based on it commits exactly what it previews.
+ * Null when the split or the boundary no longer exists.
+ */
+export function authoritativeSeam(
+  view: Pick<OsDesktopRuntimeStore, "snapshot" | "windowManagerConfig" | "client" | "presentation">,
+  workArea: PixelRect,
+  target: { splitId: string; boundaryIndex: number }
+): ProjectedSeam | null {
+  const { snapshot, windowManagerConfig: config } = view;
+  if (snapshot === null || config === null) return null;
+  const context: ProjectionContext = {
+    workArea,
+    config,
+    minimums: buildWindowManagerMinimums(snapshot),
+    focusOrder: view.client?.focusOrder ?? [],
+    compact: view.presentation === "compact",
+  };
+  for (const desktop of snapshot.desktops) {
+    for (const tab of desktop.tabs) {
+      const seam = projectTab(projectionInputFor(tab, context)).seams.find(
+        candidate =>
+          candidate.splitId === target.splitId && candidate.boundaryIndex === target.boundaryIndex
+      );
+      if (seam !== undefined) return seam;
+    }
+  }
+  return null;
 }
 
 /** Every tab's split tree projected against the one measured content area. */

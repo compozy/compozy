@@ -7,7 +7,13 @@ import {
 } from "../lib/layout-gesture-cancellation";
 import { seamWeightDelta } from "../lib/seam-preview";
 import type { WindowManagerCommandFence, WindowManagerCommandOutcome } from "../lib/os-types";
-import type { LayoutNode, ProjectedSeam } from "../lib/window-manager-types";
+import { authoritativeSeam, DEFAULT_WINDOW_MANAGER_WORK_AREA } from "../lib/window-manager-view";
+import type {
+  LayoutNode,
+  PixelRect,
+  ProjectedSeam,
+  WindowManagerSnapshot,
+} from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import {
   SEAM_WEIGHT_EPSILON,
@@ -47,10 +53,50 @@ function committedWeights(nodes: readonly LayoutNode[], splitId: string): string
 let previewGeneration = 0;
 
 /**
+ * This client's own resizes and balances on one split: how many are in flight, the newest
+ * revision one of them was acknowledged at, and the drag releases waiting for them to settle.
+ * The runtime publishes a command's snapshot before its completion settles. Kept per manager (one
+ * per client) and split, so a sibling seam's commit counts too.
+ */
+interface OwnSplitCommands {
+  pending: number;
+  revision: number;
+  settled: Array<() => void>;
+}
+
+const ownCommands = new WeakMap<object, Map<string, OwnSplitCommands>>();
+
+function ownSplitCommands(manager: object, splitId: string): OwnSplitCommands {
+  let splits = ownCommands.get(manager);
+  if (splits === undefined) {
+    splits = new Map();
+    ownCommands.set(manager, splits);
+  }
+  let own = splits.get(splitId);
+  if (own === undefined) {
+    own = { pending: 0, revision: Number.NEGATIVE_INFINITY, settled: [] };
+    splits.set(splitId, own);
+  }
+  return own;
+}
+
+/** The split's committed weights in a snapshot, or "" when it has no such split. */
+function splitWeightsKey(snapshot: WindowManagerSnapshot | null, splitId: string): string {
+  const roots = (snapshot?.desktops ?? []).flatMap(desktop => desktop.tabs.map(tab => tab.root));
+  return committedWeights(roots, splitId) ?? "";
+}
+
+/** The work area the runtime projects every tab against, preview included. */
+function projectedWorkArea(): PixelRect {
+  return (
+    windowManagerStore.getSnapshot().context.workArea?.rect ?? DEFAULT_WINDOW_MANAGER_WORK_AREA
+  );
+}
+
+/**
  * What a seam drag is drawn against: the client binding, the shown desktop and tab and the work
  * area (`frame`), and the split's committed weights (`weights`). Hidden tabs stay mounted, so a
- * tab or desktop switch must cancel a drag explicitly; weights changed by someone else would
- * rebase the drag's delta onto shares its preview never showed.
+ * tab or desktop switch must cancel a drag explicitly.
  */
 function useSeamGestureContext(splitId: string | undefined): { frame: string; weights: string } {
   const binding = useSelector(windowManagerStore, snapshot => {
@@ -65,13 +111,9 @@ function useSeamGestureContext(splitId: string | undefined): { frame: string; we
     const desktopId = state.activeDesktopId ?? "";
     return `${desktopId}/${state.activeTabIds[desktopId] ?? ""}`;
   });
-  const weights = useDesktop(state => {
-    if (splitId === undefined) return "";
-    const roots = (state.snapshot?.desktops ?? []).flatMap(desktop =>
-      desktop.tabs.map(tab => tab.root)
-    );
-    return committedWeights(roots, splitId) ?? "";
-  });
+  const weights = useDesktop(state =>
+    splitId === undefined ? "" : splitWeightsKey(state.snapshot, splitId)
+  );
   return { frame: `${binding}|${shown}|${area}`, weights };
 }
 
@@ -80,10 +122,13 @@ export type OsSplitSeamState = "drag" | "limit" | undefined;
 /**
  * One seam's gesture. A pointer drag previews the two sides' shares through the shared seam
  * preview, stops at either side's pixel minimum, and commits one `layout.resize` fenced to the
- * revision it started from. Escape, a cancelled or lost pointer, a context change (another tab,
- * desktop, binding or work area, or the split's weights changed by someone else) and unmounting
- * cancel it and restore the shares. Arrow keys resize in steps and a double-click balances the
- * two sides; every command is fenced to the revision it was authored at.
+ * revision its seam was laid out at. Escape, a cancelled or lost pointer, a context change
+ * (another tab, desktop, binding or work area, the seam gone, or the split's weights changed by
+ * someone else while this client has nothing in flight on it) and unmounting cancel it and
+ * restore the shares. While this client has a command in flight on the split, a weights change
+ * re-bases the drag on the latest layout instead, and a release waits for that command to settle
+ * so it is sent against the layout its preview shows. Arrow keys resize in steps and a
+ * double-click balances the two sides; every command is fenced to the revision it was authored at.
  */
 export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: number) {
   const { manager } = useOsShell();
@@ -94,27 +139,24 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
   });
   const { frame: contextKey, weights: weightsKey } = useSeamGestureContext(seam?.splitId);
   const cancelRef = useRef<((reason: GestureCancelReason) => void) | null>(null);
-  /**
-   * This seam's own resizes and balances: how many are in flight, and the newest revision one of
-   * them was acknowledged at. The runtime publishes a command's snapshot before its completion
-   * settles, so a weight change at or below that revision is this client's own echo.
-   */
-  const own = useRef({ pending: 0, revision: Number.NEGATIVE_INFINITY });
+  const rebaseRef = useRef<(() => boolean) | null>(null);
 
-  // A drag outlives neither its seam nor the context it was drawn in; the split's weights may
-  // change under it only through this seam's own earlier commands.
+  // A drag outlives neither its seam nor the context it was drawn in. The split's weights may
+  // change under it only while this client has a command in flight on that split (or just had
+  // one acknowledged); the drag is then re-based on the latest layout.
   const seamId = seam?.id;
   useEffect(() => {
     const drag = store.getSnapshot().context;
     if (drag.phase !== "dragging") return;
-    if (drag.seam?.id !== seamId || drag.contextKey !== contextKey) {
+    if (drag.seam === null || drag.seam.id !== seamId || drag.contextKey !== contextKey) {
       cancelRef.current?.("context-changed");
       return;
     }
     if (drag.weightsKey === weightsKey) return;
     const revision = manager.getState().snapshot?.revision ?? Number.POSITIVE_INFINITY;
-    if (own.current.pending > 0 || revision <= own.current.revision) {
-      store.trigger.weightsAcknowledged({ weightsKey });
+    const own = ownSplitCommands(manager, drag.seam.splitId);
+    if (own.pending > 0 || revision <= own.revision) {
+      rebaseRef.current?.();
       return;
     }
     cancelRef.current?.("context-changed");
@@ -129,14 +171,16 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     return { expectedRevision: revision, rebase: { splitId, boundaryIndex } };
   };
 
-  /** Tracks one of this seam's commands until it settles, so its echo never cancels a drag. */
-  const sent = (outcome: WindowManagerCommandOutcome): Promise<boolean> => {
+  /** Tracks one of this client's commands on a split until it settles. */
+  const sent = (splitId: string, outcome: WindowManagerCommandOutcome): Promise<boolean> => {
     if (!outcome.accepted) return outcome.completion;
-    own.current.pending += 1;
+    const own = ownSplitCommands(manager, splitId);
+    own.pending += 1;
     return outcome.completion.finally(() => {
-      own.current.pending -= 1;
+      own.pending -= 1;
       const revision = manager.getState().snapshot?.revision;
-      if (revision !== undefined) own.current.revision = Math.max(own.current.revision, revision);
+      if (revision !== undefined) own.revision = Math.max(own.revision, revision);
+      if (own.pending === 0) for (const resume of own.settled.splice(0)) resume();
     });
   };
 
@@ -151,10 +195,13 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     const vertical = seam.orientation === "vertical";
     const coordinate = (pointer: { clientX: number; clientY: number }) =>
       vertical ? pointer.clientX : pointer.clientY;
+    const own = ownSplitCommands(manager, seam.splitId);
     let frame: number | null = null;
+    let live = true;
+    let unbindCancellation = () => {};
 
-    const teardown = () => {
-      cancelRef.current = null;
+    /** Lets go of the pointer: its listeners, capture, pending frame and pointer cancellations. */
+    const detach = () => {
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
       unbindCancellation();
@@ -162,10 +209,66 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
       element.removeEventListener("pointerup", onUp);
       if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
     };
+    const teardown = () => {
+      live = false;
+      cancelRef.current = null;
+      rebaseRef.current = null;
+      detach();
+    };
     const cancel = (reason: GestureCancelReason) => {
       teardown();
       store.trigger.dragCancelled({ reason });
       if (generation === previewGeneration) clearPreview();
+    };
+    const showPreview = () => {
+      const drag = store.getSnapshot().context;
+      if (drag.phase !== "dragging" || drag.seam === null) return;
+      if (generation !== previewGeneration) return;
+      windowManagerStore.trigger.seamPreviewSet({
+        preview: {
+          splitId: drag.seam.splitId,
+          boundaryIndex: drag.seam.boundaryIndex,
+          deltaPx: drag.deltaPx,
+        },
+      });
+    };
+    /**
+     * Re-bases the gesture on the split's latest unpreviewed layout — the seam the preview is
+     * clamped against — keeping the seam on screen under the pointer. Cancels when it is gone.
+     */
+    const rebase = (): boolean => {
+      const drag = store.getSnapshot().context;
+      if (drag.phase !== "dragging" || drag.seam === null) return false;
+      const view = manager.getState();
+      const latest = authoritativeSeam(view, projectedWorkArea(), drag.seam);
+      if (latest === null || view.snapshot === null) {
+        cancel("context-changed");
+        return false;
+      }
+      store.trigger.rebased({
+        seam: latest,
+        revision: view.snapshot.revision,
+        weightsKey: splitWeightsKey(view.snapshot, latest.splitId),
+      });
+      showPreview();
+      return true;
+    };
+    const commit = () => {
+      const result = seamDragCommit(store.getSnapshot().context);
+      teardown();
+      store.trigger.dragEnded({ pointerId });
+      if (result === null) {
+        if (generation === previewGeneration) clearPreview();
+        return;
+      }
+      // The preview stays until the command settles, so the panes never flash back; a later
+      // drag that has taken the preview over keeps it.
+      void sent(
+        result.splitId,
+        manager.resizeLayout(result.splitId, result.boundaryIndex, result.delta, result.fence)
+      ).finally(() => {
+        if (generation === previewGeneration) clearPreview();
+      });
     };
     const onMove = (move: globalThis.PointerEvent) => {
       if (move.pointerId !== pointerId) return;
@@ -173,33 +276,23 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
         frame = null;
-        const drag = store.getSnapshot().context;
-        if (drag.phase !== "dragging" || drag.seam === null) return;
-        windowManagerStore.trigger.seamPreviewSet({
-          preview: {
-            splitId: drag.seam.splitId,
-            boundaryIndex: drag.seam.boundaryIndex,
-            deltaPx: drag.deltaPx,
-          },
-        });
+        showPreview();
       });
     };
     const onUp = (up: globalThis.PointerEvent) => {
       if (up.pointerId !== pointerId) return;
       store.trigger.pointerMoved({ pointerId, coordinate: coordinate(up) });
-      const commit = seamDragCommit(store.getSnapshot().context);
-      teardown();
-      store.trigger.dragEnded({ pointerId });
-      if (commit === null) {
-        if (generation === previewGeneration) clearPreview();
+      if (own.pending === 0) {
+        commit();
         return;
       }
-      // The preview stays until the command settles, so the panes never flash back; a later
-      // drag that has taken the preview over keeps it.
-      void sent(
-        manager.resizeLayout(commit.splitId, commit.boundaryIndex, commit.delta, commit.fence)
-      ).finally(() => {
-        if (generation === previewGeneration) clearPreview();
+      // A command of this client on the split is still in flight, and its result moves the
+      // layout this release would be sent against: hold the release, previewed, until it settles,
+      // then re-base on the latest layout and send.
+      detach();
+      showPreview();
+      own.settled.push(() => {
+        if (live && rebase()) commit();
       });
     };
 
@@ -214,10 +307,14 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
       contextKey,
       weightsKey,
     });
-    const unbindCancellation = bindLayoutGestureCancellation(window, cancel);
+    unbindCancellation = bindLayoutGestureCancellation(window, cancel);
     cancelRef.current = cancel;
+    rebaseRef.current = rebase;
     element.addEventListener("pointermove", onMove);
     element.addEventListener("pointerup", onUp);
+    // The seam on screen may still show an earlier command of this client that has not landed:
+    // base the drag on the layout its preview is clamped against, anchored where the seam shows.
+    if (own.pending > 0) rebase();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -227,7 +324,10 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     event.preventDefault();
     const delta = seamWeightDelta(seam, direction * seamKeyStep(event) * seam.axisSpan);
     if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
-      void sent(manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam)));
+      void sent(
+        seam.splitId,
+        manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam))
+      );
     }
   };
 
@@ -238,12 +338,15 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
   const onDoubleClick = () => {
     if (seam === undefined) return;
     if (memberCount <= 2) {
-      void sent(manager.balanceLayout({ splitId: seam.splitId }, fenceFor(seam)));
+      void sent(seam.splitId, manager.balanceLayout({ splitId: seam.splitId }, fenceFor(seam)));
       return;
     }
     const delta = (seam.trailingWeight - seam.leadingWeight) / 2;
     if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
-      void sent(manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam)));
+      void sent(
+        seam.splitId,
+        manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam))
+      );
     }
   };
 

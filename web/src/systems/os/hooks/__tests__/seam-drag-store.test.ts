@@ -1,6 +1,7 @@
 // Suite: shared seam drag lifecycle
 // Invariant: one captured pointer owns a seam drag; it commits at most one resize, fenced to the
-// revision and split captured at press, and a cancelled drag commits nothing.
+// revision and split of the seam it is based on, and a cancelled drag commits nothing. A re-based
+// drag keeps the seam on screen under the pointer and commits against the new seam only.
 // Owning layer: the shared seam drag interaction store. Boundary OUT: pointer transport, the seam
 // preview and command I/O (useOsSplitSeam in the OS interaction hooks suite).
 import { describe, expect, it } from "vitest";
@@ -76,6 +77,33 @@ describe("seamDragLogic", () => {
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
     // The commit is clamped to the minimum: 200px of travel in a 1000px span.
     expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(-0.2);
+  });
+
+  it("Should re-base on a moved seam: the pointer keeps its place and the new bounds clamp", () => {
+    const store = startedStore();
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160 });
+    // The split moved to 60/40 under the drag; its trailing minimum now stops the seam at 650.
+    const moved: ProjectedSeam = {
+      ...SEAM,
+      value: 600,
+      maxValue: 650,
+      leadingWeight: 0.6,
+      trailingWeight: 0.4,
+    };
+
+    store.trigger.rebased({ seam: moved, revision: 13, weightsKey: "0.6,0.4" });
+
+    // The seam was shown at 500 + 60 = 560: from 600 that is -40, and the pointer still owns it.
+    expect(store.getSnapshot().context).toMatchObject({ deltaPx: -40, revision: 13, seam: moved });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 400 });
+    // 500 + 300 = 800 on screen is past 650: the commit stops where the new bounds do.
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
+    expect(seamDragCommit(store.getSnapshot().context)).toEqual({
+      splitId: "split:root",
+      boundaryIndex: 0,
+      delta: expect.closeTo(0.05),
+      fence: { expectedRevision: 13, rebase: { splitId: "split:root", boundaryIndex: 0 } },
+    });
   });
 
   it.each(["escape", "context-changed"] as const)(

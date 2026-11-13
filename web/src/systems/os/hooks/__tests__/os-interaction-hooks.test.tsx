@@ -1569,6 +1569,8 @@ function HeadDragHarness({ windowId, onBack }: { windowId: string; onBack: () =>
       <h1 data-slot="topbar-title">
         <button type="button">Agents</button>
       </h1>
+      {/* A published head control that is no native control, like the board's "Select all". */}
+      <span aria-checked="false" aria-label="Select all" role="checkbox" tabIndex={0} />
       {/* A head picker's popup renders in a portal, outside the head's DOM. */}
       {createPortal(<input aria-label="Picker filter" />, document.body)}
     </header>
@@ -1755,6 +1757,19 @@ describe("useOsTabDragStart pointer gestures", () => {
     expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
   });
 
+  it("Should never arm a drag from a press on a role=checkbox span published into the head", () => {
+    const shell = renderSplitHead();
+    const selectAll = screen.getByRole("checkbox", { name: "Select all" });
+
+    fireEvent.pointerDown(selectAll, { button: 0, pointerId: 7, clientX: 10, clientY: 300 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    fireEvent.pointerMove(window, { pointerId: 7, clientX: 80, clientY: 300 });
+    fireEvent.pointerUp(window, { pointerId: 7, clientX: 80, clientY: 300 });
+
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+  });
+
   it("Should never arm a drag from a press inside a popup portaled out of the head", () => {
     const shell = renderSplitHead();
     const filter = screen.getByRole("textbox", { name: "Picker filter" });
@@ -1846,15 +1861,17 @@ const SEAM: ProjectedSeam = {
 function SeamHarness({
   seam,
   memberCount = 2,
+  testId = "seam",
 }: {
   seam: ProjectedSeam | undefined;
   memberCount?: number;
+  testId?: string;
 }) {
   const { state, onPointerDown, onKeyDown, onDoubleClick } = useOsSplitSeam(seam, memberCount);
   return (
     <div
       data-state={state}
-      data-testid="seam"
+      data-testid={testId}
       tabIndex={0}
       onDoubleClick={onDoubleClick}
       onKeyDown={onKeyDown}
@@ -1863,11 +1880,29 @@ function SeamHarness({
   );
 }
 
-/** The authoritative snapshot with one split tab whose split carries these weights. */
+/**
+ * The authoritative snapshot with one split tab whose split carries these weights, one member
+ * window per weight. The windows are of no catalog app, so each keeps the conservative 220px floor.
+ */
 function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): WindowManagerSnapshot {
+  const windowIds = ["window:primary", "window:peer", "window:third"].slice(0, weights.length);
   return {
     ...SNAPSHOT,
     revision,
+    windows: Object.fromEntries(
+      windowIds.map(id => [
+        id,
+        {
+          id,
+          app: "uncatalogued",
+          instanceKey: null,
+          route: { pathname: "/", search: {} },
+          navStack: [],
+          desktopId: "desktop:main",
+          tabId: "tab:main",
+        },
+      ])
+    ),
     desktops: [
       desktopWith([
         {
@@ -1877,7 +1912,7 @@ function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): Win
             kind: "split",
             axis: "horizontal",
             weights,
-            children: [leafNode("window:primary"), leafNode("window:peer")],
+            children: windowIds.map(id => leafNode(id)),
           },
         },
       ]),
@@ -1885,10 +1920,21 @@ function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): Win
   };
 }
 
-// Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it started
-// from; Escape, a cancelled or lost pointer, unmounting and a change of the context it was drawn
-// in — including the split's weights — (US-009.EC-2) cancel it, restore the shares and send
-// nothing. Keyboard and pair-balance resizes carry the same fence.
+/** `SEAM` as a 1000px work area with no gaps lays it out over 220px floors: 1px is 0.001. */
+const EXACT_SEAM: ProjectedSeam = {
+  ...SEAM,
+  rect: { x: 500, y: 0, w: 0, h: 700 },
+  minValue: 220,
+  maxValue: 780,
+};
+
+// Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it is based
+// on; Escape, a cancelled or lost pointer, unmounting and a change of the context it was drawn in
+// — including the split's weights changed by someone else — (US-009.EC-2) cancel it, restore the
+// shares and send nothing. While this client has a command in flight on the split, the drag is
+// re-based on the latest layout instead and its release waits for that command, so what it sends
+// always equals what its preview showed, clamp included (US-009.EC-1). Keyboard and pair-balance
+// resizes carry the same fence.
 // Owning layer: the seam gesture hook over the shared seam drag store (hooks/seam-drag-store).
 describe("useOsSplitSeam gesture lifecycle", () => {
   let frames: FrameRequestCallback[] = [];
@@ -2035,31 +2081,85 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
     expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
   });
-  it("Should keep a drag when this seam's own earlier resize lands, and cancel on someone else's", async () => {
+  /** A 1000×700 work area with no gaps, so seams sit at weight × 1000 px as in `EXACT_SEAM`. */
+  function exactShell(snapshot: WindowManagerSnapshot) {
+    act(() =>
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: {
+          rect: { x: 0, y: 0, w: 1000, h: 700 },
+          origin: { x: 0, y: 0 },
+          viewportWidth: 1000,
+        },
+      })
+    );
+    const shell = createShell();
+    shell.setRuntimeState({
+      snapshot,
+      windowManagerConfig: { ...CONFIG, gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 } },
+      activeTabIds: { "desktop:main": "tab:main" },
+    });
+    frames = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    return shell;
+  }
+
+  /** The next resize stays in flight until the returned function settles it. */
+  function deferResize(shell: ReturnType<typeof createShell>) {
     let settle!: (applied: boolean) => void;
-    const firstShell = startSeamDrag(snapshotWithSplit([0.5, 0.5]));
-    const { shell, seam } = firstShell;
     vi.mocked(shell.controller.resizeLayout).mockImplementationOnce(() => ({
       accepted: true,
       completion: new Promise<boolean>(resolve => {
         settle = resolve;
       }),
     }));
-    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
-    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+    return async () => act(async () => settle(true));
+  }
 
-    // Grab the same seam again before the first resize is acknowledged.
+  function previewDelta() {
+    return windowManagerStore.getSnapshot().context.seamPreview?.deltaPx;
+  }
+
+  const fenceAt = (expectedRevision: number) => ({
+    expectedRevision,
+    rebase: { splitId: "split:main", boundaryIndex: 0 },
+  });
+
+  it("Should keep a drag re-based when this seam's own earlier resize lands, and cancel on someone else's", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    const { rerender } = render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.06),
+      fenceAt(7)
+    );
+
+    // Grab it again where the first resize's preview shows it, before that resize is acknowledged.
+    rerender(
+      <SeamHarness
+        seam={{ ...EXACT_SEAM, value: 560, leadingWeight: 0.56, trailingWeight: 0.44 }}
+      />
+    );
     fireEvent.pointerDown(seam, { button: 0, pointerId: 5, clientX: 560, clientY: 300 });
     fireEvent.pointerMove(seam, { pointerId: 5, clientX: 600, clientY: 300 });
     flushFrames();
-    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({ deltaPx: 40 });
+    // Based on the unpreviewed 500 the preview is clamped against, the seam shows at 600.
+    expect(previewDelta()).toBeCloseTo(100);
 
-    // The first resize's own echo changes the weights: the second drag carries on.
+    // The first resize's own echo moves the split: the drag carries on from 560, still at 600.
     act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.56, 0.44], 8) }));
-    await act(async () => settle(true));
+    await settle();
     expect(seam).toHaveAttribute("data-state", "drag");
-    // The first resize settling does not clear the second drag's preview.
-    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({ deltaPx: 40 });
+    expect(previewDelta()).toBeCloseTo(40);
 
     // Another client's change afterwards still cancels it.
     act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.7, 0.3], 9) }));
@@ -2067,6 +2167,118 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
     fireEvent.pointerUp(seam, { pointerId: 5, clientX: 600, clientY: 300 });
     expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should send what the preview shows when an own resize lands mid-drag, at the moved minimum (AS-F-12)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+
+    // The +0.1 lands with the pointer down: the split is 60/40 and the seam stays under the pointer.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.6, 0.4], 8) }));
+    await settle();
+    expect(previewDelta()).toBeCloseTo(-100);
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 800, clientY: 300 });
+    flushFrames();
+    // Past 780 the trailing side would drop under its floor: the preview stops at 78/22.
+    expect(previewDelta()).toBeCloseTo(200);
+    expect(seam).toHaveAttribute("data-state", "limit");
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 800, clientY: 300 });
+
+    // +0.18 from 60/40, at the revision it lands on; the press-time seam would have allowed +0.28.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.18),
+      fenceAt(8)
+    );
+  });
+
+  it("Should re-base on another client's change while an own resize is in flight, and send after it", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    // Someone else's 30/70 lands first: the drag is re-based on it, the seam still at 560.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    expect(previewDelta()).toBeCloseTo(260);
+
+    // Released while the own +0.1 is in flight: nothing is sent against a layout about to move.
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+    expect(seam).toHaveAttribute("data-state", "drag");
+
+    // The own +0.1 lands on top (40/60) and settles: the release goes out against it.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.4, 0.6], 9) }));
+    expect(previewDelta()).toBeCloseTo(160);
+    await settle();
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.16),
+      fenceAt(9)
+    );
+    expect(seam).not.toHaveAttribute("data-state");
+  });
+
+  it("Should keep a drag through a sibling seam's own resize and send it against the moved bounds", async () => {
+    const shell = exactShell(snapshotWithSplit([0.4, 0.4, 0.2]));
+    const first: ProjectedSeam = {
+      ...EXACT_SEAM,
+      rect: { x: 400, y: 0, w: 0, h: 700 },
+      value: 400,
+      maxValue: 580,
+      leadingWeight: 0.4,
+      trailingWeight: 0.4,
+    };
+    const sibling: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:main:1",
+      boundaryIndex: 1,
+      rect: { x: 800, y: 0, w: 0, h: 700 },
+      value: 800,
+      minValue: 620,
+      maxValue: 780,
+      leadingWeight: 0.4,
+      trailingWeight: 0.2,
+    };
+    render(
+      <>
+        <SeamHarness memberCount={3} seam={first} />
+        <SeamHarness memberCount={3} seam={sibling} testId="sibling" />
+      </>,
+      { wrapper: shell.wrapper }
+    );
+    const settle = deferResize(shell);
+    fireEvent.keyDown(screen.getByTestId("sibling"), { key: "ArrowLeft" });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 400, clientY: 300 });
+
+    // The sibling's -0.02 lands (40/38/22): this drag carries on, its trailing side now 380px.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.4, 0.38, 0.22], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 600, clientY: 300 });
+    flushFrames();
+    expect(seam).toHaveAttribute("data-state", "limit");
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 600, clientY: 300 });
+    await settle();
+
+    // Stopped at 560, the moved floor, not the press-time 580.
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.16),
+      fenceAt(8)
+    );
   });
 
   it("Should fence a two-member balance like a drag", () => {
