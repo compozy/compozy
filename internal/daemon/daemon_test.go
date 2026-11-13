@@ -9086,6 +9086,10 @@ func (f *fakeObserver) QueryEvents(context.Context, store.EventSummaryQuery) ([]
 	return nil, nil
 }
 
+func (f *fakeObserver) EventSequenceHead(context.Context) (int64, error) {
+	return 0, nil
+}
+
 func (f *fakeObserver) QueryHookCatalog(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error) {
 	return nil, nil
 }
@@ -10007,6 +10011,10 @@ func (r *recordingRegistry) WriteEventSummaries(context.Context, []store.EventSu
 
 func (r *recordingRegistry) ListEventSummaries(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 	return nil, nil
+}
+
+func (r *recordingRegistry) EventSummaryHeadSequence(context.Context) (int64, error) {
+	return 0, nil
 }
 
 func (r *recordingRegistry) RecordTokenUsage(
