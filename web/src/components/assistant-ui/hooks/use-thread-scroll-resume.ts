@@ -12,15 +12,23 @@ const RESUME_MAX_FRAMES = 60;
 /** Consecutive frames the resumed row must rest before the hold ends early. */
 const RESUME_STABLE_FRAMES = 4;
 
+/**
+ * What lays the transcript's text out: the viewport's width and the appearance settings the
+ * shell writes on the root element (text size, font, tracking). A change in either reflows rows.
+ */
+function textLayoutOf(viewport: HTMLElement): string {
+  return `${viewport.clientWidth}|${viewport.ownerDocument.documentElement.style.cssText}`;
+}
+
 /** The row at the viewport's top edge, how far into it the reader is, and the raw offset. */
 interface ReadingAnchor {
   key: VirtualItem["key"];
   /** The reader's depth into the row in pixels: kept when the row only grew (a reply streamed). */
   depth: number;
-  /** The same depth as a share of the row's height: kept when a width change reflowed the row. */
+  /** The same depth as a share of the row's height: kept when the text layout reflowed the row. */
   fraction: number;
-  /** The viewport's width when read. */
-  width: number;
+  /** The text layout when read (`textLayoutOf`). */
+  layout: string;
   /** The viewport's offset when read: the place when the row left the list while hidden. */
   top: number;
 }
@@ -45,10 +53,10 @@ export function observeRenderedElementOffset(
  * Where the transcript resumes when its pane is rendered again (after a tab switch, a move into
  * a split, a collapsed switcher). Following pins the end again; a turn that started while the
  * pane was hidden gets its new-turn anchor (`placeTurn`); otherwise the row the reader was on
- * returns to the same depth under the top edge, read from the virtualizer's measurements. At
- * the same width that depth is kept in pixels, so a reply that grew while hidden does not move
- * the text the reader was on; after a width change it is kept as a share of the row's height,
- * so the reflowed row keeps the same text in view. The rows re-measure over the next frames
+ * returns to the same depth under the top edge, read from the virtualizer's measurements. With
+ * the same text layout that depth is kept in pixels, so a reply that grew while hidden does not
+ * move the text the reader was on; after a width or text-size change it is kept as a share of
+ * the row's height, so the reflowed row keeps the same text in view. The rows re-measure over the next frames
  * (a new width, rows that mounted on show) and the virtualizer compensates for them, so the
  * row is held there until it rests, for at most {@link RESUME_MAX_FRAMES}, or until the reader's
  * gesture, a mode change, or the controller's own move (a message jump, an older page landing:
@@ -92,14 +100,14 @@ export function useThreadScrollResume(
       }
       const depth = Math.max(0, top - item.start);
       const fraction = item.size > 0 ? Math.min(1, depth / item.size) : 0;
-      anchor = { key: item.key, depth, fraction, width: viewport.clientWidth, top };
+      anchor = { key: item.key, depth, fraction, layout: textLayoutOf(viewport), top };
     };
     /** Where the anchored row puts the viewport now, by its current measurement. */
     const targetOf = (reading: ReadingAnchor): number => {
       const item = virtualizer.measurementsCache.find(entry => entry.key === reading.key);
       if (item === undefined) return reading.top;
-      // Same width: the text above the reader did not move, whatever was appended below it.
-      if (Math.abs(viewport.clientWidth - reading.width) < 1) {
+      // Same text layout: the text above the reader did not move, whatever was appended below.
+      if (textLayoutOf(viewport) === reading.layout) {
         return item.start + Math.min(reading.depth, item.size);
       }
       return item.start + reading.fraction * item.size;

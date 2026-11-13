@@ -9016,6 +9016,23 @@ describe("useThreadScrollResume", () => {
     expect(viewport.scrollTop).toBe(1_200);
   });
 
+  it("Should resume the same share of a row a text size change reflowed while hidden", () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    const root = document.documentElement;
+    onTestFinished(() => root.style.removeProperty("--user-text-scale"));
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // Settings › Text size grows the text at the same width: each row doubles in height.
+    hideAndShow(() => {
+      root.style.setProperty("--user-text-scale", "1.15");
+      for (const row of rows) row.size = 800;
+    });
+
+    expect(viewport.scrollTop).toBe(1_200);
+  });
+
   it("Should keep the reader's text in a reply that grew while hidden at the same width", () => {
     const { rows, viewport, store, hideAndShow } = setupResume();
     store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
