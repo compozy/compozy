@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { CornerDownRight, CornerLeftUp } from "@compozy/ui/icons";
 import {
   Button,
@@ -110,6 +111,11 @@ function SessionParentUnavailable({
   );
 }
 
+/** Enter on a page button pages; it must not reach the list and choose the highlighted row. */
+function stopCommandEnter(event: KeyboardEvent<HTMLButtonElement>) {
+  if (event.key === "Enter") event.stopPropagation();
+}
+
 function SessionParentSearch({
   title,
   candidates,
@@ -186,6 +192,7 @@ function SessionParentSearch({
             variant="ghost"
             disabled={!hasPrevious || stale}
             onClick={onPreviousPage}
+            onKeyDown={stopCommandEnter}
           >
             Previous
           </Button>
@@ -195,6 +202,7 @@ function SessionParentSearch({
             variant="ghost"
             disabled={!hasNext || stale}
             onClick={onNextPage}
+            onKeyDown={stopCommandEnter}
           >
             Next
           </Button>

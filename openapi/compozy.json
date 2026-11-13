@@ -73699,6 +73699,14 @@
             }
           },
           {
+            "description": "Leave out this session and every session rooted at it (for example, a session's own tree)",
+            "in": "query",
+            "name": "exclude_root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by exact bound worktree id",
             "in": "query",
             "name": "worktree",
@@ -74285,6 +74293,14 @@
             "description": "Filter by exact root session id (includes the root itself)",
             "in": "query",
             "name": "root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Leave out this session and every session rooted at it (for example, a session's own tree)",
+            "in": "query",
+            "name": "exclude_root",
             "schema": {
               "type": "string"
             }
@@ -96056,6 +96072,14 @@
             "description": "Filter by exact root session id (includes the root itself)",
             "in": "query",
             "name": "root",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Leave out this session and every session rooted at it (for example, a session's own tree)",
+            "in": "query",
+            "name": "exclude_root",
             "schema": {
               "type": "string"
             }

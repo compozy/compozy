@@ -70,32 +70,34 @@ type SessionCatalogPageQuery struct {
 	ExcludeFinishedAutomation bool
 	// ExcludeAutomation hides every automation job or trigger run family the
 	// operator has not prompted, whatever its state.
-	ExcludeAutomation   bool
-	Subagents           string
-	SkipTotal           bool
-	ReadScope           ReadScope
-	WorkspaceIDs        []string
-	WorkspaceID         string
-	WorktreeID          string
-	State               string
-	SessionType         string
-	AgentName           string
-	ParentSessionID     string
-	RootSessionID       string
-	LineageKind         LineageKind
-	SearchFields        string
-	Search              string
-	AttentionOnly       bool
-	Badges              []string
-	Resumable           bool
-	Archive             SessionArchiveFilter
-	Later               SessionLaterFilter
-	Sort                string
-	Limit               int
-	After               *SessionCatalogPosition
-	ExcludeIDs          []string
-	ExcludeSessionTypes []string
-	ExcludeSpawnRoles   []string
+	ExcludeAutomation bool
+	Subagents         string
+	SkipTotal         bool
+	ReadScope         ReadScope
+	WorkspaceIDs      []string
+	WorkspaceID       string
+	WorktreeID        string
+	State             string
+	SessionType       string
+	AgentName         string
+	ParentSessionID   string
+	RootSessionID     string
+	// ExcludeRootSessionID leaves out that session and every session rooted at it.
+	ExcludeRootSessionID string
+	LineageKind          LineageKind
+	SearchFields         string
+	Search               string
+	AttentionOnly        bool
+	Badges               []string
+	Resumable            bool
+	Archive              SessionArchiveFilter
+	Later                SessionLaterFilter
+	Sort                 string
+	Limit                int
+	After                *SessionCatalogPosition
+	ExcludeIDs           []string
+	ExcludeSessionTypes  []string
+	ExcludeSpawnRoles    []string
 }
 
 // Validate ensures the durable query is bounded and its anchor is usable.

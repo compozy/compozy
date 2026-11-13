@@ -1319,6 +1319,24 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if rootPage.Total != 3 {
 			t.Fatalf("PageSessions(root).Total = %d, want 3", rootPage.Total)
 		}
+
+		outsidePage, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:            store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:          workspaceID,
+			ExcludeRootSessionID: "sess-prov-root",
+			Sort:                 "recent",
+			Limit:                10,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(exclude_root) error = %v", err)
+		}
+		wantOutside := []string{"sess-prov-foreign"}
+		if got := sessionIDsForWorkspaceStateIndexTest(outsidePage.Sessions); !slices.Equal(got, wantOutside) {
+			t.Fatalf("PageSessions(exclude_root) ids = %#v, want %#v", got, wantOutside)
+		}
+		if outsidePage.Total != 1 {
+			t.Fatalf("PageSessions(exclude_root).Total = %d, want 1", outsidePage.Total)
+		}
 	})
 
 	t.Run("Should count only resumable sessions before the page cut", func(t *testing.T) {

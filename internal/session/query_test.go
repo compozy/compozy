@@ -1552,6 +1552,27 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave out a session's own tree before the page cut", func(t *testing.T) {
+		t.Parallel()
+
+		scope := store.ReadScope{AllProfiles: true}
+		descendant := *base
+		descendant.ID = "sess-descendant"
+		descendant.Lineage = &store.SessionLineage{
+			ParentSessionID: "sess-child", RootSessionID: "sess-root", SpawnDepth: 2,
+		}
+		root := *base
+		root.ID = "sess-root"
+		for name, info := range map[string]*Info{"root itself": &root, "descendant": &descendant} {
+			if sessionMatchesListQuery(info, ListQuery{ReadScope: scope, ExcludeRootSessionID: "sess-root"}, now) {
+				t.Fatalf("sessionMatchesListQuery(exclude_root, %s) = true, want false", name)
+			}
+		}
+		if !sessionMatchesListQuery(base, ListQuery{ReadScope: scope, ExcludeRootSessionID: "sess-root"}, now) {
+			t.Fatal("sessionMatchesListQuery(exclude_root, unrelated) = false, want a session outside the tree")
+		}
+	})
+
 	t.Run("Should apply resumable eligibility before the page cut", func(t *testing.T) {
 		t.Parallel()
 

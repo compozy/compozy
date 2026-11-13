@@ -25989,6 +25989,10 @@ export type ListSessionsData = {
      */
     root?: string;
     /**
+     * Leave out this session and every session rooted at it (for example, a session's own tree)
+     */
+    exclude_root?: string;
+    /**
      * Filter by exact bound worktree id
      */
     worktree?: string;
@@ -26218,6 +26222,10 @@ export type ListSessionFacetsData = {
      * Filter by exact root session id (includes the root itself)
      */
     root?: string;
+    /**
+     * Leave out this session and every session rooted at it (for example, a session's own tree)
+     */
+    exclude_root?: string;
     /**
      * Only count sessions eligible for explicit attach
      */
@@ -37467,6 +37475,10 @@ export type ListWorkspaceSessionsData = {
      * Filter by exact root session id (includes the root itself)
      */
     root?: string;
+    /**
+     * Leave out this session and every session rooted at it (for example, a session's own tree)
+     */
+    exclude_root?: string;
     /**
      * Filter by exact bound worktree id
      */

@@ -115,6 +115,15 @@ describe("SessionParentPicker", () => {
     expect(handlers.onNextPage).toHaveBeenCalledTimes(1);
   });
 
+  it("Should page, not choose the highlighted parent, on Enter from a page button", async () => {
+    const user = userEvent.setup();
+    const handlers = renderPicker({ candidates: [session("p1")], hasNext: true });
+    screen.getByRole("button", { name: "Next" }).focus();
+    await user.keyboard("{Enter}");
+    expect(handlers.onNextPage).toHaveBeenCalledTimes(1);
+    expect(handlers.onChoose).not.toHaveBeenCalled();
+  });
+
   it("Should report a failed parent read with a retry", async () => {
     const user = userEvent.setup();
     const handlers = renderPicker({ failed: true });
