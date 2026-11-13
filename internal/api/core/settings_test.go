@@ -3714,12 +3714,20 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			)
 		}
 
+		// Invariant: the v0.6 public response retains retired fields until v0.8.0.
 		var wire struct {
+			Config      map[string]json.RawMessage `json:"config"`
 			Defaults    map[string]json.RawMessage `json:"defaults"`
 			Diagnostics json.RawMessage            `json:"diagnostics"`
 			Effective   map[string]json.RawMessage `json:"effective_shortcuts"`
 		}
 		decodeJSON(t, resp.Body.Bytes(), &wire)
+		for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			if _, exists := wire.Config[key]; !exists {
+				t.Errorf("config.%s is missing from the v0.6 compatibility response", key)
+			}
+		}
+
 		if got, want := string(wire.Diagnostics), "[]"; got != want {
 			t.Errorf("diagnostics = %s, want %s", got, want)
 		}
