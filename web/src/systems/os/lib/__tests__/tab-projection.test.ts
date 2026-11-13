@@ -435,6 +435,13 @@ describe("planTabBalance", () => {
     expect(plan).toEqual({ whole: false, splitIds: ["split:right"] });
   });
 
+  it("Should balance nothing when every split is already even", () => {
+    expect(planTabBalance(balanceInput(1400, [0.5, 0.5], [0.5, 0.5]))).toEqual({
+      whole: false,
+      splitIds: [],
+    });
+  });
+
   it("Should balance nothing when no split can be evened without collapsing one", () => {
     expect(planTabBalance(balanceInput(1000, [0.3, 0.7], [0.5, 0.5]))).toEqual({
       whole: false,

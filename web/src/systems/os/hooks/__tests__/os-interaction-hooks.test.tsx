@@ -2672,6 +2672,9 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
     expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
     expect(seam).toHaveAttribute("data-state", "drag");
+    // An arrow pressed after the release waits behind it.
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
 
     // Its result lands: the held drag is re-based, the seam shown at 560 kept under the pointer,
     // 260px from where 30/70 lays it out.
@@ -2681,14 +2684,22 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
     await act(async () => settleBalance());
 
-    // Authored against the balanced layout: +0.26 from 30/70, never +0.06 on top of it.
-    await waitFor(() =>
-      expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
-        "split:main",
-        0,
-        expect.closeTo(0.26),
-        fenceAt(8)
-      )
+    // Authored against the balanced layout: +0.26 from 30/70, never +0.06 on top of it; the
+    // arrow goes out after it.
+    await waitFor(() => expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2));
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      1,
+      "split:main",
+      0,
+      expect.closeTo(0.26),
+      fenceAt(8)
+    );
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      fenceAt(8)
     );
   });
 

@@ -53,6 +53,8 @@ function laidOutSplits(input: TabProjectionInput): Set<LayoutNodeId> {
  */
 export function planTabBalance(input: TabProjectionInput): TabBalancePlan {
   const uneven = splitsOf(input.tab.root).filter(split => !isEven(split));
+  // Already even: a balance would change nothing, so nothing is sent.
+  if (uneven.length === 0) return { whole: false, splitIds: [] };
   const required = laidOutSplits(input);
   const fits = (splitIds: ReadonlySet<LayoutNodeId>) => {
     const tab = { ...input.tab, root: evened(input.tab.root, splitIds) };

@@ -29,14 +29,16 @@ import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
  * and split weights. Every method dispatches one semantic daemon command; pixels never persist.
  */
 export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime {
-  /** This client's commands dispatched and not yet settled. */
+  /** This client's commands that can move the layout, dispatched and not yet settled. */
   private inFlight = 0;
   /** Waiters for the moment no command of this client is in flight. */
   private settledWaiters: Array<() => void> = [];
 
   /**
-   * Whether a command of this client is dispatched and not yet settled. The runtime publishes a
-   * command's snapshot before its completion settles, so its result lands while this holds.
+   * Whether a command of this client that can move the layout is dispatched and not yet settled.
+   * `window.focus` is not counted: it never moves a split, and a focus that shows another tab
+   * changes the shown frame, which ends a seam gesture anyway. The runtime publishes a command's
+   * snapshot before its completion settles, so its result lands while this holds.
    */
   commandsInFlight = (): boolean => this.inFlight > 0;
 
@@ -48,7 +50,7 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
 
   protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
     const outcome = super.dispatch(command);
-    if (!outcome.accepted) return outcome;
+    if (!outcome.accepted || command.commandId === "window.focus") return outcome;
     this.inFlight += 1;
     const settle = () => {
       this.inFlight -= 1;

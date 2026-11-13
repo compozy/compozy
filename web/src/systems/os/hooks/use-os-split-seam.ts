@@ -309,8 +309,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     };
     /**
      * Holds the drag to the seam's latest unpreviewed layout — the seam the preview is clamped
-     * against. Same geometry: nothing to do. Changed while this client has a seam command in
-     * flight (`owned`): re-based, the seam on screen kept under the pointer, and shown at once.
+     * against. Same geometry: re-admitted and shown. Changed while this client has a command that
+     * can move the layout in flight, seam command or not, or while its release is held behind one
+     * (`owned`): re-based, the seam on screen kept under the pointer, and shown at once.
      * Changed otherwise, turned to the other axis, separating another pair, or gone: cancelled.
      */
     const follow = (view: OsDesktopRuntimeStore, owned: boolean): boolean => {
@@ -385,6 +386,11 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       const drop = () => {
         if (live) cancel("context-changed");
       };
+      // Waiting only on a non-seam command, the release still takes its place in the seam queue,
+      // so seam input made after it (an arrow step, another seam's release) waits behind it.
+      if (!ownBusy(manager)) {
+        void trackOwnCommand(manager, manager.commandsSettled().then(() => true));
+      }
       const afterOwnSettled = () => {
         if (!live) return;
         if (!manager.commandsInFlight()) {
@@ -398,8 +404,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
           } else drop();
         });
       };
-      if (ownBusy(manager)) afterOwnCommands(manager, { scope, run: afterOwnSettled, drop });
-      else afterOwnSettled();
+      afterOwnCommands(manager, { scope, run: afterOwnSettled, drop });
     };
 
     element.setPointerCapture(pointerId);
