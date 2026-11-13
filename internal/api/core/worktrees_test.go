@@ -49,6 +49,7 @@ func TestNativeRegisteredDomainErrors(t *testing.T) {
 }
 
 type worktreeServiceStub struct {
+	preview         func(context.Context, string, worktree.RemovalTarget, bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error)
 	dismiss         func(context.Context, string, string) error
 	resolve         func(context.Context, string, string) (*worktree.Worktree, error)
 	create          func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
@@ -1360,6 +1361,74 @@ func TestWorktreeExitHandlers(t *testing.T) {
 func TestRemoveWorktreeRefusal(t *testing.T) {
 	t.Parallel()
 
+	for _, dryRun := range []bool{true, false} {
+		t.Run(fmt.Sprintf("Should report per-target risk and results with dry_run %t", dryRun), func(t *testing.T) {
+			t.Parallel()
+			mutations := 0
+			h := &BaseHandlers{
+				Profiles: worktreeProfileServiceStub{},
+				Workspaces: workspaceServiceStub{resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{ID: "registry-alpha", Name: ref, WorkspaceID: "registry-alpha"}, nil
+				}},
+				Worktrees: worktreeServiceStub{
+					resolve: func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+						if ref == "missing" {
+							return nil, worktree.ErrNotFound
+						}
+						owner := "profile-marketing"
+						if ref == "foreign" {
+							owner = store.DefaultProfileID
+						}
+						return &worktree.Worktree{ID: ref, WorkspaceID: workspaceID, ProfileID: owner}, nil
+					},
+					preview: func(_ context.Context, _ string, target worktree.RemovalTarget, _ bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
+						if !dryRun {
+							t.Fatal("non-dry removal ran preview")
+						}
+						if target.Ref == "dirty" {
+							risk := worktree.RemovalRisk{ChangedFiles: 2}
+							return risk, &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error(), Risk: risk}, worktree.ErrDirtyRequiresForce
+						}
+						return worktree.RemovalRisk{}, nil, nil
+					},
+					remove: func(_ context.Context, _ string, ref string, _ bool) (*worktree.RemovalRefusal, error) {
+						if dryRun {
+							t.Fatal("dry-run removed a checkout")
+						}
+						if ref == "dirty" {
+							return &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error(), Risk: worktree.RemovalRisk{ChangedFiles: 2}}, worktree.ErrDirtyRequiresForce
+						}
+						mutations++
+						return nil, nil
+					},
+				},
+			}
+			router := gin.New()
+			router.POST("/workspaces/:workspace_id/worktrees/remove", h.RemoveWorktrees)
+			response := httptest.NewRecorder()
+			body := fmt.Sprintf(`{"targets":[{"ref":"dirty"},{"ref":"clean"},{"ref":"missing"},{"ref":"foreign"}],"dry_run":%t}`, dryRun)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/workspaces/registry-alpha/worktrees/remove?profile=marketing", strings.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(response, request)
+			var result contract.RemoveWorktreesResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusOK || result.DryRun != dryRun || len(result.Results) != 4 {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+			if result.Results[0].State != "refused" || result.Results[0].Risk == nil || result.Results[0].Risk.ChangedFiles != 2 || result.Results[2].Code != "worktree_not_found" || result.Results[3].Code != "worktree_not_found" {
+				t.Fatalf("results = %#v", result.Results)
+			}
+			if dryRun && (mutations != 0 || result.Results[1].State != "ready") {
+				t.Fatal("preview performed removal")
+			}
+			if !dryRun && (mutations != 1 || result.Results[1].State != "removed") {
+				t.Fatal("one refusal stopped the other removals")
+			}
+		})
+	}
+
 	t.Run("Should reject foreign and archived ownership before lifecycle mutation", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -2157,4 +2226,11 @@ func (s worktreeBindingSessions) ChangeWorktreeBinding(
 	expected *string,
 ) (*session.Info, error) {
 	return s.change(ctx, id, ref, expected)
+}
+
+func (s worktreeServiceStub) PreviewRemoval(ctx context.Context, workspaceID string, target worktree.RemovalTarget, force bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
+	if s.preview == nil {
+		return worktree.RemovalRisk{}, nil, errors.New("unexpected PreviewRemoval call")
+	}
+	return s.preview(ctx, workspaceID, target, force)
 }

@@ -167,3 +167,32 @@ type WorktreeCatalogEventPayload struct {
 	WorktreeID  string `json:"worktree_id"`
 	Error       string `json:"error,omitempty"`
 }
+
+// WorktreeRemovalTarget selects one registered reference or a listed discovered path.
+type WorktreeRemovalTarget struct {
+	Ref         string `json:"ref,omitempty"`
+	Path        string `json:"path,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
+}
+
+type RemoveWorktreesRequest struct {
+	Targets      []WorktreeRemovalTarget `json:"targets"`
+	Force        bool                    `json:"force,omitempty"`
+	DeleteBranch bool                    `json:"delete_branch,omitempty"`
+	DryRun       bool                    `json:"dry_run,omitempty"`
+}
+
+type WorktreeRemovalResult struct {
+	Target     WorktreeRemovalTarget         `json:"target"`
+	WorktreeID string                        `json:"worktree_id,omitempty"`
+	State      string                        `json:"state"`
+	Risk       *WorktreeRemovalRiskPayload   `json:"risk,omitempty"`
+	Code       string                        `json:"code,omitempty"`
+	Error      string                        `json:"error,omitempty"`
+	Branch     *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
+}
+
+type RemoveWorktreesResponse struct {
+	DryRun  bool                    `json:"dry_run"`
+	Results []WorktreeRemovalResult `json:"results"`
+}

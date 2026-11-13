@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -212,6 +213,33 @@ func TestWorktreeListCommand(t *testing.T) {
 
 func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 	t.Parallel()
+
+	for _, dryRun := range []bool{true, false} {
+		t.Run("Should preserve per-target batch output with dry-run "+strconv.FormatBool(dryRun), func(t *testing.T) {
+			t.Parallel()
+			client := withWorkspaceResolution(&stubClient{removeWorktreesFn: func(_ context.Context, workspace string, request contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error) {
+				if workspace != "workspace-a" || request.DryRun != dryRun || !request.Force || len(request.Targets) != 2 || request.Targets[0].Ref != "one" || request.Targets[1].Ref != "two" {
+					t.Fatalf("request = %s %#v", workspace, request)
+				}
+				return contract.RemoveWorktreesResponse{DryRun: dryRun, Results: []contract.WorktreeRemovalResult{
+					{Target: request.Targets[0], State: "refused", Code: "worktree_session_active"},
+					{Target: request.Targets[1], State: "removed"},
+				}}, nil
+			}})
+			args := []string{"worktree", "remove", " one ", "two", "--workspace", "workspace-a", "--force", "-o", "json"}
+			if dryRun {
+				args = append(args, "--dry-run")
+			}
+			code, stdout, _ := executeRootCommandWithExit(t, newWorkspaceTestDeps(t, client), args...)
+			var response contract.RemoveWorktreesResponse
+			if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+				t.Fatalf("decode %s: %v", stdout, err)
+			}
+			if len(response.Results) != 2 || response.Results[0].Code != "worktree_session_active" || (code == 0) != dryRun {
+				t.Fatalf("output=%s exit=%d", stdout, code)
+			}
+		})
+	}
 
 	t.Run("Should preserve the API refusal payload in CLI JSON", func(t *testing.T) {
 		t.Parallel()

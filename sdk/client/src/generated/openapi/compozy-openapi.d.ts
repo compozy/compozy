@@ -7910,6 +7910,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/worktrees/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Remove multiple worktrees or preview per-target removal risk */
+    post: operations["removeWorktrees"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/worktrees/{worktree_id}": {
     parameters: {
       query?: never;
@@ -14671,6 +14688,16 @@ export interface components {
       expect_stale?: boolean;
       force?: boolean;
       path: string;
+    };
+    RemoveWorktreesRequest: {
+      delete_branch?: boolean;
+      dry_run?: boolean;
+      force?: boolean;
+      targets: components["schemas"]["WorktreeRemovalTarget"][];
+    };
+    RemoveWorktreesResponse: {
+      dry_run: boolean;
+      results: components["schemas"]["WorktreeRemovalResult"][];
     };
     RenameProfilePlan: {
       dormant_placements: components["schemas"]["ProfilePlacement"][];
@@ -22544,6 +22571,15 @@ export interface components {
       error?: string;
       risk: components["schemas"]["WorktreeRemovalRiskPayload"];
     };
+    WorktreeRemovalResult: {
+      branch?: components["schemas"]["WorktreeBranchOutcomePayload"] | null;
+      code?: string;
+      error?: string;
+      risk?: components["schemas"]["WorktreeRemovalRiskPayload"] | null;
+      state: string;
+      target: components["schemas"]["WorktreeRemovalTarget"];
+      worktree_id?: string;
+    };
     WorktreeRemovalRiskPayload: {
       changed_files: number;
       deletions: number;
@@ -22551,6 +22587,11 @@ export interface components {
       insertions: number;
       leftover_files: number;
       unpushed_commits: number;
+    };
+    WorktreeRemovalTarget: {
+      expect_stale?: boolean;
+      path?: string;
+      ref?: string;
     };
     WorktreeRepoPayload: {
       diagnostic?: string;
@@ -63583,6 +63624,100 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["WorktreeRemovalRefusalPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeWorktrees: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile. */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RemoveWorktreesRequest"];
+      };
+    };
+    responses: {
+      /** @description Per-target removal results or dry-run risk; inspect every result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RemoveWorktreesResponse"];
+        };
+      };
+      /** @description Invalid worktree request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree operation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid worktree configuration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Internal server error */

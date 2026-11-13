@@ -21,6 +21,7 @@ type WorktreeCreateRequest = contract.CreateWorktreeRequest
 type WorktreeExitActionRequest = contract.RunWorktreeExitActionRequest
 
 type worktreeClientAPI interface {
+	RemoveWorktrees(context.Context, string, contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error)
 	ListWorktrees(context.Context, string, bool, bool) (WorktreeListRecord, error)
 	CreateWorktree(context.Context, string, WorktreeCreateRequest) (WorktreeRecord, error)
 	CancelWorktreeCreate(context.Context, string, string) error
@@ -248,5 +249,13 @@ func (c *daemonClient) SubmitWorktreeDelivery(
 		credentials,
 		&response,
 	)
+	return response, err
+}
+
+func (c *daemonClient) RemoveWorktrees(
+	ctx context.Context, workspaceRef string, request contract.RemoveWorktreesRequest,
+) (contract.RemoveWorktreesResponse, error) {
+	var response contract.RemoveWorktreesResponse
+	err := c.doJSON(ctx, http.MethodPost, worktreeCollectionPath(workspaceRef)+"/remove", nil, request, &response)
 	return response, err
 }

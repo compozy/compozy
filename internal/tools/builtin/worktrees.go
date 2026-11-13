@@ -31,8 +31,9 @@ func worktreeDescriptors() []toolspkg.Descriptor {
 			toolspkg.ToolIDWorktreeRemove,
 			"worktree_remove",
 			"Worktree Remove",
-			"Remove one worktree after authoritative dirty, commit, identity, and session checks; "+
-				"optionally delete its local branch. Pass path instead of ref for a discovered checkout.",
+			"Remove worktrees after authoritative dirty, commit, identity, and session checks; "+
+				"optionally delete local branches. Pass targets for per-item results or dry_run for risk without removal. "+
+				"Pass path instead of ref for a discovered checkout.",
 			worktreeRemoveInputSchema,
 			toolspkg.RiskDestructive,
 			false,
@@ -85,7 +86,15 @@ const worktreeRemoveInputSchema = `{
 	"type":"object",
 	"properties":{
 		"workspace":{"type":"string"},
-		"ref":{"type":"string","description":"Registered worktree ID or name. Required unless path is set."},
+		"dry_run":{"type":"boolean","description":"Preview risk without removal, hooks, or teardown. Returns per-item results."},
+		"targets":{
+			"type":"array","minItems":1,"maxItems":100,
+			"description":"Batch targets, replacing ref/path. Inspect every per-item result; failures do not undo completed items.",
+			"items":{"type":"object","properties":{
+				"ref":{"type":"string"},"path":{"type":"string"},"expect_stale":{"type":"boolean"}
+			},"additionalProperties":false}
+		},
+		"ref":{"type":"string","description":"Registered worktree ID or name. Required unless path or targets is set."},
 		"path":{
 			"type":"string",
 			"description":"Discovered worktree path exactly as worktree_list reports it; replaces ref, keeps the branch."

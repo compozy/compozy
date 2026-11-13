@@ -184,3 +184,22 @@ func pointerStringValue(value *string) string {
 	}
 	return *value
 }
+
+func worktreeRemovalBatchBundle(response contract.RemoveWorktreesResponse) outputBundle {
+	row := func(item contract.WorktreeRemovalResult) []string {
+		target := item.Target.Ref
+		if target == "" {
+			target = item.Target.Path
+		}
+		changed, unpushed, leftover := "-", "-", "-"
+		if item.Risk != nil {
+			changed = strconv.Itoa(item.Risk.ChangedFiles)
+			unpushed = strconv.Itoa(item.Risk.UnpushedCommits)
+			leftover = strconv.Itoa(item.Risk.LeftoverFiles)
+		}
+		return []string{target, item.State, changed, unpushed, leftover, item.Code, item.Error}
+	}
+	return listBundle(response, response.Results, "Worktree removal",
+		[]string{"Target", "State", "Changed", "Unpushed", "Leftover", "Code", "Error"}, "results",
+		[]string{"target", "state", "changed_files", "unpushed_commits", "leftover_files", "code", "error"}, row, row)
+}

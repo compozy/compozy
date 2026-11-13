@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// RunLoopRequest is a daemon API value.
+type RunLoopRequest struct {
+	Inputs          map[string]any `json:"inputs,omitempty"`
+	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides *LoopConfig    `json:"config_overrides,omitzero"`
+}
+
+// RunLoopResponse is a daemon API value.
+type RunLoopResponse struct {
+	Run    *LoopRunPayload  `json:"run,omitzero"`
+	DryRun *LoopPlanPayload `json:"dry_run,omitzero"`
+	WebURL string           `json:"web_url,omitempty"`
+}
+
 // RunOutcome is a daemon API value.
 type RunOutcome struct {
 	Status    Status    `json:"status"`
@@ -425,21 +439,4 @@ type SessionAggregatePayload struct {
 	Total    int            `json:"total"`
 	ByStatus map[string]int `json:"by_status,omitempty"`
 	ByBadge  map[string]int `json:"by_badge,omitempty"`
-}
-
-// SessionApprovalResponse is a daemon API value.
-type SessionApprovalResponse struct {
-	Outcome          string `json:"outcome"`
-	InteractionID    string `json:"interaction_id,omitempty"`
-	RequestID        string `json:"request_id"`
-	Decision         string `json:"decision"`
-	ResolvedDecision string `json:"resolved_decision,omitempty"`
-}
-
-// SessionAttachPayload is a daemon API value.
-type SessionAttachPayload struct {
-	SessionID       string    `json:"session_id"`
-	AttachedTo      string    `json:"attached_to"`
-	AttachExpiresAt time.Time `json:"attach_expires_at"`
-	AttachedAt      time.Time `json:"attached_at"`
 }

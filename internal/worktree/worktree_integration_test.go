@@ -26,6 +26,43 @@ import (
 func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should remove a large real checkout before deleting dependency files", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Large removal"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		dependencies := filepath.Join(item.Path, "node_modules")
+		if err := os.Mkdir(dependencies, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		content := []byte(strings.Repeat("dependency bytes", 512))
+		const files = 8192
+		for index := range files {
+			if err := os.WriteFile(filepath.Join(dependencies, fmt.Sprintf("file-%05d", index)), content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		started := time.Now()
+		if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); err != nil || refusal != nil {
+			t.Fatalf("Remove() = %#v, %v", refusal, err)
+		}
+		t.Logf("real Git removal request: %s; dependency files: %d; bytes staged: %d (single CI sample, no latency threshold)", time.Since(started), files, files*len(content))
+		staged := filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "node_modules", "file-00000")
+		assertFileContent(t, staged, string(content))
+		if listing := f.git(f.workspace.Root, "worktree", "list", "--porcelain"); strings.Contains(listing, item.Path) {
+			t.Fatalf("registration remains: %s", listing)
+		}
+		recovered := f.newService(f.runner)
+		if err := recovered.collectTrash(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Dir(staged)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("dependency bytes remain after collection: %v", err)
+		}
+	})
+
 	t.Run("Should tear down external resources before removing the real checkout", func(t *testing.T) {
 		t.Parallel()
 		f := newRealGitFixture(t)

@@ -10,6 +10,7 @@ func registerWorktreeRoutes(api gin.IRouter, handlers *Handlers) {
 	worktrees.POST("", handlers.CreateWorktree)
 	worktrees.POST("/adopt", handlers.AdoptWorktree)
 	worktrees.POST("/discovered/remove", handlers.RemoveDiscoveredWorktree)
+	worktrees.POST("/remove", handlers.RemoveWorktrees)
 	worktrees.GET("/:worktree_id", handlers.InspectWorktree)
 	worktrees.GET("/:worktree_id/status", handlers.GetWorktreeStatus)
 	worktrees.GET("/:worktree_id/exit", handlers.GetWorktreeExitPlan)

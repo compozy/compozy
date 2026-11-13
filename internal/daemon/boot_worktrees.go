@@ -78,7 +78,12 @@ func (r daemonWorktreeWorkspaceResolver) ListWorktreeWorkspaces(ctx context.Cont
 	}
 	result := make([]worktree.Workspace, 0, len(registered))
 	for _, item := range registered {
-		result = append(result, worktree.Workspace{ID: item.ID, Name: item.Name, Root: item.RootDir})
+		resolved, err := r.ResolveWorktreeWorkspace(ctx, item.ID, "")
+		if err != nil {
+			// Missing workspaces remain discoverable; retry their configured trash root later.
+			resolved = worktree.Workspace{ID: item.ID, Name: item.Name, Root: item.RootDir}
+		}
+		result = append(result, resolved)
 	}
 	return result, nil
 }
@@ -222,6 +227,10 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 	if err := service.RecoverCreations(ctx); err != nil {
 		return fmt.Errorf("daemon: recover worktree lifecycle: %w", err)
 	}
+	service.StartTrashCollector(ctx, func() bool {
+		return state.runtimeWorkers.hostLoad != nil && state.runtimeWorkers.hostLoad.Snapshot().Pressured
+	})
+	cleanup.add(func(context.Context) error { service.Close(); return nil })
 	if branchStore, ok := state.registry.(sessionBranchStore); ok && pulls != nil {
 		adapter := sessionPullRequestAdapter{
 			runtime:  state.currentExtensionRuntime,

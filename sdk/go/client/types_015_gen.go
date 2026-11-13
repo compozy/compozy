@@ -379,6 +379,20 @@ type RemoveDiscoveredWorktreeRequest struct {
 	ExpectStale bool   `json:"expect_stale,omitempty"`
 }
 
+// RemoveWorktreesRequest is a daemon API value.
+type RemoveWorktreesRequest struct {
+	Targets      []WorktreeRemovalTarget `json:"targets"`
+	Force        bool                    `json:"force,omitempty"`
+	DeleteBranch bool                    `json:"delete_branch,omitempty"`
+	DryRun       bool                    `json:"dry_run,omitempty"`
+}
+
+// RemoveWorktreesResponse is a daemon API value.
+type RemoveWorktreesResponse struct {
+	DryRun  bool                    `json:"dry_run"`
+	Results []WorktreeRemovalResult `json:"results"`
+}
+
 // RenameProfilePlan is a daemon API value.
 type RenameProfilePlan struct {
 	Revision          string             `json:"revision"`
@@ -431,17 +445,4 @@ type ReorderSessionsRequest struct {
 // ReorderWorkspaceFoldersRequest is a daemon API value.
 type ReorderWorkspaceFoldersRequest struct {
 	FolderIDs []string `json:"folder_ids"`
-}
-
-// ReorderWorkspacesRequest is a daemon API value.
-type ReorderWorkspacesRequest struct {
-	FolderID     string   `json:"folder_id,omitempty"`
-	WorkspaceIDs []string `json:"workspace_ids"`
-}
-
-// ReplaceSessionInputRequest is a daemon API value.
-type ReplaceSessionInputRequest struct {
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
 }

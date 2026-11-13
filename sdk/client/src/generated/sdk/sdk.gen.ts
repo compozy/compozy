@@ -1332,6 +1332,9 @@ import type {
   RemoveWorktreeData,
   RemoveWorktreeErrors,
   RemoveWorktreeResponses,
+  RemoveWorktreesData,
+  RemoveWorktreesErrors,
+  RemoveWorktreesResponses,
   RenameGatewayDeviceData,
   RenameGatewayDeviceErrors,
   RenameGatewayDeviceResponses,
@@ -13680,6 +13683,28 @@ export class worktrees extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove multiple worktrees or preview per-target removal risk
+   */
+  public removeWorktrees<ThrowOnError extends boolean = true>(
+    options: Options<RemoveWorktreesData, ThrowOnError>
+  ): RequestResult<RemoveWorktreesResponses, RemoveWorktreesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RemoveWorktreesResponses,
+      RemoveWorktreesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/remove",
       ...options,
       headers: {
         "Content-Type": "application/json",

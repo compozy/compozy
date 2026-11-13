@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	removeWorktreesFn             func(context.Context, string, contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error)
 	heartbeatAuthorityFn          func(context.Context, string, AgentQuery) (contract.HeartbeatAuthorityPayload, error)
 	permissionRollupFn            func(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error)
 	changeSessionWorktreeFn       func(context.Context, string, string, string) (SessionRecord, error)
@@ -3843,4 +3844,11 @@ func (s *stubClient) CancelAutomationRun(ctx context.Context, id string) (RunRec
 		return s.cancelAutomationRunFn(ctx, id)
 	}
 	return RunRecord{}, errors.New("unexpected CancelAutomationRun call")
+}
+
+func (s *stubClient) RemoveWorktrees(ctx context.Context, workspace string, request contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error) {
+	if s.removeWorktreesFn != nil {
+		return s.removeWorktreesFn(ctx, workspace, request)
+	}
+	return contract.RemoveWorktreesResponse{}, errors.New("unexpected RemoveWorktrees call")
 }

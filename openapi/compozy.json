@@ -23106,6 +23106,47 @@
         ],
         "type": "object"
       },
+      "RemoveWorktreesRequest": {
+        "properties": {
+          "delete_branch": {
+            "type": "boolean"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "force": {
+            "type": "boolean"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/WorktreeRemovalTarget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "targets"
+        ],
+        "type": "object"
+      },
+      "RemoveWorktreesResponse": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/WorktreeRemovalResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "dry_run",
+          "results"
+        ],
+        "type": "object"
+      },
       "RenameProfilePlan": {
         "properties": {
           "dormant_placements": {
@@ -49917,6 +49958,56 @@
         ],
         "type": "object"
       },
+      "WorktreeRemovalResult": {
+        "properties": {
+          "branch": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorktreeBranchOutcomePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "risk": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorktreeRemovalRiskPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/WorktreeRemovalTarget"
+          },
+          "worktree_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "target"
+        ],
+        "type": "object"
+      },
       "WorktreeRemovalRiskPayload": {
         "properties": {
           "changed_files": {
@@ -49946,6 +50037,20 @@
           "leftover_files",
           "unpushed_commits"
         ],
+        "type": "object"
+      },
+      "WorktreeRemovalTarget": {
+        "properties": {
+          "expect_stale": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "WorktreeRepoPayload": {
@@ -111354,6 +111459,132 @@
           }
         },
         "summary": "Remove a discovered worktree",
+        "tags": [
+          "worktrees"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/worktrees/remove": {
+      "post": {
+        "operationId": "removeWorktrees",
+        "parameters": [
+          {
+            "description": "Workspace id or path",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveWorktreesRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveWorktreesResponse"
+                }
+              }
+            },
+            "description": "Per-target removal results or dry-run risk; inspect every result"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid worktree request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree operation conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid worktree configuration"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree service is unavailable"
+          }
+        },
+        "summary": "Remove multiple worktrees or preview per-target removal risk",
         "tags": [
           "worktrees"
         ],

@@ -52,3 +52,13 @@ In an isolated lab, create a managed worktree, remove its checkout externally, a
 - Ordinary removal preserves the branch. `--delete-branch` remains a separate opt-in governed by the existing branch ownership, occupancy, and merge-safety checks.
 
 Repeat metadata-only removal through CLI/HTTP and the native tool after deleting the parent project folder as well. The retained project registration must allow the lifecycle guard to run; a ready or recreated checkout must still refuse filesystem removal.
+
+2026-11-13 #1663 impact: remove a registered checkout with a large dependency tree.
+Verify the active path and Git registration disappear while staged bytes still exist under the
+managed root's `.trash/<id>`, and another operation acquires the repository lock before collection.
+Inject cross-volume rename failure and retain synchronous safety behavior. Restart the collector
+with leftovers, inject CPU pressure, cancel and join it, then resume cleanup; a symlink to an
+external sentinel must preserve that sentinel. Failed fenced rereads must restore the original ID,
+and repeating removal must reconcile an abandoned `removing` row without restart. Existing
+`TestServiceRemoveAndRecover` and `TestWorktreeLifecycleIntegration` own these invariants. The real
+Git test logs a single CI latency/file-count sample; no local runtime or performance claim is made.

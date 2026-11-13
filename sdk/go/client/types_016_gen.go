@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// ReorderWorkspacesRequest is a daemon API value.
+type ReorderWorkspacesRequest struct {
+	FolderID     string   `json:"folder_id,omitempty"`
+	WorkspaceIDs []string `json:"workspace_ids"`
+}
+
+// ReplaceSessionInputRequest is a daemon API value.
+type ReplaceSessionInputRequest struct {
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
 // ReplyWatchPayload is a daemon API value.
 type ReplyWatchPayload struct {
 	ID              string    `json:"id"`
@@ -432,17 +445,3 @@ type RunID string
 
 // RunKind is a daemon API value.
 type RunKind string
-
-// RunLoopRequest is a daemon API value.
-type RunLoopRequest struct {
-	Inputs          map[string]any `json:"inputs,omitempty"`
-	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides *LoopConfig    `json:"config_overrides,omitzero"`
-}
-
-// RunLoopResponse is a daemon API value.
-type RunLoopResponse struct {
-	Run    *LoopRunPayload  `json:"run,omitzero"`
-	DryRun *LoopPlanPayload `json:"dry_run,omitzero"`
-	WebURL string           `json:"web_url,omitempty"`
-}

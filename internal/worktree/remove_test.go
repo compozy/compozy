@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -21,6 +22,138 @@ import (
 // Canonical suite: removal fencing, authoritative safety checks, and boot recovery.
 func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should stage checkout bytes and release the repository before collection", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		payload := filepath.Join(f.item.Path, "large-dependency")
+		if err := os.WriteFile(payload, []byte("preserved until collection"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil || refusal != nil {
+			t.Fatalf("Remove() = %#v, %v", refusal, err)
+		}
+		staged := filepath.Join(f.service.root, trashDirectory, f.item.ID, "large-dependency")
+		if _, err := os.Stat(staged); err != nil {
+			t.Fatalf("bytes deleted before collection: %v", err)
+		}
+		if _, err := os.Stat(f.item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("checkout still exists: %v", err)
+		}
+		if f.mustItem(t).State != StateRemoved {
+			t.Fatal("removal did not finish")
+		}
+		release, err := f.service.locks.Acquire(t.Context(), f.commonDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release()
+	})
+
+	t.Run("Should fall back to synchronous removal across filesystem volumes", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		attempted := false
+		f.service.renameCheckout = func(string, string) error { attempted = true; return syscall.EXDEV }
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if !attempted || f.mustItem(t).State != StateRemoved || f.removeCalls.Load() != 1 {
+			t.Fatal("fallback did not remove the checkout")
+		}
+		if _, err := os.Stat(f.item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("fallback left checkout: %v", err)
+		}
+	})
+
+	t.Run("Should sweep boot leftovers while yielding to pressure and preserving external links", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		outside := filepath.Join(t.TempDir(), "keep")
+		if err := os.WriteFile(outside, []byte("keep"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(f.item.Path, "external")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		recovered := NewService(f.store, f.runner, WithConfig(config.DefaultWorktreesConfig(), f.service.root))
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		observed := make(chan struct{})
+		var once sync.Once
+		recovered.StartTrashCollector(ctx, func() bool { once.Do(func() { close(observed) }); return true })
+		select {
+		case <-observed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("collector did not sweep on boot")
+		}
+		staged := filepath.Join(f.service.root, trashDirectory, f.item.ID)
+		if _, err := os.Stat(staged); err != nil {
+			t.Fatalf("collector ignored pressure: %v", err)
+		}
+		recovered.Close()
+		select {
+		case <-recovered.trash.done:
+		default:
+			t.Fatal("collector goroutine outlived Close")
+		}
+		if err := recovered.collectTrash(t.Context(), func() bool { return false }); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(staged); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("boot leftovers remain: %v", err)
+		}
+		if content, err := os.ReadFile(outside); err != nil || string(content) != "keep" {
+			t.Fatalf("outside trash changed: %q, %v", content, err)
+		}
+	})
+
+	t.Run("Should roll back the original fence when the fenced target read fails", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		cause := errors.New("fenced read unavailable")
+		f.service.store = &getErrorWorktreeStore{memoryWorktreeStore: f.store, successReads: 2, err: cause}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); !errors.Is(err, cause) {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		if f.mustItem(t).State != StateReady || f.removeCalls.Load() != 0 {
+			t.Fatal("failed read stranded the original removal fence")
+		}
+	})
+
+	t.Run("Should reconcile an abandoned removal on the next removal request", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		if err := f.store.SetState(t.Context(), f.workspace.ID, f.item.ID, StateRemoving, f.item.UpdatedAt); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if f.mustItem(t).State != StateRemoved {
+			t.Fatal("abandoned removal needs daemon restart")
+		}
+	})
+
+	t.Run("Should preview loss without hooks checkout mutations or status writes", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		f.dirty.Store(true)
+		f.service.hooks = removalHookDispatcher{dispatch: func(HookRequest) (HookVerdict, error) { t.Fatal("preview ran hooks"); return HookVerdict{}, nil }}
+		risk, refusal, err := f.service.PreviewRemoval(t.Context(), f.workspace.ID, RemovalTarget{Ref: f.item.ID}, false)
+		if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || risk.ChangedFiles != 1 {
+			t.Fatalf("preview = %#v, %#v, %v", risk, refusal, err)
+		}
+		if f.mustItem(t).State != StateReady || f.removeCalls.Load() != 0 {
+			t.Fatal("preview mutated checkout")
+		}
+		if status, err := f.store.GetStatus(t.Context(), f.workspace.ID, f.item.ID); err != nil || status != nil {
+			t.Fatalf("preview persisted status: %#v, %v", status, err)
+		}
+	})
 
 	t.Run("Should remove an absent missing registration without filesystem or Git mutations", func(t *testing.T) {
 		t.Parallel()
@@ -486,6 +619,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Run("Should answer a Git removal that stops after deleting .git with the orphan inventory", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
+		fixture.service.renameCheckout = func(string, string) error { return syscall.EXDEV }
 		if err := os.WriteFile(
 			filepath.Join(fixture.item.GitDir, "HEAD"),
 			[]byte("ref: refs/heads/feature/remove\n"),
@@ -703,6 +837,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Run("Should use force only when explicit and restore ready after Git failure", func(t *testing.T) {
 		t.Parallel()
 		forced := newRemovalTestFixture(t)
+		forced.service.renameCheckout = func(string, string) error { return syscall.EXDEV }
 		forced.dirty.Store(true)
 		forced.failFirstForcedRemoval.Store(true)
 		if refusalResult, err := forced.service.Remove(

@@ -66,6 +66,8 @@ type Service struct {
 	creates             map[string]*createOperation
 	exitMu              sync.Mutex
 	exits               map[string]*exitOperationControl
+	trash               *trashCollector
+	renameCheckout      func(string, string) error
 }
 
 type Option func(*Service)
@@ -78,6 +80,7 @@ func NewService(store Store, runner GitRunner, opts ...Option) *Service {
 		logger: slog.Default(), discovery: make(map[string]discoveryCacheEntry),
 		catalog: newCatalogBroadcaster(), creates: make(map[string]*createOperation),
 		exits: make(map[string]*exitOperationControl),
+		trash: newTrashCollector(), renameCheckout: os.Rename,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -202,6 +205,7 @@ func WithPullRequests(service *PullRequestService) Option {
 }
 
 func (s *Service) Close() {
+	s.stopTrashCollector()
 	if s.pullRequests != nil {
 		s.pullRequests.Close()
 	}

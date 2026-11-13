@@ -181,6 +181,30 @@ force. With **Also delete local branches** selected, this also authorizes deleti
 branches; the root and default branches remain protected. Other refusals cannot be forced. Discovered rows offer **Delete worktree…** (stale rows: **Remove
 stale entry…**) and join **Select worktrees…**. They are removed by Git path and keep their branch.
 
+## Batch Removal And Preview
+
+Use `compozy worktree remove <ref> [<ref>...] --dry-run -o json` to inspect up to 100 targets.
+Native `compozy__worktree_remove` accepts `targets: [{"ref":"name-or-id"},{"path":"listed-path"}]`
+and optional `dry_run`, `force`, `delete_branch`. Each target requires exactly one selector;
+`expect_stale` is path-only, and path targets cannot be combined with `delete_branch`.
+Singular native `ref` or `path` also accepts `dry_run: true`.
+HTTP/UDS expose the same request as `POST /api/workspaces/{workspace_id}/worktrees/remove`.
+
+Preview returns `{dry_run: true, results: [...]}` with per-item `ready`, `refused` or `failed`,
+current `risk` when available, and deterministic `code`/`error` on refusal or failure. It does not
+run hooks or teardown, write status or change checkout/registry state. Actual removal rechecks
+safety; the preview is not an authorization token. Non-dry batches return `removed`, `refused`
+or `failed` in input order and continue after each failure. Inspect every result, including branch
+outcomes. CLI non-dry batches fail if any item fails. Existing singular calls without `dry_run`
+keep their request and response shapes.
+
+Registered checkout removal stages bytes under `<worktrees-root>/.trash/<id>` after safety,
+hooks and teardown, then clears Git metadata and finishes the row before background deletion.
+One daemon worker paces deletion, yields during CPU pressure and sweeps leftovers on boot.
+A failed rename falls back to synchronous deletion. Do not treat staged files as active worktrees.
+A failed fenced read rolls the original row back; repeat removal by ID to reconcile an abandoned
+`removing` row without restarting the daemon. An active removal keeps its exclusive usage lock.
+
 ## Configuration And Errors
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and
