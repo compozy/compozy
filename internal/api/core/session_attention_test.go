@@ -1026,6 +1026,18 @@ func (profileExistenceStub) Resolve(_ context.Context, in profilepkg.ResolveInpu
 	}
 }
 
+const bellMarketingProfileID = "01K34MARKETINGPROFILE00000"
+
+type bellReceiptProfiles struct{ profileExistenceStub }
+
+func (bellReceiptProfiles) Resolve(ctx context.Context, input profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	resolved, err := (profileExistenceStub{}).Resolve(ctx, input)
+	if err == nil && resolved.Profile.Name == "marketing" {
+		resolved.Profile.ID = bellMarketingProfileID
+	}
+	return resolved, err
+}
+
 type bellMigrationSource struct {
 	core.WindowManagerProvider
 	notices []windowmanager.MigrationNotice
@@ -1066,6 +1078,14 @@ func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerF
 			t.Error(err)
 		}
 	})
+	if _, err := db.DB().ExecContext(
+		t.Context(),
+		`INSERT INTO profiles (id, name, color, icon, state, created_at)
+		 VALUES (?, 'marketing', '#E8572A', 'briefcase', 'active', ?)`,
+		bellMarketingProfileID, store.FormatTimestamp(time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatal(err)
+	}
 	manager := attentionRouteSessionManager()
 	manager.ListPageFn = func(context.Context, session.ListQuery) (session.ListPage, error) {
 		return session.ListPage{}, nil
@@ -1076,7 +1096,7 @@ func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerF
 		},
 	})
 	f.Handlers.Observer = notificationRouteObserver{Store: db}
-	f.Handlers.Profiles = profileExistenceStub{}
+	f.Handlers.Profiles = bellReceiptProfiles{}
 	f.Handlers.WindowManager = source
 	f.Handlers.Loops = &stubLoopService{
 		listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
@@ -1090,6 +1110,21 @@ func newBellMigrationFixture(t *testing.T, source *bellMigrationSource) handlerF
 	f.Engine.GET("/notifications/attention", f.Handlers.AttentionNotifications)
 	f.Engine.POST("/notifications/attention/acknowledge", f.Handlers.AcknowledgeAttentionNotifications)
 	return f
+}
+
+func readBellMigrationNotifications(
+	t *testing.T,
+	f handlerFixture,
+	query string,
+) contract.AttentionNotificationsResponse {
+	t.Helper()
+	response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?"+query, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("scope %s: read status=%d body=%s", query, response.Code, response.Body.String())
+	}
+	var payload contract.AttentionNotificationsResponse
+	testutil.DecodeJSONResponse(t, response, &payload)
+	return payload
 }
 
 // Invariant: all-profile conversion occurrences obey the bell's scope, frozen membership and copy contract.
@@ -1109,7 +1144,7 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 				notice(
 					store.DefaultProfileID,
 				),
-				notice("profile-marketing"),
+				notice(bellMarketingProfileID),
 				notice("gone"),
 				notice("read"),
 				notice("failed"),
@@ -1121,17 +1156,15 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 			source.notices[5].Status.State = "none"
 			f := newBellMigrationFixture(t, source)
 			for _, query := range []string{"profile=default", "profile=marketing&receipt_profile=default", "all_profiles=true&receipt_profile=marketing"} {
-				response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?"+query, nil)
-				var payload contract.AttentionNotificationsResponse
-				testutil.DecodeJSONResponse(t, response, &payload)
-				if response.Code != http.StatusOK || payload.Total != 2 || payload.Finished != 2 ||
-					payload.NeedsYou != 0 {
-					t.Fatalf("scope %s: status=%d payload=%+v", query, response.Code, payload)
+				payload := readBellMigrationNotifications(t, f, query)
+				if payload.Total != 2 || payload.Finished != 2 || payload.NeedsYou != 0 {
+					t.Fatalf("scope %s: payload=%+v", query, payload)
 				}
 				seen := make(map[string]bool)
 				for _, item := range payload.Items {
 					seen[item.ID] = true
-					if item.Kind != "layout-upgrade" || item.Title != "Your windows are now tabs" || item.SourceID != "ws-1" ||
+					if item.Kind != "layout-upgrade" || item.Title != "Your windows are now tabs" ||
+						item.SourceID != "ws-1" ||
 						item.WorkspaceID != "ws-1" ||
 						item.WorkspaceLabel != "Alpha" ||
 						!item.OccurredAt.Equal(at) {
@@ -1146,7 +1179,7 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 					wantMarketing := attention.Identity(
 						"layout-upgrade",
 						"ws-1",
-						"profile-marketing",
+						bellMarketingProfileID,
 						at.Format(time.RFC3339Nano),
 					)
 					if item.ID != wantDefault && item.ID != wantMarketing {
@@ -1180,11 +1213,9 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 			n := notice(store.DefaultProfileID)
 			n.Status.Summary = tc.summary
 			f := newBellMigrationFixture(t, &bellMigrationSource{notices: []windowmanager.MigrationNotice{n}})
-			response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)
-			var payload contract.AttentionNotificationsResponse
-			testutil.DecodeJSONResponse(t, response, &payload)
-			if response.Code != http.StatusOK || len(payload.Items) != 1 || payload.Items[0].Detail != tc.want {
-				t.Fatalf("status=%d payload=%+v, want detail %q", response.Code, payload, tc.want)
+			payload := readBellMigrationNotifications(t, f, "profile=default")
+			if len(payload.Items) != 1 || payload.Items[0].Detail != tc.want {
+				t.Fatalf("payload=%+v, want detail %q", payload, tc.want)
 			}
 		})
 	}
@@ -1200,17 +1231,7 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 				source.notices = append(source.notices, notice(fmt.Sprintf("profile-%03d", i)))
 			}
 			f := newBellMigrationFixture(t, source)
-			read := func(query string) contract.AttentionNotificationsResponse {
-				t.Helper()
-				response := performRequest(t, f.Engine, http.MethodGet, "/notifications/attention?"+query, nil)
-				if response.Code != http.StatusOK {
-					t.Fatalf("read status=%d body=%s", response.Code, response.Body.String())
-				}
-				var payload contract.AttentionNotificationsResponse
-				testutil.DecodeJSONResponse(t, response, &payload)
-				return payload
-			}
-			before := read("profile=default")
+			before := readBellMigrationNotifications(t, f, "profile=default")
 			if before.Total != 102 || len(before.Items) != 100 {
 				t.Fatalf("before=%+v", before)
 			}
@@ -1265,7 +1286,7 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 			if len(source.acked) != wantAcked {
 				t.Fatal("retry repeated a source mutation")
 			}
-			after := read("profile=marketing&receipt_profile=marketing")
+			after := readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=marketing")
 			if after.Total != wantRemaining {
 				t.Fatalf("other profile total=%d want %d", after.Total, wantRemaining)
 			}
