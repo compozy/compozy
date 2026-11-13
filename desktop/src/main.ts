@@ -419,6 +419,7 @@ async function start(): Promise<void> {
             throw error;
           }
         },
+        onFeedFallback: error => logger.error("read app update feed", error),
       }),
       onError: error => {
         logger.error("consume app update operation", error);
