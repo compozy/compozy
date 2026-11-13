@@ -11,8 +11,6 @@ import { pinToEnd } from "./use-thread-scroll-gestures";
 const RESUME_MAX_FRAMES = 60;
 /** Consecutive frames the resumed row must rest before the hold ends early. */
 const RESUME_STABLE_FRAMES = 4;
-/** Input that is the reader taking the viewport, ending a hold still settling. */
-const READER_GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
 
 /** The row at the viewport's top edge, how far into it the reader is, and the raw offset. */
 interface ReadingAnchor {
@@ -127,16 +125,19 @@ export function useThreadScrollResume(
     read();
     viewport.addEventListener("scroll", read, { passive: true });
     viewport.addEventListener(SCROLL_RESTORE_EVENT, resume);
-    for (const gesture of READER_GESTURES) {
-      viewport.addEventListener(gesture, release, { capture: true, passive: true });
-    }
+    // The reader's input ends a hold still settling.
+    viewport.addEventListener("wheel", release, { passive: true });
+    viewport.addEventListener("pointerdown", release, { passive: true });
+    viewport.addEventListener("keydown", release, { passive: true });
+    viewport.addEventListener("touchstart", release, { passive: true });
     return () => {
       release();
       viewport.removeEventListener("scroll", read);
       viewport.removeEventListener(SCROLL_RESTORE_EVENT, resume);
-      for (const gesture of READER_GESTURES) {
-        viewport.removeEventListener(gesture, release, { capture: true });
-      }
+      viewport.removeEventListener("wheel", release);
+      viewport.removeEventListener("pointerdown", release);
+      viewport.removeEventListener("keydown", release);
+      viewport.removeEventListener("touchstart", release);
     };
   }, [placeTurn, store, viewportRef, virtualizer]);
 }

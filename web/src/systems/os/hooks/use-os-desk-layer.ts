@@ -1,8 +1,13 @@
 import { shallowEqual } from "@xstate/store";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 import { descendantWindowIds } from "../lib/layout-minimums";
-import type { OsPresentation, OsViewportState, WindowManagerController } from "../lib/os-types";
+import type {
+  OsPresentation,
+  OsViewportState,
+  OsWindow,
+  WindowManagerController,
+} from "../lib/os-types";
 import type { LayoutDesktop, LayoutTab, TabId } from "../lib/window-manager-types";
 import { WindowPaneHosts } from "../lib/window-pane-hosts";
 import { useDesktop } from "./use-desktop";
@@ -36,14 +41,16 @@ export function useVisitedTabs(
   );
   const present = new Set(tabIds);
   const next = visited.filter(tabId => present.has(tabId));
+  const kept = new Set(next);
   for (const tabId of activeTabId === null ? adopted : [activeTabId, ...adopted]) {
-    if (present.has(tabId) && !next.includes(tabId)) next.push(tabId);
+    if (!present.has(tabId) || kept.has(tabId)) continue;
+    kept.add(tabId);
+    next.push(tabId);
   }
   if (next.length !== visited.length || next.some((tabId, index) => tabId !== visited[index])) {
     setVisited(next);
   }
   // Bar order keeps sibling tab layers stable while the set changes.
-  const kept = new Set(next);
   return tabIds.filter(tabId => kept.has(tabId));
 }
 
@@ -66,14 +73,16 @@ export interface DeskTabPanes {
 export function useDeskTabPanes(
   tabs: readonly LayoutTab[],
   shownTabId: TabId | null,
-  manager: Pick<WindowManagerController, "getState">
+  manager: Pick<WindowManagerController, "getState">,
+  windows: Readonly<Record<string, OsWindow>>
 ): DeskTabPanes {
   // The windows whose panes the last render mounted: a tab holding one now adopts it.
   const [mounted, setMounted] = useState<readonly string[]>([]);
   const held = new Set(mounted);
-  const adopted = tabs
-    .filter(tab => descendantWindowIds(tab.root).some(windowId => held.has(windowId)))
-    .map(tab => tab.id);
+  const adopted: TabId[] = [];
+  for (const tab of tabs) {
+    if (descendantWindowIds(tab.root).some(windowId => held.has(windowId))) adopted.push(tab.id);
+  }
   const visited = useVisitedTabs(
     tabs.map(tab => tab.id),
     shownTabId,
@@ -97,6 +106,8 @@ export function useDeskTabPanes(
     hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
   }, [hosts, paneKey]);
   useEffect(() => () => hosts.dispose(), [hosts]);
+  // A window's route change, read in the commit that rendered it, before a later move or hide.
+  useLayoutEffect(() => hosts.syncRoutes(), [hosts, windows]);
   return { visited, paneWindowIds, hosts };
 }
 
