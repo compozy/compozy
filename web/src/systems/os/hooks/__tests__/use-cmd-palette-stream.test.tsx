@@ -192,8 +192,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
     const window = {
       app: "session" as const,
       desktopId: "desktop-1",
-      minimized: false,
-      stackActive: true,
+      shown: true,
     };
     expect(
       backgroundStreamsWithinConnectionBudget({
@@ -213,7 +212,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
       backgroundStreamsWithinConnectionBudget({
         activeDesktopId: "desktop-1",
         connectionStatus: "connected",
-        windows: { first: { ...window, minimized: true } },
+        windows: { first: { ...window, shown: false } },
       })
     ).toBe(true);
     expect(

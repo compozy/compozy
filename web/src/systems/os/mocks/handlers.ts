@@ -170,6 +170,7 @@ export const handlers: HttpHandler[] = [
         applied: true,
         changes: outcome.changes,
         diagnostics: [],
+        deprecations: [],
         client: outcome.client,
       });
     }

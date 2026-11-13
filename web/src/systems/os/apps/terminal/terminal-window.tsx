@@ -154,14 +154,14 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     hasActiveSession: activeSessionWindowId !== null && activeSessionId !== null,
     openTerminal,
     retargetTerminal,
-    // Another terminal beside this one: a fresh window joins this frame as a
-    // tab. `new` marks deliberate creation, so the resolver there opens a
+    // Another terminal beside this one: a fresh window opens as the tab right
+    // after this one. `new` marks deliberate creation, so the resolver there opens a
     // fresh terminal instead of adopting a windowless running one.
     openTerminalTab: () => {
       void coordinator.userOpen({
         app: "terminal",
         forceNewInstance: true,
-        stackTargetWindowId: windowId,
+        afterWindowId: windowId,
         route: { pathname: "/terminal", search: { ...retargetSearch, new: "1" } },
       });
     },

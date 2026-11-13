@@ -3,16 +3,18 @@ import { runViewTransition } from "@compozy/ui";
 import type {
   OsCloseScope,
   OsNavigateMode,
-  OsOpenTarget,
   OsWindowRoute,
   WindowManagerCommandOutcome,
 } from "../lib/os-types";
 import {
-  DEFAULT_WINDOW_MANAGER_FLOATING_RECT,
-  defaultOsWindowRoute,
-  normalizedRectToWire,
-} from "../lib/window-manager-view";
-import type { WindowManagerCommandInput } from "../lib/window-manager-types";
+  activateTabCommand,
+  closeWindowCommand,
+  navigateWindowCommand,
+  pinWindowCommand,
+  reopenWindowCommand,
+  reorderTabCommand,
+  retargetWindowCommand,
+} from "../lib/window-manager-command-builders";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { WindowManagerRuntimeCore } from "./window-manager-runtime-core";
 import { randomWindowManagerId } from "./window-manager-runtime-helpers";
@@ -22,133 +24,8 @@ import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { isOsReducedMotion } from "../lib/reduced-motion";
 
 /**
- * Builders for the tab half of the command surface. They live apart from
- * `window-manager-command-builders.ts` because that file owns the pre-tab
- * geometry commands and both are near the file-size cap.
- */
-
-export function openWindowCommand(
-  target: OsOpenTarget,
-  id: string,
-  desktopId: string
-): WindowManagerCommandInput {
-  return {
-    commandId: "window.open",
-    payload: {
-      window: {
-        id,
-        app: target.app,
-        ...(target.instanceKey ? { instance_key: target.instanceKey } : {}),
-        route: target.route ?? defaultOsWindowRoute(target.app),
-        desktop_id: desktopId,
-        floating_rect: normalizedRectToWire(DEFAULT_WINDOW_MANAGER_FLOATING_RECT),
-        insert_tiled: target.placement === "split",
-        ...(target.placement === "floating" ? { floating: true } : {}),
-        ...(target.stackTargetWindowId
-          ? { stack_target_window_id: target.stackTargetWindowId }
-          : {}),
-      },
-    },
-  };
-}
-
-/** Bulk group: drag-merge, merge-all, and agent setup all reduce to one revision. */
-export function groupWindowsCommand(
-  targetWindowId: string,
-  windowIds: readonly string[],
-  insertIndex?: number
-): WindowManagerCommandInput {
-  return {
-    commandId: "window.stack.group",
-    payload: {
-      target_window_id: targetWindowId,
-      window_ids: [...windowIds],
-      ...(insertIndex === undefined ? {} : { insert_index: insertIndex }),
-    },
-    rebase: { windowId: targetWindowId },
-  };
-}
-
-export function reorderStackCommand(windowId: string, index: number): WindowManagerCommandInput {
-  return {
-    commandId: "window.stack.reorder",
-    payload: { window_id: windowId, index },
-    rebase: { windowId },
-  };
-}
-
-/** Public noun is "activate"; `window.stack.set_active` stays the internal command ID. */
-export function activateStackMemberCommand(windowId: string): WindowManagerCommandInput {
-  return {
-    commandId: "window.stack.set_active",
-    payload: { window_id: windowId },
-    rebase: { windowId },
-  };
-}
-
-export function pinWindowCommand(windowId: string, pinned: boolean): WindowManagerCommandInput {
-  return { commandId: "window.pin", payload: { window_id: windowId, pinned } };
-}
-
-export function reopenWindowCommand(): WindowManagerCommandInput {
-  return { commandId: "window.reopen", payload: {} };
-}
-
-/**
- * `tab` is the wire default and travels as an absent scope; every other scope is
- * one command, one revision, one closed entry.
- */
-export function closeWindowCommand(
-  windowId: string,
-  scope: OsCloseScope = "tab"
-): WindowManagerCommandInput {
-  return {
-    commandId: "window.close",
-    payload: {
-      window_id: windowId,
-      minimize: false,
-      ...(scope === "tab" ? {} : { scope }),
-    },
-  };
-}
-
-/**
- * `pop` discards the payload route by contract — strict decode rejects a
- * non-empty route alongside it — so the builder never emits one.
- */
-export function navigateWindowCommand(
-  windowId: string,
-  route: OsWindowRoute | null,
-  mode: OsNavigateMode = "replace"
-): WindowManagerCommandInput {
-  if (mode === "pop") {
-    return { commandId: "window.navigate", payload: { window_id: windowId, mode: "pop" } };
-  }
-  return {
-    commandId: "window.navigate",
-    payload: {
-      window_id: windowId,
-      route: route ?? { pathname: "/", search: {} },
-      ...(mode === "push" ? { mode: "push" } : {}),
-    },
-  };
-}
-
-/** Replace navigation that also re-keys the window's app instance. */
-export function retargetWindowCommand(
-  windowId: string,
-  instanceKey: string,
-  route: OsWindowRoute
-): WindowManagerCommandInput {
-  return {
-    commandId: "window.navigate",
-    payload: { window_id: windowId, route, instance_key: instanceKey },
-  };
-}
-
-/**
- * Tab half of the controller. It sits between the transport core and the
- * geometry runtime so neither of those files carries the tab surface.
+ * Tab half of the controller: navigation, the tab bar's commands, and guarded
+ * closes. It sits between the transport core and the layout runtime.
  */
 export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   private closeGuard: WindowCloseGuard | null = null;
@@ -169,7 +46,7 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   };
 
   /**
-   * The daemon owns the route, but the URL and the deck label must not lag a
+   * The daemon owns the route, but the URL and the tab label must not lag a
    * round trip behind the click that caused them: publish the route as an
    * intent until the command settles.
    */
@@ -204,20 +81,19 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   }
 
   /**
-   * In-window drill only: a push/pop inside the focused, visible window with no
-   * layout gesture in flight and motion allowed. Focus changes, remote routes,
-   * and everything else stay un-animated.
+   * In-window drill only: a push/pop inside the focused, on-screen window with
+   * motion allowed. Focus changes, remote routes, and everything else stay
+   * un-animated.
    */
   private animatesInWindow(id: string): boolean {
     const view = this.view;
     const win = view.windows[id];
-    if (!win || win.minimized || view.focusedId !== id) return false;
-    if (windowManagerStore.getSnapshot().context.gesture?.status === "active") return false;
+    if (!win?.shown || view.focusedId !== id) return false;
     return !isOsReducedMotion(view);
   }
 
   /**
-   * In-place instance switch: the window keeps its frame while the daemon
+   * In-place instance switch: the window keeps its place while the daemon
    * re-keys it to another instance and resets its nav stack.
    */
   retargetWindow = (
@@ -260,21 +136,11 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     return this.withRouteIntent(id, expectedRoute, outcome, "drill-out");
   };
 
-  groupWindows = (
-    targetWindowId: string,
-    windowIds: readonly string[],
-    insertIndex?: number
-  ): WindowManagerCommandOutcome => {
-    const joiners = windowIds.filter(id => id !== targetWindowId);
-    if (joiners.length === 0) return { accepted: false, completion: Promise.resolve(false) };
-    return this.dispatch(groupWindowsCommand(targetWindowId, joiners, insertIndex));
-  };
+  reorderTab = (windowId: string, index: number): WindowManagerCommandOutcome =>
+    this.dispatch(reorderTabCommand(windowId, index));
 
-  reorderStackMember = (windowId: string, index: number): WindowManagerCommandOutcome =>
-    this.dispatch(reorderStackCommand(windowId, index));
-
-  activateStackMember = (windowId: string): WindowManagerCommandOutcome =>
-    this.dispatch(activateStackMemberCommand(windowId));
+  activateTab = (windowId: string): WindowManagerCommandOutcome =>
+    this.dispatch(activateTabCommand(windowId));
 
   pinWindow = (windowId: string, pinned: boolean): WindowManagerCommandOutcome =>
     this.dispatch(pinWindowCommand(windowId, pinned));
@@ -282,7 +148,7 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   reopenWindow = (): WindowManagerCommandOutcome => this.dispatch(reopenWindowCommand());
 
   /**
-   * Removes one tab from the desk without the operator's close guard, so what it shows keeps
+   * Removes one window from the desk without the operator's close guard, so what it shows keeps
    * running: a terminal window leaves the desk and its terminal is not terminated. Refused while
    * an operator close is being confirmed, so it never races that close's fenced command. Fenced to
    * the layout revision the caller inspected: a command queued earlier that repurposes the window
@@ -317,7 +183,7 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     this.closePending = true;
     try {
       if (!(await guard(targets, isCurrent)) || !isCurrent()) return false;
-      // Never let a queued group close expand to newly joined, unconfirmed tabs.
+      // Never let a queued close expand to newly opened, unconfirmed tabs.
       return await this.dispatch({
         ...closeWindowCommand(windowId, scope),
         expectedRevision: this.view.snapshot?.revision,

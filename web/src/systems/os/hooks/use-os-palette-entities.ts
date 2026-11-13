@@ -45,7 +45,6 @@ export interface OsPaletteTabResult {
   label: string;
   desktopName: string;
   needsInput: boolean;
-  minimized: boolean;
 }
 
 export interface OsPaletteSessionResult {
@@ -404,7 +403,6 @@ function projectPaletteTabs(
         label,
         desktopName: desktopNames.get(win.desktopId) ?? "",
         needsInput: session !== undefined && isNeedsYouSession(session),
-        minimized: win.minimized,
       });
     }
     tabs.sort((left, right) => left.label.localeCompare(right.label));

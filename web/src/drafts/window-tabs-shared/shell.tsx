@@ -36,7 +36,6 @@ function dockItems(): OsDockItemData[] {
     ...item,
     running: item.id === "sessions" || item.id === "terminal",
     active: item.id === "sessions",
-    minimized: false,
     badge: item.id === "sessions" ? 2 : undefined,
   }));
 }

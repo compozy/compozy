@@ -1,6 +1,5 @@
 // Suite: Window menu curation
-// Invariant: the Window menu lists the Arrange presets in the shell-rail order
-// straight from the registry, and "Move window to" names every other desktop —
+// Invariant: the Window menu's "Move to desktop" names every other desktop —
 // the first nine dispatch their registry slot command, later ones move the
 // focused window by desktop id under the family's registry availability; with
 // no other desktop it stays in place disabled with its reason.
@@ -28,10 +27,6 @@ import { WindowMenu } from "../window-menu";
 
 const REGISTRY = paletteRegistryFixture(
   [
-    ["layout.arrange.grid", "Grid"],
-    ["layout.balance", "Balance sizes"],
-    ["layout.arrange.main-stack", "Main and stack"],
-    ["layout.arrange.columns", "Columns"],
     ...Array.from({ length: 9 }, (_, index) => [
       `window.move_to_desktop.${index + 1}`,
       `Move window to desktop ${index + 1}`,
@@ -63,9 +58,14 @@ function desktop(name: string, index: number): LayoutDesktop {
     id: `desktop:${index + 1}`,
     name,
     order: index,
-    groups: [],
-    floating: [],
-    floatingStacks: [],
+    tabs: [
+      {
+        id: `tab:${index + 1}`,
+        pinned: false,
+        root: { id: `leaf:${index + 1}`, kind: "leaf", windowId: `w-${index + 1}` },
+      },
+    ],
+    activeTabId: `tab:${index + 1}`,
   };
 }
 
@@ -108,18 +108,6 @@ async function openMoveSubmenu(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("WindowMenu", () => {
-  it("Should list the Arrange presets in the shell-rail order", () => {
-    renderMenu(1);
-
-    const arrange = screen.getByTestId("os-menu-arrange");
-    expect(within(arrange).getByText("Arrange")).toBeInTheDocument();
-    expect(
-      within(arrange)
-        .getAllByRole("menuitem")
-        .map(item => item.textContent)
-    ).toEqual(["Main and stack", "Columns", "Grid", "Balance sizes"]);
-  });
-
   it("Should name each other desktop and run its move slot", async () => {
     const user = userEvent.setup();
     const { onRun } = renderMenu(3);
@@ -158,12 +146,12 @@ describe("WindowMenu", () => {
     expect(onRun).not.toHaveBeenCalled();
   });
 
-  it("Should disable Move window to with its reason when no other desktop exists", () => {
+  it("Should disable Move to desktop with its reason when no other desktop exists", () => {
     renderMenu(1);
 
     const item = screen.getByTestId("os-menu-move-to-desktop");
     expect(item).toHaveAttribute("aria-disabled", "true");
-    expect(item).toHaveTextContent("Move window to");
+    expect(item).toHaveTextContent("Move to desktop");
     expect(item).toHaveTextContent("needs another desktop");
   });
 });

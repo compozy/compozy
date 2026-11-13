@@ -26,7 +26,12 @@ export function useDesktopManagerSurfaces() {
   const projection = useDesktop(
     state =>
       overviewOpen
-        ? { desktops: state.desktops, projections: state.projections, windows: state.windows }
+        ? {
+            desktops: state.desktops,
+            activeTabIds: state.activeTabIds,
+            projections: state.projections,
+            windows: state.windows,
+          }
         : null,
     shallowEqual
   );
@@ -41,10 +46,12 @@ export function useDesktopManagerSurfaces() {
   }
   const desktops = (projection?.desktops ?? []).map(desktop => {
     const windowRecords = windowsByDesktop.get(desktop.id) ?? [];
+    const activeTabId = projection?.activeTabIds[desktop.id];
     return {
       id: desktop.id,
       name: desktop.name,
-      projection: projection?.projections[desktop.id],
+      // The thumbnail draws the tab this client shows on the desktop.
+      projection: activeTabId === undefined ? undefined : projection?.projections[activeTabId],
       windowRecords,
       windows: windowRecords.flatMap(window => {
         const app = osAppId(window.app);

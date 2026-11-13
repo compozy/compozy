@@ -19,7 +19,8 @@ describe("windowManagerLayoutOptions", () => {
     expect(options.select?.(snapshot)).toMatchObject({
       revision: snapshot.revision,
       document: {
-        version: snapshot.version,
+        // The editor still edits v5 documents until S7 moves it to the tab model.
+        version: 5,
         workspaceId: snapshot.workspaceId,
       },
     });

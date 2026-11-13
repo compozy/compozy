@@ -1,12 +1,12 @@
 // Suite: cmd-palette client-op lookup table
 // Invariant: the table resolves tab, focus, desktop and layout ids to exactly
-// one controller or shell call, and merge-all never includes minimized peers.
+// one controller or shell call; tab ops walk the active desktop's tab bar.
 // Owning layer: web/src/systems/os/lib/cmd-palette-client-ops.ts
 // Canonical suite: this file (split from the dispatch seam suite).
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { paletteClientOp } from "../cmd-palette-client-ops";
-import { frameFixture, opContext } from "./cmd-palette-dispatch-fixtures";
+import { opContext, tabBarFixture } from "./cmd-palette-dispatch-fixtures";
 
 function run(op: string, context: ReturnType<typeof opContext>, payload: unknown = {}) {
   const handler = paletteClientOp(op);
@@ -24,35 +24,30 @@ function run(op: string, context: ReturnType<typeof opContext>, payload: unknown
 
 describe("cmd-palette client-op table — tabs", () => {
   it("Should jump positionally, wrap next/previous from the active tab, and land last [UT-050]", () => {
-    const frame = frameFixture();
-    const jump = opContext(frame, "w-2");
+    const bar = tabBarFixture();
+    const jump = opContext(bar, "w-2");
     void run("window.tab.jump.3", jump);
     expect(jump.shell.activateWindow).toHaveBeenCalledExactlyOnceWith("w-3");
 
-    const next = opContext(frame, "w-2");
+    const next = opContext(bar, "w-2");
     void run("window.tab.next", next);
     expect(next.shell.activateWindow).toHaveBeenCalledExactlyOnceWith("w-3");
 
-    const wrap = opContext(frameFixture({ activeWindowId: "w-3" }), "w-3");
+    const wrap = opContext(tabBarFixture({ activeWindowId: "w-3" }), "w-3");
     void run("window.tab.next", wrap);
     expect(wrap.shell.activateWindow).toHaveBeenCalledExactlyOnceWith("w-1");
 
-    const previous = opContext(frameFixture({ activeWindowId: "w-1" }), "w-1");
+    const previous = opContext(tabBarFixture({ activeWindowId: "w-1" }), "w-1");
     void run("window.tab.previous", previous);
     expect(previous.shell.activateWindow).toHaveBeenCalledExactlyOnceWith("w-3");
 
-    const last = opContext(frame, "w-2");
+    const last = opContext(bar, "w-2");
     void run("window.tab.last", last);
     expect(last.shell.activateWindow).toHaveBeenCalledExactlyOnceWith("w-3");
   });
 
-  it("Should no-op jumps and cycling on a single-tab frame while ⌘T still opens the deck path [UT-052]", () => {
-    const solo = frameFixture({
-      id: "w-1",
-      members: ["w-1"],
-      activeWindowId: "w-1",
-      stackId: null,
-    });
+  it("Should no-op jumps and cycling on a single-tab bar while ⌘T still opens a new tab [UT-052]", () => {
+    const solo = tabBarFixture({ tabs: ["w-1"], activeWindowId: "w-1" });
     for (const op of [
       "window.tab.next",
       "window.tab.previous",
@@ -81,18 +76,17 @@ describe("cmd-palette client-op table — tabs", () => {
     expect(context.manager.reopenWindow).toHaveBeenCalledOnce();
   });
 
-  it("Should ignore a jump slot beyond the frame's members", () => {
-    const context = opContext(frameFixture(), "w-2");
+  it("Should ignore a jump slot beyond the bar's tabs", () => {
+    const context = opContext(tabBarFixture(), "w-2");
     void run("window.tab.jump.8", context);
     expect(context.shell.activateWindow).not.toHaveBeenCalled();
   });
 });
 
 describe("cmd-palette client-op table — navigation v2", () => {
-  it("Should focus the previous MRU window and ignore minimized entries [UT-072]", () => {
+  it("Should focus the previous MRU window and skip entries that no longer exist [UT-072]", () => {
     const context = opContext(null, "w-2");
-    context.state.client.focusOrder = ["w-2", "w-3", "w-1"];
-    context.state.windows["w-3"]!.minimized = true;
+    context.state.client.focusOrder = ["w-2", "w-closed", "w-1"];
 
     void run("window.focus.last", context);
 
@@ -146,35 +140,6 @@ describe("cmd-palette client-op table — navigation v2", () => {
 });
 
 describe("cmd-palette client-op table — absorbed palette rows", () => {
-  it("Should merge every visible peer into the focused window's frame", () => {
-    const context = opContext(frameFixture(), "w-2");
-    void run("window.merge_all", context);
-    expect(context.manager.groupWindows).toHaveBeenCalledExactlyOnceWith("w-2", ["w-1", "w-3"]);
-  });
-
-  it("Should omit minimized peers from merge-all grouping", () => {
-    const context = opContext(frameFixture(), "w-2");
-    context.state.windows["w-3"]!.minimized = true;
-    void run("window.merge_all", context);
-    expect(context.manager.groupWindows).toHaveBeenCalledExactlyOnceWith("w-2", ["w-1"]);
-  });
-
-  it("Should float the focused tab out of its stack and follow it", async () => {
-    const context = opContext(frameFixture(), "w-2");
-    void run("window.tab.detach", context);
-    expect(context.manager.toggleFloating).toHaveBeenCalledExactlyOnceWith("w-2");
-    await vi.waitFor(() =>
-      expect(context.shell.activateWindow).toHaveBeenCalledExactlyOnceWith("w-2")
-    );
-  });
-
-  it("Should leave a lone window in place rather than detaching nothing", () => {
-    const solo = frameFixture({ members: ["w-2"], activeWindowId: "w-2", stackId: null });
-    const context = opContext(solo, "w-2");
-    void run("window.tab.detach", context);
-    expect(context.manager.toggleFloating).not.toHaveBeenCalled();
-  });
-
   it("Should raise the sessions catalog through its shell owner", () => {
     const context = opContext(null, null);
     void run("shell.sessions.toggle", context);

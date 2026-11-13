@@ -16,7 +16,9 @@ import { LayoutCanvasFloating } from "./layout-canvas-floating";
 import { LayoutCanvasGroupEdge } from "./layout-canvas-group-edge";
 import { LayoutCanvasSeam } from "./layout-canvas-seam";
 import { LayoutCanvasTile } from "./layout-canvas-tile";
-import type { LayoutProjection, WindowManagerConfig } from "@/systems/os";
+import type { WindowManagerConfig } from "@/systems/os";
+
+import type { LayoutProjection } from "../../lib/legacy-layout-types";
 
 const GROUP_EDGES = ["top", "right", "bottom", "left"] as const;
 

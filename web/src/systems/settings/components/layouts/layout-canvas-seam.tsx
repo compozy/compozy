@@ -5,7 +5,7 @@ import { cn } from "@compozy/ui";
 import { useLayoutDraftSeam } from "../../hooks/use-layout-draft-seam";
 import { LAYOUT_CANVAS_REFERENCE } from "../../lib/window-manager-layout-reference";
 import type { WindowManagerLayoutDesktop } from "../../lib/window-manager-layout-types";
-import type { ProjectedSeam } from "@/systems/os";
+import type { ProjectedSeam } from "../../lib/legacy-layout-types";
 
 interface LayoutCanvasSeamProps {
   seam: ProjectedSeam;

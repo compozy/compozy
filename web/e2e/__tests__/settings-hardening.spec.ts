@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
-import { appWindow, windowFrame } from "../fixtures/os-navigation";
+import { appWindow, windowPane } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -260,7 +260,7 @@ async function captureSettingsViewportMatrix(
     const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin.getByTestId("settings-shell")).toBeVisible();
     await expect(settingsWin.getByTestId("settings-section-nav")).toBeVisible();
-    const outerBody = windowFrame(settingsWin).locator('[data-slot="os-window-body"]');
+    const outerBody = windowPane(settingsWin).locator('[data-slot="os-window-body"]');
     const outerOverflow = await outerBody.evaluate(
       element => element.scrollHeight - element.clientHeight
     );

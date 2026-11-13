@@ -19,9 +19,6 @@ export type RoutingManager = {
   /** `viewOnly` takes the window off the desk without the operator guard; its item keeps running. */
   closeWindow(windowId: string, viewOnly?: boolean): Promise<boolean>;
   focusWindow(windowId: string): WindowManagerCommandOutcome;
-  restoreWindow(windowId: string): WindowManagerCommandOutcome;
-  minimizeWindow(windowId: string): Promise<boolean>;
-  zoomWindow(windowId: string): WindowManagerCommandOutcome;
   navigateWindow(
     windowId: string,
     route: OsWindowRoute,

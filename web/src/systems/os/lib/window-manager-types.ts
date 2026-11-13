@@ -3,7 +3,7 @@ import type * as ShortcutTypes from "./window-manager-shortcut-types";
 /** Stable identifiers from the daemon-authoritative window-manager snapshot. */
 export type LayoutRevision = number;
 export type DesktopId = string;
-export type GroupId = string;
+export type TabId = string;
 export type LayoutNodeId = string;
 export type WindowId = string;
 export type WindowManagerClientId = string;
@@ -17,16 +17,11 @@ export type WindowManagerConnectionStatus =
   | "reconnecting";
 
 export type LayoutAxis = "horizontal" | "vertical";
-export type WindowPlacement = "tiled" | "stacked" | "floating";
-export type DropPlacement =
-  | "floating"
-  | "before"
-  | "after"
-  | "left"
-  | "right"
-  | "top"
-  | "bottom"
-  | "center";
+/**
+ * `window.move` placements: an edge splits beside a target window (or at a tab's root edge),
+ * `tab` makes the window a tab of its own.
+ */
+export type DropPlacement = "tab" | "left" | "right" | "top" | "bottom";
 export type FocusDirection = "left" | "right" | "up" | "down";
 export type WindowManagerEdgeCenterBinding = "none" | "reserved" | "zoom";
 export type WindowManagerNewWindowPolicy = "floating" | "beside_focus" | "tab";
@@ -34,13 +29,6 @@ export type WindowManagerSmallViewportPolicy = "stack" | "reject";
 export type WindowManagerFocusPolicy = "click_directional" | "directional";
 export type WindowManagerDesktopTransition = "slide" | "crossfade" | "instant";
 export type WindowManagerDragModifier = "alt" | "control" | "meta" | "shift" | "none";
-
-export interface NormalizedRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
 
 export interface PixelPoint {
   x: number;
@@ -73,72 +61,69 @@ export interface LayoutSplitNode {
   weights: readonly number[];
 }
 
-export interface LayoutStackNode {
-  id: LayoutNodeId;
-  kind: "stack";
-  windowIds: readonly WindowId[];
-  activeId: WindowId;
-}
+/** A tab's content: one window, or a weighted split tree whose every leaf is a window. */
+export type LayoutNode = LayoutLeafNode | LayoutSplitNode;
 
-/** Browser mirror of the daemon's normalized, discriminated layout topology. */
-export type LayoutNode = LayoutLeafNode | LayoutSplitNode | LayoutStackNode;
-
-export interface LayoutGroup {
-  id: GroupId;
-  frame: NormalizedRect;
+/** One entry of a desktop's tab bar. Pinned tabs form a contiguous prefix of the bar. */
+export interface LayoutTab {
+  id: TabId;
+  pinned: boolean;
   root: LayoutNode;
-}
-
-export interface LayoutFloatingStack {
-  id: LayoutNodeId;
-  windowIds: readonly WindowId[];
-  activeId: WindowId | null;
-  rect: NormalizedRect;
-  minimized: boolean;
 }
 
 export interface LayoutDesktop {
   id: DesktopId;
   name: string;
   order: number;
-  groups: readonly LayoutGroup[];
-  floating: readonly WindowId[];
-  floatingStacks: readonly LayoutFloatingStack[];
+  tabs: readonly LayoutTab[];
+  /** Durable default for clients with no active tab of their own on this desktop. */
+  activeTabId: TabId;
 }
 
-export interface WindowManagerReturnAnchor {
-  desktopId: DesktopId;
-  groupId: GroupId | null;
-  parentSplitId: LayoutNodeId | null;
-  childIndex: number | null;
-  weight: number | null;
-  neighborIds: readonly WindowId[];
-  sourceRevision: LayoutRevision;
-  sourceGroup: LayoutGroup | null;
-  /** The window was zoomed when it minimized; restore brings the zoom back. */
-  zoomed: boolean;
+export interface WindowManagerRoute {
+  pathname: string;
+  search: Readonly<Record<string, unknown>>;
 }
 
 export interface WindowManagerWindow {
   id: WindowId;
   app: string;
   instanceKey: string | null;
-  route: {
-    pathname: string;
-    search: Readonly<Record<string, unknown>>;
-  };
-  navStack: readonly {
-    pathname: string;
-    search: Readonly<Record<string, unknown>>;
-  }[];
-  pinned: boolean;
-  placement: WindowPlacement;
+  route: WindowManagerRoute;
+  navStack: readonly WindowManagerRoute[];
   desktopId: DesktopId;
-  floatingRect: NormalizedRect;
-  minimized: boolean;
-  /** Fills the desktop work area with the unit holding this window. */
-  zoomed: boolean;
-  returnAnchor: WindowManagerReturnAnchor | null;
+  tabId: TabId;
+}
+
+export interface WindowManagerMigrationSummary {
+  desktops: number;
+  tabs: number;
+  windows: number;
+  floatingToTabs: number;
+  minimizedToTabs: number;
+  islandsMerged: number;
+  pinsDropped: number;
+  zoomDesktopsMerged: number;
+}
+
+/** Present on the snapshot while an upgrade notice is unacknowledged. */
+export interface WindowManagerMigrationStatus {
+  state: string;
+  fromVersion: number | null;
+  at: string | null;
+  acknowledged: boolean;
+  summary: WindowManagerMigrationSummary | null;
+  error: WindowManagerDiagnosticPayload | null;
+  failureRevision: LayoutRevision | null;
+}
+
+/** A retired surface a command used; reported once per surface. */
+export interface WindowManagerDeprecation {
+  code: string;
+  surface: string;
+  replacement: string | null;
+  removalRelease: string;
+  message: string;
 }
 
 export interface WindowManagerGapsConfig {
@@ -218,11 +203,13 @@ export interface WindowManagerActor {
 export interface WindowManagerChangeSet {
   desktopIds: readonly DesktopId[];
   windowIds: readonly WindowId[];
-  groupIds: readonly GroupId[];
+  tabIds: readonly TabId[];
   nodeIds: readonly LayoutNodeId[];
   clientIds: readonly WindowManagerClientId[];
-  stackGrouped: readonly LayoutNodeId[];
-  stackUngrouped: readonly LayoutNodeId[];
+  /** Tabs that went from one member to several. */
+  tabSplit: readonly TabId[];
+  /** Tabs that went from several members to one, or dissolved. */
+  tabUnsplit: readonly TabId[];
 }
 
 export interface WindowManagerDiagnosticPayload {
@@ -238,13 +225,14 @@ export interface WindowManagerConflictPayload {
 }
 
 export interface WindowManagerSnapshot {
-  version: 5;
+  version: 6;
   workspaceId: string;
   revision: LayoutRevision;
   desktops: readonly LayoutDesktop[];
   windows: Readonly<Record<WindowId, WindowManagerWindow>>;
   closedEntryCount: number;
   overrides: WindowManagerWorkspaceConfig;
+  migration: WindowManagerMigrationStatus | null;
   updatedAt: string;
 }
 
@@ -255,7 +243,8 @@ export interface WindowManagerClientView {
   activeDesktopId: DesktopId;
   focusedWindowId: WindowId | null;
   focusOrder: readonly WindowId[];
-  stackActive: Readonly<Record<LayoutNodeId, WindowId>>;
+  /** This client's active tab per desktop; repaired against the snapshot on read. */
+  activeTab: Readonly<Record<DesktopId, TabId>>;
   connectedAt: string;
 }
 
@@ -273,8 +262,8 @@ export interface WindowManagerRegisteredClientView extends WindowManagerAttached
 
 export interface WindowManagerPaletteContext {
   windowFocused: boolean;
-  windowFloating: boolean;
-  windowStacked: boolean;
+  /** The focused window shares its tab with other windows. */
+  windowInSplit: boolean;
   desktopWindowCount: number;
   scopeGlobal: boolean;
   shellDesktop: boolean;
@@ -292,6 +281,7 @@ export interface WindowManagerClientCommand {
   payload: unknown;
 }
 
+/** Commands this client issues. */
 export type WindowManagerCommandId =
   | "desktop.create"
   | "desktop.update"
@@ -303,25 +293,35 @@ export type WindowManagerCommandId =
   | "window.close"
   | "window.focus"
   | "window.move"
-  | "window.resize"
   | "window.swap"
-  | "window.toggle_floating"
-  | "window.zoom"
-  | "window.stack.group"
-  | "window.stack.reorder"
-  | "window.stack.set_active"
   | "window.pin"
   | "window.reopen"
+  | "window.tab.reorder"
+  | "window.tab.activate"
   | "layout.arrange"
   | "layout.resize"
-  | "layout.frame_resize"
   | "layout.balance"
   | "layout.undo"
   | "layout.redo"
   | "layout.replace";
 
+/**
+ * Command IDs an event can carry. Other actors may still use the retired IDs the daemon accepts
+ * through v0.7.0 (`window.stack.group` commits as tab placement).
+ */
+export type WindowManagerEventCommandId =
+  | WindowManagerCommandId
+  | "window.resize"
+  | "window.toggle_floating"
+  | "window.zoom"
+  | "window.stack.group"
+  | "window.stack.reorder"
+  | "window.stack.set_active"
+  | "layout.frame_resize";
+
 export interface WindowManagerRebaseGuard {
   windowId?: WindowId;
+  tabId?: TabId;
   sourceNodeId?: LayoutNodeId;
   targetNodeId?: LayoutNodeId;
   splitId?: LayoutNodeId;
@@ -341,6 +341,7 @@ export interface WindowManagerCommandResult {
   applied: boolean;
   changes: WindowManagerChangeSet;
   diagnostics: readonly WindowManagerDiagnosticPayload[];
+  deprecations: readonly WindowManagerDeprecation[];
   client: WindowManagerClientView | null;
   rebasedFrom: LayoutRevision | null;
 }
@@ -348,7 +349,7 @@ export interface WindowManagerCommandResult {
 export interface WindowManagerEvent {
   workspaceId: string;
   revision: LayoutRevision;
-  commandId: WindowManagerCommandId;
+  commandId: WindowManagerEventCommandId;
   changes: WindowManagerChangeSet;
   actor: WindowManagerActor;
   origin: string;
@@ -392,11 +393,10 @@ export type WindowManagerStreamFrame =
 export type {
   ProjectionGaps,
   WindowMinimums,
-  LayoutProjectionInput,
+  TabProjectionInput,
   ProjectedWindow,
-  ProjectedStack,
   ProjectedSeam,
-  ProjectedFrameSeam,
-  LayoutProjectionDiagnostic,
-  LayoutProjection,
-} from "./layout-projection-types";
+  CollapsedSplit,
+  TabProjectionDiagnostic,
+  TabProjection,
+} from "./tab-projection-types";

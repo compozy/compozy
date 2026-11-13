@@ -8,9 +8,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ProjectedSeam } from "@/systems/os";
-
 import { useLayoutDraftSeam } from "../use-layout-draft-seam";
+import type { ProjectedSeam } from "../../lib/legacy-layout-types";
 import type { WindowManagerLayoutDesktop } from "../../lib/window-manager-layout-types";
 
 const INITIAL_DESKTOP: WindowManagerLayoutDesktop = {

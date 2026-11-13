@@ -4,7 +4,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { LayoutProjection } from "@/systems/os";
+import type { LayoutProjection } from "../../lib/legacy-layout-types";
 
 import type {
   WindowManagerLayoutDesktop,
@@ -58,7 +58,6 @@ describe("LayoutCanvasBoardBar", () => {
       windows: [],
       stacks: [],
       seams: [],
-      frameSeams: [],
       diagnostics: [],
     };
 

@@ -1,8 +1,6 @@
 import {
   MenubarContent,
-  MenubarGroup,
   MenubarItem,
-  MenubarLabel,
   MenubarMenu,
   MenubarShortcut,
   MenubarSub,
@@ -30,12 +28,6 @@ export interface WindowMenuProps {
   onRun: (commandId: string) => void;
 }
 
-const ARRANGE_COMMANDS = [
-  "layout.arrange.main-stack",
-  "layout.arrange.columns",
-  "layout.arrange.grid",
-  "layout.balance",
-];
 const MOVE_SLOT_COMMANDS = Array.from({ length: MOVE_TO_DESKTOP_SLOT_COUNT }, (_, index) =>
   moveToDesktopSlotCommandId(index + 1)
 );
@@ -45,26 +37,14 @@ const MOVE_SLOT_COMMANDS = Array.from({ length: MOVE_TO_DESKTOP_SLOT_COUNT }, (_
  * first slot, and move by desktop id through the same move boundary.
  */
 const MOVE_FAMILY_COMMAND = MOVE_SLOT_COMMANDS[0]!;
-/** Why "Move window to" has nothing to offer on a single desktop. */
+/** Why "Move to desktop" has nothing to offer on a single desktop. */
 const MOVE_NEEDS_DESKTOP_REASON = "needs another desktop";
-const STATE_COMMANDS = ["window.zoom", "window.minimize", "window.toggle_floating"];
-const TILE_COMMANDS = [
-  "window.tile.left",
-  "window.tile.right",
-  "window.tile.top",
-  "window.tile.bottom",
-  "window.tile.top-left",
-  "window.tile.top-right",
-  "window.tile.bottom-left",
-  "window.tile.bottom-right",
-];
-
 function menuGroup(id: string, content: React.ReactNode) {
   return { id, content };
 }
 
 /**
- * One "Move window to" destination. The desktop's name is the destination
+ * One "Move to desktop" destination. The desktop's name is the destination
  * itself, not a second copy of the command title; availability and reason come
  * from the registry projection, and a slot destination keeps its chord.
  */
@@ -99,12 +79,11 @@ function MoveToDesktopItem({
 }
 
 /**
- * Window menu, in the shell-rail order: Arrange presets, Move window to, the
- * window's own state (with tiling under Move & resize), All desktops, Close.
- * Grouping and order are curated here (BR-17); directional focus, tab
- * merge/detach and layout undo/redo stay palette and keyboard commands. Every
- * item's label, chord, availability and reason are projections of the
- * registry, so an item shows the same truth as its palette row and its chord.
+ * Window menu: Move to desktop (the focused window's whole tab), All desktops, Close.
+ * Grouping and order are curated here (BR-17); directional focus and layout undo/redo stay
+ * palette and keyboard commands. Every item's label, chord, availability and reason are
+ * projections of the registry, so an item shows the same truth as its palette row and its
+ * chord. The Arrange group returns with the tab model's arrange presets (S5).
  */
 export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
   const registry = usePaletteRegistry();
@@ -112,7 +91,6 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
   const { manager } = useOsShell();
   const moveTo = (desktopId: string) => moveFocusedWindowToDesktopId(manager, desktopId);
   const has = (commandId: string) => registry.byId.has(commandId);
-  const arrangeCommands = ARRANGE_COMMANDS.filter(has);
   const reachableTargets = moveTargets.filter(target =>
     has(target.slotCommandId ?? MOVE_FAMILY_COMMAND)
   );
@@ -124,22 +102,11 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
         <MenubarCommandGroups
           groups={[
             menuGroup(
-              "arrange",
-              arrangeCommands.length > 0 ? (
-                <MenubarGroup data-testid="os-menu-arrange">
-                  <MenubarLabel>Arrange</MenubarLabel>
-                  {arrangeCommands.map(commandId => (
-                    <MenubarCommandItem commandId={commandId} key={commandId} onRun={onRun} />
-                  ))}
-                </MenubarGroup>
-              ) : null
-            ),
-            menuGroup(
               "move",
               reachableTargets.length > 0 ? (
                 <MenubarSub>
                   <MenubarSubTrigger data-testid="os-menu-move-to-desktop">
-                    Move window to
+                    Move to desktop
                   </MenubarSubTrigger>
                   <MenubarSubContent>
                     {reachableTargets.map(target => (
@@ -157,7 +124,7 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
                 // stays in place disabled with its reason instead of vanishing.
                 <MenubarItem data-testid="os-menu-move-to-desktop" disabled>
                   <span className="min-w-0 flex-1">
-                    <span className="block">Move window to</span>
+                    <span className="block">Move to desktop</span>
                     <span className="block text-eyebrow text-muted-foreground">
                       {MOVE_NEEDS_DESKTOP_REASON}
                     </span>
@@ -166,26 +133,9 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
               ) : null
             ),
             menuGroup(
-              "state",
-              [...STATE_COMMANDS, ...TILE_COMMANDS, "desktop.overview"].some(has) ? (
-                <>
-                  {STATE_COMMANDS.map(commandId => (
-                    <MenubarCommandItem commandId={commandId} key={commandId} onRun={onRun} />
-                  ))}
-                  {TILE_COMMANDS.some(has) ? (
-                    <MenubarSub>
-                      <MenubarSubTrigger data-testid="os-menu-move-resize">
-                        Move &amp; resize
-                      </MenubarSubTrigger>
-                      <MenubarSubContent>
-                        {TILE_COMMANDS.map(commandId => (
-                          <MenubarCommandItem commandId={commandId} key={commandId} onRun={onRun} />
-                        ))}
-                      </MenubarSubContent>
-                    </MenubarSub>
-                  ) : null}
-                  <MenubarCommandItem commandId="desktop.overview" onRun={onRun} />
-                </>
+              "desktops",
+              has("desktop.overview") ? (
+                <MenubarCommandItem commandId="desktop.overview" onRun={onRun} />
               ) : null
             ),
             menuGroup(

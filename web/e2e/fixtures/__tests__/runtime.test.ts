@@ -226,11 +226,11 @@ describe("runtime helpers", () => {
     expect(
       renderRuntimeConfig({
         host: "127.0.0.1",
-        newWindowPolicy: "floating",
+        newWindowPolicy: "beside_focus",
         port: 4321,
         socketPath: "/tmp/compozy.sock",
       })
-    ).toContain('[window_manager]\nnew_window_policy = "floating"\n');
+    ).toContain('[window_manager]\nnew_window_policy = "beside_focus"\n');
   });
 
   it("Should render unverified extension policy only when explicitly requested", () => {

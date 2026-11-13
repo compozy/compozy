@@ -79,22 +79,14 @@ class FakeSocket implements WindowManagerSocket {
 
 function snapshot(revision: number): WindowManagerSnapshot {
   return {
-    version: 5,
+    version: 6,
     workspaceId: "workspace:test",
     revision,
-    desktops: [
-      {
-        id: "desktop:main",
-        name: "Main",
-        order: 0,
-        groups: [],
-        floating: [],
-        floatingStacks: [],
-      },
-    ],
+    desktops: [{ id: "desktop:main", name: "Main", order: 0, tabs: [], activeTabId: "" }],
     windows: {},
     closedEntryCount: 0,
     overrides: {},
+    migration: null,
     updatedAt: "2026-07-22T00:00:00Z",
   };
 }
@@ -107,7 +99,7 @@ function client(presentationRevision: number, clientId = "client:web"): WindowMa
     activeDesktopId: "desktop:main",
     focusedWindowId: null,
     focusOrder: [],
-    stackActive: {},
+    activeTab: {},
     connectedAt: "2026-07-22T00:00:00Z",
   };
 }
@@ -171,11 +163,10 @@ function rawClientFrame(presentationRevision: number, clientId = "client:web") {
       context_revision: 1,
       active_desktop_id: "desktop:main",
       focus_order: [],
-      stack_active: {},
+      active_tab: {},
       palette_context: {
         window_focused: false,
-        window_floating: false,
-        window_stacked: false,
+        window_in_split: false,
         desktop_window_count: 0,
         scope_global: false,
         shell_desktop: false,
@@ -210,7 +201,7 @@ function rawSnapshotFrame(revision: number) {
     workspace_id: "workspace:test",
     revision,
     snapshot: {
-      version: 5,
+      version: 6,
       workspace_id: "workspace:test",
       revision,
       desktops: [
@@ -218,12 +209,26 @@ function rawSnapshotFrame(revision: number) {
           id: "desktop:main",
           name: "Main",
           order: 0,
-          groups: [],
-          floating: [],
-          floating_stacks: [],
+          active_tab_id: "tab:main",
+          tabs: [
+            {
+              id: "tab:main",
+              pinned: false,
+              root: { id: "leaf:main", kind: "leaf", window_id: "window:main" },
+            },
+          ],
         },
       ],
-      windows: {},
+      windows: {
+        "window:main": {
+          id: "window:main",
+          app: "tasks",
+          route: { pathname: "/tasks", search: {} },
+          nav_stack: [],
+          desktop_id: "desktop:main",
+          tab_id: "tab:main",
+        },
+      },
       closed_entry_count: 0,
       overrides: {},
       updated_at: "2026-07-22T00:00:00Z",
@@ -975,9 +980,8 @@ describe("useWindowManagerStream", () => {
           id: "desktop:stale",
           name: "Stale",
           order: 1,
-          groups: [],
-          floating: [],
-          floatingStacks: [],
+          tabs: [],
+          activeTabId: "",
         },
       ],
     });

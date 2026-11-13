@@ -20,7 +20,6 @@ import {
   type CmdPaletteContextSnapshot,
 } from "../cmd-palette-context";
 import type { CmdPaletteStructuralCommand } from "../cmd-palette-types";
-import type { OsWindowFrameModel } from "../group-projection";
 import type { OsWindow } from "../os-types";
 
 type PaletteContextState = Parameters<typeof buildCmdPaletteContextSnapshot>[0];
@@ -28,8 +27,7 @@ type PaletteContextState = Parameters<typeof buildCmdPaletteContextSnapshot>[0];
 function contextState(state: {
   activeDesktopId: string;
   focusedId: string | null;
-  frames: Record<string, Array<Pick<OsWindowFrameModel, "id" | "members" | "activeWindowId">>>;
-  windows: Record<string, Pick<OsWindow, "id" | "desktopId" | "minimized" | "placement">>;
+  windows: Record<string, Pick<OsWindow, "id" | "desktopId" | "inSplit">>;
 }): PaletteContextState {
   return state as unknown as PaletteContextState;
 }
@@ -198,14 +196,11 @@ describe("cmd-palette context snapshot", () => {
       contextState({
         activeDesktopId: "desk-1",
         focusedId: "win-a",
-        frames: {
-          "desk-1": [{ id: "frame-1", members: ["win-a", "win-b"], activeWindowId: "win-a" }],
-        },
         windows: {
-          "win-a": { id: "win-a", desktopId: "desk-1", minimized: false, placement: "floating" },
-          "win-b": { id: "win-b", desktopId: "desk-1", minimized: false, placement: "tiled" },
-          "win-c": { id: "win-c", desktopId: "desk-2", minimized: false, placement: "tiled" },
-          "win-d": { id: "win-d", desktopId: "desk-1", minimized: true, placement: "tiled" },
+          "win-a": { id: "win-a", desktopId: "desk-1", inSplit: true },
+          "win-b": { id: "win-b", desktopId: "desk-1", inSplit: true },
+          "win-c": { id: "win-c", desktopId: "desk-2", inSplit: false },
+          "win-d": { id: "win-d", desktopId: "desk-1", inSplit: false },
         },
       }),
       {
@@ -217,10 +212,11 @@ describe("cmd-palette context snapshot", () => {
     );
     expect(built).toEqual({
       "window.focused": true,
-      "window.floating": true,
+      // v6 has no floating windows; `window.stacked` answers "shares its tab", as the daemon does.
+      "window.floating": false,
       "window.stacked": true,
-      // Minimized windows and other desktops do not count, matching the daemon.
-      "desktop.windowCount": 2,
+      // Windows on other desktops do not count, matching the daemon.
+      "desktop.windowCount": 3,
       "scope.global": true,
       "shell.desktop": false,
       "session.focused.state": "waiting-for-input",

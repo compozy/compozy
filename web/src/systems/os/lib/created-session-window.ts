@@ -24,7 +24,7 @@ function showsEmptyState(win: OsWindow): boolean {
  * 1. the focused Session window, which keeps focus;
  * 2. the most recently focused Session window showing the empty state, so no conversation
  *    leaves the screen;
- * 3. the most recently focused Session window, restored when minimized.
+ * 3. the most recently focused Session window.
  *
  * Only windows on the landing desktop qualify: reaching across desktops would switch the
  * client away from where the operator started. Pinned windows keep what they were pinned to.
@@ -34,9 +34,9 @@ function showsEmptyState(win: OsWindow): boolean {
 export function createdSessionHostWindow(
   state: HostState,
   target: CreatedSessionTarget &
-    Pick<OsOpenTarget, "forceNewInstance" | "stackTargetWindowId" | "placement">
+    Pick<OsOpenTarget, "forceNewInstance" | "afterWindowId" | "placement">
 ): OsWindow | null {
-  if (target.forceNewInstance || target.stackTargetWindowId || target.placement) return null;
+  if (target.forceNewInstance || target.afterWindowId || target.placement) return null;
   const client = state.client;
   if (client === null || target.instanceKey === "") return null;
   const owner = mruWindowInstance(state.windows, client.focusOrder, {
@@ -53,7 +53,7 @@ export function createdSessionHostWindow(
     if (showsEmptyState(win)) empty[win.id] = win;
   }
   const focused = state.focusedId !== null ? candidates[state.focusedId] : undefined;
-  if (focused && !focused.minimized) return focused;
+  if (focused) return focused;
   return (
     mruWindowInstance(empty, client.focusOrder, { app: "session" }) ??
     mruWindowInstance(candidates, client.focusOrder, { app: "session" })
@@ -61,14 +61,13 @@ export function createdSessionHostWindow(
 }
 
 /**
- * Re-keys `host` to the created session in place — its tab, split and frame stay where they
- * are — then activates it: restore when minimized, focus otherwise, nothing when it already
- * is the active focused window. The activation waits on the retarget so the window never
+ * Re-keys `host` to the created session in place — its tab and split stay where they
+ * are — then focuses it, unless it already is the focused window on screen. The activation waits on the retarget so the window never
  * gains focus while it still shows the previous session, and it is dropped when `isCurrent`
  * reports that the operator made a newer choice meanwhile: a late focus would pull them back.
  */
 export function landCreatedSession(
-  manager: Pick<RoutingManager, "getState" | "retargetWindow" | "focusWindow" | "restoreWindow">,
+  manager: Pick<RoutingManager, "getState" | "retargetWindow" | "focusWindow">,
   host: OsWindow,
   target: CreatedSessionTarget,
   isCurrent: () => boolean
@@ -81,10 +80,8 @@ export function landCreatedSession(
     const win = state.windows[host.id];
     if (!win) return false;
     if (!isCurrent()) return true;
-    if (state.focusedId === host.id && !win.minimized && win.stackActive) return true;
-    const activation = win.minimized
-      ? manager.restoreWindow(host.id)
-      : manager.focusWindow(host.id);
+    if (state.focusedId === host.id && win.shown) return true;
+    const activation = manager.focusWindow(host.id);
     return activation.accepted && (await activation.completion);
   });
   return { windowId: host.id, accepted: true, completion };

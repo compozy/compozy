@@ -17,7 +17,6 @@ import {
 import { useSwitchProfile } from "@/systems/profiles";
 import { useWorktreeListings } from "@/systems/workspace";
 
-import { frameSeamEdits } from "../lib/frame-seams";
 import { filesRouteProject } from "../lib/files-open-target";
 import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
@@ -25,11 +24,7 @@ import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore, OsOpenTarget } from "../lib/os-types";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
-import type {
-  ProjectedFrameSeam,
-  ProjectedSeam,
-  WindowManagerRegisteredClientView,
-} from "../lib/window-manager-types";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
 import { useDesktop } from "./use-desktop";
@@ -84,45 +79,24 @@ export function paletteInvokeIdentity(
 }
 
 /**
- * Palette `window.tab.new`: dismiss the command surface, open the tab against
- * the focused frame, then publish the returned window as the destination picker.
+ * Palette `window.tab.new`: dismiss the command surface, open the tab right after
+ * the focused window's tab, then publish the returned window as the destination picker.
  */
 export async function completePaletteNewTabOpen(options: {
   closePalette: () => void;
-  stackTargetWindowId: string | null;
+  afterWindowId: string | null;
   userOpen: (target: OsOpenTarget) => Promise<string | null>;
 }): Promise<void> {
   options.closePalette();
   const windowId = await options.userOpen({
     app: "new-tab",
-    ...(options.stackTargetWindowId ? { stackTargetWindowId: options.stackTargetWindowId } : {}),
+    ...(options.afterWindowId ? { afterWindowId: options.afterWindowId } : {}),
   });
   if (windowId !== null) {
     windowManagerStore.trigger.paletteIntentRequested({
       intent: { kind: "destination", windowId },
     });
   }
-}
-
-function setSeamPreview(seam: ProjectedSeam, deltaPx: number): void {
-  windowManagerStore.trigger.seamPreviewSet({
-    preview: {
-      kind: "split",
-      splitId: seam.splitId,
-      boundaryIndex: seam.boundaryIndex,
-      deltaPx,
-    },
-  });
-}
-
-function setFrameSeamPreview(seam: ProjectedFrameSeam, deltaPx: number): void {
-  windowManagerStore.trigger.seamPreviewSet({
-    preview: { kind: "frame", seamId: seam.id, deltaPx },
-  });
-}
-
-function clearSeamPreview(): void {
-  windowManagerStore.trigger.seamPreviewCleared();
 }
 
 function completeDesktopTransition(): void {
@@ -197,7 +171,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
     return {
-      palette: shortcutActionLabel(effective, "palette.open", platform),
       workspacePicker: shortcutActionLabel(effective, "workspace.picker", platform),
       globalScope: shortcutActionLabel(effective, "scope.global.toggle", platform),
     };
@@ -287,10 +260,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         notifyUser({ message: "No session needs attention.", tone: "info" });
       }
     },
-    openNewTab: stackTargetWindowId => {
+    openNewTab: afterWindowId => {
       void completePaletteNewTabOpen({
         closePalette: () => overlays.setOverlayOpen("palette", false),
-        stackTargetWindowId,
+        afterWindowId,
         userOpen: target => coordinator.userOpen(target),
       });
     },
@@ -346,35 +319,15 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     },
   });
 
-  const onResize = (splitId: string, boundaryIndex: number, delta: number) => {
-    // Clear the live seam preview only after the resize reconciles, so panes go
-    // straight from previewed to committed sizes.
-    void manager.resizeLayout(splitId, boundaryIndex, delta).completion.finally(clearSeamPreview);
-  };
-  const onFrameResize = (seam: ProjectedFrameSeam, deltaPx: number) => {
-    const snapshot = manager.getState().snapshot;
-    const groups = snapshot?.desktops.find(entry => entry.id === seam.desktopId)?.groups;
-    const edits = groups === undefined ? [] : frameSeamEdits(groups, seam, deltaPx);
-    if (edits.length === 0) {
-      clearSeamPreview();
-      return;
-    }
-    void manager.resizeGroupFrames(seam.desktopId, edits).completion.finally(clearSeamPreview);
-  };
   return {
     attention,
     desktop,
     desktopRef,
     manager,
     managerSurfaces,
-    onResize,
-    onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
     desktopSwitchShortcuts,
     onOpenDesktopOverview: openDesktopOverview,
-    onSeamPreview: setSeamPreview,
-    onFrameSeamPreview: setFrameSeamPreview,
-    onSeamPreviewEnd: clearSeamPreview,
     onTransitionComplete: completeDesktopTransition,
     overlays,
     pager,

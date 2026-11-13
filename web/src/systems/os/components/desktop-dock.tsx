@@ -67,7 +67,7 @@ export function DesktopDock({
   if (presentation === "compact") {
     return (
       <OsDockTabBar
-        className={cn("col-span-full row-start-3", dormancy)}
+        className={cn("col-span-full row-start-4", dormancy)}
         items={entries}
         onSelect={handleSelect}
         onPreload={canPreload ? handlePreload : undefined}
@@ -86,7 +86,7 @@ export function DesktopDock({
 
   return (
     <OsDock
-      className={cn("col-start-1 row-start-2", dormancy)}
+      className={cn("col-start-1 row-span-2 row-start-2", dormancy)}
       items={entries}
       onSelect={handleSelect}
       onPreload={canPreload ? handlePreload : undefined}

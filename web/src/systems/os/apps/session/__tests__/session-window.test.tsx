@@ -22,8 +22,7 @@ const desktop = {
   windows: {
     "session:sess-1": {
       desktopId: "desktop-1",
-      minimized: false,
-      stackActive: true,
+      shown: true,
       route: { pathname: "/agents/qa-agent/sessions/sess-1", search: {} },
     },
   },
@@ -163,8 +162,7 @@ describe("SessionWindow", () => {
     desktop.activeDesktopId = "desktop-1";
     desktop.focusedId = "session:sess-1";
     desktop.windows["session:sess-1"].desktopId = "desktop-1";
-    desktop.windows["session:sess-1"].minimized = false;
-    desktop.windows["session:sess-1"].stackActive = true;
+    desktop.windows["session:sess-1"].shown = true;
     desktop.windows["session:sess-1"].route.pathname = "/agents/qa-agent/sessions/sess-1";
     queryState.data = session;
     queryState.error = null;
@@ -194,21 +192,15 @@ describe("SessionWindow", () => {
 
   it.each([
     {
-      name: "the session is minimized",
-      arrange: () => {
-        desktop.windows["session:sess-1"].minimized = true;
-      },
-    },
-    {
       name: "another desktop becomes active",
       arrange: () => {
         desktop.activeDesktopId = "desktop-2";
       },
     },
     {
-      name: "another window covers its stack position",
+      name: "another tab becomes active",
       arrange: () => {
-        desktop.windows["session:sess-1"].stackActive = false;
+        desktop.windows["session:sess-1"].shown = false;
       },
     },
   ])("Should release live-tail ownership when $name", ({ arrange }) => {

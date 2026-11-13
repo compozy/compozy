@@ -1,27 +1,14 @@
-import type {
-  LayoutDesktop,
-  LayoutNode,
-  LayoutNodeId,
-  ProjectedSeam,
-} from "./window-manager-types";
+import type { LayoutNode, LayoutNodeId, LayoutTab, ProjectedSeam } from "./window-manager-types";
 
 /** Daemon floor for adjacent split weights (`reducer_layout_resize.go`). */
 const MIN_SPLIT_WEIGHT = 0.01;
 
-export interface SplitSeamPreview {
-  readonly kind: "split";
+/** A seam drag in flight: the client previews it before `layout.resize` commits. */
+export interface SeamPreview {
   readonly splitId: string;
   readonly boundaryIndex: number;
   readonly deltaPx: number;
 }
-
-export interface FrameSeamPreview {
-  readonly kind: "frame";
-  readonly seamId: string;
-  readonly deltaPx: number;
-}
-
-export type SeamPreview = SplitSeamPreview | FrameSeamPreview;
 
 /**
  * Converts a seam drag in pixels to the weight-space delta `layout.resize`
@@ -41,22 +28,16 @@ export function seamWeightDelta(seam: ProjectedSeam, deltaPx: number): number {
   return Math.min(maxDelta, Math.max(minDelta, delta));
 }
 
-/** Returns the desktop with the previewed seam delta applied to its split. */
-export function applySeamPreviewToDesktop(
-  desktop: LayoutDesktop,
+/** Returns the tab with the previewed seam delta applied to its split. */
+export function applySeamPreviewToTab(
+  tab: LayoutTab,
   seam: ProjectedSeam,
   deltaPx: number
-): LayoutDesktop {
+): LayoutTab {
   const delta = seamWeightDelta(seam, deltaPx);
-  if (delta === 0) return desktop;
-  let changed = false;
-  const groups = desktop.groups.map(group => {
-    const root = adjustSplitWeights(group.root, seam.splitId, seam.boundaryIndex, delta);
-    if (root === group.root) return group;
-    changed = true;
-    return { ...group, root };
-  });
-  return changed ? { ...desktop, groups } : desktop;
+  if (delta === 0) return tab;
+  const root = adjustSplitWeights(tab.root, seam.splitId, seam.boundaryIndex, delta);
+  return root === tab.root ? tab : { ...tab, root };
 }
 
 function adjustSplitWeights(

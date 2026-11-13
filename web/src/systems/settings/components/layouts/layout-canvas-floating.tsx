@@ -10,7 +10,7 @@ import type {
   WindowManagerLayoutWindow,
   WindowManagerNormalizedRect,
 } from "../../lib/window-manager-layout-types";
-import { clampFloatingRect } from "@/systems/os";
+import { clampFloatingRect } from "../../lib/legacy-layout-projection";
 
 interface LayoutCanvasFloatingProps {
   window: WindowManagerLayoutWindow;

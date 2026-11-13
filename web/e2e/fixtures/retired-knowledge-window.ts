@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { CompozyApiOkJsonResponseFor } from "../../src/storybook/openapi-msw";
 import type { BrowserRuntime } from "./runtime";
 import { buildLaunchRuntimeEnv, prependPath } from "./runtime-helpers";
 import { stopRegisteredDaemon } from "./runtime-process";
@@ -11,10 +10,24 @@ import { stopRegisteredDaemon } from "./runtime-process";
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
-export type RetiredKnowledgeWindowSnapshot = CompozyApiOkJsonResponseFor<
-  "get",
-  "/api/workspaces/{workspace_id}/window-manager"
->;
+/**
+ * The previous release's stored window snapshot (version 5) exactly as the
+ * seeder prints it: legacy data, not the current API snapshot. Only the
+ * fields callers read are typed; a cold boot upgrades it to tabs.
+ */
+export interface RetiredKnowledgeLegacySnapshot {
+  version: number;
+  desktops: Array<{ id: string; floating: string[] }>;
+  windows: Record<
+    string,
+    {
+      app: string;
+      desktop_id: string;
+      placement: string;
+      route: { pathname: string; search: Record<string, unknown> };
+    }
+  >;
+}
 
 export interface RetiredKnowledgeWindowSeed {
   workspaceId: string;
@@ -27,7 +40,7 @@ export interface RetiredKnowledgeWindowSeed {
 export async function seedRetiredKnowledgeWindow(
   runtime: BrowserRuntime,
   seed: RetiredKnowledgeWindowSeed
-): Promise<RetiredKnowledgeWindowSnapshot> {
+): Promise<RetiredKnowledgeLegacySnapshot> {
   if (runtime.mode !== "launch" || runtime.paths === undefined) {
     throw new Error("retired Knowledge window seeding requires a launch-mode isolated runtime");
   }
@@ -72,7 +85,7 @@ export async function seedRetiredKnowledgeWindow(
     cwd: repoRoot,
     maxBuffer: 16 * 1024 * 1024,
   });
-  return JSON.parse(stdout) as RetiredKnowledgeWindowSnapshot;
+  return JSON.parse(stdout) as RetiredKnowledgeLegacySnapshot;
 }
 
 export async function restartRetiredKnowledgeWindowRuntime(runtime: BrowserRuntime): Promise<void> {

@@ -1,4 +1,3 @@
-import { frameForWindow } from "./group-projection";
 import type { OsDesktopRuntimeStore } from "./os-types";
 
 /**
@@ -47,20 +46,20 @@ export interface CmdPaletteContextInput {
 
 /** Builds the client's volatile snapshot from live window-manager state. */
 export function buildCmdPaletteContextSnapshot(
-  state: Pick<OsDesktopRuntimeStore, "activeDesktopId" | "focusedId" | "frames" | "windows">,
+  state: Pick<OsDesktopRuntimeStore, "activeDesktopId" | "focusedId" | "windows">,
   input: CmdPaletteContextInput
 ): CmdPaletteContextSnapshot {
   const focusedId = state.focusedId;
   const focusedWindow = focusedId === null ? undefined : state.windows[focusedId];
   let desktopWindowCount = 0;
   for (const win of Object.values(state.windows)) {
-    if (win.desktopId === state.activeDesktopId && !win.minimized) desktopWindowCount += 1;
+    if (win.desktopId === state.activeDesktopId) desktopWindowCount += 1;
   }
-  const frame = focusedId === null ? null : frameForWindow(state.frames, focusedId);
+  // v6 has no floating windows; the daemon answers `window.stacked` with "shares its tab".
   return {
     "window.focused": focusedId !== null,
-    "window.floating": focusedWindow?.placement === "floating",
-    "window.stacked": frame !== null && frame.members.length > 1,
+    "window.floating": false,
+    "window.stacked": focusedWindow?.inSplit ?? false,
     "desktop.windowCount": desktopWindowCount,
     "scope.global": input.scopeGlobal,
     "shell.desktop": input.shellDesktop,

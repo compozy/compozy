@@ -7,7 +7,8 @@
 // Boundary OUT: selection state, drafts, transport.
 import { describe, expect, it } from "vitest";
 
-import { projectLayout, type LayoutDesktop, type LayoutProjectionInput } from "@/systems/os";
+import { projectLayout } from "../legacy-layout-projection";
+import type { LayoutDesktop, LayoutProjectionInput } from "../legacy-layout-types";
 
 import {
   createLayoutNodeIdFactory,

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
-import { OsWindowSurface } from "../../components/os-window-frame";
+import { OsWindowSurface } from "../../components/os-window-surface";
 import { OS_APPS } from "../../lib/app-registry";
 import type { OsAppId } from "../../lib/os-types";
 
@@ -29,7 +29,7 @@ function AppLoadingFallback({
   const AppIcon = definition.icon;
   return (
     <div className="flex h-[600px] w-[1000px] overflow-hidden rounded-lg border border-line-strong bg-canvas">
-      <OsWindowSurface controls="deck" glyph={<AppIcon />} title={definition.title}>
+      <OsWindowSurface glyph={<AppIcon />} title={definition.title}>
         {Fallback ? <Fallback aggregate={aggregate} route={{ pathname, search }} /> : null}
       </OsWindowSurface>
     </div>

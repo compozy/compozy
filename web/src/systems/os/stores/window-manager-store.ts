@@ -1,11 +1,5 @@
 import { createStore } from "@xstate/store";
 
-import {
-  beginLayoutGesture,
-  cancelLayoutGesture,
-  finishLayoutGesture,
-  previewLayoutGesture,
-} from "../lib/layout-gesture-session";
 import type { PaletteViewId } from "../lib/palette-view-registry";
 import {
   PALETTE_VIEW_STACK_ROOT,
@@ -14,10 +8,8 @@ import {
   type PaletteViewFrame,
 } from "../lib/palette-view-stack";
 import type { SeamPreview } from "../lib/seam-preview";
-import type { SnapCorner, SnapSide } from "../lib/snap-targets";
 import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 import type {
-  DeckDropTarget,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -86,9 +78,6 @@ function bindingScopedState(
     routeIntents: {},
     paletteIntent: null,
     paletteViewStack: PALETTE_VIEW_STACK_ROOT,
-    deckDropTarget: null,
-    placementCycles: {},
-    gesture: null,
     seamPreview: null,
     commandState: idleCommandState(),
   };
@@ -210,99 +199,19 @@ export function createWindowManagerStore() {
               paletteIntent: event.stack.length === 0 ? state.paletteIntent : null,
               paletteViewStack: [...event.stack],
             },
-      deckDropTargeted: (state, event: { target: DeckDropTarget }) =>
-        state.gesture?.status === "active"
-          ? { ...state, deckDropTarget: { ...event.target } }
-          : undefined,
-      deckDropCleared: (state, event: { frameId?: string }) =>
-        state.deckDropTarget === null ||
-        (event.frameId !== undefined && state.deckDropTarget.frameId !== event.frameId)
-          ? undefined
-          : { ...state, deckDropTarget: null },
-      placementCycleAdvanced: (state, event, enqueue) => {
-        const current = state.placementCycles[event.windowId];
-        const cycleStep = current?.edge === event.edge ? current.nextStep : 0;
-        enqueue.emit.placementCycleResolved({
-          windowId: event.windowId,
-          edge: event.edge,
-          cycleStep,
-        });
-        return {
-          ...state,
-          placementCycles: {
-            ...state.placementCycles,
-            [event.windowId]: { edge: event.edge, nextStep: cycleStep + 1 },
-          },
-        };
-      },
-      placementTargetTracked: (
-        state,
-        event: { windowId: string; edge: SnapSide | SnapCorner | null }
-      ) => {
-        const current = state.placementCycles[event.windowId];
-        if (event.edge === null) {
-          if (current === undefined) return;
-          const placementCycles = { ...state.placementCycles };
-          delete placementCycles[event.windowId];
-          return { ...state, placementCycles };
-        }
-        if (current?.edge === event.edge) return;
-        return {
-          ...state,
-          placementCycles: {
-            ...state.placementCycles,
-            [event.windowId]: { edge: event.edge, nextStep: 1 },
-          },
-        };
-      },
       seamPreviewSet: (state, event: { preview: SeamPreview }) => {
         const preview = event.preview;
         const current = state.seamPreview;
         const unchanged =
           current !== null &&
           current.deltaPx === preview.deltaPx &&
-          ((current.kind === "split" &&
-            preview.kind === "split" &&
-            current.splitId === preview.splitId &&
-            current.boundaryIndex === preview.boundaryIndex) ||
-            (current.kind === "frame" &&
-              preview.kind === "frame" &&
-              current.seamId === preview.seamId));
+          current.splitId === preview.splitId &&
+          current.boundaryIndex === preview.boundaryIndex;
         if (unchanged) return;
         return { ...state, seamPreview: { ...preview } };
       },
       seamPreviewCleared: state =>
         state.seamPreview === null ? undefined : { ...state, seamPreview: null },
-      gestureBegan: (state, event) => ({ ...state, gesture: beginLayoutGesture(event) }),
-      gesturePreviewed: (state, event) => {
-        if (state.gesture === null) return;
-        const gesture = previewLayoutGesture(
-          state.gesture,
-          event.point,
-          event.preview,
-          event.currentWorkArea
-        );
-        return gesture === state.gesture ? undefined : { ...state, gesture };
-      },
-      gestureCancelled: (state, event) => {
-        if (state.gesture === null) return;
-        const gesture = cancelLayoutGesture(state.gesture, event.reason, event.point);
-        return gesture === state.gesture ? undefined : { ...state, gesture, deckDropTarget: null };
-      },
-      gestureFinished: (state, event, enqueue) => {
-        if (state.gesture === null) return;
-        const decision = finishLayoutGesture(state.gesture, event);
-        const gesture =
-          decision.kind === "cancel"
-            ? cancelLayoutGesture(state.gesture, decision.reason, decision.finalPoint)
-            : null;
-        enqueue.emit.gestureDecisionResolved({ decision });
-        return { ...state, gesture };
-      },
-      gestureCleared: state =>
-        state.gesture === null && state.deckDropTarget === null
-          ? undefined
-          : { ...state, gesture: null, deckDropTarget: null },
       commandBegan: (state, event: { command: PendingWindowManagerCommand }, enqueue) => {
         if (state.commandState.status !== "idle") return;
         enqueue.emit.commandAccepted({ commandId: event.command.id });
@@ -381,7 +290,6 @@ export type WindowManagerStoreApi = ReturnType<typeof createWindowManagerStore>;
 export const windowManagerStore = createWindowManagerStore();
 
 export type {
-  DeckDropTarget,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -393,7 +301,6 @@ export type {
   WindowManagerStoreState,
   WindowManagerWorkArea,
   WindowPaletteIntent,
-  WindowPlacementCycle,
   WindowRouteIntent,
 } from "./window-manager-store-types";
 
@@ -405,10 +312,6 @@ export {
   selectWindowManagerConflict,
   selectWindowManagerConnectionStatus,
   selectWindowManagerDiagnostic,
-  selectWindowManagerGesture,
-  selectWindowManagerGestureActive,
-  selectWindowManagerGestureDragging,
-  selectWindowManagerGesturePreview,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,
 } from "./window-manager-store-selectors";

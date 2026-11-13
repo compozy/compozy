@@ -3,8 +3,8 @@ import { vi } from "vitest";
 import type { PaletteShellHandlers } from "../cmd-palette-client-ops";
 import type { PaletteDispatchPorts } from "../cmd-palette-dispatch";
 import type { ResolvedPaletteCommand } from "../cmd-palette-types";
-import type { OsWindowFrameModel } from "../group-projection";
 import type { WindowManagerController } from "../os-types";
+import type { LayoutDesktop } from "../window-manager-types";
 
 /**
  * The fields the client-op table actually reads. The full desktop store is
@@ -14,29 +14,34 @@ import type { WindowManagerController } from "../os-types";
 export interface PaletteClientOpRuntimeState {
   focusedId: string | null;
   activeDesktopId: string;
-  frames: Record<string, OsWindowFrameModel[]>;
-  windows: Record<string, { id: string; desktopId: string; minimized: boolean }>;
+  activeTabIds: Record<string, string>;
+  windows: Record<string, { id: string; desktopId: string }>;
   client: { focusOrder: string[] };
-  desktops: { id: string; order: number }[];
+  /** Desktop-order tests read only `id` and `order`; tab ops read the active desktop's bar. */
+  desktops: (Pick<LayoutDesktop, "id" | "order"> & Partial<Pick<LayoutDesktop, "tabs" | "activeTabId">>)[];
   windowManagerConfig: Record<string, never>;
 }
 
-export function frameFixture(overrides: Partial<OsWindowFrameModel> = {}): OsWindowFrameModel {
+/** The active desktop's tab bar: one single-window tab per id, in bar order. */
+export interface TabBarFixture {
+  tabs: readonly string[];
+  activeWindowId: string;
+}
+
+export function tabBarFixture(overrides: Partial<TabBarFixture> = {}): TabBarFixture {
+  return { tabs: ["w-1", "w-2", "w-3"], activeWindowId: "w-2", ...overrides };
+}
+
+function barDesktop(bar: TabBarFixture): Pick<LayoutDesktop, "id" | "order" | "tabs" | "activeTabId"> {
   return {
-    id: "fs-1",
-    desktopId: "desktop:a",
-    kind: "floating",
-    rect: { x: 0, y: 0, w: 600, h: 400 },
-    members: ["w-1", "w-2", "w-3"],
-    activeWindowId: "w-2",
-    stackId: "fs-1",
-    minimized: false,
-    zoomed: false,
-    adapted: false,
-    layer: 1,
-    zone: null,
-    resizableEdges: { left: true, right: true, top: true, bottom: true },
-    ...overrides,
+    id: "desktop:a",
+    order: 0,
+    activeTabId: `tab:${bar.activeWindowId}`,
+    tabs: bar.tabs.map(windowId => ({
+      id: `tab:${windowId}`,
+      pinned: false,
+      root: { id: `leaf:${windowId}`, kind: "leaf" as const, windowId },
+    })),
   };
 }
 
@@ -63,26 +68,26 @@ export function shellFixture(): PaletteShellHandlers {
 }
 
 export function paletteClientOpState(
-  frame: OsWindowFrameModel | null,
+  bar: TabBarFixture | null,
   focusedId: string | null
 ): PaletteClientOpRuntimeState {
   return {
     focusedId,
     activeDesktopId: "desktop:a",
-    frames: frame ? { [frame.desktopId]: [frame] } : {},
+    activeTabIds: bar ? { "desktop:a": `tab:${bar.activeWindowId}` } : {},
     windows: {
-      "w-1": { id: "w-1", desktopId: "desktop:a", minimized: false },
-      "w-2": { id: "w-2", desktopId: "desktop:a", minimized: false },
-      "w-3": { id: "w-3", desktopId: "desktop:a", minimized: false },
+      "w-1": { id: "w-1", desktopId: "desktop:a" },
+      "w-2": { id: "w-2", desktopId: "desktop:a" },
+      "w-3": { id: "w-3", desktopId: "desktop:a" },
     },
     client: { focusOrder: ["w-2", "w-1", "w-3"] },
-    desktops: [],
+    desktops: bar ? [barDesktop(bar)] : [],
     windowManagerConfig: {},
   };
 }
 
-export function opContext(frame: OsWindowFrameModel | null, focusedId: string | null) {
-  const state = paletteClientOpState(frame, focusedId);
+export function opContext(bar: TabBarFixture | null, focusedId: string | null) {
+  const state = paletteClientOpState(bar, focusedId);
   const manager = {
     getState: () => state,
     reopenWindow: vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) })),
@@ -91,9 +96,6 @@ export function opContext(frame: OsWindowFrameModel | null, focusedId: string | 
     moveWindowToDesktop: vi.fn(),
     createDesktop: vi.fn(),
     closeWindow: vi.fn(() => Promise.resolve(true)),
-    groupWindows: vi.fn(),
-    toggleFloating: vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) })),
-    tileWindow: vi.fn(),
     arrangeLayout: vi.fn(),
     focusDirection: vi.fn(),
   } as unknown as WindowManagerController & { getState: () => PaletteClientOpRuntimeState };
@@ -132,7 +134,7 @@ export function paletteCommand(
 }
 
 export function portsFixture(overrides: Partial<PaletteDispatchPorts> = {}) {
-  const context = opContext(frameFixture(), "w-2");
+  const context = opContext(tabBarFixture(), "w-2");
   const ports: PaletteDispatchPorts = {
     clientOps: {
       manager: context.manager,

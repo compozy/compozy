@@ -3,7 +3,8 @@ import { useState } from "react";
 import { fn } from "storybook/test";
 
 import type { OsWindow } from "../../lib/os-types";
-import type { LayoutProjection } from "../../lib/window-manager-types";
+import { projectTab } from "../../lib/tab-projection";
+import type { LayoutNode } from "../../lib/window-manager-types";
 import { DesktopLayoutThumbnail } from "../desktop-layout-thumbnail";
 
 import {
@@ -14,74 +15,47 @@ import {
 import { DesktopShell } from "./_desktop";
 
 const WORK_AREA = { x: 0, y: 0, w: 1380, h: 848 };
+const NO_GAPS = { inner: 0, top: 0, right: 0, bottom: 0, left: 0 };
 
-function storyWindow(
-  id: string,
-  app: OsWindow["app"],
-  rect: OsWindow["rect"],
-  extra: Partial<OsWindow> = {}
-): OsWindow {
+function storyWindow(id: string, app: OsWindow["app"]): OsWindow {
   return {
     id,
     app,
     instanceKey: null,
     route: { pathname: `/${app}`, search: {} },
     navStack: [],
-    pinned: false,
     desktopId: "story",
-    placement: "tiled",
-    rect,
-    layer: 1,
-    minimized: false,
-    zoomed: false,
-    groupId: null,
-    nodeId: null,
-    stackId: null,
-    stackActive: true,
-    parentAxis: null,
-    ...extra,
-  } as OsWindow;
+    tabId: "story-tab",
+    nodeId: id,
+    pinned: false,
+    inSplit: true,
+    tabActive: true,
+    shown: true,
+  };
 }
 
-/**
- * A thumbnail over a real-shaped projection: windows sharing a `stackId` tile
- * as one stack; `floating` windows (single or decked) stay out of the tiling.
- */
-function thumbnail(tiled: OsWindow[], floating: OsWindow[] = []) {
-  const stacks = new Map<string, OsWindow[]>();
-  for (const window of tiled) {
-    if (window.stackId) stacks.set(window.stackId, [...(stacks.get(window.stackId) ?? []), window]);
-  }
-  const zone = { x: 0, y: 0, w: 1, h: 1 };
-  const projection: LayoutProjection = {
-    revision: 1,
-    desktopId: "story",
+function leaf(windowId: string): LayoutNode {
+  return { id: windowId, kind: "leaf", windowId };
+}
+
+function split(
+  id: string,
+  axis: "horizontal" | "vertical",
+  children: LayoutNode[],
+  weights: number[]
+): LayoutNode {
+  return { id, kind: "split", axis, children, weights };
+}
+
+/** A thumbnail over the real projection of the desktop's active tab. */
+function thumbnail(root: LayoutNode, apps: Record<string, OsWindow["app"]>) {
+  const projection = projectTab({
+    tab: { id: "story-tab", pinned: false, root },
     workArea: WORK_AREA,
-    windows: tiled.map(window => ({
-      windowId: window.id,
-      nodeId: window.id,
-      groupId: "story",
-      rect: window.rect,
-      zone,
-      stackId: window.stackId,
-      active: window.stackActive,
-      adapted: false,
-      parentAxis: null,
-    })),
-    stacks: [...stacks].map(([nodeId, members]) => ({
-      nodeId,
-      groupId: "story",
-      kind: "explicit" as const,
-      windowIds: members.map(window => window.id),
-      activeWindowId: members.find(window => window.stackActive)?.id ?? members[0].id,
-      rect: members[0].rect,
-      zone,
-    })),
-    seams: [],
-    frameSeams: [],
-    diagnostics: [],
-  };
-  return <DesktopLayoutThumbnail projection={projection} windows={[...tiled, ...floating]} />;
+    gaps: NO_GAPS,
+  });
+  const windows = Object.entries(apps).map(([id, app]) => storyWindow(id, app));
+  return <DesktopLayoutThumbnail projection={projection} windows={windows} />;
 }
 
 const DESKTOPS: DesktopOverviewItem[] = [
@@ -90,22 +64,15 @@ const DESKTOPS: DesktopOverviewItem[] = [
     name: "Main",
     aspectRatio: WORK_AREA.w / WORK_AREA.h,
     switchShortcut: "⌃1",
-    thumbnail: thumbnail([
-      storyWindow(
-        "s1",
-        "session",
-        { x: 0, y: 0, w: 760, h: 848 },
-        { stackId: "st", stackActive: true }
+    thumbnail: thumbnail(
+      split(
+        "main",
+        "horizontal",
+        [leaf("s1"), split("side", "vertical", [leaf("tasks"), leaf("term")], [0.56, 0.44])],
+        [0.55, 0.45]
       ),
-      storyWindow(
-        "s2",
-        "session",
-        { x: 0, y: 0, w: 760, h: 848 },
-        { stackId: "st", stackActive: false }
-      ),
-      storyWindow("tasks", "tasks", { x: 760, y: 0, w: 620, h: 480 }),
-      storyWindow("term", "terminal", { x: 760, y: 480, w: 620, h: 368 }),
-    ]),
+      { s1: "session", tasks: "tasks", term: "terminal" }
+    ),
     windows: [
       { id: "s1", title: "Session" },
       { id: "s2", title: "Session" },
@@ -120,26 +87,13 @@ const DESKTOPS: DesktopOverviewItem[] = [
     switchShortcut: "⌃2",
     needsYou: true,
     thumbnail: thumbnail(
-      [
-        storyWindow("agents", "agents", { x: 0, y: 0, w: 860, h: 848 }),
-        storyWindow("loops", "loops", { x: 860, y: 0, w: 520, h: 848 }),
-      ],
-      // A floating tab deck: one tile, its active tab +N.
-      ["t1", "t2", "t3"].map((id, index) =>
-        storyWindow(
-          id,
-          "terminal",
-          { x: 620, y: 420, w: 560, h: 340 },
-          { placement: "stacked", stackId: "deck", stackActive: index === 0, layer: 2 }
-        )
-      )
+      split("review", "horizontal", [leaf("agents"), leaf("loops")], [0.62, 0.38]),
+      { agents: "agents", loops: "loops" }
     ),
     windows: [
       { id: "agents", title: "Agents" },
       { id: "loops", title: "Loops" },
       { id: "t1", title: "Terminal" },
-      { id: "t2", title: "Terminal" },
-      { id: "t3", title: "Terminal" },
     ],
   },
   {
@@ -147,10 +101,7 @@ const DESKTOPS: DesktopOverviewItem[] = [
     name: "Research",
     aspectRatio: WORK_AREA.w / WORK_AREA.h,
     switchShortcut: "⌃3",
-    thumbnail: thumbnail([
-      storyWindow("marketplace", "marketplace", { x: 0, y: 0, w: 1380, h: 424 }),
-      storyWindow("vault", "vault", { x: 0, y: 424, w: 1380, h: 424 }),
-    ]),
+    thumbnail: thumbnail(leaf("marketplace"), { marketplace: "marketplace" }),
     windows: [
       { id: "marketplace", title: "Marketplace" },
       { id: "vault", title: "Vault" },

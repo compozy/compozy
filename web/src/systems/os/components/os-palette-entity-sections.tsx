@@ -133,7 +133,6 @@ export function OsPaletteEntitySections({
                 </span>
               ) : null}
               <span className="ml-auto shrink-0 text-eyebrow text-subtle">
-                {tab.minimized ? "minimized · " : ""}
                 {tab.desktopName}
               </span>
             </CommandItem>

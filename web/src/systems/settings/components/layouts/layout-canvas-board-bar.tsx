@@ -4,7 +4,10 @@ import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
 } from "../../lib/window-manager-layout-types";
-import type { LayoutProjection, LayoutProjectionDiagnostic } from "@/systems/os";
+import type {
+  LayoutProjection,
+  LayoutProjectionDiagnostic,
+} from "../../lib/legacy-layout-types";
 
 interface LayoutCanvasBoardBarProps {
   document: WindowManagerLayoutDocument;

@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
 
@@ -33,7 +33,8 @@ import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
-import { LiveOsWinLayer } from "./os-win-layer";
+import { LiveOsDeskLayer } from "./os-desk-layer";
+import { OsTabBar } from "./os-tab-bar";
 import { AgentCreateHostProvider, AgentCreateScreen } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -180,9 +181,6 @@ function DesktopShellScopedBody({
   worktreeSelection,
   clientCommandChannel,
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
-  // A deep link can arrive before its window-open receipt. Keep that transient
-  // empty projection from loading a composer the destination does not use.
-  const showEmptyDesktop = useLocation({ select: location => location.pathname === "/" });
   const sessionCreate = useSessionCreateActions();
   const profileLifecycleActions = useProfileLifecycleHostActions();
   // Scope and order are the operator's, persisted by the daemon; the modal
@@ -202,14 +200,9 @@ function DesktopShellScopedBody({
     desktopRef,
     manager,
     managerSurfaces,
-    onResize,
-    onFrameResize,
     onDesktopManagerOpenChange,
     desktopSwitchShortcuts,
     onOpenDesktopOverview,
-    onSeamPreview,
-    onFrameSeamPreview,
-    onSeamPreviewEnd,
     onTransitionComplete,
     overlays,
     pager,
@@ -234,11 +227,11 @@ function DesktopShellScopedBody({
       data-first-run={firstRun ? "true" : undefined}
       inert={firstRun}
       tabIndex={-1}
-      // Topbar across the full width; rail + desk below it; the compact tab bar
-      // takes the last row. Each dock presentation claims its own track. The
-      // grid paints the chrome, so topbar + rail read as one L-shaped surface
-      // around the inset desk panel.
-      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
+      // Topbar across the full width; the rail beside the desktop's tab bar and
+      // the desk below it; the compact dock tab bar takes the last row. Each
+      // dock presentation claims its own track. The grid paints the chrome, so
+      // topbar, rail and tab bar read as one surface around the inset desk panel.
+      className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-rail focus-visible:shadow-focus-inset focus-visible:outline-none"
     >
       <DesktopMenubar
         // Dimmed while setup blocks: readable enough to see what you unlock,
@@ -308,15 +301,23 @@ function DesktopShellScopedBody({
         }
         onOpenSettings={() => void paletteDispatch.runById("settings.general")}
       />
+      <OsTabBar
+        className={cn(
+          "row-start-2 min-w-0",
+          desktop.presentation === "compact" ? "col-span-full" : "col-start-2"
+        )}
+      />
       <div
         data-slot="os-desk"
         className={cn(
           // The desk is a panel inset into the chrome: a hairline where it meets
-          // the topbar and rail, flush with the window's right and bottom edges.
-          // It clips its children so tiled panes follow the rounded corner; the
-          // win-layer sits inside the border, so snap geometry never sees it.
-          "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-t border-line",
-          desktop.presentation !== "compact" && "rounded-tl-lg border-l"
+          // the tab bar and rail, flush with the window's right and bottom edges.
+          // It clips its children so split panes follow the rounded corner; the
+          // desk layer sits inside the border, so projection never sees it.
+          "relative row-start-3 min-h-0 overflow-hidden border-t border-line",
+          desktop.presentation !== "compact"
+            ? "col-start-2 rounded-tl-lg border-l"
+            : "col-span-full"
         )}
       >
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -330,18 +331,10 @@ function DesktopShellScopedBody({
         {desktop.windowIds.map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
-        <LiveOsWinLayer
-          showEmptyDesktop={showEmptyDesktop}
-          paletteShortcutLabel={shortcutLabels.palette}
-          canStart={model.dataScope !== null}
+        <LiveOsDeskLayer
           reducedMotion={reducedMotion}
           transition={transition}
           onTransitionComplete={onTransitionComplete}
-          onResize={onResize}
-          onFrameResize={onFrameResize}
-          onSeamPreview={onSeamPreview}
-          onFrameSeamPreview={onFrameSeamPreview}
-          onSeamPreviewEnd={onSeamPreviewEnd}
         />
         <DesktopManagerSurfaces
           model={managerSurfaces}

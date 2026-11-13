@@ -61,7 +61,6 @@ export function OsDockAppMenu({ appId, onLaunch, children }: OsDockAppMenuProps)
           Open in split
           <ContextMenuShortcut>⌥ click</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem {...item("window")}>Open in new window</ContextMenuItem>
         <ContextMenuItem {...item("desktop")}>
           Open in new desktop
           <ContextMenuShortcut>⇧ click</ContextMenuShortcut>

@@ -3,7 +3,7 @@ import { cn } from "@compozy/ui";
 import { canvasPercentStyle } from "../../lib/window-manager-layout-canvas";
 import { layoutWindowFace } from "../../lib/window-manager-layout-window-face";
 import type { WindowManagerLayoutDocument } from "../../lib/window-manager-layout-types";
-import type { ProjectedStack, ProjectedWindow } from "@/systems/os";
+import type { ProjectedStack, ProjectedWindow } from "../../lib/legacy-layout-types";
 
 interface LayoutCanvasTileProps {
   document: WindowManagerLayoutDocument;

@@ -6,7 +6,7 @@ import { WindowScopeContext } from "@/hooks/use-window-scope";
 
 import { useTopbarSlot } from "@compozy/ui";
 
-import { OsWindowSurface } from "../../components/os-window-frame";
+import { OsWindowSurface } from "../../components/os-window-surface";
 import { OS_APPS, dockApps, matchSessionInstance, resolveAppForPath } from "../app-registry";
 import { filesOpenTarget, filesProjectForOpen } from "../files-open-target";
 import type { OsAppId } from "../os-types";

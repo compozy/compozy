@@ -254,8 +254,7 @@ export class RoutingCoordinator {
   async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
-    const alreadyActive =
-      state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
+    const alreadyActive = state.focusedId === windowId && win?.shown === true;
     if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
     if (alreadyActive) return false;
@@ -268,18 +267,15 @@ export class RoutingCoordinator {
 
   /**
    * Dock cycling, palette "Go to tab", session rows: land on a specific window
-   * in one action (US-017/US-021). Restore carries focus and the desktop
-   * switch for the acting client; `window.focus` alone rejects minimized
-   * targets, so the two paths are a single decision here.
+   * in one action (US-017/US-021). `window.focus` carries the tab activation
+   * and the desktop switch for the acting client.
    */
   async userActivateWindow(windowId: string): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
     this.nextUserIntentToken += 1;
-    const outcome = win.minimized
-      ? this.manager.restoreWindow(windowId)
-      : this.manager.focusWindow(windowId);
+    const outcome = this.manager.focusWindow(windowId);
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);
@@ -345,35 +341,6 @@ export class RoutingCoordinator {
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.closeWindow(windowId, viewOnly))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
-    return true;
-  }
-
-  /** Minimize: when focus moves to a successor, the URL follows it. */
-  async userMinimize(windowId: string): Promise<boolean> {
-    const state = this.manager.getState();
-    const win = state.windows[windowId];
-    if (!win || win.minimized) return false;
-    this.nextUserIntentToken += 1;
-    const wasFocused = state.focusedId === windowId;
-    if (!(await this.manager.minimizeWindow(windowId))) return false;
-    if (wasFocused) this.navigateToFocusedOrDesktop();
-    return true;
-  }
-
-  /**
-   * Zoom already focuses its target in the daemon client projection. For an
-   * inactive window, reflect that activation with one history write without
-   * preceding the durable command with a competing presentation command.
-   */
-  async userZoom(windowId: string): Promise<boolean> {
-    const state = this.manager.getState();
-    const win = state.windows[windowId];
-    if (!win || win.minimized) return false;
-    this.nextUserIntentToken += 1;
-    const wasFocused = state.focusedId === windowId;
-    const outcome = this.manager.zoomWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    if (!wasFocused) this.pushRoute(win.route);
     return true;
   }
 

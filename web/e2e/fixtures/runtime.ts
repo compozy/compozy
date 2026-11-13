@@ -72,7 +72,7 @@ export interface BrowserRuntimeOptions {
   host?: string;
   modelsDevEnabled?: boolean;
   /** Pins `window_manager.new_window_policy` for specs whose invariants need one placement. */
-  newWindowPolicy?: "floating" | "beside_focus" | "tab";
+  newWindowPolicy?: "beside_focus" | "tab";
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
   seedDefaultWorkspace?: boolean;

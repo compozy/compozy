@@ -4,9 +4,8 @@ import {
   type PaletteClientOpHandler,
 } from "./cmd-palette-client-op-context";
 import { orderedDesktops } from "./desktop-order";
-import { frameForWindow } from "./group-projection";
 import type { OsArrangePreset } from "./os-types";
-import type { SnapCorner, SnapSide } from "./snap-targets";
+import { leadWindowId, resolveActiveTabId } from "./tab-model";
 
 /**
  * Window, tab, desktop and layout operations, keyed by the command id the
@@ -18,84 +17,40 @@ import type { SnapCorner, SnapSide } from "./snap-targets";
  */
 const TAB_JUMP_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 const DESKTOP_SWITCH_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-const PLACEMENTS: readonly (SnapSide | SnapCorner)[] = [
-  "left",
-  "right",
-  "top",
-  "bottom",
-  "top-left",
-  "top-right",
-  "bottom-left",
-  "bottom-right",
-];
 const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid", "main-stack", "columns"];
 
 function focusedWindowId(context: PaletteClientOpContext): string | null {
   return currentState(context).focusedId;
 }
 
-function activateStackMember(
+/** Activates a tab of the active desktop's bar, chosen from the bar order and the active index. */
+function activateBarTab(
   context: PaletteClientOpContext,
-  resolve: (members: readonly string[], activeIndex: number) => string | undefined
+  resolve: (count: number, activeIndex: number) => number | undefined
 ): void {
   const state = currentState(context);
-  const focusedId = state.focusedId;
-  if (focusedId === null) return;
-  const frame = frameForWindow(state.frames, focusedId);
-  if (frame === null || frame.members.length < 2) return;
-  const activeIndex = Math.max(0, frame.members.indexOf(frame.activeWindowId));
-  const target = resolve(frame.members, activeIndex);
-  if (target !== undefined && target !== frame.activeWindowId) {
-    context.shell.activateWindow(target);
-  }
+  const desktop = state.desktops.find(candidate => candidate.id === state.activeDesktopId);
+  if (desktop === undefined || desktop.tabs.length === 0) return;
+  const activeTabId = state.activeTabIds[desktop.id] ?? resolveActiveTabId(desktop, null);
+  const activeIndex = Math.max(0, desktop.tabs.findIndex(tab => tab.id === activeTabId));
+  const index = resolve(desktop.tabs.length, activeIndex);
+  const tab = index === undefined ? undefined : desktop.tabs[index];
+  if (tab === undefined || tab.id === activeTabId) return;
+  const lead = leadWindowId(tab, state.client?.focusOrder ?? []);
+  if (lead !== null) context.shell.activateWindow(lead);
 }
 
 function focusLastWindow(context: PaletteClientOpContext): void {
   const state = currentState(context);
   const target = state.client?.focusOrder.find(
-    windowId => windowId !== state.focusedId && !state.windows[windowId]?.minimized
+    windowId => windowId !== state.focusedId && state.windows[windowId] !== undefined
   );
   if (target) context.shell.activateWindow(target);
 }
 
-/** Every visible peer on the focused desktop joins the focused window's frame. */
-function mergeAllWindows(context: PaletteClientOpContext): void {
-  const state = currentState(context);
-  const activeDesktopId = state.activeDesktopId;
-  const anchor = state.focusedId;
-  if (activeDesktopId === null || anchor === null) return;
-  const joiners = Object.values(state.windows)
-    .filter(win => win.desktopId === activeDesktopId && win.id !== anchor && !win.minimized)
-    .sort((left, right) => left.id.localeCompare(right.id))
-    .map(win => win.id);
-  if (joiners.length > 0) context.manager.groupWindows(anchor, joiners);
-}
-
-/** Floats the focused tab out of its stack and follows it. */
-function detachFocusedTab(context: PaletteClientOpContext): void {
-  const state = currentState(context);
-  const focusedId = state.focusedId;
-  if (focusedId === null) return;
-  const frame = frameForWindow(state.frames, focusedId);
-  if (frame === null || frame.members.length < 2) return;
-  const outcome = context.manager.toggleFloating(focusedId);
-  if (!outcome.accepted) return;
-  void outcome.completion.then(applied => {
-    if (applied) context.shell.activateWindow(focusedId);
-  });
-}
-
-function tilePlacement(placement: SnapSide | SnapCorner): PaletteClientOpHandler {
-  return context => {
-    const state = currentState(context);
-    if (state.focusedId === null || state.windowManagerConfig === null) return;
-    context.manager.tileWindow(state.focusedId, placement);
-  };
-}
-
 /** Sends the focused window to the desktop at `slot` (1-based, in desktop order). */
 /**
- * Moves the focused window to a desktop by id — the one move boundary behind
+ * Moves the focused window's tab to a desktop by id — the one move boundary behind
  * both the numbered slot commands and named destinations past the ninth slot.
  */
 export function moveFocusedWindowToDesktopId(
@@ -138,12 +93,6 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
   PaletteClientOpHandler
 >([
   ["window.close", withFocusedWindow((context, id) => void context.manager.closeWindow(id))],
-  ["window.minimize", withFocusedWindow((context, id) => void context.manager.minimizeWindow(id))],
-  ["window.zoom", withFocusedWindow((context, id) => void context.manager.zoomWindow(id))],
-  [
-    "window.toggle_floating",
-    withFocusedWindow((context, id) => void context.manager.toggleFloating(id).completion),
-  ],
   [
     "window.nav.back",
     withFocusedWindow((context, id) => void context.manager.popWindowRoute(id).completion),
@@ -153,24 +102,14 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
   ["window.focus.up", context => context.manager.focusDirection("up")],
   ["window.focus.down", context => context.manager.focusDirection("down")],
   ["window.focus.last", focusLastWindow],
-  ["window.merge_all", mergeAllWindows],
-  ["window.tab.detach", detachFocusedTab],
   ["window.tab.new", context => context.shell.openNewTab(focusedWindowId(context))],
   ["window.tab.reopen", context => void context.manager.reopenWindow().completion],
-  [
-    "window.tab.next",
-    context =>
-      activateStackMember(context, (members, index) => members[(index + 1) % members.length]),
-  ],
+  ["window.tab.next", context => activateBarTab(context, (count, index) => (index + 1) % count)],
   [
     "window.tab.previous",
-    context =>
-      activateStackMember(
-        context,
-        (members, index) => members[(index - 1 + members.length) % members.length]
-      ),
+    context => activateBarTab(context, (count, index) => (index - 1 + count) % count),
   ],
-  ["window.tab.last", context => activateStackMember(context, members => members.at(-1))],
+  ["window.tab.last", context => activateBarTab(context, count => count - 1)],
   ["desktop.create", context => context.manager.createDesktop()],
   ["desktop.overview", context => context.shell.openDesktops()],
   ["desktop.switch.previous", context => context.manager.switchDesktopDirection("previous")],
@@ -182,8 +121,7 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
     slot =>
       [
         `window.tab.jump.${slot}`,
-        (context: PaletteClientOpContext) =>
-          activateStackMember(context, members => members[slot - 1]),
+        (context: PaletteClientOpContext) => activateBarTab(context, () => slot - 1),
       ] as const
   ),
   ...DESKTOP_SWITCH_SLOTS.map(
@@ -199,6 +137,5 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
   ...DESKTOP_SWITCH_SLOTS.map(
     slot => [`window.move_to_desktop.${slot}`, moveFocusedWindowToDesktop(slot)] as const
   ),
-  ...PLACEMENTS.map(placement => [`window.tile.${placement}`, tilePlacement(placement)] as const),
   ...ARRANGE_PRESETS.map(preset => [`layout.arrange.${preset}`, arrangePreset(preset)] as const),
 ]);

@@ -21,7 +21,7 @@ export interface RuntimeConfigInput {
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
-  newWindowPolicy?: "floating" | "beside_focus" | "tab";
+  newWindowPolicy?: "beside_focus" | "tab";
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";

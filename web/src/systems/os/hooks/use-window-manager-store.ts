@@ -4,16 +4,12 @@ import { useContext } from "react";
 import { DeskProfileContext } from "../contexts/desk-profile-context";
 
 import type { PaletteViewFrame } from "../lib/palette-view-stack";
-import type { SnapTarget } from "../lib/snap-targets";
 import {
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,
   selectWindowManagerConflict,
   selectWindowManagerDiagnostic,
-  selectWindowManagerGestureActive,
-  selectWindowManagerGestureDragging,
-  selectWindowManagerGesturePreview,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,
   type DesktopOverviewSegmentRequest,
@@ -56,24 +52,6 @@ export function useDesktopOverviewSegmentRequest(): DesktopOverviewSegmentReques
 export function useDesktopTransitionIntent(): DesktopTransitionIntent | null {
   return useSelector(windowManagerStore, snapshot =>
     selectDesktopTransitionIntent(snapshot.context)
-  );
-}
-
-export function useWindowManagerGestureActive(windowId: string): boolean {
-  return useSelector(windowManagerStore, snapshot =>
-    selectWindowManagerGestureActive(snapshot.context, windowId)
-  );
-}
-
-export function useWindowManagerGestureDragging(windowId: string): boolean {
-  return useSelector(windowManagerStore, snapshot =>
-    selectWindowManagerGestureDragging(snapshot.context, windowId)
-  );
-}
-
-export function useWindowManagerGesturePreview(): SnapTarget | null {
-  return useSelector(windowManagerStore, snapshot =>
-    selectWindowManagerGesturePreview(snapshot.context)
   );
 }
 

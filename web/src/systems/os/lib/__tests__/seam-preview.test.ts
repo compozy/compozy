@@ -3,11 +3,11 @@
 // weight-space delta — px clamped by projection minimums, weights floored at the
 // daemon's 0.01 adjacent minimum, normalized by the split's axis span.
 // Boundary IN: a projected seam + raw pointer delta in pixels.
-// Boundary OUT: gesture lifecycle and command transport.
+// Boundary OUT: seam drag lifecycle and command transport.
 import { describe, expect, it } from "vitest";
 
-import { applySeamPreviewToDesktop, seamWeightDelta } from "../seam-preview";
-import type { LayoutDesktop, ProjectedSeam } from "../window-manager-types";
+import { applySeamPreviewToTab, seamWeightDelta } from "../seam-preview";
+import type { LayoutTab, ProjectedSeam } from "../window-manager-types";
 
 const SEAM: ProjectedSeam = {
   id: "split:root:0",
@@ -22,32 +22,31 @@ const SEAM: ProjectedSeam = {
   leadingWeight: 0.5,
   trailingWeight: 0.5,
   leadingWindowIds: ["window:left"],
-  trailingWindowIds: ["window:right"],
+  trailingWindowIds: ["window:top", "window:bottom"],
 };
 
-function desktop(): LayoutDesktop {
+const UNTOUCHED_BRANCH = {
+  id: "split:inner",
+  kind: "split",
+  axis: "vertical",
+  weights: [0.5, 0.5],
+  children: [
+    { id: "leaf:top", kind: "leaf", windowId: "window:top" },
+    { id: "leaf:bottom", kind: "leaf", windowId: "window:bottom" },
+  ],
+} as const;
+
+function tab(): LayoutTab {
   return {
-    id: "desktop:one",
-    name: "One",
-    order: 0,
-    floating: [],
-    floatingStacks: [],
-    groups: [
-      {
-        id: "group:main",
-        frame: { x: 0, y: 0, w: 1, h: 1 },
-        root: {
-          id: "split:root",
-          kind: "split",
-          axis: "horizontal",
-          weights: [0.5, 0.5],
-          children: [
-            { id: "leaf:left", kind: "leaf", windowId: "window:left" },
-            { id: "leaf:right", kind: "leaf", windowId: "window:right" },
-          ],
-        },
-      },
-    ],
+    id: "tab:main",
+    pinned: false,
+    root: {
+      id: "split:root",
+      kind: "split",
+      axis: "horizontal",
+      weights: [0.5, 0.5],
+      children: [{ id: "leaf:left", kind: "leaf", windowId: "window:left" }, UNTOUCHED_BRANCH],
+    },
   };
 }
 
@@ -82,38 +81,34 @@ describe("seamWeightDelta", () => {
   });
 });
 
-describe("applySeamPreviewToDesktop", () => {
+describe("applySeamPreviewToTab", () => {
   it("Should shift only the two adjacent weights of the previewed split", () => {
-    const adjusted = applySeamPreviewToDesktop(desktop(), SEAM, 99.2);
-    const root = adjusted.groups[0]?.root;
-    if (root?.kind !== "split") throw new Error("expected split root");
+    const adjusted = applySeamPreviewToTab(tab(), SEAM, 99.2);
+    const root = adjusted.root;
+    if (root.kind !== "split") throw new Error("expected split root");
     expect(root.weights[0]).toBeCloseTo(0.6, 10);
     expect(root.weights[1]).toBeCloseTo(0.4, 10);
   });
 
-  it("Should return the desktop unchanged for a zero delta", () => {
-    const base = desktop();
-    expect(applySeamPreviewToDesktop(base, SEAM, 0)).toBe(base);
+  it("Should return the tab unchanged for a zero delta", () => {
+    const base = tab();
+    expect(applySeamPreviewToTab(base, SEAM, 0)).toBe(base);
   });
 
-  it("Should preserve the desktop when the projected split is absent", () => {
-    const base = desktop();
-    expect(applySeamPreviewToDesktop(base, { ...SEAM, splitId: "split:missing" }, 99.2)).toBe(base);
+  it("Should preserve the tab when the projected split is absent", () => {
+    const base = tab();
+    expect(applySeamPreviewToTab(base, { ...SEAM, splitId: "split:missing" }, 99.2)).toBe(base);
   });
 
-  it("Should preserve unaffected group identities when one split changes", () => {
-    const base = desktop();
-    const untouched = {
-      id: "group:untouched",
-      frame: { x: 0, y: 0, w: 1, h: 1 },
-      root: { id: "leaf:untouched", kind: "leaf", windowId: "window:untouched" },
-    } as const;
-    const withPeer = { ...base, groups: [...base.groups, untouched] };
+  it("Should preserve unaffected branch identities when one split changes", () => {
+    const base = tab();
 
-    const adjusted = applySeamPreviewToDesktop(withPeer, SEAM, 99.2);
+    const adjusted = applySeamPreviewToTab(base, SEAM, 99.2);
 
-    expect(adjusted).not.toBe(withPeer);
-    expect(adjusted.groups[0]).not.toBe(withPeer.groups[0]);
-    expect(adjusted.groups[1]).toBe(untouched);
+    expect(adjusted).not.toBe(base);
+    expect(adjusted.root).not.toBe(base.root);
+    expect(adjusted.root.kind === "split" ? adjusted.root.children[1] : null).toBe(
+      UNTOUCHED_BRANCH
+    );
   });
 });

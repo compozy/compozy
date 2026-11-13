@@ -184,8 +184,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
         !!win &&
         state.focusedId === windowId &&
         win.desktopId === state.activeDesktopId &&
-        !win.minimized &&
-        win.stackActive,
+        win.shown,
     };
   }, shallowEqual);
   // Neutral content clicks focus the desktop ancestor, outside this window's

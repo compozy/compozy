@@ -4,8 +4,9 @@ import { toDraftDesktop } from "../lib/window-manager-layout-bridge";
 import { LAYOUT_CANVAS_REFERENCE } from "../lib/window-manager-layout-reference";
 import { fractionLabel, nearestDetent } from "../lib/window-manager-layout-detents";
 import type { WindowManagerLayoutDesktop } from "../lib/window-manager-layout-types";
+import { applySeamPreviewToDesktop, seamWeightDelta } from "../lib/legacy-layout-geometry";
+import type { ProjectedSeam } from "../lib/legacy-layout-types";
 import { usePointerDrag } from "./use-pointer-drag";
-import { applySeamPreviewToDesktop, type ProjectedSeam, seamWeightDelta } from "@/systems/os";
 
 /** Matches the live shell's keyboard step so both surfaces nudge by the same amount. */
 const KEYBOARD_STEP = 0.02;

@@ -175,7 +175,8 @@ describe("window-manager layouts API", () => {
     expect(state).toMatchObject({
       revision: windowManagerSnapshotFixture.revision,
       document: {
-        version: windowManagerSnapshotFixture.version,
+        // The editor still edits v5 documents until S7 moves it to the tab model.
+        version: 5,
         workspaceId: windowManagerSnapshotFixture.workspace_id,
       },
     });

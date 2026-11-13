@@ -17,7 +17,7 @@ import {
   focusWindowThroughPalette,
   openAppWindow,
   setGlobalScope,
-  windowFrame,
+  windowID,
 } from "../fixtures/os-navigation";
 import { type BrowserRuntime, type RuntimePaths } from "../fixtures/runtime";
 import {
@@ -417,8 +417,22 @@ async function interactiveTerminalLog(window: Locator): Promise<Locator> {
 
 function focusedTerminalWindow(page: Page): Locator {
   return page.locator(
-    '[data-slot="os-window-frame"][data-focused] [data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    '[data-slot="os-window-surface"][data-focused][data-app="terminal"][data-shown]'
   );
+}
+
+/** The tab-bar tab whose lead window is `windowId`. */
+function tabOfWindow(page: Page, windowId: string): Locator {
+  return page.getByTestId("os-tab-bar").locator(`[role="tab"][data-lead-window-id="${windowId}"]`);
+}
+
+/**
+ * Closes every unpinned tab of the active desktop from one tab's context menu: a single
+ * close that covers several running terminals, so it confirms them together.
+ */
+async function closeAllTabsFrom(page: Page, windowId: string): Promise<void> {
+  await tabOfWindow(page, windowId).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Close all tabs" }).click();
 }
 
 function structuredTerminalErrorCode(payload: unknown): string | undefined {
@@ -511,6 +525,7 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
   expect((await createResponsePromise).status()).toBe(201);
   const firstActiveWindow = focusedTerminalWindow(appPage);
   const firstID = await visibleTerminalPaneID(firstActiveWindow);
+  const firstWindowID = await windowID(firstActiveWindow);
   await focusWindowThroughPalette(appPage, firstActiveWindow);
   let window = firstActiveWindow;
   const firstLog = await interactiveTerminalLog(window);
@@ -521,8 +536,8 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
     .poll(async () => (await terminalScreen(runtime, workspace.id, firstID)).content)
     .toContain("first-screen-intact");
 
-  // Another terminal joins this frame as an OS window tab — the deck is the
-  // only tab strip anywhere.
+  // Another terminal opens as its own tab of the desktop's tab bar — the bar
+  // is the only tab strip anywhere.
   const secondCreatePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
@@ -530,10 +545,12 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
   );
   await window.getByTestId("terminal-new").click();
   expect((await secondCreatePromise).status()).toBe(201);
-  const frame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
-  await expect(frame.locator('[role="tab"]')).toHaveCount(2);
   const secondActiveWindow = focusedTerminalWindow(appPage);
   const secondID = await visibleTerminalPaneID(secondActiveWindow);
+  const secondWindowID = await windowID(secondActiveWindow);
+  expect(secondWindowID).not.toBe(firstWindowID);
+  await expect(tabOfWindow(appPage, firstWindowID)).toBeVisible();
+  await expect(tabOfWindow(appPage, secondWindowID)).toHaveAttribute("data-active", "");
   expect(secondID).not.toBe(firstID);
   window = secondActiveWindow;
   const secondLog = await interactiveTerminalLog(window);
@@ -544,15 +561,12 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
     .poll(async () => (await terminalScreen(runtime, workspace.id, secondID)).content)
     .toContain("second-screen-intact");
   for (let index = 0; index < 8; index += 1) {
-    await frame
-      .locator('[data-testid^="os-window-tab-"] [role="tab"]')
-      .nth(index % 2)
-      .click();
+    await tabOfWindow(appPage, index % 2 === 0 ? firstWindowID : secondWindowID).click();
   }
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  const restoredFrame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
-  await expect(restoredFrame.locator('[role="tab"]')).toHaveCount(2);
+  await expect(tabOfWindow(appPage, firstWindowID)).toBeVisible();
+  await expect(tabOfWindow(appPage, secondWindowID)).toBeVisible();
   // Reattach re-votes the grid size, and a transient shrink may reflow the
   // focused viewport (ADR-015 sizes by writers). Retention is therefore
   // asserted on the unfocused PTY, which cast no vote, while the focused one
@@ -587,12 +601,12 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
     ])
   );
 
-  // Cancel preserves every process and the complete group. Confirm terminates
-  // exactly these two terminals before the daemon removes their windows.
+  // Cancel preserves every process and both tabs. Confirm terminates exactly
+  // these two terminals before the daemon removes their windows.
   const restored = focusedTerminalWindow(appPage);
   await focusWindowThroughPalette(appPage, restored);
   // All projects is its own desktop (AP), so the close runs on the project's desktop.
-  await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
+  await closeAllTabsFrom(appPage, await windowID(restored));
   const confirmation = appPage.getByTestId("terminal-close-dialog");
   await expect(confirmation).toBeVisible();
   await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -609,7 +623,7 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
       terminal => [firstID, secondID].includes(terminal.id) && terminal.state === "running"
     )
   ).toHaveLength(2);
-  await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
+  await closeAllTabsFrom(appPage, await windowID(restored));
   await confirmation.getByRole("button", { name: "Terminate and close" }).click();
   await expect(restored).toBeHidden();
   await expect
@@ -683,6 +697,7 @@ for (const destination of ["global-project", "global-user", "user"] as const) {
     expect(response.request().headers()["x-compozy-client-id"]).toMatch(/^web-/);
     let terminal = focusedTerminalWindow(appPage);
     const firstID = await visibleTerminalPaneID(terminal);
+    const firstWindowID = await windowID(terminal);
     const log = await interactiveTerminalLog(terminal);
     await log.click();
     await appPage.keyboard.type("PS1='$ '; clear; printf 'bound-%s\\n' terminal-live");
@@ -711,7 +726,8 @@ for (const destination of ["global-project", "global-user", "user"] as const) {
       .poll(async () => (await terminalScreen(runtime, target, secondID)).content)
       .toContain("second-terminal-live");
     await expect(secondLog).toContainText("second-terminal-live");
-    await windowFrame(terminal).getByRole("button", { name: "Close window" }).click();
+    // One close covers both terminal tabs, so it confirms them together.
+    await closeAllTabsFrom(appPage, firstWindowID);
     const confirmation = appPage.getByTestId("terminal-close-dialog");
     await expect(confirmation).toBeVisible();
     await browserArtifacts.captureScreenshot(`${destination}-confirm`, appPage);
@@ -725,7 +741,7 @@ for (const destination of ["global-project", "global-user", "user"] as const) {
         item => [firstID, secondID].includes(item.id) && item.state === "running"
       )
     ).toHaveLength(2);
-    await windowFrame(terminal).getByRole("button", { name: "Close window" }).click();
+    await closeAllTabsFrom(appPage, firstWindowID);
     await confirmation.getByRole("button", { name: "Terminate and close" }).click();
     await expect(terminal).toBeHidden();
     await expect
@@ -756,16 +772,16 @@ for (const destination of ["global-project", "global-user", "user"] as const) {
             instance_key: "term-missing",
             route: { pathname: "/terminal/term-missing", search: { workspace: target } },
             desktop_id: "desktop-default",
-            insert_tiled: false,
-            floating_rect: { x: 0.1, y: 0.1, width: 0.6, height: 0.6 },
           },
         },
       }),
     });
+    // A client-less open does not change the tab this client is looking at; activate it.
+    await tabOfWindow(appPage, "e2e-missing-terminal").click();
     const missing = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
     await expect(missing).toBeVisible();
     await browserArtifacts.captureScreenshot(`${destination}-missing`, appPage);
-    await windowFrame(missing).getByRole("button", { name: "Close window" }).click();
+    await missing.getByRole("button", { name: "Close window" }).click();
     await expect(missing).toBeHidden();
     await expect(confirmation).toBeHidden();
     await expect(appPage.getByText("Could not close terminal", { exact: true })).toBeHidden();
@@ -793,7 +809,7 @@ test("E2E-020: terminal window close preserves Stop and retries after disconnect
     .toContain("work-before-stop");
   await expect(terminal.getByTestId("terminal-close")).toHaveCount(0);
 
-  await windowFrame(terminal).getByRole("button", { name: "Close window" }).click();
+  await terminal.getByRole("button", { name: "Close window" }).click();
   const confirmation = appPage.getByTestId("terminal-close-dialog");
   await expect(confirmation).toBeVisible();
   await appPage.context().setOffline(true);
@@ -833,7 +849,7 @@ test("E2E-020: terminal window close preserves Stop and retries after disconnect
     )
     .toBe("exited");
   await expect(restored).toBeVisible();
-  await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
+  await restored.getByRole("button", { name: "Close window" }).click();
   await expect(restored).toBeHidden();
   await expect(confirmation).not.toBeVisible();
 });
@@ -1023,8 +1039,7 @@ test("E2E-009: the workspace cap names the terminal that can be closed", async (
   await expect(dialog).toContainText("8 of 8 terminals are open");
   await expect(dialog).toContainText("terminal.max_per_workspace 8");
   await appPage.keyboard.press("Escape");
-  const capFrame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
-  await capFrame.getByRole("button", { name: "Close window" }).click();
+  await focusedTerminalWindow(appPage).getByRole("button", { name: "Close window" }).click();
 
   try {
     for (let index = 0; index < 16; index += 1) {
@@ -1186,21 +1201,10 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   } finally {
     await closeTerminalWatchers(appPage);
   }
-  const resizeHandle = windowFrame(firstWindow)
-    .locator("xpath=..")
-    .locator('[style*="cursor: se-resize"]');
-  await expect(resizeHandle).toBeVisible();
-  const handleBox = await resizeHandle.boundingBox();
-  const frameBox = await windowFrame(firstWindow).boundingBox();
-  if (!handleBox || !frameBox) throw new Error("Terminal window resize handle has no layout box.");
-  // The corner handle straddles the frame edge, which can sit on the viewport
-  // edge on the full-bleed desk: grab the half that overlaps the frame.
-  const resizeX = Math.min(handleBox.x + handleBox.width, frameBox.x + frameBox.width) - 2;
-  const resizeY = Math.min(handleBox.y + handleBox.height, frameBox.y + frameBox.height) - 2;
-  await appPage.mouse.move(resizeX, resizeY);
-  await appPage.mouse.down();
-  await appPage.mouse.move(resizeX - 160, resizeY - 80, { steps: 12 });
-  await appPage.mouse.up();
+  // A window fills its tab, so shrinking the viewport is what resizes the pane.
+  const viewport = appPage.viewportSize();
+  if (!viewport) throw new Error("Terminal fidelity needs a fixed viewport.");
+  await appPage.setViewportSize({ width: viewport.width - 160, height: viewport.height - 80 });
   const resizedGrid = await connectTerminalWatcher(
     appPage,
     runtime,
@@ -1525,7 +1529,7 @@ test("E2E-019 / E2E-018: keyboard activation lazily loads a working terminal fro
 
   await test.step("the opened terminal accepts keyboard input", async () => {
     const terminalWindow = appPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+      '[data-slot="os-window-surface"][data-app="terminal"][data-shown]'
     );
     await expect(terminalWindow).toBeVisible();
     // One activation is the whole flow: the window resolves straight into a

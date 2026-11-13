@@ -4,13 +4,9 @@ import type {
   WindowManagerLayoutDocument,
   WindowManagerNormalizedRect,
 } from "./window-manager-layout-types";
-import {
-  buildWindowManagerMinimums,
-  type LayoutProjection,
-  type PixelRect,
-  projectLayout,
-  type WindowManagerConfig,
-} from "@/systems/os";
+import { projectLayout } from "./legacy-layout-projection";
+import type { LayoutProjection, PixelRect } from "./legacy-layout-types";
+import { buildWindowManagerMinimums, type WindowManagerConfig } from "@/systems/os";
 
 export function layoutCanvasProjection(
   document: WindowManagerLayoutDocument,

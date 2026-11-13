@@ -1,4 +1,4 @@
-import type { PixelRect } from "@/systems/os";
+import type { PixelRect } from "./legacy-layout-types";
 
 /**
  * Constants only, with no value import — the settings barrel and the OS barrel

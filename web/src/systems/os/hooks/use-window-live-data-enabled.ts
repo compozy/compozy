@@ -9,7 +9,7 @@ import { useDesktop } from "./use-desktop";
 const LIVE_DATA_WINDOW_BUDGET = 2;
 
 function canOwnLiveData(window: OsWindow, activeDesktopId: string | null): boolean {
-  return window.desktopId === activeDesktopId && !window.minimized && window.stackActive;
+  return window.desktopId === activeDesktopId && window.shown;
 }
 
 function liveDataOwners(state: OsDesktopRuntimeStore): readonly string[] {
@@ -38,13 +38,7 @@ function liveDataOwners(state: OsDesktopRuntimeStore): readonly string[] {
         !canOwnLiveData(window, state.activeDesktopId)
       )
         continue;
-      if (
-        nextId === null ||
-        window.layer > state.windows[nextId].layer ||
-        (window.layer === state.windows[nextId].layer && windowId.localeCompare(nextId) < 0)
-      ) {
-        nextId = windowId;
-      }
+      if (nextId === null || windowId.localeCompare(nextId) < 0) nextId = windowId;
     }
     if (nextId === null) break;
     owners.push(nextId);

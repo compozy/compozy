@@ -9,19 +9,26 @@ export const sessionLifecycleTestIds = {
 } as const;
 
 /**
- * Stable selectors for the daemon-backed desktop shell. Window and frame IDs
- * are authoritative opaque IDs, so callers must obtain them from the snapshot
- * rather than reconstructing an ID from an app name.
+ * Stable selectors for the daemon-backed desktop shell. Window and tab IDs are
+ * authoritative opaque IDs, so callers must obtain them from the snapshot
+ * (`windows[id].tab_id`) rather than reconstructing an ID from an app name.
  */
 export const osShellSelectors = (page: Page) => ({
   desktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
-  deck: (frameId: string) => page.getByTestId(`os-window-deck-${frameId}`),
-  frame: (frameId: string) => page.getByTestId(`os-window-frame-${frameId}`),
-  tab: (windowId: string) => page.getByTestId(`os-window-tab-${windowId}`),
-  tabButton: (windowId: string) =>
-    page.getByTestId(`os-window-tab-${windowId}`).locator('[data-slot="os-window-tab-activate"]'),
-  tabMenu: (windowId: string) => page.getByTestId(`os-window-tab-menu-${windowId}`),
+  /** The active desktop's tab bar. */
+  tabBar: page.getByTestId("os-tab-bar"),
+  /** Every tab of the active desktop's bar, in bar order. */
+  tabs: page.getByTestId("os-tab-bar").getByRole("tab"),
+  tab: (tabId: string) => page.getByTestId(`os-tab-${tabId}`),
+  /** The tab whose lead window is `windowId`. */
+  tabOfWindow: (windowId: string) =>
+    page.getByTestId("os-tab-bar").locator(`[role="tab"][data-lead-window-id="${windowId}"]`),
+  tabClose: (tabId: string) =>
+    page.getByTestId(`os-tab-${tabId}`).locator('[data-slot="os-tab-close"]'),
+  tabMenu: (tabId: string) => page.getByTestId(`os-tab-menu-${tabId}`),
+  newTab: page.getByTestId("os-tab-bar").getByRole("button", { name: /^New tab/ }),
   window: (windowId: string) => page.getByTestId(`os-window-${windowId}`),
+  splitView: page.locator('[data-slot="os-split-view"]'),
 });
 
 export const SESSION_CREATE_FIRST_MESSAGE = "e2e first message";

@@ -19,8 +19,8 @@ import {
   paletteRowReason,
   sessionWindow,
   switchWorkspace,
-  windowFrame,
   windowID,
+  windowPane,
 } from "../fixtures/os-navigation";
 import {
   restartRetiredKnowledgeWindowRuntime,
@@ -67,11 +67,9 @@ const permissionHardeningFixture = path.resolve(
   "browser_session_hardening_fixture.json"
 );
 
+// Every journey runs on the daemon's shipped `tab` new-window policy.
 test.use({
   runtimeOptions: {
-    // The shell invariants below drag, move, snap, and deck floating windows; the
-    // daemon default (`tab`) is owned by the window-manager Go suites.
-    newWindowPolicy: "floating",
     seed: {
       mockAgents: [
         {
@@ -94,12 +92,11 @@ test.use({
  * `.compozy/tasks/window-tabs/_tests.md`; physical IDs stay monotonic in this
  * long-lived suite so unrelated shell scenarios never renumber the contract.
  *
- * E2E-001 → E2E-030  ·  E2E-002 → E2E-031  ·  E2E-003 → E2E-041
- * E2E-004 → E2E-039  ·  E2E-005 → E2E-032  ·  E2E-006 → E2E-033
- * E2E-007 → E2E-040  ·  E2E-008 → E2E-034  ·  E2E-009 → E2E-042
- * E2E-010 → E2E-035 ·  E2E-011 → E2E-043 ·  E2E-012 → E2E-036
- * E2E-013 → E2E-039 ·  E2E-014 → E2E-038 ·  E2E-015 → E2E-044
- * E2E-016 → E2E-037 ·  E2E-018 → E2E-045
+ * E2E-003 → E2E-041  ·  E2E-004 → E2E-039  ·  E2E-005 → E2E-032
+ * E2E-006 → E2E-033  ·  E2E-007 → E2E-040  ·  E2E-008 → E2E-034
+ * E2E-009 → E2E-042  ·  E2E-011 → E2E-043  ·  E2E-013 → E2E-039
+ * E2E-014 → E2E-038  ·  E2E-015 → E2E-044  ·  E2E-016 → Tabs-split E2E-014
+ * E2E-018 → E2E-045
  *
  * Herdr parity contract coverage (`.compozy/tasks/herdr-parity/_tests.md`) is
  * prefixed `Herdr ` because this suite's physical numbering already claims the
@@ -108,14 +105,13 @@ test.use({
  *
  * Memory removal contract coverage (`.compozy/tasks/memory-removal/_tests.md`) is
  * prefixed `Memory removal ` for the same reason.
+ *
+ * Window tabs and splits contract coverage
+ * (`.compozy/tasks/window-tabs-split/_tests.md`) is prefixed `Tabs-split `.
+ * Journeys whose v5 behaviour that spec retired (floating geometry, zoom,
+ * minimize, decks, snap and frame drags) were removed; drag, drop, seam and
+ * unsplit journeys belong to its later slices.
  */
-
-interface NormalizedRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 interface WindowRoute {
   pathname: string;
@@ -127,43 +123,32 @@ interface WindowManagerWindow {
   app: string;
   instance_key?: string;
   route: WindowRoute;
-  placement: "tiled" | "stacked" | "floating";
+  nav_stack: WindowRoute[];
   desktop_id: string;
-  floating_rect: NormalizedRect;
-  minimized: boolean;
-  zoomed: boolean;
-  pinned?: boolean;
-  nav_stack?: WindowRoute[];
+  tab_id: string;
 }
 
 interface WindowManagerLayoutNode {
   id: string;
-  kind: "leaf" | "split" | "stack";
+  kind: "leaf" | "split";
   window_id?: string;
   axis?: "horizontal" | "vertical";
   children?: WindowManagerLayoutNode[];
   weights?: number[];
-  window_ids?: string[];
-  active_id?: string;
+}
+
+interface WindowManagerTab {
+  id: string;
+  pinned: boolean;
+  root: WindowManagerLayoutNode;
 }
 
 interface WindowManagerDesktop {
   id: string;
   name: string;
   order: number;
-  groups: Array<{
-    id: string;
-    frame: NormalizedRect;
-    root: WindowManagerLayoutNode;
-  }>;
-  floating: string[];
-  floating_stacks?: Array<{
-    id: string;
-    window_ids: string[];
-    active_id: string | null;
-    rect: NormalizedRect;
-    minimized: boolean;
-  }>;
+  tabs: WindowManagerTab[];
+  active_tab_id: string;
 }
 
 interface WindowManagerSnapshot {
@@ -183,7 +168,7 @@ interface WindowManagerClientView {
   active_desktop_id: string;
   focused_window_id?: string;
   focus_order: string[];
-  stack_active?: Record<string, string>;
+  active_tab?: Record<string, string>;
 }
 
 interface WindowManagerCommandResult {
@@ -200,18 +185,6 @@ interface WindowManagerLayoutDocument {
   overrides: Record<string, unknown>;
 }
 
-interface WindowManagerSettingsResponse {
-  config: {
-    gaps: {
-      inner: number;
-      top: number;
-      right: number;
-      bottom: number;
-      left: number;
-    };
-  };
-}
-
 interface SettingsRestartAction {
   operation_id: string;
   status: string;
@@ -222,28 +195,14 @@ interface SettingsRestartStatus {
   status: string;
 }
 
-test("E2E-001 / E2E-002 / E2E-014: fresh boot stays empty before pointer and CLI moves persist floating geometry", async ({
+test("E2E-001 / E2E-014: fresh boot shows one New Tab window and a CLI move splits two tabs live", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  const shell = osShellSelectors(appPage);
 
-  // Invariant: a failed launcher download leaves the desktop available and
-  // offers a real reload. Owner: shell/module I/O; canonical suite: this journey.
-  await test.step("recover from a failed launcher download", async () => {
-    const launcherAsset = "**/assets/os-empty-desktop-*.js";
-    await appPage.route(launcherAsset, route => route.abort());
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const failure = appPage.getByRole("alert").filter({ hasText: "The launcher couldn't open" });
-    await expect(failure).toBeVisible();
-    await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
-    await expect(appPage.getByTestId("root-route-error")).toHaveCount(0);
-    await appPage.unroute(launcherAsset);
-    await failure.getByRole("button", { name: "Reload", exact: true }).click();
-    await expect(appPage.getByTestId("os-desk-hint")).toBeVisible();
-  });
-
-  await test.step("E2E-001: fresh boot renders the empty desktop without opening a window", async () => {
+  await test.step("E2E-001: fresh boot renders the default desktop's single New Tab window", async () => {
     await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
     await expect(appPage.getByRole("banner", { name: "System bar" })).toBeVisible();
     expect(
@@ -254,19 +213,24 @@ test("E2E-001 / E2E-002 / E2E-014: fresh boot stays empty before pointer and CLI
         return overlay?.visible ?? false;
       })
     ).toBe(false);
-    await expect(appPage.getByTestId("os-desk-hint")).toContainText(/[⌘⌃]K/u);
-    await expect(appPage.locator('[data-testid^="os-window-"]')).toHaveCount(0);
     await expect(
       appPage.getByRole("button", { name: "Desktop 1 of 1: Desktop 1" })
     ).toHaveAttribute("aria-current", "page");
 
     const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-    expect(snapshot.version).toBe(5);
+    expect(snapshot.version).toBe(6);
     expect(snapshot.revision).toBe(0);
     expect(snapshot.desktops.map(desktop => [desktop.id, desktop.name])).toEqual([
       ["desktop-default", "Desktop 1"],
     ]);
-    expect(snapshot.windows).toEqual({});
+    const windows = Object.values(snapshot.windows);
+    expect(windows.map(window => window.app)).toEqual(["new-tab"]);
+    const newTab = windows[0];
+    if (!newTab) throw new Error("a fresh desktop must hold one New Tab window");
+    expect(desktopTabIds(snapshot, "desktop-default")).toEqual([newTab.tab_id]);
+    await expect(shell.tabs).toHaveCount(1);
+    await expect(shell.tab(newTab.tab_id)).toHaveAttribute("aria-selected", "true");
+    await expect(shell.window(newTab.id).getByTestId("new-tab-empty")).toBeVisible();
 
     const legacy = await fetch(
       runtime.url(`/api/workspaces/${encodeURIComponent(workspace.id)}/desktop-state`)
@@ -274,273 +238,27 @@ test("E2E-001 / E2E-002 / E2E-014: fresh boot stays empty before pointer and CLI
     expect(legacy.status).toBe(404);
   });
 
-  await test.step("E2E-002: floating Tasks drag commits one normalized rect and survives reload", async () => {
+  await test.step("E2E-014: a CLI window move splits two tabs into one, rendered live", async () => {
     const tasks = await openDockApp(appPage, "Tasks", "tasks");
     const tasksID = await windowID(tasks);
-    await expect(appPage).toHaveURL(/\/tasks$/);
-    const opened = await authoritativeWindowRect(appPage, runtime, workspace.id, tasksID);
-
-    await dragWindowBy(appPage, tasks, 92, 48);
-    await expect
-      .poll(() => authoritativeWindowRect(appPage, runtime, workspace.id, tasksID))
-      .not.toEqual(opened);
-    const dragged = await authoritativeWindowRect(appPage, runtime, workspace.id, tasksID);
-    await expect.poll(() => windowRect(appPage, tasks)).toEqual(dragged);
-    expect((await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]?.placement).toBe(
-      "floating"
-    );
-
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const restored = appWindow(appPage, "tasks");
-    await expect(restored).toBeVisible();
-    await expect.poll(() => windowRect(appPage, restored)).toEqual(dragged);
-  });
-
-  await test.step("E2E-014: CLI window move commits semantic normalized geometry live", async () => {
-    const tasks = appWindow(appPage, "tasks");
-    await expect(tasks).toBeVisible();
-    const tasksID = await windowID(tasks);
-    const target = { x: 0.42, y: 0.18, width: 0.4, height: 0.52 };
-
-    await moveWindowFromCLI(runtime, workspace.id, tasksID, "desktop-default", target);
-
-    await expect
-      .poll(() => windowMatchesAuthority(appPage, tasks, runtime, workspace.id, tasksID))
-      .toBe(true);
-    const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-    expect(snapshot.windows[tasksID]?.floating_rect).toEqual(target);
-    expect(snapshot.windows[tasksID]?.placement).toBe("floating");
-  });
-});
-
-test("E2E-003 / E2E-137: zoom restores the tiled anchor before grouping preserves the zoomed split", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareShell(appPage, runtime);
-
-  await test.step("E2E-003: zoom lifts a window off a shared desktop and unzoom restores the exact tiled anchor", async () => {
-    const tasks = await openDockApp(appPage, "Tasks", "tasks");
-    const settings = await openDockApp(appPage, "Settings", "settings");
-    const tasksID = await windowID(tasks);
-    const settingsID = await windowID(settings);
-    await arrangeWindows(
-      runtime,
-      workspace.id,
-      "desktop-default",
-      [tasksID, settingsID],
-      "horizontal",
-      "group-zoom-anchor"
-    );
-    await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-    await expect(settings).toHaveAttribute("data-window-placement", "tiled");
-
-    const before = await windowManagerSnapshot(runtime, workspace.id);
-    const anchor = layoutSignature(before, "desktop-default");
-    const tiledRect = await windowRect(appPage, tasks);
-    const zoomButton = tasks.locator('button[data-action="zoom"]');
-    await zoomButton.click();
-
-    await expect
-      .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        return snapshot.windows[tasksID]?.zoomed === true && snapshot.desktops.length === 2;
-      })
-      .toBe(true);
-    const zoomed = await windowManagerSnapshot(runtime, workspace.id);
-    const liftedID = zoomed.windows[tasksID]?.desktop_id;
-    if (!liftedID || liftedID === "desktop-default") {
-      throw new Error("zoom over a tiled neighbour must lift the window to a fresh desktop");
-    }
-    expect(zoomed.desktops[1]?.id).toBe(liftedID);
-    expect(zoomed.windows[settingsID]?.desktop_id).toBe("desktop-default");
-    const liftedDesktop = zoomed.desktops.find(desktop => desktop.id === liftedID);
-    expect(liftedDesktop?.groups).toHaveLength(1);
-    expect(liftedDesktop?.groups[0]?.frame).toEqual({ x: 0, y: 0, width: 1, height: 1 });
-    await expect(activeDesktop(appPage, liftedID)).toHaveAttribute("data-active", "true");
-    await expect(appPage.getByTestId(`os-window-frame-${tasksID}`)).toHaveAttribute(
-      "data-zoomed",
-      ""
-    );
-    await expect(zoomButton).toHaveAttribute("aria-pressed", "true");
-    await expect
-      .poll(async () => (await windowRect(appPage, tasks)).w)
-      .toBeGreaterThan(tiledRect.w);
-
-    await zoomButton.click();
-    await expect
-      .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        return snapshot.windows[tasksID]?.zoomed === false && snapshot.desktops.length === 1;
-      })
-      .toBe(true);
-    const restored = await windowManagerSnapshot(runtime, workspace.id);
-    expect(layoutSignature(restored, "desktop-default")).toEqual(anchor);
-    await expect(activeDesktop(appPage, "desktop-default")).toHaveAttribute("data-active", "true");
-    await expect(appPage.getByTestId(`os-window-frame-${tasksID}`)).not.toHaveAttribute(
-      "data-zoomed"
-    );
-    await expect.poll(() => windowRect(appPage, tasks)).toEqual(tiledRect);
-    await expect(tasks).toBeVisible();
-    await expect(settings).toBeVisible();
-  });
-
-  await test.step("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom restores the split", async () => {
-    const tasks = appWindow(appPage, "tasks");
-    await expect(tasks).toBeVisible();
-    const settings = appWindow(appPage, "settings");
-    await expect(settings).toBeVisible();
     const agents = await openDockApp(appPage, "Agents", "agents");
-    const tasksID = await windowID(tasks);
-    const settingsID = await windowID(settings);
     const agentsID = await windowID(agents);
-    await arrangeWindows(
-      runtime,
-      workspace.id,
-      "desktop-default",
-      [tasksID, settingsID],
-      "horizontal",
-      "group-zoom-tabs"
-    );
-    const before = await windowManagerSnapshot(runtime, workspace.id);
-    const anchor = layoutSignature(before, "desktop-default");
-    await tasks.getByRole("button", { name: "Zoom window" }).click();
+    await expect(tasks).toBeHidden();
+
+    await moveWindowFromCLI(runtime, workspace.id, tasksID, agentsID, "right");
+
     await expect
       .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        return snapshot.windows[tasksID]?.zoomed === true && snapshot.desktops.length === 2;
+        const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), agentsID);
+        return tab?.root.kind === "split" ? nodeWindowIds(tab.root) : null;
       })
-      .toBe(true);
-    const zoomed = await windowManagerSnapshot(runtime, workspace.id);
-    const liftedID = zoomed.windows[tasksID]?.desktop_id;
-
-    await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
-
-    const grouped = await windowManagerSnapshot(runtime, workspace.id);
-    const stackID = tiledStackNodeForWindow(grouped, tasksID);
-    if (!stackID) throw new Error("grouping into the zoomed window must create a tiled stack");
-    expect(grouped.windows[tasksID]?.zoomed).toBe(true);
-    expect(grouped.windows[agentsID]?.desktop_id).toBe(liftedID);
-    expect(grouped.desktops).toHaveLength(2);
-    const shell = osShellSelectors(appPage);
-    await expect(shell.deck(stackID)).toBeVisible();
-    await expect(appPage.getByTestId(`os-window-frame-${stackID}`)).toHaveAttribute(
-      "data-zoomed",
-      ""
-    );
-
-    await shell.deck(stackID).getByRole("button", { name: "Restore window" }).click();
-    await expect
-      .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        return snapshot.windows[tasksID]?.zoomed === false && snapshot.desktops.length === 1;
-      })
-      .toBe(true);
-    const restored = await windowManagerSnapshot(runtime, workspace.id);
-    expect(tiledStackNodeForWindow(restored, tasksID)).toBe(stackID);
-    const restoredDesktop = restored.desktops.find(desktop => desktop.id === "desktop-default");
-    expect(restoredDesktop?.groups.map(group => group.id)).toEqual(
-      (anchor as { groups: Array<{ id: string }> }).groups.map(group => group.id)
-    );
-    expect(restored.windows[agentsID]?.desktop_id).toBe("desktop-default");
-    await expect(appPage.getByTestId(`os-window-frame-${stackID}`)).not.toHaveAttribute(
-      "data-zoomed"
-    );
-    await expect(settings).toBeVisible();
-  });
-});
-
-// Invariant: real pointer resizing exits internal zoom, persists the new geometry,
-// and subsequent restore cycles leave the other desktop's windows untouched.
-test("Issue 585: internal windows restore and resize across repeated zoom cycles", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareShell(appPage, runtime);
-  const tasks = await openDockApp(appPage, "Tasks", "tasks");
-  const settings = await openDockApp(appPage, "Settings", "settings");
-  await openDockApp(appPage, "Tasks", "tasks");
-  const tasksID = await windowID(tasks);
-  const settingsID = await windowID(settings);
-  const before = await windowManagerSnapshot(runtime, workspace.id);
-  const originalRect = await windowRect(appPage, tasks);
-  const originalFloating = before.windows[tasksID]!.floating_rect;
-
-  for (let cycle = 0; cycle < 2; cycle++) {
-    await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
-    await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");
-    await tasks.getByRole("button", { name: "Restore window", exact: true }).click();
-    await expect(windowFrame(tasks)).not.toHaveAttribute("data-zoomed");
-    await expect.poll(() => windowRect(appPage, tasks)).toEqual(originalRect);
-    const restored = await windowManagerSnapshot(runtime, workspace.id);
-    expect(restored.windows[tasksID]!.floating_rect).toEqual(originalFloating);
-    expect(restored.windows[tasksID]!.placement).toBe("floating");
-    expect(restored.windows[settingsID]).toEqual(before.windows[settingsID]);
-  }
-
-  for (const cursor of ["se-resize", "col-resize"]) {
-    await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
-    await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");
-    const handle = windowFrame(tasks)
-      .locator("..")
-      .locator(
-        cursor === "col-resize"
-          ? '[style*="cursor: col-resize"][style*="left: -5px"]'
-          : '[style*="cursor: se-resize"]'
-      );
-    await expect(handle).toBeVisible();
-    await handle.hover();
-    const zoomRect = await windowRect(appPage, tasks);
-    await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-    const box = await handle.boundingBox();
-    const frameBox = await windowFrame(tasks).boundingBox();
-    if (!box || !frameBox) throw new Error("Maximized window resize handle must have a layout box");
-    // The zoomed frame is full-bleed: its handles straddle the desk edge, so grab
-    // the half that overlaps the frame, the way a pointer reaches it.
-    const x =
-      cursor === "col-resize" ? Math.max(box.x, frameBox.x) + 2 : frameBox.x + frameBox.width - 2;
-    const y =
-      cursor === "col-resize"
-        ? box.y + box.height / 2
-        : Math.min(box.y + box.height, frameBox.y + frameBox.height) - 2;
-    await appPage.mouse.move(x, y);
-    await appPage.mouse.down();
-    await appPage.mouse.move(
-      x + (cursor === "col-resize" ? 160 : -160),
-      y - (cursor === "se-resize" ? 100 : 0),
-      { steps: 12 }
-    );
-    await appPage.mouse.up();
-    await expect(windowFrame(tasks)).not.toHaveAttribute("data-zoomed");
-    const resizedRect = await windowRect(appPage, tasks);
-    const resized = await windowManagerSnapshot(runtime, workspace.id);
-    expect(resized.windows[settingsID]).toEqual(before.windows[settingsID]);
-    const desktopID = resized.windows[tasksID]!.desktop_id;
-    const signature = layoutSignature(resized, desktopID);
-    const ownGroup = resized.desktops
-      .find(desktop => desktop.id === desktopID)!
-      .groups.find(group => group.root.window_id === tasksID);
-    expect(ownGroup).toBeDefined();
-    expect(ownGroup!.frame.x).toBeCloseTo(cursor === "col-resize" ? 160 / zoomRect.w : 0, 5);
-    expect(ownGroup!.frame.y).toBe(0);
-    expect(ownGroup!.frame.width).toBeCloseTo(1 - 160 / zoomRect.w, 5);
-    expect(ownGroup!.frame.height).toBeCloseTo(
-      cursor === "se-resize" ? 1 - 100 / zoomRect.h : 1,
-      5
-    );
-
-    await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
-    await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");
-    await tasks.getByRole("button", { name: "Restore window", exact: true }).click();
-    await expect(windowFrame(tasks)).not.toHaveAttribute("data-zoomed");
-    await expect.poll(() => windowRect(appPage, tasks)).toEqual(resizedRect);
-    await appPage.reload();
+      .toEqual([agentsID, tasksID]);
     await expect(tasks).toBeVisible();
-    await expect.poll(() => windowRect(appPage, tasks)).toEqual(resizedRect);
-    const persisted = await windowManagerSnapshot(runtime, workspace.id);
-    expect(layoutSignature(persisted, desktopID)).toEqual(signature);
-    expect(persisted.windows[settingsID]).toEqual(before.windows[settingsID]);
-  }
+    await expect(agents).toBeVisible();
+    const [agentsBox, tasksBox] = await Promise.all([agents.boundingBox(), tasks.boundingBox()]);
+    if (!agentsBox || !tasksBox) throw new Error("split members must have visible bounds");
+    expect(agentsBox.x + agentsBox.width).toBeLessThanOrEqual(tasksBox.x + 1);
+  });
 });
 
 test("E2E-136 / ENG-136: Session menu owns the catalog while the dock creates or focuses sessions", async ({
@@ -578,11 +296,12 @@ test("E2E-136 / ENG-136: Session menu owns the catalog while the dock creates or
   await expect(seededWindow).toBeVisible();
   await expect(createDialog).toHaveCount(0);
 
-  await seededWindow.getByRole("button", { name: "Minimize window" }).click();
+  // Another tab takes the view; the dock brings the session's tab back and focuses it.
+  await openDockApp(appPage, "Tasks", "tasks");
   await expect(seededWindow).toBeHidden();
   await sessionsDockButton.click();
   await expect(seededWindow).toBeVisible();
-  await expect(windowFrame(seededWindow)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(seededWindow)).toHaveAttribute("data-focused", "");
 });
 
 test("E2E-825: a new session lands in the existing Session window instead of opening another", async ({
@@ -609,32 +328,20 @@ test("E2E-825: a new session lands in the existing Session window instead of ope
   expect(await windowID(sessionWindow(appPage, first))).toBe(hostID);
   await expect(sessionWindow(appPage, seeded.id)).toHaveCount(0);
   await expect(sessionWindows).toHaveCount(1);
-  await expect(windowFrame(hostWindow)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(hostWindow)).toHaveAttribute("data-focused", "");
 
-  // Unfocused Session window: it comes forward with the new session.
+  // Session window in a background tab: its tab comes forward with the new session.
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
-  await expect(windowFrame(tasks)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(tasks)).toHaveAttribute("data-focused", "");
   const second = await createSessionFromMenubar(appPage);
   await expect(sessionWindow(appPage, second)).toBeVisible();
   expect(await windowID(sessionWindow(appPage, second))).toBe(hostID);
   await expect(sessionWindows).toHaveCount(1);
-  await expect(windowFrame(hostWindow)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(hostWindow)).toHaveAttribute("data-focused", "");
 
-  // Minimized Session window: it is restored with the new session.
-  await hostWindow.getByRole("button", { name: "Minimize window" }).click();
-  await expect(hostWindow).toBeHidden();
-  const third = await createSessionFromMenubar(appPage);
-  await expect(sessionWindow(appPage, third)).toBeVisible();
-  expect(await windowID(sessionWindow(appPage, third))).toBe(hostID);
-  await expect(sessionWindows).toHaveCount(1);
-  await expect(windowFrame(hostWindow)).toHaveAttribute("data-focused", "");
   await expect
-    .poll(async () => {
-      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      const host = snapshot.windows[hostID];
-      return { instance: host?.instance_key, minimized: host?.minimized };
-    })
-    .toEqual({ instance: third, minimized: false });
+    .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[hostID]?.instance_key)
+    .toBe(second);
 });
 
 test("E2E-005: a direct task detail deep link returns to the catalog with Back", async ({
@@ -750,37 +457,16 @@ test("E2E-006: visible session windows stream without focus and catch up after r
   await sessionsModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();
   await expect(sessionsModal).toHaveCount(0);
   await expect(sessionWindow(appPage, primary.id)).toBeVisible();
-  await openSessionWindowInAuthority(runtime, workspace.id, secondary);
+  const secondaryWindowID = await openSessionWindowInAuthority(runtime, workspace.id, secondary);
 
   const primaryWindow = sessionWindow(appPage, primary.id);
   const secondaryWindow = sessionWindow(appPage, secondary.id);
   await expect(primaryWindow).toBeVisible();
-  await expect(secondaryWindow).toBeVisible();
   const primaryWindowID = await windowID(primaryWindow);
-  const secondaryWindowID = await windowID(secondaryWindow);
+  // The secondary window joins the primary's tab as the right half of a split.
+  await splitWindowBeside(runtime, workspace.id, secondaryWindowID, primaryWindowID, "right");
+  await expect(secondaryWindow).toBeVisible();
 
-  await moveWindowToNormalizedRect(runtime, workspace.id, primaryWindowID, {
-    x: 0.01,
-    y: 0.02,
-    width: 0.48,
-    height: 0.78,
-  });
-  await moveWindowToNormalizedRect(runtime, workspace.id, secondaryWindowID, {
-    x: 0.51,
-    y: 0.02,
-    width: 0.48,
-    height: 0.78,
-  });
-  await expect
-    .poll(() =>
-      windowMatchesAuthority(appPage, primaryWindow, runtime, workspace.id, primaryWindowID)
-    )
-    .toBe(true);
-  await expect
-    .poll(() =>
-      windowMatchesAuthority(appPage, secondaryWindow, runtime, workspace.id, secondaryWindowID)
-    )
-    .toBe(true);
   const [primaryBox, secondaryBox] = await Promise.all([
     primaryWindow.boundingBox(),
     secondaryWindow.boundingBox(),
@@ -813,8 +499,8 @@ test("E2E-006: visible session windows stream without focus and catch up after r
   await secondaryComposer.press("Enter");
   await expect(secondaryTranscript).toContainText("Secondary stream started.");
   await expect(secondaryTranscript).toContainText("Secondary stream completed independently.");
-  await expect(windowFrame(secondaryWindow)).toHaveAttribute("data-focused", "");
-  await expect(windowFrame(primaryWindow)).not.toHaveAttribute("data-focused", "");
+  await expect(windowPane(secondaryWindow)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(primaryWindow)).not.toHaveAttribute("data-focused", "");
   await expect(primaryTranscript).toContainText(
     "Primary stream event arrived while the window was visible and unfocused."
   );
@@ -822,12 +508,10 @@ test("E2E-006: visible session windows stream without focus and catch up after r
     .poll(() => primaryTranscript.evaluate(element => element.scrollTop))
     .toBe(parkedScrollTop);
 
-  await primaryWindow.getByRole("button", { name: "Minimize window" }).click();
+  // Another tab takes the view: the split stays mounted but hidden.
+  await openDockApp(appPage, "Tasks", "tasks");
   await expect(primaryWindow).toHaveCount(1);
   await expect(primaryWindow).toBeHidden();
-  await expect
-    .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[primaryWindowID])
-    .toMatchObject({ minimized: true });
   await expect
     .poll(() => sessionHistoryContains(runtime, workspace.id, primary.id, "arrived while"))
     .toBe(true);
@@ -852,18 +536,8 @@ test("Issue 843: each session window owns its sessions rail across ⌘B, reload,
   const right = await createNamedSession(runtime, workspace.id, "Right rail owner");
   const leftWindowID = await openSessionWindowInAuthority(runtime, workspace.id, left);
   const rightWindowID = await openSessionWindowInAuthority(runtime, workspace.id, right);
-  await moveWindowToNormalizedRect(runtime, workspace.id, leftWindowID, {
-    x: 0.01,
-    y: 0.02,
-    width: 0.48,
-    height: 0.78,
-  });
-  await moveWindowToNormalizedRect(runtime, workspace.id, rightWindowID, {
-    x: 0.51,
-    y: 0.02,
-    width: 0.48,
-    height: 0.78,
-  });
+  await splitWindowBeside(runtime, workspace.id, rightWindowID, leftWindowID, "right");
+  await showTab(appPage, runtime, workspace.id, leftWindowID);
   const leftWindow = sessionWindow(appPage, left.id);
   const rightWindow = sessionWindow(appPage, right.id);
   const leftRail = leftWindow.getByTestId("session-sidebar");
@@ -873,7 +547,7 @@ test("Issue 843: each session window owns its sessions rail across ⌘B, reload,
 
   // ⌘B toggles the focused window's rail only.
   await focusWindow(appPage, leftWindow);
-  await expect(windowFrame(leftWindow)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(leftWindow)).toHaveAttribute("data-focused", "");
   await appPage.keyboard.press("ControlOrMeta+B");
   await expect(leftRail).toBeHidden();
   await expect(rightRail).toBeVisible();
@@ -1124,19 +798,20 @@ test("Command palette E2E-009 / ENG-131: Tasks filters clear and a loop row open
   });
 });
 
-test("E2E-010 and E2E-018: peers converge topology while presentation stays client-local", async ({
+test("E2E-010 and E2E-018: peers converge topology while the active tab stays client-local", async ({
   appPage,
   browser,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const second = await openPeerPage(browser, runtime);
-  let lastRects: Record<string, unknown> = {};
   try {
     const firstWindow = await openDockApp(appPage, "Tasks", "tasks");
     const tasksID = await windowID(firstWindow);
     const secondWindow = appWindow(second, "tasks");
-    await expect(secondWindow).toBeVisible();
+    // The peer's bar gains the tab without switching to it.
+    await expect(osShellSelectors(second).tabOfWindow(tasksID)).toBeVisible();
+    await expect(secondWindow).toBeHidden();
     const [firstClientId, secondClientId] = await Promise.all([
       browserClientId(appPage),
       browserClientId(second),
@@ -1175,50 +850,35 @@ test("E2E-010 and E2E-018: peers converge topology while presentation stays clie
       .toMatchObject({ active_desktop_id: "desktop-default" });
     await expect(activeDesktop(appPage, targetDesktop.id)).toHaveAttribute("data-active", "true");
     await expect(activeDesktop(second, "desktop-default")).toHaveAttribute("data-active", "true");
-    await moveWindowToNormalizedRect(
-      runtime,
-      workspace.id,
-      tasksID,
-      { x: 0.2, y: 0.18, width: 0.5, height: 0.58 },
-      targetDesktop.id
-    );
-    await expect(firstWindow).toBeVisible();
+    // Moving the Tasks tab converges for every client; which tab each one shows stays its own.
+    await executeWindowManagerCommand(runtime, workspace.id, {
+      commandId: "window.move",
+      payload: {
+        window_id: tasksID,
+        destination_desktop_id: targetDesktop.id,
+        placement: "tab",
+        move_group: true,
+      },
+    });
+    await expect
+      .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
+      .toMatchObject({ desktop_id: targetDesktop.id });
+    const firstShell = osShellSelectors(appPage);
+    const peerShell = osShellSelectors(second);
+    await expect(firstShell.tabOfWindow(tasksID)).toBeVisible();
     await expect(secondWindow).toBeHidden();
     await second
       .getByRole("button", {
         name: new RegExp(`^Desktop \\d+ of 2: ${escapeRegExp(targetDesktop.name)}$`),
       })
       .click();
-    await expect(secondWindow).toBeVisible();
+    await expect(peerShell.tabOfWindow(tasksID)).toBeVisible();
 
-    await Promise.all([
-      dragWindowBy(appPage, firstWindow, 58, 24),
-      dragWindowBy(second, secondWindow, -42, 64),
-    ]);
-    await expect
-      .poll(async () => {
-        const [first, peer] = await Promise.all([
-          windowRect(appPage, firstWindow),
-          windowRect(second, secondWindow),
-        ]);
-        const authoritative = await authoritativeWindowRect(
-          appPage,
-          runtime,
-          workspace.id,
-          tasksID
-        );
-        lastRects = {
-          authoritative,
-          first,
-          peer,
-          converged:
-            rectsClose(first, peer) &&
-            rectsClose(first, authoritative) &&
-            rectsClose(peer, authoritative),
-        };
-        return lastRects;
-      })
-      .toMatchObject({ converged: true });
+    await firstShell.tabOfWindow(tasksID).click();
+    await expect(firstWindow).toBeVisible();
+    await expect(firstShell.tabOfWindow(tasksID)).toHaveAttribute("aria-selected", "true");
+    await expect(peerShell.tabOfWindow(tasksID)).not.toHaveAttribute("aria-selected", "true");
+    await expect(secondWindow).toBeHidden();
   } finally {
     await second.context().close();
   }
@@ -1238,17 +898,19 @@ test("E2E-012: blocked window-manager stream degrades without blocking work and 
     .getByRole("status")
     .filter({ hasText: /Reconnecting…|Can.t save window layout/ });
   await expect(degradedStatus).toBeVisible();
+  // Commands travel over HTTP, so opening a tab still works while the stream is down.
   const tasks = await openDockApp(degradedPage, "Tasks", "tasks");
-  const before = await windowPosition(degradedPage, tasks);
-  await dragWindowBy(degradedPage, tasks, 76, 38);
-  await expect.poll(() => windowPosition(degradedPage, tasks)).not.toEqual(before);
+  const tasksID = await windowID(tasks);
+  await expect(osShellSelectors(degradedPage).tabOfWindow(tasksID)).toBeVisible();
 
   stream.unblock();
   await expect(degradedStatus).toHaveCount(0);
-  const recovered = await windowPosition(degradedPage, tasks);
   await degradedPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(tasks).toBeVisible();
-  await expect.poll(() => windowPosition(degradedPage, tasks)).toEqual(recovered);
+  await expect(appWindow(degradedPage, "tasks")).toBeVisible();
+  await expect(osShellSelectors(degradedPage).tabOfWindow(tasksID)).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
 });
 
 test("E2E-015: bell approval stays live and a CLI-resolved item reports truthful conflict", async ({
@@ -1356,24 +1018,10 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
   const tasksWindowID = await windowID(tasksWindow);
   const tasksUI = tasksOperatorSelectors(appPage);
   await expect(tasksUI.detailContent).toBeVisible();
-  await moveWindowToNormalizedRect(runtime, workspace.id, sessionWindowID, {
-    x: 0.55,
-    y: 0.03,
-    width: 0.42,
-    height: 0.76,
-  });
-  await moveWindowToNormalizedRect(runtime, workspace.id, tasksWindowID, {
-    x: 0.02,
-    y: 0.03,
-    width: 0.5,
-    height: 0.74,
-  });
-  await expect
-    .poll(() => windowMatchesAuthority(appPage, tasksWindow, runtime, workspace.id, tasksWindowID))
-    .toBe(true);
-  await expect
-    .poll(() => windowMatchesAuthority(appPage, sessionWin, runtime, workspace.id, sessionWindowID))
-    .toBe(true);
+  // The session joins the Tasks tab as the right half of a split.
+  await splitWindowBeside(runtime, workspace.id, sessionWindowID, tasksWindowID, "right");
+  await expect(tasksWindow).toBeVisible();
+  await expect(sessionWin).toBeVisible();
 
   await tasksUI.detailOverflow.click();
   await tasksUI.detailDelete.click();
@@ -1390,22 +1038,6 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
 
   await composer.fill("session remains interactive while Tasks confirms");
   await expect(composer).toHaveText("session remains interactive while Tasks confirms");
-
-  const [windowBefore, dialogBefore] = await Promise.all([
-    windowPosition(appPage, tasksWindow),
-    dialog.boundingBox(),
-  ]);
-  if (!dialogBefore) throw new Error("task delete dialog must have visible bounds");
-  await dragWindowBy(appPage, tasksWindow, 68, 34);
-  const [windowAfter, dialogAfter] = await Promise.all([
-    windowPosition(appPage, tasksWindow),
-    dialog.boundingBox(),
-  ]);
-  if (!dialogAfter) throw new Error("task delete dialog must remain visible after dragging");
-  expect({
-    x: Math.round(dialogAfter.x - dialogBefore.x),
-    y: Math.round(dialogAfter.y - dialogBefore.y),
-  }).toEqual({ x: windowAfter.x - windowBefore.x, y: windowAfter.y - windowBefore.y });
 
   const deleteResponsePromise = appPage.waitForResponse(response => {
     return (
@@ -1590,298 +1222,60 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(appWindow(appPage, "settings")).toBeVisible();
 });
 
-test("E2E-025: occupied drag previews, cancels cleanly, then commits one structural reflow", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareShell(appPage, runtime);
-  const tasks = await openDockApp(appPage, "Tasks", "tasks");
-  const settings = await openDockApp(appPage, "Settings", "settings");
-  const tasksID = await windowID(tasks);
-  const settingsID = await windowID(settings);
-  await arrangeWindows(
-    runtime,
-    workspace.id,
-    "desktop-default",
-    [tasksID],
-    "horizontal",
-    "group-drag-target",
-    { x: 0.25, y: 0.2, width: 0.5, height: 0.6 }
-  );
-  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-  const preview = appPage.locator('[data-slot="window-manager-command-preview"]');
-  const beforeCancel = await windowManagerSnapshot(runtime, workspace.id);
-  const tasksBox = await tasks.boundingBox();
-  if (!tasksBox) throw new Error("tiled Tasks window must be visible");
-
-  let grip = await windowGrip(settings);
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  // The occupied center swaps whole units; grouping as tabs is the deck/head
-  // gesture, never a body drop.
-  await appPage.mouse.move(tasksBox.x + tasksBox.width / 2, tasksBox.y + tasksBox.height / 2, {
-    steps: 8,
-  });
-  await expect(preview).toContainText("Swap windows");
-  await appPage.keyboard.press("Escape");
-  await expect(preview).toHaveCount(0);
-  await appPage.mouse.up();
-  expect((await windowManagerSnapshot(runtime, workspace.id)).revision).toBe(beforeCancel.revision);
-  expect((await windowManagerSnapshot(runtime, workspace.id)).windows[settingsID]?.placement).toBe(
-    "floating"
-  );
-
-  grip = await windowGrip(settings);
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(tasksBox.x + tasksBox.width * 0.9, tasksBox.y + tasksBox.height / 2, {
-    steps: 8,
-  });
-  await expect(preview).toContainText("Split");
-  await appPage.mouse.up();
-
-  await expect
-    .poll(async () => {
-      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      const group = layoutGroupForWindow(snapshot, tasksID);
-      return (
-        snapshot.revision > beforeCancel.revision &&
-        group !== null &&
-        nodeWindowIds(group.root).sort().join(",") === [settingsID, tasksID].sort().join(",") &&
-        group.root.kind === "split"
-      );
-    })
-    .toBe(true);
-  const committed = await windowManagerSnapshot(runtime, workspace.id);
-  expect(committed.windows[tasksID]?.placement).toBe("tiled");
-  expect(committed.windows[settingsID]?.placement).toBe("tiled");
-  const signature = layoutSignature(committed, "desktop-default");
-
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(tasks).toBeVisible();
-  await expect(settings).toBeVisible();
-  expect(
-    layoutSignature(await windowManagerSnapshot(runtime, workspace.id), "desktop-default")
-  ).toEqual(signature);
-});
-
-test("E2E-026: normalized tile topology converges across viewports and CLI arrange updates live", async ({
+test("E2E-026: a CLI arrange builds one split tab whose weights render the same shares on every client", async ({
   appPage,
   browser,
   runtime,
 }) => {
   await appPage.setViewportSize({ width: 1440, height: 900 });
   const workspace = await prepareShell(appPage, runtime);
-  const settings = await runtime.requestJSON<WindowManagerSettingsResponse>(
-    "/api/settings/window-manager"
-  );
   const second = await openPeerPage(browser, runtime);
   try {
-    const firstWindow = await openDockApp(appPage, "Tasks", "tasks");
-    const tasksID = await windowID(firstWindow);
-    const secondWindow = appWindow(second, "tasks");
-    await expect(secondWindow).toBeVisible();
+    const tasks = await openDockApp(appPage, "Tasks", "tasks");
+    const tasksID = await windowID(tasks);
+    const agents = await openDockApp(appPage, "Agents", "agents");
+    const agentsID = await windowID(agents);
 
-    await appPage.keyboard.press("Control+Alt+ArrowLeft");
+    await arrangeSplitFromCLI(runtime, workspace.id, "desktop-default", [tasksID, agentsID]);
     await expect
       .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        return {
-          placement: snapshot.windows[tasksID]?.placement,
-          frame: normalizedFrameForWindow(snapshot, tasksID),
-        };
+        const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+        return tab?.root.kind === "split" ? nodeWindowIds(tab.root) : null;
       })
-      .toEqual({
-        placement: "tiled",
-        frame: { x: 0, y: 0, width: 0.5, height: 1 },
-      });
-    await expect(firstWindow).toHaveAttribute("data-window-placement", "tiled");
-    await expect(secondWindow).toHaveAttribute("data-window-placement", "tiled");
-    const firstRect = await windowRect(appPage, firstWindow);
-    const secondRect = await windowRect(second, secondWindow);
-    expect(firstRect.w).not.toBe(secondRect.w);
+      .toEqual([tasksID, agentsID]);
+    const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+    if (!tab) throw new Error("the arrange must leave both windows in one tab");
 
-    await arrangeWindowsFromCLI(
-      runtime,
-      workspace.id,
-      "desktop-default",
-      [tasksID],
-      "horizontal",
-      "group-cli-right",
-      { x: 0.5, y: 0, width: 0.5, height: 1 }
-    );
-    await expect
-      .poll(async () =>
-        normalizedFrameForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-      )
-      .toEqual({ x: 0.5, y: 0, width: 0.5, height: 1 });
-    await expect
-      .poll(async () => {
-        const [first, peer, firstLayer, peerLayer] = await Promise.all([
-          windowRect(appPage, firstWindow),
-          windowRect(second, secondWindow),
-          winLayerSize(appPage),
-          winLayerSize(second),
-        ]);
-        return (
-          Math.abs(first.x - rightHalfTileX(firstLayer.width, settings.config.gaps)) <= 1 &&
-          Math.abs(peer.x - rightHalfTileX(peerLayer.width, settings.config.gaps)) <= 1
-        );
-      })
-      .toBe(true);
+    // Each client lays the same weights over its own width (1440 and 1280 wide).
+    const share = async (page: Page) => {
+      const shell = osShellSelectors(page);
+      const [left, right] = await Promise.all([
+        shell.window(tasksID).boundingBox(),
+        shell.window(agentsID).boundingBox(),
+      ]);
+      if (!left || !right) throw new Error("both split members must have visible bounds");
+      return left.width / (left.width + right.width);
+    };
+    for (const page of [appPage, second]) {
+      await osShellSelectors(page).tab(tab.id).click();
+      await expect(osShellSelectors(page).window(tasksID)).toBeVisible();
+      await expect(osShellSelectors(page).window(agentsID)).toBeVisible();
+      await expect.poll(() => share(page)).toBeCloseTo(0.5, 1);
+    }
+
+    await resizeSplitOf(runtime, workspace.id, tasksID, -0.2);
+    for (const page of [appPage, second]) {
+      await expect.poll(() => share(page)).toBeCloseTo(0.3, 1);
+    }
+    const [firstBox, peerBox] = await Promise.all([
+      osShellSelectors(appPage).window(tasksID).boundingBox(),
+      osShellSelectors(second).window(tasksID).boundingBox(),
+    ]);
+    if (!firstBox || !peerBox) throw new Error("split members must have visible bounds");
+    expect(Math.round(firstBox.width)).not.toBe(Math.round(peerBox.width));
   } finally {
     await second.context().close();
   }
-});
-
-test("E2E-027: palette tile, drag-away, and reduced-motion gesture each commit one command", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareShell(appPage, runtime);
-  const tasks = await openDockApp(appPage, "Tasks", "tasks");
-  const tasksID = await windowID(tasks);
-
-  await appPage.keyboard.press("ControlOrMeta+K");
-  const palette = appPage.getByTestId("os-command-palette");
-  await expect(palette).toBeVisible();
-  const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
-  await search.fill("Tile left half");
-  await search.press("Enter");
-  await expect
-    .poll(async () => {
-      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      return {
-        placement: snapshot.windows[tasksID]?.placement,
-        frame: normalizedFrameForWindow(snapshot, tasksID),
-      };
-    })
-    .toEqual({
-      placement: "tiled",
-      frame: { x: 0, y: 0, width: 0.5, height: 1 },
-    });
-  await expect(appPage.locator('[data-slot="dialog-overlay"]')).toHaveCount(0);
-
-  const layerBox = await appPage.locator('[data-slot="os-win-layer"]').boundingBox();
-  if (!layerBox) throw new Error("win-layer must be visible");
-  const grip = await windowGrip(tasks);
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(layerBox.x + layerBox.width / 2, layerBox.y + 260, { steps: 10 });
-  await appPage.mouse.up();
-  await expect
-    .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
-    .toMatchObject({ placement: "floating", desktop_id: "desktop-default" });
-  await expect(tasks).toHaveAttribute("data-window-placement", "floating");
-  await expect
-    .poll(() => windowMatchesAuthority(appPage, tasks, runtime, workspace.id, tasksID))
-    .toBe(true);
-
-  await appPage.emulateMedia({ reducedMotion: "reduce" });
-  const gripAgain = await windowGrip(tasks);
-  await appPage.mouse.move(gripAgain.x, gripAgain.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(layerBox.x + 12, layerBox.y + layerBox.height / 2, { steps: 8 });
-  const preview = appPage.locator('[data-slot="window-manager-command-preview"]');
-  await expect(preview).toContainText("Tile");
-  await appPage.mouse.up();
-  await expect
-    .poll(async () =>
-      normalizedFrameForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-    )
-    .toEqual({ x: 0, y: 0, width: 0.5, height: 1 });
-  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-});
-
-test("E2E-028: the structural seam resizes both siblings and persists its weights", async ({
-  appPage,
-  runtime,
-}) => {
-  await appPage.setViewportSize({ width: 1440, height: 900 });
-  const workspace = await prepareShell(appPage, runtime);
-  const tasks = await openDockApp(appPage, "Tasks", "tasks");
-  const settings = await openDockApp(appPage, "Settings", "settings");
-  const agents = await openDockApp(appPage, "Agents", "agents");
-  const tasksID = await windowID(tasks);
-  const settingsID = await windowID(settings);
-  const agentsID = await windowID(agents);
-  await arrangeWindows(
-    runtime,
-    workspace.id,
-    "desktop-default",
-    [tasksID, settingsID],
-    "horizontal",
-    "group-resize"
-  );
-  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-  await expect(settings).toHaveAttribute("data-window-placement", "tiled");
-  await moveWindowToNormalizedRect(runtime, workspace.id, agentsID, {
-    x: 0.4,
-    y: 0.25,
-    width: 0.2,
-    height: 0.5,
-  });
-  await expect(agents).toHaveAttribute("data-window-placement", "floating");
-
-  const beforeWeights = splitWeightsForWindow(
-    await windowManagerSnapshot(runtime, workspace.id),
-    tasksID
-  );
-  if (!beforeWeights) throw new Error("two-up arrangement must expose split weights");
-  const beforeTasks = await windowRect(appPage, tasks);
-  const beforeSettings = await windowRect(appPage, settings);
-  const seam = appPage.getByRole("separator", { name: "Resize boundary 1" });
-  await expect(seam).toHaveCount(1);
-  const seamBox = await seam.boundingBox();
-  if (!seamBox) throw new Error("structural seam must be visible");
-  const seamCenter = {
-    x: seamBox.x + seamBox.width / 2,
-    y: seamBox.y + seamBox.height / 2,
-  };
-  expect(
-    await appPage.evaluate(
-      ({ x, y, windowID }) =>
-        document
-          .elementFromPoint(x, y)
-          ?.closest(`[data-testid="os-window-${windowID}"]`)
-          ?.getAttribute("data-testid"),
-      { ...seamCenter, windowID: agentsID }
-    )
-  ).toBe(`os-window-${agentsID}`);
-
-  const exposedSeamPoint = {
-    x: seamBox.x + seamBox.width / 2,
-    y: seamBox.y + 20,
-  };
-  await appPage.mouse.move(exposedSeamPoint.x, exposedSeamPoint.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(exposedSeamPoint.x + 150, exposedSeamPoint.y, {
-    steps: 8,
-  });
-  await appPage.mouse.up();
-  await expect
-    .poll(async () =>
-      splitWeightsForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-    )
-    .not.toEqual(beforeWeights);
-  await expect
-    .poll(async () => (await windowRect(appPage, tasks)).w)
-    .toBeGreaterThan(beforeTasks.w);
-  await expect
-    .poll(async () => (await windowRect(appPage, settings)).w)
-    .toBeLessThan(beforeSettings.w);
-
-  const persistedWeights = splitWeightsForWindow(
-    await windowManagerSnapshot(runtime, workspace.id),
-    tasksID
-  );
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect
-    .poll(async () =>
-      splitWeightsForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-    )
-    .toEqual(persistedWeights);
-  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
 });
 
 // Invariant: the sessions rail width is one persisted operator preference, set by
@@ -1896,14 +1290,9 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
   const workspace = await prepareShell(appPage, runtime);
   const session = await createNamedSession(runtime, workspace.id, "Resizable rail target");
   const windowId = await openSessionWindowInAuthority(runtime, workspace.id, session);
+  await showTab(appPage, runtime, workspace.id, windowId);
   const sessionWin = sessionWindow(appPage, session.id);
   await expect(sessionWin).toBeVisible();
-  await moveWindowToNormalizedRect(runtime, workspace.id, windowId, {
-    x: 0.04,
-    y: 0.04,
-    width: 0.9,
-    height: 0.86,
-  });
 
   const rail = sessionWin.getByTestId("session-sidebar");
   const handle = sessionWin.getByRole("separator", { name: "Resize sessions sidebar" });
@@ -1962,13 +1351,12 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
   await railToggle.click();
   await expect.poll(railWidth).toBe(chosen);
 
-  // A narrow window keeps at least half its width for the session pane.
-  await moveWindowToNormalizedRect(runtime, workspace.id, windowId, {
-    x: 0.04,
-    y: 0.04,
-    width: 0.3,
-    height: 0.86,
-  });
+  // A narrow window keeps at least half its width for the session pane: split
+  // Tasks beside the session, then move the seam toward the session.
+  const [tasksID] = await openFixtureWindows(runtime, workspace.id, ["tasks"]);
+  if (!tasksID) throw new Error("the narrowing fixture must open a Tasks window");
+  await splitWindowBeside(runtime, workspace.id, tasksID, windowId, "right");
+  await resizeSplitOf(runtime, workspace.id, windowId, -0.2);
   await expect
     .poll(async () => {
       const windowWidth = (await sessionWin.boundingBox())?.width ?? 0;
@@ -1979,12 +1367,7 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
 
   // Narrower than two rail floors (288px): the rail's floor yields, so the
   // session pane still holds half the window instead of being squeezed.
-  await moveWindowToNormalizedRect(runtime, workspace.id, windowId, {
-    x: 0.04,
-    y: 0.04,
-    width: 0.2,
-    height: 0.86,
-  });
+  await resizeSplitOf(runtime, workspace.id, windowId, -0.1);
   const panes = sessionWin.locator("[data-panel]");
   await expect
     .poll(async () => {
@@ -1995,90 +1378,6 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
     .toBe(true);
 });
 
-test("E2E-029: dropping onto a tiled window splits its group and the zoom menu arranges presets", async ({
-  appPage,
-  runtime,
-}) => {
-  await appPage.setViewportSize({ width: 1440, height: 900 });
-  const workspace = await prepareShell(appPage, runtime);
-  const tasks = await openDockApp(appPage, "Tasks", "tasks");
-  const settings = await openDockApp(appPage, "Settings", "settings");
-  const tasksID = await windowID(tasks);
-  const settingsID = await windowID(settings);
-
-  await appPage
-    .getByRole("navigation", { name: "Dock" })
-    .getByRole("button", { name: "Tasks", exact: true })
-    .click();
-  await expect(windowFrame(tasks)).toHaveAttribute("data-focused", "");
-  await appPage.keyboard.press("Control+Alt+ArrowRight");
-  await expect
-    .poll(async () =>
-      normalizedFrameForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-    )
-    .toEqual({ x: 0.5, y: 0, width: 0.5, height: 1 });
-  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-
-  const tasksRect = await tasks.boundingBox();
-  if (!tasksRect) throw new Error("snapped tasks window must be visible");
-  const grip = await windowGrip(settings);
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(
-    tasksRect.x + tasksRect.width / 2,
-    tasksRect.y + tasksRect.height * 0.85,
-    { steps: 10 }
-  );
-  await expect(appPage.locator('[data-slot="window-manager-command-preview"]')).toContainText(
-    "Split"
-  );
-  await appPage.mouse.up();
-  await expect
-    .poll(async () => {
-      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      const group = layoutGroupForWindow(snapshot, tasksID);
-      return group
-        ? {
-            kind: group.root.kind,
-            axis: group.root.axis,
-            windows: nodeWindowIds(group.root).sort(),
-          }
-        : null;
-    })
-    .toEqual({
-      kind: "split",
-      axis: "vertical",
-      windows: [settingsID, tasksID].sort(),
-    });
-  await expect(settings).toHaveAttribute("data-window-placement", "tiled");
-  await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
-
-  const zoomButton = tasks.getByRole("button", { name: "Zoom window" });
-  await zoomButton.hover();
-  const menu = appPage.getByTestId("os-zoom-menu");
-  await expect(menu).toBeVisible();
-  await menu.getByTestId("os-zoom-menu-columns").click();
-  await expect
-    .poll(async () => {
-      const group = layoutGroupForWindow(
-        await windowManagerSnapshot(runtime, workspace.id),
-        tasksID
-      );
-      return group
-        ? {
-            kind: group.root.kind,
-            axis: group.root.axis,
-            windows: nodeWindowIds(group.root).sort(),
-          }
-        : null;
-    })
-    .toEqual({
-      kind: "split",
-      axis: "horizontal",
-      windows: [settingsID, tasksID].sort(),
-    });
-});
-
 test("E2E-009: the pager and overview keep desktop arrangements independent", async ({
   appPage,
   runtime,
@@ -2086,10 +1385,8 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   const workspace = await prepareShell(appPage, runtime);
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const tasksID = await windowID(tasks);
-  await dragWindowBy(appPage, tasks, 140, 90);
-  const tasksRect = (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]
-    ?.floating_rect;
-  if (!tasksRect) throw new Error("Tasks must have an authoritative floating rect");
+  const tasksTab = (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]?.tab_id;
+  if (!tasksTab) throw new Error("Tasks must sit in an authoritative tab");
 
   for (let index = 2; index <= 8; index += 1) {
     await executeWindowManagerCommand(runtime, workspace.id, {
@@ -2110,7 +1407,8 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   await pager.getByRole("button", { name: "Desktop 2 of 8: Desktop 2" }).click();
   await expect(activeDesktop(appPage, "desktop-e2e-2")).toHaveAttribute("data-active", "true");
   await expect(tasks).toBeHidden();
-  await expect(appPage.getByTestId("os-desk-hint")).toBeVisible();
+  // A fresh desktop holds one New Tab window.
+  await expect(appPage.getByTestId("new-tab-empty")).toBeVisible();
   const vault = await openDockApp(appPage, "Vault", "vault");
   const vaultID = await windowID(vault);
   await expect(vault).toBeVisible();
@@ -2143,52 +1441,48 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   await expect(tasksBack).toBeVisible();
   await expect(vault).toBeHidden();
   await expect(activeDesktop(appPage, "desktop-default")).toHaveAttribute("data-active", "true");
-  expect(
-    (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]?.floating_rect
-  ).toEqual(tasksRect);
+  expect((await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]).toMatchObject({
+    desktop_id: "desktop-default",
+    tab_id: tasksTab,
+  });
 });
 
-test("E2E-011: the compact stack round-trips with floating rects preserved", async ({
+test("E2E-011: a compact viewport shows one split member at a time and keeps its weights", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const tasksID = await windowID(tasks);
-  const opened = await authoritativeWindowRect(appPage, runtime, workspace.id, tasksID);
-  await dragWindowBy(appPage, tasks, 120, 80);
-  await expect
-    .poll(() => authoritativeWindowRect(appPage, runtime, workspace.id, tasksID))
-    .not.toEqual(opened);
-  const floatingRect = await authoritativeWindowRect(appPage, runtime, workspace.id, tasksID);
-  await expect.poll(() => windowRect(appPage, tasks)).toEqual(floatingRect);
+  const [agentsID] = await openFixtureWindows(runtime, workspace.id, ["agents"]);
+  if (!agentsID) throw new Error("compact fixture must open a second window");
+  await splitWindowBeside(runtime, workspace.id, agentsID, tasksID, "right");
+  const shell = osShellSelectors(appPage);
+  await expect(shell.window(tasksID)).toBeVisible();
+  await expect(shell.window(agentsID)).toBeVisible();
+  const before = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+  if (before?.root.kind !== "split") throw new Error("compact fixture must hold one split tab");
+  const members = appPage
+    .locator(`[data-testid="os-window-${tasksID}"], [data-testid="os-window-${agentsID}"]`)
+    .filter({ visible: true });
 
-  // Below the breakpoint: stacked fullscreen presentation with the tab bar.
+  // Below the breakpoint the split shows one member at a time behind its switcher.
   await appPage.setViewportSize({ width: 390, height: 844 });
-  await expect(windowFrame(tasks)).toHaveAttribute("data-presentation", "compact");
   await expect(appPage.locator('[data-slot="os-dock-tabbar"]')).toBeVisible();
-  await expect(tasks.getByRole("button", { name: "Zoom window" })).toHaveCount(0);
-  const closeTarget = await tasks.getByRole("button", { name: "Close window" }).boundingBox();
-  const minimizeTarget = await tasks.getByRole("button", { name: "Minimize window" }).boundingBox();
-  if (!closeTarget || !minimizeTarget) {
-    throw new Error("compact window controls must expose measurable touch targets");
-  }
-  expect(closeTarget.width).toBeGreaterThanOrEqual(44);
-  expect(closeTarget.height).toBeGreaterThanOrEqual(44);
-  expect(minimizeTarget.width).toBeGreaterThanOrEqual(44);
-  expect(minimizeTarget.height).toBeGreaterThanOrEqual(44);
-  expect(minimizeTarget.x + minimizeTarget.width).toBeLessThanOrEqual(closeTarget.x);
-  const stackBox = await tasks.boundingBox();
+  await expect(appPage.getByLabel("Windows in this split")).toBeVisible();
+  await expect(members).toHaveCount(1);
+  const memberBox = await members.boundingBox();
   const viewport = appPage.viewportSize();
-  if (!stackBox || !viewport) throw new Error("compact stack window must be measurable");
-  expect(Math.round(stackBox.width)).toBe(viewport.width);
+  if (!memberBox || !viewport) throw new Error("the shown member must be measurable");
+  expect(Math.round(memberBox.width)).toBe(viewport.width);
+  expect(
+    tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)?.root.weights
+  ).toEqual(before.root.weights);
 
-  // Back above the breakpoint: the floating rect returns exactly.
+  // Back above the breakpoint both members return side by side.
   await appPage.setViewportSize({ width: 1280, height: 720 });
-  await expect(windowFrame(tasks)).not.toHaveAttribute("data-presentation", "compact");
-  await expect
-    .poll(async () => rectsClose(await windowRect(appPage, tasks), floatingRect))
-    .toBe(true);
+  await expect(members).toHaveCount(2);
+  await expect(appPage.getByLabel("Windows in this split")).toHaveCount(0);
 });
 
 // The browser owns snapshot animation: exercise the shared vocabulary with the real API,
@@ -2226,13 +1520,12 @@ async function contentMotionState(page: Page) {
   });
 }
 
-test("E2E-004 / E2E-013: appearance stays client-local while minimize updates the dock and restore remounts content", async ({
+test("E2E-004: appearance stays client-local and never writes the window layout", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const tasksWindow = await openDockApp(appPage, "Tasks", "tasks");
-  const tasksID = await windowID(tasksWindow);
 
   await openMenu(appPage, "CompozyOS");
   await appPage.getByRole("menuitem", { name: "Settings → Appearance" }).click();
@@ -2280,26 +1573,6 @@ test("E2E-004 / E2E-013: appearance stays client-local while minimize updates th
   );
 
   await expect(tasksWindow).toBeVisible();
-  await appPage
-    .getByRole("navigation", { name: "Dock" })
-    .getByRole("button", { name: "Tasks", exact: true })
-    .click();
-  await expect(windowFrame(tasksWindow)).toHaveAttribute("data-focused", "");
-  await tasksWindow.getByRole("button", { name: "Minimize window" }).click();
-  await expect(tasksWindow).toBeHidden();
-  await expect(appPage.getByRole("button", { name: "Tasks", exact: true })).toHaveAttribute(
-    "data-state",
-    "minimized"
-  );
-  await expect
-    .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
-    .toMatchObject({ minimized: true });
-  await appPage.getByRole("button", { name: "Tasks", exact: true }).click();
-  await expect(tasksWindow).toBeVisible();
-  await expect(tasksWindow.getByTestId("tasks-shell")).toBeVisible();
-  await expect
-    .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID])
-    .toMatchObject({ minimized: false });
 });
 
 test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session deep link confirms before switching and exposes nothing foreign", async ({
@@ -2317,13 +1590,9 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
   // Arrange A so its integrity is checkable across the whole confirmation journey.
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const tasksID = await windowID(tasks);
-  const openedTasks = await authoritativeWindowRect(appPage, runtime, workspace.id, tasksID);
-  await dragWindowBy(appPage, tasks, 130, 70);
-  await expect
-    .poll(() => authoritativeWindowRect(appPage, runtime, workspace.id, tasksID))
-    .not.toEqual(openedTasks);
-  const arrangedTasks = await authoritativeWindowRect(appPage, runtime, workspace.id, tasksID);
-  await expect.poll(() => windowRect(appPage, tasks)).toEqual(arrangedTasks);
+  const arrangedTasksTab = (await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]
+    ?.tab_id;
+  if (!arrangedTasksTab) throw new Error("Tasks must sit in an authoritative tab");
 
   // Every API path the browser touches, so the pre-confirm reads can be proved minimal.
   const apiRequests: string[] = [];
@@ -2378,11 +1647,11 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
     .toBe(fallbackAgentPath);
   await expect(menubarWorkspace).toContainText(workspace.name);
   await expect(sessionWindow(appPage, session.id)).toHaveCount(0);
-  const tasksAfterCancel = appWindow(appPage, "tasks");
-  await expect(tasksAfterCancel).toBeVisible();
-  await expect
-    .poll(async () => rectsClose(await windowRect(appPage, tasksAfterCancel), arrangedTasks))
-    .toBe(true);
+  // The fallback opened its own tab; A's Tasks tab is untouched.
+  await expect(osShellSelectors(appPage).tab(arrangedTasksTab)).toBeVisible();
+  expect((await windowManagerSnapshot(runtime, workspace.id)).windows[tasksID]?.tab_id).toBe(
+    arrangedTasksTab
+  );
 
   // A session that exists nowhere keeps the not-found outcome with no confirmation at all.
   await appPage.goto(
@@ -2427,7 +1696,6 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   // Deep link lands focused in the stack.
   const tasksWindow = appWindow(appPage, "tasks");
   await expect(tasksWindow).toBeVisible();
-  await expect(windowFrame(tasksWindow)).toHaveAttribute("data-presentation", "compact");
   await expect(tasksWindow).toContainText(detailTask.title);
 
   // Badges render truthfully in the tab bar (awaiting-approval projection).
@@ -2435,7 +1703,7 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   await expect(tabbar).toBeVisible();
   await expect(tabbar.locator('[data-app="tasks"] [data-slot="os-dock-badge"]')).toHaveText("1");
 
-  // Tab-bar semantics: tapping the focused app switches to it — never minimizes.
+  // Tab-bar semantics: tapping the focused app switches to it — never hides it.
   await tabbar.locator('[data-app="tasks"]').click();
   await expect(tasksWindow).toBeVisible();
 
@@ -2448,133 +1716,36 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   await expect(tasksWindow).toContainText(detailTask.title);
 });
 
-test("E2E-030 (logical E2E-001): a real drag previews, cancels, then merges a floating window into a deck", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareShell(appPage, runtime);
-  const ids = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-    "marketplace",
-  ]);
-  await groupWindowsInAuthority(runtime, workspace.id, ids[0], [ids[1]]);
-  await moveWindowToNormalizedRect(runtime, workspace.id, ids[2], {
-    x: 0.56,
-    y: 0.14,
-    width: 0.4,
-    height: 0.58,
-  });
-
-  const beforeDrag = await windowManagerSnapshot(runtime, workspace.id);
-  const frame = floatingStackForWindow(beforeDrag, ids[0]);
-  if (!frame) throw new Error("deck fixture must create a floating stack");
-  const shell = osShellSelectors(appPage);
-  await expect(shell.deck(frame.id)).toBeVisible();
-  const source = shell.window(ids[2]);
-  await expect
-    .poll(() => windowMatchesAuthority(appPage, source, runtime, workspace.id, ids[2]))
-    .toBe(true);
-  // The Marketplace head gains its Refresh/Add actions once the catalog route has
-  // loaded; grip the head only after that, as a person would see it.
-  await expect(source.getByTestId("marketplace-refresh")).toBeVisible();
-
-  const target = await shell
-    .deck(frame.id)
-    .getByRole("tablist", { name: "Open tabs" })
-    .boundingBox();
-  if (!target) throw new Error("deck tab row must expose a visible drop region");
-  const grip = await windowGrip(source);
-  await appPage.mouse.move(grip.x, grip.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
-  await expect(appPage.locator('[data-slot="os-window-deck-insertion"]')).toBeVisible();
-  await appPage.keyboard.press("Escape");
-  await appPage.mouse.up();
-  expect(
-    floatingStackForWindow(await windowManagerSnapshot(runtime, workspace.id), ids[2])
-  ).toBeNull();
-
-  const retryGrip = await windowGrip(source);
-  await appPage.mouse.move(retryGrip.x, retryGrip.y);
-  await appPage.mouse.down();
-  await appPage.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
-  await appPage.mouse.up();
-
-  await expect
-    .poll(async () =>
-      floatingStackForWindow(await windowManagerSnapshot(runtime, workspace.id), ids[0])
-    )
-    .toMatchObject({ window_ids: expect.arrayContaining(ids) });
-  await expect(shell.tabButton(ids[2])).toHaveAttribute("aria-selected", "true");
-});
-
-test("E2E-031 (logical E2E-002): a CLI tiled stack keeps both tabs pointer-reachable and dissolves", async ({
-  appPage,
-  runtime,
-}) => {
-  const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-  ]);
-  await arrangeWindowsFromCLI(
-    runtime,
-    workspace.id,
-    "desktop-default",
-    [tasksID, agentsID],
-    "stack",
-    "e2e-tiled-stack"
-  );
-  const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-  const frame = layoutGroupForWindow(snapshot, tasksID);
-  if (!frame) throw new Error("CLI stack fixture must create a tiled frame");
-  const frameID = frame.root.id;
-  const shell = osShellSelectors(appPage);
-  await expect(shell.frame(frameID)).toHaveAttribute("data-frame-kind", "tiled");
-  await expect(shell.deck(frameID)).toBeVisible();
-  await expect(shell.tab(tasksID)).toBeVisible();
-  await expect(shell.tab(agentsID)).toBeVisible();
-  await shell.tab(agentsID).click();
-  await expect(shell.window(agentsID)).toHaveAttribute("data-stack-active", "");
-  await expect(shell.window(tasksID)).not.toHaveAttribute("data-stack-active", "");
-
-  await shell.tab(agentsID).getByRole("button", { name: /Close/ }).click();
-  await expect(shell.tab(agentsID)).toHaveCount(0);
-  await expect(shell.deck(frameID)).toHaveCount(0);
-  await expect(
-    shell.window(tasksID).getByRole("button", { name: "Minimize window" })
-  ).toBeVisible();
-});
-
 test("E2E-032 (logical E2E-005): the tab shortcut creates a real destination-backed tab", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-  ]);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const tasksID = await windowID(tasks);
   const shell = osShellSelectors(appPage);
-  await shell.tabButton(tasksID).click();
+  const existing = new Set(Object.keys((await windowManagerSnapshot(runtime, workspace.id)).windows));
+  const freshNewTab = (snapshot: WindowManagerSnapshot) =>
+    Object.values(snapshot.windows).find(
+      window => window.app === "new-tab" && !existing.has(window.id)
+    );
   await appPage.keyboard.press("ControlOrMeta+T");
 
   await expect
-    .poll(async () => {
-      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      return Object.values(snapshot.windows).find(window => window.app === "new-tab")?.id ?? null;
-    })
+    .poll(async () => freshNewTab(await windowManagerSnapshot(runtime, workspace.id))?.id ?? null)
     .not.toBeNull();
   // `expect.poll` does not expose its resolved value; read the authority once
   // it is stable so the rest of the assertion remains ID-opaque.
   const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-  const newWindow = Object.values(snapshot.windows).find(window => window.app === "new-tab");
+  const newWindow = freshNewTab(snapshot);
   if (!newWindow) throw new Error("⌘T must create a daemon-backed new-tab window");
+  const order = desktopTabIds(snapshot, "desktop-default");
+  expect(order.indexOf(newWindow.tab_id)).toBe(
+    order.indexOf(snapshot.windows[tasksID]?.tab_id ?? "") + 1
+  );
   await expect(shell.window(newWindow.id)).toBeVisible();
-  await expect(appPage.getByTestId("new-tab-empty")).toBeVisible();
-  await expect(shell.tabButton(newWindow.id)).toHaveAttribute("aria-selected", "true");
+  await expect(shell.window(newWindow.id).getByTestId("new-tab-empty")).toBeVisible();
+  await expect(shell.tab(newWindow.tab_id)).toHaveAttribute("aria-selected", "true");
   const destinationPicker = appPage.getByTestId("os-command-palette");
   await expect(destinationPicker).toHaveAttribute("data-destination", "");
   await destinationPicker.getByPlaceholder("Open in this tab…").fill("Tasks");
@@ -2593,12 +1764,10 @@ test("E2E-032 (logical E2E-005): the tab shortcut creates a real destination-bac
     window => window.app === "tasks" && window.id !== tasksID
   );
   if (!destinationWindow) throw new Error("destination picker must create a fresh Tasks surface");
-  expect(destinationSnapshot.windows[newWindow.id]).toBeUndefined();
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [destinationWindow.id]);
-  await shell.tab(destinationWindow.id).click();
-  await expect(shell.tabButton(destinationWindow.id)).toHaveAttribute("aria-selected", "true");
-  await appPage.keyboard.press("Control+Tab");
-  await expect(shell.tabButton(tasksID)).toHaveAttribute("aria-selected", "true");
+  await expect(shell.tabOfWindow(destinationWindow.id)).toHaveAttribute("aria-selected", "true");
+  // The previous-tab shortcut steps back to the tab the new one opened after.
+  await appPage.keyboard.press("Control+Shift+Tab");
+  await expect(shell.tabOfWindow(tasksID)).toHaveAttribute("aria-selected", "true");
 });
 
 test("E2E-033 (logical E2E-006): dock context opens a second app instance as a tab", async ({
@@ -2633,8 +1802,8 @@ test("E2E-033 (logical E2E-006): dock context opens a second app instance as a t
   const taskIDs = Object.values(snapshot.windows)
     .filter(window => window.app === "tasks")
     .map(window => window.id);
-  const stack = floatingStackForWindow(snapshot, taskIDs[0] ?? "");
-  expect(stack?.window_ids).toEqual(expect.arrayContaining(taskIDs));
+  // Every instance is its own tab of the desktop's bar.
+  expect(new Set(taskIDs.map(id => snapshot.windows[id]?.tab_id)).size).toBe(3);
   const secondaryID = taskIDs.find(id => id !== primaryID);
   if (!secondaryID) throw new Error("dock context must create an independently routable tab");
   await executeWindowManagerCommand(runtime, workspace.id, {
@@ -2657,249 +1826,318 @@ test("E2E-033 (logical E2E-006): dock context opens a second app instance as a t
   const expectedCycleID = stableTaskIDs[(focusedIndex + 1) % stableTaskIDs.length];
   if (!expectedCycleID) throw new Error("dock cycle requires a successor Tasks instance");
   await tasksDockItem.click();
-  await expect(osShellSelectors(appPage).tabButton(expectedCycleID)).toHaveAttribute(
+  await expect(osShellSelectors(appPage).tabOfWindow(expectedCycleID)).toHaveAttribute(
     "aria-selected",
     "true"
   );
 });
 
-test.describe("shipped new-window policy", () => {
-  // Every other shell journey pins `floating`; this one runs on the daemon's
-  // shipped `tab` default, which the rail's plain and ⌥ clicks exercise.
-  test.use({ runtimeOptions: {} });
-
-  test("Shell-rail P6: the rail opens a second app as a tab of the focused window and ⌥-click splits", async ({
-    appPage,
-    runtime,
-  }) => {
-    const workspace = await prepareShell(appPage, runtime);
-    const dock = appPage.locator('[data-slot="os-dock"]');
-    const tasks = await openDockApp(appPage, "Tasks", "tasks");
-    const tasksID = await windowID(tasks);
-    const agents = await openDockApp(appPage, "Agents", "agents");
-    const agentsID = await windowID(agents);
-
-    await expect
-      .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        const stack = tiledStackNodeForWindow(snapshot, tasksID);
-        return stack !== null && stack === tiledStackNodeForWindow(snapshot, agentsID);
-      })
-      .toBe(true);
-    const shell = osShellSelectors(appPage);
-    await expect(shell.tabButton(tasksID)).toBeVisible();
-    await expect(shell.tabButton(agentsID)).toHaveAttribute("aria-selected", "true");
-
-    await dock.getByRole("button", { name: "Tasks", exact: true }).click({ modifiers: ["Alt"] });
-    let splitID = "";
-    await expect
-      .poll(async () => {
-        const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-        const split = Object.values(snapshot.windows).find(
-          window => window.app === "tasks" && window.id !== tasksID
-        );
-        splitID = split?.id ?? "";
-        if (split === undefined) return null;
-        const group = layoutGroupForWindow(snapshot, split.id);
-        return {
-          placement: split.placement,
-          stacked: tiledStackNodeForWindow(snapshot, split.id) !== null,
-          sameGroup: group !== null && group.id === layoutGroupForWindow(snapshot, tasksID)?.id,
-          rootKind: group?.root.kind,
-        };
-      })
-      .toEqual({ placement: "tiled", stacked: false, sameGroup: true, rootKind: "split" });
-    await expect(shell.window(splitID)).toBeVisible();
-    await expect(shell.window(agentsID)).toBeVisible();
-  });
-});
-
-test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W until unpinned", async ({
+test("Shell-rail P6: the rail opens a second app as a tab after the active one and ⌥-click splits", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openDeckFixtureWindows(runtime, workspace.id, [
+  const dock = appPage.locator('[data-slot="os-dock"]');
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const tasksID = await windowID(tasks);
+  const agents = await openDockApp(appPage, "Agents", "agents");
+  const agentsID = await windowID(agents);
+
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      const order = desktopTabIds(snapshot, "desktop-default");
+      const tasksTab = snapshot.windows[tasksID]?.tab_id ?? "";
+      const agentsTab = snapshot.windows[agentsID]?.tab_id ?? "";
+      return tasksTab !== agentsTab && order.indexOf(agentsTab) === order.indexOf(tasksTab) + 1;
+    })
+    .toBe(true);
+  const shell = osShellSelectors(appPage);
+  await expect(shell.tabOfWindow(tasksID)).toBeVisible();
+  await expect(shell.tabOfWindow(agentsID)).toHaveAttribute("aria-selected", "true");
+
+  await dock.getByRole("button", { name: "Tasks", exact: true }).click({ modifiers: ["Alt"] });
+  let splitID = "";
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      const split = Object.values(snapshot.windows).find(
+        window => window.app === "tasks" && window.id !== tasksID
+      );
+      splitID = split?.id ?? "";
+      if (split === undefined) return null;
+      const tab = tabForWindow(snapshot, split.id);
+      return {
+        sameTab: tab !== null && tab.id === snapshot.windows[agentsID]?.tab_id,
+        rootKind: tab?.root.kind,
+      };
+    })
+    .toEqual({ sameTab: true, rootKind: "split" });
+  await expect(shell.window(splitID)).toBeVisible();
+  await expect(shell.window(agentsID)).toBeVisible();
+});
+
+test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W and offers Unpin until unpinned", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, [
     "tasks",
     "agents",
   ]);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
+  if (!tasksID || !agentsID) throw new Error("pin fixture must open two tabs");
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.pin",
     payload: { window_id: tasksID, pinned: true },
   });
+  const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+  const tasksTab = snapshot.windows[tasksID]?.tab_id ?? "";
+  const agentsTab = snapshot.windows[agentsID]?.tab_id ?? "";
+  // Pinned tabs sit at the start of the bar.
+  expect(desktopTabIds(snapshot, "desktop-default")[0]).toBe(tasksTab);
 
   const shell = osShellSelectors(appPage);
-  await expect(shell.tab(tasksID)).toHaveAttribute("data-pinned", "");
-  await expect(shell.tab(tasksID).getByRole("button", { name: /Close/ })).toHaveCount(0);
-  await shell.tab(tasksID).click();
-  await appPage.keyboard.press("ControlOrMeta+W");
-  await expect(shell.tab(tasksID)).toBeVisible();
-  await shell.tabMenu(tasksID).click({ button: "right" });
-  await appPage.getByRole("menuitem", { name: "Close other tabs" }).click();
-  await expect(shell.tab(tasksID)).toHaveCount(0);
+  await expect(shell.tab(tasksTab)).toHaveAttribute("data-pinned", "");
+  await expect(shell.tabClose(tasksTab)).toHaveCount(0);
+  await shell.tab(tasksTab).click();
   await expect(shell.window(tasksID)).toBeVisible();
-  await expect(shell.tab(agentsID)).toHaveCount(0);
+  await appPage.keyboard.press("ControlOrMeta+W");
+  await expect(shell.tab(tasksTab)).toBeVisible();
+  await expect(shell.window(tasksID)).toBeVisible();
 
-  const agentsReplacement = (await openDeckFixtureWindows(runtime, workspace.id, ["agents"]))[0];
-  if (!agentsReplacement) throw new Error("pin fixture must create an unpinned replacement tab");
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsReplacement]);
+  await shell.tab(tasksTab).click({ button: "right" });
+  await expect(appPage.getByRole("menuitem", { name: "Unpin tab" })).toBeVisible();
+  await expect(appPage.getByRole("menuitem", { name: "Close tab", exact: true })).toHaveCount(0);
+  // Bulk close skips pinned tabs.
+  await appPage.getByRole("menuitem", { name: "Close other tabs" }).click();
+  await expect(shell.tab(agentsTab)).toHaveCount(0);
+  await expect(shell.tab(tasksTab)).toBeVisible();
+
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.pin",
     payload: { window_id: tasksID, pinned: false },
   });
-  await expect(shell.tab(tasksID)).not.toHaveAttribute("data-pinned", "");
-  await expect(shell.tab(tasksID).getByRole("button", { name: /Close/ })).toHaveCount(1);
-  await shell.tab(tasksID).getByRole("button", { name: /Close/ }).click();
-  await expect(shell.tab(tasksID)).toHaveCount(0);
+  await expect(shell.tab(tasksTab)).not.toHaveAttribute("data-pinned", "");
+  await shell.tab(tasksTab).hover();
+  await expect(shell.tabClose(tasksTab)).toHaveCount(1);
+  await shell.tabClose(tasksTab).click();
+  await expect(shell.tab(tasksTab)).toHaveCount(0);
 });
 
-test("E2E-035 (logical E2E-010): dragging a tab out makes a standalone window", async ({
+// Invariant: opening a window adds a tab right after the opener's active tab and activates it
+// for the opener (US-001). Owner: tab bar + daemon open placement; canonical suite: this file.
+test("Tabs-split E2E-001: opening two sessions adds two tabs, the second active right after the first", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const task = await createTask(runtime, "Tear-out navigation");
-  const [rootTasksID, runTasksID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "tasks",
-  ]);
-  if (!rootTasksID || !runTasksID) {
-    throw new Error("tear-out fixture must create two task windows");
+  const first = await createNamedSession(runtime, workspace.id, "First tab session");
+  const second = await createNamedSession(runtime, workspace.id, "Second tab session");
+  const shell = osShellSelectors(appPage);
+
+  for (const session of [first, second]) {
+    await openSessionsCatalog(appPage);
+    const sessionsModal = appPage.getByTestId("os-sessions-modal");
+    await sessionsModal.getByTestId(`os-sessions-modal-session-${session.id}`).first().click();
+    await expect(sessionsModal).toHaveCount(0);
+    await expect(sessionWindow(appPage, session.id)).toBeVisible();
   }
+
+  const sessionWindowOf = (snapshot: WindowManagerSnapshot, sessionId: string) =>
+    Object.values(snapshot.windows).find(
+      window => window.app === "session" && window.instance_key === sessionId
+    );
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      return [sessionWindowOf(snapshot, first.id), sessionWindowOf(snapshot, second.id)].every(
+        Boolean
+      );
+    })
+    .toBe(true);
+  const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+  const firstWindow = sessionWindowOf(snapshot, first.id);
+  const secondWindow = sessionWindowOf(snapshot, second.id);
+  if (!firstWindow || !secondWindow) throw new Error("both sessions must own a window");
+  expect(firstWindow.tab_id).not.toBe(secondWindow.tab_id);
+  const order = desktopTabIds(snapshot, firstWindow.desktop_id);
+  expect(order.indexOf(secondWindow.tab_id)).toBe(order.indexOf(firstWindow.tab_id) + 1);
+
+  await expect(shell.tab(secondWindow.tab_id)).toHaveAttribute("aria-selected", "true");
+  await expect(shell.tab(firstWindow.tab_id)).not.toHaveAttribute("aria-selected", "true");
+  await expect(sessionWindow(appPage, first.id)).toBeHidden();
+  // The rendered bar follows the authority's order.
+  await expect
+    .poll(() => shell.tabs.evaluateAll(tabs => tabs.map(tab => tab.getAttribute("data-testid"))))
+    .toEqual(order.map(id => `os-tab-${id}`));
+});
+
+// Invariant: closing the active tab activates its right neighbour (else the left one), reopen
+// restores the tab at its former position with its route, and a middle click closes a tab
+// (US-002, US-006). Owner: tab bar + daemon close/reopen; canonical suite: this file.
+test("Tabs-split E2E-002: close, reopen, and middle-click keep the bar's order and routes", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const ids = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace"]);
+  const shell = osShellSelectors(appPage);
+  const opened = await windowManagerSnapshot(runtime, workspace.id);
+  const order = desktopTabIds(opened, "desktop-default");
+  // Close the fixture tab that has a neighbour on each side.
+  const target = ids
+    .map(id => ({ id, index: order.indexOf(opened.windows[id]?.tab_id ?? "") }))
+    .find(entry => entry.index > 0 && entry.index < order.length - 1);
+  if (!target) throw new Error("the close fixture needs a tab between two others");
+  const closedTab = order[target.index] ?? "";
+  const rightNeighbour = order[target.index + 1] ?? "";
+  const routes: Record<string, WindowRoute> = {
+    tasks: { pathname: "/tasks", search: { mode: "kanban" } },
+    agents: { pathname: `/agents/${encodeURIComponent(browserLifecycleAgent)}`, search: {} },
+    marketplace: { pathname: "/marketplace", search: { q: "reopen" } },
+  };
+  const route = routes[opened.windows[target.id]?.app ?? ""];
+  if (!route) throw new Error("the close fixture's target must have a known route");
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.navigate",
-    payload: {
-      window_id: runTasksID,
-      mode: "push",
-      route: { pathname: `/tasks/${encodeURIComponent(task.id)}`, search: {} },
-    },
+    payload: { window_id: target.id, mode: "replace", route },
   });
-  await groupWindowsInAuthority(runtime, workspace.id, rootTasksID, [runTasksID]);
-  const frame = floatingStackForWindow(
-    await windowManagerSnapshot(runtime, workspace.id),
-    rootTasksID
-  );
-  if (!frame) throw new Error("tear-out fixture must create a frame");
-  const shell = osShellSelectors(appPage);
-  await expect(shell.deck(frame.id)).toBeVisible();
-  const tab = shell.tab(runTasksID);
-  const box = await tab.boundingBox();
-  if (!box) throw new Error("tab must be visible before a tear-out gesture");
-  await appPage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await appPage.mouse.down();
-  await appPage.mouse.move(box.x + box.width / 2, box.y + box.height + 96, { steps: 8 });
-  await appPage.mouse.up();
 
+  await shell.tab(closedTab).click();
+  await expect(shell.window(target.id)).toBeVisible();
+  await appPage.keyboard.press("ControlOrMeta+W");
+  await expect(shell.tab(closedTab)).toHaveCount(0);
+  await expect(shell.tab(rightNeighbour)).toHaveAttribute("aria-selected", "true");
+
+  await appPage.keyboard.press("ControlOrMeta+Shift+T");
+  await expect(shell.window(target.id)).toBeVisible();
   await expect
-    .poll(
-      async () =>
-        (await windowManagerSnapshot(runtime, workspace.id)).windows[runTasksID]?.placement
-    )
-    .toBe("floating");
-  await expect(shell.deck(frame.id)).toHaveCount(0);
-  await expect(shell.window(runTasksID)).toBeVisible();
-  const tornOut = (await windowManagerSnapshot(runtime, workspace.id)).windows[runTasksID];
-  expect(tornOut).toMatchObject({
-    placement: "floating",
-    route: { pathname: `/tasks/${task.id}`, search: {} },
-    nav_stack: [{ pathname: "/tasks", search: {} }],
-  });
-  expect(tornOut?.floating_rect.width).toBeGreaterThan(0);
-  expect(tornOut?.floating_rect.height).toBeGreaterThan(0);
-  await expect(shell.window(rootTasksID).getByTestId("tasks-shell")).toBeVisible();
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      const reopened = snapshot.windows[target.id];
+      return {
+        index: desktopTabIds(snapshot, "desktop-default").indexOf(reopened?.tab_id ?? ""),
+        route: reopened?.route,
+      };
+    })
+    .toEqual({ index: target.index, route });
+  await expect(shell.tabOfWindow(target.id)).toHaveAttribute("aria-selected", "true");
+
+  // A middle click closes a tab without activating it first.
+  await shell.tab(rightNeighbour).click({ button: "middle" });
+  await expect(shell.tab(rightNeighbour)).toHaveCount(0);
+  await expect(shell.tabOfWindow(target.id)).toHaveAttribute("aria-selected", "true");
 });
 
-test("E2E-036 (logical E2E-012): deck menu merges peers in stable order and splits one member back out", async ({
+// Invariant: jump, next, and previous shortcuts activate the expected tab of the active
+// desktop, and a jump past the last tab changes nothing (US-003). Owner: tab shortcuts;
+// canonical suite: this file.
+test("Tabs-split E2E-003: jump and next/previous shortcuts activate the expected tabs", async ({
   appPage,
   runtime,
 }) => {
+  // `meta` chords follow the platform's primary modifier. On Linux runners that is Control,
+  // which `desktop.switch.N` also binds; pin the Mac primary so the tab chords are unambiguous.
+  await appPage.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "platform", { get: () => "MacIntel" });
+  });
+  await appPage.reload({ waitUntil: "domcontentloaded" });
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID, marketplaceID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-    "marketplace",
-  ]);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
-  const frame = floatingStackForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
-  if (!frame) throw new Error("merge fixture must create a deck");
+  await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace"]);
   const shell = osShellSelectors(appPage);
-  await shell.tabMenu(tasksID).click({ button: "right" });
-  await appPage.getByRole("menuitem", { name: "Merge all windows" }).click();
-  await expect
-    .poll(async () =>
-      floatingStackForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-    )
-    .toMatchObject({ window_ids: [tasksID, agentsID, marketplaceID] });
+  const order = desktopTabIds(await windowManagerSnapshot(runtime, workspace.id), "desktop-default");
+  expect(order.length).toBeGreaterThanOrEqual(4);
+  expect(order.length).toBeLessThan(8);
+  const expectActive = async (tabId: string | undefined) => {
+    if (!tabId) throw new Error("the shortcut fixture must hold the expected tab");
+    await expect(shell.tab(tabId)).toHaveAttribute("aria-selected", "true");
+  };
+  await expect(shell.tabs).toHaveCount(order.length);
 
-  await shell.tabMenu(marketplaceID).click({ button: "right" });
-  await appPage.getByRole("menuitem", { name: "Move tab to new window" }).click();
-  await expect
-    .poll(
-      async () =>
-        (await windowManagerSnapshot(runtime, workspace.id)).windows[marketplaceID]?.placement
-    )
-    .toBe("floating");
+  await appPage.keyboard.press("Meta+Digit1");
+  await expectActive(order[0]);
+  await appPage.keyboard.press("Meta+Digit3");
+  await expectActive(order[2]);
+  await appPage.keyboard.press("Control+Tab");
+  await expectActive(order[3]);
+  await appPage.keyboard.press("Control+Shift+Tab");
+  await expectActive(order[2]);
+  await appPage.keyboard.press("Control+Shift+Tab");
+  await expectActive(order[1]);
+  // Jumping past the last tab changes nothing.
+  await appPage.keyboard.press("Meta+Digit8");
+  await expectActive(order[1]);
+  await appPage.keyboard.press("Meta+Digit9");
+  await expectActive(order.at(-1));
 });
 
-test("E2E-037 (logical E2E-016): two clients keep independent active tabs in one frame", async ({
+// Invariant: the active tab is per client: switching tabs in one client leaves another's
+// unchanged, and a tab opened in one appears in the other's bar without activating there
+// (US-024). Owner: per-client tab activation; canonical suite: this file.
+test("Tabs-split E2E-014 / E2E-037: two clients keep independent active tabs and share the bar", async ({
   appPage,
   browser,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openDeckFixtureWindows(runtime, workspace.id, [
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, [
     "tasks",
     "agents",
   ]);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
-  const frame = floatingStackForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
-  if (!frame) throw new Error("client-independence fixture must create a frame");
+  if (!tasksID || !agentsID) throw new Error("client-independence fixture must open two tabs");
   const peer = await openPeerPage(browser, runtime);
   try {
+    const shell = osShellSelectors(appPage);
+    const peerShell = osShellSelectors(peer);
     const [firstClientID, secondClientID] = await Promise.all([
       browserClientId(appPage),
       browserClientId(peer),
     ]);
-    await executeWindowManagerCommand(
-      runtime,
-      workspace.id,
-      { commandId: "window.stack.set_active", payload: { window_id: tasksID } },
-      firstClientID
-    );
-    await executeWindowManagerCommand(
-      runtime,
-      workspace.id,
-      { commandId: "window.stack.set_active", payload: { window_id: agentsID } },
-      secondClientID
-    );
+    const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+    const tasksTab = snapshot.windows[tasksID]?.tab_id ?? "";
+    const agentsTab = snapshot.windows[agentsID]?.tab_id ?? "";
 
+    await shell.tab(tasksTab).click();
+    await peerShell.tab(agentsTab).click();
+    await expect(shell.window(tasksID)).toBeVisible();
+    await expect(peerShell.window(agentsID)).toBeVisible();
     await expect
       .poll(
         async () =>
-          (await windowManagerClient(runtime, workspace.id, firstClientID)).stack_active?.[frame.id]
-      )
-      .toBe(tasksID);
-    await expect
-      .poll(
-        async () =>
-          (await windowManagerClient(runtime, workspace.id, secondClientID)).stack_active?.[
-            frame.id
+          (await windowManagerClient(runtime, workspace.id, firstClientID)).active_tab?.[
+            "desktop-default"
           ]
       )
-      .toBe(agentsID);
-    const shell = osShellSelectors(appPage);
-    await expect(shell.window(tasksID)).toHaveAttribute("data-stack-active", "");
-    await expect(peer.getByTestId(`os-window-${agentsID}`)).toHaveAttribute(
-      "data-stack-active",
-      ""
-    );
+      .toBe(tasksTab);
+    await expect
+      .poll(
+        async () =>
+          (await windowManagerClient(runtime, workspace.id, secondClientID)).active_tab?.[
+            "desktop-default"
+          ]
+      )
+      .toBe(agentsTab);
 
-    const [marketplaceID] = await openDeckFixtureWindows(runtime, workspace.id, ["marketplace"]);
-    if (!marketplaceID) throw new Error("two-client fixture must create a membership edit");
-    await groupWindowsInAuthority(runtime, workspace.id, tasksID, [marketplaceID]);
-    await expect(shell.tab(marketplaceID)).toBeVisible();
-    await expect(peer.getByTestId(`os-window-tab-${marketplaceID}`)).toBeVisible();
+    // Switching tabs in one client leaves the other where it was.
+    await shell.tab(agentsTab).click();
+    await expect(shell.window(agentsID)).toBeVisible();
+    await expect(peerShell.tab(agentsTab)).toHaveAttribute("aria-selected", "true");
+    await peerShell.tab(tasksTab).click();
+    await expect(peerShell.window(tasksID)).toBeVisible();
+    await expect(shell.tab(agentsTab)).toHaveAttribute("aria-selected", "true");
+    await expect(shell.window(tasksID)).toBeHidden();
+
+    // A tab opened in one client appears in the other's bar without taking over its view.
+    const marketplace = await openDockApp(appPage, "Marketplace", "marketplace");
+    const marketplaceID = await windowID(marketplace);
+    await expect(peerShell.tabOfWindow(marketplaceID)).toBeVisible();
+    await expect(peerShell.tabOfWindow(marketplaceID)).not.toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(peerShell.tab(tasksTab)).toHaveAttribute("aria-selected", "true");
+    await expect(peer.getByTestId(`os-window-${marketplaceID}`)).toBeHidden();
   } finally {
     await peer.context().close();
   }
@@ -2910,7 +2148,7 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID, duplicateAgentsID] = await openDeckFixtureWindows(
+  const [tasksID, agentsID, duplicateAgentsID] = await openFixtureWindows(
     runtime,
     workspace.id,
     ["tasks", "agents", "agents"]
@@ -2929,7 +2167,7 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
     payload: {
       window_id: agentsID,
       destination_desktop_id: destination.id,
-      placement: "floating",
+      placement: "tab",
       move_group: false,
     },
   });
@@ -2938,7 +2176,7 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
     payload: {
       window_id: duplicateAgentsID,
       destination_desktop_id: destination.id,
-      placement: "floating",
+      placement: "tab",
       move_group: false,
     },
   });
@@ -2975,39 +2213,40 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
     .toBe(agentsID);
 });
 
-test("E2E-039 (logical E2E-004/013): crowded decks retain overflow, tooltip, and 15-tab reachability", async ({
+test("E2E-039 (logical E2E-004/013): a crowded tab bar keeps overflow, tooltip, and 15-tab reachability", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const ids = await openDeckFixtureWindows(
+  const ids = await openFixtureWindows(
     runtime,
     workspace.id,
     Array.from({ length: 15 }, () => "tasks")
   );
-  const targetID = ids[0];
-  if (!targetID) throw new Error("overflow fixture must create a target tab");
-  await groupWindowsInAuthority(runtime, workspace.id, targetID, ids.slice(1));
-  const frame = floatingStackForWindow(
-    await windowManagerSnapshot(runtime, workspace.id),
-    targetID
-  );
-  if (!frame) throw new Error("overflow fixture must create a deck");
   const shell = osShellSelectors(appPage);
-  const deck = shell.deck(frame.id);
-  const tabs = deck.getByRole("tab");
-  await expect(tabs).toHaveCount(15);
-  const dimensions = await deck.getByRole("tablist", { name: "Open tabs" }).evaluate(tablist => {
-    return { clientWidth: tablist.clientWidth, scrollWidth: tablist.scrollWidth };
-  });
-  expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+  const order = desktopTabIds(await windowManagerSnapshot(runtime, workspace.id), "desktop-default");
+  expect(order.length).toBeGreaterThanOrEqual(15);
+  await expect(shell.tabs).toHaveCount(order.length);
+  for (const id of ids) await expect(shell.tabOfWindow(id)).toHaveCount(1);
+  const dimensions = await shell.tabBar.evaluate(bar => ({
+    clientWidth: bar.clientWidth,
+    scrollWidth: bar.scrollWidth,
+  }));
+  const overflow = shell.tabBar.getByRole("button", { name: `All ${order.length} tabs` });
+  expect(dimensions.scrollWidth > dimensions.clientWidth || (await overflow.isVisible())).toBe(
+    true
+  );
   const lastID = ids.at(-1);
   if (!lastID) throw new Error("overflow fixture must retain its last tab");
-  await shell.tab(lastID).scrollIntoViewIfNeeded();
-  await expect(shell.tab(lastID)).toBeVisible();
+  const lastTab = shell.tabOfWindow(lastID);
+  await lastTab.scrollIntoViewIfNeeded();
+  await expect(lastTab).toBeVisible();
   await appPage.mouse.move(1, 1);
-  await shell.tabButton(lastID).hover();
+  await lastTab.hover();
   await expect(appPage.locator('[data-slot="tooltip-content"]')).toContainText("Tasks");
+  await lastTab.click();
+  await expect(lastTab).toHaveAttribute("aria-selected", "true");
+  await expect(shell.window(lastID)).toBeVisible();
 });
 
 test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab and reopens in reverse order", async ({
@@ -3022,16 +2261,16 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
     "permission-hardening-agent"
   );
   const secondSession = await createNamedSession(runtime, workspace.id, "Closed-tab reverse order");
-  const [tasksID] = await openDeckFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  const [tasksID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID) throw new Error("reopen fixture must open a Tasks tab");
   const sessionID = await openSessionWindowInAuthority(runtime, workspace.id, session);
   const secondSessionID = await openSessionWindowInAuthority(runtime, workspace.id, secondSession);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [sessionID, secondSessionID]);
   const shell = osShellSelectors(appPage);
   const layoutUnavailable = appPage
     .getByRole("status")
     .filter({ hasText: /Reconnecting…|Can.t save window layout/ });
-  await expect(shell.tab(sessionID)).toBeVisible();
-  await shell.tab(sessionID).click();
+  await expect(shell.tabOfWindow(sessionID)).toBeVisible();
+  await shell.tabOfWindow(sessionID).click();
   const composer = shell.window(sessionID).getByRole("textbox", { name: "Session prompt" });
   await composer.fill("exercise permission hardening");
   await composer.press("Enter");
@@ -3042,43 +2281,41 @@ test("E2E-040 (logical E2E-007): Cmd+W closes an attention-bearing session tab a
   await expect(layoutUnavailable).toHaveCount(0);
   await appPage.keyboard.press("ControlOrMeta+W");
   await expect(shell.window(sessionID)).toHaveCount(0);
+  await expect(shell.tabOfWindow(sessionID)).toHaveCount(0);
   await expect(
     appPage.getByRole("button", { name: "Sessions" }).locator('[data-slot="os-dock-badge"]')
   ).toBeVisible();
-  await shell.tab(secondSessionID).click();
+  await shell.tabOfWindow(secondSessionID).click();
   await expect(layoutUnavailable).toHaveCount(0);
   await appPage.keyboard.press("ControlOrMeta+W");
   await expect(shell.window(secondSessionID)).toHaveCount(0);
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(shell.window(tasksID)).toBeVisible();
+  await expect(shell.tabOfWindow(tasksID)).toBeVisible();
   await expect(layoutUnavailable).toHaveCount(0);
   await appPage.keyboard.press("ControlOrMeta+Shift+T");
   await expect(shell.window(secondSessionID)).toBeVisible();
   await appPage.keyboard.press("ControlOrMeta+Shift+T");
   await expect(shell.window(sessionID)).toBeVisible();
+  await expect(shell.tabOfWindow(sessionID)).toHaveAttribute("aria-selected", "true");
   await expect(
     shell.window(sessionID).getByRole("textbox", { name: "Session prompt" })
   ).toBeVisible();
 });
 
-test("E2E-041 (logical E2E-003): Task root, Task Run, and session document heads survive deck switches", async ({
+test("E2E-041 (logical E2E-003): Task root, Task Run, and session document heads survive tab switches", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const task = await createTask(runtime, "Deck head identity");
+  const task = await createTask(runtime, "Tab head identity");
   const run = await createTaskRun(runtime, task.id);
   const session = await createNamedSession(runtime, workspace.id, "Draft preservation");
-  const [tasksID, taskRunID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "tasks",
-  ]);
-  if (!tasksID || !taskRunID) throw new Error("head fixture must create root and Task Run members");
+  const [tasksID, taskRunID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "tasks"]);
+  if (!tasksID || !taskRunID) throw new Error("head fixture must open root and Task Run tabs");
   const sessionID = await openSessionWindowInAuthority(runtime, workspace.id, session);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [taskRunID, sessionID]);
   const shell = osShellSelectors(appPage);
 
-  await shell.tab(tasksID).click();
+  await shell.tabOfWindow(tasksID).click();
   await expect(shell.window(tasksID).locator('[data-slot="topbar-title"]')).toContainText("Tasks");
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.navigate",
@@ -3091,22 +2328,23 @@ test("E2E-041 (logical E2E-003): Task root, Task Run, and session document heads
       },
     },
   });
-  await shell.tab(taskRunID).click();
+  await shell.tabOfWindow(taskRunID).click();
   await expect(shell.window(taskRunID).getByTestId("tasks-run-detail-content")).toBeVisible();
   await expect(shell.window(taskRunID).locator('[data-slot="topbar-crumbs"]')).toContainText(
     task.title
   );
-  await shell.tab(sessionID).click();
+  await shell.tabOfWindow(sessionID).click();
   const composer = shell.window(sessionID).getByRole("textbox", { name: "Session prompt" });
-  await composer.fill("draft survives a deck switch");
+  await composer.fill("draft survives a tab switch");
 
   await expect(shell.window(sessionID).locator('[data-slot="topbar-title"]')).toContainText(
     "Draft preservation"
   );
-  await shell.tab(tasksID).click();
+  await shell.tabOfWindow(tasksID).click();
   await expect(shell.window(tasksID).locator('[data-slot="topbar-title"]')).toContainText("Tasks");
-  await shell.tab(sessionID).click();
-  await expect(composer).toHaveText("draft survives a deck switch");
+  await expect(shell.window(sessionID)).toBeHidden();
+  await shell.tabOfWindow(sessionID).click();
+  await expect(composer).toHaveText("draft survives a tab switch");
 });
 
 test("E2E-042 (logical E2E-009): breadcrumb back pops only the active tab navigation stack", async ({
@@ -3114,16 +2352,13 @@ test("E2E-042 (logical E2E-009): breadcrumb back pops only the active tab naviga
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const task = await createTask(runtime, "Deck-local navigation");
+  const task = await createTask(runtime, "Tab-local navigation");
   const run = await createTaskRun(runtime, task.id);
-  const [tasksID, agentsID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-  ]);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("navigation fixture must open two tabs");
   const shell = osShellSelectors(appPage);
-  await shell.tabButton(tasksID).click();
-  await expect(shell.tabButton(tasksID)).toHaveAttribute("aria-selected", "true");
+  await shell.tabOfWindow(tasksID).click();
+  await expect(shell.tabOfWindow(tasksID)).toHaveAttribute("aria-selected", "true");
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.navigate",
     payload: {
@@ -3173,19 +2408,17 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
     "CLI managed attention",
     "permission-hardening-agent"
   );
-  const [tasksID] = await openDeckFixtureWindows(runtime, workspace.id, ["tasks"]);
+  await openFixtureWindows(runtime, workspace.id, ["tasks"]);
   const sessionID = await openSessionWindowInAuthority(runtime, workspace.id, session);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [sessionID]);
   const shell = osShellSelectors(appPage);
   const sessionWindow = shell.window(sessionID);
-  await shell.tab(sessionID).click();
+  const sessionTab = shell.tabOfWindow(sessionID);
+  await sessionTab.click();
   const composer = sessionWindow.getByRole("textbox", { name: "Session prompt" });
   await composer.fill("exercise permission hardening");
   await composer.press("Enter");
   await expect(sessionWindow.getByTestId("permission-dock")).toBeVisible();
-  await expect(
-    shell.tab(sessionID).getByRole("img", { name: "Session needs input" })
-  ).toBeVisible();
+  await expect(sessionTab.getByRole("img", { name: "Session needs input" })).toBeVisible();
 
   const snapshot = await windowManagerSnapshot(runtime, workspace.id);
   await runWindowManagerCLI(runtime, [
@@ -3199,6 +2432,7 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
     sessionID,
   ]);
   await expect(sessionWindow).toHaveCount(0);
+  await expect(sessionTab).toHaveCount(0);
   await openSessionsCatalog(appPage);
   const sessionsModal = appPage.getByTestId("os-sessions-modal");
   const sessionRow = sessionsModal.getByTestId(`os-sessions-modal-session-${session.id}`).first();
@@ -3215,16 +2449,13 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   ).toHaveCount(0);
 });
 
-test("E2E-044 (logical E2E-015): daemon restart preserves frame membership, pin, and active tab", async ({
+test("E2E-044 (logical E2E-015): daemon restart preserves tab order, pin, navigation, and the active tab", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openDeckFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-  ]);
-  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("restart fixture must open two tabs");
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.pin",
     payload: { window_id: tasksID, pinned: true },
@@ -3238,18 +2469,19 @@ test("E2E-044 (logical E2E-015): daemon restart preserves frame membership, pin,
     },
   });
   const shell = osShellSelectors(appPage);
-  await shell.tab(agentsID).click();
-  await expect(shell.tabButton(agentsID)).toHaveAttribute("aria-selected", "true");
+  const clientID = await browserClientId(appPage);
+  await shell.tabOfWindow(agentsID).click();
+  await expect(shell.tabOfWindow(agentsID)).toHaveAttribute("aria-selected", "true");
+  const before = await windowManagerSnapshot(runtime, workspace.id);
+  const agentsTab = before.windows[agentsID]?.tab_id ?? "";
+  const tasksTab = before.windows[tasksID]?.tab_id ?? "";
   await expect
     .poll(
       async () =>
-        floatingStackForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)
-          ?.active_id
+        (await windowManagerClient(runtime, workspace.id, clientID)).active_tab?.["desktop-default"]
     )
-    .toBe(agentsID);
-  const before = await windowManagerSnapshot(runtime, workspace.id);
-  const beforeFrame = floatingStackForWindow(before, tasksID);
-  if (!beforeFrame) throw new Error("restart fixture must persist a floating stack");
+    .toBe(agentsTab);
+  const beforeOrder = desktopTabIds(before, "desktop-default");
 
   const restart = await runtime.requestJSON<SettingsRestartAction>(
     "/api/settings/actions/restart",
@@ -3264,18 +2496,19 @@ test("E2E-044 (logical E2E-015): daemon restart preserves frame membership, pin,
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   const after = await windowManagerSnapshot(runtime, workspace.id);
-  expect(floatingStackForWindow(after, tasksID)).toMatchObject({
-    id: beforeFrame.id,
-    window_ids: beforeFrame.window_ids,
-    active_id: agentsID,
-  });
-  expect(after.windows[tasksID]).toMatchObject({ pinned: true });
+  expect(after.version).toBe(6);
+  expect(desktopTabIds(after, "desktop-default")).toEqual(beforeOrder);
+  expect(tabForWindow(after, tasksID)).toMatchObject({ id: tasksTab, pinned: true });
   expect(after.windows[tasksID]?.nav_stack).toEqual([{ pathname: "/tasks", search: {} }]);
-  await expect(osShellSelectors(appPage).deck(beforeFrame.id)).toBeVisible();
-  await expect(osShellSelectors(appPage).tabButton(agentsID)).toHaveAttribute(
-    "aria-selected",
-    "true"
-  );
+  await expect(shell.tab(tasksTab)).toHaveAttribute("data-pinned", /.*/);
+  await expect(shell.tab(agentsTab)).toHaveAttribute("aria-selected", "true");
+  await expect(shell.window(agentsID)).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await windowManagerClient(runtime, workspace.id, clientID)).active_tab?.["desktop-default"]
+    )
+    .toBe(agentsTab);
 });
 
 test("Memory removal E2E-008: a saved layout holding a retired knowledge window opens with its session window and stays stable on reload", async ({
@@ -3285,34 +2518,29 @@ test("Memory removal E2E-008: a saved layout holding a retired knowledge window 
   const workspace = await prepareShell(appPage, runtime);
   const session = await createNamedSession(runtime, workspace.id, "Layout upgrade session");
   const sessionWindowID = await openSessionWindowInAuthority(runtime, workspace.id, session);
-  await moveWindowToNormalizedRect(runtime, workspace.id, sessionWindowID, {
-    x: 0.01,
-    y: 0.06,
-    width: 0.48,
-    height: 0.7,
-  });
   // The client-state store is exclusively locked by the daemon. Seed the previous
-  // release's raw layout during a cold restart, without a reconciling API read.
+  // release's raw layout (version 5, a floating knowledge window) during a cold
+  // restart, without a reconciling API read.
   await appPage.goto("about:blank");
   const knowledgeID = `${sessionWindowID}-retired-knowledge`;
-  const knowledgeRect = { x: 0.51, y: 0.06, width: 0.48, height: 0.7 };
   const seeded = await seedRetiredKnowledgeWindow(runtime, {
     workspaceId: workspace.id,
     sessionWindowId: sessionWindowID,
     knowledgeWindowId: knowledgeID,
-    rect: knowledgeRect,
   });
+  expect(seeded.version).toBe(5);
   expect(seeded.windows[knowledgeID]?.app).toBe("knowledge");
-  expect(seeded.windows[knowledgeID]?.floating_rect).toEqual(knowledgeRect);
+  expect(seeded.windows[knowledgeID]?.placement).toBe("floating");
   expect(seeded.windows[sessionWindowID]?.app).toBe("session");
   const sessionDesktopID = seeded.windows[sessionWindowID]?.desktop_id;
+  const sessionRoute = seeded.windows[sessionWindowID]?.route;
   expect(seeded.windows[knowledgeID]?.desktop_id).toBe(sessionDesktopID);
-  expect(seeded.desktops.find(desktop => desktop.id === sessionDesktopID)?.floating[0]).toBe(
+  expect(seeded.desktops.find(desktop => desktop.id === sessionDesktopID)?.floating).toContain(
     knowledgeID
   );
 
   // Only boot the daemon after inspecting the actual stored legacy shape. A fresh
-  // page then observes the loaded layout and its console output.
+  // page then observes the upgraded tab layout and its console output.
   await restartRetiredKnowledgeWindowRuntime(runtime);
   const consoleErrors: string[] = [];
   appPage.on("console", message => {
@@ -3323,18 +2551,36 @@ test("Memory removal E2E-008: a saved layout holding a retired knowledge window 
   });
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
 
+  const loaded = await windowManagerSnapshot(runtime, workspace.id);
+  expect(loaded.version).toBe(6);
+  expect(loaded.windows[knowledgeID]).toBeUndefined();
+  expect(
+    loaded.desktops.flatMap(desktop => desktop.tabs.flatMap(tab => nodeWindowIds(tab.root)))
+  ).not.toContain(knowledgeID);
+  expect(loaded.windows[sessionWindowID]).toMatchObject({
+    app: "session",
+    desktop_id: sessionDesktopID,
+    route: sessionRoute,
+  });
+  const sessionTab = tabForWindow(loaded, sessionWindowID);
+  if (!sessionTab) throw new Error("the upgraded session window must sit in a tab");
+  expect(loaded.windows[sessionWindowID]?.tab_id).toBe(sessionTab.id);
+  expect(desktopTabIds(loaded, sessionDesktopID ?? "")).toContain(sessionTab.id);
+  const shell = osShellSelectors(appPage);
+  await expect(shell.tab(sessionTab.id)).toBeVisible();
+  await shell.tab(sessionTab.id).click();
   const restoredSession = sessionWindow(appPage, session.id);
   await expect(restoredSession).toBeVisible();
-  const loaded = await windowManagerSnapshot(runtime, workspace.id);
-  const loadedRect = loaded.windows[sessionWindowID]?.floating_rect;
-  expect(loaded.windows[knowledgeID]).toBeUndefined();
-  expect(loadedRect).toEqual(seeded.windows[sessionWindowID]?.floating_rect);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(shell.tab(sessionTab.id)).toHaveAttribute("aria-selected", "true");
   await expect(restoredSession).toBeVisible();
   const reloaded = await windowManagerSnapshot(runtime, workspace.id);
   expect(reloaded.windows[knowledgeID]).toBeUndefined();
-  expect(reloaded.windows[sessionWindowID]?.floating_rect).toEqual(loadedRect);
+  expect(reloaded.windows[sessionWindowID]?.tab_id).toBe(sessionTab.id);
+  expect(desktopTabIds(reloaded, sessionDesktopID ?? "")).toEqual(
+    desktopTabIds(loaded, sessionDesktopID ?? "")
+  );
   expect(consoleErrors).toEqual([]);
 });
 
@@ -3344,22 +2590,13 @@ test("E2E-045 (logical E2E-018): Tasks views and Marketplace search stay in thei
 }, testInfo) => {
   const workspace = await prepareShell(appPage, runtime);
   const task = await createTask(runtime, "Window strip drill state");
-  const [tasksID, marketplaceID] = await openDeckFixtureWindows(runtime, workspace.id, [
+  const [tasksID, marketplaceID] = await openFixtureWindows(runtime, workspace.id, [
     "tasks",
     "marketplace",
   ]);
-  await moveWindowToNormalizedRect(runtime, workspace.id, tasksID, {
-    x: 0.02,
-    y: 0.06,
-    width: 0.46,
-    height: 0.78,
-  });
-  await moveWindowToNormalizedRect(runtime, workspace.id, marketplaceID, {
-    x: 0.52,
-    y: 0.06,
-    width: 0.46,
-    height: 0.78,
-  });
+  if (!tasksID || !marketplaceID) throw new Error("strip fixture must open two windows");
+  await splitWindowBeside(runtime, workspace.id, marketplaceID, tasksID, "right");
+  await showTab(appPage, runtime, workspace.id, tasksID);
   const shell = osShellSelectors(appPage);
   const tasksWindow = shell.window(tasksID);
   const marketplaceWindow = shell.window(marketplaceID);
@@ -3412,7 +2649,7 @@ const PERF_APPS = [
   "vault",
 ] as const;
 
-test("E2E-023: the 11-window envelope holds for drag frames, restore, and convergence", async ({
+test("E2E-023: the 11-tab envelope holds for tab switches, restore, and convergence", async ({
   appPage,
   browser,
   runtime,
@@ -3420,31 +2657,22 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
   const workspace = await prepareShell(appPage, runtime);
   const perfWindowIDs = new Map<string, string>();
 
+  const opened = await openFixtureWindows(runtime, workspace.id, PERF_APPS);
   for (const [index, app] of PERF_APPS.entries()) {
-    const id = await openWindowInAuthority(
-      runtime,
-      workspace.id,
-      app,
-      { pathname: app === "dashboard" ? "/" : `/${app}`, search: {} },
-      {
-        x: 0.02 + index * 0.015,
-        y: 0.02 + (index % 4) * 0.04,
-        width: 0.42,
-        height: 0.5,
-      }
-    );
+    const id = opened[index];
+    if (!id) throw new Error(`performance fixture must open ${app}`);
     perfWindowIDs.set(app, id);
   }
   // Jobs and Triggers merged into one Automations app and Knowledge was removed; a
   // second Tasks window keeps the envelope at 11 windows.
-  const [extraTasksID] = await openDeckFixtureWindows(runtime, workspace.id, ["tasks"]);
+  const [extraTasksID] = await openFixtureWindows(runtime, workspace.id, ["tasks"]);
   if (!extraTasksID) throw new Error("performance fixture must open the second tasks window");
   perfWindowIDs.set("tasks#2", extraTasksID);
 
   await appPage.addInitScript(() => {
     const perf = {
       snapshotResponseEnd: null as number | null,
-      windowsPlaced: null as number | null,
+      tabsPlaced: null as number | null,
     };
     Reflect.set(window, "__osPerf", perf);
     new PerformanceObserver(list => {
@@ -3456,9 +2684,9 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
       }
     }).observe({ type: "resource", buffered: true });
     const placed = () => {
-      if (perf.windowsPlaced !== null) return;
-      const count = document.querySelectorAll('[data-slot="os-window-surface"]').length;
-      if (count >= 11) perf.windowsPlaced = performance.now();
+      if (perf.tabsPlaced !== null) return;
+      const count = document.querySelectorAll('[data-testid="os-tab-bar"] [role="tab"]').length;
+      if (count >= 11) perf.tabsPlaced = performance.now();
     };
     // Init scripts run at document start — observe `document` itself so the
     // hook works before <html>/<body> exist.
@@ -3467,176 +2695,133 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
   });
   await appPage.reload({ waitUntil: "domcontentloaded" });
   expect(perfWindowIDs.size).toBe(11);
+  const shell = osShellSelectors(appPage);
   for (const id of perfWindowIDs.values()) {
-    await expect(osShellSelectors(appPage).window(id)).toBeAttached();
+    await expect(shell.tabOfWindow(id)).toHaveCount(1);
   }
   await expect
     .poll(() =>
       appPage.evaluate(() => {
         const perf = Reflect.get(window, "__osPerf") as {
           snapshotResponseEnd: number | null;
-          windowsPlaced: number | null;
+          tabsPlaced: number | null;
         };
-        if (perf.snapshotResponseEnd === null || perf.windowsPlaced === null) return null;
-        return perf.windowsPlaced - perf.snapshotResponseEnd;
+        if (perf.snapshotResponseEnd === null || perf.tabsPlaced === null) return null;
+        return perf.tabsPlaced - perf.snapshotResponseEnd;
       })
     )
     .not.toBeNull();
   const restore = await appPage.evaluate(() => {
     const perf = Reflect.get(window, "__osPerf") as {
       snapshotResponseEnd: number;
-      windowsPlaced: number;
+      tabsPlaced: number;
     };
-    return perf.windowsPlaced - perf.snapshotResponseEnd;
+    return perf.tabsPlaced - perf.snapshotResponseEnd;
   });
   expect(restore).toBeGreaterThanOrEqual(0);
   expect(restore).toBeLessThan(500);
 
-  // The envelope measures steady-state pointer fluidity: wait until the main
-  // thread has been long-task quiet so the 11 window bodies' initial content
-  // burst can't masquerade as drag jank. (networkidle never settles here — the
-  // shell keeps WebSocket/SSE connections open by design.)
+  // The envelope measures steady-state switching: wait until the main thread has
+  // been long-task quiet so the first content burst can't masquerade as switch
+  // jank. (networkidle never settles here — the shell keeps WebSocket/SSE
+  // connections open by design.)
   await installLongTaskQuietProbe(appPage);
   await waitForLongTaskQuiet(appPage);
 
-  const dragged = appWindow(appPage, "vault");
-  await focusWindow(appPage, dragged);
-  // Prime the drag pipeline before opening the measured interval. This is a
-  // steady-state envelope, so lazy renderer/input setup belongs to warm-up,
-  // while every subsequent frame remains subject to the 50ms ceiling.
-  await dragWindowBy(appPage, dragged, 24, 16);
-  await waitForLongTaskQuiet(appPage);
-  const grip = await windowGrip(dragged);
+  // Switch among the tabs the bar shows without scrolling. Each one is visited
+  // once as warm-up: a tab's first mount is lazy app startup, not a switch.
+  const barBox = await shell.tabBar.boundingBox();
+  if (!barBox) throw new Error("the tab bar must be measurable");
+  const targets: Array<{ x: number; y: number }> = [];
+  for (const id of perfWindowIDs.values()) {
+    const box = await shell.tabOfWindow(id).boundingBox();
+    if (!box || box.x < barBox.x || box.x + box.width > barBox.x + barBox.width) continue;
+    targets.push({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  }
+  expect(targets.length).toBeGreaterThanOrEqual(3);
+  const switchInput = await appPage.context().newCDPSession(appPage);
+  const clickAt = async (point: { x: number; y: number }) => {
+    for (const type of ["mousePressed", "mouseReleased"] as const) {
+      await switchInput.send("Input.dispatchMouseEvent", {
+        type,
+        x: point.x,
+        y: point.y,
+        button: "left",
+        buttons: type === "mousePressed" ? 1 : 0,
+        clickCount: 1,
+      });
+    }
+  };
 
-  // Long-task probe during a 3s continuous drag of one window. Install it
-  // after focus settles so the envelope measures drag frames, not activation.
-  // Dispatch trusted Chromium input directly: Playwright's mouse helper takes
-  // a full DOM snapshot for every traced action, and that recorder work runs
-  // on the renderer thread that this envelope is meant to measure.
-  const dragInput = await appPage.context().newCDPSession(appPage);
-  await appPage.evaluate(() => {
-    const tasks: number[] = [];
-    Reflect.set(window, "__osLongTasks", tasks);
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) tasks.push(entry.duration);
-    }).observe({ type: "longtask", buffered: false });
-  });
-  let currentX = grip.x;
-  let currentY = grip.y;
-  let pressed = false;
+  // Long-task probe during 3s of continuous tab switching. Dispatch trusted
+  // Chromium input directly: Playwright's mouse helper takes a full DOM snapshot
+  // for every traced action, and that recorder work runs on the renderer thread
+  // that this envelope is meant to measure.
   let longTasks: number[] = [];
   try {
-    await dragInput.send("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x: currentX,
-      y: currentY,
-      button: "none",
+    for (const target of targets) await clickAt(target);
+    await waitForLongTaskQuiet(appPage);
+    await appPage.evaluate(() => {
+      const tasks: number[] = [];
+      Reflect.set(window, "__osLongTasks", tasks);
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) tasks.push(entry.duration);
+      }).observe({ type: "longtask", buffered: false });
     });
-    await dragInput.send("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: currentX,
-      y: currentY,
-      button: "left",
-      buttons: 1,
-      clickCount: 1,
-    });
-    pressed = true;
     const start = Date.now();
     let step = 0;
     while (Date.now() - start < 3000) {
-      const angle = (step / 20) * Math.PI * 2;
-      const targetX = grip.x + 120 + Math.cos(angle) * 90;
-      const targetY = grip.y + 100 + Math.sin(angle) * 60;
-      for (const progress of [0.5, 1]) {
-        await dragInput.send("Input.dispatchMouseEvent", {
-          type: "mouseMoved",
-          x: currentX + (targetX - currentX) * progress,
-          y: currentY + (targetY - currentY) * progress,
-          button: "left",
-          buttons: 1,
-        });
-      }
-      currentX = targetX;
-      currentY = targetY;
+      const target = targets[step % targets.length];
+      if (target) await clickAt(target);
       step += 1;
     }
     longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
   } finally {
-    try {
-      if (pressed) {
-        await dragInput.send("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          x: currentX,
-          y: currentY,
-          button: "left",
-          buttons: 0,
-          clickCount: 1,
-        });
-      }
-    } finally {
-      await dragInput.detach();
-    }
+    await switchInput.detach();
   }
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
 
   const peerA = await openPeerPage(browser, runtime);
   const peerB = await openPeerPage(browser, runtime);
   const settingsID = perfWindowIDs.get("settings");
-  if (!settingsID) throw new Error("performance fixture must retain the settings window ID");
+  const vaultID = perfWindowIDs.get("vault");
+  const marketplaceID = perfWindowIDs.get("marketplace");
+  const loopsID = perfWindowIDs.get("loops");
+  if (!settingsID || !vaultID || !marketplaceID || !loopsID) {
+    throw new Error("performance fixture must retain its split window IDs");
+  }
   let worstPeerTask = 0;
   try {
-    for (const peer of [peerA, peerB]) {
+    const peers = [peerA, peerB];
+    for (const peer of peers) {
       for (const id of perfWindowIDs.values()) {
-        await expect(osShellSelectors(peer).window(id)).toBeAttached();
+        await expect(osShellSelectors(peer).tabOfWindow(id)).toHaveCount(1);
       }
       await installLongTaskQuietProbe(peer);
       await waitForLongTaskQuiet(peer);
     }
     // Warm the shared topology/convergence path before starting either peer's
-    // observer. The following authoritative move is the measured operation.
-    await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", {
-      x: 0.31,
-      y: 0.23,
-      width: 0.38,
-      height: 0.46,
-    });
-    const peers = [peerA, peerB];
+    // observer: a split merges two tabs into one. The second split is measured.
+    const tabCount = () =>
+      windowManagerSnapshot(runtime, workspace.id).then(
+        snapshot => desktopTabIds(snapshot, "desktop-default").length
+      );
+    const warmCount = (await tabCount()) - 1;
+    await moveWindowFromCLI(runtime, workspace.id, settingsID, vaultID, "right");
     for (const peer of peers) {
-      await expect
-        .poll(() =>
-          windowMatchesAuthority(
-            peer,
-            appWindow(peer, "settings"),
-            runtime,
-            workspace.id,
-            settingsID
-          )
-        )
-        .toBe(true);
+      await expect(osShellSelectors(peer).tabs).toHaveCount(warmCount);
       await waitForLongTaskQuiet(peer);
     }
-    const measuredRect: NormalizedRect = {
-      x: 0.32,
-      y: 0.24,
-      width: 0.38,
-      height: 0.46,
-    };
-    await Promise.all(
-      peers.map(peer => installPeerConvergenceProbe(peer, settingsID, measuredRect))
-    );
-    await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", measuredRect);
+    const measuredCount = warmCount - 1;
+    await Promise.all(peers.map(peer => installPeerConvergenceProbe(peer, measuredCount)));
+    await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "right");
     const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
     for (const peer of peers) {
-      expect(
-        await windowMatchesAuthority(
-          peer,
-          appWindow(peer, "settings"),
-          runtime,
-          workspace.id,
-          settingsID
-        )
-      ).toBe(true);
+      await expect(osShellSelectors(peer).tabs).toHaveCount(measuredCount);
     }
+    expect(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id).toBe(
+      tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id
+    );
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
   } finally {
     await peerA.context().close();
@@ -3645,8 +2830,8 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
 
   const envelope = {
     restoreMsFromSnapshotResponse: restore,
-    dragLongTasksOver50ms: longTasks,
-    worstDragFrameMs: worstFrame,
+    switchLongTasksOver50ms: longTasks,
+    worstSwitchFrameMs: worstFrame,
     worstPeerConvergenceTaskMs: worstPeerTask,
   };
   // Surfaced on stdout so completion notes can record the measured numbers.
@@ -3656,7 +2841,7 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
     contentType: "application/json",
   });
 
-  // Envelope: no shell frame beyond 50ms during the drag, no peer thrash.
+  // Envelope: no shell frame beyond 50ms while switching tabs, no peer thrash.
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
@@ -3714,71 +2899,41 @@ async function waitForLongTaskQuiet(page: Page): Promise<void> {
   });
 }
 
-async function installPeerConvergenceProbe(
-  page: Page,
-  windowId: string,
-  target: NormalizedRect
-): Promise<void> {
-  await page.evaluate(
-    ({ target, windowId }) => {
-      const surface = document.querySelector<HTMLElement>(
-        `[data-testid="${CSS.escape(`os-window-${windowId}`)}"]`
-      );
-      const frame = surface?.closest<HTMLElement>('[data-slot="os-window-frame"]');
-      const layer = document.querySelector<HTMLElement>('[data-slot="os-win-layer"]');
-      const host = frame?.parentElement;
-      if (!frame || !host || !layer) {
-        throw new Error(`window ${windowId} and its layer must be mounted before measurement`);
-      }
+/**
+ * Records long tasks on the peer until its tab bar renders `expectedTabs` tabs, i.e. until a
+ * remote layout command has converged into this client's bar.
+ */
+async function installPeerConvergenceProbe(page: Page, expectedTabs: number): Promise<void> {
+  await page.evaluate(expectedTabs => {
+    const bar = document.querySelector<HTMLElement>('[data-testid="os-tab-bar"]');
+    if (!bar) throw new Error("the tab bar must be mounted before measurement");
 
-      const tasks: number[] = [];
-      const longTasks = new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) tasks.push(entry.duration);
-      });
-      longTasks.observe({ type: "longtask", buffered: false });
+    const tasks: number[] = [];
+    const longTasks = new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) tasks.push(entry.duration);
+    });
+    longTasks.observe({ type: "longtask", buffered: false });
 
-      let resolveProbe: (durations: number[]) => void = () => {};
-      const result = new Promise<number[]>(resolve => {
-        resolveProbe = resolve;
-      });
-      Reflect.set(window, "__osPeerConvergence", result);
+    let resolveProbe: (durations: number[]) => void = () => {};
+    const result = new Promise<number[]>(resolve => {
+      resolveProbe = resolve;
+    });
+    Reflect.set(window, "__osPeerConvergence", result);
 
-      const matchesTarget = () => {
-        const frameBox = frame.getBoundingClientRect();
-        const layerBox = layer.getBoundingClientRect();
-        const actual = {
-          x: Math.round(frameBox.x - layerBox.x),
-          y: Math.round(frameBox.y - layerBox.y),
-          width: Math.round(frameBox.width),
-          height: Math.round(frameBox.height),
-        };
-        const expected = {
-          x: Math.round(target.x * layerBox.width),
-          y: Math.round(target.y * layerBox.height),
-          width: Math.round(target.width * layerBox.width),
-          height: Math.round(target.height * layerBox.height),
-        };
-        return Object.keys(expected).every(key => {
-          const dimension = key as keyof typeof expected;
-          return Math.abs(actual[dimension] - expected[dimension]) <= 2;
-        });
-      };
-
-      const mutations = new MutationObserver(() => {
-        if (!matchesTarget()) return;
-        mutations.disconnect();
+    const converged = () => bar.querySelectorAll('[role="tab"]').length === expectedTabs;
+    const mutations = new MutationObserver(() => {
+      if (!converged()) return;
+      mutations.disconnect();
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            for (const entry of longTasks.takeRecords()) tasks.push(entry.duration);
-            longTasks.disconnect();
-            resolveProbe(tasks);
-          });
+          for (const entry of longTasks.takeRecords()) tasks.push(entry.duration);
+          longTasks.disconnect();
+          resolveProbe(tasks);
         });
       });
-      mutations.observe(host, { attributes: true, attributeFilter: ["style"] });
-    },
-    { target, windowId }
-  );
+    });
+    mutations.observe(bar, { childList: true, subtree: true });
+  }, expectedTabs);
 }
 
 async function readPeerConvergenceProbe(page: Page): Promise<number[]> {
@@ -3787,14 +2942,6 @@ async function readPeerConvergenceProbe(page: Page): Promise<number[]> {
     if (!result) throw new Error("peer convergence probe must be installed before it is read");
     return await result;
   });
-}
-
-async function dragWindowBy(page: Page, win: ReturnType<Page["locator"]>, dx: number, dy: number) {
-  const { x, y } = await windowGrip(win);
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x + dx, y + dy, { steps: 6 });
-  await page.mouse.up();
 }
 
 /** Window scopes holding sessions-rail state in the persisted per-window store. */
@@ -3812,93 +2959,6 @@ async function focusWindow(page: Page, win: ReturnType<Page["locator"]>) {
   const box = await head.boundingBox();
   if (!box) throw new Error("window head must have a visible bounding box before focusing");
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
-
-async function windowPosition(page: Page, win: ReturnType<Page["locator"]>) {
-  const [windowBox, layerBox] = await Promise.all([
-    windowFrame(win).boundingBox(),
-    page.locator('[data-slot="os-win-layer"]').boundingBox(),
-  ]);
-  if (!windowBox || !layerBox) throw new Error("window and win-layer must be visible");
-  return { x: Math.round(windowBox.x - layerBox.x), y: Math.round(windowBox.y - layerBox.y) };
-}
-
-async function windowRect(page: Page, win: ReturnType<Page["locator"]>) {
-  const [windowBox, layerBox] = await Promise.all([
-    windowFrame(win).boundingBox(),
-    page.locator('[data-slot="os-win-layer"]').boundingBox(),
-  ]);
-  if (!windowBox || !layerBox) throw new Error("window and win-layer must be visible");
-  return {
-    x: Math.round(windowBox.x - layerBox.x),
-    y: Math.round(windowBox.y - layerBox.y),
-    w: Math.round(windowBox.width),
-    h: Math.round(windowBox.height),
-  };
-}
-
-/**
- * A guaranteed drag surface on the window head: the flexible spacer remains
- * mounted while route identity is published and never overlaps interactive
- * head controls. Title nodes can be replaced during lazy route startup.
- */
-async function windowGrip(win: ReturnType<Page["locator"]>): Promise<{ x: number; y: number }> {
-  const spacer = win.locator('[data-slot="topbar-flex"]');
-  await expect(spacer).toBeVisible();
-  // Route heads publish their trailing actions once the route has loaded, which
-  // shrinks the spacer. Grip only once the head has settled: the spacer's midpoint
-  // is stable across frames and across consecutive polls.
-  let grip: { x: number; y: number } | null = null;
-  let previous: { x: number; y: number } | null = null;
-  await expect
-    .poll(async () => {
-      const current = await spacer.evaluate(
-        element =>
-          new Promise<{ x: number; y: number } | null>(resolve => {
-            const midpoint = () => {
-              const rect = element.getBoundingClientRect();
-              return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-            };
-            const first = midpoint();
-            requestAnimationFrame(() =>
-              requestAnimationFrame(() => {
-                const second = midpoint();
-                resolve(second.x === first.x && second.y === first.y ? second : null);
-              })
-            );
-          })
-      );
-      // Two consecutive polls must agree: a head that is still loading its route
-      // can gain actions well after two frames.
-      grip =
-        current && previous && current.x === previous.x && current.y === previous.y
-          ? current
-          : null;
-      previous = current;
-      return grip;
-    })
-    .not.toBeNull();
-  if (!grip) throw new Error("window head drag surface must expose a settled grip point");
-  return grip;
-}
-
-function rectsClose(
-  first: { x: number; y: number; w: number; h: number },
-  second: { x: number; y: number; w: number; h: number },
-  tolerance = 2
-): boolean {
-  return (
-    Math.abs(first.x - second.x) <= tolerance &&
-    Math.abs(first.y - second.y) <= tolerance &&
-    Math.abs(first.w - second.w) <= tolerance &&
-    Math.abs(first.h - second.h) <= tolerance
-  );
-}
-
-async function winLayerSize(page: Page): Promise<{ width: number; height: number }> {
-  const box = await page.locator('[data-slot="os-win-layer"]').boundingBox();
-  if (!box) throw new Error("win-layer must be visible");
-  return { width: box.width, height: box.height };
 }
 
 function windowManagerPath(workspaceId: string): string {
@@ -4003,12 +3063,16 @@ async function runWindowManagerCLI(runtime: BrowserRuntime, args: string[]): Pro
   });
 }
 
+type SplitPlacement = "left" | "right" | "top" | "bottom";
+
+/** `compozy window move`: a tab after the target's tab, or a split at the target's edge. */
 async function moveWindowFromCLI(
   runtime: BrowserRuntime,
   workspaceId: string,
   windowId: string,
-  desktopId: string,
-  rect: NormalizedRect
+  targetWindowId: string,
+  placement: "tab" | SplitPlacement,
+  desktopId = "desktop-default"
 ): Promise<void> {
   const snapshot = await windowManagerSnapshot(runtime, workspaceId);
   await runWindowManagerCLI(runtime, [
@@ -4022,21 +3086,19 @@ async function moveWindowFromCLI(
     windowId,
     "--desktop",
     desktopId,
+    "--target",
+    targetWindowId,
     "--placement",
-    "floating",
-    "--rect",
-    normalizedRectFlag(rect),
+    placement,
   ]);
 }
 
-async function arrangeWindowsFromCLI(
+/** `compozy layout arrange`: the windows share one horizontal split tab. */
+async function arrangeSplitFromCLI(
   runtime: BrowserRuntime,
   workspaceId: string,
   desktopId: string,
-  windowIds: string[],
-  arrangement: "horizontal" | "vertical" | "grid" | "stack",
-  groupId: string,
-  frame: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 }
+  windowIds: readonly string[]
 ): Promise<void> {
   const snapshot = await windowManagerSnapshot(runtime, workspaceId);
   const args = [
@@ -4050,90 +3112,83 @@ async function arrangeWindowsFromCLI(
     desktopId,
   ];
   for (const windowId of windowIds) args.push("--window", windowId);
-  args.push("--arrangement", arrangement, "--frame", normalizedRectFlag(frame), "--group", groupId);
+  args.push("--arrangement", "horizontal");
   await runWindowManagerCLI(runtime, args);
 }
 
-async function moveWindowToNormalizedRect(
+/** Moves `windowId` out of its tab into a split at `placement` of `targetWindowId`. */
+async function splitWindowBeside(
   runtime: BrowserRuntime,
   workspaceId: string,
   windowId: string,
-  rect: NormalizedRect,
-  desktopId?: string
+  targetWindowId: string,
+  placement: SplitPlacement
 ): Promise<void> {
   const snapshot = await windowManagerSnapshot(runtime, workspaceId);
-  const destination = desktopId ?? snapshot.windows[windowId]?.desktop_id;
-  if (!destination) throw new Error(`window ${windowId} has no destination desktop`);
+  const destination = snapshot.windows[targetWindowId]?.desktop_id;
+  if (!destination) throw new Error(`window ${targetWindowId} has no desktop`);
   await executeWindowManagerCommand(runtime, workspaceId, {
     commandId: "window.move",
     payload: {
       window_id: windowId,
       destination_desktop_id: destination,
-      placement: "floating",
-      floating_rect: rect,
+      target_window_id: targetWindowId,
+      placement,
       move_group: false,
     },
   });
 }
 
-async function openWindowInAuthority(
+/** Moves the first seam of the split holding `windowId` by `delta` of the split's extent. */
+async function resizeSplitOf(
   runtime: BrowserRuntime,
   workspaceId: string,
-  app: string,
-  route: WindowRoute,
-  rect: NormalizedRect
-): Promise<string> {
-  const id = `e2e-authority-${app}`;
+  windowId: string,
+  delta: number
+): Promise<void> {
+  const snapshot = await windowManagerSnapshot(runtime, workspaceId);
+  const split = splitHoldingWindow(snapshot, windowId);
+  if (!split) throw new Error(`window ${windowId} is not in a split`);
   await executeWindowManagerCommand(runtime, workspaceId, {
-    commandId: "window.open",
-    payload: {
-      window: {
-        id,
-        app,
-        route,
-        desktop_id: "desktop-default",
-        floating_rect: rect,
-        insert_tiled: false,
-      },
-    },
+    commandId: "layout.resize",
+    payload: { split_id: split.id, boundary_index: 0, delta },
   });
-  return id;
 }
 
 /**
  * Creates opaque window identities through the real command endpoint. Test
  * fixtures must never infer IDs from `app`, because multi-instance apps and
- * reopened tabs deliberately share the same app identity.
+ * reopened tabs deliberately share the same app identity. Without a client the
+ * tabs land in the bar but no client's active tab changes.
  */
-let deckFixtureSequence = 0;
+let tabFixtureSequence = 0;
 
-async function openDeckFixtureWindows(
+async function openFixtureWindows(
   runtime: BrowserRuntime,
   workspaceId: string,
-  apps: readonly string[]
+  apps: readonly string[],
+  clientId?: string
 ): Promise<string[]> {
-  const batch = ++deckFixtureSequence;
+  const batch = ++tabFixtureSequence;
   const ids: string[] = [];
   for (const [index, app] of apps.entries()) {
-    const id = `e2e-deck-b${batch}-${app}-${index}`;
-    await executeWindowManagerCommand(runtime, workspaceId, {
-      commandId: "window.open",
-      payload: {
-        window: {
-          id,
-          app,
-          route: { pathname: app === "dashboard" ? "/" : `/${app}`, search: {} },
-          desktop_id: "desktop-default",
-          floating_rect: {
-            x: 0.04 + index * 0.08,
-            y: 0.06 + index * 0.04,
-            width: 0.48,
-            height: 0.62,
+    const id = `e2e-tab-b${batch}-${app}-${index}`;
+    await executeWindowManagerCommand(
+      runtime,
+      workspaceId,
+      {
+        commandId: "window.open",
+        payload: {
+          window: {
+            id,
+            app,
+            route: { pathname: app === "dashboard" ? "/" : `/${app}`, search: {} },
+            desktop_id: "desktop-default",
           },
-          insert_tiled: false,
         },
       },
-    });
+      clientId
+    );
     ids.push(id);
   }
   return ids;
@@ -4144,7 +3199,7 @@ async function openSessionWindowInAuthority(
   workspaceId: string,
   session: { id: string; agent_name: string }
 ): Promise<string> {
-  const id = `e2e-deck-session-${session.id}`;
+  const id = `e2e-tab-session-${session.id}`;
   await executeWindowManagerCommand(runtime, workspaceId, {
     commandId: "window.open",
     payload: {
@@ -4157,159 +3212,62 @@ async function openSessionWindowInAuthority(
           search: {},
         },
         desktop_id: "desktop-default",
-        floating_rect: { x: 0.16, y: 0.1, width: 0.48, height: 0.62 },
-        insert_tiled: false,
       },
     },
   });
   return id;
 }
 
-async function groupWindowsInAuthority(
-  runtime: BrowserRuntime,
-  workspaceId: string,
-  targetWindowID: string,
-  joiningWindowIDs: readonly string[]
-): Promise<void> {
-  await executeWindowManagerCommand(runtime, workspaceId, {
-    commandId: "window.stack.group",
-    payload: { target_window_id: targetWindowID, window_ids: [...joiningWindowIDs] },
-  });
-}
-
-function floatingStackForWindow(
-  snapshot: WindowManagerSnapshot,
-  windowId: string
-): NonNullable<WindowManagerDesktop["floating_stacks"]>[number] | null {
-  for (const desktop of snapshot.desktops) {
-    const stack = desktop.floating_stacks?.find(candidate =>
-      candidate.window_ids.includes(windowId)
-    );
-    if (stack) return stack;
-  }
-  return null;
-}
-
-async function arrangeWindows(
-  runtime: BrowserRuntime,
-  workspaceId: string,
-  desktopId: string,
-  windowIds: string[],
-  arrangement: "horizontal" | "vertical" | "grid" | "stack",
-  groupId: string,
-  frame: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 }
-): Promise<void> {
-  await executeWindowManagerCommand(runtime, workspaceId, {
-    commandId: "layout.arrange",
-    payload: {
-      desktop_id: desktopId,
-      window_ids: windowIds,
-      arrangement,
-      frame,
-      group_id: groupId,
-    },
-  });
-}
-
-async function authoritativeWindowRect(
+/** Activates the tab holding `windowId` by clicking it in the bar. */
+async function showTab(
   page: Page,
   runtime: BrowserRuntime,
   workspaceId: string,
   windowId: string
-): Promise<{ x: number; y: number; w: number; h: number }> {
-  const [snapshot, layer] = await Promise.all([
-    windowManagerSnapshot(runtime, workspaceId),
-    winLayerSize(page),
-  ]);
-  const window = snapshot.windows[windowId];
-  if (!window) throw new Error(`window ${windowId} is missing from authority`);
-  if (window.placement !== "floating") {
-    throw new Error(`window ${windowId} must be floating to derive its authoritative rect`);
-  }
-  return {
-    x: Math.round(window.floating_rect.x * layer.width),
-    y: Math.round(window.floating_rect.y * layer.height),
-    w: Math.round(window.floating_rect.width * layer.width),
-    h: Math.round(window.floating_rect.height * layer.height),
-  };
-}
-
-async function windowMatchesAuthority(
-  page: Page,
-  window: Locator,
-  runtime: BrowserRuntime,
-  workspaceId: string,
-  windowId: string
-): Promise<boolean> {
-  try {
-    return rectsClose(
-      await windowRect(page, window),
-      await authoritativeWindowRect(page, runtime, workspaceId, windowId)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function normalizedRectFlag(rect: NormalizedRect): string {
-  return [rect.x, rect.y, rect.width, rect.height].join(",");
+): Promise<void> {
+  const tabId = tabForWindow(await windowManagerSnapshot(runtime, workspaceId), windowId)?.id;
+  if (!tabId) throw new Error(`window ${windowId} is in no tab`);
+  const tab = osShellSelectors(page).tab(tabId);
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
 function nodeWindowIds(node: WindowManagerLayoutNode): string[] {
   if (node.kind === "leaf") return node.window_id ? [node.window_id] : [];
-  if (node.kind === "stack") return [...(node.window_ids ?? [])];
   return (node.children ?? []).flatMap(nodeWindowIds);
 }
 
-function layoutGroupForWindow(
-  snapshot: WindowManagerSnapshot,
-  windowId: string
-): WindowManagerDesktop["groups"][number] | null {
+function tabForWindow(snapshot: WindowManagerSnapshot, windowId: string): WindowManagerTab | null {
   for (const desktop of snapshot.desktops) {
-    for (const group of desktop.groups) {
-      if (nodeWindowIds(group.root).includes(windowId)) return group;
-    }
+    const tab = desktop.tabs.find(candidate => nodeWindowIds(candidate.root).includes(windowId));
+    if (tab) return tab;
   }
   return null;
 }
 
-function normalizedFrameForWindow(
-  snapshot: WindowManagerSnapshot,
-  windowId: string
-): NormalizedRect | null {
-  return layoutGroupForWindow(snapshot, windowId)?.frame ?? null;
-}
-
-function splitWeightsForWindow(snapshot: WindowManagerSnapshot, windowId: string): number[] | null {
-  const root = layoutGroupForWindow(snapshot, windowId)?.root;
-  return root?.kind === "split" && root.weights ? [...root.weights] : null;
-}
-
-function tiledStackNodeForWindow(snapshot: WindowManagerSnapshot, windowId: string): string | null {
-  const visit = (node: WindowManagerLayoutNode): string | null => {
-    if (node.kind === "stack") return node.window_ids?.includes(windowId) ? node.id : null;
-    for (const child of node.children ?? []) {
-      const found = visit(child);
-      if (found) return found;
-    }
-    return null;
-  };
-  for (const desktop of snapshot.desktops) {
-    for (const group of desktop.groups) {
-      const found = visit(group.root);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function layoutSignature(snapshot: WindowManagerSnapshot, desktopId: string): unknown {
+function desktopTabIds(snapshot: WindowManagerSnapshot, desktopId: string): string[] {
   const desktop = snapshot.desktops.find(candidate => candidate.id === desktopId);
   if (!desktop) throw new Error(`desktop ${desktopId} is missing from authority`);
-  return {
-    groups: desktop.groups,
-    floating: desktop.floating,
+  return desktop.tabs.map(tab => tab.id);
+}
+
+/** The innermost split node whose children hold `windowId`. */
+function splitHoldingWindow(
+  snapshot: WindowManagerSnapshot,
+  windowId: string
+): WindowManagerLayoutNode | null {
+  const visit = (node: WindowManagerLayoutNode): WindowManagerLayoutNode | null => {
+    if (node.kind !== "split") return null;
+    for (const child of node.children ?? []) {
+      const nested = visit(child);
+      if (nested) return nested;
+    }
+    return (node.children ?? []).some(child => child.kind === "leaf" && child.window_id === windowId)
+      ? node
+      : null;
   };
+  const tab = tabForWindow(snapshot, windowId);
+  return tab ? visit(tab.root) : null;
 }
 
 async function assertDesktopPagerLayout(page: Page): Promise<void> {
@@ -4519,14 +3477,6 @@ async function addWorkspace(
   return workspace;
 }
 
-function rightHalfTileX(
-  layerWidth: number,
-  gaps: WindowManagerSettingsResponse["config"]["gaps"]
-): number {
-  const layoutWidth = Math.max(0, layerWidth - gaps.left - gaps.right);
-  return gaps.left + Math.round(layoutWidth / 2) + Math.ceil(gaps.inner / 2);
-}
-
 type MenubarMenu = "CompozyOS" | "Session" | "Go" | "Window" | "Help";
 
 /** Menubar triggers are `role="menuitem"` inside the shell's single menubar. */
@@ -4572,7 +3522,6 @@ async function openSessionsCatalogFromPalette(page: Page): Promise<void> {
   await palette.getByTestId("os-palette-command-shell.sessions.toggle").click();
   await expect(page.getByTestId("os-sessions-modal")).toBeVisible();
 }
-
 /**
  * E2E-005: the command switcher, the menubar menu, and the overview render one
  * nested tree from one query; keyboard-only traversal reaches nested entries;

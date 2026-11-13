@@ -35,11 +35,10 @@ function topology(focusedId: string | null) {
   return {
     activeDesktopId: "desk-1",
     focusedId,
-    frames: {},
     windows:
       focusedId === null
         ? {}
-        : { [focusedId]: { id: focusedId, desktopId: "desk-1", minimized: false } },
+        : { [focusedId]: { id: focusedId, desktopId: "desk-1", inSplit: false } },
   };
 }
 

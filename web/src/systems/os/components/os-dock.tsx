@@ -40,10 +40,9 @@ export interface OsDockProps extends Omit<React.ComponentProps<"div">, "onSelect
   "aria-label"?: string;
 }
 
-type DockItemState = "minimized" | "running" | "closed";
+type DockItemState = "running" | "closed";
 
 function dockItemState(item: OsDockItemData): DockItemState {
-  if (item.minimized) return "minimized";
   return item.running ? "running" : "closed";
 }
 
@@ -51,16 +50,15 @@ function DockItemBody({ item }: { item: OsDockItemData }) {
   const state = dockItemState(item);
   return (
     <>
-      <DockIcon name={item.icon} className={cn("size-4.5", item.minimized && "opacity-50")} />
+      <DockIcon name={item.icon} className="size-4.5" />
       <span
         data-slot="os-dock-indicator"
         aria-hidden="true"
         className={cn(
           "absolute top-1/2 -left-1.5 -translate-y-1/2 rounded-full transition-opacity duration-base",
           state === "closed" ? "opacity-0" : "opacity-100",
-          state === "minimized"
-            ? "size-1.25 border border-subtle bg-transparent"
-            : cn("size-1", item.active ? "bg-fg" : "bg-muted-foreground")
+          "size-1",
+          item.active ? "bg-fg" : "bg-muted-foreground"
         )}
       />
       {item.badge ? (

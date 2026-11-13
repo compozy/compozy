@@ -3,7 +3,7 @@ import type {
   WindowManagerLayoutGroup,
   WindowManagerLayoutNode,
 } from "./window-manager-layout-types";
-import type { LayoutDesktop, LayoutGroup, LayoutNode } from "@/systems/os";
+import type { LayoutDesktop, LayoutGroup, LayoutNode } from "./legacy-layout-types";
 
 /**
  * The settings document and the runtime topology are the same shape; they differ

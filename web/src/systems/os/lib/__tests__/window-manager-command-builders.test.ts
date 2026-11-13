@@ -1,88 +1,117 @@
 // Suite: window-manager command builders
-// Invariant: each Window › Arrange preset becomes one `layout.arrange` command
-// with its daemon arrangement and anchor-first participants, one per frame: a
-// deck is named once, by its active tab (the daemon then arranges the whole
-// deck), and the anchor's own deck is never named again.
+// Invariant: every tab-model gesture becomes one daemon command in its v6 wire shape: opens are
+// tabs (after a named window's tab, or a split beside focus), closes never send `minimize`, tab
+// reorder/activate use `window.tab.*`, moves carry `target_tab_id`/`move_group`, and an arrange
+// preset becomes one `layout.arrange` with no retired frame fields.
 // Owning layer: web/src/systems/os/lib/window-manager-command-builders.ts
 import { describe, expect, it } from "vitest";
 
-import type { OsArrangePreset, OsWindow } from "../os-types";
-import { arrangeLayoutCommand } from "../window-manager-command-builders";
+import type { OsArrangePreset } from "../os-types";
+import {
+  activateTabCommand,
+  arrangeLayoutCommand,
+  balanceLayoutCommand,
+  closeWindowCommand,
+  moveWindowCommand,
+  openWindowCommand,
+  reorderTabCommand,
+} from "../window-manager-command-builders";
 
-function osWindow(id: string, overrides: Partial<OsWindow> = {}): OsWindow {
-  return {
-    id,
-    app: "tasks",
-    instanceKey: null,
-    route: { pathname: "/tasks", search: {} },
-    navStack: [],
-    pinned: false,
-    desktopId: "desktop:a",
-    placement: "tiled",
-    rect: { x: 0, y: 0, w: 600, h: 400 },
-    layer: 1,
-    minimized: false,
-    zoomed: false,
-    groupId: null,
-    nodeId: null,
-    stackId: null,
-    stackActive: true,
-    parentAxis: null,
-    ...overrides,
-  };
-}
+describe("openWindowCommand", () => {
+  it("Should open a tab with no retired floating fields", () => {
+    const command = openWindowCommand(
+      { app: "tasks", route: { pathname: "/tasks", search: {} } },
+      "window:new",
+      "desktop:a"
+    );
 
-const ANCHOR = osWindow("w-anchor");
-// A tiled two-tab deck (w-2 hidden behind w-1) listed hidden-tab first, then
-// three lone windows.
-const PEERS = [
-  osWindow("w-2", { stackId: "stack:deck", stackActive: false }),
-  osWindow("w-1", { stackId: "stack:deck" }),
-  osWindow("w-3"),
-  osWindow("w-4"),
-  osWindow("w-5"),
-];
+    expect(command).toEqual({
+      commandId: "window.open",
+      payload: {
+        window: {
+          id: "window:new",
+          app: "tasks",
+          route: { pathname: "/tasks", search: {} },
+          desktop_id: "desktop:a",
+        },
+      },
+    });
+  });
+
+  it("Should open after a named window's tab, or split beside focus", () => {
+    expect(
+      openWindowCommand({ app: "tasks", afterWindowId: "window:a" }, "w", "desktop:a").payload
+    ).toMatchObject({ window: { stack_target_window_id: "window:a" } });
+    expect(
+      openWindowCommand({ app: "tasks", placement: "split" }, "w", "desktop:a").payload
+    ).toMatchObject({ window: { insert_tiled: true } });
+  });
+});
+
+describe("tab commands", () => {
+  it("Should close by scope without sending minimize", () => {
+    expect(closeWindowCommand("w").payload).toEqual({ window_id: "w" });
+    expect(closeWindowCommand("w", "left").payload).toEqual({ window_id: "w", scope: "left" });
+  });
+
+  it("Should reorder and activate through window.tab commands", () => {
+    expect(reorderTabCommand("w", 2)).toMatchObject({
+      commandId: "window.tab.reorder",
+      payload: { window_id: "w", index: 2 },
+    });
+    expect(activateTabCommand("w")).toMatchObject({
+      commandId: "window.tab.activate",
+      payload: { window_id: "w" },
+    });
+  });
+
+  it("Should move a whole tab to another desktop's bar", () => {
+    expect(
+      moveWindowCommand("w", {
+        destinationDesktopId: "desktop:b",
+        placement: "tab",
+        moveGroup: true,
+      }).payload
+    ).toEqual({
+      window_id: "w",
+      destination_desktop_id: "desktop:b",
+      placement: "tab",
+      move_group: true,
+    });
+    expect(
+      moveWindowCommand("w", {
+        destinationDesktopId: "desktop:a",
+        targetTabId: "tab:x",
+        placement: "right",
+      }).payload
+    ).toMatchObject({ target_tab_id: "tab:x", placement: "right", move_group: false });
+  });
+});
 
 describe("arrangeLayoutCommand", () => {
-  it.each<{ preset: OsArrangePreset; arrangement: string; windowIds: string[] }>([
-    { preset: "two-up", arrangement: "horizontal", windowIds: ["w-anchor", "w-1"] },
-    { preset: "grid", arrangement: "grid", windowIds: ["w-anchor", "w-1", "w-3", "w-4"] },
-    {
-      preset: "main-stack",
-      arrangement: "main_stack",
-      windowIds: ["w-anchor", "w-1", "w-3", "w-4", "w-5"],
-    },
-    {
-      preset: "columns",
-      arrangement: "horizontal",
-      windowIds: ["w-anchor", "w-1", "w-3", "w-4", "w-5"],
-    },
-  ])(
-    "Should arrange $preset as $arrangement with anchor-first participants",
-    ({ preset, arrangement, windowIds }) => {
-      const command = arrangeLayoutCommand(ANCHOR, PEERS, preset, "group:new");
+  it.each<{ preset: OsArrangePreset; arrangement: string }>([
+    { preset: "two-up", arrangement: "horizontal" },
+    { preset: "grid", arrangement: "grid" },
+    { preset: "main-stack", arrangement: "main_stack" },
+    { preset: "columns", arrangement: "horizontal" },
+  ])("Should arrange $preset as $arrangement", ({ preset, arrangement }) => {
+    expect(arrangeLayoutCommand("desktop:a", ["w-1", "w-2"], preset)).toEqual({
+      commandId: "layout.arrange",
+      payload: { desktop_id: "desktop:a", window_ids: ["w-1", "w-2"], arrangement },
+    });
+  });
 
-      expect(command).toEqual({
-        commandId: "layout.arrange",
-        payload: {
-          desktop_id: "desktop:a",
-          window_ids: windowIds,
-          arrangement,
-          frame: { x: 0, y: 0, width: 1, height: 1 },
-          group_id: "group:new",
-          keep_frames: true,
-        },
-      });
-    }
-  );
+  it("Should skip an arrange with a single participant", () => {
+    expect(arrangeLayoutCommand("desktop:a", ["w-1"], "columns")).toBeNull();
+  });
+});
 
-  it("Should not name the anchor's own deck again, and skip when it is the only frame", () => {
-    const anchor = osWindow("w-anchor", { stackId: "stack:own" });
-    const sibling = osWindow("w-sibling", { stackId: "stack:own", stackActive: false });
-
-    expect(arrangeLayoutCommand(anchor, [sibling], "columns", "g")).toBeNull();
-    expect(
-      arrangeLayoutCommand(anchor, [sibling, osWindow("w-peer")], "main-stack", "g")?.payload
-    ).toMatchObject({ window_ids: ["w-anchor", "w-peer"] });
+describe("balanceLayoutCommand", () => {
+  it("Should balance a tab or a split and refuse an empty target", () => {
+    expect(balanceLayoutCommand({ tabId: "tab:a" })?.payload).toEqual({ tab_id: "tab:a" });
+    expect(balanceLayoutCommand({ splitId: "split:a" })?.payload).toEqual({
+      split_id: "split:a",
+    });
+    expect(balanceLayoutCommand({})).toBeNull();
   });
 });

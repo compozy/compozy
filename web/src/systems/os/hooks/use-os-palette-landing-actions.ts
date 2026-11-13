@@ -46,7 +46,7 @@ export function useOsPaletteLandingActions({
     if (destinationWindowId === null) return;
     windowManagerStore.trigger.paletteIntentCleared();
     void coordinator
-      .userOpen({ ...target, stackTargetWindowId: destinationWindowId })
+      .userOpen({ ...target, afterWindowId: destinationWindowId })
       .then(openedId => {
         if (openedId !== null) void manager.closeWindow(destinationWindowId);
       });

@@ -64,9 +64,9 @@ const DEEP_CHAIN_LOOP = "run-page-deep-chain-e2e";
 // deterministically until a requeue lands it on generation 3.
 test.use({
   runtimeOptions: {
-    // Run pages open as floating windows narrower than the desk, so the fixed-width
-    // DAG (E2E-016) overflows its lane; the shipped `tab` default would fill the desk instead.
-    newWindowPolicy: "floating",
+    // Run pages open split beside the focused window, narrower than the desk, so the
+    // fixed-width DAG (E2E-016) overflows its lane; the shipped `tab` default would fill it.
+    newWindowPolicy: "beside_focus",
     seed: {
       mockAgents: [
         { fixturePath: lifecycleFixture, fixtureAgent: "lifecycle_retry", agentName: RETRY_AGENT },

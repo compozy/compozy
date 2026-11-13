@@ -221,7 +221,7 @@ test("Automations E2E-007: retired Jobs and Triggers windows reopen as Automatio
     await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "os-desktop" });
 
     const after = await windowManagerSnapshot(runtime, workspaceId);
-    expect(after.version).toBe(5);
+    expect(after.version).toBe(6);
     for (const id of [jobsWindowId, triggersWindowId]) {
       expect(after.windows[id]).toEqual(before.windows[id]);
     }
@@ -276,8 +276,6 @@ async function openRetiredAppWindow(
           app,
           route,
           desktop_id: "desktop-default",
-          floating_rect: { x: 0.08, y: 0.08, width: 0.5, height: 0.6 },
-          insert_tiled: false,
         },
       },
     }),

@@ -5,15 +5,17 @@ import { expect, type Locator, type Page } from "@playwright/test";
  *
  * The current shell has no persistent sidebar: a user opens each app through the
  * Dock rail (or the rail foot for Settings) and every interaction is scoped to the owning
- * OS window. Runtime window IDs are opaque; app and instance selectors come from
- * the authority-backed attributes rendered on each window surface. These helpers
+ * OS window. Every window lives in a tab of its desktop's tab bar; a window is on
+ * screen when its tab is active and no collapsed split hides it (`data-shown`).
+ * Runtime window IDs are opaque; app and instance selectors come from the
+ * authority-backed attributes rendered on each window surface. These helpers
  * mirror the proven patterns from `os-shell.spec.ts` so every spec shares one
  * navigation authority instead of re-implementing dock clicks.
  */
 
-/** Locate the active member for an app without reconstructing its opaque window ID. */
+/** Locate the shown window for an app without reconstructing its opaque window ID. */
 export function appWindow(page: Page, app: string): Locator {
-  return page.locator(`[data-slot="os-window-surface"][data-app="${app}"][data-stack-active]`);
+  return page.locator(`[data-slot="os-window-surface"][data-app="${app}"][data-shown]`);
 }
 
 /**
@@ -62,9 +64,9 @@ export function sessionWindow(page: Page, sessionId: string): Locator {
   );
 }
 
-/** Locate the chrome frame that owns a window surface. */
-export function windowFrame(win: Locator): Locator {
-  return win.locator("xpath=ancestor::*[@data-slot='os-window-frame'][1]");
+/** Locate the split-view pane that owns a window surface; it carries `data-focused`. */
+export function windowPane(win: Locator): Locator {
+  return win.locator("xpath=ancestor-or-self::*[@data-slot='os-window'][1]");
 }
 
 /** Read the authority-issued opaque ID carried by a rendered window surface. */
@@ -78,16 +80,18 @@ export async function windowID(win: Locator): Promise<string> {
 }
 
 /**
- * Close one app window the way an operator would. New windows open as tabs of
- * the focused window by default, and a shared frame's own Close window would
- * close every tab in it — so a window with a tab closes through that tab.
+ * Close one app window the way an operator would. A window alone in its tab
+ * closes through that tab's close button; a split member closes from its own
+ * window head, which leaves the rest of the split in place.
  */
 export async function closeAppWindow(page: Page, win: Locator): Promise<void> {
-  const tabClose = page
-    .getByTestId(`os-window-tab-${await windowID(win)}`)
-    .locator('[data-slot="os-window-tab-close"]');
-  if ((await tabClose.count()) > 0) {
-    await tabClose.click();
+  const tab = page
+    .getByTestId("os-tab-bar")
+    .locator(`[role="tab"][data-lead-window-id="${await windowID(win)}"]`);
+  const inSplit = (await win.locator("xpath=ancestor::*[@data-slot='os-split'][1]").count()) > 0;
+  if (!inSplit && (await tab.count()) > 0) {
+    await tab.hover();
+    await tab.locator('[data-slot="os-tab-close"]').click();
   } else {
     await win.getByRole("button", { name: "Close window" }).click();
   }
@@ -115,7 +119,7 @@ async function authorityWindow(page: Page, win: Locator): Promise<Locator> {
 
 /** Focus an obscured window through the user-facing palette's exact tab identity. */
 export async function focusWindowThroughPalette(page: Page, win: Locator): Promise<void> {
-  if ((await windowFrame(win).getAttribute("data-focused")) !== null && (await win.isVisible())) {
+  if ((await windowPane(win).getAttribute("data-focused")) !== null && (await win.isVisible())) {
     return;
   }
   const target = await authorityWindow(page, win);
@@ -134,7 +138,7 @@ export async function focusWindowThroughPalette(page: Page, win: Locator): Promi
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
   await palette.getByTestId(`os-palette-tab-${id}`).click();
   await expect(target).toBeVisible();
-  await expect(windowFrame(target)).toHaveAttribute("data-focused", "");
+  await expect(windowPane(target)).toHaveAttribute("data-focused", "");
 }
 
 /** Switch the active workspace and prove the menubar committed the selection. */

@@ -39,7 +39,6 @@ export function decideRouteReconciliation(
   const alreadyShown =
     existing !== null &&
     state.focusedId === existing.id &&
-    !existing.minimized &&
     sameOsWindowRoute(existing.route, route);
   if (route.pathname === "/") {
     // A bare `/` is where an empty desktop lands. Reusing a dashboard on
@@ -53,7 +52,7 @@ export function decideRouteReconciliation(
   // A deep link can leave a different parent in history. Consume the stack
   // only when it matches the breadcrumb's selected destination.
   const canPop = sameOsWindowRoute(existing?.navStack.at(-1) ?? null, route);
-  if (mode === "pop" && existing && !existing.minimized && canPop) {
+  if (mode === "pop" && existing && canPop) {
     return { windowId: existing.id, ...manager.popWindowRoute(existing.id, route) };
   }
   if (createdSession && app.id === "session" && instanceKey) {

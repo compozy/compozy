@@ -3,9 +3,7 @@ import type { OsDesktopRuntimeStore, OsWindow } from "./os-types";
 export interface BackgroundStreamBudgetState {
   activeDesktopId: OsDesktopRuntimeStore["activeDesktopId"];
   connectionStatus: OsDesktopRuntimeStore["connectionStatus"];
-  windows: Readonly<
-    Record<string, Pick<OsWindow, "app" | "desktopId" | "minimized" | "stackActive">>
-  >;
+  windows: Readonly<Record<string, Pick<OsWindow, "app" | "desktopId" | "shown">>>;
 }
 
 /** Leaves browser connection capacity to authoritative and visible-window streams. */
@@ -15,7 +13,7 @@ export function backgroundStreamsWithinConnectionBudget(
   return (
     state.connectionStatus === "connected" &&
     !Object.values(state.windows).some(
-      win => win.desktopId === state.activeDesktopId && !win.minimized && win.stackActive
+      win => win.desktopId === state.activeDesktopId && win.shown
     )
   );
 }

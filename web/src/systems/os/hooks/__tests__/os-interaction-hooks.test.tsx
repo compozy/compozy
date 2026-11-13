@@ -10,11 +10,9 @@ import {
   useEffect,
   useLayoutEffect,
 } from "react";
-import type { Rnd } from "react-rnd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import type { OsWindowFrameModel } from "../../lib/group-projection";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
   OsDesktopRuntimeStore,
@@ -24,26 +22,18 @@ import type {
 } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import type { WindowManagerGlobalShortcutMap } from "../../lib/window-manager-shortcut-types";
-import {
-  OS_ZOOM_MENU_CLOSE_GRACE_MS,
-  OS_ZOOM_MENU_OPEN_DELAY_MS,
-  useOsZoomMenu,
-} from "../use-os-zoom-menu";
 import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
 import { useCmdPaletteContext } from "../use-cmd-palette-context";
 import { usePaletteTabs } from "../use-os-palette-entities";
 import { useOsWindowMember } from "../use-os-window-member";
-import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
-import { useOsWindowCommands } from "../use-os-window-commands";
-import { useWindowMergeTarget } from "../use-window-merge-target";
 import {
   useCurrentWindowLiveDataEnabled,
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
-import { useOsWinLayer } from "../use-os-win-layer";
+import { useOsDeskLayer, useVisitedTabs } from "../use-os-desk-layer";
 import { useOsShortcuts } from "../use-os-shortcuts";
 import { useOsPaletteExecution } from "../use-os-palette-execution";
 import type { PaletteRowSubject } from "../../lib/cmd-palette-row-actions";
@@ -160,35 +150,32 @@ function shortcutRegistry(
 }
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 5,
+  version: 6,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [],
   windows: {},
   closedEntryCount: 0,
   overrides: {},
+  migration: null,
   updatedAt: "2026-07-22T00:00:00Z",
 };
 
-function windowFixture(id: string, layer: number): OsWindow {
+function windowFixture(id: string, overrides: Partial<OsWindow> = {}): OsWindow {
   return {
     id,
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
     navStack: [],
-    pinned: false,
     desktopId: "desktop:main",
-    placement: "floating",
-    rect: { x: 40 * layer, y: 40, w: 600, h: 420 },
-    layer,
-    minimized: false,
-    zoomed: false,
-    groupId: null,
-    nodeId: null,
-    stackId: null,
-    stackActive: true,
-    parentAxis: null,
+    tabId: `tab:${id}`,
+    nodeId: `leaf:${id}`,
+    pinned: false,
+    inSplit: false,
+    tabActive: true,
+    shown: true,
+    ...overrides,
   };
 }
 
@@ -197,10 +184,9 @@ function acceptedOutcome(): WindowManagerCommandOutcome {
 }
 
 function createShell({ live = true, authoritative = true, withPeer = true } = {}) {
-  const primary = windowFixture("window:primary", 2);
-  const peer = windowFixture("window:peer", 1);
-  const zoomWindow = vi.fn(() => acceptedOutcome());
-  const toggleFloating = vi.fn(() => acceptedOutcome());
+  // The two windows share one split tab, side by side.
+  const primary = windowFixture("window:primary", { tabId: "tab:main", inSplit: true });
+  const peer = windowFixture("window:peer", { tabId: "tab:main", inSplit: true });
   const arrangeLayout = vi.fn();
   const state: OsDesktopRuntimeStore = {
     snapshot: authoritative ? SNAPSHOT : null,
@@ -213,20 +199,20 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
           activeDesktopId: "desktop:main",
           focusedWindowId: primary.id,
           focusOrder: [primary.id],
-          stackActive: {},
+          activeTab: {},
           connectedAt: "2026-07-22T00:00:00Z",
           presentationRevision: 1,
         }
       : null,
     desktops: [],
+    activeTabIds: {},
     projections: {},
-    frames: {},
     windows: withPeer ? { [primary.id]: primary, [peer.id]: peer } : { [primary.id]: primary },
     activeDesktopId: "desktop:main",
     focusedId: primary.id,
     wallpaper: "ember",
     reduceMotion: false,
-    presentation: "floating",
+    presentation: "split",
     viewportState: "ready",
     hydration: authoritative ? "live" : "pending",
     loadError: null,
@@ -251,44 +237,34 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     openOrFocus: vi.fn(target => ({ windowId: `w-test-${target.app}`, ...acceptedOutcome() })),
     closeWindow: vi.fn(async () => true),
     focusWindow: vi.fn(() => acceptedOutcome()),
-    minimizeWindow: vi.fn(async () => true),
-    restoreWindow: vi.fn(() => acceptedOutcome()),
-    zoomWindow,
-    toggleFloating,
     moveWindow: vi.fn(() => acceptedOutcome()),
     arrangeLayout,
-    commitFloatingRect: vi.fn(() => acceptedOutcome()),
     resizeLayout: vi.fn(() => acceptedOutcome()),
-    resizeWindowFrame: vi.fn(() => acceptedOutcome()),
-    resizeGroupFrames: vi.fn(() => acceptedOutcome()),
     balanceLayout: vi.fn(),
     navigateWindow: vi.fn(() => acceptedOutcome()),
     retargetWindow: vi.fn(() => acceptedOutcome()),
     popWindowRoute: vi.fn(() => acceptedOutcome()),
-    groupWindows: vi.fn(() => acceptedOutcome()),
-    reorderStackMember: vi.fn(() => acceptedOutcome()),
-    activateStackMember: vi.fn(() => acceptedOutcome()),
+    reorderTab: vi.fn(() => acceptedOutcome()),
+    activateTab: vi.fn(() => acceptedOutcome()),
     pinWindow: vi.fn(() => acceptedOutcome()),
     reopenWindow: vi.fn(() => acceptedOutcome()),
     closeWindowScoped: vi.fn(async () => true),
     setWallpaper: vi.fn(),
     setReduceMotion: vi.fn(),
     setDesktopBounds: vi.fn(),
-    createDesktop: vi.fn(),
+    createDesktop: vi.fn(() => acceptedOutcome()),
     renameDesktop: vi.fn(),
     reorderDesktop: vi.fn(),
     switchDesktop: vi.fn(),
     switchDesktopDirection: vi.fn(),
     deleteDesktop: vi.fn(),
     moveWindowToDesktop: vi.fn(),
-    tileWindow: vi.fn(),
-    applySnapTarget: vi.fn(() => acceptedOutcome()),
     focusDirection: vi.fn(),
     undoLayout: vi.fn(),
     redoLayout: vi.fn(),
     balanceFocusedLayout: vi.fn(),
     clearConflict: vi.fn(),
-    refreshSnapshot: vi.fn(),
+    refreshSnapshot: vi.fn(async () => true),
   };
   const coordinator = new RoutingCoordinator(controller, {
     navigate: vi.fn(),
@@ -315,7 +291,6 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
 
 afterEach(() => {
   act(() => {
-    windowManagerStore.trigger.gestureCleared();
     windowManagerStore.trigger.workAreaMeasured({ workArea: null });
   });
   vi.useRealTimers();
@@ -417,7 +392,8 @@ describe("desktop chrome projection subscriptions", () => {
       { wrapper: shell.wrapper, initialProps: { needsYou: [row] } }
     );
     const initialRenders = renders;
-    const moved = { ...primary, rect: { ...primary.rect, x: 200 } };
+    // Moving within its tab's split changes nothing the chrome renders.
+    const moved = { ...primary, nodeId: "leaf:moved" };
     act(() => shell.setRuntimeState({ windows: { [primary.id]: moved } }));
     expect(renders).toBe(initialRenders);
     expect(result.current.chrome.windowIds).toEqual([primary.id]);
@@ -443,9 +419,14 @@ describe("desktop chrome projection subscriptions", () => {
       id: "desktop:main",
       name: "Main",
       order: 0,
-      groups: [],
-      floating: [primary.id],
-      floatingStacks: [],
+      tabs: [
+        {
+          id: primary.tabId,
+          pinned: false,
+          root: { id: "leaf:window:primary", kind: "leaf" as const, windowId: primary.id },
+        },
+      ],
+      activeTabId: primary.tabId,
     };
     shell.setRuntimeState({ desktops: [desktop], windows: { [primary.id]: primary } });
     let renders = 0;
@@ -461,7 +442,7 @@ describe("desktop chrome projection subscriptions", () => {
       act(() =>
         shell.setRuntimeState({
           desktops: [{ ...desktop, name: "Renamed while closed" }],
-          windows: { [primary.id]: { ...primary, rect: { ...primary.rect, x: 200 } } },
+          windows: { [primary.id]: { ...primary, nodeId: "leaf:moved" } },
         })
       );
       expect(renders).toBe(initialRenders);
@@ -469,7 +450,7 @@ describe("desktop chrome projection subscriptions", () => {
         windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
       );
       expect(result.current.desktops[0]?.name).toBe("Renamed while closed");
-      expect(result.current.desktops[0]?.windowRecords[0]?.rect.x).toBe(200);
+      expect(result.current.desktops[0]?.windowRecords[0]?.nodeId).toBe("leaf:moved");
       act(() => shell.setRuntimeState({ windows: {} }));
       expect(result.current.desktops[0]?.windows).toEqual([]);
       act(() => windowManagerStore.trigger.overlayClosed());
@@ -479,7 +460,7 @@ describe("desktop chrome projection subscriptions", () => {
       act(() =>
         windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
       );
-      expect(result.current.desktops[0]?.windowRecords[0]?.rect.x).toBe(primary.rect.x);
+      expect(result.current.desktops[0]?.windowRecords[0]?.nodeId).toBe(primary.nodeId);
     } finally {
       unmount();
       act(() => windowManagerStore.trigger.overlayClosed());
@@ -513,9 +494,8 @@ describe("useCmdPaletteContext store subscriptions", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+          [primary.id]: { ...primary, nodeId: "leaf:moved" },
         },
-        frames: { ...shell.state.frames },
       })
     );
     expect(renders).toBe(initialRenders);
@@ -523,7 +503,7 @@ describe("useCmdPaletteContext store subscriptions", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, minimized: true },
+          [primary.id]: { ...primary, tabActive: false, shown: false },
         },
       })
     );
@@ -553,7 +533,7 @@ describe("usePaletteTabs", () => {
     act(() =>
       shell.setRuntimeState({
         windows: {
-          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 }, minimized: true },
+          [primary.id]: { ...primary, nodeId: "leaf:moved", tabActive: false, shown: false },
         },
       })
     );
@@ -561,11 +541,7 @@ describe("usePaletteTabs", () => {
     expect(result.current).toEqual([]);
     rerender({ open: true });
     expect(result.current).toEqual([
-      expect.objectContaining({
-        windowId: primary.id,
-        minimized: true,
-        label: "Changed while closed",
-      }),
+      expect.objectContaining({ windowId: primary.id, label: "Changed while closed" }),
     ]);
     act(() => slot.publishSlot(owner, { crumb: "Changed while open" }));
     expect(result.current[0]?.label).toBe("Changed while open");
@@ -579,7 +555,7 @@ describe("usePaletteTabs", () => {
     expect(renders).toBe(closedRenders);
     rerender({ open: true });
     expect(result.current).toEqual([
-      expect.objectContaining({ windowId: primary.id, minimized: false, label: "Reopened title" }),
+      expect.objectContaining({ windowId: primary.id, label: "Reopened title" }),
     ]);
   });
 });
@@ -611,7 +587,7 @@ describe("useOsWindowMember", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+          [primary.id]: { ...primary, nodeId: "leaf:moved" },
         },
       })
     );
@@ -624,8 +600,8 @@ describe("useOsWindowMember", () => {
             ...primary,
             app: "settings",
             instanceKey: "settings:secondary",
-            minimized: true,
-            placement: "tiled",
+            inSplit: true,
+            shown: false,
           },
         },
       })
@@ -633,8 +609,8 @@ describe("useOsWindowMember", () => {
     expect(result.current.win).toMatchObject({
       app: "settings",
       instanceKey: "settings:secondary",
-      minimized: true,
-      placement: "tiled",
+      inSplit: true,
+      shown: false,
     });
     act(() => shell.setRuntimeState({ windows: {} }));
     expect(result.current.win).toBeUndefined();
@@ -733,40 +709,6 @@ describe("useGlobalShortcutReconciliation", () => {
   });
 });
 
-function beginPrimarySnapGesture(
-  moveMode: "window" | "group" = "window",
-  sourceNodeId: string | null = null
-): void {
-  const workArea = { x: 0, y: 0, w: 1280, h: 800 };
-  windowManagerStore.trigger.workAreaMeasured({
-    workArea: { rect: workArea, origin: { x: 0, y: 0 } },
-  });
-  windowManagerStore.trigger.gestureBegan({
-    pointerId: 0,
-    point: { x: 320, y: 200 },
-    workArea,
-    layoutRevision: SNAPSHOT.revision,
-    source: {
-      windowId: "window:primary",
-      nodeId: sourceNodeId,
-      groupId: null,
-      moveMode,
-    },
-  });
-}
-
-function dragData(x: number, y: number) {
-  return {
-    node: document.createElement("div"),
-    x,
-    y,
-    deltaX: 0,
-    deltaY: 0,
-    lastX: x,
-    lastY: y,
-  };
-}
-
 function installAnimationFrameQueue() {
   let nextID = 1;
   const callbacks = new Map<number, FrameRequestCallback>();
@@ -795,34 +737,6 @@ function installAnimationFrameQueue() {
         flushNow();
       });
     },
-  };
-}
-
-/** Solo floating frame for the primary fixture window (frame rect = authoritative rect). */
-function primaryFrame(): OsWindowFrameModel {
-  return {
-    id: "window:primary",
-    desktopId: "desktop:main",
-    kind: "floating",
-    rect: { x: 80, y: 40, w: 600, h: 420 },
-    members: ["window:primary"],
-    activeWindowId: "window:primary",
-    stackId: null,
-    minimized: false,
-    zoomed: false,
-    adapted: false,
-    layer: 2,
-    zone: null,
-    resizableEdges: { left: true, right: true, top: true, bottom: true },
-  };
-}
-
-function stackedFrame(): OsWindowFrameModel {
-  return {
-    ...primaryFrame(),
-    id: "stack:primary",
-    members: ["window:primary", "window:peer"],
-    stackId: "stack:primary",
   };
 }
 
@@ -982,7 +896,7 @@ describe("useWindowLiveDataEnabled", () => {
 
   it("Should lease live data to the focused and most recent visible background window", () => {
     const shell = createShell();
-    const third = windowFixture("window:third", 3);
+    const third = windowFixture("window:third");
     const { result } = renderHook(
       () => ({
         primary: useWindowLiveDataEnabled("window:primary"),
@@ -1009,15 +923,15 @@ describe("useWindowLiveDataEnabled", () => {
     expect(result.current).toEqual({ primary: false, peer: false, third: false });
   });
 
-  it("Should fill the live budget by layer and ID while excluding hidden windows", () => {
+  it("Should fill the live budget by ID while excluding windows that are not shown", () => {
     const shell = createShell();
     const candidates = [
-      { ...windowFixture("window:z", 4), layer: 100 },
-      { ...windowFixture("window:a", 5), layer: 100 },
-      { ...windowFixture("window:lower", 6), layer: 99 },
-      { ...windowFixture("window:minimized", 7), layer: 200, minimized: true },
-      { ...windowFixture("window:hidden-tab", 8), layer: 200, stackActive: false },
-      { ...windowFixture("window:other-desktop", 9), layer: 200, desktopId: "other" },
+      windowFixture("window:z", { inSplit: true }),
+      windowFixture("window:a", { inSplit: true }),
+      windowFixture("window:lower", { inSplit: true }),
+      windowFixture("window:collapsed", { inSplit: true, shown: false }),
+      windowFixture("window:hidden-tab", { tabActive: false, shown: false }),
+      windowFixture("window:other-desktop", { desktopId: "other" }),
     ];
     shell.setRuntimeState({
       windows: Object.fromEntries(candidates.map(window => [window.id, window])),
@@ -1029,7 +943,8 @@ describe("useWindowLiveDataEnabled", () => {
         a: useWindowLiveDataEnabled("window:a"),
         z: useWindowLiveDataEnabled("window:z"),
         lower: useWindowLiveDataEnabled("window:lower"),
-        minimized: useWindowLiveDataEnabled("window:minimized"),
+        // Behind a collapsed split's switcher.
+        collapsed: useWindowLiveDataEnabled("window:collapsed"),
         hidden: useWindowLiveDataEnabled("window:hidden-tab"),
         other: useWindowLiveDataEnabled("window:other-desktop"),
       }),
@@ -1037,9 +952,9 @@ describe("useWindowLiveDataEnabled", () => {
     );
     expect(result.current).toEqual({
       a: true,
-      z: true,
-      lower: false,
-      minimized: false,
+      z: false,
+      lower: true,
+      collapsed: false,
       hidden: false,
       other: false,
     });
@@ -1053,7 +968,7 @@ describe("useWindowLiveDataEnabled", () => {
       a: true,
       z: false,
       lower: true,
-      minimized: false,
+      collapsed: false,
       hidden: false,
       other: false,
     });
@@ -1077,708 +992,6 @@ describe("useWindowLiveDataEnabled", () => {
     expect(result.current).toBe(true);
   });
 });
-
-describe("useOsWindow", () => {
-  it("Should coalesce drag previews to the latest point in each animation frame", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    beginPrimarySnapGesture();
-    const previewed = vi.spyOn(windowManagerStore.trigger, "gesturePreviewed");
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => {
-      result.current.handleDrag(
-        new MouseEvent("mousemove", { clientX: 200, clientY: 160 }),
-        dragData(200, 160)
-      );
-      result.current.handleDrag(
-        new MouseEvent("mousemove", { clientX: 360, clientY: 240 }),
-        dragData(360, 240)
-      );
-    });
-
-    expect(previewed).not.toHaveBeenCalled();
-    frames.flush();
-    expect(previewed).toHaveBeenCalledOnce();
-    expect(previewed).toHaveBeenCalledWith(expect.objectContaining({ point: { x: 360, y: 240 } }));
-  });
-
-  it("Should defer a never-visible window and retain it after first visibility", () => {
-    const shell = createShell();
-    shell.setRuntimeState({ activeDesktopId: "desktop:other" });
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    expect(result.current.keepMounted).toBe(false);
-
-    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:main" }));
-    expect(result.current.keepMounted).toBe(true);
-
-    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
-    expect(result.current.keepMounted).toBe(true);
-  });
-
-  it("Should restore the current authoritative position when a snap command is rejected", async () => {
-    const shell = createShell();
-    const completion = Promise.resolve(false);
-    vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
-        dragData(1, 300)
-      );
-      await completion;
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
-  });
-
-  it("Should retain the local preview when a snap command is applied", async () => {
-    const shell = createShell();
-    const completion = Promise.resolve(true);
-    vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
-        dragData(1, 300)
-      );
-      await completion;
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(updatePosition).not.toHaveBeenCalled();
-    expect(updateSize).not.toHaveBeenCalled();
-  });
-
-  it("Should restore the current authoritative rect when a floating commit is rejected", async () => {
-    const shell = createShell();
-    const completion = Promise.resolve(false);
-    vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await completion;
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
-  });
-
-  it("Should not start a drag gesture from a zoomed frame", () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindow({ ...primaryFrame(), zoomed: true }), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => {
-      result.current.handleDragStart(
-        new MouseEvent("mousedown", { clientX: 320, clientY: 200 }),
-        dragData(80, 40)
-      );
-    });
-
-    expect(windowManagerStore.getSnapshot().context.gesture).toBeNull();
-  });
-
-  it("Should commit a stale free drop with a rebase proof instead of discarding it", async () => {
-    const shell = createShell();
-    beginPrimarySnapGesture("window", "node:captured");
-    const currentWindow = shell.state.windows["window:primary"];
-    shell.setRuntimeState({
-      snapshot: { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 },
-      windows: {
-        ...shell.state.windows,
-        "window:primary": { ...currentWindow, nodeId: "node:current" },
-      },
-    });
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledWith(
-      "window:primary",
-      { x: 500, y: 300, w: 600, h: 420 },
-      undefined,
-      false,
-      { expectedRevision: SNAPSHOT.revision, sourceNodeId: "node:captured" }
-    );
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-  });
-
-  it("Should keep the captured source node when a stale tiled drag snaps", async () => {
-    const shell = createShell();
-    beginPrimarySnapGesture("window", "node:captured");
-    const currentWindow = shell.state.windows["window:primary"];
-    shell.setRuntimeState({
-      snapshot: { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 },
-      windows: {
-        ...shell.state.windows,
-        "window:primary": {
-          ...currentWindow,
-          placement: "tiled",
-          nodeId: "node:current",
-        },
-      },
-    });
-    const { result } = renderHook(() => useOsWindow({ ...primaryFrame(), kind: "tiled" }), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 640, clientY: 1 }),
-        dragData(300, 1)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "zoom" }),
-      false,
-      { expectedRevision: SNAPSHOT.revision, sourceNodeId: "node:captured" }
-    );
-  });
-
-  it("Should restore the authoritative rect when drag stop has no active gesture", async () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      expect(updatePosition).not.toHaveBeenCalled();
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
-  });
-
-  it("Should commit a group snap when a floating tab frame drops on a tile zone", async () => {
-    const shell = createShell();
-    beginPrimarySnapGesture("group");
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
-        dragData(1, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "tile", edge: "left" }),
-      true
-    );
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-  });
-
-  it("Should commit a group snap when a floating tab frame drops on a split zone", async () => {
-    const shell = createShell();
-    const board = {
-      ...windowFixture("window:board", 3),
-      nodeId: "node:board",
-      rect: { x: 660, y: 80, w: 400, h: 400 },
-    };
-    shell.setRuntimeState({ windows: { ...shell.state.windows, [board.id]: board } });
-    beginPrimarySnapGesture("group");
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 700, clientY: 280 }),
-        dragData(700, 280)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "split", targetWindowId: "window:board" }),
-      true
-    );
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-  });
-
-  it("Should commit a whole-frame swap when a group move drops on an occupied center", async () => {
-    const shell = createShell();
-    const board = {
-      ...windowFixture("window:board", 3),
-      nodeId: "node:board",
-      rect: { x: 660, y: 80, w: 400, h: 400 },
-    };
-    shell.setRuntimeState({ windows: { ...shell.state.windows, [board.id]: board } });
-    beginPrimarySnapGesture("group");
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 860, clientY: 280 }),
-        dragData(860, 280)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "swap", targetWindowId: "window:board" }),
-      true
-    );
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-  });
-
-  it("Should drag a tiled tab frame as one unit from its deck bar", async () => {
-    const shell = createShell();
-    act(() => {
-      windowManagerStore.trigger.workAreaMeasured({
-        workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
-      });
-    });
-    const frame: OsWindowFrameModel = { ...stackedFrame(), kind: "tiled" };
-    const { result } = renderHook(() => useOsWindow(frame), { wrapper: shell.wrapper });
-
-    act(() => {
-      result.current.handleDragStart(
-        new MouseEvent("mousedown", { clientX: 320, clientY: 200 }),
-        dragData(320, 200)
-      );
-    });
-
-    const gesture = windowManagerStore.getSnapshot().context.gesture;
-    expect(gesture?.status).toBe("active");
-    expect(gesture?.status === "active" ? gesture.source.moveMode : null).toBe("group");
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
-    expect(vi.mocked(shell.controller.commitFloatingRect).mock.calls[0]?.[3]).toBe(true);
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-  });
-
-  it("Should hold the released rect while a floating commit is in flight", async () => {
-    const shell = createShell();
-    let resolveCompletion: (applied: boolean) => void = () => {};
-    const completion = new Promise<boolean>(resolve => {
-      resolveCompletion = resolve;
-    });
-    vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledWith(
-      "window:primary",
-      { x: 500, y: 300, w: 600, h: 420 },
-      undefined,
-      false
-    );
-    expect(result.current.rect).toEqual({ x: 500, y: 300, w: 600, h: 420 });
-
-    await act(async () => {
-      resolveCompletion(true);
-      await completion;
-    });
-
-    expect(result.current.rect).toEqual(primaryFrame().rect);
-  });
-
-  it("Should commit one ordered group command when the release point targets a deck [UT-095]", async () => {
-    const shell = createShell();
-    const target = windowFixture("window:target", 3);
-    shell.setRuntimeState({
-      windows: { ...shell.state.windows, [target.id]: target },
-    });
-    beginPrimarySnapGesture();
-    act(() => {
-      windowManagerStore.trigger.deckDropTargeted({
-        target: {
-          frameId: "stack:target",
-          targetWindowId: target.id,
-          insertIndex: 1,
-        },
-      });
-    });
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.groupWindows).toHaveBeenCalledOnce();
-    expect(shell.controller.groupWindows).toHaveBeenCalledWith(
-      target.id,
-      ["window:primary", "window:peer"],
-      1
-    );
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
-  });
-});
-
-describe("useWindowMergeTarget", () => {
-  function targetFrame(): OsWindowFrameModel {
-    return {
-      id: "window:target",
-      desktopId: "desktop:main",
-      kind: "floating",
-      rect: { x: 100, y: 50, w: 300, h: 260 },
-      members: ["window:target"],
-      activeWindowId: "window:target",
-      stackId: null,
-      minimized: false,
-      zoomed: false,
-      adapted: false,
-      layer: 3,
-      zone: null,
-      resizableEdges: { left: true, right: true, top: true, bottom: true },
-    };
-  }
-
-  function chromeWithHead(): HTMLElement {
-    const chrome = document.createElement("section");
-    const head = document.createElement("div");
-    head.setAttribute("data-slot", "os-window-head");
-    Object.defineProperty(head, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        left: 100,
-        right: 400,
-        top: 50,
-        bottom: 94,
-        width: 300,
-        height: 44,
-        x: 100,
-        y: 50,
-        toJSON: () => ({}),
-      }),
-    });
-    chrome.appendChild(head);
-    return chrome;
-  }
-
-  function pointerMove(clientX: number, clientY: number): void {
-    const event = new Event("pointermove");
-    Object.defineProperties(event, {
-      clientX: { value: clientX },
-      clientY: { value: clientY },
-    });
-    window.dispatchEvent(event);
-  }
-
-  it("Should advertise a solo head as the group target while another frame drags over it", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    result.current.chromeRef.current = chromeWithHead();
-
-    act(() => beginPrimarySnapGesture());
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "window:target",
-      targetWindowId: "window:target",
-      insertIndex: 1,
-    });
-    expect(result.current.mergeTargeted).toBe(true);
-
-    act(() => pointerMove(600, 60));
-    frames.flush();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
-  });
-
-  it("Should not advertise a group target while the layer origin is unmeasured", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    result.current.chromeRef.current = chromeWithHead();
-
-    act(() => {
-      beginPrimarySnapGesture();
-      windowManagerStore.trigger.workAreaMeasured({ workArea: null });
-    });
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
-    expect(result.current.mergeTargeted).toBe(false);
-  });
-
-  it("Should preserve a drop target published by a deck", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => beginPrimarySnapGesture());
-    act(() => {
-      windowManagerStore.trigger.deckDropTargeted({
-        target: {
-          frameId: "frame:deck",
-          targetWindowId: "window:deck-target",
-          insertIndex: 1,
-        },
-      });
-      pointerMove(600, 60);
-    });
-    frames.flush();
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "frame:deck",
-      targetWindowId: "window:deck-target",
-      insertIndex: 1,
-    });
-  });
-
-  it("Should measure only the visible top frame when heads overlap", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    const over: OsWindowFrameModel = {
-      ...targetFrame(),
-      id: "frame:over",
-      members: ["window:over"],
-      activeWindowId: "window:over",
-      layer: 9,
-      rect: { x: 0, y: 0, w: 1280, h: 800 },
-    };
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame(), over] } });
-    const { result } = renderHook(
-      () => ({
-        lower: useWindowMergeTarget(targetFrame(), true),
-        upper: useWindowMergeTarget(over, true),
-      }),
-      { wrapper: shell.wrapper }
-    );
-    const lowerChrome = chromeWithHead();
-    const upperChrome = chromeWithHead();
-    const lowerHead = lowerChrome.querySelector('[data-slot="os-window-head"]');
-    const upperHead = upperChrome.querySelector('[data-slot="os-window-head"]');
-    if (!(lowerHead instanceof HTMLElement) || !(upperHead instanceof HTMLElement)) {
-      throw new Error("window head fixtures are required");
-    }
-    const measureLower = vi.spyOn(lowerHead, "getBoundingClientRect");
-    const measureUpper = vi.spyOn(upperHead, "getBoundingClientRect");
-    result.current.lower.chromeRef.current = lowerChrome;
-    result.current.upper.chromeRef.current = upperChrome;
-
-    act(() => beginPrimarySnapGesture());
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(measureUpper).toHaveBeenCalledOnce();
-    expect(measureLower).not.toHaveBeenCalled();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "frame:over",
-      targetWindowId: "window:over",
-      insertIndex: 1,
-    });
-  });
-
-  it("Should skip tiled heads hidden under a zoomed frame on the same desktop", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    const zoomed: OsWindowFrameModel = {
-      ...targetFrame(),
-      id: "frame:zoomed",
-      kind: "tiled",
-      zoomed: true,
-      members: ["window:zoomed"],
-      activeWindowId: "window:zoomed",
-      layer: 1,
-      rect: { x: 0, y: 0, w: 1280, h: 800 },
-    };
-    const covered: OsWindowFrameModel = { ...targetFrame(), kind: "tiled", layer: 1 };
-    shell.setRuntimeState({ frames: { "desktop:main": [covered, zoomed] } });
-    const { result } = renderHook(
-      () => ({
-        covered: useWindowMergeTarget(covered, true),
-        zoomed: useWindowMergeTarget(zoomed, true),
-      }),
-      { wrapper: shell.wrapper }
-    );
-    const coveredChrome = chromeWithHead();
-    const zoomedChrome = chromeWithHead();
-    const coveredHead = coveredChrome.querySelector('[data-slot="os-window-head"]');
-    if (!(coveredHead instanceof HTMLElement)) throw new Error("window head fixture is required");
-    const measureCovered = vi.spyOn(coveredHead, "getBoundingClientRect");
-    result.current.covered.chromeRef.current = coveredChrome;
-    result.current.zoomed.chromeRef.current = zoomedChrome;
-
-    act(() => beginPrimarySnapGesture());
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(measureCovered).not.toHaveBeenCalled();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "frame:zoomed",
-      targetWindowId: "window:zoomed",
-      insertIndex: 1,
-    });
-  });
-
-  it("Should measure only the latest pointer position once per animation frame", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    const chrome = chromeWithHead();
-    const head = chrome.querySelector('[data-slot="os-window-head"]');
-    if (!(head instanceof HTMLElement)) throw new Error("window head fixture is required");
-    const measure = vi.spyOn(head, "getBoundingClientRect");
-    result.current.chromeRef.current = chrome;
-
-    act(() => beginPrimarySnapGesture());
-    act(() => {
-      pointerMove(200, 60);
-      pointerMove(600, 60);
-      pointerMove(240, 70);
-    });
-
-    expect(measure).not.toHaveBeenCalled();
-    frames.flush();
-    expect(measure).toHaveBeenCalledOnce();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget?.frameId).toBe("window:target");
-  });
-
-  it("Should use the committed frame when the coordinator runs before passive effects", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    const committedFrame = {
-      ...targetFrame(),
-      members: ["window:target", "window:latest"],
-      activeWindowId: "window:latest",
-    };
-    act(() => beginPrimarySnapGesture());
-    const { result, rerender } = renderHook(
-      ({ frame, flushBeforePassive }) => {
-        const model = useWindowMergeTarget(frame, true);
-        useLayoutEffect(() => {
-          if (!flushBeforePassive) return;
-          pointerMove(200, 60);
-          frames.flushNow();
-        }, [flushBeforePassive]);
-        return model;
-      },
-      {
-        initialProps: {
-          frame: targetFrame(),
-          flushBeforePassive: false,
-        },
-        wrapper: shell.wrapper,
-      }
-    );
-    result.current.chromeRef.current = chromeWithHead();
-
-    rerender({ frame: committedFrame, flushBeforePassive: true });
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "window:target",
-      targetWindowId: "window:latest",
-      insertIndex: 2,
-    });
-  });
-});
-
-function WinLayerHarness() {
-  const { layerRef } = useOsWinLayer();
-  return <div data-testid="win-layer" ref={layerRef} />;
-}
 
 describe("useOsShortcuts", () => {
   it("Should cycle a frozen visible-session order with wrap and calm 0/1 no-ops [UT-065]", () => {
@@ -2064,79 +1277,34 @@ describe("useOsPaletteExecution keyboard dispatch [UT-129]", () => {
   });
 });
 
-describe("useOsZoomMenu", () => {
-  it("Should apply mouse-only hover intent and preserve the close grace period", () => {
-    vi.useFakeTimers();
-    const { wrapper } = createShell();
-    const { result } = renderHook(() => useOsZoomMenu("window:primary"), { wrapper });
-    const mouseEvent = { pointerType: "mouse" } as Parameters<
-      typeof result.current.onHoverEnter
-    >[0];
-    const touchEvent = { pointerType: "touch" } as Parameters<
-      typeof result.current.onHoverEnter
-    >[0];
+function DeskLayerHarness() {
+  const model = useOsDeskLayer();
+  return <div ref={model.layerRef} data-testid="desk-layer" />;
+}
 
-    act(() => result.current.onHoverEnter(touchEvent));
-    act(() => vi.advanceTimersByTime(OS_ZOOM_MENU_OPEN_DELAY_MS));
-    expect(result.current.open).toBe(false);
-
-    act(() => result.current.onHoverEnter(mouseEvent));
-    act(() => vi.advanceTimersByTime(OS_ZOOM_MENU_OPEN_DELAY_MS - 1));
-    expect(result.current.open).toBe(false);
-    act(() => vi.advanceTimersByTime(1));
-    expect(result.current.open).toBe(true);
-
-    act(() => result.current.onHoverLeave());
-    act(() => vi.advanceTimersByTime(OS_ZOOM_MENU_CLOSE_GRACE_MS - 1));
-    expect(result.current.open).toBe(true);
-    act(() => result.current.onContentEnter());
-    act(() => vi.advanceTimersByTime(1));
-    expect(result.current.open).toBe(true);
-  });
-
-  it("Should gate placement dispatch on an authoritative fence and close after an accepted action", () => {
-    const liveShell = createShell();
-    const unavailableShell = createShell({ authoritative: false });
-    const live = renderHook(() => useOsZoomMenu("window:primary"), {
-      wrapper: liveShell.wrapper,
-    });
-    const unavailable = renderHook(() => useOsZoomMenu("window:primary"), {
-      wrapper: unavailableShell.wrapper,
-    });
-
-    act(() => live.result.current.onOpenChange(true));
-    act(() =>
-      live.result.current.dispatchPlacement({
-        placement: "left",
-      })
-    );
-    expect(liveShell.controller.tileWindow).toHaveBeenCalledWith("window:primary", "left");
-    expect(live.result.current.open).toBe(false);
-
-    act(() => unavailable.result.current.dispatchFill());
-    expect(unavailableShell.controller.zoomWindow).not.toHaveBeenCalled();
-  });
-});
-
-describe("useOsWinLayer", () => {
+describe("useOsDeskLayer", () => {
   it("Should wait for layout configuration before exposing restored desktops", () => {
     const shell = createShell();
     const desktop = {
       id: "desktop:main",
       name: "Main",
       order: 0,
-      groups: [],
-      floating: ["window:primary"],
-      floatingStacks: [],
+      tabs: [
+        {
+          id: "tab:window:primary",
+          pinned: false,
+          root: { id: "leaf:window:primary", kind: "leaf" as const, windowId: "window:primary" },
+        },
+      ],
+      activeTabId: "tab:window:primary",
     };
-    const frame = primaryFrame();
     shell.setRuntimeState({
       desktops: [desktop],
       windowManagerConfig: null,
       hydration: "pending",
-      frames: {},
+      activeTabIds: {},
     });
-    const { result } = renderHook(() => useOsWinLayer(), { wrapper: shell.wrapper });
+    const { result } = renderHook(() => useOsDeskLayer(), { wrapper: shell.wrapper });
 
     expect(result.current.desktops).toEqual([]);
 
@@ -2144,12 +1312,12 @@ describe("useOsWinLayer", () => {
       shell.setRuntimeState({
         windowManagerConfig: CONFIG,
         hydration: "live",
-        frames: { [desktop.id]: [frame] },
+        activeTabIds: { [desktop.id]: "tab:window:primary" },
       });
     });
 
     expect(result.current.desktops).toEqual([
-      { desktop, frames: [frame], active: true, anyVisible: true },
+      { desktop, active: true, activeTabId: "tab:window:primary" },
     ]);
   });
 
@@ -2170,8 +1338,8 @@ describe("useOsWinLayer", () => {
     let rect = new DOMRect(0, 44, 1280, 700);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rect);
     const shell = createShell();
-    render(<WinLayerHarness />, { wrapper: shell.wrapper });
-    const layer = screen.getByTestId("win-layer");
+    render(<DeskLayerHarness />, { wrapper: shell.wrapper });
+    const layer = screen.getByTestId("desk-layer");
     const entry: ResizeObserverEntry = {
       target: layer,
       contentRect: new DOMRectReadOnly(0, 0, 1280, 700),
@@ -2194,79 +1362,21 @@ describe("useOsWinLayer", () => {
   });
 });
 
-describe("useOsWindowCommands", () => {
-  it("Should route focused-window lifecycle through the coordinator when the client is live", async () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
-
-    expect(result.current.commandsAvailable).toBe(true);
-    const actions = result.current.focusedWindowActions;
-    if (actions === null) throw new Error("a focused live window must expose lifecycle actions");
-    await act(async () => actions.close());
-    // An operator close keeps the close guard (a running terminal asks before it ends).
-    expect(shell.controller.closeWindow).toHaveBeenCalledWith("window:primary", false);
-    await act(async () => actions.minimize());
-    expect(shell.controller.minimizeWindow).toHaveBeenCalledWith("window:primary");
-    expect(actions.zoom).not.toBeNull();
-    // The fixture window is already floating, so there is nothing to convert.
-    expect(actions.makeFloating).toBeNull();
-  });
-
-  it("Should keep window commands available while the event stream reconnects", () => {
-    const shell = createShell({ live: false });
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
-
-    expect(result.current.commandsAvailable).toBe(true);
-    expect(result.current.focusedWindowActions).not.toBeNull();
-    expect(result.current.canToggleFloating).toBe(true);
-    expect(result.current.canBalanceLayout).toBe(true);
-    expect(result.current.canEditLayoutHistory).toBe(true);
-    expect(result.current.canFocusDirection).toBe(true);
-    expect(result.current.canSwitchDesktop).toBe(false);
-  });
-
-  it("Should withhold every window command without an authoritative fence", () => {
-    const shell = createShell({ authoritative: false });
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
-
-    expect(result.current.commandsAvailable).toBe(false);
-    expect(result.current.focusedWindowActions).toBeNull();
-    expect(result.current.canToggleFloating).toBe(false);
-    expect(result.current.canBalanceLayout).toBe(false);
-    expect(result.current.canEditLayoutHistory).toBe(false);
-    expect(result.current.canFocusDirection).toBe(false);
-    expect(result.current.canSwitchDesktop).toBe(false);
-  });
-
-  it("Should enable desktop switching only past a second desktop", () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
-    expect(result.current.canSwitchDesktop).toBe(false);
-
-    act(() =>
-      shell.setRuntimeState({
-        desktops: [
-          {
-            id: "desktop:main",
-            name: "Main",
-            order: 0,
-            groups: [],
-            floating: [],
-            floatingStacks: [],
-          },
-          {
-            id: "desktop:second",
-            name: "Second",
-            order: 1,
-            groups: [],
-            floating: [],
-            floatingStacks: [],
-          },
-        ],
-      })
+// Invariant: a desktop keeps every tab it has shown mounted, in bar order, and drops closed ones.
+// Owning layer: the desk layer's tab retention; canonical suite: OS interaction hooks.
+describe("useVisitedTabs", () => {
+  it("Should keep visited tabs in bar order and forget closed tabs", () => {
+    const { result, rerender } = renderHook(
+      ({ tabIds, active }: { tabIds: string[]; active: string | null }) =>
+        useVisitedTabs(tabIds, active),
+      { initialProps: { tabIds: ["a", "b", "c"], active: "b" as string | null } }
     );
-    expect(result.current.canSwitchDesktop).toBe(true);
-    act(() => result.current.switchDesktop("next"));
-    expect(shell.controller.switchDesktopDirection).toHaveBeenCalledWith("next");
+    expect(result.current).toEqual(["b"]);
+
+    rerender({ tabIds: ["a", "b", "c"], active: "a" });
+    expect(result.current).toEqual(["a", "b"]);
+
+    rerender({ tabIds: ["a", "c"], active: "c" });
+    expect(result.current).toEqual(["a", "c"]);
   });
 });

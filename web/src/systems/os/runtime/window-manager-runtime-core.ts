@@ -405,7 +405,7 @@ export abstract class WindowManagerRuntimeCore {
     }
     // Refused commands must not publish optimistic routes while recovery is pending.
     if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") return null;
-    // Rapid interactions (zoom toggle, dock activations, seam arrows) queue
+    // Rapid interactions (tab clicks, dock activations, seam arrows) queue
     // behind the in-flight command instead of being silently dropped; each
     // queued command reads a fresh snapshot revision when it runs. The deadline
     // starts at the click, so a backlog stalled behind a busy connection pool

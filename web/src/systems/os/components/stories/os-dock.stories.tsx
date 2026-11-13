@@ -12,7 +12,7 @@ import {
 } from "@/systems/terminal/parts";
 
 import { OsDock, type OsDockItemData } from "../os-dock";
-import { OsWindowFrame } from "../os-window-frame";
+import { OsWindowSurface } from "../os-window-surface";
 import { buildDeskItems, DesktopShell, DESK_ITEMS } from "./_desktop";
 
 const meta: Meta<typeof OsDock> = {
@@ -23,7 +23,7 @@ const meta: Meta<typeof OsDock> = {
     docs: {
       description: {
         component:
-          "The rail: the dock as a vertical launcher column on the chrome surface beside the desktop. A dot at the left marks a running app, the focused app sits on the selected plate, minimized shows a hollow ring with a dimmed glyph, and badges bind to runtime projections (capped at 9+). Up/Down move focus between launchers.",
+          "The rail: the dock as a vertical launcher column on the chrome surface beside the desktop. A dot at the left marks a running app, the focused app sits on the selected plate, and badges bind to runtime projections (capped at 9+). Up/Down move focus between launchers.",
       },
     },
   },
@@ -119,27 +119,21 @@ function SessionsBody() {
 }
 
 /**
- * Resting — full rail order with running / focused / minimized / badge
+ * Resting — full rail order with running / focused / badge
  * fixtures and the Sessions window over the ember desktop.
  */
 const SESSIONS_DESK = buildDeskItems({
   open: ["dashboard"],
   active: "sessions",
-  minimized: ["loops"],
 });
 
 export const Resting: Story = {
   args: { items: SESSIONS_DESK, onSelect: fn() },
   render: () => (
     <DesktopShell dockItems={SESSIONS_DESK}>
-      <OsWindowFrame
-        title="Sessions"
-        focused
-        onTrafficLight={fn()}
-        className="absolute top-[38px] left-[56px] h-[560px] w-[420px]"
-      >
+      <OsWindowSurface title="Sessions" focused onClose={fn()} className="absolute inset-0">
         <SessionsBody />
-      </OsWindowFrame>
+      </OsWindowSurface>
     </DesktopShell>
   ),
 };
@@ -152,15 +146,9 @@ export const Compact: Story = {
   args: { items: SESSIONS_DESK, onSelect: fn() },
   render: () => (
     <DesktopShell dockItems={SESSIONS_DESK} compact>
-      <OsWindowFrame
-        title="Sessions"
-        focused
-        presentation="compact"
-        onTrafficLight={fn()}
-        className="absolute inset-0"
-      >
+      <OsWindowSurface title="Sessions" focused onClose={fn()} className="absolute inset-0">
         <SessionsBody />
-      </OsWindowFrame>
+      </OsWindowSurface>
     </DesktopShell>
   ),
 };
