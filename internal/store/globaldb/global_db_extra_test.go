@@ -550,9 +550,19 @@ func TestGlobalDBEventSummarySequenceMigration(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Sequence != 101 || rows[0].Summary != "retained last" {
 		t.Fatalf("resumed migration rows = %+v, %v", rows, err)
 	}
+	t.Run("Should return the migrated event summary head", func(t *testing.T) {
+		if head, err := db.EventSummaryHeadSequence(ctx); err != nil || head != 101 {
+			t.Fatalf("event summary head sequence = %d, %v, want 101", head, err)
+		}
+	})
 	if _, err := db.telemetry.DB().ExecContext(ctx, `DELETE FROM event_summaries`); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("Should return zero after deleting all event summaries", func(t *testing.T) {
+		if head, err := db.EventSummaryHeadSequence(ctx); err != nil || head != 0 {
+			t.Fatalf("empty ledger head sequence = %d, %v, want 0", head, err)
+		}
+	})
 	if _, err := db.telemetry.DB().ExecContext(ctx, `VACUUM`); err != nil {
 		t.Fatal(err)
 	}
@@ -1546,6 +1556,10 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 		if err := db.WriteEventSummary(ctx, summary); err != nil {
 			t.Fatal(err)
 		}
+		head, err := db.EventSummaryHeadSequence(ctx)
+		if err != nil || head <= 0 {
+			t.Fatalf("physical ledger head = %d, %v, want positive sequence", head, err)
+		}
 		if err := db.StageWorkspaceDeletion(ctx, workspaceID); err != nil {
 			t.Fatal(err)
 		}
@@ -1559,6 +1573,9 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 		rows, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 		if err != nil || len(rows) != 0 {
 			t.Fatalf("deleted workspace leaked events: %#v, %v", rows, err)
+		}
+		if hiddenHead, err := db.EventSummaryHeadSequence(ctx); err != nil || hiddenHead != head {
+			t.Fatalf("head with hidden workspace rows = %d, %v, want %d", hiddenHead, err, head)
 		}
 		summary.ID = "late"
 		if err := db.WriteEventSummary(ctx, summary); err == nil {

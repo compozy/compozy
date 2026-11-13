@@ -1,0 +1,1460 @@
+[
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles/selection",
+"status": 200,
+"traceparent": "00-2f6769c3f1ff3aa0ae160941db135251-4b89749ddaddccac-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/onboarding",
+"status": 200,
+"traceparent": "00-eed9b0ed13457f8eb09e700776f7cd57-558dc8d0ae30af68-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces",
+"status": 200,
+"traceparent": "00-e724d076ba67c71bb70b5ddb448b8ca9-68026a11b25d9276-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36/owner",
+"status": 200,
+"traceparent": "00-4787a01e0891bf4c6b9ccfac358f8654-72731f8656727860-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?all_profiles=true&include_health=true",
+"status": 200,
+"traceparent": "00-1f2876ddb6177420e527a6f2ad5ac2e8-6f5ada281d06be14-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/transcript",
+"status": 200,
+"traceparent": "00-253205a63a10c225d7496163eadb7fa0-62f1fa6f6094d2a5-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/agent-instances?all_workspaces=true&limit=100&profile=default",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/terminals?profile=default&all_workspaces=true",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/global/window-manager?profile=default",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/global/window-manager/clients?profile=default",
+"status": 201,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/agent-instances?all_workspaces=true&limit=100&profile=default",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/terminals?profile=default&all_workspaces=true",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/global/window-manager?profile=default",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/global/window-manager/clients?profile=default",
+"status": 201,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/status",
+"status": 200,
+"traceparent": "00-b514cee013946eb5f0233c75b52c8b85-2e1fe20bde2f580a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/settings/shell",
+"status": 200,
+"traceparent": "00-d0863a74b42f4a3b10b55c6b70d05e13-f35465d422243d20-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/status/identity",
+"status": 200,
+"traceparent": "00-c5d90c06da847543c3ddd36934503712-c196d14c2ea96560-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles/selection",
+"status": 200,
+"traceparent": "00-e2f5f45997a87ad7f6f5e8f0c190b2b3-415b1d35add60f6d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles",
+"status": 200,
+"traceparent": "00-36d52de33fcadbb19a336a0ae082ec66-d8ec3a558065f070-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/provider-usage?profile=default",
+"status": 200,
+"traceparent": "00-0ef25220a45633b92fc86330c10c2254-9a3dbc11b720c47d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-e7816c806ae8208f94beaea5dd2aaa3d-b66bda72c72bb332-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/settings/automation",
+"status": 200,
+"traceparent": "00-f4e842d902f4ca86b4eaee5e99f9c223-0bda61d611a5399a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-0e046234b8ec1c6a47bc91098e585abe-ed18084c6c1a1ec6-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-6c69a9f2f56f679de06ec33bb80738ea-5fe2194bcba13895-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/attention-summary",
+"status": 200,
+"traceparent": "00-4d359b9e3c4f22b5afb43d46847cf3b3-5958a6953b6d6fc3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-7ddf9518362be1c6ad685a247543df0f-2e5d2227399d26e4-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/loop-requests?all_workspaces=true&state=pending&limit=50&profile=default",
+"status": 200,
+"traceparent": "00-94a11b91fb8e73c37a009bd643dca200-3934b047b8b56c7f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/settings/attention?scope=user",
+"status": 200,
+"traceparent": "00-2cce90351d33c82adc886408119d3f8b-f58bcdae6a19eb38-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-8c37537d12d229e07f4b251341286634-72f092fbc5c6ba40-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/agents?profile=default",
+"status": 200,
+"traceparent": "00-0e4c7029833c0017539d81678b43740c-42ec6a14953c86f9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/agents?workspace=ws_5cf7f0eb9a62b6a8&profile=default",
+"status": 200,
+"traceparent": "00-acf30167635d8590534a272c4ddc6e95-80ad9f1b07cca196-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/cmd-palette/commands?workspace=global&profile=default",
+"status": 200,
+"traceparent": "00-993ef187b2fe58a3b0e34057661de123-baed1b9cf7e227ab-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/settings/providers",
+"status": 200,
+"traceparent": "00-5a0f12e4a62450d5a4882d52f69b11c9-684ffe3699b2343e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/settings/update",
+"status": 200,
+"traceparent": "00-f1b43a257b79083cbcd3b50b5dc15d88-f06cf0bf242b6c1f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/cmd-palette/commands?workspace=global&client=web-1fd84123-3c62-4372-9b88-7ed10f579fdd&profile=default",
+"status": 200,
+"traceparent": "00-cf39b46cd10c6f84421dac88d640faf8-2614ae0666c96397-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/settings/window-manager?scope=user&client_id=web-1fd84123-3c62-4372-9b88-7ed10f579fdd&client_profile=default",
+"status": 200,
+"traceparent": "00-09868300ff2b94c7027055dc2862d42d-a0accd0d6ee646d7-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/terminals?profile=default&all_workspaces=true",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles/selection",
+"status": 200,
+"traceparent": "00-91e106342eb6892b8808dad0008d343a-f069e3d2e658c2fb-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles",
+"status": 200,
+"traceparent": "00-13b7f9dab0680fd6e6e3461a5e31b713-ba3bff1d15bf863a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-a76ce546f9a086d469ff72c8610dd2cc-993c7adb5351e872-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-3d46d7f3d2146bec0021362cc9b0bbf0-3c0110abded25732-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-89aa692fa4501d73690c5844fa0dc8da-d0cf1ffd4a4fd78d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/provider-usage?profile=default",
+"status": 200,
+"traceparent": "00-6ceb12dd869fd82dcd5a3db1680af743-38a9f88ba2598011-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-b7bc63fd6bc9737c87901f17a46d8348-0519c8e3d4b6819d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-388b2c37e1eae5dd576adb5455d6f162-ab967d64a7cb5043-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-fbf4c4c34c877a933d81d67fabf47e9b-d34769e7c35c8923-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-44106c3bee90a7ff1405c48fff112e8f-6ae1441f69d1b05a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/attention-summary",
+"status": 200,
+"traceparent": "00-0568951202233250e53b6980f9a6e909-cb6ae5644031d60e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-7b2d6a4e2ee1ec61a978b7dc8ced0454-938b7c73fbfb22fa-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/model-catalog/models?include_stale=true&view=all",
+"status": 200,
+"traceparent": "00-bc8e1c78f5365c2108ce56dc4eea3152-91f5591ed3bdbaa3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles/selection",
+"status": 200,
+"traceparent": "00-422a8059990361820f0a6e259781ac95-8376455dd137c1eb-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/worktrees",
+"status": 200,
+"traceparent": "00-fe12c6764b1106c0acc02397ada68f5c-698be6838606b78d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/providers",
+"status": 200,
+"traceparent": "00-ddd0b6dede5155b229d98df87471d7f6-418e3f4cff5f6c11-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-ed21532d99a8114220a6e15ea2a3a0b3-d0cf71ad02de9b05-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/usage",
+"status": 200,
+"traceparent": "00-3b6e87bd6b10629ec390ce806ba91381-d5e57d5bada0e1c0-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/usage/turns",
+"status": 200,
+"traceparent": "00-aca25e17e63b40c0611716f2f860cc66-d211c28fd732d125-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/commands",
+"status": 200,
+"traceparent": "00-5aa4fa683e53b9597c46229234f64de2-8deac36c32219268-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/goal",
+"status": 200,
+"traceparent": "00-63cd4c2518e3678ccadc0e3f72a7a9a2-807d67ccbf96d63c-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-b6ecbd691bcf7d7fc092e8123ce41c04-4865b5e1fca63d9f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-ea71a4966735be6919382991ae2c71e4-f0abde78b3a9e582-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-46cac233f5a9268eb4fb115d055f6262-19e558c7ca646b75-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 200,
+"traceparent": "00-1cf4fad7670e9347f4aec941e83ed8eb-0c578d99cfd5159b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/stream?frames=transcript&after_sequence=64&epoch=0&generation=0",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles/selection",
+"status": 200,
+"traceparent": "00-ecc2cc268181c0b26dc401c713fc4c2a-5e10bfaed35eec66-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8",
+"status": 200,
+"traceparent": "00-fac977f4651edefa39203d6340c01c90-98bb8f930e2848ef-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-fa9f367b7d60280088915000b8fc9a22-c49543beb45aad2b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-4fb8b352e66efbb20ae9950e481fe5a6-8d306d16968a8299-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-cccaa0cbbc7fc43124e95329d62ce01a-d42296bf3ac3f129-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-5adc9ca6ff316b85c7d098548b8fbe30-a141a5b0d69e2bbb-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-22dba7df8e45069fc02e135172c6f2c0-3d610e1287b2925f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/model-catalog/sources/status",
+"status": 200,
+"traceparent": "00-70a54d2a20dbfbed86d93f28c7231b8e-6e0699794716d585-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/model-catalog/models/refresh",
+"status": 200,
+"traceparent": "00-93aaee90bf7d5e17b32477271b87383f-d7be9fb7a04d8b36-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-8303adce1070b452d7703c1627964184-8c67bbc3956e57e0-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/model-catalog/models?include_stale=true&view=all",
+"status": 200,
+"traceparent": "00-1cc9f79d648ed9c54924607447b016c9-ab796d0f88626942-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/model-catalog/sources/status",
+"status": 200,
+"traceparent": "00-96d069bc485ab0bac9ced9c162fed73f-9200f116fdd86943-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-dc48e11933fe43628e28d1df8624df3c-d135cfe622c99a1f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-df1d42c757007200de0a028c6552d704-f0b00749e23f215d-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-85c1f6b22469169362b848b1a9e902e4-6c3d65793f9c490b-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt",
+"status": 200,
+"traceparent": "00-fc6c6d88acbe3a424b4dab30a74021af-93c72feed27f0625-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-0df4305db151437a7a2cff0bc9c54777-8373fbd118d867cc-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-d26b54eaf0ac24ba14c8b57619b18b92-addfb8b0982f7170-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-0982bd013520ef443787f69ef4eef400-e9c6ffa588b0e1e4-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces",
+"status": 200,
+"traceparent": "00-03817c5396bad2053736f87214826d1c-acfbef6cd0d70a64-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/status/identity",
+"status": 200,
+"traceparent": "00-fa8a6c474958ac4ca3ea1f6db52dfad5-a10ef317b474bb88-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-fed665802e21b59fca15f4a6ba0a8c5e-74c6af7d09b6b2eb-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-7c6e55c69f94dd32ef5c5943cbdff985-8933cbaf1864a608-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-f3ec60bf65649895b1de038347bd24a5-7b71e5106babc045-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-ef483a5db22eb9b38c0480475c46c516-57708b356f03201d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-9977b5392616ced4e4e96e622a46ca13-8b658681e80c38e2-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-1c2e3eee945a494a2cee2ace5db72d4a-283ace707eda3abe-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8",
+"status": 200,
+"traceparent": "00-0ed3853e7c55afdbd3597feb0e19d47c-a7e50fd043dc86bd-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-e022806020c407c300ab7cba0fd0fa32-32819b7b62ca9305-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-b4491533cf50db1636bc6dd79ea57f74-618edc08e08c06d7-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-0482342d54509ea81aca1948160ef64c-5b91873ab5701afe-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-16b6053ab79dec55833c0acb80d8b04a-405e7c9b092ac6f3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-1d50a76287a4beb33374b3fd7e273658-84da0ef179df1aa6-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-4f3bc5aade977d2d2f073dd05fe6c841-8b10b04e5298feb6-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-703de8e9368f04252505e7fac402b48d-605164be55d9d2cd-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-fc1aa0d032c5e750a879149eecfab8d7-0cd321e7e152f240-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-b045f1bdaca439a1f626cda78e84fc72-985b2c239cf27cc3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-d1115e36e6ad4c7ccfefcf79882dd21c-434a479f4355be67-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-4cc27fd2bc97081ffcbe06146f5ba0a6-9180a1fced22e2e1-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-9f2585d447a694e078144f6fc39d40f6-d164beb52e2d9fff-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/loop-requests?all_workspaces=true&state=pending&limit=50&profile=default",
+"status": 200,
+"traceparent": "00-f13b813e8bcbab03ccd6ccc67ab8dc23-84d4b0b19aa72f60-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-ab69f2de9ce04d9c899229a5538c939b-9a0bf38e1739e071-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-488651f090cf0004eb603947bf0e440f-bbfe9b7a5b34d0cf-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-feea88f644dada98a46e6e0fbeeca144-323b40d1cb15ebb9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-9c1e5584daca2b472a42c106ea489b10-11f9c0f31bdb7422-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-b66bdbab1feb3fc3dec1e330b71515b4-f97297ef0263d274-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-605107b99f1f7a900ad00e8e4e216bf6-77e30b0975fa8ec6-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-bc1f275f9937e895beaae5171d64e1ad-3fcb7c67ded46c12-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-59e47d5b6f32e2f197d3a50913ba1480-136a8912fe31a2ef-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-a3a24583733632cae812afcc0a5a5e56-dd07100b2d4e0a8e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-4d2fff4f7a540dd0acde63709f7b9706-64bbf8cfcc228032-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-5fadebe9e2e0b4d1b4b31ad6cdb11007-b3ecfb225fec2bc0-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-f6ccfc75d4f41e1409ee88916ba5e43d-a1fec7f2b943157b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-7c238fd7c414c4c5a047d5eb05af4e02-9e311d5282681aad-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-f13cc68bb0ff4a2431598539f5f5d39e-b9e6927ad183dfb8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-678daf4aeedc0e01e3d5f62c6c3d0094-bc1c2208c9a84553-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces",
+"status": 200,
+"traceparent": "00-2c9a42a604b568fa4f13da3c598b3ec2-500f1509b0b7a51f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-1f33a501c77594d9b0d3ba800d2409d2-ef777f4aee20d1d8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-7696b05db20fcfe2b206a825d333ab94-0c4633f7200709c3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/status/identity",
+"status": 200,
+"traceparent": "00-85e6a5b93939b3be014a7913c6abe262-f0a39c78606bc0d9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-76d5ef0a8ded8f9d2cbe919e50201230-b6e3c126ae97f4ac-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-48331cb33beab8127548275cef0d4a86-101019b27f4a11ee-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-edf045c80c167520f867cc196bb80ea1-31b79789bd949e9c-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-921bbe39f36ed0017bc3ed9775da217f-666ffdaba7a28fba-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8",
+"status": 200,
+"traceparent": "00-47f9d5343dbf95cdc1c26121c998b6ad-377e49482782e272-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-19bc61e6350269bbc351244bbedf1636-c815f9b5aaa54e94-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-227d5677b961e8cf71d554fdd05bc96c-4617fc53174a8923-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-e0e872b9b3092fb0f139c6c3ab7d5470-679bfa3dbcb1549f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-07c4acd28de6ada195fa72f588c15986-3c4d8ab3a04cfccf-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-d604bb433d1a6eccb2e974648a877e92-29b519240c5d4086-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-e1b6042574587430f06f034e28c86b40-69c2b9263d3ae0a5-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-23d4839486454f3076edeb4139697bbc-be98373428a96ef4-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-2c0de2f05aae7081b52ba59e73fc9eb7-5422a9cdb68fdfb9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-79cbebdc5126969a15167c47cb3e57b9-caa6b84d648a8553-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-11f0ef8bf219175cf51f9363c5480d84-d65b42a1c87e23ea-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-8a017c9bb171e11e653a8fd6a43e2cd5-a58f7dc20f118f02-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-ca4f562ea05712f33ca234d9a6c796d5-6fc5006f935d2f12-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/attention-summary",
+"status": 200,
+"traceparent": "00-a58eb05b0851a2ae506bfb93d7e7f944-4df55f6decb4d969-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-832e4fc3595c620a85ee18c53934af61-b7e8f55af446bf05-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-475c8599d27f66d8e1095de8849ea9bd-1065bb5bdf4ff54a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-b2ad49d4b903c23d17de8082f48d1af2-90964b31eb7210e8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-d3e09315c074dae14f4c9f73a5c6f32b-b4cafb2a430fc520-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-999380dc589888259e70a956984dbfb1-53ec7569642e9997-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-8740de84aaaa2cded6e6251702897170-82eca0d381dc5586-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-7ccc5c8e07bd3a896ecc3072cc4fac61-5296b627b165b482-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-67c59f460e443690070b3c04b99bf40d-468d677b332f2eda-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-d03237cfa4c844c78e8abef8b1bf3581-e7cec8424089ce59-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-64d2ace4ab61f181a15fc51592803986-b029e32e588877bd-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-c5d97437ded7c66b040ca193e674d6da-3b47888820c39a09-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-25ec4bbcd153a920ae5a79bcb2ff68f1-e8452212f1717dd8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-ae6df7e55bd109007a25371fdfea8ab8-7fa72e5cbfad7abd-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-cafc7373b8c540f717e2cbfa23cf202a-0ee43ab8204aa0c4-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-146d564043c1d5dde858d928e52fdd9c-478a54266577e7a9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-b18f40472fdb14bb39fa9185a9c329a7-575716608cbdb1ac-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-d3f28ae12bbd40a2a363fbd92177314e-758ccc5cfead1be6-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-80ec3bb53d8587b91b1fa445287ae680-630219a31dc51ffa-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-8e0fcc959b4844696ed8b29aec1410c0-023b49083411539f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/profiles/selection",
+"status": 200,
+"traceparent": "00-2176980a6f202176f410d5e5f3a6af38-4631102bd90a1126-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-c2242c182020ca935c3703200ff64c2b-d583dcf1cffab6fd-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-256b2b6165fdb1c15dd3644d08e3e155-bf0d71100322d05c-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-4ebd1405421b7d1a9bd81ec269982dbc-1d12255840836a97-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/transcript",
+"status": 200,
+"traceparent": "00-e8b5a463ea2c11c8d0972a2fed043085-f36e265434481ca3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-99ebae139430707b3503849256b182c9-6adc63d401f77935-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-87ff6c9592d0c725186b757162c7509c-a162db7e0fc98f10-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-f13ec40deb73627280aa64f92126b497-5479554fe5d3a294-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-04169736ebf0f27f36b3cd7c755c6815-2525888ab1c90004-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-10631286f8bb7f121eb13622e55b4541-77a7e48a32be09d8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-d9326859678fc858899d35a161b120e0-8ed83f7877e360a0-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-d2ae01645d48236f29e2778b8b06789e-fac1362a94fecdd5-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-70eb41f50247e1afe430d4c374a27872-52591f5c4252e55e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-36d33df59bd43224e71a4f81678583b4-721d85f13caf8319-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-12db2590b44eb607e95f14f0bc6cbd56-513c9a1c9d28b015-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-875f3e6b6ddb2277c971e52e2acdf6b7-9abd2c3db3cc65e4-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-e91d7f57db9498d3f02d3bedaef85afa-f4b6af84ebe25fea-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-f322d1dbc1160c7773c5c1c057e8a33d-54cd03b2214361fd-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-cf29b85ce00d356d62ffe7e1b90f3e0d-3fc79cddc06c0297-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-4e4ac4805531bf2a062dbb9672019b03-b0c95e338294f79b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-edb11cfa27ead8268fd321b4157ea2bf-eef5f2fb38644341-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-70d2603bb86c18ec5136a19577788d7a-976a1a8321322c2e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/attention-summary",
+"status": 200,
+"traceparent": "00-b0a0f7f798b7e193178b92f5c872edd0-e1502a05a9976827-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-84757bc42f919881aa42ce95cdde4dc6-1fb4c02d61d9cbc8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/usage",
+"status": 200,
+"traceparent": "00-3d406b5a1fb4ab42c21f5e7f85397bd5-d7c12d3b8acdd5b0-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/usage/turns",
+"status": 200,
+"traceparent": "00-e4a6ede848a050601bd69724cb1520b6-e9e001bf91672769-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-3b763c51bb023cac31b74d4333328a7b-2c3bd4ea40aeef2d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-e0ac71a7a624ec57658857b6c396a6fb-3881027654cb1d93-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-2486c1644df0fab51228af33d97829bf-61001c41609ed3c1-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-3b4a48ce9e0af014200a642d079ee696-3048d95eda9fa050-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces",
+"status": 200,
+"traceparent": "00-0044de464b81935de1cd3fc12d8f34bb-3c0890efd35969c8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/status/identity",
+"status": 200,
+"traceparent": "00-fd6fb5e84ec593db2ae86668779d7a3a-624aaa51aeafa5fb-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/loop-requests?all_workspaces=true&state=pending&limit=50&profile=default",
+"status": 200,
+"traceparent": "00-01f26bc54d549bfd7391f39e32c2f84b-e70704097c75a79c-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-d87b33b13d560fb6b3287b32e24f5a7a-b4e8ccfa1216ef51-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-2befaeed2d0064dee80dce06fce88314-8c1b9ecdab5fc472-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-5b71d7133f4cd0f03be124b689727927-74e2ee8073c2926c-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-21abe4fd6d69bbe6a7d9337ca7202139-7fda0b2ad09cf70b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-df819a8b83af84fc3a05386aa8e2521e-1fb4b261700383b5-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-6f141107a58939a32654fe46a2b37c40-dde6131041abed3b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-ff55e18610816bf3808b65f58b31f940-015058d8ae1e6e6e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-2014e8e797d6a74b6576cce1f5c001b4-2d0d99204da77cff-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-c845c23c200ca492f315aba1616dd2f1-e940ec69afa5f0e1-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-3dc28bb61d6bd16f4ca46e5e5db0e8e7-6863a6caa524238a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-f95c810308117e59f0528f63aea67dd1-072f19808d724b17-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-17fceb70c652946138f3d25cf4bbc809-2e692ff6d775a4cf-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-b16ffe20cc5172f7380aea4d3ce79cbc-e4499d5fdc5f1efa-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-c9c29fe09f671dc1ca58b87c0c413988-7ad0c3db7e35af0d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-c05b21a12785b0577d0662c0c91e1da1-6d61a8b385e770f3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/subagents?all_profiles=true&limit=200",
+"status": 200,
+"traceparent": "00-be47a7375dea8c36390afd5805e5fcd9-80d6544411e0baa8-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-4d4c614d07335f728692664d8ec59c84-5e9cf32c21389e95-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-4431a4b6d1f0f2d8393bc306e97a2e79-d927056903aeede9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-e5827da0383a802725d31df4f9d85522-1567c2f03d0abea3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-a483932f29a81d5befb2b5d946214b23-0bf599adb27d9952-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/transcript",
+"status": 200,
+"traceparent": "00-4ae60be5781334d25143baae76064621-74fe681c39365909-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-3d3685e38e767667d947e5461bdc0807-ce86f1f920f5399b-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-7f5e4275c0878e2d05490d08141bd8a8-ffe5f9afb4a0c998-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-d32122b5a4b5873d52a4a2e887e7fb5a-95564cba5f35074a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-d76c8877a33840d7324f869b6490ee3e-da0f9d7f03a8df1f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-3be5a12345d841df72f08c47fc7875ab-c546e45568faa7f3-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/clarifications",
+"status": 200,
+"traceparent": "00-9bbbf6e8864cc536c69a273eac9609d2-fe22d81390095b7a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-e34dca1d6f722eaf4a049cd0ccb930ce-aeb40326a2a875c5-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/usage",
+"status": 200,
+"traceparent": "00-57226cab63fe19c2f1890b8999f62fa6-08f1b69a18416c8c-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/usage/turns",
+"status": 200,
+"traceparent": "00-b9c179de90c04463c5b360a47f7f5f37-4e14364848591a32-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/goal",
+"status": 200,
+"traceparent": "00-38c0809c60cfd9fe0ea97b27c522426d-2d7b3b540e216049-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-3d6b7f97a49b35a1db149f1644df1a17-70810c02ba8e13f9-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/stream?frames=transcript&after_sequence=64&epoch=0&generation=0",
+"status": 200,
+"traceparent": null
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-2f50bca90afa297483cd7a51df48ab20-ea59b33d5f9c8bf0-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/links?all_profiles=true",
+"status": 200,
+"traceparent": "00-d854eb9dd795b8f789d73f07f95472ae-faa5a7713ea5afa1-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-3f25c729fd80fd026dcd428bb4048f23-c8a63e96d6b63d7a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-7d53e1324afeb9cc046a59f75e3b30a0-725c84c7516981f5-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-1186eb26e32109b7dd25daaedc032944-c6513247d99777d1-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-ec51e5c2ed568c7a3bd220c0c278ed67-b560e32bf2cc5c74-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/sess-e6ee8c2b2c05fc36?profile=default&include_health=true",
+"status": 200,
+"traceparent": "00-b7cc9faa3af0e5b6699acfa32f9f8714-b16c9662bfa45481-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36?include_health=true&all_profiles=true",
+"status": 200,
+"traceparent": "00-b93d65320599f4ca751b5d38ce28f5dd-822935a655a21629-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/prompt/queue",
+"status": 200,
+"traceparent": "00-1ad4c430eedf1d47d27dfe8dc23323b5-904f1e91a83f1c4f-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&search_fields=title_agent&skip_total=true&include_health=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&sort=created&limit=100&profile=default",
+"status": 200,
+"traceparent": "00-c6b6aa37f13d51a3f76aa4dfa71c8786-818cb65bfd06b65d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/facets?all_workspaces=true&exclude_instance_main=true&exclude_automation=true&subagents=exclude&profile=default",
+"status": 200,
+"traceparent": "00-ee0172f2e0694e34453bf086d195028d-c8cde7a9a2565a0c-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions?all_workspaces=true&skip_total=true&exclude_automation=true&archive=exclude&sort=created&limit=1&profile=default",
+"status": 200,
+"traceparent": "00-1ab2adcc052209da2558b1d63f71982f-9e4fb5eeba34891a-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/sessions/attention-summary",
+"status": 200,
+"traceparent": "00-4b4d195f8825e8c74a935aba72248504-3bfea29750d177bf-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/notifications/attention?profile=default&receipt_profile=default",
+"status": 200,
+"traceparent": "00-9091a9a2eaf0badd80027462250ee8a4-b7e4576aef54304e-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/observe/tasks/dashboard?all_workspaces=true&profile=default",
+"status": 200,
+"traceparent": "00-5eb7657482548a03633726834e45dbb7-41de1d972280aa3d-00"
+},
+{
+"method": "GET",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8",
+"status": 200,
+"traceparent": "00-d60aee0e9e9fa76a626e0e22f5c10318-d770d8424c176d57-00"
+},
+{
+"method": "POST",
+"url": "http://127.0.0.1:43117/api/workspaces/ws_5cf7f0eb9a62b6a8/sessions/sess-e6ee8c2b2c05fc36/presence",
+"status": 204,
+"traceparent": "00-1a9ae79a29f88c95ed743f08fa100c20-74b0fb51e200683d-00"
+}
+]

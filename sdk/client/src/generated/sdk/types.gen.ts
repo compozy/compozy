@@ -5481,6 +5481,24 @@ export type NormalizedRect = {
   y: number;
 };
 
+export type OTelSignalStatusPayload = {
+  enabled: boolean;
+  failed_exports: number;
+  last_error_class?: string;
+  last_export_at?: string;
+};
+
+export type OTelStatusPayload = {
+  dropped_spans: number;
+  endpoint_host?: string;
+  forward_to_providers: boolean;
+  metrics: OTelSignalStatusPayload;
+  protocol?: string;
+  sample_ratio: number;
+  state: string;
+  traces: OTelSignalStatusPayload;
+};
+
 export type ObserveFailureHealthPayload = {
   by_kind?: {
     [key: string]: number;
@@ -10205,6 +10223,7 @@ export type StatusPayload = {
   health: ObserveHealthPayload;
   log_tail: LogTailStatusPayload;
   mcp_servers?: Array<MCPServerStatusPayload>;
+  otel?: OTelStatusPayload | null;
   providers?: Array<ProviderStatusPayload>;
   schema_version: string;
   sessions: SessionAggregatePayload;

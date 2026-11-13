@@ -1,0 +1,50 @@
+stream_over_http_enabled: true
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+query_frontend:
+  metrics:
+    max_duration: 24h # TraceQL metrics / Traces Drilldown over the default 12h range
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+
+ingester:
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 336h # 14 days
+
+storage:
+  trace:
+    backend: local
+    wal: { path: /var/tempo/wal }
+    local: { path: /var/tempo/blocks }
+
+# RED metrics per span + service graph, written into Prometheus; local-blocks enables TraceQL metrics.
+metrics_generator:
+  registry:
+    external_labels: { source: tempo }
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
+  processor:
+    span_metrics:
+      dimensions: [compozy.outcome, compozy.tool, gen_ai.request.model]
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics, local-blocks]

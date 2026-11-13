@@ -1,0 +1,6 @@
+canary grep (trace 2b3e4deafc863e3a8812c138056eacdf):
+0
+all daemon traces last 1h, canary/path/home grep:
+0
+0
+0

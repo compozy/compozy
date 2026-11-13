@@ -19,6 +19,9 @@ func (m *Manager) finishPromptTurnIfNeeded(
 	if turnState != nil && normalized.Type == acp.EventTypeDone {
 		turnState.stopReason = normalized.PromptStopReason
 	}
+	if turnState != nil && normalized.Type == acp.EventTypeError {
+		turnState.failed = true
+	}
 	m.settleNativeTurnDone(ctx, turnState, normalized)
 	m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
 	return loop.turnEndedShouldReturn()

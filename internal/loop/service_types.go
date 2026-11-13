@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -15,6 +16,16 @@ type WorkspaceID string
 
 // RunID is the durable loop_runs primary key.
 type RunID string
+
+const runIDPrefix = "looprun"
+
+// runIDPattern matches the run ids NewService issues: runIDPrefix, a hyphen, and 16 hex digits.
+var runIDPattern = regexp.MustCompile(`^` + runIDPrefix + `-[0-9a-f]{16}$`)
+
+// IsLoopID reports whether value is a Loop identity: a generated run id or an authored definition name.
+func IsLoopID(value string) bool {
+	return runIDPattern.MatchString(value) || loopNamePattern.MatchString(value)
+}
 
 // NodeID aliases the DSL graph node identity.
 type NodeID = dsl.NodeID

@@ -1,0 +1,16 @@
+pid=2770186 npm exec @agentclientprotocol/claude-agent-acp@latest                                     
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_METRIC_EXPORT_INTERVAL=5000
+OTEL_METRICS_EXPORTER=otlp
+pid=2770269 sh -c 'claude-agent-acp' 
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_METRIC_EXPORT_INTERVAL=5000
+OTEL_METRICS_EXPORTER=otlp
+pid=2770270 node ~/.npm/_npx/b555b4fead8494dc/node_modules/.bin/claude-agent-acp 
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_METRIC_EXPORT_INTERVAL=5000
+OTEL_METRICS_EXPORTER=otlp
+pid=2770284 ~/.local/bin/claude --output-format stream-json --verbose --input-format stream
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_METRIC_EXPORT_INTERVAL=5000
+OTEL_METRICS_EXPORTER=otlp

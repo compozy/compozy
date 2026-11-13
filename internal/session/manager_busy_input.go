@@ -381,6 +381,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	m.queuedTurnLinks.remember(ctx, entry.ID)
 	if err := m.activateInterruptingInput(ctx, session, &entry); err != nil {
 		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 	}

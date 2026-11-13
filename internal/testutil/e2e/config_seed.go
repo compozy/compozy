@@ -70,6 +70,8 @@ type configSeedFile struct {
 	Extensions  *compozyconfig.ExtensionsConfig         `toml:"extensions,omitempty"`
 	Log         *compozyconfig.LogConfig                `toml:"log,omitempty"`
 	Providers   map[string]compozyconfig.ProviderConfig `toml:"providers,omitempty"`
+
+	Observability *compozyconfig.ObservabilityConfig `toml:"observability,omitempty"`
 }
 
 type configSeedDaemonSection struct {
@@ -180,6 +182,10 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 	}
 	if cfg.Permissions.Mode != "" {
 		overlay.Permissions = &configSeedPermissionsSection{Mode: cfg.Permissions.Mode}
+	}
+	// Only OTLP export journeys write the observability block; others keep the minimal overlay.
+	if cfg.Observability.OTel.Enabled {
+		overlay.Observability = &cfg.Observability
 	}
 
 	file, err := os.Create(homePaths.ConfigFile)

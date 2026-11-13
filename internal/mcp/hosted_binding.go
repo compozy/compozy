@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/tools"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Bind consumes an armed launch window after validating the nonce, Unix peer and expected binary.
@@ -137,12 +138,26 @@ func (s *HostedService) Projection(
 	return s.projection(ctx, record)
 }
 
-// Call routes a hosted MCP tool call through the registry dispatch pipeline.
-func (s *HostedService) Call(ctx context.Context, req HostedCallRequest, peer PeerInfo) (HostedCallResponse, error) {
-	record, err := s.recordForBind(ctx, req.BindID, peer)
-	if err != nil {
-		return HostedCallResponse{}, err
+// Call routes a hosted MCP tool call through the registry dispatch pipeline inside an mcp.hosted.call span.
+func (s *HostedService) Call(
+	ctx context.Context,
+	req HostedCallRequest,
+	peer PeerInfo,
+) (response HostedCallResponse, err error) {
+	record, recordErr := s.recordForBind(ctx, req.BindID, peer)
+	ctx, span, outcome := startHostedCallSpan(ctx, record, strings.TrimSpace(req.ToolName))
+	defer func() { endHostedCallSpan(span, outcome, err) }()
+	if recordErr != nil {
+		return HostedCallResponse{}, recordErr
 	}
+	return s.callRecord(ctx, record, req)
+}
+
+func (s *HostedService) callRecord(
+	ctx context.Context,
+	record *hostedBindRecord,
+	req HostedCallRequest,
+) (HostedCallResponse, error) {
 	toolID := tools.ToolID(strings.TrimSpace(req.ToolName))
 	if err := toolID.Validate(); err != nil {
 		return HostedCallResponse{}, err
@@ -169,7 +184,10 @@ func (s *HostedService) Call(ctx context.Context, req HostedCallRequest, peer Pe
 		CorrelationID: strings.TrimSpace(req.CorrelationID),
 		Input:         input,
 	}
-	var result tools.ToolResult
+	var (
+		result tools.ToolResult
+		err    error
+	)
 	if bootstrap, ok := registry.(hostedBootstrapCallRegistry); ok {
 		result, err = bootstrap.BootstrapSessionCall(ctx, record.scope(), call)
 	} else {
@@ -196,9 +214,11 @@ func (s *HostedService) BindRun(ctx context.Context, sessionID, runID string, ge
 	if launch := s.launches[sessionID]; launch != nil {
 		launch.runID = runID
 		launch.generation = generation
+		launch.runTrace.bind(trace.SpanContextFromContext(ctx))
 		if bind := s.binds[launch.bindID]; bind != nil {
 			bind.runID = runID
 			bind.generation = generation
+			bind.runTrace = launch.runTrace
 		}
 	}
 	return nil
@@ -216,9 +236,11 @@ func (s *HostedService) ReleaseRun(sessionID, runID string, generation int64) {
 	if launch := s.launches[sessionID]; launch != nil && launch.runID == runID && launch.generation == generation {
 		launch.runID = ""
 		launch.generation = 0
+		launch.runTrace.release()
 		if bind := s.binds[launch.bindID]; bind != nil && bind.runID == runID && bind.generation == generation {
 			bind.runID = ""
 			bind.generation = 0
+			bind.runTrace = launch.runTrace
 		}
 	}
 }

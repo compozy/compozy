@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
+	"github.com/compozy/compozy/internal/telemetry"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (m *Manager) reservePromptSlot(
@@ -50,6 +52,9 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
+	if req.deliveryCtx == nil {
+		req.deliveryCtx = ctx
+	}
 
 	var events <-chan acp.AgentEvent
 	profiling.Do(
@@ -67,16 +72,15 @@ func (m *Manager) submitProfiledPromptRequest(
 	ctx context.Context,
 	req promptRequest,
 	session *Session,
-) (<-chan acp.AgentEvent, error) {
-	if req.deliveryCtx == nil {
-		req.deliveryCtx = ctx
-	}
+) (_ <-chan acp.AgentEvent, err error) {
 	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, false)
 	proc, err := session.beginExclusivePromptSetupForRequest(req, cancelPromptExecution)
 	if err != nil {
 		cancelPromptExecution()
 		return nil, err
 	}
+	promptExecutionCtx, turnTrace := startPromptTurnTrace(promptExecutionCtx, session, req)
+	defer turnTrace.failSetup(session, &err)
 	slotReserved := true
 	stateOwned := true
 	defer func() {
@@ -125,6 +129,7 @@ func (m *Manager) submitProfiledPromptRequest(
 		return nil, err
 	}
 	turnState := newPromptRequestDispatchState(session, req, message)
+	turnState.turnTrace = turnTrace
 	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
 		return nil, err
 	}
@@ -244,11 +249,7 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.publishLifecycleAttentionTransition(ctx, running, session.Info())
 		}
 	}()
-	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
-	turnState.reportMessageIDs = []string{req.messageID}
-	for _, input := range dispatchInput.batched {
-		turnState.reportMessageIDs = append(turnState.reportMessageIDs, input.request.messageID)
-	}
+	initPromptTurnReport(turnState, req.messageID, dispatchInput)
 	recoveryRequest := m.newDispatchPromptRequest(ctx, session, &req, dispatchMessage, dispatchInput, attachments,
 		activity)
 	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)
@@ -264,11 +265,13 @@ func (m *Manager) submitPromptInReservedSlot(
 			m.clearActivePromptRunForState(session, turnState)
 			m.releaseHostedPromptRun(session, turnState)
 			delivery.cancel()
-			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
+			m.abortPromptBeforePump(cancelPromptExecution, activity, source, session, turnState.turnTrace, err)
 			return nil, err
 		}
 	}
-	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+	if err := m.preparePromptDelivery(
+		ctx, session, req, cancelPromptExecution, activity, source, turnState.turnTrace,
+	); err != nil {
 		m.clearActivePromptRunForState(session, turnState)
 		m.releaseHostedPromptRun(session, turnState)
 		delivery.cancel()
@@ -277,7 +280,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	m.recordBatchedPromptInputs(ctx, session, dispatchInput.batched)
 	m.consumeReservedPromptContext(session, req, replayBlock)
 
-	lifecycleCtx := m.fallbackLifecycleContext()
+	// The pump keeps the lifecycle's cancellation and carries the turn span and write account for the work it persists.
+	lifecycleCtx := trace.ContextWithSpan(m.fallbackLifecycleContext(), trace.SpanFromContext(ctx))
+	lifecycleCtx = turnState.turnTrace.attributeWrites(lifecycleCtx)
 	m.startPromptPersistencePump(
 		lifecycleCtx,
 		session,
@@ -308,6 +313,7 @@ func (m *Manager) newDispatchPromptRequest(
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,
 		Generation:                session.Info().RuntimeGeneration,
+		Model:                     session.Info().Model,
 		Message:                   dispatchMessage,
 		Sections:                  dispatchInput.sections,
 		Attachments:               attachments,
@@ -341,27 +347,36 @@ func (m *Manager) preparePromptDelivery(
 	cancelPromptExecution context.CancelFunc,
 	activity *promptActivitySupervisor,
 	source <-chan acp.AgentEvent,
+	turnTrace *promptTurnTrace,
 ) error {
 	if req.prepareDelivery == nil {
 		return nil
 	}
 	if err := req.prepareDelivery(ctx, PromptDeliveryInfo{SessionID: session.ID, TurnID: req.turnID}); err != nil {
-		m.abortPromptBeforePump(cancelPromptExecution, activity, source)
-		return fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+		err = fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+		m.abortPromptBeforePump(cancelPromptExecution, activity, source, session, turnTrace, err)
+		return err
 	}
 	return nil
 }
 
+// abortPromptBeforePump cancels a started prompt whose setup failed. The drain task ends session.turn once the source
+// closes, so the ACP prompt span, which ends only when the provider stops, stays inside the turn.
 func (m *Manager) abortPromptBeforePump(
 	cancelPromptExecution context.CancelFunc,
 	activity *promptActivitySupervisor,
 	source <-chan acp.AgentEvent,
+	session *Session,
+	turnTrace *promptTurnTrace,
+	err error,
 ) {
 	cancelPromptExecution()
 	activity.stop()
 	activity.finish(m.now())
+	turnTrace.handOffSetupFailure()
 	m.startTrackedPromptTask(func() {
 		drainPromptSource(source)
+		turnTrace.end(session, telemetry.OutcomeSetupFailed, err)
 	})
 }
 

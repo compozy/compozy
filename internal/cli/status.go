@@ -18,6 +18,9 @@ const (
 	statusMCPServersKey       = "mcp_servers"
 	statusSubprocessHealthKey = "subprocess_health"
 	statusSectionKey          = "section"
+	statusOTelDisabled        = "disabled"
+	statusOTelInactive        = "inactive_observability_disabled"
+	statusOTelPending         = "pending"
 )
 
 func newStatusCommand(deps commandDeps) *cobra.Command {
@@ -174,6 +177,7 @@ func renderStatusHuman(status *StatusRecord, now func() time.Time) string {
 		{Label: "Subprocess Health", Value: stringOrDash(status.SubprocessHealth.Status)},
 		{Label: "Needs Attention", Value: fmt.Sprintf("%d task runs", statusNeedsAttentionRuns(status.Tasks))},
 		{Label: "Config", Value: stringOrDash(status.Config.Status)},
+		{Label: "OTel", Value: statusOTelLine(status.OTel)},
 		{Label: "Log Tail", Value: stringOrDash(status.LogTail.Status)},
 	}
 	sections := []string{renderHumanSection(cliRuntimeValue, daemonRows)}
@@ -260,6 +264,55 @@ func statusNeedsAttentionRuns(tasks contract.TaskHealthPayload) int {
 		}
 	}
 	return total
+}
+
+// statusOTelLine renders OTLP export status; a daemon that predates export reports none.
+func statusOTelLine(otel *contract.OTelStatusPayload) string {
+	switch {
+	case otel == nil:
+		return "--"
+	case otel.State == statusOTelDisabled:
+		return statusOTelDisabled
+	case otel.State == statusOTelInactive:
+		return "inactive (observability.enabled = false)"
+	}
+	line := fmt.Sprintf(
+		"%s · %s → %s · traces %s, metrics %s · sample %s",
+		otel.State,
+		otel.Protocol,
+		otel.EndpointHost,
+		statusOTelSignal(otel.Traces),
+		statusOTelSignal(otel.Metrics),
+		statusOTelSampleRatio(otel.SampleRatio),
+	)
+	if otel.ForwardToProviders {
+		line += " · forwarding to providers"
+	}
+	return line
+}
+
+func statusOTelSignal(signal contract.OTelSignalStatusPayload) string {
+	switch {
+	case !signal.Enabled:
+		return "off"
+	case signal.LastErrorClass != "" && signal.FailedExports > 0:
+		return fmt.Sprintf("%s (%d failed)", signal.LastErrorClass, signal.FailedExports)
+	case signal.LastErrorClass != "":
+		return signal.LastErrorClass
+	case signal.LastExportAt.IsZero():
+		return statusOTelPending
+	default:
+		return "ok"
+	}
+}
+
+// statusOTelSampleRatio keeps one decimal for whole ratios ("1.0"), as the sample_ratio key is written.
+func statusOTelSampleRatio(ratio float64) string {
+	formatted := strconv.FormatFloat(ratio, 'f', -1, 64)
+	if !strings.Contains(formatted, ".") {
+		formatted += ".0"
+	}
+	return formatted
 }
 
 func statusHTTPAddress(status *StatusRecord) string {

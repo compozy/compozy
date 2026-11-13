@@ -196,6 +196,26 @@ type NormalizedRect struct {
 	Height float64 `json:"height"`
 }
 
+// OTelSignalStatusPayload is a daemon API value.
+type OTelSignalStatusPayload struct {
+	Enabled        bool      `json:"enabled"`
+	LastExportAt   time.Time `json:"last_export_at,omitzero"`
+	LastErrorClass string    `json:"last_error_class,omitempty"`
+	FailedExports  int64     `json:"failed_exports"`
+}
+
+// OTelStatusPayload is a daemon API value.
+type OTelStatusPayload struct {
+	State              string                  `json:"state"`
+	Protocol           string                  `json:"protocol,omitempty"`
+	EndpointHost       string                  `json:"endpoint_host,omitempty"`
+	SampleRatio        float64                 `json:"sample_ratio"`
+	ForwardToProviders bool                    `json:"forward_to_providers"`
+	Traces             OTelSignalStatusPayload `json:"traces"`
+	Metrics            OTelSignalStatusPayload `json:"metrics"`
+	DroppedSpans       int64                   `json:"dropped_spans"`
+}
+
 // ObserveFailureHealthPayload is a daemon API value.
 type ObserveFailureHealthPayload struct {
 	Status string                        `json:"status"`
@@ -423,26 +443,4 @@ type OverviewProfileUsagePayload struct {
 	Emoji       string `json:"profile_emoji,omitempty"`
 	Archived    bool   `json:"profile_archived"`
 	Tokens      int64  `json:"tokens"`
-}
-
-// OverviewPulseBucketPayload is a daemon API value.
-type OverviewPulseBucketPayload struct {
-	Weekday int `json:"weekday"`
-	Hour    int `json:"hour"`
-	Events  int `json:"events"`
-}
-
-// OverviewPulsePayload is a daemon API value.
-type OverviewPulsePayload struct {
-	WindowDays     int                            `json:"window_days"`
-	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
-	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitzero"`
-	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitzero"`
-}
-
-// OverviewSystemPayload is a daemon API value.
-type OverviewSystemPayload struct {
-	HookRunsToday     int `json:"hook_runs_today"`
-	HookFailuresToday int `json:"hook_failures_today"`
-	RetentionDays     int `json:"retention_days"`
 }

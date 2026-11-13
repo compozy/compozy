@@ -59,6 +59,7 @@ func (s *HostedService) bindLaunch(
 		correlationID:   launch.correlationID,
 		runID:           launch.runID,
 		generation:      launch.generation,
+		runTrace:        launch.runTrace,
 	}
 	s.binds[bindID] = record
 	return record.clone(), nil

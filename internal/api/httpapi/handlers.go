@@ -91,6 +91,7 @@ type handlerConfig struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	hostLoad              doctor.HostLoadSnapshotSource
+	telemetryStatus       core.TelemetryStatusSource
 	deadEntities          doctor.DeadEntitySource
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument
@@ -198,6 +199,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 	config.SkillExposures = cfg.skillExposureStore
 	config.SkillExposureEvents = cfg.skillExposureEvents
 	config.GatewayPairingSource = gatewayPairingSource(cfg.surfaceSet)
+	config.TelemetryStatus = cfg.telemetryStatus
 	config.Config = coreConfig
 	config.Logger = cfg.logger
 	config.StartedAt = cfg.startedAt

@@ -8,11 +8,21 @@ import (
 	"strings"
 )
 
-var registrationIDPattern = regexp.MustCompile(`^ws_[0-9a-f]{16}$`)
+var (
+	registrationIDPattern = regexp.MustCompile(`^ws_[0-9a-f]{16}$`)
+	// storedIDPattern also accepts the legacy `ws-` registration ids that lookups still resolve.
+	storedIDPattern = regexp.MustCompile(`^ws[_-][0-9a-f]{16}$`)
+)
 
 // IsRegistrationID reports whether value is a public workspace registration id.
 func IsRegistrationID(value string) bool {
 	return registrationIDPattern.MatchString(strings.TrimSpace(value))
+}
+
+// IsWorkspaceIdentifier reports whether value is exactly a workspace identifier this package issues:
+// a durable workspace ULID, a registration id, or a legacy `ws-` registration id.
+func IsWorkspaceIdentifier(value string) bool {
+	return workspaceIDPattern.MatchString(value) || storedIDPattern.MatchString(value)
 }
 
 func generateID(prefix string) (string, error) {

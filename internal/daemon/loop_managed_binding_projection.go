@@ -283,6 +283,8 @@ func (b *loopActionSessionBinder) PromptActionSession(
 	if b == nil || b.sessions == nil {
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop action sessions are unavailable")
 	}
+	// The node's turn joins the run's loop.run trace.
+	ctx = b.traces.ContextWithRun(ctx, binding.LoopRunID)
 	return collectLoopPromptResult(
 		session.WithManagedRun(ctx, string(binding.LoopRunID)),
 		b.sessions,
