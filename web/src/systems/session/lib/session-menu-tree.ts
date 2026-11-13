@@ -34,7 +34,7 @@ import {
   sessionLinkedWorkNode,
   type SessionMenuLinkedWork,
 } from "./session-menu-linked-work";
-import { sessionAdoptRefusal, sessionCanTakeOver } from "./session-reparent";
+import { sessionCanTakeOver } from "./session-reparent";
 import { isUserControllableSession } from "./session-running";
 
 /** Folder and manual-order verbs a root session adds under Move ▸. */
@@ -67,9 +67,6 @@ export interface SessionMenuActions {
   onBackFromLater?: SessionVerb;
   /** Make top-level and Take over both detach the session from its parent. */
   onMakeTopLevel?: SessionVerb;
-  /** Nest under: the candidate parents, and the verb that moves the session under one. */
-  nestParents?: readonly SessionPayload[];
-  onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
 }
 
 export interface SessionMenuProfileTarget {
@@ -88,6 +85,8 @@ export interface SessionMenuInput {
   /** Other active profiles; Move to profile opens its dialog. */
   profileTargets?: readonly SessionMenuProfileTarget[];
   onMoveToProfile?: (session: SessionPayload, target: SessionMenuProfileTarget) => void;
+  /** Opens the Move under… parent picker; absent where the host cannot move lineage. */
+  onMoveUnder?: (session: SessionPayload) => void;
   /** Clear conversation, offered by the window that has this session open. */
   clear?: { canClear: boolean; request: () => void } | null;
   layout?: SessionRowLayoutMenu;
@@ -267,14 +266,11 @@ function orderNodes(input: SessionMenuInput, layout: SessionRowLayoutMenu): Menu
 function moveNode(input: SessionMenuInput): MenuTreeNode {
   const { session, actions, layout } = input;
   const busy = actions.pendingAction !== null;
-  const { onAdopt, onMakeTopLevel } = actions;
-  const parents = onAdopt
-    ? (actions.nestParents ?? []).filter(parent => sessionAdoptRefusal(session, parent) === null)
-    : [];
+  const { onMakeTopLevel } = actions;
+  const { onMoveUnder } = input;
   const live = isUserControllableSession(session) && session.archived_at === null;
   const targets = (input.profileTargets ?? []).filter(target => target.id !== session.profile_id);
   const { onMoveToProfile } = input;
-  const nest = sessionRowAction("nest", session);
   const profile = sessionRowAction("move-to-profile", session);
   return {
     kind: "sub",
@@ -288,23 +284,10 @@ function moveNode(input: SessionMenuInput): MenuTreeNode {
       // own read), so its presence is the gate: a row whose parent is off the page still files.
       ...(layout ? folderNodes(input, layout) : []),
       separator("move-thread"),
-      ...(onAdopt && parents.length > 0
-        ? [
-            {
-              kind: "sub",
-              id: "nest",
-              label: nest.label,
-              icon: nest.icon,
-              testId: testIdOf(input, "nest"),
-              children: parents.map<MenuTreeNode>(parent => ({
-                kind: "item",
-                id: `nest-${parent.id}`,
-                label: getSessionDisplayTitle(parent),
-                testId: `${testIdOf(input, "nest")}-${parent.id}`,
-                onSelect: () => onAdopt(session, parent),
-              })),
-            } as const,
-          ]
+      // The picker says why a continued, forked or nested session cannot move, and offers Make
+      // top-level where that applies, so the menu does not filter the session's parents.
+      ...(onMoveUnder && live && !isSubagentSession(session)
+        ? [verbNode(input, "move-under", () => onMoveUnder(session))]
         : []),
       ...(onMakeTopLevel && sessionBatchAction("make-top-level").eligible(session)
         ? [verbNode(input, "make-top-level", () => onMakeTopLevel(session))]

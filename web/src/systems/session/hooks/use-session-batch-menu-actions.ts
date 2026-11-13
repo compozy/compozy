@@ -13,19 +13,19 @@ import { useMarkSessionSeen } from "@/systems/session/hooks/use-mark-session-see
 import { useSessionReparent } from "@/systems/session/hooks/use-session-reparent";
 import type { SessionBatchAdmission } from "@/systems/session/hooks/use-session-batch-admission";
 
-type MenuBatchAction = "mark-seen" | "make-top-level" | "nest";
+type MenuBatchAction = "mark-seen" | "make-top-level" | "move-under";
 
 const SKIP_REASON: Record<MenuBatchAction, string> = {
   "mark-seen": "attention needs an answer or is already seen",
   "make-top-level": "not a nested user session",
-  nest: "can't move under it",
+  "move-under": "can't move under it",
 };
 
 /**
  * The new selection verbs use the same mutations as rows, with one named result per failure.
  * `running` is the host's shared batch admission, held from the first mutation to settlement.
- * Singular nest and Make top-level share the lineage boundary with batch Make top-level and
- * batch Nest under: neither overlaps the other. Other batch families leave single lineage moves
+ * Singular Move under and Make top-level share the lineage boundary with batch Make top-level and
+ * batch Move under: neither overlaps the other. Other batch families leave single lineage moves
  * alone.
  */
 export function useSessionBatchMenuActions(
@@ -45,7 +45,7 @@ export function useSessionBatchMenuActions(
     const lineage = action !== "mark-seen";
     if (busy || running.held() || (lineage && reparent.pending)) return;
     const eligible = sessions.filter(session =>
-      action === "nest"
+      action === "move-under"
         ? parent !== undefined && sessionAdoptRefusal(session, parent) === null
         : sessionBatchAction(action).eligible(session)
     );
@@ -70,7 +70,7 @@ export function useSessionBatchMenuActions(
         execute: id => {
           const session = byId.get(id)!;
           if (action === "mark-seen") return markSeen.mutateAsync(session);
-          return action === "nest" && parent
+          return action === "move-under" && parent
             ? reparent.adoptAsync(session, parent)
             : reparent.detachAsync(session);
         },
@@ -86,8 +86,8 @@ export function useSessionBatchMenuActions(
     onMarkSeenMany: (sessions: readonly SessionPayload[]) => void run("mark-seen", sessions),
     onMakeTopLevelMany: (sessions: readonly SessionPayload[]) =>
       void run("make-top-level", sessions),
-    onNestMany: (sessions: readonly SessionPayload[], parent: SessionPayload) =>
-      void run("nest", sessions, parent),
+    onMoveUnderMany: (sessions: readonly SessionPayload[], parent: SessionPayload) =>
+      void run("move-under", sessions, parent),
     onAdopt: reparent.adopt,
     onMakeTopLevel: reparent.detach,
   };

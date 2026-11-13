@@ -1,5 +1,3 @@
-import { use } from "react";
-
 import { Checkbox } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
@@ -10,8 +8,6 @@ import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { useSessionHasDraft } from "../../hooks/use-session-store";
 import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-view-selection";
-import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-selection-context-value";
-import { sessionListGroupedRows } from "../../lib/session-list-group-rows";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { linkedSessionFacts, summaryMoreLabel } from "../../lib/session-linked-work";
@@ -60,7 +56,6 @@ type CardSelection = NonNullable<ReturnType<typeof useSessionBoardCardSelection>
 export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
   const { session } = props;
   const selection = useSessionBoardCardSelection(session.id);
-  const rows = use(SessionsBoardRowsStoreContext);
   const button = <SessionBoardCardButton {...props} selection={selection} />;
   const checkbox = selection ? (
     <SessionBoardCardCheckbox selection={selection} session={session} />
@@ -82,10 +77,6 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
     session,
     readFolders: true,
     onOpen: () => props.onOpen(session),
-    // The cards the board shows, read when a menu opens: no card subscribes to them.
-    ...(rows
-      ? { nestParents: () => sessionListGroupedRows(rows.getSnapshot().context.groups).sessions }
-      : {}),
   };
   return (
     <SessionRowContextMenu

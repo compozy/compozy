@@ -102,7 +102,9 @@ is absent, never a dead row; an archived project (Settings) offers only Unarchiv
 Remove project; under All profiles Move ▸ is absent (project folders belong to one profile).
 
 1. From each surface below, choose **New ▸ New session**: session creation opens on that
-   project. Choose **New ▸ New folder**: the name dialog creates a session folder in that
+   project, even while the menubar is focused on a different project (the session is created
+   there, starts at that project's root rather than the focused project's worktree, and the
+   destination switches to it once created). Choose **New ▸ New folder**: the name dialog creates a session folder in that
    project. Choose **Open files**: that project's Files window opens. From the overview, each of
    these verbs also closes the overview.
 2. From each surface, choose **Move ▸** and a folder: the project moves into it (the session

@@ -91,7 +91,8 @@ apply there. Walk in the session window sidebar, the Sessions modal and the Kanb
    session or Unarchive session; then Clear conversation (the window's own session only) and
    Delete session last.
 2. Move ▸ holds the Folder group (every folder, the current one checked and inert, Remove from
-   folder when filed), Nest under ▸, Make top-level or Take over session, Move to profile ▸, and,
+   folder when filed), Move under… (opens the parent picker), Make top-level or Take over
+   session, Move to profile ▸, and,
    in the list's Manual sort only, Move up and Move down. A verb the session cannot take is
    absent, and Move ▸ disappears when nothing is left in it. A Kanban card offers the same Move ▸
    without Move up and Move down (columns order the board); its folders are the card's own
@@ -105,7 +106,7 @@ apply there. Walk in the session window sidebar, the Sessions modal and the Kanb
 4. Select several sessions: More actions and a selected row's or card's right-click show the
    same tree minus single-session verbs: Copy ▸ (Copy session IDs, Copy titles, Copy branch
    names with a count), Move ▸ (Folder group with New folder…, or the reason the selection
-   cannot move; Nest under ▸ with the count that can move and the listed sessions they can move
+   cannot move; Move under ▸ with the count that can move and the listed sessions they can move
    under; Make top-level with its count), Mark as seen, Stop · N active, Move to Later…, Back
    from Later · N in Later, Archive / Stop and archive, Unarchive · N archived, and Delete N
    sessions (⌘⌫ on the bar only). A verb no selected session can take is absent.

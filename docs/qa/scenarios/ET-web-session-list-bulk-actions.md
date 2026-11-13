@@ -163,7 +163,7 @@ latency emulation on an isolated lab) while walking these checks.
 2. Start a batch from one family (for example Back from Later) and immediately invoke another
    (Make top-level, Unarchive): the second is declined and sends no request, so at most three
    requests are in flight. Invoking it again after the first batch settles runs it normally.
-3. Start a single Nest under (drop) or Make top-level and, before it settles, invoke Make
+3. Start a single Move under (a row drop or the parent picker) or Make top-level and, before it settles, invoke Make
    top-level on a selection: the batch is declined and sends no request. Invoking it again after
    the single move settles detaches every target. While a batch Make top-level runs, a row drop,
    a single Make top-level or a nest toast's Undo is declined; other batch families (Stop,

@@ -98,6 +98,10 @@ export function MenuTreeItems({
             return (
               <Item
                 key={node.id}
+                // A member of a set: assistive tech hears which one is current, not just a glyph.
+                {...(node.checked === undefined
+                  ? {}
+                  : { role: "menuitemradio", "aria-checked": node.checked })}
                 closeOnClick={node.closeOnClick}
                 data-testid={node.testId}
                 disabled={node.disabled}

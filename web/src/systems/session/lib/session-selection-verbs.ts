@@ -46,15 +46,15 @@ export interface SessionSelectionVerbs {
   /** Selected sessions with a branch, for Copy branch names. */
   branches: number;
   onCopyBranches: () => void;
-  /** Nest under: the listed sessions some selected session can move under; absent without a host verb. */
-  nest?: SessionSelectionNest;
+  /** Move under: the listed sessions some selected session can go under; absent without a host verb. */
+  moveUnder?: SessionSelectionMoveUnder;
   /** Move to folder; absent while the list has no folders to move into. */
   folders?: SessionBulkFolderMenu;
 }
 
-export interface SessionSelectionNest {
+export interface SessionSelectionMoveUnder {
   parents: readonly SessionPayload[];
   /** Selected sessions that can move under at least one of the parents. */
-  nestable: number;
-  onNest: (parent: SessionPayload) => void;
+  movable: number;
+  onMoveUnder: (parent: SessionPayload) => void;
 }

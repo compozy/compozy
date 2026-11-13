@@ -5,7 +5,10 @@ import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { isEditableTarget } from "../lib/editable-target";
 import { sessionListShortcut, type SessionListShortcut } from "../lib/session-list-threads";
 import type { SessionListShelf } from "../lib/session-list-shelf";
-import type { SessionSelectionNest, SessionSelectionVerbs } from "../lib/session-selection-verbs";
+import type {
+  SessionSelectionMoveUnder,
+  SessionSelectionVerbs,
+} from "../lib/session-selection-verbs";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import {
@@ -37,12 +40,12 @@ interface SessionListBulkSelectionInput {
 type ManyHandler = ((sessions: readonly SessionPayload[]) => void) | undefined;
 
 /** Unselected listed sessions a selected one can move under; none outside a selection. */
-function selectionNest(
-  handler: SessionLifecycleActionHandlers["onNestMany"],
+function selectionMoveUnder(
+  handler: SessionLifecycleActionHandlers["onMoveUnderMany"],
   sessions: readonly SessionPayload[],
   selected: readonly SessionPayload[],
   selectedIds: ReadonlySet<string>
-): SessionSelectionNest | undefined {
+): SessionSelectionMoveUnder | undefined {
   if (!handler || selected.length === 0) return undefined;
   const parents = sessions.filter(
     parent =>
@@ -50,10 +53,10 @@ function selectionNest(
       selected.some(session => sessionAdoptRefusal(session, parent) === null)
   );
   if (parents.length === 0) return undefined;
-  const nestable = selected.filter(session =>
+  const movable = selected.filter(session =>
     parents.some(parent => sessionAdoptRefusal(session, parent) === null)
   ).length;
-  return { parents, nestable, onNest: parent => handler(selected, parent) };
+  return { parents, movable, onMoveUnder: parent => handler(selected, parent) };
 }
 
 /** Binds an optional bulk verb to the current selection; absent verbs stay absent. */
@@ -156,7 +159,12 @@ export function useSessionListBulkSelection({
         selectedSessions.flatMap(session => (session.branch ? [session.branch] : [])).join("\n"),
         "Branch names"
       ),
-    nest: selectionNest(sessionActions.onNestMany, sessions, selectedSessions, selectedIdSet),
+    moveUnder: selectionMoveUnder(
+      sessionActions.onMoveUnderMany,
+      sessions,
+      selectedSessions,
+      selectedIdSet
+    ),
     folders: folderMove?.menu,
   };
 

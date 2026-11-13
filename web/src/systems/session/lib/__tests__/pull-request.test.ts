@@ -673,15 +673,23 @@ describe("session menu linked work", () => {
     ]);
   });
 
-  it("Should never unlink a rolled-up item from the parent's menu", () => {
+  it("Should open a rolled-up item's child session and never unlink it from the parent", () => {
     const items = SESSION_LINK_SETS.rolledUp;
-    const node = sub(sessionLinkedWorkNode(work(items), options));
+    const opened: string[] = [];
+    const node = sub(
+      sessionLinkedWorkNode({ ...work(items), onOpenSession: id => opened.push(id) }, options)
+    );
     const subs = node.children.filter(child => child.kind === "sub");
     expect(subs).toHaveLength(items.length);
     items.forEach((item, index) => {
-      const unlink = labels(sub(subs[index] ?? null).children).includes("Unlink from this session");
-      expect(unlink).toBe(!item.source_session_id);
+      const children = sub(subs[index] ?? null).children;
+      expect(labels(children).includes("Unlink from this session")).toBe(!item.source_session_id);
+      const open = children.find(child => child.kind === "item" && child.label === "Open session");
+      expect(open !== undefined).toBe(Boolean(item.source_session_id));
+      if (open?.kind === "item") open.onSelect?.();
     });
+    expect(opened).toEqual(items.flatMap(item => item.source_session_id ?? []));
+    expect(opened.length).toBeGreaterThan(0);
   });
 });
 

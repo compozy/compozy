@@ -28,7 +28,8 @@ While it runs, `session reparent <id> --top-level` is refused with
 lineage, no TTL, auto-stop, creator wake, or narrowing, and the next prompt resumes it. In the web
 session list, the stopped worker's row menu offers **Take over session** only (no Rename, Continue,
 or Fork); after the take-over the toast reads "You took over …", the row moves to the top level, and
-the menu offers Rename, Continue with another agent, Fork, Move under…, and Clear conversation.
+the menu offers Rename, Continue with another agent and Fork (under New from this ▸), Move under…
+(under Move ▸), and Clear conversation.
 
 Regression baseline 2026-10-31 (isolated acpmock lab, `origin/main` build): the resumed worker was
 stopped again by the next reaper sweep, and `--top-level` was refused with "only user sessions can

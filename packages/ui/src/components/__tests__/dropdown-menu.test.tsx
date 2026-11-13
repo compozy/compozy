@@ -210,7 +210,10 @@ describe("MenuTreeItems", () => {
           kind: "group",
           id: "folders",
           label: "Folder",
-          children: [{ kind: "item", id: "specs", label: "specs", checked: true }],
+          children: [
+            { kind: "item", id: "specs", label: "specs", checked: true },
+            { kind: "item", id: "docs", label: "docs", checked: false },
+          ],
         },
       ],
     },
@@ -232,7 +235,9 @@ describe("MenuTreeItems", () => {
     await user.click(screen.getByRole("button", { name: "Open" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move" }));
     expect(await screen.findByRole("group", { name: "Folder" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "specs" })).toBeInTheDocument();
+    // Members of a set announce which one is current, not only through the check glyph.
+    expect(screen.getByRole("menuitemradio", { name: "specs" })).toBeChecked();
+    expect(screen.getByRole("menuitemradio", { name: "docs" })).not.toBeChecked();
     expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveAttribute(
       "data-variant",
       "destructive"

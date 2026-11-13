@@ -218,7 +218,7 @@ function renderList(
     onMarkSeen: vi.fn(),
     onMarkSeenMany: vi.fn(),
     onMakeTopLevelMany: vi.fn(),
-    onNestMany: vi.fn(),
+    onMoveUnderMany: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -2562,7 +2562,7 @@ describe("SessionList folders and manual order", () => {
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
     const menu = await screen.findByRole("menu");
     await user.click(within(menu).getByRole("menuitem", { name: "Move" }));
-    expect(await screen.findByRole("menuitem", { name: "Beta" })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitemradio", { name: "Beta" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
 
@@ -2583,7 +2583,8 @@ describe("SessionList folders and manual order", () => {
     expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
     within(menu).getByRole("menuitem", { name: "Move" }).focus();
     await user.keyboard("{ArrowRight}");
-    const beta = await screen.findByRole("menuitem", { name: "Beta" });
+    // Folders are a set of choices: each is announced as a radio item.
+    const beta = await screen.findByRole("menuitemradio", { name: "Beta" });
     await waitFor(() =>
       expect(beta.closest('[role="menu"]')).toContainElement(document.activeElement as HTMLElement)
     );
@@ -2868,8 +2869,12 @@ describe("SessionList folders and manual order", () => {
     await openSubmenu(user, await screen.findByTestId("session-sidebar-selection-move"));
   }
   /** Activates one submenu target from the keyboard, as the row menu suite does. */
-  async function chooseMoveTarget(user: MenuUser, name: string) {
-    await chooseItem(user, await screen.findByRole("menuitem", { name }));
+  async function chooseMoveTarget(
+    user: MenuUser,
+    name: string,
+    role: "menuitem" | "menuitemradio" = "menuitemradio"
+  ) {
+    await chooseItem(user, await screen.findByRole(role, { name }));
   }
 
   it("Should move the selection to a folder from the selection menu and end the selection", async () => {
@@ -2904,11 +2909,11 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: layoutRows, view: { ...view, layout } });
     const user = await selectRows("f1");
     await openMoveMenu(user);
-    expect(await screen.findByRole("menuitem", { name: "Alpha" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
-    await chooseMoveTarget(user, "Remove from folder");
+    // The selection's shared folder is the current choice, so moving there is disabled.
+    const alpha = await screen.findByRole("menuitemradio", { name: "Alpha" });
+    expect(alpha).toHaveAttribute("aria-disabled", "true");
+    expect(alpha).toBeChecked();
+    await chooseMoveTarget(user, "Remove from folder", "menuitem");
 
     expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null);
     await waitFor(() =>
@@ -2923,7 +2928,7 @@ describe("SessionList folders and manual order", () => {
     const { layout } = renderLayout("created");
     const user = await selectRows("r1", "r2");
     await openMoveMenu(user);
-    await chooseMoveTarget(user, "New folder…");
+    await chooseMoveTarget(user, "New folder…", "menuitem");
     expect(await screen.findByText("The 2 sessions you selected move into it.")).toBeVisible();
     await user.type(screen.getByTestId("session-folder-name"), "Launch");
     await user.click(screen.getByRole("button", { name: "Create and move" }));
@@ -2936,9 +2941,9 @@ describe("SessionList folders and manual order", () => {
     expect(screen.queryByTestId("session-sidebar-selection-bar")).not.toBeInTheDocument();
   });
 
-  // Invariant: the selection's Nest under offers the unselected sessions a selected one can move
-  // under, counts the selected sessions that can, and nests the selection under the chosen one.
-  it("Should nest the selection under a listed session from Move ▸ Nest under", async () => {
+  // Invariant: the selection's Move under offers the unselected sessions a selected one can move
+  // under, counts the selected sessions that can, and moves the selection under the chosen one.
+  it("Should move the selection under a listed session from Move ▸ Move under", async () => {
     // Only a top-level session moves under another: these rows carry no parent lineage.
     const { actions } = renderList({
       sessions: layoutRows.map(row => ({ ...row, lineage: undefined })),
@@ -2946,12 +2951,12 @@ describe("SessionList folders and manual order", () => {
     });
     const user = await selectRows("r1", "f1");
     await openMoveMenu(user);
-    const nest = await screen.findByTestId("session-sidebar-selection-nest");
-    expect(nest).toHaveTextContent("2 sessions");
-    await openSubmenu(user, nest);
-    expect(screen.queryByTestId("session-sidebar-selection-nest-r1")).not.toBeInTheDocument();
-    await chooseItem(user, await screen.findByTestId("session-sidebar-selection-nest-r2"));
-    expect(actions.onNestMany).toHaveBeenCalledWith(
+    const moveUnder = await screen.findByTestId("session-sidebar-selection-move-under");
+    expect(moveUnder).toHaveTextContent("2 sessions");
+    await openSubmenu(user, moveUnder);
+    expect(screen.queryByTestId("session-sidebar-selection-move-under-r1")).not.toBeInTheDocument();
+    await chooseItem(user, await screen.findByTestId("session-sidebar-selection-move-under-r2"));
+    expect(actions.onMoveUnderMany).toHaveBeenCalledWith(
       [expect.objectContaining({ id: "r1" }), expect.objectContaining({ id: "f1" })],
       expect.objectContaining({ id: "r2" })
     );
@@ -2981,7 +2986,7 @@ describe("SessionList folders and manual order", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Child sessions move with their parent." })
     ).toHaveFocus();
-    expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio", { name: "Beta" })).not.toBeInTheDocument();
   });
 
   it("Should drag the selection onto a folder, and drag an unselected row alone", async () => {

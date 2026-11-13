@@ -4,6 +4,7 @@ import { use } from "react";
 import { SessionClearContext } from "../contexts/session-clear-context-value";
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
+import { SessionMenuOpenContext } from "../contexts/session-menu-open-context-value";
 import type { SessionMenuSourceData } from "../contexts/session-menu-source-context-value";
 import { SessionProfileMoveContext } from "../contexts/session-profile-move-context-value";
 import { copySessionText } from "../lib/session-copy";
@@ -11,6 +12,7 @@ import { sessionMenuTree, type SessionRowLayoutMenu } from "../lib/session-menu-
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./session-lifecycle-types";
 import { requestSessionLinkDialog } from "./use-session-link-dialog";
+import { requestSessionParentPicker } from "./use-session-parent-picker";
 
 export interface SessionRowMenuOptions {
   /** `session-row` behind `…`, `session-row-menu` on right-click. */
@@ -31,7 +33,8 @@ function summaryLinkedWork(session: SessionPayload): SessionMenuSourceData["link
 
 /**
  * One session's menu tree for its row or card, `…` or right-click: the session's verbs, plus the
- * Continue, Fork, Move to profile and Clear conversation entries the surrounding host provides.
+ * Continue, Fork, Move to profile and Clear conversation entries the surrounding host provides,
+ * and Move under… where the host can move lineage.
  */
 export function useSessionRowMenuTree(
   session: SessionPayload,
@@ -42,6 +45,7 @@ export function useSessionRowMenuTree(
   const requestFork = use(SessionForkContext);
   const clear = use(SessionClearContext);
   const profileMove = use(SessionProfileMoveContext);
+  const openSession = use(SessionMenuOpenContext);
   const { onOpen } = options;
   const work = options.linkedWork ?? summaryLinkedWork(session);
   return sessionMenuTree({
@@ -54,6 +58,10 @@ export function useSessionRowMenuTree(
       ? { profileTargets: profileMove.targets, onMoveToProfile: profileMove.request }
       : {}),
     clear: clear?.sessionId === session.id ? clear : null,
+    // One picker, hosted by the shell, serves every row, card and the palette.
+    ...(actions.onAdopt
+      ? { onMoveUnder: (source: SessionPayload) => requestSessionParentPicker(source.id) }
+      : {}),
     ...(options.layout ? { layout: options.layout } : {}),
     linkedWork: work
       ? {
@@ -66,6 +74,13 @@ export function useSessionRowMenuTree(
                   requestSessionLinkDialog(session.id);
                 },
                 onShowAll: onOpen,
+              }
+            : {}),
+          // A rolled-up item's child shares the session's project; its agent resolves on open.
+          ...(openSession
+            ? {
+                onOpenSession: (id: string) =>
+                  openSession({ id, agent_name: "", workspace_id: session.workspace_id }),
               }
             : {}),
         }

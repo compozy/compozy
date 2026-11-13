@@ -99,14 +99,15 @@ export function useSessionCreateDialogViewModel(
   );
   const { pendingSubmit } = flow;
   // Each opening starts from the prefill; under All projects the picked project
-  // (or User) is the destination, otherwise the menubar destination is.
+  // (or User) is the destination, otherwise the project the opening named, else the
+  // menubar destination.
   const target = useSessionCreateTarget({
     resetKey: flow.open,
     focusedBinding,
     seed: flow.target,
   });
   const destination = resolveSessionCreateDestination(
-    target.projectAxis
+    target.projectAxis || target.namedProject
       ? {
           activeWorkspace: target.workspace,
           projectWorkspaceId: target.workspace?.id ?? null,
@@ -135,6 +136,7 @@ export function useSessionCreateDialogViewModel(
     environment,
     environmentWorkspaceId: destination.environmentWorkspaceId,
     runtimeWorkspaceId: destination.runtimeWorkspaceId,
+    actingWorkspaceId: activeWorkspace?.id ?? null,
     scope: destination.scope,
     store,
     target,

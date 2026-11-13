@@ -12,7 +12,7 @@ export interface SessionBatchResult {
 export type SessionBatchAction =
   | "mark-seen"
   | "make-top-level"
-  | "nest"
+  | "move-under"
   | "stop"
   | "archive"
   | "unarchive"
@@ -24,7 +24,7 @@ export type SessionBatchAction =
 export function sessionBatchFailureMessage(action: SessionBatchAction): string {
   if (action === "mark-seen") return "Failed to mark session as seen.";
   if (action === "make-top-level") return "Failed to make session top-level.";
-  if (action === "nest") return "Failed to nest session.";
+  if (action === "move-under") return "Failed to move session.";
   if (action === "later") return "Failed to move session to Later.";
   if (action === "back-from-later") return "Failed to bring session back from Later.";
   return `Failed to ${action} session.`;

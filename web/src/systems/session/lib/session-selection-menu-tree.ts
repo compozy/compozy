@@ -6,6 +6,7 @@
  */
 import {
   Clipboard,
+  CornerDownRight,
   Folder,
   FolderInput,
   FolderOutput,
@@ -17,11 +18,7 @@ import { tidyMenuTree, type MenuTreeHost, type MenuTreeNode } from "@compozy/ui"
 
 import { getSessionDisplayTitle } from "./session-display-title";
 import { sessionCountLabel } from "./session-folders";
-import {
-  sessionBatchAction,
-  sessionRowAction,
-  type SessionBatchMenuActionId,
-} from "./session-menu-actions";
+import { sessionBatchAction, type SessionBatchMenuActionId } from "./session-menu-actions";
 import type { SessionBulkFolderMenu, SessionSelectionVerbs } from "./session-selection-verbs";
 
 type ItemNode = Extract<MenuTreeNode, { kind: "item" }>;
@@ -137,9 +134,7 @@ export function selectionMenuTree(
       onSelect,
     };
   };
-  const { nest } = verbs;
-  const nestVerb =
-    nest && nest.parents.length > 0 ? sessionRowAction("nest", nest.parents[0]!) : null;
+  const { moveUnder } = verbs;
   return tidyMenuTree([
     {
       kind: "sub",
@@ -177,21 +172,22 @@ export function selectionMenuTree(
       children: [
         ...(verbs.folders ? [folderGroup(verbs.folders, testId)] : []),
         separator("move-thread"),
-        ...(nest && nestVerb && nest.nestable > 0
+        // A session's own Move under… opens the picker; a selection picks from the listed rows.
+        ...(moveUnder && moveUnder.parents.length > 0 && moveUnder.movable > 0
           ? [
               {
                 kind: "sub",
-                id: "nest",
-                label: nestVerb.label,
-                icon: nestVerb.icon,
-                hint: sessionCountLabel(nest.nestable),
-                testId: `${testId}-nest`,
-                children: nest.parents.map<MenuTreeNode>(parent => ({
+                id: "move-under",
+                label: "Move under",
+                icon: CornerDownRight,
+                hint: sessionCountLabel(moveUnder.movable),
+                testId: `${testId}-move-under`,
+                children: moveUnder.parents.map<MenuTreeNode>(parent => ({
                   kind: "item",
-                  id: `nest-${parent.id}`,
+                  id: `move-under-${parent.id}`,
                   label: getSessionDisplayTitle(parent),
-                  testId: `${testId}-nest-${parent.id}`,
-                  onSelect: () => nest.onNest(parent),
+                  testId: `${testId}-move-under-${parent.id}`,
+                  onSelect: () => moveUnder.onMoveUnder(parent),
                 })),
               } as const,
             ]

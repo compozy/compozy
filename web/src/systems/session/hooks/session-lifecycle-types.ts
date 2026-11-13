@@ -7,7 +7,7 @@ import type { SessionLaterConfirmation } from "./use-session-later-actions";
 export type SessionLifecycleAction =
   | "mark-seen"
   | "make-top-level"
-  | "nest"
+  | "move-under"
   | "rename"
   | "stop"
   | "archive"
@@ -45,8 +45,8 @@ export interface SessionLifecycleActionHandlers {
   onMarkSeen?: (session: SessionPayload) => void;
   onMarkSeenMany?: (sessions: readonly SessionPayload[]) => void;
   onMakeTopLevelMany?: (sessions: readonly SessionPayload[]) => void;
-  /** Nests every selected session that can move under `parent`; the rest are skipped. */
-  onNestMany?: (sessions: readonly SessionPayload[], parent: SessionPayload) => void;
+  /** Moves every selected session that can go under `parent` there; the rest are skipped. */
+  onMoveUnderMany?: (sessions: readonly SessionPayload[], parent: SessionPayload) => void;
   onDeleteMany?: (
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void

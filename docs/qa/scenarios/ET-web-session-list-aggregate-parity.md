@@ -34,7 +34,7 @@ and one subagent.
    Repeat with Group by set to none under All projects and All profiles: same-pair nesting
    remains available even though folders and manual ordering do not. Drop a top-level session
    onto an already-nested user session; it becomes that session's child. Using only the keyboard,
-   open the row menu, choose Move under…, type part of a parent's title in the picker, and press
+   open the row menu, choose Move ▸ Move under…, type part of a parent's title in the picker, and press
    Enter on an eligible parent. Both row menus and the command palette's "Move under another
    session…" (focused session window) open the same picker and use the same adopt operation;
    foreign-pair, archived, Later, subagent, self, and descendant targets are absent from it. On a

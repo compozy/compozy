@@ -482,6 +482,38 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
+  // Invariant: a project's own menu names that project; outside All projects it is the target,
+  // not the menubar destination, and the created session activates it.
+  it("Should create in the project the opener named outside All projects", async () => {
+    const betaWorkspace: WorkspacePayload = {
+      ...activeWorkspace,
+      id: "ws_beta",
+      name: "beta",
+      root_dir: "/workspace/beta",
+    };
+    mockActive.current = {
+      ...mockActive.current,
+      projectWorkspaces: [activeWorkspace, betaWorkspace],
+    };
+    mockWorkspaceListRef.current = [activeWorkspace, betaWorkspace];
+    mockMutateAsync.mockResolvedValue({ ...createdSession, workspace_id: "ws_beta" });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent", { project: "ws_beta" }));
+    expect(result.current.destinationAxes.project).toBeUndefined();
+    expect(result.current.destinationLabel).toContain("beta");
+    await act(async () => result.current.submit());
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_name: "codex-agent", workspace: "ws_beta" })
+    );
+    await waitFor(() => expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith("ws_beta"));
+  });
+
   it("W-07 Should start a User session in User without a project picker, worktree or activation", async () => {
     mockUserHomeDir.current = "/Users/operator";
     mockWorktreeListingRef.current = emptyWorktreeListingFixture;

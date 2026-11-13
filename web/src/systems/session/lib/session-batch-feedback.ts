@@ -4,14 +4,14 @@ import { sessionBatchFailureMessage, type SessionBatchResult } from "./session-b
 import { BATCH_CHILD_SKIP, type BatchVerb } from "./session-batch-eligibility";
 import { getSessionDisplayTitle } from "./session-display-title";
 
-type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level" | "nest";
+type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level" | "move-under";
 
 const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
 
 export function batchVerbPast(action: FeedbackVerb): string {
   if (action === "mark-seen") return "marked as seen";
   if (action === "make-top-level") return "made top-level";
-  if (action === "nest") return "nested";
+  if (action === "move-under") return "moved";
   if (action === "later") return "moved to Later";
   if (action === "back-from-later") return "back from Later";
   return action === "stop" ? "stopped" : `${action}d`;
@@ -21,7 +21,7 @@ export function batchVerbPast(action: FeedbackVerb): string {
 function batchFailureTitle(action: FeedbackVerb, count: string): string {
   if (action === "mark-seen") return `Couldn't mark ${count} as seen`;
   if (action === "make-top-level") return `Couldn't make ${count} top-level`;
-  if (action === "nest") return `Couldn't nest ${count}`;
+  if (action === "move-under") return `Couldn't move ${count}`;
   if (action === "later") return `Couldn't move ${count} to Later`;
   if (action === "back-from-later") return `Couldn't bring ${count} back from Later`;
   return `Couldn't ${action} ${count}`;

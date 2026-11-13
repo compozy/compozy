@@ -199,7 +199,8 @@ describe("AutomationRow", () => {
   });
 
   it("Should keep a webhook's two copies behind Copy", async () => {
-    const user = userEvent.setup();
+    // Base UI leaves a submenu's items pointer-events: none until the pointer settles in jsdom.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     renderRow(view("deploy-webhook"));
     await user.click(screen.getByRole("button", { name: "More actions for deploy-webhook" }));
     await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
@@ -210,6 +211,20 @@ describe("AutomationRow", () => {
         .getAllByRole("menuitem")
         .map(item => item.textContent?.trim())
     ).toEqual(["Copy link", "Copy automation id"]);
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    await user.click(within(submenu).getByRole("menuitem", { name: "Copy link" }));
+    // The published public link, never the app's own origin joined to the webhook path.
+    expect(writeText).toHaveBeenCalledWith(view("deploy-webhook").publicUrl);
+    expect(view("deploy-webhook").publicUrl).toMatch(/^https:\/\/northstar\.gateway\.test\//);
+  });
+
+  it("Should not offer a link to copy while the public link is off", async () => {
+    const user = userEvent.setup();
+    const trigger = automationStoryTriggers.find(entity => entity.id === "deploy-webhook")!;
+    renderRow(withEntity({ ...trigger, ingress: { ...trigger.ingress!, reachability: "off" } }));
+    await user.click(screen.getByRole("button", { name: "More actions for deploy-webhook" }));
+    expect(await screen.findByRole("menuitem", { name: "Copy automation id" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: /Copy link|^Copy$/ })).not.toBeInTheDocument();
   });
 
   it("Should inspect the row's automation from its menu", async () => {

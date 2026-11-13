@@ -15,7 +15,11 @@ other scenarios touched by the PR.
 - Session row, Kanban card and selection menus, the pull request menu (chip, Linked work row, session
   submenu), project menus, file Open in and automation menus are each one tree rendered by right-click and
   the overflow button. Verbs moved into submenus; none were removed. Kanban cards gain folder moves and
-  linked work; selections gain Nest under and Copy branch names.
+  linked work; selections gain Move under and Copy branch names. A set of choices (folders, profiles)
+  announces its members as radio menu items with the current one checked.
+- A project menu's New session targets that project even outside All projects, at its root rather than
+  the focused project's worktree. A rolled-up linked-work item offers Open session for its child. An
+  automation's Copy link copies the published public address and shows only while that link is live.
 - The session list toolbar's Collapse all / Expand all becomes its own icon button beside View options.
 - No native tool, CLI, HTTP/UDS route or DTO, hook, extension SDK, config key, SQLite schema or migration
   change; menus call the existing endpoints. Workspace data isolation: unchanged; User-scope folder reads

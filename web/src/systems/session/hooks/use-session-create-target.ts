@@ -22,6 +22,11 @@ import {
 export interface SessionCreateTarget {
   /** All projects is on: the Project picker is shown. */
   projectAxis: boolean;
+  /**
+   * Outside All projects, the opening named another project (a project's own menu): that project
+   * is the target instead of the menubar destination, without a picker.
+   */
+  namedProject: boolean;
   /** All profiles is on: the Profile picker is shown. */
   profileAxis: boolean;
   projectOptions: SessionTargetOption[];
@@ -83,7 +88,12 @@ export function useSessionCreateTarget({
     profileOptions.find(option => option.value === current.profile)?.value ??
     profileScope.destination;
 
-  const scope = resolveCreateScope(projectValue, active.dataScope);
+  const named = projectAxis
+    ? undefined
+    : active.projectWorkspaces.find(item => item.id === current.project);
+  const scope = named
+    ? sessionTargetScope(named.id)
+    : resolveCreateScope(projectValue, active.dataScope);
   const workspace =
     scope?.kind === "project"
       ? active.projectWorkspaces.find(item => item.id === scope.workspaceId)
@@ -91,6 +101,7 @@ export function useSessionCreateTarget({
 
   return {
     projectAxis,
+    namedProject: named !== undefined,
     profileAxis,
     projectOptions,
     projectValue,

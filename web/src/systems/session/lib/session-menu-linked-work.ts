@@ -2,8 +2,8 @@
  * The session's linked work inside its menu. One item is a `Pull request #N ▸` (or `Branch x ▸`)
  * submenu; two or more are `Linked work N ▸`, one submenu per item, grouped like the Linked work
  * list from five items and capped so the menu never scrolls. Each item's submenu is the shared
- * pull request menu (`pullRequestMenuTree`). A rolled-up item belongs to its child session and is
- * never unlinked here (COPY.md "Linked work").
+ * pull request menu (`pullRequestMenuTree`). A rolled-up item belongs to its child session: it
+ * opens that session and is never unlinked here (COPY.md "Linked work").
  */
 import {
   FolderGit2,
@@ -47,6 +47,8 @@ export interface SessionMenuLinkedWork {
   onLink?: () => void;
   /** Opens the session's full list. */
   onShowAll?: () => void;
+  /** Opens the child session a rolled-up item belongs to. */
+  onOpenSession?: (sessionId: string) => void;
 }
 
 interface LinkedWorkMenuOptions {
@@ -67,7 +69,8 @@ function itemActions(
   options: LinkedWorkMenuOptions,
   onLink?: () => void
 ): MenuTreeNode[] {
-  const { onRefresh, onUnlink } = work;
+  const { onRefresh, onUnlink, onOpenSession } = work;
+  const child = item.source_session_id;
   return pullRequestMenuTree({
     pullRequest: item.pull_request,
     branch: item.branch,
@@ -77,6 +80,7 @@ function itemActions(
     refreshing: work.refreshing,
     ...(onRefresh ? { onRefresh: () => onRefresh(item) } : {}),
     ...(onUnlink && !isRolledUp(item) ? { onUnlink: () => onUnlink(item) } : {}),
+    ...(onOpenSession && child ? { onOpenSession: () => onOpenSession(child) } : {}),
     ...(onLink ? { onLink } : {}),
     onCopy: options.onCopy,
     key: `${key}-`,

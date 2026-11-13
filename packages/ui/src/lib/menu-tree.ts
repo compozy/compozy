@@ -16,7 +16,10 @@ export type MenuTreeNode =
       kind: "item";
       destructive?: boolean;
       disabled?: boolean;
-      /** The current choice of a set (a folder, a profile): drawn with a check. */
+      /**
+       * Membership in a set of choices (a folder, a profile): `true` marks the current one, drawn
+       * with a check; every member is announced as a radio item. Leave unset outside a set.
+       */
       checked?: boolean;
       /** Native tooltip: why the item is unavailable, or what it will do. */
       title?: string;

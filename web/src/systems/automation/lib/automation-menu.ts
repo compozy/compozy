@@ -18,16 +18,16 @@ export type AutomationMenuTestIds = Partial<
   Record<"runNow" | "edit" | "editInConfig" | "inspect" | "copyId" | "delete", string>
 >;
 
-/** Copies a webhook automation's public link. */
+/** Copies a webhook automation's published public link. */
 function copyAutomationLink(view: AutomationView): void {
-  if (!view.webhookPath) return;
+  if (!view.publicUrl) return;
   const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
   if (!clipboard) {
     toast.error("Couldn't copy the link.");
     return;
   }
   void clipboard
-    .writeText(`${window.location.origin}${view.webhookPath}`)
+    .writeText(view.publicUrl)
     .then(() => toast.success("Copied link."))
     .catch(() => toast.error("Couldn't copy the link."));
 }
@@ -47,7 +47,7 @@ function copyAutomationId(view: AutomationView): void {
 /** The copies: behind Copy ▸ when there are several, else the single one in its place. */
 function copyNodes(view: AutomationView, testIds: AutomationMenuTestIds): MenuTreeNode[] {
   const copies: MenuTreeNode[] = [
-    ...(view.webhookPath
+    ...(view.publicUrl
       ? [
           {
             kind: "item",
@@ -76,7 +76,7 @@ function copyNodes(view: AutomationView, testIds: AutomationMenuTestIds): MenuTr
  * verbs the daemon supports for this kind and source (Business Rules 10–11): Run now for
  * schedules, Edit and Delete for automations created here, a disabled Edit in config.toml for a
  * config-owned one; Inspect and the copies for every automation, behind Copy ▸ only when there are
- * two (a webhook's link and its id).
+ * two (a live webhook's public link and its id).
  */
 export function automationMenuNodes(
   view: AutomationView,

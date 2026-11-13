@@ -20,11 +20,6 @@ export interface SessionRowMenuProps {
   readFolders?: boolean;
   /** Opens this session; Link another… and Show all need its window. */
   onOpen?: () => void;
-  /**
-   * Candidate parents read when the menu opens, for a host whose actions carry none (a board
-   * card reads the cards on the board); `actions.nestParents` otherwise.
-   */
-  nestParents?: () => readonly SessionPayload[];
 }
 
 /**
@@ -59,13 +54,8 @@ function SessionRowMenuTree({
   session,
   actions,
   host,
-  nestParents,
   ...options
 }: Omit<SessionRowMenuProps, "readFolders"> & SessionRowMenuOptions & { host: MenuTreeHost }) {
-  const nodes = useSessionRowMenuTree(
-    session,
-    nestParents ? { ...actions, nestParents: nestParents() } : actions,
-    options
-  );
+  const nodes = useSessionRowMenuTree(session, actions, options);
   return <MenuTreeItems host={host} nodes={nodes} />;
 }
