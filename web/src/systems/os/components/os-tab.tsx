@@ -22,6 +22,12 @@ import type { OsWindow } from "../lib/os-types";
 import type { TabSignal } from "../lib/tab-signal";
 import type { TabPresentation } from "../lib/tab-width";
 
+/**
+ * A tab names its trail only when the pointer rests on it, not while it passes or presses, in ms:
+ * an instant tooltip mounted and positioned its popup inside every tab press (E2E-023).
+ */
+const TAB_TOOLTIP_DELAY = 700;
+
 const TILE_HEIGHT = 20;
 const TILE_SHRINK = 2;
 
@@ -274,6 +280,7 @@ export function OsTab({
   return (
     <Tooltip>
       <TooltipTrigger
+        delay={TAB_TOOLTIP_DELAY}
         render={
           <div
             className={plateClassName(pinned, active, dwelling, dragging)}

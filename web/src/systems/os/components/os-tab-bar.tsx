@@ -6,16 +6,24 @@ import {
   DropdownMenuTrigger,
 } from "@compozy/ui";
 import { ChevronDown, Plus } from "@compozy/ui/icons";
-import { Fragment, type PointerEvent } from "react";
+import { shallowEqual } from "@xstate/store";
+import { useSelector } from "@xstate/store-react";
+import { Fragment, memo, type PointerEvent } from "react";
 
 import { cn } from "@/lib/utils";
 import type { SessionPayload } from "@/systems/session";
 
-import { useOsTabBar, type OsTabBarModel, type OsTabModel } from "../hooks/use-os-tab-bar";
-import { useOsTabDrag, useOsTabDragStart } from "../hooks/use-os-tab-drag";
-import { useTabBarRoving } from "../hooks/use-tab-bar-roving";
+import { OsTabBarContext } from "../contexts/os-tab-bar-context";
+import {
+  sameTabModel,
+  useOsTabBar,
+  type OsTabBarModel,
+  type OsTabModel,
+} from "../hooks/use-os-tab-bar";
+import { useOsTabDragStart } from "../hooks/use-os-tab-drag";
+import { useTabBarRoving, type TabRovingHandlers } from "../hooks/use-tab-bar-roving";
 import type { OsWindow } from "../lib/os-types";
-import type { TabDragState } from "../stores/os-tab-drag-store";
+import { osTabDragStore, type TabDragState } from "../stores/os-tab-drag-store";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { OsDragGhost } from "./os-drag-ghost";
 import { OsTab } from "./os-tab";
@@ -120,6 +128,78 @@ function barDragView(drag: TabDragState): OsTabBarDragView {
   };
 }
 
+interface OsTabBarEntryProps {
+  model: OsTabModel;
+  sessionOf: (win: OsWindow) => SessionPayload | undefined;
+  width: number | undefined;
+  dragging: boolean;
+  dwelling: boolean;
+  /** This tab is the bar's one roving tab stop. */
+  tabStop: boolean;
+  roving: TabRovingHandlers;
+  activate: (tabId: string) => void;
+  close: (tabId: string) => void;
+  onTabPointerDown?: (tabId: string, event: PointerEvent<HTMLElement>) => void;
+}
+
+/** Same tab facts and the same handlers: the tab shows nothing new. */
+function sameEntry(previous: OsTabBarEntryProps, next: OsTabBarEntryProps): boolean {
+  return (
+    sameTabModel(previous.model, next.model) &&
+    previous.sessionOf === next.sessionOf &&
+    previous.width === next.width &&
+    previous.dragging === next.dragging &&
+    previous.dwelling === next.dwelling &&
+    previous.tabStop === next.tabStop &&
+    previous.roving === next.roving &&
+    previous.activate === next.activate &&
+    previous.close === next.close &&
+    previous.onTabPointerDown === next.onTabPointerDown
+  );
+}
+
+/**
+ * One tab with its menu. The bar rebuilds every tab model when any tab changes; a tab whose own
+ * facts did not change (a switch changes two) keeps its render, and its tooltip and menu roots.
+ */
+const OsTabBarEntry = memo(function OsTabBarEntry({
+  model,
+  sessionOf,
+  width,
+  dragging,
+  dwelling,
+  tabStop,
+  roving,
+  activate,
+  close,
+  onTabPointerDown,
+}: OsTabBarEntryProps) {
+  const tabId = model.tab.id;
+  return (
+    <OsTabMenu model={model} sessionOf={sessionOf}>
+      <OsTab
+        tabId={tabId}
+        members={model.members}
+        pinned={model.tab.pinned}
+        active={model.active}
+        sessionOf={sessionOf}
+        width={width}
+        dragging={dragging}
+        dwelling={dwelling}
+        onActivate={() => activate(tabId)}
+        onClose={() => close(tabId)}
+        onPointerDown={event => onTabPointerDown?.(tabId, event)}
+        roving={{
+          ref: node => roving.register(tabId, node),
+          tabIndex: tabStop ? 0 : -1,
+          onFocus: () => roving.focus(tabId),
+          onKeyDown: event => roving.keyDown(event, tabId),
+        }}
+      />
+    </OsTabMenu>
+  );
+}, sameEntry);
+
 /**
  * The active desktop's one bar, on the chrome above the content. Pinned tabs lead, regular tabs
  * shrink to fit, then the new-tab button; when tabs hit the floor the strip scrolls and the
@@ -141,64 +221,62 @@ export function OsTabBarView({
 }) {
   const sessionOf = sessionLookup(bar.sessionById);
   const pinnedCount = bar.tabs.filter(model => model.tab.pinned).length;
-  const { tabProps, tablistProps, newTabRef } = useTabBarRoving(
+  const { tabStopId, handlers, tablistProps, newTabRef } = useTabBarRoving(
     bar.tabs.map(model => model.tab.id),
     bar.tabs.find(model => model.active)?.tab.id ?? null
   );
   return (
-    <div
-      className={cn("flex h-10 min-w-0 items-center gap-1 bg-rail pr-2 pl-1.5", className)}
-      data-slot="os-tab-bar"
-      // The bar box, not the `contents` tablist: strip, New tab and the overflow list live here.
-      data-testid="os-tab-bar"
-    >
+    <OsTabBarContext value={bar}>
       <div
-        ref={stripRef}
-        className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
-        data-slot="os-tab-strip"
+        className={cn("flex h-10 min-w-0 items-center gap-1 bg-rail pr-2 pl-1.5", className)}
+        data-slot="os-tab-bar"
+        // The bar box, not the `contents` tablist: strip, New tab and the overflow list live here.
+        data-testid="os-tab-bar"
       >
-        <div aria-label="Tabs" className="contents" role="tablist" {...tablistProps}>
-          {bar.tabs.map((model, index) => (
-            <Fragment key={model.tab.id}>
-              {drag.insertionIndex === index ? <OsTabInsertion /> : null}
-              {index === pinnedCount && pinnedCount > 0 ? (
-                <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-line-strong" />
-              ) : null}
-              <OsTabMenu bar={bar} model={model} sessionOf={sessionOf}>
-                <OsTab
-                  tabId={model.tab.id}
-                  members={model.members}
-                  pinned={model.tab.pinned}
-                  active={model.active}
+        <div
+          ref={stripRef}
+          className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+          data-slot="os-tab-strip"
+        >
+          <div aria-label="Tabs" className="contents" role="tablist" {...tablistProps}>
+            {bar.tabs.map((model, index) => (
+              <Fragment key={model.tab.id}>
+                {drag.insertionIndex === index ? <OsTabInsertion /> : null}
+                {index === pinnedCount && pinnedCount > 0 ? (
+                  <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-line-strong" />
+                ) : null}
+                <OsTabBarEntry
+                  model={model}
                   sessionOf={sessionOf}
                   width={bar.widthByTabId.get(model.tab.id)}
                   dragging={drag.draggingTabId === model.tab.id}
                   dwelling={drag.dwellingTabId === model.tab.id}
-                  onActivate={() => bar.activate(model.tab.id)}
-                  onClose={() => bar.close(model.tab.id)}
-                  onPointerDown={event => onTabPointerDown?.(model.tab.id, event)}
-                  roving={tabProps(model.tab.id)}
+                  tabStop={tabStopId === model.tab.id}
+                  roving={handlers}
+                  activate={bar.activate}
+                  close={bar.close}
+                  onTabPointerDown={onTabPointerDown}
                 />
-              </OsTabMenu>
-            </Fragment>
-          ))}
-          {drag.insertionIndex === bar.tabs.length ? <OsTabInsertion /> : null}
+              </Fragment>
+            ))}
+            {drag.insertionIndex === bar.tabs.length ? <OsTabInsertion /> : null}
+          </div>
+          <Button
+            ref={newTabRef}
+            type="button"
+            variant="quiet"
+            size="icon-sm"
+            aria-label={`New tab${bar.shortcutLabels.newTab ? ` (${bar.shortcutLabels.newTab})` : ""}`}
+            data-slot="os-tab-new"
+            className="size-6.75 shrink-0 rounded-sm text-fg-2"
+            onClick={bar.openNewTab}
+          >
+            <Plus aria-hidden="true" className="size-3.75" />
+          </Button>
         </div>
-        <Button
-          ref={newTabRef}
-          type="button"
-          variant="quiet"
-          size="icon-sm"
-          aria-label={`New tab${bar.shortcutLabels.newTab ? ` (${bar.shortcutLabels.newTab})` : ""}`}
-          data-slot="os-tab-new"
-          className="size-6.75 shrink-0 rounded-sm text-fg-2"
-          onClick={bar.openNewTab}
-        >
-          <Plus aria-hidden="true" className="size-3.75" />
-        </Button>
+        {bar.overflow ? <OsTabOverflow bar={bar} sessionOf={sessionOf} /> : null}
       </div>
-      {bar.overflow ? <OsTabOverflow bar={bar} sessionOf={sessionOf} /> : null}
-    </div>
+    </OsTabBarContext>
   );
 }
 
@@ -207,14 +285,15 @@ export type OsTabBarProps = { className?: string };
 /** The live tab bar bound to the shell's window manager, with its drags and their ghost. */
 export function OsTabBar({ className }: OsTabBarProps) {
   const { stripRef, ...bar } = useOsTabBar();
-  const drag = useOsTabDrag();
+  // Only what the bar shows of a drag: a press that never becomes a drag changes none of it.
+  const drag = useSelector(osTabDragStore, snapshot => barDragView(snapshot.context), shallowEqual);
   const { startTabDrag } = useOsTabDragStart();
   return (
     <>
       <OsTabBarView
         bar={bar}
         stripRef={stripRef}
-        drag={barDragView(drag)}
+        drag={drag}
         onTabPointerDown={startTabDrag}
         className={className}
       />

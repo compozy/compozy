@@ -5,7 +5,12 @@ import { useEffect, useState } from "react";
 import { type SessionPayload, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-import type { OsArrangePreset, OsCloseScope, OsWindow } from "../lib/os-types";
+import type {
+  OsArrangePreset,
+  OsCloseScope,
+  OsDesktopRuntimeStore,
+  OsWindow,
+} from "../lib/os-types";
 import { leadWindowId, resolveActiveTabId, tabWindowIds } from "../lib/tab-model";
 import { allocateTabWidths, type TabWidthAllocation } from "../lib/tab-width";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
@@ -38,18 +43,20 @@ export interface OsTabModel {
   members: readonly OsWindow[];
 }
 
+/** The same tab, active flag, lead and members (each window by identity): the tab shows the same. */
+export function sameTabModel(left: OsTabModel, right: OsTabModel): boolean {
+  return (
+    left.tab === right.tab &&
+    left.active === right.active &&
+    left.leadId === right.leadId &&
+    left.members.length === right.members.length &&
+    left.members.every((member, index) => member === right.members[index])
+  );
+}
+
 function sameTabModels(left: readonly OsTabModel[] | undefined, right: readonly OsTabModel[]) {
   if (left === undefined || left.length !== right.length) return false;
-  return left.every((model, index) => {
-    const other = right[index]!;
-    return (
-      model.tab === other.tab &&
-      model.active === other.active &&
-      model.leadId === other.leadId &&
-      model.members.length === other.members.length &&
-      model.members.every((member, memberIndex) => member === other.members[memberIndex])
-    );
-  });
+  return left.every((model, index) => sameTabModel(model, right[index]!));
 }
 
 /**
@@ -143,7 +150,6 @@ function useTabWidths(tabs: readonly OsTabModel[]) {
  * session facts for titles and signals, and every tab command the bar and its menu run.
  */
 export function useOsTabBar() {
-  const { manager, coordinator } = useOsShell();
   const tabs = useOsTabModels();
   const hasSession = tabs.some(model => model.members.some(member => member.app === "session"));
   const sessionById = useTabSessions(hasSession);
@@ -159,55 +165,87 @@ export function useOsTabBar() {
   }, shallowEqual);
   // Reopen is offered only while the closed list holds an entry (US-006.EC-4).
   const canReopen = useDesktop(state => (state.snapshot?.closedEntryCount ?? 0) > 0);
-  const activeLeadId = tabs.find(model => model.active)?.leadId ?? null;
-  const modelOf = (tabId: string) => tabs.find(model => model.tab.id === tabId);
+  const commands = useOsTabCommands();
 
+  return { tabs, sessionById, shortcutLabels, canReopen, ...widths, ...commands };
+}
+
+/**
+ * A tab's lead window and member count as the bar names them (`useOsTabModels`), read from the
+ * state a command runs against rather than the bar's last render.
+ */
+function tabLeadAt(
+  state: OsDesktopRuntimeStore,
+  tabId: string
+): { leadId: string; memberCount: number } | null {
+  for (const desktop of state.desktops) {
+    const tab = desktop.tabs.find(entry => entry.id === tabId);
+    if (tab === undefined) continue;
+    const leadId = leadWindowId(tab, state.client?.focusOrder ?? []);
+    const memberCount = tabWindowIds(tab).filter(id => state.windows[id] !== undefined).length;
+    return leadId === null || memberCount === 0 ? null : { leadId, memberCount };
+  }
+  return null;
+}
+
+/** The active desktop's active tab lead: where a New Tab opens after. */
+function activeLeadAt(state: OsDesktopRuntimeStore): string | null {
+  const desktop = state.desktops.find(entry => entry.id === state.activeDesktopId);
+  if (desktop === undefined) return null;
+  const activeTabId = state.activeTabIds[desktop.id] ?? resolveActiveTabId(desktop, null);
+  return activeTabId === null ? null : (tabLeadAt(state, activeTabId)?.leadId ?? null);
+}
+
+/**
+ * Every tab command the bar and its menu run. Each resolves its tab when it runs, so the
+ * commands keep their identity across switches and a tab whose own facts did not change does not
+ * re-render with the bar.
+ */
+function useOsTabCommands() {
+  const { manager, coordinator } = useOsShell();
+  const leadOf = (tabId: string) => tabLeadAt(manager.getState(), tabId);
   return {
-    tabs,
-    sessionById,
-    shortcutLabels,
-    canReopen,
-    ...widths,
     activate: (tabId: string) => {
-      const model = modelOf(tabId);
-      if (model) void coordinator.userFocus(model.leadId);
+      const lead = leadOf(tabId);
+      if (lead) void coordinator.userFocus(lead.leadId);
     },
     /** Closes the whole tab: its one window through the operator guard, or every split member. */
     close: (tabId: string) => {
-      const model = modelOf(tabId);
-      if (model === undefined) return;
-      if (model.members.length === 1) void coordinator.userClose(model.leadId);
-      else void manager.closeWindowScoped(model.leadId, "group");
+      const lead = leadOf(tabId);
+      if (lead === null) return;
+      if (lead.memberCount === 1) void coordinator.userClose(lead.leadId);
+      else void manager.closeWindowScoped(lead.leadId, "group");
     },
     closeScoped: (tabId: string, scope: Exclude<OsCloseScope, "tab" | "group">) => {
-      const model = modelOf(tabId);
-      if (model) void manager.closeWindowScoped(model.leadId, scope);
+      const lead = leadOf(tabId);
+      if (lead) void manager.closeWindowScoped(lead.leadId, scope);
     },
     pin: (tabId: string, pinned: boolean) => {
-      const model = modelOf(tabId);
-      if (model) manager.pinWindow(model.leadId, pinned);
+      const lead = leadOf(tabId);
+      if (lead) manager.pinWindow(lead.leadId, pinned);
     },
     moveToDesktop: (tabId: string, desktopId: string) => {
-      const model = modelOf(tabId);
-      if (model) manager.moveWindowToDesktop(model.leadId, desktopId);
+      const lead = leadOf(tabId);
+      if (lead) manager.moveWindowToDesktop(lead.leadId, desktopId);
     },
     /** "Move left" / "Move right": one step within the tab's pinned or unpinned range. */
     moveTab: (tabId: string, direction: "left" | "right") => {
-      const model = modelOf(tabId);
-      if (model) manager.moveTab(model.leadId, direction);
+      const lead = leadOf(tabId);
+      if (lead) manager.moveTab(lead.leadId, direction);
     },
     /** "Split with ▸": the chosen tab joins this one as a split, on the right. */
     splitWith: (tabId: string, chosenTabId: string) => manager.splitWithTab(tabId, chosenTabId),
     /** "Arrange ▸": one split tab from this tab's windows and one window of every other tab. */
     arrange: (tabId: string, preset: OsArrangePreset) => {
-      const model = modelOf(tabId);
-      if (model) manager.arrangeLayout(model.leadId, preset);
+      const lead = leadOf(tabId);
+      if (lead) manager.arrangeLayout(lead.leadId, preset);
     },
     /** "Balance sizes": evens every split of the tab. */
     balance: (tabId: string) => manager.balanceLayout({ tabId }),
     reopen: () => void manager.reopenWindow(),
     /** Opens a New Tab right after the active tab and raises its destination picker. */
     openNewTab: () => {
+      const activeLeadId = activeLeadAt(manager.getState());
       void coordinator
         .userOpen({ app: "new-tab", ...(activeLeadId ? { afterWindowId: activeLeadId } : {}) })
         .then(windowId => {

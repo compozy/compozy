@@ -1,10 +1,27 @@
-import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
 
 export interface TabRovingProps {
   ref: (node: HTMLButtonElement | null) => void;
   tabIndex: 0 | -1;
   onFocus: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+}
+
+/**
+ * The bar's per-tab roving handlers, taking the tab they act for. They keep their identity across
+ * renders, so a tab re-renders only when its own stop changes.
+ */
+export interface TabRovingHandlers {
+  register: (tabId: string, node: HTMLButtonElement | null) => void;
+  focus: (tabId: string) => void;
+  keyDown: (event: KeyboardEvent<HTMLButtonElement>, tabId: string) => void;
 }
 
 /** Focus handlers for the tablist itself: they see focus on any tab and on any close button. */
@@ -37,7 +54,12 @@ function plateTabId(node: EventTarget | null): string | null {
  * rests on something else, such as a window, a dialog or the palette, is never taken.
  */
 export function useTabBarRoving(tabIds: readonly string[], activeTabId: string | null) {
-  const tabRefs = new Map<string, HTMLButtonElement>();
+  const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  // The bar's order as last rendered, for the arrow keys: read when a key is pressed.
+  const tabOrder = useRef(tabIds);
+  useLayoutEffect(() => {
+    tabOrder.current = tabIds;
+  });
   const [rovingId, setRovingId] = useState<string>();
   // The tab whose plate or menu held focus last; null once focus left the bar for anything else.
   const lastFocusedId = useRef<string | null>(null);
@@ -63,7 +85,7 @@ export function useTabBarRoving(tabIds: readonly string[], activeTabId: string |
       // Hand focus on only when it fell to the document with the closed tab.
       if (focused !== null && focused !== document.body) return;
       const nextId = activeTabId !== null && present.has(activeTabId) ? activeTabId : tabIds[0];
-      const target = nextId === undefined ? undefined : tabRefs.get(nextId);
+      const target = nextId === undefined ? undefined : tabRefs.current.get(nextId);
       (target ?? newTabButton.current)?.focus();
     };
     handOff();
@@ -71,20 +93,21 @@ export function useTabBarRoving(tabIds: readonly string[], activeTabId: string |
   });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, tabId: string) => {
-    const position = tabIds.indexOf(tabId);
-    if (position < 0 || tabIds.length === 0) return;
+    const order = tabOrder.current;
+    const position = order.indexOf(tabId);
+    if (position < 0 || order.length === 0) return;
     // Modified arrows belong to the shell's shortcuts (directional focus, desktop switches).
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     let next: number | null = null;
-    if (event.key === "ArrowLeft") next = (position - 1 + tabIds.length) % tabIds.length;
-    if (event.key === "ArrowRight") next = (position + 1) % tabIds.length;
+    if (event.key === "ArrowLeft") next = (position - 1 + order.length) % order.length;
+    if (event.key === "ArrowRight") next = (position + 1) % order.length;
     if (event.key === "Home") next = 0;
-    if (event.key === "End") next = tabIds.length - 1;
+    if (event.key === "End") next = order.length - 1;
     if (next === null) return;
     event.preventDefault();
-    const target = tabIds[next]!;
+    const target = order[next]!;
     setRovingId(target);
-    tabRefs.get(target)?.focus();
+    tabRefs.current.get(target)?.focus();
   };
 
   const tablistProps: TablistFocusProps = {
@@ -103,17 +126,16 @@ export function useTabBarRoving(tabIds: readonly string[], activeTabId: string |
     },
   };
 
-  const tabProps = (tabId: string): TabRovingProps => ({
-    ref: node => {
-      if (node) tabRefs.set(tabId, node);
-      else tabRefs.delete(tabId);
+  const handlers: TabRovingHandlers = {
+    register: (tabId, node) => {
+      if (node) tabRefs.current.set(tabId, node);
+      else tabRefs.current.delete(tabId);
     },
-    tabIndex: tabId === tabStopId ? 0 : -1,
-    onFocus: () => setRovingId(tabId),
-    onKeyDown: event => handleKeyDown(event, tabId),
-  });
+    focus: tabId => setRovingId(tabId),
+    keyDown: handleKeyDown,
+  };
   const newTabRef = (node: HTMLButtonElement | null) => {
     newTabButton.current = node;
   };
-  return { tabProps, tablistProps, newTabRef };
+  return { tabStopId, handlers, tablistProps, newTabRef };
 }

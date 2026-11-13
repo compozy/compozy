@@ -9,10 +9,11 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@compozy/ui";
-import { useRef, type ReactNode } from "react";
+import { use, useRef, type ReactNode } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
+import { OsTabBarContext } from "../contexts/os-tab-bar-context";
 import type { OsTabBarModel, OsTabModel } from "../hooks/use-os-tab-bar";
 import { useWindowMoveTargets, type WindowMoveTarget } from "../hooks/use-window-move-targets";
 import { openContextMenuFromKeyboard } from "../lib/context-menu-keyboard";
@@ -238,24 +239,13 @@ function OsTabCloseItems({
 }
 
 /**
- * The tab's context menu: Pin, Move left / Move right, Split with ▸, Arrange ▸, Move to desktop ▸,
- * then the close set. An item that cannot apply is absent (a single tab has no Split with, the
- * first tab of its range no Move left, a bulk close that reaches no tab, Reopen with nothing
- * closed). Bulk closes skip pinned tabs; a pinned single-window tab has no Close item — Unpin
- * comes first.
+ * The menu's items, against the live bar. Mounted only while the menu shows, so the closed menu of
+ * every tab does not re-render with the bar's tab list.
  */
-export function OsTabMenu({
-  bar,
-  model,
-  sessionOf,
-  children,
-}: {
-  bar: OsTabBarModel;
-  model: OsTabModel;
-  sessionOf: SessionOf;
-  children: ReactNode;
-}) {
+function OsTabMenuItems({ model, sessionOf }: { model: OsTabModel; sessionOf: SessionOf }) {
+  const bar = use(OsTabBarContext);
   const moveTargets = useWindowMoveTargets();
+  if (bar === null) return null;
   const tabId = model.tab.id;
   const pinned = model.tab.pinned;
   const index = bar.tabs.findIndex(entry => entry.tab.id === tabId);
@@ -266,6 +256,49 @@ export function OsTabMenu({
   const canMoveRight = adjacentTabIndex(barTabs, tabId, "right") !== null;
   const others = bar.tabs.filter(entry => entry.tab.id !== tabId);
   const windowCount = bar.tabs.reduce((sum, entry) => sum + entry.members.length, 0);
+  return (
+    <>
+      <ContextMenuItem onClick={() => bar.pin(tabId, !pinned)}>
+        {pinned ? "Unpin tab" : "Pin tab"}
+      </ContextMenuItem>
+      {canMoveLeft ? (
+        <ContextMenuItem onClick={() => bar.moveTab(tabId, "left")}>Move left</ContextMenuItem>
+      ) : null}
+      {canMoveRight ? (
+        <ContextMenuItem onClick={() => bar.moveTab(tabId, "right")}>Move right</ContextMenuItem>
+      ) : null}
+      {others.length > 0 ? (
+        <OsTabSplitWithSub bar={bar} tabId={tabId} others={others} sessionOf={sessionOf} />
+      ) : null}
+      {windowCount > 1 ? (
+        <OsTabArrangeSub bar={bar} tabId={tabId} memberCount={model.members.length} />
+      ) : null}
+      {moveTargets.length > 0 ? (
+        <OsTabMoveToDesktopSub bar={bar} tabId={tabId} moveTargets={moveTargets} />
+      ) : null}
+      <ContextMenuSeparator />
+      <OsTabCloseItems bar={bar} tabId={tabId} closable={closable} reach={reach} />
+    </>
+  );
+}
+
+/**
+ * The tab's context menu: Pin, Move left / Move right, Split with ▸, Arrange ▸, Move to desktop ▸,
+ * then the close set. An item that cannot apply is absent (a single tab has no Split with, the
+ * first tab of its range no Move left, a bulk close that reaches no tab, Reopen with nothing
+ * closed). Bulk closes skip pinned tabs; a pinned single-window tab has no Close item — Unpin
+ * comes first. The items read the bar from `OsTabBarContext`.
+ */
+export function OsTabMenu({
+  model,
+  sessionOf,
+  children,
+}: {
+  model: OsTabModel;
+  sessionOf: SessionOf;
+  children: ReactNode;
+}) {
+  const tabId = model.tab.id;
   const plateRef = useRef<HTMLDivElement>(null);
   // Kept past unmount: the return focus is resolved while this popup is leaving the document.
   const popupRef = useRef<HTMLElement | null>(null);
@@ -291,26 +324,7 @@ export function OsTabMenu({
         }}
         finalFocus={() => tabReturnFocus(plateRef.current, popupRef.current)}
       >
-        <ContextMenuItem onClick={() => bar.pin(tabId, !pinned)}>
-          {pinned ? "Unpin tab" : "Pin tab"}
-        </ContextMenuItem>
-        {canMoveLeft ? (
-          <ContextMenuItem onClick={() => bar.moveTab(tabId, "left")}>Move left</ContextMenuItem>
-        ) : null}
-        {canMoveRight ? (
-          <ContextMenuItem onClick={() => bar.moveTab(tabId, "right")}>Move right</ContextMenuItem>
-        ) : null}
-        {others.length > 0 ? (
-          <OsTabSplitWithSub bar={bar} tabId={tabId} others={others} sessionOf={sessionOf} />
-        ) : null}
-        {windowCount > 1 ? (
-          <OsTabArrangeSub bar={bar} tabId={tabId} memberCount={model.members.length} />
-        ) : null}
-        {moveTargets.length > 0 ? (
-          <OsTabMoveToDesktopSub bar={bar} tabId={tabId} moveTargets={moveTargets} />
-        ) : null}
-        <ContextMenuSeparator />
-        <OsTabCloseItems bar={bar} tabId={tabId} closable={closable} reach={reach} />
+        <OsTabMenuItems model={model} sessionOf={sessionOf} />
       </ContextMenuContent>
     </ContextMenu>
   );
