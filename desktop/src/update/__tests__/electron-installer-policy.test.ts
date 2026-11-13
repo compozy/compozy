@@ -44,6 +44,7 @@ const operation: AppOperationState = {
 class FeedUpdater extends EventEmitter {
   feed: RecordedReleaseFeed | null = null;
   resolved: ResolvedUpdateFileInfo[] = [];
+  #checkedRelease = false;
   readonly #failures: { readonly channel: Error; readonly release?: Error };
   readonly #files: readonly string[];
 
@@ -66,7 +67,7 @@ class FeedUpdater extends EventEmitter {
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
     if (!this.feed) throw this.#failures.channel;
-    if (this.#failures.release) throw this.#failures.release;
+    this.#checkedRelease = true;
     const runtime: ProviderRuntimeOptions = {
       isUseMultipleRangeRequest: false,
       platform: "darwin",
@@ -79,6 +80,8 @@ class FeedUpdater extends EventEmitter {
   }
 
   async downloadUpdate(): Promise<string[]> {
+    // The recorded provider resolves locally; its release host is first contacted here.
+    if (this.#checkedRelease && this.#failures.release) throw this.#failures.release;
     return [...this.#files];
   }
 }
@@ -222,7 +225,7 @@ describe("electron installer feed policy", () => {
     expect(updater.feed).toBeNull();
   });
 
-  it("Should report both sources when the recorded release is unreachable too", async () => {
+  it("Should report both sources when the recorded release download fails too", async () => {
     const updater = new FeedUpdater(
       {
         channel: new Error("net::ERR_CONNECTION_CLOSED"),

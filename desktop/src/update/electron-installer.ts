@@ -68,7 +68,7 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
   ): Promise<DownloadedAppUpdate> {
     signal.throwIfAborted();
     this.#prepared = false;
-    const checked = await this.#checkRecordedRelease(operation, signal);
+    const { checked, feedError } = await this.#checkRecordedRelease(operation, signal);
     if (!checked?.isUpdateAvailable) {
       throw new Error("The update feed does not match the recorded app release.");
     }
@@ -98,6 +98,10 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
       paths = await this.#updater.downloadUpdate(cancellation);
       signal.throwIfAborted();
       await progressQueue;
+    } catch (error) {
+      signal.throwIfAborted();
+      // The recorded provider resolves locally, so an unreachable release fails here.
+      throw feedError ? bothSourcesFailed(feedError, error) : error;
     } finally {
       signal.removeEventListener("abort", cancel);
       this.#updater.off("download-progress", handleProgress);
@@ -120,29 +124,25 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
   async #checkRecordedRelease(
     operation: AppOperationState,
     signal: AbortSignal
-  ): Promise<UpdateCheckResult | null> {
-    let feedError: unknown;
+  ): Promise<{ checked: UpdateCheckResult | null; feedError: Error | null }> {
+    let feedError: Error;
     try {
       const checked = await this.#updater.checkForUpdates();
       signal.throwIfAborted();
-      return checked;
+      return { checked, feedError: null };
     } catch (error) {
       signal.throwIfAborted();
-      feedError = error;
+      feedError = asError(error);
     }
-    this.#onFeedFallback(asError(feedError));
+    this.#onFeedFallback(feedError);
     try {
       this.#updater.setFeedURL(recordedReleaseFeed(operation));
       const checked = await this.#updater.checkForUpdates();
       signal.throwIfAborted();
-      return checked;
+      return { checked, feedError };
     } catch (releaseError) {
       signal.throwIfAborted();
-      throw new AggregateError(
-        [feedError, releaseError],
-        "The update feed and the recorded app release could not be reached " +
-          `(${asError(feedError).message}; ${asError(releaseError).message}).`
-      );
+      throw bothSourcesFailed(feedError, releaseError);
     } finally {
       // Restores app-update.yml as the feed for the next check; the checked provider stays
       // bound to this download.
@@ -197,6 +197,14 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
     signal.throwIfAborted();
     this.#updater.quitAndInstall(false, true);
   }
+}
+
+function bothSourcesFailed(feedError: Error, releaseError: unknown): AggregateError {
+  return new AggregateError(
+    [feedError, releaseError],
+    "The update feed and the recorded app release could not be reached " +
+      `(${feedError.message}; ${asError(releaseError).message}).`
+  );
 }
 
 function asError(error: unknown): Error {
