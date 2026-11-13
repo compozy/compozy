@@ -35377,7 +35377,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Receipts committed atomically; source state unchanged */
+      /** @description Receipts committed atomically; bell layout-upgrade notices also acknowledged durably */
       204: {
         headers: {
           [name: string]: unknown;

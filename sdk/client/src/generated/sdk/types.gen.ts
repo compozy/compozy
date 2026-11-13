@@ -23436,7 +23436,7 @@ export type AcknowledgeAttentionNotificationsError =
 
 export type AcknowledgeAttentionNotificationsResponses = {
   /**
-   * Receipts committed atomically; source state unchanged
+   * Receipts committed atomically; bell layout-upgrade notices also acknowledged durably
    */
   204: void;
 };
