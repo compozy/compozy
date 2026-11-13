@@ -25,6 +25,7 @@ type memorySubagents struct {
 	rewrites           map[string]string
 	orphans            []string
 	committedAdmission bool
+	finalizeErrIDs     map[string]error
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -189,6 +190,9 @@ func (d *memorySubagents) FinalizeSubagent(
 ) (store.SessionSubagent, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if err := d.finalizeErrIDs[in.ID]; err != nil {
+		return store.SessionSubagent{}, false, err
+	}
 	row, ok := d.rows[in.ID]
 	if !ok {
 		return row, false, store.ErrSubagentNotFound

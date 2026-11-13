@@ -76,13 +76,14 @@ func (s *subagentService) Cancel(
 		return outcome, nil
 	}
 	// Freeze every live descendant before any stop signal can turn an
-	// in-flight delegation admission into a provider failure.
-	if err := s.cancelDescendants(ctx, *row.ChildSessionID); err != nil {
-		return SubagentCancelOutcome{}, err
-	}
-	// Canceling a subagent always retires its session, so the caller learns
-	// when the lane survived.
-	return outcome, s.stopChildSession(ctx, *row.ChildSessionID)
+	// in-flight delegation admission into a provider failure, and retire the
+	// child even when that cleanup fails: a canceled row must not leave a live
+	// session behind. Both steps own a bounded context, so a canceled request
+	// cannot cut the cleanup short.
+	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancelCleanup()
+	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
+	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
 }
 
 func (s *subagentService) stopCanceledChild(
@@ -93,7 +94,10 @@ func (s *subagentService) stopCanceledChild(
 	if row.ChildSessionID == nil {
 		return outcome, nil
 	}
-	return outcome, s.stopChildSession(ctx, *row.ChildSessionID)
+	cleanup, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancelCleanup()
+	descendantErr := s.cancelDescendants(cleanup, *row.ChildSessionID)
+	return outcome, errors.Join(descendantErr, s.stopChildSession(cleanup, *row.ChildSessionID))
 }
 
 // stopChildSession retires a child session with its own bounded context: the
