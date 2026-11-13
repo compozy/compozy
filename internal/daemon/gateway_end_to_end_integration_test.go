@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,23 @@ import (
 )
 
 const gatewayDaemonIntegrationTimeout = 10 * time.Second
+
+type lockedHostedMCPBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedHostedMCPBuffer) Write(payload []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(payload)
+}
+
+func (b *lockedHostedMCPBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
+}
 
 type gatewayEndToEndProviderEffects struct{}
 

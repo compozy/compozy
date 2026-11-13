@@ -3,7 +3,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	jsonv2 "encoding/json/v2"
