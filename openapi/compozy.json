@@ -28700,6 +28700,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "tree_parent_session_id": {
+            "type": "string"
+          },
           "type": {
             "enum": [
               "user",

@@ -7944,6 +7944,7 @@ export type SessionPayload = {
   subagent_summary?: SubagentSummaryPayload | null;
   supervision: SupervisionState | null;
   transcript_epoch?: number;
+  tree_parent_session_id?: string;
   type?: "user" | "system" | "coordinator" | "spawned";
   updated_at: string;
   verified?: boolean | null;

@@ -11,12 +11,18 @@ type SessionCatalogRelationsQuery struct {
 	SessionIDs      []string
 	ParentIDs       []string
 	ActiveIDs       []string
-	RepositoryKeys  map[string]string
+	// ContinuedSourceIDs are the sources of the page's continued sessions; each resolves
+	// to the parent its continuation chain started under (ContinuedTreeParents).
+	ContinuedSourceIDs []string
+	RepositoryKeys     map[string]string
 }
 
 type SessionCatalogRelations struct {
 	Children     map[string]SessionBoardCounts
 	ParentTitles map[string]string
+	// ContinuedTreeParents maps a continued session's source to the hierarchy parent of
+	// the first session in its continue chain; a chain that began top-level is absent.
+	ContinuedTreeParents map[string]string
 }
 
 type SessionCatalogRelationReader interface {

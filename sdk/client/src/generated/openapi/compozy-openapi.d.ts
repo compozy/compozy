@@ -16142,6 +16142,7 @@ export interface components {
       supervision: components["schemas"]["SupervisionState"] | null;
       /** Format: int64 */
       transcript_epoch?: number;
+      tree_parent_session_id?: string;
       /** @enum {string} */
       type?: "user" | "system" | "coordinator" | "spawned";
       /** Format: date-time */

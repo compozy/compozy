@@ -5289,6 +5289,73 @@ func TestManagerBoardCatalog(t *testing.T) {
 			t.Fatalf("detail rollup = %#v, want the page rollup", counts)
 		}
 	})
+	t.Run("Should place continued children under their predecessor's parent in catalog reads", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		create := func(name, parentID string, kind store.LineageKind) *Session {
+			t.Helper()
+			opts := CreateOpts{AgentName: "coder", Name: name, Workspace: h.workspaceID}
+			if parentID != "" {
+				opts.Lineage = &store.SessionLineage{ParentSessionID: parentID, Kind: kind}
+				if kind.Derived() {
+					opts.Lineage.OriginAgentName = "coder"
+				}
+			}
+			created, err := h.manager.Create(ctx, &opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return created
+		}
+		// A conductor's worker interrupted by a daemon restart and continued twice, beside a
+		// continued top-level session: lineage keeps naming each predecessor as the source.
+		conductor := create("Conductor", "", "")
+		worker := create("Worker", conductor.ID, store.LineageKindProvenance)
+		continued := create("Worker (continued)", worker.ID, store.LineageKindContinue)
+		continuedAgain := create("Worker (continued 2)", continued.ID, store.LineageKindContinue)
+		topLevel := create("Top-level (continued)", conductor.ID, store.LineageKindContinue)
+		page, err := h.manager.ListPage(ctx, ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := make(map[string]*Info, len(page.Sessions))
+		for _, info := range page.Sessions {
+			byID[info.ID] = info
+		}
+		want := map[string]string{
+			conductor.ID: "", worker.ID: "", continued.ID: conductor.ID,
+			continuedAgain.ID: conductor.ID, topLevel.ID: "",
+		}
+		for id, parent := range want {
+			info := byID[id]
+			if info == nil || info.TreeParentSessionID != parent {
+				t.Fatalf("session %s tree parent = %#v, want %q", id, info, parent)
+			}
+		}
+		if got := byID[continuedAgain.ID].Lineage.ParentSessionID; got != continued.ID {
+			t.Fatalf("continued source = %q, want the predecessor %q", got, continued.ID)
+		}
+		// Governance is unchanged: continuations never count among the parent's children.
+		if counts := byID[conductor.ID].Children; counts == nil || counts.Total() != 1 {
+			t.Fatalf("conductor children = %#v, want only the worker", counts)
+		}
+		detail := continuedAgain.Info()
+		if err := h.manager.PopulateSessionRelations(ctx, detail); err != nil ||
+			detail.TreeParentSessionID != conductor.ID {
+			t.Fatalf("continued detail tree parent = %q, error = %v", detail.TreeParentSessionID, err)
+		}
+	})
 }
 
 func (r *pullRequestQueryReader) DefaultBranchNames(context.Context, store.ReadScope, []string) map[string][]string {
