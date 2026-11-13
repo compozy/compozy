@@ -51,6 +51,7 @@ import { windowManagerStore } from "../../stores/window-manager-store";
 import { osTabDragStore } from "../../stores/os-tab-drag-store";
 import { useOsSplitSeam } from "../use-os-split-seam";
 import { useOsTabDragStart } from "../use-os-tab-drag";
+import { TAB_DRAG_EXIT_PX } from "../../lib/drop-edge";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
@@ -1681,6 +1682,52 @@ describe("useOsTabDragStart pointer gestures", () => {
       expectedRevision: SNAPSHOT.revision,
       rebase: { windowId: "window:b" },
     });
+  });
+
+  it("UT-035: a tab stays a bar reorder within the exit band and leaves the bar past it", () => {
+    const { shell, tabs } = renderTabBar();
+    // The content under the bar: a pointer that leaves the band lands here.
+    const layer = document.createElement("div");
+    layer.dataset.slot = "os-desk-layer";
+    layer.getBoundingClientRect = () => new DOMRect(0, 30, 300, 500);
+    document.body.append(layer);
+    const barBottom = 30;
+
+    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 5, clientX: 50, clientY: 15 });
+    fireEvent.pointerMove(window, {
+      pointerId: 5,
+      clientX: 260,
+      clientY: barBottom + TAB_DRAG_EXIT_PX,
+    });
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({
+      phase: "dragging",
+      mode: "reorder",
+      insertionIndex: 3,
+      target: { kind: "reorder", index: 2 },
+      contentTabId: "tab:a",
+    });
+
+    fireEvent.pointerMove(window, {
+      pointerId: 5,
+      clientX: 260,
+      clientY: barBottom + TAB_DRAG_EXIT_PX + 1,
+    });
+    // Past the band the dragged active tab previews the neighbour it would split into.
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({
+      phase: "dragging",
+      mode: "split",
+      insertionIndex: null,
+      contentTabId: "tab:b",
+    });
+
+    fireEvent.pointerUp(window, {
+      pointerId: 5,
+      clientX: 260,
+      clientY: barBottom + TAB_DRAG_EXIT_PX + 1,
+    });
+    // No reorder leaves once the tab left the bar.
+    expect(shell.controller.reorderTab).not.toHaveBeenCalled();
+    layer.remove();
   });
 
   const onHeadBack = vi.fn();

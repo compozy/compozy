@@ -1331,53 +1331,67 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should focus an existing same-route window instead of navigating without a route change", async () => {
+  it("[UT-003] Should focus an already open single-instance window and make its tab the caller's active tab instead of opening another", async () => {
     const queryClient = new QueryClient();
+    const tasksRoute = {
+      pathname: "/tasks",
+      search: { filters: { owner: "me", state: "open" }, panel: "activity" },
+    };
+    // Two tabs; the caller starts on Vault, so the Tasks tab is not the active one.
     const snapshot: WindowManagerSnapshot = {
       ...SNAPSHOT,
-      desktops: tabsOnDesktopOne(SNAPSHOT.desktops, ["app:tasks"]),
+      desktops: tabsOnDesktopOne(SNAPSHOT.desktops, ["app:tasks", "app:vault"]),
       windows: {
-        "app:tasks": {
-          id: "app:tasks",
-          app: "tasks",
-          instanceKey: null,
-          route: {
-            pathname: "/tasks",
-            search: { filters: { owner: "me", state: "open" }, panel: "activity" },
-          },
-          navStack: [],
-          desktopId: "desktop:one",
-          tabId: tabIdFor("app:tasks"),
-        },
+        "app:tasks": testWindow("app:tasks", "tasks", tasksRoute),
+        "app:vault": testWindow("app:vault", "vault"),
       },
     };
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
-    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-    vi.mocked(executeWindowManagerCommand).mockReturnValue(
-      new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
-    );
-    const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
-    runtime.setClient({
+    const client = {
       ...CLIENT_VIEW_DEFAULTS,
       workspaceId: "workspace:test",
+      profileId: "marketing",
       clientId: "client:web",
       presentationRevision: 1,
       activeDesktopId: "desktop:one",
-      focusedWindowId: null,
-      focusOrder: [],
+      focusedWindowId: "app:vault",
+      focusOrder: ["app:vault"],
       connectedAt: "2026-07-22T00:00:00Z",
+    };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    // The daemon focuses the window: same topology, the caller's active tab moves to Tasks.
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 8 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES, clientIds: ["client:web"] },
+      diagnostics: [],
+      client: {
+        ...client,
+        presentationRevision: 2,
+        focusedWindowId: "app:tasks",
+        focusOrder: ["app:tasks", "app:vault"],
+        activeTab: { "desktop:one": tabIdFor("app:tasks") },
+      },
+      deprecations: [],
+      rebasedFrom: null,
     });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.start();
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient(client);
+    expect(runtime.getState().activeTabIds["desktop:one"]).toBe(tabIdFor("app:vault"));
 
-    runtime.openOrFocus({
+    const outcome = runtime.openOrFocus({
       app: "tasks",
       route: {
         pathname: "/tasks",
         search: { panel: "activity", filters: { state: "open", owner: "me" } },
       },
     });
-    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
-    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+
+    await expect(outcome.completion).resolves.toBe(true);
+    // One focus of the existing window, never a second open.
+    expect(executeWindowManagerCommand).toHaveBeenCalledExactlyOnceWith(
       "workspace:test",
       "marketing",
       "client:web",
@@ -1389,6 +1403,11 @@ describe("WindowManagerRuntime", () => {
       },
       expect.any(AbortSignal)
     );
+    const state = runtime.getState();
+    expect(Object.keys(state.windows).sort()).toEqual(["app:tasks", "app:vault"]);
+    expect(state.desktops.find(desktop => desktop.id === "desktop:one")?.tabs).toHaveLength(2);
+    expect(state.activeTabIds["desktop:one"]).toBe(tabIdFor("app:tasks"));
+    expect(state.focusedId).toBe("app:tasks");
     runtime.stop();
   });
 
