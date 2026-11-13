@@ -606,9 +606,16 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 				counts["stack_arrangement"]++
 			}
 			if _, status := properties["acknowledged"]; status {
+				node["description"] = "Layout migration status. A conversion diagnostic is present in error only " +
+					"when state is failed; a successful retry clears error."
 				properties["state"].(map[string]any)["enum"] = []any{"none", "migrated", "failed"}
 				properties["failure_revision"].(map[string]any)["description"] =
 					"Topology revision installed on conversion failure; cleared after a successful retry."
+				properties[windowManagerSupersededBackupsKey] = map[string]any{
+					"type":        "integer",
+					"minimum":     float64(0),
+					"description": "Number of set-aside layout backups currently retained for this profile; omitted when zero.",
+				}
 				counts["migration_status"]++
 			}
 			if _, action := properties["action"]; action {
@@ -664,7 +671,7 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 		"migration_request":  1,
 		"floating_placement": 1,
 		"stack_arrangement":  1,
-		"migration_status":   11,
+		"migration_status":   11, // Seven inline route statuses and four component statuses.
 		"floating":           1,
 		"floating_rect":      3,
 		"restore_window_id":  1,
