@@ -42,6 +42,11 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 	if digest := schema.Properties["expected_digest"]; digest != nil && digest.Value != nil {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}
+	if replace := schema.Properties["replace"]; replace != nil && replace.Value != nil {
+		replace.Value.Default = false
+		replace.Value.Description = "Replace an installed extension of the same name. " +
+			"The previous version stays installed when the replacement fails."
+	}
 }
 
 func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {

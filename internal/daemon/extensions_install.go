@@ -96,6 +96,13 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	}
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
+	installOpts := []extensionpkg.InstallOption{
+		extensionpkg.WithInstallProvenance(provenance),
+		extensionpkg.WithInstallScope(target.scope),
+	}
+	if req.Replace {
+		installOpts = append(installOpts, extensionpkg.WithInstallReplaceExisting())
+	}
 	return preparedDaemonExtensionInstall{
 		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
 		commit: func() error {
@@ -105,8 +112,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 				manifest,
 				req.Ref,
 				checksum,
-				extensionpkg.WithInstallProvenance(provenance),
-				extensionpkg.WithInstallScope(target.scope),
+				installOpts...,
 			)
 		},
 	}, nil
