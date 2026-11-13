@@ -100,6 +100,22 @@ describe("takeUntoldLayoutUpgrades", () => {
     expect(takeUntoldLayoutUpgrades([row], new Set())).toEqual([row]);
   });
 
+  it("Should never forget an occurrence the list still holds, and drop the ones that left it", () => {
+    const listed = Array.from({ length: 70 }, (_, index) => layoutUpgrade(`occ-${index}`));
+    expect(takeUntoldLayoutUpgrades(listed, new Set())).toHaveLength(70);
+
+    // A reload with more unread upgrade items than any fixed cap: none toasts again.
+    expect(takeUntoldLayoutUpgrades(listed, new Set())).toEqual([]);
+
+    // The first was read and left the list; a new one arrives.
+    const next = layoutUpgrade("occ-70");
+    expect(takeUntoldLayoutUpgrades([...listed.slice(1), next], new Set())).toEqual([next]);
+    const stored: string[] = JSON.parse(localStorage.getItem("compozy.layout-upgrade.toasted")!);
+    expect(stored).toHaveLength(70);
+    expect(stored).not.toContain("occ-0");
+    expect(stored).toContain("occ-70");
+  });
+
   it("Should keep telling once per page when storage is unreadable", () => {
     localStorage.setItem("compozy.layout-upgrade.toasted", "{not json");
     const told = new Set<string>();
