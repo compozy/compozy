@@ -42,11 +42,13 @@ tab before asserting its permission dock; session close uses the canonical tab-a
 The prior CI artifacts showed an obsolete automatic-window expectation and hidden-tab controls.
 Validation remains CI-only under the operator's parallel-execution restriction.
 
-CI journey alignment (#1547): `terminal-agent.spec.ts` E2E-003 asserts that an approved
-agent exec does not create a desktop window or steal session focus, then explicitly
-opens its exact terminal and checks output before releasing a stdin barrier. It
-verifies successful exit and retained output through `terminal_wait`, expects the
-agent terminal window to retire, then reopens Terminal to check journal provenance.
+CI journey alignment (#1547, #1546): `terminal-agent.spec.ts` E2E-003 first observes the
+approved agent exec's live output, then asserts that it created no desktop window and did
+not steal session focus. It explicitly opens the exact terminal, asserts exactly one window
+for that terminal identity, and releases a stdin barrier. It verifies successful exit and
+retained output through `terminal_wait`, then expects zero windows for that terminal
+identity. Only after release and retirement does it poll the journal for the approved
+command and open its row from a separate live Terminal window.
 A fixed sleep must not race window opening against the intentional exit retirement.
 E2E-005 restores the owning session before its approval when Terminal is the active
 tab; E2E-008 closes only the conversation tab, keeping the terminal available for the

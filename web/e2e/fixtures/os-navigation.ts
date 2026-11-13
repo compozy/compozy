@@ -118,7 +118,13 @@ async function authorityWindow(page: Page, win: Locator): Promise<Locator> {
   }
   const appSelector = `[data-slot="os-window-surface"][data-app="${escapeAttributeValue(app)}"]`;
   if (instanceKey === null) {
-    return page.locator(appSelector).filter({ visible: true });
+    // A keyless window has no authority identity besides its opaque ID. Pin
+    // it so the target never resolves to a sibling of the same app (keyed or
+    // merely visible), and keeps matching if a retarget assigns it a key
+    // (an id-less Terminal adopting a PTY) while the palette opens.
+    return page.locator(
+      `${appSelector}[data-testid="os-window-${escapeAttributeValue(await windowID(win))}"]`
+    );
   }
   return page.locator(`${appSelector}[data-instance-key="${escapeAttributeValue(instanceKey)}"]`);
 }
@@ -136,9 +142,10 @@ export async function focusWindowThroughPalette(page: Page, win: Locator): Promi
   await page.keyboard.press("ControlOrMeta+K");
   const palette = page.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
-  // Opening the palette can reconcile and rematerialize a window. Resolve its
-  // opaque identity only after that transition through its stable app/instance
-  // identity, so the tab row and surface share the same authority snapshot.
+  // Opening the palette can reconcile and rematerialize a keyed window. Resolve
+  // its opaque identity only after that transition through its stable
+  // app/instance identity, so the tab row and surface share the same authority
+  // snapshot. A keyless target is already pinned to its opaque ID.
   await expect(target).toBeAttached();
   const id = await windowID(target);
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
