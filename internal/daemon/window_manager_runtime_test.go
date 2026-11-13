@@ -1305,7 +1305,7 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 
 // IT-014: real manager commits feed the daemon bridge and async hook dispatch.
 func TestWindowManagerTabHookTransitions(t *testing.T) {
-	t.Run("Should dispatch split unsplit and dual activation hooks from real commits", func(t *testing.T) {
+	t.Run("Should preserve split hooks across whole-tab desktop moves and dual activation", func(t *testing.T) {
 		t.Parallel()
 		observed := make(chan hookspkg.WindowManagerPayload, 8)
 		declarations := []hookspkg.HookDecl{}
@@ -1416,6 +1416,12 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 			},
 			nil,
 		)
+		execute(windowmanager.CreateDesktopCommand{DesktopID: "destination", Name: "Destination"}, nil)
+		execute(windowmanager.MoveWindowCommand{
+			WindowID: "window-a", DestinationDesktopID: "destination", MoveGroup: true,
+			Placement: windowmanager.DropTab,
+		}, nil)
+		desktop = "destination"
 		execute(
 			windowmanager.MoveWindowCommand{
 				WindowID:             "window-b",

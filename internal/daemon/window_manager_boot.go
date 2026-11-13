@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -72,6 +73,7 @@ func (d *Daemon) bootWindowManager(
 		windowManagerDefaults(state.cfg.WindowManager),
 		state.logger,
 		windowmanager.WithLifecycleContext(ctx),
+		windowmanager.WithRegisteredApps(corecmds.RegisteredApp),
 		windowmanager.WithAppDeprecationObserver(
 			windowManagerAppDeprecationLogger(state.logger, &deprecatedWindowApps),
 		),

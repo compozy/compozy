@@ -75,7 +75,7 @@ func TestEffectiveConfig(t *testing.T) {
 }
 
 func TestCanonicalShortcutsV2(t *testing.T) {
-	t.Run("Should decode scalar and array bindings from JSON [UT-035,UT-036]", func(t *testing.T) {
+	t.Run("Should decode scalar and array bindings from JSON", func(t *testing.T) {
 		t.Parallel()
 
 		for raw, want := range map[string]ShortcutBinding{
@@ -99,7 +99,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should canonicalize scalar and array bindings without aliasing [UT-035,UT-036]", func(t *testing.T) {
+	t.Run("Should canonicalize scalar and array bindings without aliasing", func(t *testing.T) {
 		t.Parallel()
 		overrides := map[string]ShortcutBinding{
 			"window.close": {" Shift + Alt + CONTROL + Meta + KeyQ ", "alt+KeyW"},
@@ -118,7 +118,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expand desktop ranges and keep tab jumps capped at eight [UT-037,UT-038]", func(t *testing.T) {
+	t.Run("Should expand desktop ranges and keep tab jumps capped at eight", func(t *testing.T) {
 		t.Parallel()
 		canonical, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
 			"desktop.switch": {"control+Digit1..9"},
@@ -145,7 +145,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should diagnose duplicate chords across and within arrays [UT-039,UT-040]", func(t *testing.T) {
+	t.Run("Should diagnose duplicate chords across and within arrays", func(t *testing.T) {
 		t.Parallel()
 		across := map[string]ShortcutBinding{
 			"window.close":      {"alt+KeyQ", "control+KeyQ"},
@@ -162,7 +162,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should replace a family with an exact partial range [UT-041]", func(t *testing.T) {
+	t.Run("Should replace a family with an exact partial range", func(t *testing.T) {
 		t.Parallel()
 		effective, err := EffectiveKeymap(map[string]ShortcutBinding{
 			"desktop.switch": {"meta+control+Digit1..4"},
@@ -181,7 +181,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should name the exact expanded member in a shadowed collision [UT-042,UT-045]", func(t *testing.T) {
+	t.Run("Should name the exact expanded member in a shadowed collision", func(t *testing.T) {
 		t.Parallel()
 		_, err := EffectiveKeymap(map[string]ShortcutBinding{
 			"window.close": {"control+Digit3"},
@@ -192,7 +192,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should own every v2 action in immutable daemon defaults [UT-043]", func(t *testing.T) {
+	t.Run("Should own every supported action in immutable daemon defaults", func(t *testing.T) {
 		t.Parallel()
 		defaults := DefaultKeymap()
 		for _, action := range []string{
@@ -212,7 +212,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject unknown actions and allow explicit disables [UT-044,UT-046]", func(t *testing.T) {
+	t.Run("Should reject unknown actions and allow explicit disables", func(t *testing.T) {
 		t.Parallel()
 		if _, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
 			"window.teleport": {"meta+KeyT"},
@@ -231,7 +231,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should accept an extension command supplied by the catalog [UT-070]", func(t *testing.T) {
+	t.Run("Should accept an extension command supplied by the catalog", func(t *testing.T) {
 		t.Parallel()
 
 		bindable := DefaultBindableIDs()
@@ -247,7 +247,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
-	t.Run("Should bind free extension defaults and keep conflicts dormant [UT-075,UT-076]", func(t *testing.T) {
+	t.Run("Should bind free extension defaults and keep conflicts dormant", func(t *testing.T) {
 		t.Parallel()
 		bindable := DefaultBindableIDs()
 		bindable["ext.notes.capture"] = struct{}{}
@@ -271,7 +271,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 	})
 
 	t.Run(
-		"Should let core and user bindings win while preserving dormant defaults [UT-076,UT-077]",
+		"Should let core and user bindings win while preserving dormant defaults",
 		func(t *testing.T) {
 			t.Parallel()
 			bindable := DefaultBindableIDs()
@@ -318,7 +318,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		},
 	)
 
-	t.Run("Should drop a conflicting dead stored command with a diagnostic [UT-074]", func(t *testing.T) {
+	t.Run("Should drop a conflicting dead stored command with a diagnostic", func(t *testing.T) {
 		t.Parallel()
 
 		effective, diagnostics, err := TolerantEffectiveKeymap(map[string]ShortcutBinding{

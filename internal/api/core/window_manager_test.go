@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
@@ -93,6 +94,35 @@ func TestWindowManagerHandlers(t *testing.T) {
 		)
 		if errorPayload.CurrentRevision == nil || *errorPayload.CurrentRevision != 1 {
 			t.Fatalf("current_revision = %v", errorPayload.CurrentRevision)
+		}
+	})
+
+	t.Run("Should reject unknown apps while translating retired app IDs on open", func(t *testing.T) {
+		t.Parallel()
+		for _, app := range []string{"unknown-window-app", "jobs"} {
+			f := newWindowManagerHandlerFixture(t)
+			payload := fmt.Sprintf(
+				`{"window":{"id":"app-window","app":%q,"route":{"pathname":"/jobs","search":{}},"desktop_id":"desktop-default"}}`,
+				app,
+			)
+			response := performWindowManagerTestRequest(t, f.router, http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", 0, "window.open", payload))
+			if app == "unknown-window-app" {
+				requireWindowManagerError(t, response, http.StatusUnprocessableEntity,
+					contract.WindowManagerErrorInvalidCommand)
+				snapshot, err := f.manager.Snapshot(t.Context(), "workspace-a")
+				if err != nil || snapshot.Revision != 0 || snapshot.Windows["app-window"].ID != "" {
+					t.Fatalf("rejected app changed topology: %+v error=%v", snapshot, err)
+				}
+				continue
+			}
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var result contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, response, &result)
+			if result.Snapshot.Windows["app-window"].App != "automations" {
+				t.Fatalf("retired app was not translated: %+v", result.Snapshot.Windows["app-window"])
+			}
 		}
 	})
 
@@ -991,6 +1021,7 @@ func newWindowManagerHandlerFixtureWithRepository(
 		windowmanager.NewMemoryWorkspaceResolver("workspace-a", "workspace-b"),
 		nil,
 		config,
+		windowmanager.WithRegisteredApps(corecmds.RegisteredApp),
 		windowmanager.WithClock(func() time.Time { return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC) }),
 		windowmanager.WithIDGenerator(func(kind string) (string, error) {
 			return fmt.Sprintf("%s-%03d", kind, sequence.Add(1)), nil

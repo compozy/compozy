@@ -3,9 +3,21 @@ package windowmanager
 import (
 	"context"
 	"errors"
+	"log/slog"
 )
 
 const deprecationMoveToTab = `window.move with placement "tab"`
+
+// WarnSurfaceDeprecation shares the boundary log shape through v0.8.0.
+// The caller owns warning deduplication for its lifetime.
+func WarnSurfaceDeprecation(ctx context.Context, logger *slog.Logger, entry Deprecation, actorKind string) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.WarnContext(ctx, "window_manager.deprecated_surface_used", "surface", entry.Surface,
+		"replacement", entry.Replacement, "actor_kind", actorKind, "removal_release", entry.RemovalRelease,
+		"message", entry.Message)
+}
 
 type DeprecationObserver func(context.Context, CommandRequest, []Deprecation)
 
@@ -22,6 +34,14 @@ func WithDeprecationObserver(observer DeprecationObserver) Option {
 type deprecationGuidance struct{ replacement, message string }
 
 var retiredSurfaceGuidance = map[string]deprecationGuidance{
+	"window.minimize": {
+		"window.close",
+		"Minimize was removed. The window remains open; close it when finished.",
+	},
+	"window.merge_all": {
+		deprecationMoveToTab,
+		"Stacks were removed. Move windows to adjacent tabs instead.",
+	},
 	"window.toggle_floating": {
 		deprecationMoveToTab,
 		"Floating windows were removed. Open or move a window to a tab instead.",
