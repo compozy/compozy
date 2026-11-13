@@ -3279,6 +3279,9 @@ func bootDetachedHarnessIntegrationDaemon(
 ) *Daemon {
 	t.Helper()
 
+	// Current-policy lookup requires the target definition even when no HEARTBEAT.md exists.
+	writeDaemonIntegrationAgentDef(t, homePaths, "coder", daemonSessionStopHelperCommand(t))
+
 	if sessions == nil {
 		sessions = &fakeSessionManager{}
 	}
