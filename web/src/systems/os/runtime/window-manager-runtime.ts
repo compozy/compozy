@@ -21,6 +21,7 @@ import type {
   FocusDirection,
   FocusWindowOptions,
   PixelRect,
+  WindowManagerCommandId,
   WindowManagerCommandInput,
 } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
@@ -29,6 +30,18 @@ import { windowManagerStore } from "../stores/window-manager-store";
 import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
 import { WindowManagerDesktopRuntime } from "./window-manager-desktop-commands";
 import { WindowManagerSemanticOpenCoordinator } from "./window-manager-semantic-open";
+
+/** Commands that never move a window within the shown tab: the pending-swap overlay survives. */
+const LAYOUT_PRESERVING_COMMANDS: ReadonlySet<WindowManagerCommandId> = new Set([
+  "window.swap",
+  "window.focus",
+  "window.navigate",
+  "window.pin",
+  "window.tab.reorder",
+  "desktop.create",
+  "desktop.update",
+  "desktop.reorder",
+]);
 
 export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements OsDesktopRuntime {
   private readonly semanticOpens: WindowManagerSemanticOpenCoordinator;
@@ -106,14 +119,13 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   private pendingSwaps: Array<{ first: string; second: string; firstRect: PixelRect }> = [];
 
   /**
-   * Any other command sent after unanswered swaps (an undo, a move, a tile, an arrange) runs after
-   * them and changes the layout in ways this client cannot predict, so the overlay is dropped and
-   * directional input reads the shown layout again.
+   * A command that can change the shown layout (an undo, a move, a tile, an arrange, a close, a
+   * tab or desktop change) runs after the unanswered swaps in ways this client cannot predict, so
+   * the overlay is dropped and directional input reads the shown layout again. Commands that leave
+   * window places alone keep it.
    */
   protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
-    if (command.commandId !== "window.swap" && command.commandId !== "window.focus") {
-      this.pendingSwaps = [];
-    }
+    if (!LAYOUT_PRESERVING_COMMANDS.has(command.commandId)) this.pendingSwaps = [];
     return super.dispatch(command);
   }
 
