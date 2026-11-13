@@ -549,6 +549,11 @@ describe("WindowManagerRuntime", () => {
         windowManagerKeys.snapshot("workspace:test", "marketing"),
         focusSnapshot
       );
+      // A second workspace the runtime can rebind to.
+      queryClient.setQueryData(
+        windowManagerKeys.snapshot("workspace:other", "marketing"),
+        focusSnapshot
+      );
       queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
       const runtime = new WindowManagerRuntime(queryClient);
       runtime.start();
@@ -711,30 +716,46 @@ describe("WindowManagerRuntime", () => {
       expect(sentCommands()).toEqual(["focus app:a", "focus app:a"]);
     });
 
-    it("Should drop an answer from a binding the runtime left instead of holding it [R9-03]", async () => {
+    it("Should keep the new binding's held view when an answer from the binding it left arrives [R9-03, AS-F-16]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startRuntime();
       const adopted = vi.fn();
       runtime.onHeldClientAdopted(adopted);
+      const inOther = (view: ReturnType<typeof focusedView>) => ({
+        ...view,
+        workspaceId: "workspace:other",
+      });
 
+      // Workspace X (workspace:test) has a click in flight.
       const left = runtime.focusWindow("app:a", REPLACEABLE);
       await vi.waitFor(() => expect(answers).toHaveLength(1));
-      runtime.focusWindow("app:b", REPLACEABLE);
-      // The runtime rebinds while app:a is in flight; the new binding starts from revision 1.
-      runtime.unbind();
+      // The runtime binds workspace Y and queues Y's own click behind X's.
       runtime.bind({
-        workspaceId: "workspace:test",
+        workspaceId: "workspace:other",
         profileId: "marketing",
         clientId: "client:web",
       });
-      runtime.setClient(baseClient);
-      answers[0]!(answer(focusedView("app:a", 40)));
-
+      runtime.setClient(inOther(focusedView("app:c", 1)));
+      const click = runtime.focusWindow("app:b", REPLACEABLE);
+      // X's answer lands at a revision far above Y's.
+      answers[0]!(answer(focusedView("app:a", 100)));
       await expect(left.completion).resolves.toBe(false);
-      expect(adopted).not.toHaveBeenCalled();
-      expect(runtime.getState().client?.presentationRevision).toBe(1);
-      runtime.setClient(focusedView("app:b", 2));
-      expect(runtime.getState().client?.presentationRevision).toBe(2);
+      // A late stream view of X after the rebind is never held either.
+      runtime.setClient(focusedView("app:a", 101));
+      // Another source moves Y's client to app:a at Y's revision 5 while Y's click waits.
+      runtime.setClient(inOther(focusedView("app:a", 5)));
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(answer(null));
+
+      await expect(click.completion).resolves.toBe(true);
+      // Y's revision 5 is kept and shown, not displaced by X's 100.
+      expect(runtime.getState().client).toMatchObject({
+        workspaceId: "workspace:other",
+        presentationRevision: 5,
+      });
+      expect(shownTab(runtime)).toBe(tabIdFor("app:a"));
+      expect(adopted).toHaveBeenCalledOnce();
     });
 
     it("Should drop what was held for a registration that ended [R9-03]", async () => {

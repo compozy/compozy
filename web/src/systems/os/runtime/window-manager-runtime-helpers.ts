@@ -1,7 +1,11 @@
 import type { QueryCacheNotifyEvent } from "@tanstack/react-query";
 
 import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
-import type { WindowManagerConfig, WindowManagerSnapshot } from "../lib/window-manager-types";
+import type {
+  WindowManagerClientView,
+  WindowManagerConfig,
+  WindowManagerSnapshot,
+} from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
 
@@ -30,6 +34,21 @@ export function sameRuntimeBinding(
     current.workspaceId === enqueued.workspaceId &&
     current.profileId === enqueued.profileId &&
     current.clientId === enqueued.clientId
+  );
+}
+
+/**
+ * Whether a client view belongs to the runtime's binding. Presentation revisions of two bindings
+ * do not compare, so a view of another binding is neither held nor adopted.
+ */
+export function clientViewInBinding(
+  binding: WindowManagerRuntimeBinding | null,
+  view: Pick<WindowManagerClientView, "workspaceId" | "clientId">
+): binding is WindowManagerRuntimeBinding {
+  return (
+    binding !== null &&
+    view.workspaceId === binding.workspaceId &&
+    view.clientId === binding.clientId
   );
 }
 

@@ -30,6 +30,7 @@ import {
 } from "./window-manager-command-outcome";
 import { FocusTurns, type FocusTicket } from "./window-manager-focus-turns";
 import {
+  clientViewInBinding,
   commandTimeLeft,
   desktopTransitionIntent,
   queryCacheEventChangesData,
@@ -192,7 +193,9 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   setClient(client: WindowManagerClientView | WindowManagerRegisteredClientView | null): void {
-    // A registration is never held; one that ends or starts drops what was held for the last.
+    // Neither held nor adopted outside the binding; a registration is never held, and one that
+    // ends or starts drops what was held for the last.
+    if (client !== null && !clientViewInBinding(this.binding, client)) return;
     if (this.focusTurns.offer(client, this.clientAttachmentToken)) return;
     this.adoptClient(client);
   }
@@ -207,14 +210,7 @@ export abstract class WindowManagerRuntimeCore {
       this.publish();
       return true;
     }
-    const binding = this.binding;
-    if (
-      binding === null ||
-      client.workspaceId !== binding.workspaceId ||
-      client.clientId !== binding.clientId
-    ) {
-      return false;
-    }
+    if (!clientViewInBinding(this.binding, client)) return false;
     const previousToken = this.clientAttachmentToken;
     if ("attachmentToken" in client) this.clientAttachmentToken = client.attachmentToken;
     if (this.client !== null && client.presentationRevision <= this.client.presentationRevision) {
