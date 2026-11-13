@@ -66,7 +66,17 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 		return err
 	}
 	for _, row := range rows {
-		if row.ChildSessionID == nil || row.Status == store.SubagentStatusQueued {
+		if row.Status == store.SubagentStatusQueued {
+			continue
+		}
+		if row.ChildSessionID == nil {
+			if s.inFlight(row.ID) {
+				continue
+			}
+			// The delegation never linked a child session: the start failed after the
+			// reservation and the settlement was lost. Nothing can resume it, so settle
+			// the row instead of leaving it running for the life of the daemon.
+			s.recoveryResult(ctx, row.ID, "orphaned_delegation", s.failRecovered(ctx, row, ""))
 			continue
 		}
 		if row.Isolation == SubagentIsolationWorktree {
