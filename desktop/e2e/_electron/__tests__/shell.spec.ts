@@ -1590,6 +1590,9 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
 }) => {
   const desktop = await launchDesktop();
   let product = await desktop.product();
+  // A fresh desktop focuses its New tab, and the shell trues the launch URL up to that window once
+  // hydration completes. Recovery reloads the crash-time URL, so the baseline is the settled one.
+  await expect(product).toHaveURL(/\/new-tab$/u);
   const originalURL = product.url();
   await desktop.app.evaluate(() => {
     Reflect.set(globalThis, "__compozyCrashDialogs", 0);
@@ -1630,7 +1633,7 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
             .catch(() => false);
         })
         .toBe(true);
-      expect(product.url()).toBe(originalURL);
+      await expect(product).toHaveURL(originalURL);
     }
   }
   expect(
