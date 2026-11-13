@@ -76,6 +76,8 @@ type SessionDB struct {
 
 	// transcriptFolds is touched only by the writer goroutine.
 	transcriptFolds transcriptFoldCache
+	// projectionEncoder is touched only by the writer goroutine.
+	projectionEncoder projectionMessageEncoder
 	// walTruncateBytes overrides the live WAL truncation bound when positive.
 	walTruncateBytes atomic.Int64
 	// walMaintenanceDelayOverride overrides the idle WAL maintenance delay, in nanoseconds, when positive.
