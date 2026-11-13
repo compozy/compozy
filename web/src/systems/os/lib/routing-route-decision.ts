@@ -85,7 +85,7 @@ export function focusedRouteOrDesktop(
  * is the history's current entry and no activation is settling, the focused window still holds the
  * route the coordinator wrote, and the canonical form keeps its path. Otherwise focus has moved on
  * and the canonical form is dropped; the window is canonicalized the next time it is shown.
- * Returns the adopted route, `null` when nothing was adopted.
+ * Returns the adopted route, `null` when nothing was adopted or the window refused the route.
  */
 export function adoptCanonicalRoute(
   manager: Pick<RoutingManager, "getState" | "navigateWindow">,
@@ -98,6 +98,7 @@ export function adoptCanonicalRoute(
   const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
   if (!focused || !sameOsWindowRoute(focused.route, written)) return null;
   if (canonical.pathname !== written.pathname) return null;
-  manager.navigateWindow(focused.id, canonical);
-  return canonical;
+  // A refused command leaves the stored route the written one: keeping `currentRoute` there too
+  // means the next authoritative report writes nothing instead of undoing the redirect.
+  return manager.navigateWindow(focused.id, canonical).accepted ? canonical : null;
 }
