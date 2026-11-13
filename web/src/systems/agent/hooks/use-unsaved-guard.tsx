@@ -75,11 +75,23 @@ export function useUnsavedGuard({
     enableBeforeUnload: dirty,
   });
 
-  // The shell reads the current name and discard when it asks, after this render.
-  const latest = useRef({ entityName, onDiscard });
+  // The shell reads the current name and discard when it asks, after this render. One object
+  // for the editor's life, so the unmount cleanup reads what the last render left.
+  const latest = useRef({ entityName, onDiscard, discardOnLeave: false });
   useEffect(() => {
-    latest.current = { entityName, onDiscard };
+    latest.current.entityName = entityName;
+    latest.current.onDiscard = onDiscard;
   });
+  useEffect(() => {
+    // Edits changed after a Discard whose navigation another guard held: they are new edits.
+    latest.current.discardOnLeave = false;
+  }, [dirty]);
+  useEffect(() => {
+    const current = latest.current;
+    return () => {
+      if (current.discardOnLeave) current.onDiscard?.();
+    };
+  }, []);
   const [edits] = useState<UnsavedWindowEdits>(() => ({
     get entityName() {
       return latest.current.entityName;
@@ -94,9 +106,11 @@ export function useUnsavedGuard({
     question?.presenter === edits ? question : null
   );
 
+  // A Discard answered for a navigation drops the edits once the editor goes: another editor's
+  // guard may still hold the same navigation, and then these edits stay.
   const proceed = () => {
+    latest.current.discardOnLeave = true;
     blocker.proceed?.();
-    onDiscard?.();
   };
 
   const reset = () => {

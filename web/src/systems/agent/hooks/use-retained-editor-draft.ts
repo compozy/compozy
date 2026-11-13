@@ -27,6 +27,8 @@ interface DraftBox<TContext> {
   key: string;
   /** What this editor retained per resource it left, until something drops it. */
   retained: Map<string, TContext>;
+  /** The context a Discard was answered on; it is not kept even if a running save ignored it. */
+  discarded: TContext | null;
 }
 
 /**
@@ -48,7 +50,12 @@ export function useRetainedEditorDraft<TContext>(
   store: DraftStore<TContext>,
   policy: RetainedDraftPolicy<TContext>
 ): { forget: () => void } {
-  const boxRef = useRef<DraftBox<TContext>>({ store: null, key, retained: new Map() });
+  const boxRef = useRef<DraftBox<TContext>>({
+    store: null,
+    key,
+    retained: new Map(),
+    discarded: null,
+  });
   useEffect(() => {
     boxRef.current.store = store;
     boxRef.current.key = key;
@@ -62,22 +69,25 @@ export function useRetainedEditorDraft<TContext>(
     return () => {
       const current = box.store;
       if (current === null) return;
-      const retain = (context: TContext) => {
-        if (!policy.isDirty(context)) return;
+      const retain = (context: TContext): TContext | undefined => {
+        if (!policy.isDirty(context)) return undefined;
         const draft = policy.idle(context);
         retainEditorDraft(key, draft);
         box.retained.set(key, draft);
+        return draft;
       };
       // Read the store, not the last render: a Discard answered just before unmount counts.
       const context = current.getSnapshot().context;
-      retain(context);
-      if (!policy.isBusy(context)) return;
+      // A Discard a running save ignored still holds: the edits it answered for are not kept.
+      if (box.discarded === context) return;
+      const kept = retain(context);
+      if (kept === undefined || !policy.isBusy(context)) return;
       const subscription = current.subscribe(snapshot => {
         if (policy.isBusy(snapshot.context)) return;
         subscription.unsubscribe();
-        // Only while the draft kept at unmount is still unclaimed: forgotten or taken, it is done.
-        const kept = box.retained.get(key);
-        if (kept === undefined || !isRetainedEditorDraft(key, kept)) return;
+        // Only this cleanup's draft, while still unclaimed: forgotten, taken or replaced by newer
+        // edits to the resource, it is done.
+        if (box.retained.get(key) !== kept || !isRetainedEditorDraft(key, kept)) return;
         takeRetainedEditorDraft(key, kept);
         box.retained.delete(key);
         retain(snapshot.context);
@@ -86,6 +96,7 @@ export function useRetainedEditorDraft<TContext>(
   }, [key, policy]);
   const forget = useCallback(() => {
     const box = boxRef.current;
+    box.discarded = box.store?.getSnapshot().context ?? null;
     const kept = box.retained.get(box.key);
     if (kept === undefined) return;
     box.retained.delete(box.key);

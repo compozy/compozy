@@ -2109,6 +2109,7 @@ describe("RoutingCoordinator", () => {
     // every window, and the shell's legacy redirects land elsewhere.
     it.each([
       ["keep", "/agents/coder/what-it-does", { ordered: "1" }, "/_app/agents/$name/$page", false],
+      ["keep", "/agents/coder/what-it-does", { panel: "tools" }, "/_app/agents/$name/$page", false],
       [
         "keep",
         "/agents/coder/settings",

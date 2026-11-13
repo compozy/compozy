@@ -126,7 +126,7 @@ describe("useUnsavedGuard", () => {
       reset: mockReset,
     });
 
-    const { result } = renderHook(() =>
+    const { result, unmount } = renderHook(() =>
       useUnsavedGuard({ dirty: true, entityName: "coder", onDiscard })
     );
     render(<>{result.current.confirmDialog}</>);
@@ -138,11 +138,14 @@ describe("useUnsavedGuard", () => {
 
     await user.click(screen.getByTestId("unsaved-guard-discard"));
     expect(mockProceed).toHaveBeenCalledTimes(1);
-    // Discard drops the edits, so the editor that goes keeps no draft of them (#1653).
-    expect(onDiscard).toHaveBeenCalledTimes(1);
+    // Discard drops the edits once the editor goes (#1653): another guard may still hold the
+    // navigation, and then the edits stay.
+    expect(onDiscard).not.toHaveBeenCalled();
 
     await user.click(screen.getByTestId("unsaved-guard-keep-editing"));
     expect(mockReset).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(onDiscard).toHaveBeenCalledTimes(1);
   });
 
   describe("inside a window of the desktop shell [B-1]", () => {

@@ -93,5 +93,15 @@ export function parseAgentWindowLocation(location: OsWindowRoute): AgentWindowLo
  * the window does not read resolve to the location it renders.
  */
 export function sameAgentWindowContent(left: OsWindowRoute, right: OsWindowRoute): boolean {
-  return sameJsonValue(parseAgentWindowLocation(left), parseAgentWindowLocation(right));
+  return sameJsonValue(
+    windowContent(parseAgentWindowLocation(left)),
+    windowContent(parseAgentWindowLocation(right))
+  );
+}
+
+/** A page renders no side panel, so its `panel` value does not change what the window shows. */
+function windowContent(location: AgentWindowLocation): AgentWindowLocation {
+  if (location.kind !== "page") return location;
+  const { panel: _panel, ...search } = location.search;
+  return { ...location, search };
 }
