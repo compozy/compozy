@@ -29,6 +29,9 @@ func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 		DryRun:               req.DryRun,
 		SyntheticCorrelation: req.SyntheticCorrelation.Normalize(),
 	}
+	if target := normalized.PolicyTarget; target != nil && strings.TrimSpace(target.AgentName) != normalized.AgentName {
+		return WakeRequest{}, fmt.Errorf("%w: wake policy target must match agent", ErrInvalid)
+	}
 	switch {
 	case normalized.AgentName == "":
 		return WakeRequest{}, errors.New("heartbeat: wake agent name is required")
@@ -36,9 +39,9 @@ func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 		return WakeRequest{}, errors.New("heartbeat: wake session id is required")
 	case !ValidWakeSource(normalized.Source):
 		return WakeRequest{}, fmt.Errorf(
-			"%w: invalid wake source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry",
+			"%w: invalid wake source %q; accepted values: %s",
 			ErrInvalid,
-			normalized.Source,
+			normalized.Source, WakeSourceNames,
 		)
 	default:
 		return normalized, nil

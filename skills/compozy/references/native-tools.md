@@ -585,7 +585,15 @@ any other cross-profile write, so it needs the unrestricted grant. Refusals carr
 `compozy session move-to-profile <id> <profile>`. Not `compozy__session_move`, which only places a
 session in a folder.
 
+Daemon-owned approval expiry returns `approval_timed_out`, including identical retries suppressed
+as `repeat_denied`. Finish unaffected work and ask the operator to prompt the session before
+retrying. Agent and monitor prompts do not clear this suppression; an explicit denial keeps its
+denial reason.
+
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
+Wake `source` may be omitted for `manual`; explicit values must be exact documented enum members.
+The native schema rejects empty or padded values before dispatch. A dry run writes nothing and
+reuses a matching persisted policy snapshot ID when available.
 For heartbeat status, `include_session_health: true` requires a nonblank `session_id`;
 otherwise the tool returns `tool_invalid_input` naming `session_id`.
 

@@ -46,7 +46,8 @@ func bootHarnessReentryBridge(
 		reentryStore,
 		reentrySessions,
 		state.logger,
-		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat),
+		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat,
+			currentHeartbeatWakeOptions(state)...),
 	)
 }
 

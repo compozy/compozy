@@ -6171,11 +6171,41 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("synthetic stream was not offered for injection")
 			}
+			var restoreTurn func()
 			if pending {
+				// Replay admission only to obtain its stable receipt; it must not inject twice.
+				receipt, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+					MessageID: "reply-stream", Message: "child reply",
+					Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
+						Reason: "completed", WakeEventID: "reply-stream"},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				waitForCondition(t, "durable pending injection", func() bool {
+					entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, receipt.ID)
+					return err == nil && entry.Status == store.SessionInputQueueStatusSent &&
+						entry.SteerDelivery == store.SteerDeliveryPendingInjection
+				})
+				// Model the next active turn while confirmation still belongs to the pending row.
+				previousTurn := f.sess.CurrentTurnID()
+				f.sess.mu.Lock()
+				f.sess.currentTurnID = "next-active-turn"
+				f.sess.mu.Unlock()
+				restoreTurn = sync.OnceFunc(func() {
+					f.sess.mu.Lock()
+					f.sess.currentTurnID = previousTurn
+					f.sess.mu.Unlock()
+				})
+				defer restoreTurn()
 				select {
 				case event, open := <-events:
-					t.Fatalf("pending injection closed or emitted an event: %#v, %t", event, open)
-				default:
+					t.Fatalf(
+						"pending injection closed or emitted an event after turn advancement: %#v, %t",
+						event,
+						open,
+					)
+				case <-time.After(3 * promptDeliveryCatchUpInterval):
 				}
 				completion <- nil
 			}
@@ -6186,6 +6216,9 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 				}
 			case <-time.After(5 * time.Second):
 				t.Fatal("confirmed promoted admission stream did not close")
+			}
+			if restoreTurn != nil {
+				restoreTurn()
 			}
 			drain(t, f)
 		})

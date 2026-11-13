@@ -202,14 +202,77 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 				if !sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
 					t.Fatal("a monitor that already observed the attention edge did not cover it")
 				}
-				newer := *child
-				newer.AttentionChangedAt = new(now.Add(time.Second))
+				seen := *child
+				seen.AttentionChangedAt = new(now.Add(time.Second))
+				if !sources.creatorMonitorCovers("creator", &seen, session.BadgeNeedsAttention) {
+					t.Fatal("operator presence invalidated monitor coverage of the same child occurrence")
+				}
+				newer := seen
+				newer.EndedEarlyTurnID = "turn-2"
 				if sources.creatorMonitorCovers("creator", &newer, session.BadgeNeedsAttention) {
 					t.Fatal("a previous monitor outcome covered a newer child attention occurrence")
 				}
 			})
 		})
 	}
+
+	// Owner: daemon coverage adapter; an unmatched fired monitor cannot hide another monitor's match.
+	t.Run("Should scan past an unmatched fired monitor", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			now := time.Now()
+			child := &session.Info{ID: "child", WorkspaceID: "ws", ProfileID: store.DefaultProfileID,
+				State: session.StateActive, EndedEarlyTurnID: "turn-1", AttentionChangedAt: &now}
+			targets := &monitorTargetManagerStub{
+				reads: map[string]int{},
+				infos: map[string]*session.Info{"child": child},
+			}
+			service, err := monitor.NewService(t.Context(), nil, retryMonitorWaker{},
+				monitor.WithSessionTargets(monitorSessionTargets{sessions: func() any { return targets }}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			spec := monitor.Spec{WorkspaceID: "ws", ProfileID: store.DefaultProfileID, SessionID: "creator",
+				Kind: monitor.KindSession, Description: "child attention", Targets: []string{"child"},
+				States: []string{monitor.TargetStateNeedsAttention}}
+			matched, err := service.Create(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			time.Sleep(time.Second)
+			// The later until=any watch fires on a sibling while the child is running.
+			targets.infos["child"] = &session.Info{
+				ID: "child", State: session.StateActive,
+				Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{TurnID: "active-turn"}},
+			}
+			targets.infos["sibling"] = &session.Info{
+				ID:               "sibling",
+				State:            session.StateActive,
+				EndedEarlyTurnID: "sibling-turn",
+			}
+			spec.Targets, spec.Until = []string{"child", "sibling"}, monitor.UntilAny
+			unmatched, err := service.Create(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			items := service.List("creator")
+			if len(items) != 2 || items[0].ID != unmatched.ID || items[1].ID != matched.ID ||
+				items[0].Status != monitor.StatusDelivering || items[1].Status != monitor.StatusDelivering {
+				t.Fatalf("monitors = %+v, want unmatched outcome ahead of matching outcome", items)
+			}
+			sources := sessionWorkSources{state: &bootState{sessionMonitors: service}}
+			if !sources.creatorMonitorCovers("creator", child, session.BadgeNeedsAttention) {
+				t.Fatal("unmatched outcome hid child coverage")
+			}
+		})
+	})
 
 	t.Run("Should project only the owning session live monitors without renewing their deadline", func(t *testing.T) {
 		t.Parallel()

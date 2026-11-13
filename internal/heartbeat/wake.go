@@ -116,6 +116,7 @@ type SyntheticWakePromptResult struct {
 // ManagedWakeService is the production Heartbeat wake decision engine.
 type ManagedWakeService struct {
 	policyResolver PolicyResolver
+	targetResolver func(context.Context, WakeRequest) (AuthoringTarget, error)
 	store          WakeStore
 	healthReader   SessionHealthReader
 	prompter       SyntheticWakePrompter
@@ -135,6 +136,11 @@ func WithWakePolicyResolver(resolver PolicyResolver) WakeOption {
 	return func(service *ManagedWakeService) {
 		service.policyResolver = resolver
 	}
+}
+
+// WithWakeTargetResolver resolves current policy targets for autonomous wake sources.
+func WithWakeTargetResolver(resolve func(context.Context, WakeRequest) (AuthoringTarget, error)) WakeOption {
+	return func(service *ManagedWakeService) { service.targetResolver = resolve }
 }
 
 // WithWakeClock injects deterministic time for wake decisions.
@@ -195,6 +201,18 @@ func NewManagedWakeService(
 func (s *ManagedWakeService) Wake(ctx context.Context, req WakeRequest) (WakeDecision, error) {
 	if ctx == nil {
 		return WakeDecision{}, errors.New("heartbeat: wake context is required")
+	}
+	if req.PolicyTarget == nil && s.targetResolver != nil {
+		target, err := s.targetResolver(ctx, req)
+		if err != nil {
+			return WakeDecision{}, err
+		}
+		req.PolicyTarget = &target
+	}
+	if req.PolicyTarget != nil && req.PolicyTarget.Config.IsZero() {
+		target := *req.PolicyTarget
+		target.Config = s.config
+		req.PolicyTarget = &target
 	}
 	normalized, err := normalizeWakeRequest(req)
 	if err != nil {

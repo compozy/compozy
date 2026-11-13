@@ -29778,6 +29778,15 @@ export interface operations {
           "application/json": components["schemas"]["RunResponse"];
         };
       };
+      /** @description Invalid wait or completion budget */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Automation job not found */
       404: {
         headers: {
@@ -62115,7 +62124,7 @@ export interface operations {
       query?: {
         /** @description Zero-based byte offset */
         offset?: number;
-        /** @description Page size in bytes; defaults to and is capped at 65536 */
+        /** @description Page size in bytes; defaults to 32768 and is capped at 65536 */
         limit?: number;
         /** @description Act as this profile by name */
         profile?: string;

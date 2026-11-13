@@ -110,7 +110,7 @@ func nativeSessionTaskRecoverDenied(id toolspkg.ToolID) error {
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeDenied,
 		id,
-		"task recover requires operator scope",
+		"task recover requires operator scope; ask the operator to run compozy task recover",
 		fmt.Errorf("%w: task recover requires operator scope", toolspkg.ErrToolDenied),
 		toolspkg.ReasonSessionDenied,
 	)

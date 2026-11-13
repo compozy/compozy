@@ -887,6 +887,7 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 		{name: "Should revalidate the child after input hooks", during: "input"},
 		{name: "Should revalidate the child after prompt augmentation", during: "augment"},
 		{name: "Should revalidate the child after turn start hooks", during: "turn"},
+		{name: "Should drop an alarm during newer child prompt setup", during: "child_setup"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -923,7 +924,41 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
 				promptChild(t, h, child)
 			}
-			if tc.during != "" {
+			var setupDone chan error
+			var releaseSetup func()
+			if tc.during == "child_setup" {
+				entered, release := make(chan struct{}), make(chan struct{})
+				releaseSetup = sync.OnceFunc(func() { close(release) })
+				t.Cleanup(releaseSetup)
+				setupDone = make(chan error, 1)
+				h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+				h.manager.hooks = fullHookSet(&spyHookDispatcher{dispatchTurnStartFn: func(
+					_ context.Context, payload hookspkg.TurnStartPayload,
+				) (hookspkg.TurnStartPayload, error) {
+					if payload.SessionID == child.ID {
+						close(entered)
+						<-release
+					}
+					return payload, nil
+				}})
+				go func() {
+					events, err := h.manager.Prompt(t.Context(), child.ID, "next child turn")
+					if err == nil {
+						for range events {
+						}
+					}
+					setupDone <- err
+				}()
+				select {
+				case <-entered:
+				case <-time.After(5 * time.Second):
+					t.Fatal("new child setup did not reach turn.start")
+				}
+				if info := child.Info(); info.EndedEarlyTurnID == "" || child.CurrentTurnID() == info.EndedEarlyTurnID {
+					t.Fatalf("child setup = %+v, want newer current turn and uncleared early-stop mark", info)
+				}
+			}
+			if tc.during != "" && tc.during != "child_setup" {
 				advanceChild := func() {
 					h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
 					promptChild(t, h, child)
@@ -975,6 +1010,12 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 				entry, readErr := h.manager.inputQueue.Get(t.Context(), parent.ID, queued.ID)
 				return readErr == nil && entry.Status == wantStatus
 			})
+			if releaseSetup != nil {
+				releaseSetup()
+				if err := <-setupDone; err != nil {
+					t.Fatal(err)
+				}
+			}
 			h.driver.mu.Lock()
 			defer h.driver.mu.Unlock()
 			wakeCalls := 0

@@ -2029,6 +2029,40 @@ func TestSubagentWakeFailureLimit(t *testing.T) {
 // Invariant: interrupted native work stops contributing live children, and terminal-first calls produce results.
 // Owner: session native lifecycle and recovery.
 func TestSubagentNativeRecoveryEdges(t *testing.T) {
+	// Invariant: one row's projection failure does not stop independent rows or hide its error.
+	t.Run("Should apply independent native rows after a replay failure", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		var rows []store.SessionSubagent
+		for index, call := range []string{"broken", "healthy"} {
+			launch := NativeSubagentEvent{WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call,
+				ToolName: "Agent", Status: "in_progress", Background: true}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			rows = append(rows, db.rows[subagentID("parent", call)])
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+				&acp.NativeTaskObservation{Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call,
+					Status: acp.NativeTaskStatusCompleted, Summary: new("saved answer")})
+			content, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.nativeTasks = append(runtime.nativeTasks, store.SessionEvent{Sequence: int64(index + 1), TurnID: "turn",
+				Type: acp.EventTypeNativeTask, Content: content, Timestamp: s.now().Add(time.Second)})
+		}
+		failure := errors.New("row read unavailable")
+		s.store = &countingNativeSubagentStore{SubagentStore: db, failID: rows[0].ID, lookupErr: failure}
+		if err := s.replayNativeTurn(t.Context(), rows, false); !errors.Is(err, failure) ||
+			!strings.Contains(err.Error(), rows[0].ID) {
+			t.Fatalf("replay error = %v, want the failed row and original cause", err)
+		}
+		if row := db.rows[rows[1].ID]; row.Status != store.SubagentStatusCompleted ||
+			row.Result == nil || *row.Result != "saved answer" {
+			t.Fatalf("independent row = %+v, want committed terminal result", row)
+		}
+	})
+
 	// Invariant: another turn cannot background or settle a native call; owner: native lifecycle.
 	for _, status := range []string{"in_progress", "failed", "task"} {
 		t.Run("Should reject foreign-turn native state "+status, func(t *testing.T) {
@@ -2981,11 +3015,16 @@ func TestSubagentUserSteerSlot(t *testing.T) {
 
 type countingNativeSubagentStore struct {
 	store.SubagentStore
-	lookups int
+	lookups   int
+	failID    string
+	lookupErr error
 }
 
 func (s *countingNativeSubagentStore) GetSubagent(ctx context.Context, ws, id string) (store.SessionSubagent, error) {
 	s.lookups++
+	if id == s.failID && s.lookupErr != nil {
+		return store.SessionSubagent{}, s.lookupErr
+	}
 	return s.SubagentStore.GetSubagent(ctx, ws, id)
 }
 

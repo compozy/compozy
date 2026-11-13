@@ -227,8 +227,8 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 	}
 	if !heartbeat.ValidWakeSource(source) {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, fmt.Errorf(
-			"invalid source %q; accepted values: timer, instance_check, scheduler, manual, harness_reentry",
-			source,
+			"invalid source %q; accepted values: %s",
+			source, heartbeat.WakeSourceNames,
 		))
 	}
 	decision, err := n.deps.HeartbeatWake.Wake(ctx, heartbeat.WakeRequest{

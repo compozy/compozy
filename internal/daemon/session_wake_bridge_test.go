@@ -249,7 +249,9 @@ func TestSessionWakeBridge(t *testing.T) {
 		t.Parallel()
 
 		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{})
-		if !strings.Contains(message, "Review its answer") ||
+		if !strings.Contains(message, "final answer is unavailable") ||
+			!strings.Contains(message, "compozy__session_history") ||
+			!strings.Contains(message, "compozy__session_events") ||
 			!strings.Contains(message, "compozy__session_stop") || strings.Contains(message, "Final answer:") {
 			t.Fatalf("wake prompt = %q, want the continue-or-stop guidance without an answer block", message)
 		}

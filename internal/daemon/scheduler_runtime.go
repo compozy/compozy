@@ -52,7 +52,8 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 	if err != nil {
 		return err
 	}
-	if err := waker.configureHeartbeatWake(state.registry, state.sessions, state.cfg.Agents.Heartbeat); err != nil {
+	if err := waker.configureHeartbeatWake(state.registry, state.sessions, state.cfg.Agents.Heartbeat,
+		currentHeartbeatWakeOptions(state)...); err != nil {
 		return errors.Join(err, waker.shutdown(context.Background()))
 	}
 	spawner := starvationSpawner{

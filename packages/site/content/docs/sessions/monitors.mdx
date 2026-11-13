@@ -239,3 +239,10 @@ Monitors are stored by the daemon and survive a restart. After the daemon comes 
 
 Canceled monitors omit `fired_at`; cancellation does not represent a wake. For repeating
 pull request monitors, `last_fired_at` still records any earlier wakes.
+
+Qualified pull-request branches use `owner:branch`, for example `acme:fix/native-tools`. The owner
+must be a GitHub account name, not `owner/repository`; whitespace inside either component is refused.
+
+A session monitor that has already matched a child's early-stop occurrence continues covering it
+when the operator views the child. A newer child turn creates a different occurrence. With several
+fired monitors, an unmatched outcome does not hide another monitor's matching outcome.

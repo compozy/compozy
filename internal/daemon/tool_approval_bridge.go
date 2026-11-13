@@ -265,7 +265,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 			Options: toolApprovalOptions(remember),
 		},
 	)
-	if errors.Is(context.Cause(approvalCtx), context.DeadlineExceeded) &&
+	if errors.Is(err, acp.ErrPermissionExpired) || errors.Is(context.Cause(approvalCtx), context.DeadlineExceeded) &&
 		(err != nil || response.Outcome.Cancelled != nil) { //nolint:misspell // ACP SDK field uses British spelling.
 		return acp.RequestPermissionResponse{}, toolApprovalError(
 			toolID, "tool approval timed out", toolspkg.ReasonApprovalTimedOut,
@@ -405,7 +405,8 @@ func toolApprovalRawInput(input json.RawMessage) any {
 func toolApprovalError(id toolspkg.ToolID, message string, reason toolspkg.ReasonCode) error {
 	if reason == toolspkg.ReasonApprovalTimedOut {
 		message = "Tool approval expired because nobody answered. Elapsed time is not approval. " +
-			"Do not repeat the unchanged request; finish unaffected work and tell the operator what needs approval."
+			"Do not repeat the unchanged request; finish unaffected work and tell the operator what needs approval. " +
+			"Ask the operator to prompt the session to clear the expired request before retrying."
 	}
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeApprovalRequired,

@@ -302,3 +302,19 @@ Owning regression: `TestManagerEarlyStopSupervision`. Execution pending CI.
 Also inject an unwatched creator follow-up into an active child turn and persist its
 answer before the steering input receipt. It still counts as delivered: the daemon
 uses the handoff sequence, not the later receipt order, to locate the answer.
+
+QA impact #1545 (CI-only verification; public-surface re-walk not run locally): pause a newer
+child prompt after `turn.start` installs its current turn ID but before clearing its old early-stop
+mark. Release the parent's queued alarm: it is dropped without provider input or restart checkpoint.
+For a current occurrence whose answer cannot be read, the wake explicitly reports the unavailable
+answer and points to session history/events before a prompt/stop decision.
+
+Durable lookup assessment: a transient child catalog failure releases the same queued input and
+reselects after one second, preserving admission identity and FIFO order. Repeated asynchronous
+lookup failures restart that one-second delay; exponential 1–30 second backoff applies only to
+selection contention. Following creator inputs can wait behind this row during an outage. Retain
+this ordering rather than silently bypassing the alarm or dropping it; a different fairness policy
+would need an explicit ordering contract. Lifecycle catalog absence is typed `ErrSessionNotFound`:
+the alarm discards a deleted child, while storage errors remain retryable. Lifecycle persistence
+and recovery propagate either failure without publishing a fabricated transition; API not-found
+classification remains available through wrapping.

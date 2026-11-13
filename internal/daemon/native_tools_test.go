@@ -172,6 +172,25 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a",
 		RunID: "run-a", Generation: 4,
 	}
+	for _, operation := range []struct {
+		name string
+		call func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error)
+		id   toolspkg.ToolID
+	}{
+		{"Should reject a blank exec worktree before approval", adapter.terminalExec, toolspkg.ToolIDTerminalExec},
+		{"Should reject a blank open worktree before root resolution", adapter.terminalOpen, toolspkg.ToolIDTerminalOpen},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			_, err := operation.call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: operation.id, Input: json.RawMessage(`{"worktree":"  "}`),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+			if !strings.Contains(err.Error(), "worktree") {
+				t.Fatalf("blank selector error = %v", err)
+			}
+		})
+	}
+
 	t.Run("Should keep non-domain native identity failures generic", func(t *testing.T) {
 		t.Parallel()
 
@@ -10555,17 +10574,21 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, statusResult, []byte(`"snapshot_id":"hbs-1"`))
 		requireNativeStructuredContains(t, statusResult, []byte(`"wake_events"`))
 
-		for _, input := range []string{
-			`{"workspace":"ws-1","agent_name":"coder","include_session_health":true}`,
-			`{"workspace":"ws-1","agent_name":"coder","session_id":"  ","include_session_health":true}`,
+		for _, test := range []struct{ name, input string }{
+			{"Should reject missing health session",
+				`{"workspace":"ws-1","agent_name":"coder","include_session_health":true}`},
+			{"Should reject blank health session",
+				`{"workspace":"ws-1","agent_name":"coder","session_id":"  ","include_session_health":true}`},
 		} {
-			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDAgentHeartbeatStatus, Input: json.RawMessage(input),
+			t.Run(test.name, func(t *testing.T) {
+				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAgentHeartbeatStatus, Input: json.RawMessage(test.input),
+				})
+				requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+				if !strings.Contains(err.Error(), "session_id") || status.calls != 1 {
+					t.Fatalf("missing session reached backend: error=%v calls=%d", err, status.calls)
+				}
 			})
-			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
-			if !strings.Contains(err.Error(), "session_id") || status.calls != 1 {
-				t.Fatalf("missing session reached backend: error=%v calls=%d", err, status.calls)
-			}
 		}
 
 		wakeResult, err := registry.Call(
@@ -10620,6 +10643,20 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if wake.calls != 1 {
 			t.Fatal("invalid source reached wake backend")
+		}
+
+		// The native JSON schema intentionally accepts canonical enum values only.
+		for _, source := range []string{"", " manual "} {
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"workspace":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","source":%q}`, source,
+				)),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+			if wake.calls != 1 {
+				t.Fatal("noncanonical source reached wake backend")
+			}
 		}
 
 		_, err = registry.Call(
@@ -12399,6 +12436,12 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SessionProjection(root session) error = %v", err)
 		}
+		resolvedRoot, err := resolver.Resolve(ctx, rootScope)
+		if err != nil || !slices.ContainsFunc(resolvedRoot.Agent.Tools, func(pattern toolspkg.ToolPattern) bool {
+			return pattern.String() == "compozy__memory_note"
+		}) {
+			t.Fatalf("resolved agent policy = %#v, %v; want exact retired atom retained", resolvedRoot.Agent, err)
+		}
 		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionStatus)
 		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionArchive)
 		requireNativeViewContains(t, rootViews, toolspkg.ToolIDSessionList)
@@ -12420,6 +12463,10 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		childViews, err := registry.SessionProjection(ctx, childScope)
 		if err != nil {
 			t.Fatalf("SessionProjection(child session) error = %v", err)
+		}
+		resolvedChild, err := resolver.Resolve(ctx, childScope)
+		if err != nil || !slices.Contains(resolvedChild.Session.Tools, toolspkg.ToolID("compozy__memory_show")) {
+			t.Fatalf("resolved lineage policy = %#v, %v; want exact retired atom retained", resolvedChild.Session, err)
 		}
 		requireNativeViewContains(t, childViews, toolspkg.ToolIDSessionStatus)
 		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDSessionArchive)

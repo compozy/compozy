@@ -280,6 +280,9 @@ func (p *AgentProcess) resolvePermissionRequest(
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
 			appliedDecision, "repeat_denied", raw)
+		if cancellationActor == permissionActorSystem && p.permissionDenials.timedOut(digest) {
+			return acpsdk.RequestPermissionResponse{}, ErrPermissionExpired
+		}
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 	requestID, pending, err := p.registerPendingPermission(turnID, request)
@@ -300,13 +303,16 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	endPermissionWaitSpan(waitSpan, appliedDecision)
 	if p.permissionExpiryCountsAsDenial(actor, decision) {
-		p.permissionDenials.Record(digest, denialEpoch)
+		p.permissionDenials.record(digest, denialEpoch, actor)
 	}
 	if cancellationActor == permissionActorProvider {
 		p.rememberHostedApproval(request, appliedDecision)
 	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
+	if cancellationActor == permissionActorSystem && actor == "timeout" {
+		return acpsdk.RequestPermissionResponse{}, ErrPermissionExpired
+	}
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
 

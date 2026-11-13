@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
@@ -73,6 +74,7 @@ func readMonitorTarget(
 		}
 		status.Name = info.Name
 		status.State = monitorTargetState(info)
+		status.OccurrenceID = monitorAttentionOccurrence(info, session.Badge(status.State))
 		if !settledBadgeState(status.State) {
 			return status
 		}
@@ -163,4 +165,11 @@ func forwardMonitorTargetChanges(
 			}
 		}
 	}
+}
+
+func monitorAttentionOccurrence(info *session.Info, badge session.Badge) string {
+	if !session.EndedEarlyAttention(info, badge) {
+		return ""
+	}
+	return fmt.Sprintf("%d:%s", info.TranscriptEpoch, info.EndedEarlyTurnID)
 }

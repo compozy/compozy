@@ -312,3 +312,26 @@ func hookSoulAuthoringService(
 	}
 	return hookedSoulAuthoringService{next: next, hooks: hooks}
 }
+
+func currentHeartbeatWakeOptions(state *bootState) []heartbeat.WakeOption {
+	adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+		WorkspaceResolver: state.workspaceResolver, Profiles: state.profiles,
+	}}
+	return []heartbeat.WakeOption{
+		heartbeat.WithWakePolicyResolver(agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
+		})),
+		heartbeat.WithWakeTargetResolver(func(
+			ctx context.Context, req heartbeat.WakeRequest,
+		) (heartbeat.AuthoringTarget, error) {
+			target, err := adapter.authoredAgentTarget(ctx, "", req.ProfileID, req.WorkspaceID, req.AgentName)
+			if err != nil {
+				return heartbeat.AuthoringTarget{}, err
+			}
+			resolved := target.heartbeatAuthoringTarget()
+			// Policy storage follows the requesting workspace even when the definition is inherited.
+			resolved.WorkspaceID = req.WorkspaceID
+			return resolved, nil
+		}),
+	}
+}

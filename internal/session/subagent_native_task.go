@@ -386,12 +386,13 @@ func (s *subagentService) replayNativeTurn(
 		}
 		after = next
 	}
+	var errs []error
 	for _, row := range rows {
 		if err := s.replayNativeCall(ctx, row, calls[row.ProviderToolCallID]); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("session: replay native row %s: %w", row.ID, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (s *subagentService) replayNativeCall(
@@ -478,7 +479,7 @@ func (s *subagentService) recoverNativeResults(ctx context.Context) error {
 			unlock := s.lock(turn[0].ParentSessionID)
 			err := s.replayNativeTurn(ctx, turn, false)
 			unlock()
-			s.recoveryResult(ctx, turn[0].ParentTurnID, "native_result", err)
+			s.recoveryResult(ctx, turn[0].ParentSessionID, "native_result", err)
 		}
 		if len(rows) < nativeTaskReplayRowPage {
 			return nil

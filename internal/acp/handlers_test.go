@@ -553,7 +553,11 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 				t.Fatalf("initial permission = %#v, want pending", pending)
 			}
 			cancel(test.cause)
-			if err := <-result; err != nil {
+			if err := <-result; test.native && errors.Is(test.cause, context.DeadlineExceeded) {
+				if !errors.Is(err, ErrPermissionExpired) {
+					t.Fatalf("native deadline error = %v, want ErrPermissionExpired", err)
+				}
+			} else if err != nil {
 				t.Fatal(err)
 			}
 			terminal := collectEventsUntilCount(t, active.events, 1)[0]
@@ -3084,7 +3088,7 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancelCause(t.Context())
 		cancel(context.DeadlineExceeded)
-		if _, err := first.resolvePermissionRequest(ctx, request, "system"); err != nil {
+		if _, err := first.resolvePermissionRequest(ctx, request, "system"); !errors.Is(err, ErrPermissionExpired) {
 			t.Fatal(err)
 		}
 		events := collectEventsUntilCount(t, active.events, 2)
@@ -3109,6 +3113,9 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		event := collectEventsUntilCount(t, next.events, 1)[0]
 		if event.ResolvedByValue() != "repeat_denied" || replacement.HasPendingPermission() {
 			t.Fatalf("repeat event=%+v pending=%v", event, replacement.HasPendingPermission())
+		}
+		if _, err := replacement.RequestPermission(t.Context(), request); !errors.Is(err, ErrPermissionExpired) {
+			t.Fatalf("daemon approval retry error = %v, want expiration rather than rejection", err)
 		}
 		shared.Clear()
 		if shared.Contains(permissionRequestDigest(request)) {

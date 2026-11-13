@@ -61,6 +61,9 @@ func TestNativeResultViewsIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := replies.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		manager.SetReplyWatchService(replies)
 		for _, state := range []string{"armed", "fired", "delivered", "abandoned"} {
 			if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO session_prompt_reply_watches

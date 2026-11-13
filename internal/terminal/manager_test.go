@@ -2901,33 +2901,35 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 			}),
 		)
 		for _, tc := range []struct {
-			ref, cwd, profile, session string
-			want                       error
+			name, ref, cwd, profile, session string
+			want                             error
 		}{
-			{"wt-ready", root, "profile-a", "unbound", ErrInvalidCwd},
-			{"wt-ready", "", "profile-b", "unbound", ErrWorktreeNotFound},
-			{"wt-unknown", "", "profile-a", "unbound", ErrWorktreeNotFound},
-			{"", checkout, "profile-a", "unbound", ErrInvalidCwd},
-			{"wt-ready", "", "profile-a", "bound", ErrInvalidCwd},
-			{"wt-pending", "", "profile-a", "unbound", ErrWorktreeNotReady},
+			{"Should reject cwd outside checkout", "wt-ready", root, "profile-a", "unbound", ErrInvalidCwd},
+			{"Should reject foreign profile", "wt-ready", "", "profile-b", "unbound", ErrWorktreeNotFound},
+			{"Should reject unknown worktree", "wt-unknown", "", "profile-a", "unbound", ErrWorktreeNotFound},
+			{"Should reject cwd outside workspace", "", checkout, "profile-a", "unbound", ErrInvalidCwd},
+			{"Should reject bound session worktree", "wt-ready", "", "profile-a", "bound", ErrInvalidCwd},
+			{"Should reject pending worktree", "wt-pending", "", "profile-a", "unbound", ErrWorktreeNotReady},
 		} {
-			_, err := manager.Exec(t.Context(), ExecRequest{
-				WS: "workspace-a", Worktree: tc.ref, Cwd: tc.cwd, Command: "pwd", Approval: "allowlisted",
-				Actor: Actor{
-					Kind: ActorKindAgent, ID: "agent", ProfileID: tc.profile,
-					SessionID: tc.session, RunID: "run-a", Generation: 1,
-				},
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := manager.Exec(t.Context(), ExecRequest{
+					WS: "workspace-a", Worktree: tc.ref, Cwd: tc.cwd, Command: "pwd", Approval: "allowlisted",
+					Actor: Actor{
+						Kind: ActorKindAgent, ID: "agent", ProfileID: tc.profile,
+						SessionID: tc.session, RunID: "run-a", Generation: 1,
+					},
+				})
+				if !errors.Is(err, tc.want) {
+					t.Fatalf("Exec(%+v) error=%v, want %v", tc, err, tc.want)
+				}
+				if errors.Is(err, ErrInvalidCwd) && tc.session != "bound" &&
+					!strings.Contains(err.Error(), "worktree option") {
+					t.Fatalf("missing alternative in error: %v", err)
+				}
+				if starter.starts.Load() != 0 || leases.Load() != 0 {
+					t.Fatalf("starts=%d leases=%d after refusal", starter.starts.Load(), leases.Load())
+				}
 			})
-			if !errors.Is(err, tc.want) {
-				t.Fatalf("Exec(%+v) error=%v, want %v", tc, err, tc.want)
-			}
-			if errors.Is(err, ErrInvalidCwd) && tc.session != "bound" &&
-				!strings.Contains(err.Error(), "worktree option") {
-				t.Fatalf("missing alternative in error: %v", err)
-			}
-		}
-		if starter.starts.Load() != 0 || leases.Load() != 0 {
-			t.Fatalf("starts=%d leases=%d after refusal", starter.starts.Load(), leases.Load())
 		}
 	})
 

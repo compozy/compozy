@@ -248,6 +248,23 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
 	})
 
+	// Owner: native approval bridge; a suppressed expired request retains its timeout reason.
+	t.Run("Should distinguish an expired retry from an explicit denial", func(t *testing.T) {
+		t.Parallel()
+		requester := permissionRequesterFunc(func(
+			context.Context, string, acp.RequestPermissionRequest,
+		) (acp.RequestPermissionResponse, error) {
+			return acp.RequestPermissionResponse{}, acp.ErrPermissionExpired
+		})
+		bridge := newToolApprovalBridge(func() sessionPermissionRequester { return requester }, time.Second, nil, nil, nil)
+		err := bridge.RequestToolApproval(t.Context(), toolspkg.Scope{SessionID: "sess-1"},
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}), &view)
+		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
+		if !strings.Contains(err.Error(), "operator to prompt the session") {
+			t.Fatalf("expired retry guidance = %v", err)
+		}
+	})
+
 	t.Run("Should return approval_canceled when caller context is canceled", func(t *testing.T) {
 		t.Parallel()
 

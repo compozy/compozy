@@ -281,3 +281,11 @@ time and no cancellation time appears as `fired_at`.
 Validation: regression coverage is in the existing GitHub provider and monitor
 service suites. Local execution and live GitHub walks are forbidden for this
 parallel delivery; CI results are recorded in the PR.
+
+QA impact #1545 (CI-only verification; public-surface re-walk not run locally):
+
+- Reject `contributor: topic` and `acme/repo:topic`; accept `Acme-123:fix/one/two`.
+- Queue a child's early-stop alarm before registering a late monitor. Let the monitor fire, view
+  the child, then release the parent queue. Only the monitor wake reaches the creator. Repeat
+  with an unmatched sibling outcome sorted before the matching child monitor. A newer child turn
+  invalidates the old monitor coverage.

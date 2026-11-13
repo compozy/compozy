@@ -60202,6 +60202,16 @@
             },
             "description": "Admitted run with id and running status, or final result when wait=true; task and Loop targets retain delegated status"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid wait or completion budget"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -109278,7 +109288,7 @@
             }
           },
           {
-            "description": "Page size in bytes; defaults to and is capped at 65536",
+            "description": "Page size in bytes; defaults to 32768 and is capped at 65536",
             "in": "query",
             "name": "limit",
             "schema": {

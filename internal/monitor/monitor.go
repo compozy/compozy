@@ -234,7 +234,8 @@ func normalizeSpec(spec Spec) (Spec, error) {
 
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
 	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
-		if strings.TrimSpace(owner) == "" || strings.TrimSpace(branch) == "" || strings.Contains(branch, ":") {
+		if !validPullRequestOwner(owner) || strings.TrimSpace(branch) == "" ||
+			strings.ContainsAny(branch, ": \t\r\n") {
 			return Spec{}, invalid(
 				"qualified pull_request branch must use owner:branch with a non-empty owner and branch",
 			)
@@ -302,4 +303,18 @@ func (m Monitor) observable() Monitor {
 		m.FiredAt = time.Time{}
 	}
 	return m
+}
+
+func validPullRequestOwner(owner string) bool {
+	if len(owner) == 0 || len(owner) > 39 || owner[0] == '-' || owner[len(owner)-1] == '-' ||
+		strings.Contains(owner, "--") {
+		return false
+	}
+	for _, char := range owner {
+		if char != '-' && (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') &&
+			(char < '0' || char > '9') {
+			return false
+		}
+	}
+	return true
 }

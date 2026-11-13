@@ -561,3 +561,7 @@ Extension overrides are stored with the owning instance and have no config-file
 `target`. When creating or editing a manual server whose name also identifies an
 extension runtime, pass `owner=manual`; reserved runtime names still fail with
 `mcp_server_name_taken`.
+
+Discovery keeps healthy MCP sources available when another source fails or is serving cached tools.
+Such a degraded aggregate is not shared as a complete listing with matching peer sessions. A peer
+retries discovery under the existing source reliability policy and applies its own authorization.

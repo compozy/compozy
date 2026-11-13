@@ -20,6 +20,21 @@ func (s *ManagedWakeService) currentWakeSnapshot(ctx context.Context, req WakeRe
 	if !policy.Present {
 		return Snapshot{}, ErrSnapshotNotFound
 	}
+	if req.DryRun {
+		if finder, ok := s.store.(interface {
+			FindHeartbeatSnapshotByDigest(context.Context, string, string, string, string) (Snapshot, bool, error)
+		}); ok {
+			stored, found, err := finder.FindHeartbeatSnapshotByDigest(
+				ctx, target.workspaceID, target.agentName, policy.Digest, target.profileID,
+			)
+			if err != nil {
+				return Snapshot{}, fmt.Errorf("heartbeat: find wake policy snapshot: %w", err)
+			}
+			if found {
+				return stored, nil
+			}
+		}
+	}
 	id, err := s.newID("hb")
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("heartbeat: generate policy snapshot id: %w", err)

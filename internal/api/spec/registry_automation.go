@@ -238,6 +238,7 @@ func triggerAutomationJobOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Admitted run with id and running status, or final result when wait=true; " +
 				"task and Loop targets retain delegated status", Body: contract.RunResponse{}},
+			{Status: 400, Description: "Invalid wait or completion budget", Body: contract.ErrorPayload{}},
 			{
 				Status:      404,
 				Description: specAutomationJobNotFoundDescription,

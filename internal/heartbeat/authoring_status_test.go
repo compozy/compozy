@@ -1644,6 +1644,96 @@ Wake gently.
 func TestManagedHeartbeatDiskWake(t *testing.T) {
 	t.Parallel()
 
+	// Owner: managed heartbeat wake; autonomous sources select disk policy, not immutable snapshot recency.
+	for _, source := range []heartbeat.WakeSource{heartbeat.WakeSourceScheduler, heartbeat.WakeSourceHarnessReentry} {
+		t.Run("Should follow current policy reverts and deletion for "+string(source), func(t *testing.T) {
+			t.Parallel()
+			fixture := newHeartbeatFixture(t)
+			registerManagedHeartbeatSession(t, fixture, "sess-current")
+			now := fixture.now
+			prompter := &recordingHeartbeatPrompter{}
+			service, err := heartbeat.NewManagedWakeService(fixture.db,
+				managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-current")},
+				prompter, fixture.target.Config,
+				heartbeat.WithWakeClock(func() time.Time { return now }),
+				heartbeat.WithWakeTargetResolver(func(context.Context, heartbeat.WakeRequest) (heartbeat.AuthoringTarget, error) {
+					return fixture.target, nil
+				}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := heartbeat.WakeRequest{WorkspaceID: fixture.workspaceID,
+				AgentName: "coder", SessionID: "sess-current", Source: source}
+			var originalID string
+			for index, summary := range []string{"Policy A", "Policy B", "Policy A"} {
+				body := validHeartbeatBody(summary, "Inspect context.")
+				if err := os.WriteFile(fixture.heartbeatPath, []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				now = now.Add(10 * time.Minute)
+				decision, err := service.Wake(fixture.ctx, req)
+				if err != nil || decision.Result != heartbeat.WakeResultSent {
+					t.Fatalf("wake %d = %+v, %v", index, decision, err)
+				}
+				if index == 0 {
+					originalID = decision.PolicySnapshotID
+				}
+				if index == 2 && decision.PolicySnapshotID != originalID {
+					t.Fatalf("reverted snapshot = %q, want %q", decision.PolicySnapshotID, originalID)
+				}
+				requests := prompter.requestsSnapshot()
+				if len(requests) != index+1 || !strings.Contains(requests[index].Message, summary) {
+					t.Fatalf("wake prompts = %+v", requests)
+				}
+			}
+			assertHeartbeatSnapshotCount(t, fixture, 2)
+			if err := os.Remove(fixture.heartbeatPath); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(10 * time.Minute)
+			decision, err := service.Wake(fixture.ctx, req)
+			if err != nil || decision.Reason != heartbeat.WakeReasonHeartbeatNoPolicy || len(prompter.requestsSnapshot()) != 3 {
+				t.Fatalf("deleted policy wake = %+v, %v", decision, err)
+			}
+		})
+	}
+
+	t.Run("Should use daemon config for a zero-config target and reject a different agent", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		cfg := fixture.target.Config
+		cfg.WakeCooldown = 90 * time.Second
+		body := validHeartbeatBody("Daemon config", "Inspect context.")
+		if err := os.WriteFile(fixture.heartbeatPath, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		registerManagedHeartbeatSession(t, fixture, "sess-config")
+		service, err := heartbeat.NewManagedWakeService(fixture.db,
+			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-config")},
+			&recordingHeartbeatPrompter{}, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := fixture.target
+		target.Config = compozyconfig.HeartbeatConfig{}
+		req := heartbeat.WakeRequest{PolicyTarget: &target, WorkspaceID: fixture.workspaceID,
+			AgentName: "coder", SessionID: "sess-config", Source: heartbeat.WakeSourceManual, DryRun: true}
+		provenance, err := heartbeat.ConfigProvenanceFor(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decision, err := service.Wake(fixture.ctx, req)
+		if err != nil || decision.Result != heartbeat.WakeResultSent || decision.ConfigDigest != provenance.Digest {
+			t.Fatalf("zero-config wake = %+v, %v", decision, err)
+		}
+		target.AgentName = "other"
+		req.DryRun = false
+		if _, err := service.Wake(fixture.ctx, req); !errors.Is(err, heartbeat.ErrInvalid) {
+			t.Fatalf("mismatched target error = %v", err)
+		}
+		assertHeartbeatSnapshotCount(t, fixture, 0)
+	})
+
 	// Invariant: manual wake uses the same current disk policy as status, without an authoring revision.
 	t.Run("Should resolve disk edits and persist only real wake snapshots", func(t *testing.T) {
 		t.Parallel()
@@ -1696,6 +1786,12 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 			t.Fatalf("prompts = %+v", requests)
 		}
 		req.DryRun = true
+		dryRun, err := service.Wake(fixture.ctx, req)
+		if err != nil || dryRun.PolicySnapshotID != decision.PolicySnapshotID {
+			t.Fatalf("matching dry run = %+v, %v; want persisted snapshot identity", dryRun, err)
+		}
+		assertHeartbeatSnapshotCount(t, fixture, 1)
+		assertHeartbeatRevisionCount(t, fixture, 0)
 		if err := os.WriteFile(fixture.heartbeatPath, []byte("---\nsummary: [\n---\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
