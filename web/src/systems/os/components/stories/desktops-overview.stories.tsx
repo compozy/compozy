@@ -4,12 +4,8 @@ import { expect, fn, userEvent, within } from "storybook/test";
 
 import type { OsWindow } from "../../lib/os-types";
 import type { LayoutNode } from "../../lib/window-manager-types";
-import {
-  DesktopsOverview,
-  type DesktopOverviewItem,
-  type DesktopOverviewTab,
-  type DesktopsOverviewProps,
-} from "../desktops-overview";
+import type { DesktopOverviewItem, DesktopOverviewTab } from "../../lib/desktops-overview-model";
+import { DesktopsOverview, type DesktopsOverviewProps } from "../desktops-overview";
 import { DesktopShell } from "./_desktop";
 import { STORY_WINDOWS as W, storySessionOf } from "./_tab-fixtures";
 

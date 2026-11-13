@@ -4,7 +4,7 @@ import type {
   DesktopOverviewAction,
   DesktopOverviewFocusSegment,
   DesktopsOverviewState,
-} from "../components/desktops-overview";
+} from "../lib/desktops-overview-model";
 
 function nearestHiddenDesktopId(
   segment: DesktopOverviewFocusSegment | null | undefined

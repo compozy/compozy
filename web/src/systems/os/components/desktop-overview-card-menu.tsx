@@ -16,7 +16,7 @@ import type { SessionPayload } from "@/systems/session";
 import { openContextMenuFromKeyboard } from "../lib/context-menu-keyboard";
 import type { OsWindow } from "../lib/os-types";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
-import type { DesktopOverviewItem, DesktopOverviewTab } from "./desktops-overview";
+import type { DesktopOverviewItem, DesktopOverviewTab } from "../lib/desktops-overview-model";
 
 type SessionOf = (win: OsWindow) => SessionPayload | undefined;
 

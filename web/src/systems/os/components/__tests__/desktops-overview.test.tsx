@@ -19,12 +19,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { OsWindow } from "../../lib/os-types";
 import { DesktopLayoutThumbnail } from "../desktop-layout-thumbnail";
-import {
-  DesktopsOverview,
-  type DesktopOverviewItem,
-  type DesktopOverviewTab,
-  type DesktopsOverviewProps,
-} from "../desktops-overview";
+import type { DesktopOverviewItem, DesktopOverviewTab } from "../../lib/desktops-overview-model";
+import { DesktopsOverview, type DesktopsOverviewProps } from "../desktops-overview";
 
 function osWindow(id: string, app: OsWindow["app"]): OsWindow {
   return {

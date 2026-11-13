@@ -7,11 +7,8 @@ import { useOsShell } from "../hooks/use-os-shell";
 import { useTabSessions } from "../hooks/use-os-tab-bar";
 import type { OsWindow } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
-import {
-  DesktopsOverview,
-  type DesktopOverviewItem,
-  type DesktopsOverviewState,
-} from "./desktops-overview";
+import type { DesktopOverviewItem, DesktopsOverviewState } from "../lib/desktops-overview-model";
+import { DesktopsOverview } from "./desktops-overview";
 
 function overviewState(input: {
   hydration: "pending" | "live" | "degraded";

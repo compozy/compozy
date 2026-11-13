@@ -18,7 +18,7 @@ import type { DesktopCardClosing } from "../hooks/use-desktop-card-actions";
 import type { OsAppId, OsWindow } from "../lib/os-types";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
 import { DesktopOverviewTabRow } from "./desktop-overview-tab-row";
-import type { DesktopOverviewItem } from "./desktops-overview";
+import type { DesktopOverviewItem } from "../lib/desktops-overview-model";
 
 /** Tab rows a card lists before it counts the rest as "+N more" (US-014.EC-3). */
 const DESKTOP_CARD_TAB_ROWS = 4;

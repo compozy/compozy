@@ -13,7 +13,7 @@ import {
   DesktopCardThumbnail,
 } from "./desktop-overview-card-sections";
 import { DesktopOverviewCardMenu } from "./desktop-overview-card-menu";
-import type { DesktopOverviewItem } from "./desktops-overview";
+import type { DesktopOverviewItem } from "../lib/desktops-overview-model";
 
 export interface DesktopOverviewCardProps {
   desktop: DesktopOverviewItem;

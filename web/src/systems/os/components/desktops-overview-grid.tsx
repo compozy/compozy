@@ -4,11 +4,8 @@ import { Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { useDesktopCardDrag } from "../hooks/use-desktop-card-drag";
 import { DesktopOverviewCard, DesktopOverviewCardGap } from "./desktop-overview-card";
-import type {
-  DesktopOverviewAction,
-  DesktopsOverviewProps,
-  DesktopsOverviewState,
-} from "./desktops-overview";
+import type { DesktopOverviewAction, DesktopsOverviewState } from "../lib/desktops-overview-model";
+import type { DesktopsOverviewProps } from "./desktops-overview";
 
 type DesktopsOverviewGridProps = Pick<
   DesktopsOverviewProps,
