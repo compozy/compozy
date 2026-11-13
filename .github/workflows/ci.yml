@@ -229,9 +229,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ strategy.job-index }}-${{ github.run_id }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ strategy.job-index }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
@@ -280,7 +280,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .turbo/cache
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ strategy.job-index }}-${{ github.run_id }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-${{ github.run_id }}
 
   # Preserve the canonical check and needs ID consumed by the fast-lane gate.
   # always() prevents a failed/canceled shard from skipping this aggregate.

@@ -23,7 +23,8 @@ changes select every frontend workspace. Unknown metadata returns the full senti
 
 Bun, Turbo and current runners remain. Browser cache writes remain main-push only;
 PRs consume remote Turbo cache read-only. A cold audit disables both reads and writes (`--cache=`). SQLite paired load and environmental acceptance remain outside Turbo caching.
-No timeout, threshold, assertion or retry policy was relaxed.
+No timeout, threshold or assertion was relaxed. CI web shards add up to two retries
+per failed test; local runs keep their existing retry defaults.
 
 ## Timing interpretation
 
@@ -36,12 +37,13 @@ main ruleset requires review-thread resolution and declares no required status
 contexts; the existing frontend check name is nevertheless preserved.
 
 Web shards pass `--shard=i/4 --maxWorkers=75% --retry=2` through Turbo, so each
-shard has its own task hash and retains retries on its own runner. Local Vitest
+shard has its own task hash and runs retries on its own runner. Local Vitest
 defaults stay at `maxWorkers: "50%"`. Each Turbo invocation must still produce
 exactly one fresh receipt, and a cached web test is cold-audited with the same
-shard, workers and retries. Artifact and GitHub cache names distinguish matrix
-entries. `scripts/ci-changes.sh --self-test` owns the selection, receipt and cold
-audit contracts; the PR's CI run supplies runtime validation and lane wall time.
+shard, workers and retries. Artifact names distinguish matrix entries; GitHub cache
+keys use stable lane and shard identities. `scripts/ci-changes.sh --self-test` owns
+the selection, receipt and cold audit contracts; the PR's CI run supplies runtime
+validation and lane wall time.
 The separate investigation into web test import time remains out of scope.
 
 Integration logs separate package/source discovery from each invocation's wall time.
