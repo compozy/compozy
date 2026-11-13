@@ -8,6 +8,13 @@ import {
   applyWindowManagerLayout,
   convertWindowManagerLayoutDocument,
 } from "../adapters/window-manager-layouts-api";
+import {
+  LAYOUT_FILE_CONVERSION,
+  type LayoutConversionMessages,
+  layoutConversionError,
+  readLayoutFile,
+  SAVED_LAYOUT_CONVERSION,
+} from "../lib/window-manager-layout-import";
 import { windowManagerLayoutDocumentToWire } from "../lib/window-manager-layout-schema";
 import {
   windowManagerLayoutFingerprint,
@@ -260,43 +267,36 @@ export function useWindowManagerLayoutEditor(
   const edit = (next: WindowManagerLayoutDocument) => {
     if (next !== context.draft) updateDraft(next);
   };
-  const failImport = (cause: unknown, fallback: string) =>
-    store.trigger.importFailed({ error: cause instanceof Error ? cause : new Error(fallback) });
   /** Any accepted version goes to the daemon, and the editor edits the version 6 it returns. */
-  const loadWire = async (wire: Readonly<Record<string, unknown>>, fallback: string) => {
+  const convertWire = async (wire: Readonly<Record<string, unknown>>) => {
+    const converted = await convertWindowManagerLayoutDocument(
+      workspaceId,
+      profileId,
+      context.revision,
+      wire
+    );
+    updateDraft({ ...converted, workspaceId });
+  };
+  /** Every failure reaches the review bar in product wording, never as engine text. */
+  const loadWire = async (
+    read: () => Promise<Readonly<Record<string, unknown>>>,
+    messages: LayoutConversionMessages
+  ) => {
     try {
-      const converted = await convertWindowManagerLayoutDocument(
-        workspaceId,
-        profileId,
-        context.revision,
-        wire
-      );
-      updateDraft({ ...converted, workspaceId });
+      await convertWire(await read());
     } catch (cause) {
-      failImport(cause, fallback);
+      store.trigger.importFailed({ error: layoutConversionError(cause, messages) });
     }
   };
-  const importDocument = async (file: File) => {
-    let value: unknown;
-    try {
-      value = JSON.parse(await file.text());
-    } catch (cause) {
-      failImport(cause, "The selected file is not a layout document.");
-      return;
-    }
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      failImport(null, "The selected file is not a layout document.");
-      return;
-    }
-    await loadWire(value as Record<string, unknown>, "The selected file is not a layout document.");
-  };
+  const importDocument = (file: File) =>
+    loadWire(() => readLayoutFile(file), LAYOUT_FILE_CONVERSION);
   /** A saved layout opens as is, or — saved before tabs and splits — converted by the daemon. */
   const loadSource = async (source: WindowManagerLayoutProfileSource) => {
     if (source.kind === "current") {
       updateDraft({ ...structuredClone(source.document), workspaceId });
       return;
     }
-    await loadWire(source.wire, "This saved layout could not be opened.");
+    await loadWire(async () => source.wire, SAVED_LAYOUT_CONVERSION);
   };
 
   const currentReview = review.data?.fingerprint === fingerprint ? review.data : null;

@@ -5,7 +5,8 @@
 // and must not ride a revision the daemon never checked the draft against.
 // Imported files and layouts saved before tabs and splits reach the draft only
 // as the version 6 document the daemon converted them to, and an exported file
-// is that wire document, so it imports back unchanged.
+// is that wire document, so it imports back unchanged. Every import failure reads
+// in product wording; parser, transport and daemon codes never reach the editor.
 // Boundary IN: successive layout states from the query; the convert adapter.
 // Boundary OUT: canvas rendering, transport, the profile editor.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -244,28 +245,73 @@ describe("useWindowManagerLayoutEditor", () => {
     expect(result.current.draft).toEqual(draft);
   });
 
-  it("Should keep the draft and report the daemon's refusal when a file cannot be converted", async () => {
-    apiMocks.convert.mockRejectedValue(new Error("layout version 3 is not supported"));
+  it("Should keep the draft and word the daemon's refusal of a version it does not accept", async () => {
+    // Read after the hook has loaded: a top-level import of the adapter would load it
+    // first, and the hook, reached again through `@/systems/os` while the mock factory
+    // runs, would bind the real adapter instead of the mock.
+    const { WindowManagerLayoutsApiError } =
+      await import("../../adapters/window-manager-layouts-api");
+    // The daemon's refusal body names a code, not a sentence.
+    apiMocks.convert.mockRejectedValue(new WindowManagerLayoutsApiError("invalid_topology", 422));
     const { result } = renderEditor(stateAt(41, "Build"));
-    const file = new File([JSON.stringify({ ...EARLIER_WIRE, version: 3 })], "layout.json");
+    const file = new File([JSON.stringify({ ...EARLIER_WIRE, version: 7 })], "layout.json");
 
     await act(async () => {
       await result.current.importDocument(file);
     });
 
-    expect(result.current.importError).toBe("layout version 3 is not supported");
+    expect(result.current.importError).toBe(
+      "CompozyOS can't open this layout document. It may come from a newer version."
+    );
     expect(result.current.draft.desktops[0]?.name).toBe("Build");
   });
 
-  it("Should refuse a file that is not a JSON object without asking the daemon", async () => {
+  it("Should word a check that did not finish without the transport's text", async () => {
+    apiMocks.convert.mockRejectedValue(new TypeError("Failed to fetch"));
     const { result } = renderEditor(stateAt(41, "Build"));
+    const file = new File([JSON.stringify(EARLIER_WIRE)], "layout.json");
 
     await act(async () => {
-      await result.current.importDocument(new File(["[1, 2]"], "layout.json"));
+      await result.current.importDocument(file);
+    });
+
+    expect(result.current.importError).toBe("Couldn't check the layout file. Try again.");
+    expect(result.current.draft.desktops[0]?.name).toBe("Build");
+  });
+
+  it.each([
+    { name: "plain text", content: "this is a plain text file" },
+    { name: "an empty file", content: "" },
+    { name: "a JSON array", content: "[1, 2]" },
+    { name: "JSON null", content: "null" },
+  ])(
+    "Should refuse $name as not a layout document without asking the daemon",
+    async ({ content }) => {
+      const { result } = renderEditor(stateAt(41, "Build"));
+
+      await act(async () => {
+        await result.current.importDocument(new File([content], "layout.json"));
+      });
+
+      expect(apiMocks.convert).not.toHaveBeenCalled();
+      expect(result.current.importError).toBe("The selected file is not a layout document.");
+      expect(result.current.draft.desktops[0]?.name).toBe("Build");
+    }
+  );
+
+  it("Should say a file could not be read when the browser cannot read it", async () => {
+    const { result } = renderEditor(stateAt(41, "Build"));
+    const file = new File(["{}"], "layout.json");
+    vi.spyOn(file, "text").mockRejectedValue(
+      new DOMException("NotReadableError", "NotReadableError")
+    );
+
+    await act(async () => {
+      await result.current.importDocument(file);
     });
 
     expect(apiMocks.convert).not.toHaveBeenCalled();
-    expect(result.current.importError).toBe("The selected file is not a layout document.");
+    expect(result.current.importError).toBe("The selected file could not be read.");
   });
 
   it("Should open a profile saved before tabs and splits through the daemon's conversion", async () => {

@@ -1,7 +1,8 @@
 // Suite: the layout review gate
 // Invariant: a layout reaches the workspace only at the exact revision the daemon
 // validated and previewed. Any edit after a check disarms Apply, and a document
-// the daemon refused never reaches preview at all.
+// the daemon refused never reaches preview at all. The checked status counts
+// what changes in the product's nouns, singular for one and left out at zero.
 // Boundary IN: the editor model plus the validate/preview/apply adapter.
 // Boundary OUT: the canvas, the inspector, the profile grid.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -23,7 +24,11 @@ vi.mock("../../adapters/window-manager-layouts-api", () => ({
 }));
 
 import { useWindowManagerLayoutEditor } from "../../hooks/use-window-manager-layout-editor";
-import type { WindowManagerLayoutState } from "../../lib/window-manager-layout-types";
+import type {
+  WindowManagerLayoutChanges,
+  WindowManagerLayoutDocument,
+  WindowManagerLayoutState,
+} from "../../lib/window-manager-layout-types";
 import { LayoutReviewBar } from "../layouts/layout-review-bar";
 
 const INITIAL: WindowManagerLayoutState = {
@@ -60,6 +65,57 @@ const INITIAL: WindowManagerLayoutState = {
     overrides: {},
   },
 } as unknown as WindowManagerLayoutState;
+
+/** One desktop whose tab holds a split nested in a split: two split nodes, three leaves. */
+const SPLIT_DOCUMENT = {
+  ...INITIAL.document,
+  desktops: [
+    {
+      id: "desktop-one",
+      name: "Build",
+      order: 0,
+      activeTabId: "tab-main",
+      tabs: [
+        {
+          id: "tab-main",
+          pinned: false,
+          root: {
+            id: "split-outer",
+            kind: "split",
+            axis: "horizontal",
+            weights: [0.5, 0.5],
+            children: [
+              { id: "leaf-one", kind: "leaf", windowId: "app:tasks" },
+              {
+                id: "split-inner",
+                kind: "split",
+                axis: "vertical",
+                weights: [0.5, 0.5],
+                children: [
+                  { id: "leaf-two", kind: "leaf", windowId: "app:terminal" },
+                  { id: "leaf-three", kind: "leaf", windowId: "app:files" },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ],
+} as unknown as WindowManagerLayoutDocument;
+
+function changesWith(counts: Partial<WindowManagerLayoutChanges>): WindowManagerLayoutChanges {
+  return {
+    desktopIds: [],
+    windowIds: [],
+    tabIds: [],
+    nodeIds: [],
+    clientIds: [],
+    tabSplit: [],
+    tabUnsplit: [],
+    ...counts,
+  };
+}
 
 function Harness() {
   const editor = useWindowManagerLayoutEditor("workspace-a", "marketing", INITIAL);
@@ -175,5 +231,63 @@ describe("LayoutReviewBar", () => {
     fireEvent.click(screen.getByTestId("edit-desktop"));
     expect(screen.queryByText("topology.split_weight_sum")).not.toBeInTheDocument();
     expect(screen.getByTestId("layout-review-apply")).toBeDisabled();
+  });
+
+  it.each([
+    {
+      name: "one of each",
+      changes: changesWith({
+        desktopIds: ["desktop-one"],
+        tabIds: ["tab-main"],
+        nodeIds: ["split-inner", "leaf-two"],
+        windowIds: ["app:terminal"],
+      }),
+      summary: "Checked · changes 1 desktop, 1 tab, 1 split, 1 window",
+    },
+    {
+      name: "many of each",
+      changes: changesWith({
+        desktopIds: ["desktop-one", "desktop-two"],
+        tabIds: ["tab-main", "tab-b", "tab-c", "tab-d", "tab-e"],
+        // Seven changed nodes: two splits and five leaves. Leaves are windows, not splits.
+        nodeIds: [
+          "split-outer",
+          "split-inner",
+          "leaf-one",
+          "leaf-two",
+          "leaf-three",
+          "leaf-4",
+          "leaf-5",
+        ],
+        windowIds: ["app:tasks", "app:terminal", "app:files", "app:a", "app:b", "app:c"],
+      }),
+      summary: "Checked · changes 2 desktops, 5 tabs, 2 splits, 6 windows",
+    },
+    {
+      name: "zero splits and windows",
+      changes: changesWith({ tabIds: ["tab-main", "tab-b"], nodeIds: ["leaf-one"] }),
+      summary: "Checked · changes 2 tabs",
+    },
+    {
+      name: "nothing counted",
+      changes: changesWith({ clientIds: ["client-a"] }),
+      summary: "Checked · nothing changes",
+    },
+  ])("Should count $name in the checked status", async ({ changes, summary }) => {
+    apiMocks.preview.mockResolvedValue({
+      revision: 7,
+      changed: true,
+      changes,
+      diagnostics: [],
+      document: SPLIT_DOCUMENT,
+    });
+    renderBar();
+    fireEvent.click(screen.getByTestId("edit-desktop"));
+    fireEvent.click(screen.getByTestId("layout-review-check"));
+
+    await waitFor(() => expect(screen.getByTestId("layout-review-apply")).toBeEnabled());
+    // The whole message, so a left-out zero count cannot hide behind a substring match.
+    expect(screen.getByText(summary)).toBeInTheDocument();
+    expect(screen.getByTestId("layout-review-status")).not.toHaveTextContent(/branch/);
   });
 });

@@ -1,6 +1,7 @@
 import { Button, Pill, Spinner } from "@compozy/ui";
 
 import type { WindowManagerLayoutEditorModel } from "../../hooks/use-window-manager-layout-editor";
+import { layoutChangeSummary } from "../../lib/window-manager-layout-change-summary";
 
 interface LayoutReviewBarProps {
   editor: WindowManagerLayoutEditorModel;
@@ -119,32 +120,12 @@ function describe(
         tone: "success",
       };
     }
-    return { message: `Checked · ${changeSummary(preview.changes)}`, tone: "success" };
+    return { message: `Checked · ${layoutChangeSummary(preview)}`, tone: "success" };
   }
   return {
     message: "Unreviewed edits · CompozyOS checks them before they apply",
     tone: "warning",
   };
-}
-
-function changeSummary(changes: {
-  desktopIds: string[];
-  tabIds: string[];
-  nodeIds: string[];
-  windowIds: string[];
-}): string {
-  const parts = [
-    plural(changes.desktopIds.length, "desktop"),
-    plural(changes.tabIds.length, "tab"),
-    plural(changes.nodeIds.length, "branch"),
-    plural(changes.windowIds.length, "window"),
-  ].filter((part): part is string => part !== null);
-  return parts.length === 0 ? "nothing changes" : `changes ${parts.join(", ")}`;
-}
-
-function plural(count: number, noun: string): string | null {
-  if (count === 0) return null;
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function errorMessage(error: unknown): string | null {
