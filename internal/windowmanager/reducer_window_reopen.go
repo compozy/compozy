@@ -58,28 +58,11 @@ func (r *reducer) reopenSplitMember(s *Snapshot, d *Desktop, id WindowID, m *Clo
 		if err != nil {
 			return false, err
 		}
-		if parent, exists := findNode(&tab.Root, m.ParentSplitID); exists && parent.Kind == NodeKindSplit {
-			index := max(0, min(m.ChildIndex, len(parent.Children)))
-			parent.Children = slices.Insert(parent.Children, index, leaf)
-			weights := make([]float64, len(parent.Children))
-			j := 0
-			for i := range weights {
-				if i == index {
-					weights[i] = m.Weight
-				} else {
-					weights[i] = parent.Weights[j] * (1 - m.Weight)
-					j++
-				}
-			}
-			parent.Weights = weights
-			tab.Root = flattenNode(tab.Root)
-		} else if slices.Contains(nodeWindowIDs(tab.Root), m.NeighborID) {
-			root, err := r.restoreNeighbor(tab.Root, m, leaf)
-			if err != nil {
-				return false, err
-			}
-			tab.Root = root
-		} else {
+		placed, err := r.placeMember(tab, m, leaf)
+		if err != nil {
+			return false, err
+		}
+		if !placed {
 			return r.reopenAsTab(s, d, id, ti+1)
 		}
 		assignTabWindows(s, td, *tab)
@@ -90,25 +73,46 @@ func (r *reducer) reopenSplitMember(s *Snapshot, d *Desktop, id WindowID, m *Clo
 	return r.reopenAsTab(s, d, id, len(d.Tabs))
 }
 
+// placeMember re-inserts leaf into tab at the member's recorded anchor: its
+// parent split, else beside its former sibling branch, else beside its former
+// neighbor window. It reports false when no anchor survives.
+func (r *reducer) placeMember(tab *Tab, m *ClosedMember, leaf LayoutNode) (bool, error) {
+	if parent, exists := findNode(&tab.Root, m.ParentSplitID); exists && parent.Kind == NodeKindSplit {
+		index := max(0, min(m.ChildIndex, len(parent.Children)))
+		parent.Children = slices.Insert(parent.Children, index, leaf)
+		weights := make([]float64, len(parent.Children))
+		j := 0
+		for i := range weights {
+			if i == index {
+				weights[i] = m.Weight
+			} else {
+				weights[i] = parent.Weights[j] * (1 - m.Weight)
+				j++
+			}
+		}
+		parent.Weights = weights
+		tab.Root = flattenNode(tab.Root)
+		return true, nil
+	}
+	root, restored, err := r.restoreBranch(tab.Root, m, leaf)
+	if err != nil {
+		return false, err
+	}
+	if !restored {
+		if !slices.Contains(nodeWindowIDs(tab.Root), m.NeighborID) {
+			return false, nil
+		}
+		if root, err = r.restoreNeighbor(tab.Root, m, leaf); err != nil {
+			return false, err
+		}
+	}
+	tab.Root = root
+	return true, nil
+}
+
 func (r *reducer) restoreNeighbor(root LayoutNode, member *ClosedMember, leaf LayoutNode) (LayoutNode, error) {
 	if root.Kind == NodeKindLeaf && root.WindowID != nil && *root.WindowID == member.NeighborID {
-		axis, before, _ := placementAxis(DropPlacement(member.NeighborEdge))
-		id, err := r.generate("node")
-		if err != nil {
-			return root, err
-		}
-		children, weights := []LayoutNode{root, leaf}, []float64{1 - member.Weight, member.Weight}
-		if before {
-			children[0], children[1] = leaf, root
-			weights[0], weights[1] = member.Weight, 1-member.Weight
-		}
-		return LayoutNode{
-			ID:       NodeID(id),
-			Kind:     NodeKindSplit,
-			Axis:     new(axis),
-			Children: children,
-			Weights:  weights,
-		}, nil
+		return r.splitBeside(root, member, leaf)
 	}
 	for i, child := range root.Children {
 		if slices.Contains(nodeWindowIDs(child), member.NeighborID) {
@@ -121,6 +125,122 @@ func (r *reducer) restoreNeighbor(root LayoutNode, member *ClosedMember, leaf La
 		}
 	}
 	return root, ErrWindowNotFound
+}
+
+// restoreBranch re-splits the member beside its former sibling branch when the
+// branch's windows still sit together, either as one node or as a contiguous
+// run of children after flattening merged the branch into a same-axis parent.
+// It reports false, leaving root untouched, when the branch no longer exists.
+func (r *reducer) restoreBranch(root LayoutNode, member *ClosedMember, leaf LayoutNode) (LayoutNode, bool, error) {
+	if len(member.NeighborIDs) < 2 {
+		return root, false, nil
+	}
+	if sameWindowSet(nodeWindowIDs(root), member.NeighborIDs) {
+		next, err := r.splitBeside(root, member, leaf)
+		if err != nil {
+			return root, false, err
+		}
+		return flattenNode(next), true, nil
+	}
+	if root.Kind != NodeKindSplit {
+		return root, false, nil
+	}
+	for i, child := range root.Children {
+		ids := nodeWindowIDs(child)
+		if !slices.ContainsFunc(ids, func(id WindowID) bool { return slices.Contains(member.NeighborIDs, id) }) {
+			continue
+		}
+		next, restored, err := r.restoreBranch(child, member, leaf)
+		if err != nil {
+			return root, false, err
+		}
+		if restored {
+			root.Children[i] = next
+			return flattenNode(root), true, nil
+		}
+		end := i
+		for len(ids) < len(member.NeighborIDs) && end+1 < len(root.Children) {
+			end++
+			ids = append(ids, nodeWindowIDs(root.Children[end])...)
+		}
+		if end == i || !sameWindowSet(ids, member.NeighborIDs) {
+			return root, false, nil
+		}
+		return r.restoreBranchRun(root, i, end, member, leaf)
+	}
+	return root, false, nil
+}
+
+// restoreBranchRun regroups children start..end of root into their own split
+// with root's axis and re-splits the member beside that group.
+func (r *reducer) restoreBranchRun(
+	root LayoutNode,
+	start, end int,
+	member *ClosedMember,
+	leaf LayoutNode,
+) (LayoutNode, bool, error) {
+	if root.Axis == nil || len(root.Weights) != len(root.Children) {
+		return root, false, nil
+	}
+	total := 0.0
+	for _, weight := range root.Weights[start : end+1] {
+		total += weight
+	}
+	if total <= 0 {
+		return root, false, nil
+	}
+	id, err := r.generate("node")
+	if err != nil {
+		return root, false, err
+	}
+	branch := LayoutNode{
+		ID:       NodeID(id),
+		Kind:     NodeKindSplit,
+		Axis:     new(*root.Axis),
+		Children: slices.Clone(root.Children[start : end+1]),
+		Weights:  make([]float64, 0, end-start+1),
+	}
+	for _, weight := range root.Weights[start : end+1] {
+		branch.Weights = append(branch.Weights, weight/total)
+	}
+	wrapped, err := r.splitBeside(branch, member, leaf)
+	if err != nil {
+		return root, false, err
+	}
+	root.Children = slices.Concat(root.Children[:start], []LayoutNode{wrapped}, root.Children[end+1:])
+	root.Weights = slices.Concat(root.Weights[:start], []float64{total}, root.Weights[end+1:])
+	return flattenNode(root), true, nil
+}
+
+// splitBeside wraps target and leaf in a new split on the member's recorded edge.
+func (r *reducer) splitBeside(target LayoutNode, member *ClosedMember, leaf LayoutNode) (LayoutNode, error) {
+	axis, before, _ := placementAxis(DropPlacement(member.NeighborEdge))
+	id, err := r.generate("node")
+	if err != nil {
+		return target, err
+	}
+	children, weights := []LayoutNode{target, leaf}, []float64{1 - member.Weight, member.Weight}
+	if before {
+		children[0], children[1] = leaf, target
+		weights[0], weights[1] = member.Weight, 1-member.Weight
+	}
+	return LayoutNode{
+		ID:       NodeID(id),
+		Kind:     NodeKindSplit,
+		Axis:     new(axis),
+		Children: children,
+		Weights:  weights,
+	}, nil
+}
+
+func sameWindowSet(a, b []WindowID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	a, b = slices.Clone(a), slices.Clone(b)
+	slices.Sort(a)
+	slices.Sort(b)
+	return slices.Equal(a, b)
 }
 
 func (r *reducer) reopenAsTab(s *Snapshot, d *Desktop, id WindowID, index int) (bool, error) {

@@ -1,18 +1,13 @@
 package windowmanager
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 func (v *snapshotValidator) validateClosedTopology(entry ClosedEntry, path string) {
 	if entry.Member != nil {
-		m := entry.Member
-		_, _, edge := placementAxis(DropPlacement(m.NeighborEdge))
-		if len(entry.Tabs) != 0 || len(entry.Windows) != 1 || m.TabID == "" || m.ParentSplitID == "" ||
-			m.ChildIndex < 0 ||
-			!finite(m.Weight) ||
-			m.Weight <= 0 ||
-			m.Weight >= 1 ||
-			m.NeighborID == "" ||
-			!edge {
+		if !validClosedMember(entry) {
 			v.add(
 				"topology.closed_member",
 				path+".member",
@@ -50,4 +45,33 @@ func (v *snapshotValidator) validateClosedTopology(entry ClosedEntry, path strin
 		diagnostic.Path = fmt.Sprintf("%s.%s", path, diagnostic.Path)
 		v.diagnostics = append(v.diagnostics, diagnostic)
 	}
+}
+
+func validClosedMember(entry ClosedEntry) bool {
+	m := entry.Member
+	_, _, edge := placementAxis(DropPlacement(m.NeighborEdge))
+	if len(entry.Tabs) != 0 || len(entry.Windows) != 1 || m.TabID == "" || m.ParentSplitID == "" ||
+		m.ChildIndex < 0 || !finite(m.Weight) || m.Weight <= 0 || m.Weight >= 1 || m.NeighborID == "" || !edge {
+		return false
+	}
+	return validNeighborBranch(m.NeighborIDs, m.NeighborID, entry.Windows[0].ID)
+}
+
+// validNeighborBranch accepts an absent branch or at least two distinct,
+// non-empty window IDs that include the neighbor and exclude the member.
+func validNeighborBranch(ids []WindowID, neighbor, member WindowID) bool {
+	if len(ids) == 0 {
+		return true
+	}
+	if len(ids) < 2 || !slices.Contains(ids, neighbor) {
+		return false
+	}
+	seen := make(map[WindowID]bool, len(ids))
+	for _, id := range ids {
+		if id == "" || id == member || seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
+	return true
 }

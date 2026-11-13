@@ -147,6 +147,11 @@ type ClosedMember struct {
 	Weight        float64  `json:"weight"`
 	NeighborID    WindowID `json:"neighbor_id"`
 	NeighborEdge  Edge     `json:"neighbor_edge"`
+	// NeighborIDs lists, in layout order, the windows of the sibling branch when
+	// it was a split. Reopen restores the member beside that whole branch while
+	// the same windows still sit together; records without it fall back to
+	// NeighborID alone.
+	NeighborIDs []WindowID `json:"neighbor_ids,omitempty"`
 }
 
 // ClientView is transient presentation state for one connected client.

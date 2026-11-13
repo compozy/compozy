@@ -943,6 +943,121 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should restore a member beside its former sibling branch", func(t *testing.T) {
+		t.Parallel()
+		leaf := func(id WindowID) LayoutNode {
+			return LayoutNode{ID: NodeID("leaf-" + id), Kind: NodeKindLeaf, WindowID: new(id)}
+		}
+		split := func(id NodeID, axis Axis, weights []float64, children ...LayoutNode) LayoutNode {
+			return LayoutNode{ID: id, Kind: NodeKindSplit, Axis: new(axis), Children: children, Weights: weights}
+		}
+		branch := split("branch", AxisVertical, []float64{.4, .6}, leaf("b"), leaf("c"))
+		member := split("member-parent", AxisHorizontal, []float64{.3, .7}, leaf("a"), branch)
+		var same func(got, want LayoutNode) bool
+		same = func(got, want LayoutNode) bool {
+			if got.Kind != want.Kind || valueOrZero(got.WindowID) != valueOrZero(want.WindowID) ||
+				valueOrZero(got.Axis) != valueOrZero(want.Axis) || len(got.Children) != len(want.Children) ||
+				len(got.Weights) != len(want.Weights) {
+				return false
+			}
+			for i := range want.Children {
+				if !same(got.Children[i], want.Children[i]) ||
+					math.Abs(got.Weights[i]-want.Weights[i]) > weightTolerance {
+					return false
+				}
+			}
+			return true
+		}
+		pair := split("pair", AxisHorizontal, []float64{.3, .7}, leaf("a"), leaf("b"))
+		// besideB replaces leaf b with the single-neighbor fallback split.
+		var besideB func(LayoutNode) LayoutNode
+		besideB = func(n LayoutNode) LayoutNode {
+			if valueOrZero(n.WindowID) == "b" {
+				return pair
+			}
+			n = cloneNode(n)
+			for i := range n.Children {
+				n.Children[i] = besideB(n.Children[i])
+			}
+			return n
+		}
+		fixed := func(want LayoutNode) func(LayoutNode) LayoutNode {
+			return func(LayoutNode) LayoutNode { return want }
+		}
+		wholeBranch := func(after LayoutNode) LayoutNode {
+			return split("member-parent", AxisHorizontal, []float64{.3, .7}, leaf("a"), after)
+		}
+		for _, tc := range []struct {
+			name   string
+			root   LayoutNode
+			legacy bool
+			change Command
+			want   func(after LayoutNode) LayoutNode
+		}{
+			{name: "branch is the remaining root", root: member, want: fixed(member)},
+			{
+				name: "branch flattened into a same-axis parent",
+				root: split("outer", AxisVertical, []float64{.25, .75}, leaf("d"), member),
+				want: fixed(split("outer", AxisVertical, []float64{.25, .75}, leaf("d"), member)),
+			},
+			{
+				name:   "record without branch windows keeps the single-neighbor fallback",
+				root:   member,
+				legacy: true,
+				want:   besideB,
+			},
+			{
+				name:   "reordered branch still restores as a whole",
+				root:   member,
+				change: SwapWindowsCommand{FirstWindowID: "b", SecondWindowID: "c"},
+				want:   wholeBranch,
+			},
+			{
+				name:   "window moved out of the branch falls back beside the neighbor",
+				root:   member,
+				change: MoveWindowCommand{WindowID: "c", DestinationDesktopID: "desktop-default", Placement: DropTab},
+				want:   besideB,
+			},
+			{
+				name: "unrelated window inserted into the branch falls back beside the neighbor",
+				root: member,
+				change: MoveWindowCommand{
+					WindowID:             "d",
+					DestinationDesktopID: "desktop-default",
+					TargetWindowID:       new(WindowID("b")),
+					Placement:            DropBottom,
+				},
+				want: besideB,
+			},
+		} {
+			e := threeTabs(t)
+			openTestWindow(t, e.manager, "workspace-a", nil, "d", "desktop-default")
+			splitTestWindows(t, e, nodeWindowIDs(tc.root)...)
+			s := mustSnapshot(t, e.manager, "workspace-a")
+			d, ti, _ := findTab(&s, s.Windows["a"].TabID)
+			d.Tabs[ti].Root = cloneNode(tc.root)
+			seedTestSnapshot(t, e, s)
+			r := executeTestCommand(t, e.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "a"})
+			entry := r.Snapshot.ClosedEntries[len(r.Snapshot.ClosedEntries)-1]
+			if entry.Member == nil || !slices.Equal(entry.Member.NeighborIDs, []WindowID{"b", "c"}) {
+				t.Fatalf("%s: member=%+v", tc.name, entry.Member)
+			}
+			if tc.change != nil {
+				executeTestCommand(t, e.manager, "workspace-a", nil, tc.change)
+			}
+			if tc.legacy {
+				s = mustSnapshot(t, e.manager, "workspace-a")
+				s.ClosedEntries[len(s.ClosedEntries)-1].Member.NeighborIDs = nil
+				seedTestSnapshot(t, e, s)
+			}
+			after := tabFor(t, mustSnapshot(t, e.manager, "workspace-a"), "b").Root
+			r = executeTestCommand(t, e.manager, "workspace-a", nil, ReopenCommand{})
+			requireValidSnapshot(t, r.Snapshot)
+			if got, want := tabFor(t, r.Snapshot, "a").Root, tc.want(after); !same(got, want) {
+				t.Fatalf("%s: restored=%+v want=%+v", tc.name, got, want)
+			}
+		}
+	})
 	t.Run("Should missing desktop fallback (UT-016)", func(t *testing.T) {
 		t.Parallel()
 		for _, withClient := range []bool{false, true} {
