@@ -139,8 +139,9 @@ function DropZones({
   drag: TabDragState | null;
   projection: TabProjection | undefined;
 }) {
-  const target = drag?.target;
-  if (drag === null || drag.contentTabId !== tabId || target == null) return null;
+  if (drag === null || drag.contentTabId !== tabId) return null;
+  const target = drag.target;
+  if (target === null) return null;
   if (target.kind === "root")
     return target.tabId === tabId ? <OsRootDropZone edge={target.edge} /> : null;
   if (target.kind !== "window" && target.kind !== "swap") return null;
@@ -261,7 +262,7 @@ function DeskLayer({
             active={tabId === shownTabId}
             hosts={hosts}
             sessionOf={sessionOf}
-            drag={drag}
+            drag={drag?.contentTabId === tabId ? drag : null}
           />
         );
       })}

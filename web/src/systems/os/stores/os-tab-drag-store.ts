@@ -15,7 +15,7 @@ import type {
 export const DRAG_START_PX = 5;
 /** Shared by the gesture hit test and the store so clicks never prepare drop geometry. */
 export function isDragMovement(origin: PixelPoint, point: PixelPoint): boolean {
-  return Math.hypot(point.x - origin.x, point.y - origin.y) >= DRAG_START_PX;
+  return distance(origin, point) >= DRAG_START_PX;
 }
 /** Pointer travel that restarts a head's dwell over a tab. */
 const DWELL_SLOP_PX = 4;

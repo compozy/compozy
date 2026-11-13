@@ -2552,7 +2552,9 @@ describe("useOsTabDragStart pointer gestures", () => {
         ],
         activeTabIds: { "desktop:main": "tab:a" },
       });
-      render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, { wrapper: shell.wrapper });
+      render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, {
+        wrapper: shell.wrapper,
+      });
       screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
       const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
         const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
