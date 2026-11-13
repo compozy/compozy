@@ -595,7 +595,10 @@ numbers first with `GET /api/workspaces/<ws>/sessions/<id>/derive/preview` (`mes
 `replay_bytes`, `native_fork_possible`, and `cut.turn_id` when `message_id` is given); it never writes.
 The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_name` and a `derivation`
 object, and is a new top-level session: `lineage.parent_session_id` names the source as provenance, not
-as a parent, so it is listed as its own row and is not the source's child. An explicit runtime or route
+as a parent, so it is not the source's child and keeps top-level governance. Session lists still show
+a continuation where its predecessor sits: catalog rows and details carry `tree_parent_session_id`
+when the continue chain began from a child, and the Web list nests the continuation under that
+parent; continuations of top-level sessions and forks stay their own rows. An explicit runtime or route
 is also its `runtime.selected` (revision 1), which a prompt without its own runtime binds; `session status` prints `Origin` and `Derivation` lines, and the daemon log records
 `session.derived` for it. A continuation with an explicit provider selection never walks the agent's
 fallback chain: a launch refusal remains visible in `runtime.failure` on the unbound child and no
@@ -718,7 +721,9 @@ children across every page; `parent_title` can name an archived readable parent.
 HTTP/UDS use repeatable `board_column` and `children=exclude`; the latter excludes every child
 (lineage kinds `provenance`, `spawn` and `recovery`), whereas `subagents=exclude` excludes only the
 subagent role. Forked and continued sessions are top-level: `children=exclude` keeps them, they never
-count in their source's `children`, and their `parent_title` names the source as provenance. Facets expose `board` counts for the
+count in their source's `children`, and their `parent_title` names the source as provenance. A
+continuation whose chain began from a child carries `tree_parent_session_id`, the parent it nests under
+in session lists. Facets expose `board` counts for the
 same scope and child visibility, independent of search, badge and selected board column. Changing
 columns or child visibility invalidates an existing cursor. Read paths use cached PR facts and
 never wait on forge calls.
@@ -1541,6 +1546,11 @@ Read `session.restart_interrupted`, `session.restart_resumed`, and `session.rest
 the existing session events surfaces. Interrupted metadata uses `stop_reason: "shutdown"` without
 an invented `process_exit` failure. Confirmed agent failures remain failures. The Web timeline shows
 the interruption and resumption; CLI, HTTP/UDS and native reads share the same persisted state.
+
+A session that was idle when the restart began has no interrupted turn, so boot leaves it
+`stopped` with `stop_reason: "shutdown"`. Prompt it with `compozy__session_prompt` (or
+`compozy session prompt`) to resume the same session in place with its history and parent; reach for
+`session continue` only to change agent or runtime, since it creates a new session.
 
 Automatic continuation is skipped for explicit stops, pending approval or clarification, maintenance
 commands, completed turns, archived sessions, changed provider binding/runtime selection/permission

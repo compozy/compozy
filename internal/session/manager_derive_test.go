@@ -226,6 +226,54 @@ func TestDeriveSourceProfileFence(t *testing.T) {
 func TestContinueSession(t *testing.T) {
 	t.Parallel()
 
+	// #1644: a worker a daemon restart stopped, continued by its orchestrator, stays listed in
+	// the orchestrator's thread while its lineage keeps naming the stopped worker as the source.
+	t.Run("Should list a child continued after a restart stop under its original parent", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		ctx := testutil.Context(t)
+		conductor := h.newDeriveSource(t)
+		worker, err := h.manager.CreateAccepted(ctx, new(CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: "coder", Name: "Worker", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: conductor.ID, Kind: store.LineageKindProvenance},
+		}}))
+		if err != nil {
+			t.Fatalf("CreateAccepted(worker) error = %v", err)
+		}
+		events, err := h.manager.Prompt(ctx, worker.ID, "Build the tab bar")
+		if err != nil {
+			t.Fatalf("Prompt(worker) error = %v", err)
+		}
+		collectEvents(t, events)
+		cause, detail := DaemonShutdownStopCause(true)
+		if err := h.manager.StopWithCause(ctx, worker.ID, cause, detail); err != nil {
+			t.Fatalf("StopWithCause(worker) error = %v", err)
+		}
+		result, err := h.manager.ContinueSession(ctx, ContinueSessionOpts{
+			SourceSessionID: worker.ID, WorkspaceID: h.workspaceID, AgentName: "coder",
+			IdempotencyKey: "restart-continue",
+		})
+		if err != nil || result.Child == nil {
+			t.Fatalf("ContinueSession(worker) = %+v, %v", result, err)
+		}
+		page, err := h.manager.ListPage(ctx, ListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("ListPage() error = %v", err)
+		}
+		var listed *Info
+		for _, info := range page.Sessions {
+			if info.ID == result.Child.ID {
+				listed = info
+			}
+		}
+		if listed == nil || listed.TreeParentSessionID != conductor.ID || listed.Lineage == nil ||
+			listed.Lineage.Kind != store.LineageKindContinue || listed.Lineage.ParentSessionID != worker.ID {
+			t.Fatalf("continued worker row = %+v, want listed under %s with source %s", listed, conductor.ID, worker.ID)
+		}
+	})
+
 	t.Run("Should continue a large transcript into another agent with its source history pointer", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)

@@ -33,7 +33,7 @@ import {
   SessionRowActions,
   getSessionDisplayTitle,
   sessionScopedDetailOptions,
-  sessionTreeParentId,
+  sessionListParentId,
   SessionWindowPresentationContext,
   type SessionLifecycleActionHandlers,
 } from "@/systems/session";
@@ -251,8 +251,9 @@ function SessionBoardDrawerControls({
 }
 
 /**
- * A child session's way back: its parent, ahead of the title, opens in the drawer. Forks and
- * continuations are new top-level sessions; their source stays the origin pill.
+ * A child session's way back: its parent, ahead of the title, opens in the drawer. A continued
+ * child leads back to the parent its predecessor nested under; forks and continuations of
+ * top-level sessions are top-level, their source stays the origin pill.
  */
 function SessionBoardDrawerParentCrumb({
   sessionId,
@@ -263,7 +264,7 @@ function SessionBoardDrawerParentCrumb({
 }) {
   const { params } = useProfileReadScope();
   const session = useQuery(sessionScopedDetailOptions(sessionId, params)).data;
-  const parentId = session ? sessionTreeParentId(session) : "";
+  const parentId = session ? sessionListParentId(session) : "";
   const parent = useQuery({
     ...sessionScopedDetailOptions(parentId, params),
     enabled: parentId !== "",

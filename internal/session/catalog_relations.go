@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -27,6 +28,9 @@ func (m *Manager) populateCatalogRelations(
 		query.SessionIDs = append(query.SessionIDs, info.ID)
 		if info.Lineage != nil && info.Lineage.ParentSessionID != "" {
 			query.ParentIDs = append(query.ParentIDs, info.Lineage.ParentSessionID)
+		}
+		if source := continuedSourceSessionID(info); source != "" {
+			query.ContinuedSourceIDs = append(query.ContinuedSourceIDs, source)
 		}
 	}
 	for id := range active {
@@ -64,8 +68,21 @@ func (m *Manager) populateCatalogRelations(
 		if info.Lineage != nil {
 			info.ParentTitle = relations.ParentTitles[info.Lineage.ParentSessionID]
 		}
+		if source := continuedSourceSessionID(info); source != "" {
+			info.TreeParentSessionID = relations.ContinuedTreeParents[source]
+		}
 	}
 	return nil
+}
+
+// continuedSourceSessionID is the predecessor of a continued session, or "" for every
+// other lineage kind. A continuation keeps its predecessor's place in the session tree
+// (#1644) while its lineage, governance, and authorization stay those of a top-level session.
+func continuedSourceSessionID(info *Info) string {
+	if info == nil || info.Lineage == nil || info.Lineage.Kind != store.LineageKindContinue {
+		return ""
+	}
+	return strings.TrimSpace(info.Lineage.ParentSessionID)
 }
 
 func catalogRelationVisible(info *Info, filter ListQuery) bool {

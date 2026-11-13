@@ -3428,6 +3428,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 
 		addCheckInToolSchemaFields(baseline)
 		addDaemonReadinessSchema(t, baseline, current)
+		// #1644: session payloads name the parent a continued child is listed under.
+		if addSessionTreeParentSchema(baseline) == 0 {
+			t.Fatal("approved tree_parent_session_id addition: no historical session schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -5646,6 +5650,29 @@ func addSessionLaterSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		properties["returned_from_later_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
+	}
+	return count
+}
+
+// addSessionTreeParentSchema adds the optional tree_parent_session_id to every session payload
+// (the schemas carrying parent_title); existing fields and required sets stay unchanged.
+func addSessionTreeParentSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionTreeParentSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionTreeParentSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["parent_title"] == nil || properties["badge"] == nil {
+			return count
+		}
+		properties["tree_parent_session_id"] = map[string]any{"type": "string"}
 		count++
 	}
 	return count

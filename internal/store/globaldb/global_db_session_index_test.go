@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -3739,6 +3740,80 @@ func TestSessionCatalogBoard(t *testing.T) {
 		}
 		if facets.Facets.All != 1 || facets.Facets.Board.Done != 1 {
 			t.Fatalf("root facets = %#v", facets)
+		}
+	})
+
+	t.Run("Should resolve continued sources to the parent their continue chain began under", func(t *testing.T) {
+		t.Parallel()
+		ctx, db := t.Context(), openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "continued", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC)
+		// A conductor's child interrupted by a restart, continued twice; a continued top-level
+		// session; and a continuation of a fork of the child.
+		lineage := map[string][2]string{
+			"worker":      {"conductor", string(store.LineageKindProvenance)},
+			"worker-2":    {"worker", string(store.LineageKindContinue)},
+			"worker-3":    {"worker-2", string(store.LineageKindContinue)},
+			"top-2":       {"top", string(store.LineageKindContinue)},
+			"worker-fork": {"worker", string(store.LineageKindFork)},
+			"fork-2":      {"worker-fork", string(store.LineageKindContinue)},
+		}
+		for _, id := range []string{"conductor", "worker", "worker-2", "worker-3", "top", "top-2", "worker-fork", "fork-2"} {
+			if err := db.RegisterSession(
+				ctx,
+				new(sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)),
+			); err != nil {
+				t.Fatal(err)
+			}
+			relation, ok := lineage[id]
+			if !ok {
+				continue
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET parent_session_id=?, lineage_kind=?,
+ origin_agent_name=CASE WHEN ? IN ('fork','continue') THEN 'coder' ELSE '' END WHERE id=?`,
+				relation[0], relation[1], relation[1], id,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		relations, err := db.SessionCatalogRelations(ctx, store.SessionCatalogRelationsQuery{
+			ReadScope:          store.ReadScope{ProfileID: store.DefaultProfileID},
+			SessionIDs:         []string{"worker-2", "worker-3", "top-2", "fork-2"},
+			ContinuedSourceIDs: []string{"worker", "worker-2", "top", "worker-fork"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]string{"worker": "conductor", "worker-2": "conductor"}
+		if !maps.Equal(relations.ContinuedTreeParents, want) {
+			t.Fatalf("continued tree parents = %#v, want %#v", relations.ContinuedTreeParents, want)
+		}
+		// Deleting an intermediate continuation keeps the survivor in the thread: the walk
+		// steps over the deleted row through its durable derivation receipt.
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO session_derivations (workspace_id, idempotency_key, profile_id, request_fingerprint,
+ source_session_id, child_session_id, kind, outcome_json, created_at)
+ VALUES (?, 'continue-worker-2', ?, 'fingerprint', 'worker', 'worker-2', 'continue', '{}', ?)`,
+			workspace, store.DefaultProfileID, store.FormatTimestamp(base),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteSession(ctx, "worker-2"); err != nil {
+			t.Fatal(err)
+		}
+		relations, err = db.SessionCatalogRelations(ctx, store.SessionCatalogRelationsQuery{
+			ReadScope:          store.ReadScope{ProfileID: store.DefaultProfileID},
+			SessionIDs:         []string{"worker-3"},
+			ContinuedSourceIDs: []string{"worker-2"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := relations.ContinuedTreeParents["worker-2"]; got != "conductor" {
+			t.Fatalf("tree parent after deleting the predecessor = %q, want conductor", got)
 		}
 	})
 

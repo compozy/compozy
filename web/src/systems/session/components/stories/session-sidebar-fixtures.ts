@@ -75,6 +75,54 @@ export const PROVENANCE_FAMILY: SessionPayload[] = [
   sidebarSession("sess-deps", "Nightly deps sweep", "infra", "running"),
 ];
 
+/**
+ * Issue #1644: a continued session names its predecessor as the source; the catalog's
+ * `tree_parent_session_id` places a continued child in its original parent's thread.
+ */
+export function continuedFrom(
+  session: SessionPayload,
+  sourceId: string,
+  treeParentId?: string
+): SessionPayload {
+  return {
+    ...session,
+    ...(treeParentId ? { tree_parent_session_id: treeParentId } : {}),
+    lineage: {
+      ...sidebarSession(session.id, "", session.agent_name, session.badge, sourceId).lineage!,
+      kind: "continue",
+      origin_agent_name: session.agent_name,
+    },
+  };
+}
+
+/** An orchestrator whose workers a daemon restart stopped and that it continued (#1644). */
+export const CONTINUED_FAMILY: SessionPayload[] = [
+  sidebarSession("sess-conductor", "Spec conductor: window tabs", "maestro", "running"),
+  sidebarSession("sess-s3", "S3: web tab bar", "coder", "stopped", "sess-conductor"),
+  continuedFrom(
+    sidebarSession("sess-s3-next", "S3: web tab bar (continued)", "coder", "running"),
+    "sess-s3",
+    "sess-conductor"
+  ),
+  sidebarSession("sess-s4", "S4: drop zones", "coder", "stopped", "sess-conductor"),
+  continuedFrom(
+    sidebarSession("sess-s4-next", "S4: drop zones (continued)", "coder", "stopped"),
+    "sess-s4",
+    "sess-conductor"
+  ),
+  continuedFrom(
+    sidebarSession("sess-s4-last", "S4: drop zones (continued 2)", "coder", "running"),
+    "sess-s4-next",
+    "sess-conductor"
+  ),
+  sidebarSession("sess-review", "Review: final pass", "reviewer", "running", "sess-conductor"),
+  sidebarSession("sess-notes", "Release notes draft", "writer", "stopped"),
+  continuedFrom(
+    sidebarSession("sess-notes-next", "Release notes draft (continued)", "writer", "running"),
+    "sess-notes"
+  ),
+];
+
 const FOLDER_AT = "2026-10-17T00:00:00Z";
 export const STORY_FOLDERS = [
   { id: "fld-calm", name: "Calm surfaces", position: 0, session_count: 2 },

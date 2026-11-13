@@ -350,6 +350,7 @@ const sessionListOutputSchema = `{
  "pull_request_lookup":{"type":["object","null"]},
  "board_column":{"type":"string","enum":["needs_you","working","waiting","in_review","done"]},
  "parent_title":{"type":"string"},
+ "tree_parent_session_id":{"type":"string"},
  "waiting_on":{"type":"string","enum":["sessions","monitor"]},
  "children":{"type":"object"}}}},
 		"page":{
