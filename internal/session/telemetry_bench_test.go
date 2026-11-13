@@ -3,11 +3,15 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -24,6 +28,11 @@ import (
 	"github.com/compozy/compozy/internal/testutil/otlptest"
 	"github.com/compozy/compozy/internal/toolmeta"
 	"go.opentelemetry.io/otel/attribute"
+	colmetricpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	metricpb "go.opentelemetry.io/proto/otlp/metrics/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -37,7 +46,7 @@ const (
 //	go test ./internal/session -run '^$' -bench BenchmarkTurnTelemetryFootprint -benchmem
 //
 // Each turn runs through the real ACP driver and acpmock on a warm session: 200 streamed chunks, one hosted tool
-// call, and a usage event. Enabled mode exports to an in-process OTLP/HTTP receiver and installs the daemon's
+// call, and a usage event. Enabled mode exports to a separate-process OTLP/HTTP receiver and installs the daemon's
 // store write observer. Besides ns/turn it reports
 // cpu_ns/turn (this process's user+sys CPU from getrusage around the measured loop, the final export included),
 // otlp_bytes/turn (serialized trace request bytes per turn plus one full metric push), and spans/turn.
@@ -56,8 +65,10 @@ func BenchmarkTurnTelemetryFootprint(b *testing.B) {
 	} {
 		b.Run(mode.name, func(b *testing.B) {
 			var collector *otlptest.Collector
+			var receiver *footprintReceiver
 			if mode.export {
-				collector = otlptest.NewCollector(b)
+				receiver = startFootprintReceiver(b)
+				collector = receiver.collector
 				collector.ExportWithMetrics(b, 1, footprintRegistries())
 				// The daemon installs this observer whenever export starts; default slow-write threshold.
 				defaults := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
@@ -72,7 +83,8 @@ func BenchmarkTurnTelemetryFootprint(b *testing.B) {
 			var traceBytes, spans int
 			if collector != nil {
 				collector.Flush(b)
-				traceBytes, spans = payloadBytes(collector.Payloads(otlptest.TracesPath)), len(collector.Spans())
+				warmup := receiver.snapshot(b)
+				traceBytes, spans = warmup.TraceBytes, warmup.Spans
 			}
 
 			before := processCPU(b)
@@ -93,18 +105,187 @@ func BenchmarkTurnTelemetryFootprint(b *testing.B) {
 			b.ReportMetric(float64(cpu.Nanoseconds())/float64(turns), "cpu_ns/turn")
 			otlpBytes, turnSpans := 0.0, 0.0
 			if collector != nil {
-				traces := payloadBytes(collector.Payloads(otlptest.TracesPath)) - traceBytes
-				metrics := collector.Payloads(otlptest.MetricsPath)
-				if traces == 0 || len(metrics) == 0 {
-					b.Fatalf("receiver got %d trace bytes and %d metric pushes, want both", traces, len(metrics))
+				// Read receiver accounting only after stopping the process CPU and elapsed measurements.
+				final := receiver.snapshot(b)
+				traces := final.TraceBytes - traceBytes
+				if traces == 0 || final.MetricPushes == 0 {
+					b.Fatalf("receiver got %d trace bytes and %d metric pushes, want both", traces, final.MetricPushes)
 				}
-				otlpBytes = float64(traces)/float64(turns) + float64(len(metrics[len(metrics)-1]))
-				turnSpans = float64(len(collector.Spans())-spans) / float64(turns)
+				otlpBytes = float64(traces)/float64(turns) + float64(final.LastMetricBytes)
+				turnSpans = float64(final.Spans-spans) / float64(turns)
 			}
 			b.ReportMetric(otlpBytes, "otlp_bytes/turn")
 			b.ReportMetric(turnSpans, "spans/turn")
 		})
 	}
+}
+
+type footprintSnapshot struct {
+	TraceBytes      int
+	Spans           int
+	MetricPushes    int
+	LastMetricBytes int
+}
+
+type footprintReceiver struct {
+	collector *otlptest.Collector
+	requests  *json.Encoder
+	responses *json.Decoder
+	cancel    context.CancelFunc
+}
+
+// TestTurnTelemetryReceiver is also the re-exec entry point, selected by TestMain before store seeding.
+func TestTurnTelemetryReceiver(t *testing.T) {
+	if os.Getenv(footprintReceiverEnv) == "1" {
+		serveFootprintReceiver(t)
+		return
+	}
+	t.Run("Should receive trace and metric exports in a separate process", func(t *testing.T) {
+		t.Parallel()
+		receiver := startFootprintReceiver(t)
+		if got := receiver.snapshot(t); got != (footprintSnapshot{}) {
+			t.Fatalf("initial receiver snapshot = %+v, want empty", got)
+		}
+		traces := postFootprintExport(t, receiver.collector.URL+otlptest.TracesPath,
+			&coltracepb.ExportTraceServiceRequest{ResourceSpans: []*tracepb.ResourceSpans{{
+				ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{{
+					Name: "turn", TraceId: []byte("0123456789abcdef"), SpanId: []byte("01234567"),
+				}}}},
+			}}})
+		metrics := postFootprintExport(t, receiver.collector.URL+otlptest.MetricsPath,
+			&colmetricpb.ExportMetricsServiceRequest{ResourceMetrics: []*metricpb.ResourceMetrics{{
+				ScopeMetrics: []*metricpb.ScopeMetrics{{Metrics: []*metricpb.Metric{{Name: "turns"}}}},
+			}}})
+		want := footprintSnapshot{TraceBytes: traces, Spans: 1, MetricPushes: 1, LastMetricBytes: metrics}
+		if got := receiver.snapshot(t); got != want {
+			t.Fatalf("receiver snapshot = %+v, want %+v", got, want)
+		}
+	})
+}
+
+func postFootprintExport(t *testing.T, endpoint string, message proto.Message) int {
+	t.Helper()
+	body, err := proto.Marshal(message)
+	if err != nil {
+		t.Fatalf("marshal OTLP export: %v", err)
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("create OTLP request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	client := &http.Client{Timeout: 10 * time.Second}
+	response, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("post OTLP export: %v", err)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close OTLP response: %v", err)
+		}
+	}()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("OTLP response status = %d, want %d", response.StatusCode, http.StatusOK)
+	}
+	return len(body)
+}
+
+func serveFootprintReceiver(t *testing.T) {
+	t.Helper()
+	collector := otlptest.NewCollector(t)
+	responses := json.NewEncoder(os.Stdout)
+	if err := responses.Encode(collector.URL); err != nil {
+		t.Fatalf("write OTLP receiver endpoint: %v", err)
+	}
+	requests := json.NewDecoder(os.Stdin)
+	for {
+		var request string
+		if err := requests.Decode(&request); err != nil {
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			t.Fatalf("read OTLP receiver request: %v", err)
+		}
+		if request != "snapshot" {
+			t.Fatalf("unknown OTLP receiver request %q", request)
+		}
+		metrics := collector.Payloads(otlptest.MetricsPath)
+		snapshot := footprintSnapshot{
+			TraceBytes: payloadBytes(collector.Payloads(otlptest.TracesPath)),
+			Spans:      len(collector.Spans()), MetricPushes: len(metrics),
+		}
+		if len(metrics) > 0 {
+			snapshot.LastMetricBytes = len(metrics[len(metrics)-1])
+		}
+		if err := responses.Encode(snapshot); err != nil {
+			t.Fatalf("write OTLP receiver snapshot: %v", err)
+		}
+	}
+}
+
+func startFootprintReceiver(t testing.TB) *footprintReceiver {
+	t.Helper()
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatalf("find OTLP receiver test binary: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	command := exec.CommandContext(ctx, binary, "-test.run=^TestTurnTelemetryReceiver$")
+	command.Env = append(os.Environ(), footprintReceiverEnv+"=1")
+	command.Stderr = os.Stderr
+	command.WaitDelay = 5 * time.Second
+	input, err := command.StdinPipe()
+	if err != nil {
+		t.Fatalf("create OTLP receiver input: %v", err)
+	}
+	output, err := command.StdoutPipe()
+	if err != nil {
+		if closeErr := input.Close(); closeErr != nil {
+			t.Errorf("close OTLP receiver input: %v", closeErr)
+		}
+		t.Fatalf("create OTLP receiver output: %v", err)
+	}
+	if err := command.Start(); err != nil {
+		t.Fatalf("start OTLP receiver: %v", err)
+	}
+	t.Cleanup(func() {
+		// EOF stops the receiver even when its parent exits; cancellation bounds a stuck shutdown.
+		timer := time.AfterFunc(5*time.Second, cancel)
+		defer timer.Stop()
+		if err := input.Close(); err != nil {
+			t.Errorf("close OTLP receiver input: %v", err)
+		}
+		if err := command.Wait(); err != nil {
+			t.Errorf("wait for OTLP receiver: %v", err)
+		}
+	})
+	receiver := &footprintReceiver{
+		requests: json.NewEncoder(input), responses: json.NewDecoder(output), cancel: cancel,
+	}
+	timer := time.AfterFunc(10*time.Second, cancel)
+	defer timer.Stop()
+	var endpoint string
+	if err := receiver.responses.Decode(&endpoint); err != nil {
+		t.Fatalf("read OTLP receiver endpoint: %v", err)
+	}
+	// Reuse the exporter/flush helpers without starting a receiver in this process.
+	receiver.collector = &otlptest.Collector{URL: endpoint}
+	return receiver
+}
+
+func (r *footprintReceiver) snapshot(t testing.TB) footprintSnapshot {
+	t.Helper()
+	timer := time.AfterFunc(10*time.Second, r.cancel)
+	defer timer.Stop()
+	if err := r.requests.Encode("snapshot"); err != nil {
+		t.Fatalf("request OTLP receiver snapshot: %v", err)
+	}
+	var snapshot footprintSnapshot
+	if err := r.responses.Decode(&snapshot); err != nil {
+		t.Fatalf("read OTLP receiver snapshot: %v", err)
+	}
+	return snapshot
 }
 
 func writeFootprintFixture(b *testing.B) string {

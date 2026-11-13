@@ -46,8 +46,11 @@ func runSessionTests(m *testing.M) (code int) {
 
 func isSessionTestHelperProcess() bool {
 	return os.Getenv("COMPOZY_TEST_SESSION_STOP_HELPER") == "1" ||
-		os.Getenv("COMPOZY_TEST_SESSION_STOP_WRAPPER") == "1"
+		os.Getenv("COMPOZY_TEST_SESSION_STOP_WRAPPER") == "1" ||
+		os.Getenv(footprintReceiverEnv) == "1"
 }
+
+const footprintReceiverEnv = "COMPOZY_TEST_SESSION_OTLP_RECEIVER"
 
 // hostedToolsHelperEnv re-executes the test binary as a stdio MCP server standing in for the daemon's hosted tools.
 const hostedToolsHelperEnv = "COMPOZY_TEST_SESSION_HOSTED_TOOLS"
