@@ -304,29 +304,26 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	}
 	// Template discovery must be safe alongside Gin's first-request route-tree preparation.
 	type requestResult struct {
-		response *http.Response
-		err      error
+		statusCode int
+		err        error
 	}
 	responses := make(chan requestResult, 1)
 	go func() {
 		response, requestErr := http.DefaultClient.Do(req)
-		responses <- requestResult{response: response, err: requestErr}
+		if requestErr != nil {
+			responses <- requestResult{err: requestErr}
+			return
+		}
+		closeErr := response.Body.Close()
+		responses <- requestResult{statusCode: response.StatusCode, err: closeErr}
 	}()
 	templates := server.RouteTemplates()
 	result := <-responses
-	resp, err := result.response, result.err
-	if err != nil {
-		t.Fatalf("http.DefaultClient.Do() error = %v", err)
+	if result.err != nil {
+		t.Fatalf("status request or response body close error = %v", result.err)
 	}
-	defer func() {
-		if resp.Body != nil {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				t.Errorf("response body Close() error = %v", closeErr)
-			}
-		}
-	}()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	if result.statusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", result.statusCode, http.StatusOK)
 	}
 	if !slices.Contains(templates, "/api/status") {
 		t.Fatalf("RouteTemplates() = %v, want the mounted status route", templates)
