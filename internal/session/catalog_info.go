@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -72,16 +73,14 @@ func (m *Manager) populateInstanceMetadata(ctx context.Context, info *Info) erro
 	if m.sessionCatalog == nil {
 		return nil
 	}
-	rows, err := m.sessionCatalog.ListSessions(ctx, store.SessionListQuery{
-		ID:        info.ID,
-		ReadScope: store.ReadScope{AllProfiles: true},
-		Archive:   store.SessionArchiveInclude,
-	})
-	if err != nil {
+	// Status runs on many per-session hot paths; read only the binding column, keyed.
+	instanceID, err := m.sessionCatalog.SessionInstanceID(ctx, info.ID)
+	switch {
+	case errors.Is(err, store.ErrSessionNotFound):
+		return nil
+	case err != nil:
 		return fmt.Errorf("session: read instance binding: %w", err)
 	}
-	if len(rows) > 0 {
-		info.InstanceID = rows[0].InstanceID
-	}
+	info.InstanceID = instanceID
 	return nil
 }

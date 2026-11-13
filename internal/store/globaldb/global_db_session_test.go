@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -1178,6 +1179,60 @@ func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 		})
 		if !errors.Is(err, store.ErrSessionNotFound) {
 			t.Fatalf("EnsureSessionTranscriptEpoch(missing) error = %v, want ErrSessionNotFound", err)
+		}
+	})
+}
+
+// Invariant: the keyed instance-binding read returns exactly the binding the
+// all-profile catalog list reports for that session. Owner: SessionRepo.
+func TestGlobalDBSessionInstanceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should match the catalog row binding for bound and unbound sessions", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		instance, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatalf("AdmitCreate() error = %v", err)
+		}
+		bound := store.SessionInfo{ID: "sess-instance-bound", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", State: "starting", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}
+		if _, err := db.RegisterInstanceSession(ctx, &bound, instance.ID, nil); err != nil {
+			t.Fatalf("RegisterInstanceSession() error = %v", err)
+		}
+		unbound := store.SessionInfo{ID: "sess-instance-unbound", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", State: "starting", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}
+		if err := db.RegisterSession(ctx, &unbound); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		for id, want := range map[string]string{bound.ID: instance.ID, unbound.ID: ""} {
+			got, err := db.SessionInstanceID(ctx, id)
+			if err != nil || got != want {
+				t.Fatalf("SessionInstanceID(%q) = %q, %v; want %q", id, got, err, want)
+			}
+			rows, err := db.ListSessions(ctx, store.SessionListQuery{
+				ID: id, ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveInclude,
+			})
+			if err != nil || len(rows) != 1 || rows[0].InstanceID != got {
+				t.Fatalf("ListSessions(%q) = %#v, %v; want binding %q", id, rows, err, got)
+			}
+		}
+	})
+
+	t.Run("Should return not found for a missing session", func(t *testing.T) {
+		t.Parallel()
+
+		db := openTestGlobalDB(t)
+		if _, err := db.SessionInstanceID(testutil.Context(t), "sess-instance-missing"); !errors.Is(
+			err,
+			store.ErrSessionNotFound,
+		) {
+			t.Fatalf("SessionInstanceID(missing) error = %v, want ErrSessionNotFound", err)
 		}
 	})
 }
