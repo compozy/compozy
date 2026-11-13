@@ -24,6 +24,15 @@ func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuer
 	return events, nil
 }
 
+// EventSequenceHead returns the highest event summary sequence, or zero when the
+// ledger is empty. Polling readers use it to bound a scan without reading rows.
+func (o *Observer) EventSequenceHead(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		return 0, errors.New("observe: event sequence head context is required")
+	}
+	return o.registry.EventSummaryHeadSequence(ctx)
+}
+
 // QueryTokenStats returns aggregated per-session token usage rows.
 func (o *Observer) QueryTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
 	return o.registry.ListTokenStats(ctx, query)

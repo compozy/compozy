@@ -105,6 +105,7 @@ func (d *Daemon) hookRuntimeOptions(
 			state.processRegistry,
 		)),
 		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
+		hookspkg.WithDispatchTracer(traceHookDispatch),
 	}
 }
 

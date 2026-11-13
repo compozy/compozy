@@ -1,0 +1,82 @@
+name: compozy-observability
+
+# Grafana OSS stack for CompozyOS OpenTelemetry export (traces, metrics) and daemon logs.
+# Everything binds to 127.0.0.1: no auth, local use only.
+
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    restart: unless-stopped
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}" # read access to ~/.compozy/logs (mode 0700)
+    volumes:
+      - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
+      # CompozyOS daemon JSON logs -> Loki (the daemon exports traces + metrics only).
+      - ${COMPOZY_LOG_DIR:-${HOME}/.compozy/logs}:/var/log/compozy:ro
+    environment:
+      COMPOZY_LOG_TZ: ${COMPOZY_LOG_TZ:-UTC} # zone of the daemon's plain-text log lines
+    ports:
+      - "127.0.0.1:4317:4317" # OTLP gRPC
+      - "127.0.0.1:4318:4318" # OTLP HTTP
+    depends_on: [tempo, loki, prometheus]
+
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    restart: unless-stopped
+    user: "0"
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+
+  loki:
+    image: grafana/loki:3.5.7
+    command: ["-config.file=/etc/loki/config.yaml"]
+    restart: unless-stopped
+    user: "0"
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-otlp-receiver # collector pushes OTLP metrics here
+      - --web.enable-remote-write-receiver # Tempo metrics-generator writes here
+      - --enable-feature=exemplar-storage # metric -> trace jumps
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_LANGUAGE: en-US
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor,metricsSummary,traceToMetrics
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on: [tempo, loki, prometheus]
+
+volumes:
+  tempo-data:
+  loki-data:
+  prometheus-data:
+  grafana-data:

@@ -71,6 +71,8 @@ CompozyOS archives them on load instead of failing; see
 | `[[marketplace.plugin_sources]]`     | Plugin marketplace registrations and preset choices.                                   | Preset defaults; custom registrations enabled by default                                              |
 | `[observability]`                    | Event summary retention and global byte cap.                                           | enabled, 7 days, 1 GiB                                                                                |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                         | enabled, 1 MiB segments, 256 MiB per session                                                          |
+| `[observability.otel]`               | OTLP trace and metric export to an OpenTelemetry collector. Global-only.               | disabled, `http/protobuf`, local collector, sample `1.0`, metrics every `60s`                         |
+| `[observability.otel.headers]`       | Export request headers resolved from `env:` or `vault:observability/` refs.            | none                                                                                                  |
 | `[log]`                              | Structured log level and daemon-owned rotation.                                        | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
 | `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.      | `enabled = true`                                                                                      |
 | `[skills]`                           | Skill discovery, source roots, polling, disable list, and installed-skill trust gates. | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
@@ -563,6 +565,21 @@ max_global_bytes = 1073741824
 enabled = true
 segment_bytes = 1048576
 max_bytes_per_session = 268435456
+
+[observability.otel]
+enabled = false
+protocol = "http/protobuf"
+endpoint = ""
+traces = true
+metrics = true
+sample_ratio = 1.0
+metric_interval = "60s"
+service_name = "compozy-daemon"
+slow_db_write_ms = 50
+forward_to_providers = false
+
+[observability.otel.headers]
+# "api-key" = "vault:observability/newrelic-license"
 
 [log]
 level = "info"
@@ -2238,6 +2255,60 @@ projections while refreshes run; disabling a source excludes its entries and can
 | `enabled`               | boolean | `true`      | `true` or `false` | Enables transcript capture from persisted session events. |
 | `segment_bytes`         | integer | `1048576`   | Positive integer. | Segment size for transcript retention.                    |
 | `max_bytes_per_session` | integer | `268435456` | Positive integer. | Per-session transcript byte cap.                          |
+
+## `[observability.otel]`
+
+Exports daemon traces and metrics over OTLP. Export also requires `[observability] enabled = true`.
+See [Export traces and metrics](/docs/operations/telemetry-export) for a local collector stack,
+status lines, and troubleshooting.
+
+| Field                  | Type     | Default            | Valid values                                                          | Description                                                                                                                                                               |
+| ---------------------- | -------- | ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`              | boolean  | `false`            | `true` or `false`                                                     | Master switch. `false` creates no providers and opens no connections.                                                                                                     |
+| `protocol`             | string   | `"http/protobuf"`  | `"http/protobuf"` or `"grpc"`                                         | Wire protocol to the collector. Also picks the default endpoint port.                                                                                                     |
+| `endpoint`             | string   | `""`               | `""` or an `http(s)` URL with a host; no userinfo, query, or fragment | Collector base URL. `""` uses `OTEL_EXPORTER_OTLP_ENDPOINT`, then `http://localhost:4318` (`grpc`: `http://localhost:4317`). HTTP appends `/v1/traces` and `/v1/metrics`. |
+| `traces`               | boolean  | `true`             | `true` or `false`                                                     | Exports spans while export is enabled.                                                                                                                                    |
+| `metrics`              | boolean  | `true`             | `true` or `false`                                                     | Exports metrics while export is enabled.                                                                                                                                  |
+| `sample_ratio`         | float    | `1.0`              | `0` to `1`                                                            | Fraction of new traces kept, also applied to unsampled incoming parents. A sampled parent from an external caller is always kept.                                         |
+| `metric_interval`      | duration | `"60s"`            | At least `"5s"`                                                       | How often metric points are pushed.                                                                                                                                       |
+| `service_name`         | string   | `"compozy-daemon"` | Letters, digits, `.`, `_`, `-`; 1 to 64 characters                    | `service.name` shown in the backend's service list.                                                                                                                       |
+| `slow_db_write_ms`     | integer  | `50`               | Zero or positive                                                      | A write inside a trace becomes a `db.write` span when it is not streaming-coalesced or takes at least this long. `0` disables write spans.                                |
+| `forward_to_providers` | boolean  | `false`            | `true` or `false`                                                     | Operator policy that gives provider processes started afterwards the OTLP environment and a `TRACEPARENT`.                                                                |
+
+Standard `OTEL_*` variables fill only the values `config.toml` does not set. A value written in the
+file wins even when it equals the default; an empty `endpoint` counts as not set.
+
+| Variable                      | Fills                                                                             |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `endpoint`                                                                        |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `protocol`                                                                        |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Headers; a non-empty `[observability.otel.headers]` table replaces them entirely. |
+| `OTEL_SERVICE_NAME`           | `service_name`                                                                    |
+| `OTEL_SDK_DISABLED=true`      | Forces export off.                                                                |
+
+Variable values are validated only while export is enabled, so variables set for other tools never
+block a daemon that exports nothing. `OTEL_RESOURCE_ATTRIBUTES` is ignored.
+
+Every `[observability.otel]` key is `restart-required` and global-only. A workspace `config.toml`
+that sets the block fails to load (`observability.otel settings are global-only`), workspace-scope
+writes are rejected, and profile overlays deny the `observability` block. Agents cannot write these
+keys: `compozy__config_set` refuses every `observability.otel.*` path with
+`config_trust_root_forbidden`. Set scalar keys with `compozy config set observability.otel.<key>`.
+
+## `[observability.otel.headers]`
+
+Maps a header name to a secret ref. The daemon resolves each ref at start and sends the header on
+every export request. Literal values are rejected.
+
+| Field    | Type   | Default | Valid values                                                              | Description                                                      |
+| -------- | ------ | ------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `<name>` | string | none    | Valid HTTP header name; value `env:<VAR>` or `vault:observability/<path>` | Header sent on export requests. Edit with `compozy config edit`. |
+
+```toml
+[observability.otel.headers]
+"api-key" = "vault:observability/newrelic-license"
+"Authorization" = "env:GRAFANA_OTLP_AUTH"
+```
 
 ## `[log]`
 

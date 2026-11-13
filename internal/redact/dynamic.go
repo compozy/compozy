@@ -27,6 +27,16 @@ func newDynamicSecretRegistry() *dynamicSecretRegistry {
 	return registry
 }
 
+// ContainsRegisteredSecret reports whether value contains runtime-registered secret material.
+func ContainsRegisteredSecret(value string) bool {
+	for _, secret := range dynamicSecrets.valuesSnapshot() {
+		if strings.Contains(value, secret) {
+			return true
+		}
+	}
+	return false
+}
+
 // RegisterDynamicSecret registers heuristic runtime material and returns an idempotent cleanup.
 func RegisterDynamicSecret(value string) func() {
 	return registerSecret(value, minDynamicSecretLength)

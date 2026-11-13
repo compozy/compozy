@@ -32,6 +32,24 @@ function requestBody(text: string) {
 }
 
 describe("createGoalAwareFetch", () => {
+  it("Should send the prompt POST with an unsampled traceparent through the daemon fetch by default", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await createGoalAwareFetch({ onResult: () => {} })("/api/sessions/s/prompt", {
+        method: "POST",
+        body: requestBody("hello"),
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const [[, init]] = fetchMock.mock.calls as [[string, RequestInit]];
+    expect(new Headers(init.headers).get("traceparent")).toMatch(
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/
+    );
+  });
+
   it("Should announce a later send before transport work without changing typed result ownership", async () => {
     const order: string[] = [];
     const payload = result("error", "goal_objective_required");

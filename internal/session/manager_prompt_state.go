@@ -23,11 +23,14 @@ type promptTurnDispatchState struct {
 	messageSeq       int
 	turnEnded        bool
 	// stopReason is the provider stop reason of the turn's terminal done event.
-	stopReason    acp.PromptStopReason
+	stopReason acp.PromptStopReason
+	// failed records that the turn's terminal event was an error.
+	failed        bool
 	openMessage   *promptMessageDispatchState
 	managed       *managedInputExecution
 	recovery      *promptRecoveryState
 	costBaselines map[string]float64
+	turnTrace     *promptTurnTrace
 }
 
 type promptRecoveryState struct {
@@ -109,5 +112,14 @@ func clearPromptState(session *Session, turnID string) {
 	if session.currentPromptDone != nil {
 		close(session.currentPromptDone)
 		session.currentPromptDone = nil
+	}
+}
+
+// initPromptTurnReport seeds recovery and the message IDs a turn reports, including batched inputs.
+func initPromptTurnReport(turnState *promptTurnDispatchState, messageID string, dispatchInput preparedPromptInput) {
+	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
+	turnState.reportMessageIDs = []string{messageID}
+	for _, input := range dispatchInput.batched {
+		turnState.reportMessageIDs = append(turnState.reportMessageIDs, input.request.messageID)
 	}
 }

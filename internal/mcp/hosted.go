@@ -165,6 +165,8 @@ type hostedLaunchRecord struct {
 	runID            string
 	generation       int64
 	bindID           string
+	// runTrace lives exactly as long as runID: set by BindRun, moved to last by ReleaseRun.
+	runTrace hostedRunTrace
 }
 
 type hostedBindRecord struct {
@@ -183,6 +185,7 @@ type hostedBindRecord struct {
 	correlationID     string
 	runID             string
 	generation        int64
+	runTrace          hostedRunTrace
 }
 
 // NewHostedService builds a hosted MCP lifecycle service.

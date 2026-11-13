@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing.T) {
@@ -104,6 +105,50 @@ func requireResourceValidationErrorContains(t *testing.T, err error, want string
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("ParseResource() error = %v, want to contain %q", err, want)
 	}
+}
+
+func TestIsLoopID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept generated run ids and authored definition names", func(t *testing.T) {
+		t.Parallel()
+
+		runID, err := store.NewID("looprun")
+		if err != nil {
+			t.Fatalf("store.NewID(looprun) error = %v", err)
+		}
+		for _, id := range []string{runID, "catalog-loop", "nightly_review"} {
+			if !loop.IsLoopID(id) {
+				t.Fatalf("IsLoopID(%q) = false, want true", id)
+			}
+		}
+	})
+
+	t.Run("Should reject free text and paths", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"", "Nightly Review", "review loop", "/home/ana/loops/x", "looprun-XYZ"} {
+			if loop.IsLoopID(value) {
+				t.Fatalf("IsLoopID(%q) = true, want false", value)
+			}
+		}
+	})
+
+	// Authored definition names are lowercase words, so only text with a character outside that alphabet can
+	// show that the generated run id shape is anchored.
+	t.Run("Should reject a generated run id embedded in other text", func(t *testing.T) {
+		t.Parallel()
+
+		runID, err := store.NewID("looprun")
+		if err != nil {
+			t.Fatalf("store.NewID(looprun) error = %v", err)
+		}
+		for _, embedded := range []string{"/home/ana/" + runID, runID + " for ana", runID + "/home/ana"} {
+			if loop.IsLoopID(embedded) {
+				t.Fatalf("IsLoopID(%q) = true, want false for a run id inside other text", embedded)
+			}
+		}
+	})
 }
 
 func TestResourceSpecShouldResolveLoopPrecedence(t *testing.T) {

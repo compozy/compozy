@@ -1,3 +1,5 @@
+import { daemonFetch } from "@/lib/api-client";
+
 import type { SessionGoalCommandResult } from "../types";
 
 interface GoalAwareFetchOptions {
@@ -176,7 +178,7 @@ function goalCommandFailureMessage(reasonCode: unknown): string {
 }
 
 export function createGoalAwareFetch({
-  fetch = globalThis.fetch.bind(globalThis),
+  fetch = daemonFetch,
   onRequest,
   onResult,
 }: GoalAwareFetchOptions): typeof globalThis.fetch {

@@ -269,6 +269,65 @@ func TestApplyConfigOverlayFileAppliesRedactionSnapshotSetting(t *testing.T) {
 	})
 }
 
+func TestApplyConfigOverlayFileAppliesObservabilityOTelOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep defaults for OTel keys the file omits [UT-008]", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, "[observability.otel]\nendpoint = \"http://collector.local:4318\"\n")
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		want := defaultObservabilityConfig().OTel
+		want.Endpoint = "http://collector.local:4318"
+		if !reflect.DeepEqual(cfg.Observability.OTel, want) {
+			t.Fatalf("Observability.OTel = %#v, want %#v", cfg.Observability.OTel, want)
+		}
+	})
+
+	t.Run("Should apply every OTel key written in the file", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, `
+[observability.otel]
+enabled = true
+protocol = "grpc"
+endpoint = "http://collector.local:4317"
+traces = false
+metrics = false
+sample_ratio = 0.25
+metric_interval = "30s"
+service_name = "compozy-dev"
+slow_db_write_ms = 0
+forward_to_providers = true
+
+[observability.otel.headers]
+"api-key" = "vault:observability/nr"
+`)
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		want := ObservabilityOTelConfig{
+			Enabled:            true,
+			Protocol:           "grpc",
+			Endpoint:           "http://collector.local:4317",
+			Headers:            map[string]string{"api-key": "vault:observability/nr"},
+			SampleRatio:        0.25,
+			MetricInterval:     30 * time.Second,
+			ServiceName:        "compozy-dev",
+			ForwardToProviders: true,
+		}
+		if !reflect.DeepEqual(cfg.Observability.OTel, want) {
+			t.Fatalf("Observability.OTel = %#v, want %#v", cfg.Observability.OTel, want)
+		}
+	})
+}
+
 func TestApplyConfigOverlayFileAppliesMarketplaceCatalogOverlay(t *testing.T) {
 	t.Parallel()
 	t.Run("Should load plugin source rows preserve omissions and honor explicit clearing", func(t *testing.T) {

@@ -7,6 +7,37 @@ import (
 	"time"
 )
 
+// ProviderModelPayload is a daemon API value.
+type ProviderModelPayload struct {
+	ProviderID             string                              `json:"provider_id"`
+	ModelID                string                              `json:"model_id"`
+	DisplayName            string                              `json:"display_name,omitempty"`
+	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
+	Available              *bool                               `json:"available"`
+	AvailabilityState      string                              `json:"availability_state"`
+	Stale                  bool                                `json:"stale"`
+	RefreshedAt            string                              `json:"refreshed_at,omitempty"`
+	ContextWindow          *int64                              `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                              `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                              `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                               `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                               `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                            `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                             `json:"default_reasoning_effort,omitempty"`
+	ConfigOptions          []SessionConfigOptionPayload        `json:"config_options,omitempty"`
+	Configurations         []ProviderModelConfigurationPayload `json:"configurations,omitempty"`
+	Cost                   *ModelCatalogCostPayload            `json:"cost,omitempty"`
+	Curated                bool                                `json:"curated"`
+	Deprecated             bool                                `json:"deprecated"`
+	Hidden                 bool                                `json:"hidden"`
+	Featured               bool                                `json:"featured"`
+	ReleaseDate            string                              `json:"release_date,omitempty"`
+	ReasoningKnown         bool                                `json:"reasoning_known,omitempty"`
+	ReasoningApply         string                              `json:"reasoning_apply,omitempty"`
+	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
+	LastError              string                              `json:"last_error,omitempty"`
+}
+
 // ProviderModelRefreshRequest is a daemon API value.
 type ProviderModelRefreshRequest struct {
 	SourceID  string `json:"source_id,omitempty"`
@@ -417,34 +448,3 @@ type ReplyWatchRefPayload struct {
 	ID    string `json:"id"`
 	State string `json:"state"`
 }
-
-// RerunLoopRequest is a daemon API value.
-type RerunLoopRequest struct {
-	FromNode  string `json:"from_node"`
-	ItemIndex *int   `json:"item_index,omitzero"`
-	Reason    string `json:"reason,omitempty"`
-	RequestID string `json:"request_id,omitempty"`
-}
-
-// RerunLoopResponse is a daemon API value.
-type RerunLoopResponse struct {
-	RunID            string   `json:"run_id"`
-	Generation       int64    `json:"generation"`
-	ParentGeneration int64    `json:"parent_generation"`
-	RerunNodes       []string `json:"rerun_nodes"`
-	Carried          int      `json:"carried"`
-	Replayed         bool     `json:"replayed,omitzero"`
-}
-
-// Resolution is a daemon API value.
-type Resolution struct {
-	Requested Speed            `json:"requested"`
-	Status    ResolutionStatus `json:"status"`
-	Reason    ResolutionReason `json:"reason,omitempty"`
-}
-
-// ResolutionReason is a daemon API value.
-type ResolutionReason string
-
-// ResolutionStatus is a daemon API value.
-type ResolutionStatus string

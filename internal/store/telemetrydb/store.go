@@ -78,6 +78,11 @@ func (s *Store) Status(ctx context.Context) (store.StreamStatus, error) {
 	return store.Status(ctx, s.readDB, MigrationStream())
 }
 
+// EventSummaryHeadSequence reads the physical ledger without logical deletion filters.
+func (s *Store) EventSummaryHeadSequence(ctx context.Context) (int64, error) {
+	return sqlcgen.New(s.readDB).EventSummaryHeadSequence(ctx)
+}
+
 func (s *Store) Write(ctx context.Context, summaries []store.EventSummary, validate func(context.Context) error) error {
 	return s.background.Submit(ctx, "write event summaries", func(ctx context.Context, tx *store.WriteTx) error {
 		if err := validate(ctx); err != nil {

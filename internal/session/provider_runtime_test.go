@@ -1124,6 +1124,54 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 	)
 }
 
+// UT-072: forwarded OTLP variables are set before agent-defined session_env, so the agent's values win.
+func TestProviderTelemetryForwardingYieldsToAgentEnvironment(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the agent OTLP endpoint and forward the remaining variables", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{
+			providerSecrets: fakeProviderSecretResolver{
+				values: map[string]string{"env:AGENT_OTLP": "http://agent:4318"},
+			},
+			providerTelemetryEnv: func() []string {
+				return []string{
+					"OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318",
+					"OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf",
+				}
+			},
+		}
+		resolved := compozyconfig.ResolvedAgent{
+			Name:    "general",
+			Command: "agent --acp",
+			SessionEnv: compozyconfig.SessionEnv{
+				"OTEL_EXPORTER_OTLP_ENDPOINT": {Ref: "env:AGENT_OTLP", Required: true},
+			},
+		}
+		opts, err := manager.sessionStartOpts(&sessionStartSpec{sessionID: "sess-9c1e"}, &Session{}, resolved, nil)
+		if err != nil {
+			t.Fatalf("sessionStartOpts() error = %v", err)
+		}
+		opts, bindings, err := manager.prepareProviderStartPolicies(t.Context(), resolved, opts)
+		if err != nil {
+			t.Fatalf("prepareProviderStartPolicies() error = %v", err)
+		}
+		t.Cleanup(func() { runProviderSecretRedactions(bindings.redactionCleanups) })
+		if got := envValue(opts.Env, "OTEL_EXPORTER_OTLP_ENDPOINT"); got != "http://agent:4318" {
+			t.Fatalf("OTEL_EXPORTER_OTLP_ENDPOINT = %q, want the agent value", got)
+		}
+		if got := envValue(opts.Env, "OTEL_EXPORTER_OTLP_PROTOCOL"); got != "http/protobuf" {
+			t.Fatalf("OTEL_EXPORTER_OTLP_PROTOCOL = %q, want the forwarded value", got)
+		}
+		if got := envValue(opts.Env, "OTEL_RESOURCE_ATTRIBUTES"); got !=
+			"compozy.session_id=sess-9c1e,compozy.agent=general" {
+			t.Fatalf("OTEL_RESOURCE_ATTRIBUTES = %q, want the session and agent", got)
+		}
+		if !opts.ForwardTraceParent {
+			t.Fatal("ForwardTraceParent = false, want the spawn span's TRACEPARENT forwarded")
+		}
+	})
+}
+
 func TestPreferredACPModelPreservesLogicalModelValue(t *testing.T) {
 	t.Parallel()
 

@@ -25,7 +25,7 @@ classify() {
       return
       ;;
     CLAUDE.md | AGENTS.md | */CLAUDE.md | */AGENTS.md | \
-      .agents/* | .claude/* | .codex/* | .cursor/* | .vscode/* | .compozy/* | .husky/* | \
+      .agents/* | .claude/* | .codex/* | .cursor/* | .vscode/* | .compozy/* | .husky/* | infra/* | \
       docs/_memory/* | docs/design/* | docs/gtm/* | docs/qa/* | docs/research/* | docs/runbooks/* | docs/superpowers/* | \
       .github/ISSUE_TEMPLATE/* | .github/PULL_REQUEST_TEMPLATE.md | .github/CONTRIBUTING.md | .github/CODEOWNERS | \
       CHANGELOG.md | COPY.md | DESIGN.md | MIGRATION_GUIDE.md | PRODUCT.md | SECURITY.md | LICENSE | imgs/* | \
@@ -143,6 +143,7 @@ CLAUDE.md|meta
 internal/CLAUDE.md|meta
 web/AGENTS.md|meta
 docs/qa/scenarios/TA-merge-gate.md|meta
+infra/observability/compose.yaml|meta
 docs/release/homebrew-beta-notice.md|web
 README.md|web
 DESIGN.md|meta

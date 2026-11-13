@@ -192,6 +192,7 @@ func (m *Manager) startRecoveredPrompt(
 	message string,
 	expiresAt time.Time,
 ) (<-chan acp.AgentEvent, string, error) {
+	state.turnTrace.recovery()
 	m.releaseHostedPromptRun(session, state)
 	m.clearActivePromptRunForState(session, state)
 	process, replayBlock, err := m.recoverPromptRuntimeBefore(ctx, session, expiresAt)

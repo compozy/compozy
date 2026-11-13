@@ -107,6 +107,15 @@ func defaultObservabilityConfig() ObservabilityConfig {
 		Transcripts: ObservabilityTranscriptConfig{
 			Enabled: true, SegmentBytes: 1 << 20, MaxBytesPerSession: 256 << 20,
 		},
+		OTel: ObservabilityOTelConfig{
+			Protocol:       OTelProtocolHTTPProtobuf,
+			Traces:         true,
+			Metrics:        true,
+			SampleRatio:    1,
+			MetricInterval: time.Minute,
+			ServiceName:    "compozy-daemon",
+			SlowDBWriteMS:  50,
+		},
 	}
 }
 

@@ -1,10 +1,14 @@
 package profile
 
 import (
+	"crypto/rand"
 	"errors"
 	"maps"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestNormalizeIdentitySymbols(t *testing.T) {
@@ -55,6 +59,53 @@ func TestNormalizeIdentitySymbols(t *testing.T) {
 		for _, emoji := range []string{"a b", "x\ny", "🦊\a🦊"} {
 			if _, _, _, err := NormalizeIdentity("", "", emoji); !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("NormalizeIdentity(%q) error = %v, want ErrInvalidInput", emoji, err)
+			}
+		}
+	})
+}
+
+func TestIsProfileID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept generated profile ids and the default profile", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Manager{now: time.Now, entropy: rand.Reader}
+		generated, err := manager.newProfileID()
+		if err != nil {
+			t.Fatalf("newProfileID() error = %v", err)
+		}
+		for _, id := range []string{generated, store.DefaultProfileID, "7ZZZZZZZZZZZZZZZZZZZZZZZZZ"} {
+			if !IsProfileID(id) {
+				t.Fatalf("IsProfileID(%q) = false, want true", id)
+			}
+		}
+	})
+
+	t.Run("Should reject non-canonical values, names, and paths", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{
+			"", "01arz3ndektsv4rrffq69g5fav", "01ARZ3NDEKTSV4RRFFQ69G5FA", "81ARZ3NDEKTSV4RRFFQ69G5FAV",
+			"01ARZ3NDEKTSV4RRFFQ69G5FAU", " 01ARZ3NDEKTSV4RRFFQ69G5FAV", "work", "/home/ana/profile.toml",
+		} {
+			if IsProfileID(value) {
+				t.Fatalf("IsProfileID(%q) = true, want false", value)
+			}
+		}
+	})
+
+	t.Run("Should reject a profile id embedded in other text", func(t *testing.T) {
+		t.Parallel()
+
+		for _, id := range []string{store.DefaultProfileID, "01ARZ3NDEKTSV4RRFFQ69G5FAV"} {
+			if !IsProfileID(id) {
+				t.Fatalf("IsProfileID(%q) = false, want the canonical ULID accepted", id)
+			}
+			for _, embedded := range []string{"/home/ana/" + id, id + "/home/ana", id + "0", "x" + id} {
+				if IsProfileID(embedded) {
+					t.Fatalf("IsProfileID(%q) = true, want false for a profile id inside other text", embedded)
+				}
 			}
 		}
 	})

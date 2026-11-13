@@ -233,13 +233,14 @@ func ExcludesInheritedUnrestrictedACPOptions(
 	return routeInherited || HasUnrestrictedACPOption(provider, authored)
 }
 
-// ObservabilityConfig controls global event retention settings.
+// ObservabilityConfig controls global event retention and OTLP export settings.
 type ObservabilityConfig struct {
 	Enabled           bool                          `toml:"enabled"`
 	RetentionDays     int                           `toml:"retention_days"`
 	MaxGlobalBytes    int64                         `toml:"max_global_bytes"`
 	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
 	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
+	OTel              ObservabilityOTelConfig       `toml:"otel"`
 }
 
 // ObservabilityTranscriptConfig configures transcript capture and retention.

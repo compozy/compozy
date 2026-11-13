@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -43,6 +44,7 @@ func (s *SessionDB) writePendingChunks(first sessionWriteRequest) (*sessionWrite
 	// cancel other accepted writes. A cancellation racing commit is an unknown ack.
 	ctx, cancel := context.WithTimeout(s.writerCtx, defaultDrainTimeout)
 	defer cancel()
+	ctx = coalescedBatchContext(ctx, accepted[0])
 	persisted, err := s.writeEventBatch(ctx, events)
 	result := sessionWriteResult{err: err}
 	if err == nil {
@@ -76,7 +78,7 @@ collect:
 		case next := <-s.writeCh:
 			chunk, eligible, err := newCoalescibleSessionEvent(next.event)
 			if next.kind != sessionWriteEvent || err != nil || !eligible || chunk.key != candidate.key ||
-				bytes+len(chunk.text) > sessionEventCoalesceMaxTextBytes {
+				bytes+len(chunk.text) > sessionEventCoalesceMaxTextBytes || writeTurn(next.ctx) != writeTurn(first.ctx) {
 				pending = &next
 				break collect
 			}
@@ -89,4 +91,18 @@ collect:
 		}
 	}
 	return requests, pending
+}
+
+// coalescedBatchContext attaches the batch attribution to the writer-owned batch context as values only: the turn
+// account the members share (collectPendingChunks ends a batch at an account change, so a batch updates each account
+// once) and the span of the first accepted member, which parents a slow-write span.
+func coalescedBatchContext(ctx context.Context, first sessionWriteRequest) context.Context {
+	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(first.ctx))
+	return store.WithWriteAttribution(ctx, store.WriteAttribution{Turn: writeTurn(first.ctx), Coalesced: true})
+}
+
+// writeTurn is the turn account the caller attached to a write request's context.
+func writeTurn(ctx context.Context) *store.TurnWriteAccount {
+	attribution, _ := store.WriteAttributionFrom(ctx)
+	return attribution.Turn
 }

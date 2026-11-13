@@ -55,6 +55,56 @@ Owner: small-work PR `run/polish-runtime-selector-rail-and-model-name-tooltips-c
 - Workspace data isolation: unaffected (presentation only). Official skill `skills/compozy/`: no
   change. Docs: no public documentation change; the QA scenario carries the impact flag.
 
+## OpenTelemetry trace and metric export (#1361) — 2026-11-10
+
+Owner: spec `.compozy/tasks/otel-telemetry-export/` (GitHub #1361), integration branch
+`feat/otel-telemetry-export`. Slice tasks cite this entry.
+Additive on every public surface and user state (SD-013 public regime, additive; no delete
+targets, no shim).
+
+- **Native tools.** No new tool. `compozy__config_set` refuses every `observability.otel.*` key
+  with `config_trust_root_forbidden` (`observability` is a trust root; operator-only through
+  `compozy config set`/`config edit`). `compozy__config_get` reads the keys; header values read
+  as `[REDACTED]` (agent-facing output masks every `env:`/`vault:` ref) and `OTEL_*` values never
+  appear. `compozy__observe_metrics` unchanged.
+- **CLI/HTTP/UDS.** `compozy config set` accepts the scalar `observability.otel.*` keys (`headers`
+  is file-edited). `compozy status` gains the Runtime `OTel:` line; `GET /api/status` (HTTP/UDS)
+  and `status --json` gain optional `otel` (state, protocol, endpoint host, sample ratio,
+  forwarding flag, per-signal health with fixed error classes, dropped spans). OpenAPI, TS and Go
+  clients regenerated. Every route accepts W3C `traceparent`; invalid values and `tracestate` are
+  ignored.
+- **Extensibility and hooks.** Hook dispatch is traced (`hook.dispatch`); no new hook events.
+  Extensions, SDK helpers, manifests, and MCP sidecars are unaffected and get no telemetry API.
+- **Config.** Additive `[observability.otel]` (`enabled=false`, `protocol`, `endpoint`, `traces`,
+  `metrics`, `sample_ratio`, `metric_interval`, `service_name`, `slow_db_write_ms`,
+  `forward_to_providers`) and `[observability.otel.headers]` (`env:` / `vault:observability/`
+  refs only). All `restart-required` (existing `observability.*` lifecycle row) and global-only:
+  workspace files fail to load, workspace-scope writes are rejected, profile overlays deny
+  `observability`. Standard `OTEL_*` variables fill unset values only, from the process environment
+  only (never a workspace `.env`), in both daemon boot and config inspection (`config get`, settings
+  reload diff); they are validated only while export can run (parent `observability.enabled`,
+  `otel.enabled`, and at least one signal).
+- **Repository infra.** New `infra/observability/` Compose stack (OTel Collector, Tempo, Loki,
+  Prometheus, Grafana with a provisioned daemon dashboard), classified `meta` by `scripts/gate.sh` and
+  `scripts/ci-changes.sh`; not shipped in releases.
+- **Workspace data isolation.** Exports carry owner IDs (session, turn, run, workspace, profile,
+  loop, automation) and registered names only, through a sanitizing exporter that omits or
+  replaces anything outside the registries (`other`, `custom`, `compozy.unknown`, `invalid`).
+  Never prompt/response text, tool arguments or results, file contents, paths, environment or
+  header values, secrets, or error text. Export is daemon-wide to one operator-chosen collector;
+  no per-workspace routing. Provider forwarding (`forward_to_providers`, off by default) is outside
+  this guarantee: provider processes get the OTLP environment, including resolved header values,
+  and decide what they export.
+- **Runtime behavior.** Off by default; with export off no providers or connections exist. Export
+  failures never fail a command; they surface as `degraded` status.
+- **Web and desktop.** No UI. The web API client and desktop health fetcher send an unsampled
+  `traceparent` to the daemon origin only.
+- **Docs and official skill.** `configuration/config-toml.mdx` (`[observability.otel]`,
+  `[observability.otel.headers]`, env precedence), new `operations/telemetry-export.mdx` ("Export
+  traces and metrics": Compose golden path, status, header secrets, exported catalog,
+  troubleshooting by error class); `skills/compozy/references/configuration.md` "OpenTelemetry
+  Export", including provider forwarding and measured overhead.
+
 ## Native Tool Result Views — issue #1432 — 2026-11-10
 
 Owner: `.compozy/tasks/native-tool-result-views/`, S10 closure and M1 integration. ADR-002 records the
