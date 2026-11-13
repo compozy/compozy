@@ -2871,6 +2871,49 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound encoder retention after successful and failed oversized messages", func(t *testing.T) {
+		t.Parallel()
+
+		for _, malformed := range []bool{false, true} {
+			var encoder projectionMessageEncoder
+			message := transcript.UIMessage{
+				ID:   "large",
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{
+					{Type: "text", Text: strings.Repeat("x", maxRetainedProjectionBuffer+1)},
+				},
+			}
+			if malformed {
+				message.Parts = append(
+					message.Parts,
+					transcript.UIMessagePart{Type: "dynamic-tool", Input: json.RawMessage(`{`)},
+				)
+			}
+			encoded, err := encoder.encode(&message)
+			if (err != nil) != malformed {
+				t.Fatalf("encode(malformed=%t) error = %v", malformed, err)
+			}
+			if malformed && encoded != "" {
+				t.Fatal("failed encoding returned partial JSON")
+			}
+			if encoder.buf.Cap() > maxRetainedProjectionBuffer {
+				t.Fatalf("encode(malformed=%t) retained %d bytes above the bound", malformed, encoder.buf.Cap())
+			}
+			message = transcript.UIMessage{ID: "small", Role: transcript.UIRoleAssistant}
+			encoded, err = encoder.encode(&message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := json.Marshal(message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if encoded != string(want) {
+				t.Fatalf("encoding after oversized message = %s, want %s", encoded, want)
+			}
+		}
+	})
+
 	t.Run("Should project the committed event when a failed append reused its sequence", func(t *testing.T) {
 		t.Parallel()
 

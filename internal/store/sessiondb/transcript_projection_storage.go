@@ -186,14 +186,15 @@ type projectionMessageEncoder struct {
 // the v1 default options omits the top-level newline exactly like Marshal.
 func (e *projectionMessageEncoder) encode(message *transcript.UIMessage) (string, error) {
 	e.buf.Reset()
-	if err := jsonv2.MarshalWrite(&e.buf, message, json.DefaultOptionsV1()); err != nil {
-		return "", err
+	err := jsonv2.MarshalWrite(&e.buf, message, json.DefaultOptionsV1())
+	var encoded string
+	if err == nil {
+		encoded = e.buf.String()
 	}
-	encoded := e.buf.String()
 	if e.buf.Cap() > maxRetainedProjectionBuffer {
 		e.buf = bytes.Buffer{}
 	}
-	return encoded, nil
+	return encoded, err
 }
 
 func prepareProjectionEntry(
