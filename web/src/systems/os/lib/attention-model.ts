@@ -125,6 +125,8 @@ export interface OsTerminalInputAttentionRow {
 export interface OsLayoutUpgradeAttentionRow {
   kind: "layout-upgrade";
   id: string;
+  /** The bell occurrence: what a read acknowledges and what the once-only toast is keyed by. */
+  notificationId?: string;
   title: string;
   workspaceId: string;
   workspaceLabel: string;
