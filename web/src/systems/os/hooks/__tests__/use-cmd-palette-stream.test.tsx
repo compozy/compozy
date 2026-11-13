@@ -215,6 +215,14 @@ describe("useCmdPaletteStream (UT-104)", () => {
         windows: { first: { ...window, shown: false } },
       })
     ).toBe(true);
+    // An empty desktop shows a New tab window, which holds no stream of its own.
+    expect(
+      backgroundStreamsWithinConnectionBudget({
+        activeDesktopId: "desktop-1",
+        connectionStatus: "connected",
+        windows: { first: { ...window, app: "new-tab" } },
+      })
+    ).toBe(true);
     expect(
       backgroundStreamsWithinConnectionBudget({
         activeDesktopId: "desktop-1",
