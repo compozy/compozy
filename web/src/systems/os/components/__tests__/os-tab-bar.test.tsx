@@ -7,7 +7,7 @@
 // drag (Move left/right within the pin range, Split with ▸, Arrange ▸) and no retired control.
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -358,6 +358,66 @@ describe("OsTabBar", () => {
     update({ tabs: TABS.filter(tab => tab.id !== "tab:tasks"), activeTabId: "tab:split" });
     expect(screen.queryByTestId("os-tab-tab:tasks")).toBeNull();
     expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus();
+  });
+
+  it("Should hand focus to the active tab when a tab closes by its focused X button [R3-08]", async () => {
+    const user = userEvent.setup();
+    const { coordinator, update } = renderBar();
+    const stops = () =>
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.tabIndex);
+
+    // Focus rests on a tab that is not the active one, then moves to another tab's X.
+    act(() => screen.getByTestId("os-tab-tab:dash").focus());
+    const vaultClose = screen
+      .getByTestId("os-tab-tab:vault")
+      .closest('[data-slot="os-tab"]')!
+      .querySelector<HTMLElement>('[data-slot="os-tab-close"]')!;
+    await user.click(vaultClose);
+    expect(coordinator.userClose).toHaveBeenCalledExactlyOnceWith("w-vault");
+
+    update({ tabs: TABS.filter(tab => tab.id !== "tab:vault") });
+    // The active tab, not the tab focused before the X, takes focus and the one stop.
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveFocus();
+    expect(stops()).toEqual([-1, 0, -1]);
+  });
+
+  it("Should hand focus on once a closing tab's menu lets focus go, and never take it from the menu [R3-08]", async () => {
+    const { update } = renderBar();
+    // Stands in for the tab's menu outliving its tab for a moment while it closes.
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    const item = document.createElement("button");
+    item.setAttribute("role", "menuitem");
+    menu.append(item);
+    document.body.append(menu);
+
+    act(() => screen.getByTestId("os-tab-tab:tasks").focus());
+    act(() => item.focus());
+    update({ tabs: TABS.filter(tab => tab.id !== "tab:tasks"), activeTabId: "tab:split" });
+    expect(item).toHaveFocus();
+
+    act(() => menu.remove());
+    await waitFor(() => expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus());
+  });
+
+  it("Should hand focus to the first tab when tabs remain but none is active [R3-08]", () => {
+    // The active tab's window is not projected, so the bar shows no active tab.
+    const ghost = solo("tab:ghost", "w-ghost");
+    const { update } = renderBar({
+      tabs: [solo("tab:tasks", "w-tasks"), solo("tab:vault", "w-vault"), ghost],
+      activeTabId: "tab:ghost",
+    });
+    expect(
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.getAttribute("aria-selected"))
+    ).toEqual(["false", "false"]);
+
+    act(() => screen.getByTestId("os-tab-tab:vault").focus());
+    update({ tabs: [solo("tab:tasks", "w-tasks"), ghost], activeTabId: "tab:ghost" });
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveFocus();
   });
 
   it("Should hand focus to New tab when the focused tab was the last one [R2-11]", () => {

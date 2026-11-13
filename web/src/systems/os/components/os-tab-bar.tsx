@@ -141,7 +141,7 @@ export function OsTabBarView({
 }) {
   const sessionOf = sessionLookup(bar.sessionById);
   const pinnedCount = bar.tabs.filter(model => model.tab.pinned).length;
-  const { tabProps, newTabRef } = useTabBarRoving(
+  const { tabProps, tablistProps, newTabRef } = useTabBarRoving(
     bar.tabs.map(model => model.tab.id),
     bar.tabs.find(model => model.active)?.tab.id ?? null
   );
@@ -157,7 +157,7 @@ export function OsTabBarView({
         className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         data-slot="os-tab-strip"
       >
-        <div aria-label="Tabs" className="contents" role="tablist">
+        <div aria-label="Tabs" className="contents" role="tablist" {...tablistProps}>
           {bar.tabs.map((model, index) => (
             <Fragment key={model.tab.id}>
               {drag.insertionIndex === index ? <OsTabInsertion /> : null}
