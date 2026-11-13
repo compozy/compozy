@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -547,10 +548,13 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			return views
 		}
 		shared := WithProjectionListings(t.Context(), NewProjectionListings())
+		wantSchema := string(alpha.InputSchema)
 		first := project(shared, "sess-a", "ws-1")
 		first[0].Descriptor.Description = "caller mutation"
-		if second := project(shared, "sess-b", "ws-1"); second[0].Descriptor.Description != alpha.Description {
-			t.Fatalf("shared listing leaked a caller mutation: %q", second[0].Descriptor.Description)
+		first[0].Descriptor.InputSchema[0] = '['
+		if second := project(shared, "sess-b", "ws-1"); second[0].Descriptor.Description != alpha.Description ||
+			string(second[0].Descriptor.InputSchema) != wantSchema {
+			t.Fatalf("shared listing leaked a caller mutation: %#v", second[0].Descriptor)
 		}
 		if calls := provider.calls.Load(); calls != 1 {
 			t.Fatalf("same projection scope listed %d times, want 1", calls)
@@ -563,8 +567,9 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 
 		retry := WithProjectionListings(t.Context(), NewProjectionListings())
 		provider.fail.Store(true)
-		if _, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}); err == nil {
-			t.Fatal("failed listing returned no error")
+		if _, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}); err == nil ||
+			!strings.Contains(err.Error(), "listing failed") {
+			t.Fatalf("failed listing error = %v, want listing failed", err)
 		}
 		provider.fail.Store(false)
 		project(retry, "sess-b", "ws-1")
@@ -681,8 +686,9 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 				waiter := project(shared, registry, "sess-waiter")
 				synctest.Wait()
 				close(release)
-				if result := <-leader; result.err == nil {
-					t.Fatal("failed leader returned no error")
+				if result := <-leader; result.err == nil ||
+					!strings.Contains(result.err.Error(), "leader listing failed") {
+					t.Fatalf("leader error = %v, want leader listing failed", result.err)
 				}
 				result := <-waiter
 				if result.err != nil {
