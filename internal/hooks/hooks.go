@@ -37,6 +37,7 @@ type Hooks struct {
 	now             func() time.Time
 	resolveExecutor ExecutorResolver
 	telemetrySink   TelemetrySink
+	dispatchTracer  DispatchTracer
 	metrics         *hookMetrics
 	debugPatchAudit bool
 

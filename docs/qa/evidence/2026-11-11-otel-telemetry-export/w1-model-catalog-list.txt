@@ -1,0 +1,22 @@
+Provider Models
+===============
+Provider  Model                       Curated  Hidden  Deprecated  Featured  Default Effort  Available  State    Stale  Sources             Refreshed
+--------  -----                       -------  ------  ----------  --------  --------------  ---------  -----    -----  -------             ---------
+claude    claude-opus-5               true     false   false       true      medium          false      unknown  false  models_dev,builtin  2026-11-11T14:39:16.707659056Z
+claude    claude-fable-5              true     false   false       true      high            false      unknown  false  models_dev,builtin  2026-11-11T14:39:16.707659056Z
+claude    claude-sonnet-5             true     false   false       false     high            false      unknown  false  models_dev,builtin  2026-11-11T14:39:16.707659056Z
+claude    claude-opus-4-8             true     false   false       false     high            false      unknown  false  models_dev,builtin  2026-11-11T14:39:16.707659056Z
+claude    claude-haiku-4-5-20251001   true     false   false       false                     false      unknown  false  models_dev,builtin  2026-11-11T14:39:16.707659056Z
+claude    claude-fable-5-2            false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-haiku-5-5            false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-sonnet-5-5           false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-opus-5-5             false    false   false       false                     unknown    unknown  false  config,models_dev   2026-11-11T14:39:31.782787592Z
+claude    claude-fable-5-1            false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-opus-4-7             false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-sonnet-4-6           false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-opus-4-6             false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-opus-4-5             false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-opus-4-5-20251101    false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-haiku-4-5            false    false   false       false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-sonnet-4-5           false    false   true        false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z
+claude    claude-sonnet-4-5-20250929  false    false   true        false                     unknown    unknown  false  models_dev          2026-11-11T14:39:16.707659056Z

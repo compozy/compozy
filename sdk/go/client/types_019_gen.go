@@ -4,6 +4,55 @@ package client
 
 import "time"
 
+// SessionFailureHealthPayload is a daemon API value.
+type SessionFailureHealthPayload struct {
+	SessionID       string      `json:"session_id"`
+	AgentName       string      `json:"agent_name,omitempty"`
+	Provider        string      `json:"provider,omitempty"`
+	WorkspaceID     string      `json:"workspace_id,omitempty"`
+	State           string      `json:"state,omitempty"`
+	FailureKind     FailureKind `json:"failure_kind"`
+	Summary         string      `json:"summary,omitempty"`
+	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
+// SessionFailurePayload is a daemon API value.
+type SessionFailurePayload struct {
+	Kind            FailureKind       `json:"kind"`
+	ReasonCode      FailureReasonCode `json:"reason_code,omitempty"`
+	Summary         string            `json:"summary,omitempty"`
+	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
+}
+
+// SessionFileEntryPayload is a daemon API value.
+type SessionFileEntryPayload struct {
+	Path string          `json:"path"`
+	Name string          `json:"name"`
+	Kind SessionFileKind `json:"kind"`
+}
+
+// SessionFileKind is a daemon API value.
+type SessionFileKind string
+
+// SessionFilesResponse is a daemon API value.
+type SessionFilesResponse struct {
+	Entries   []SessionFileEntryPayload `json:"entries"`
+	Truncated bool                      `json:"truncated"`
+}
+
+// SessionFolderPayload is a daemon API value.
+type SessionFolderPayload struct {
+	ID           string    `json:"id"`
+	WorkspaceID  string    `json:"workspace_id"`
+	ProfileID    string    `json:"profile_id"`
+	Name         string    `json:"name"`
+	Position     int       `json:"position"`
+	SessionCount int       `json:"session_count"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 // SessionFolderResponse is a daemon API value.
 type SessionFolderResponse struct {
 	Folder SessionFolderPayload `json:"folder"`
@@ -396,49 +445,4 @@ type SessionProcessSummaryPayload struct {
 type SessionProcessTarget struct {
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
-}
-
-// SessionProcessTreePayload is a daemon API value.
-type SessionProcessTreePayload struct {
-	ID       string                 `json:"id"`
-	Kind     SessionProcessKind     `json:"kind"`
-	Root     SessionProcessTarget   `json:"root"`
-	Lead     SessionProcessTarget   `json:"lead"`
-	Wrappers []SessionProcessTarget `json:"wrappers"`
-	Members  []SessionProcessTarget `json:"members"`
-	Ports    []int                  `json:"ports"`
-}
-
-// SessionProcessesResponse is a daemon API value.
-type SessionProcessesResponse struct {
-	Supported bool                        `json:"supported"`
-	ScannedAt time.Time                   `json:"scanned_at"`
-	Items     []SessionProcessPayload     `json:"items"`
-	Trees     []SessionProcessTreePayload `json:"trees,omitempty"`
-}
-
-// SessionProfileFacetsPayload is a daemon API value.
-type SessionProfileFacetsPayload struct {
-	ProfileID string                      `json:"profile_id"`
-	Facets    SessionCatalogFacetsPayload `json:"facets"`
-}
-
-// SessionPromptCancelResponse is a daemon API value.
-type SessionPromptCancelResponse struct {
-	SessionID string `json:"session_id"`
-	Outcome   string `json:"outcome"`
-	TurnID    string `json:"turn_id,omitempty"`
-}
-
-// SessionProviderOptionPayload is a daemon API value.
-type SessionProviderOptionPayload struct {
-	Name             string                   `json:"name"`
-	DisplayName      string                   `json:"display_name,omitempty"`
-	Harness          string                   `json:"harness,omitempty"`
-	RuntimeProvider  string                   `json:"runtime_provider,omitempty"`
-	RuntimeStrategy  ProviderRuntimeStrategy  `json:"runtime_strategy,omitempty"`
-	RuntimeLiveApply ProviderRuntimeLiveApply `json:"runtime_live_apply,omitempty"`
-	AuthMode         string                   `json:"auth_mode,omitempty"`
-	EnvPolicy        string                   `json:"env_policy,omitempty"`
-	HomePolicy       string                   `json:"home_policy,omitempty"`
 }

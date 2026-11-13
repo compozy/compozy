@@ -4180,6 +4180,70 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	}
 }
 
+func TestUpdateSectionObservabilityPreservesOTelExportBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the operator's OTel export block when the Observability form is saved", func(t *testing.T) {
+		t.Parallel()
+
+		// The form owns event retention and transcripts and submits no OTel block, so saving it must
+		// leave export settings, header refs, and their comments exactly as the operator wrote them.
+		const otelBlock = `
+# telemetry export
+[observability.otel]
+enabled = true
+protocol = "grpc"
+endpoint = "http://collector.local:4317"
+sample_ratio = 0.25
+
+[observability.otel.headers]
+# New Relic license
+"api-key" = "vault:observability/newrelic-license"
+`
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+otelBlock)
+		service := testService(t, homePaths, Dependencies{})
+
+		if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+			Section: SectionObservability,
+			Observability: &compozyconfig.ObservabilityConfig{
+				Enabled:        true,
+				RetentionDays:  21,
+				MaxGlobalBytes: 4096,
+				Transcripts: compozyconfig.ObservabilityTranscriptConfig{
+					Enabled:            true,
+					SegmentBytes:       1024,
+					MaxBytesPerSession: 2048,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("UpdateSection(observability) error = %v", err)
+		}
+
+		payload := readFile(t, homePaths.ConfigFile)
+		for _, want := range []string{
+			"retention_days = 21",
+			"# telemetry export",
+			"# New Relic license",
+			`"api-key" = "vault:observability/newrelic-license"`,
+		} {
+			if !strings.Contains(payload, want) {
+				t.Fatalf("config payload missing %q:\n%s", want, payload)
+			}
+		}
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() after the settings save error = %v, want nil", err)
+		}
+		otel := cfg.Observability.OTel
+		if !otel.Enabled || otel.Protocol != "grpc" || otel.Endpoint != "http://collector.local:4317" ||
+			otel.SampleRatio != 0.25 || len(otel.Headers) != 1 ||
+			otel.Headers["api-key"] != "vault:observability/newrelic-license" {
+			t.Fatalf("Observability.OTel after the settings save = %#v, want the operator's export settings", otel)
+		}
+	})
+}
+
 func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 	t.Parallel()
 

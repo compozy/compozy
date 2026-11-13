@@ -7,6 +7,44 @@ import (
 	"time"
 )
 
+// SessionAttachmentPayload is a daemon API value.
+type SessionAttachmentPayload struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	MIMEType  string    `json:"mime_type"`
+	Bytes     int64     `json:"bytes"`
+	SHA256    string    `json:"sha256"`
+	Kind      string    `json:"kind"`
+	Width     int       `json:"width"`
+	Height    int       `json:"height"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// SessionAttachmentUploadResponse is a daemon API value.
+type SessionAttachmentUploadResponse struct {
+	Attachment SessionAttachmentPayload `json:"attachment"`
+}
+
+// SessionAttentionEventPayload is a daemon API value.
+type SessionAttentionEventPayload struct {
+	SessionID   string         `json:"session_id"`
+	ProfileID   string         `json:"profile_id"`
+	ProfileName string         `json:"profile_name"`
+	WorkspaceID string         `json:"workspace_id"`
+	From        Badge          `json:"from"`
+	To          Badge          `json:"to"`
+	Class       AttentionClass `json:"class"`
+	At          time.Time      `json:"at"`
+}
+
+// SessionAttentionSummaryPayload is a daemon API value.
+type SessionAttentionSummaryPayload struct {
+	TerminalApprovals []TerminalApprovalCountPayload     `json:"terminal_approvals,omitempty"`
+	NeedsYou          int                                `json:"needs_you"`
+	Finished          int                                `json:"finished"`
+	ByWorkspace       []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
+}
+
 // SessionBoardCountsPayload is a daemon API value.
 type SessionBoardCountsPayload struct {
 	NeedsYou int `json:"needs_you"`
@@ -398,53 +436,4 @@ type SessionEventPayload struct {
 // SessionEventsResponse is a daemon API value.
 type SessionEventsResponse struct {
 	Events []SessionEventPayload `json:"events"`
-}
-
-// SessionFailureHealthPayload is a daemon API value.
-type SessionFailureHealthPayload struct {
-	SessionID       string      `json:"session_id"`
-	AgentName       string      `json:"agent_name,omitempty"`
-	Provider        string      `json:"provider,omitempty"`
-	WorkspaceID     string      `json:"workspace_id,omitempty"`
-	State           string      `json:"state,omitempty"`
-	FailureKind     FailureKind `json:"failure_kind"`
-	Summary         string      `json:"summary,omitempty"`
-	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
-	UpdatedAt       time.Time   `json:"updated_at"`
-}
-
-// SessionFailurePayload is a daemon API value.
-type SessionFailurePayload struct {
-	Kind            FailureKind       `json:"kind"`
-	ReasonCode      FailureReasonCode `json:"reason_code,omitempty"`
-	Summary         string            `json:"summary,omitempty"`
-	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
-}
-
-// SessionFileEntryPayload is a daemon API value.
-type SessionFileEntryPayload struct {
-	Path string          `json:"path"`
-	Name string          `json:"name"`
-	Kind SessionFileKind `json:"kind"`
-}
-
-// SessionFileKind is a daemon API value.
-type SessionFileKind string
-
-// SessionFilesResponse is a daemon API value.
-type SessionFilesResponse struct {
-	Entries   []SessionFileEntryPayload `json:"entries"`
-	Truncated bool                      `json:"truncated"`
-}
-
-// SessionFolderPayload is a daemon API value.
-type SessionFolderPayload struct {
-	ID           string    `json:"id"`
-	WorkspaceID  string    `json:"workspace_id"`
-	ProfileID    string    `json:"profile_id"`
-	Name         string    `json:"name"`
-	Position     int       `json:"position"`
-	SessionCount int       `json:"session_count"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
 }

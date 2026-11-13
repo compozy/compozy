@@ -24,6 +24,7 @@ type loopActionSessionBinder struct {
 	creationStore    store.SessionCreationStore
 	managedInputs    loopManagedInputSessionManager
 	usageReporters   managedGoalUsageReporters
+	traces           *looppkg.RunTraces
 
 	policyGate *loopSessionPolicyGate
 	worktrees  loopActionWorktrees

@@ -34,7 +34,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/api-client", () => ({
   apiBaseUrl: "",
-  runtimeFetch: apiMocks.fetch,
+  daemonFetch: apiMocks.fetch,
 }));
 
 /** Return a JSON transport response for the adapter’s fetch boundary. */

@@ -136,6 +136,8 @@ type Observer struct {
 	retentionMu         sync.RWMutex
 	agentProbeSource    AgentProbeTargetSource
 	agentProbeTimeout   time.Duration
+	eventMetrics        EventMetrics
+	toolCalls           toolCallDedup
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -332,6 +334,9 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	}
 	if observer.sessions == nil {
 		observer.sessions = make(map[string]observedSession)
+	}
+	if observer.eventMetrics == nil {
+		observer.eventMetrics = noopEventMetrics{}
 	}
 	if observer.resolveProviderAuth == nil {
 		observer.resolveProviderAuth = defaultProviderAuthModeResolver(

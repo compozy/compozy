@@ -50,6 +50,10 @@ function lastRequest() {
   return { url: String(call[0]), init: call[1] };
 }
 
+function sentHeaders(): Record<string, string> {
+  return Object.fromEntries(new Headers(lastRequest().init?.headers));
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
 });
@@ -83,6 +87,15 @@ describe("terminal REST requests", () => {
     expect(lastRequest().url).toContain("/term%2Fone?profile=work+profile");
   });
 
+  it("Should join each daemon request to a fresh unsampled trace", async () => {
+    respond({ terminals: [DEV_SERVER_TERMINAL] });
+    await fetchTerminals(WORKSPACE_ID, PROFILE);
+    expect(sentHeaders()).toMatchObject({
+      traceparent: expect.stringMatching(/^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/),
+      "x-compozy-client-id": expect.stringMatching(/^web-/),
+    });
+  });
+
   it("Should preserve method and body for terminal mutations", async () => {
     respond({ terminal: DEV_SERVER_TERMINAL });
     await createTerminal(WORKSPACE_ID, { title: "release", cwd: "/repo" }, PROFILE, VIEWER);
@@ -90,12 +103,12 @@ describe("terminal REST requests", () => {
       init: expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ title: "release", cwd: "/repo", client_id: "client:web" }),
-        headers: expect.objectContaining({
-          "X-Compozy-Client-Token": "attachment-token",
-          "X-Compozy-Client-Workspace": "global",
-          "X-Compozy-Client-ID": expect.stringMatching(/^web-/),
-        }),
       }),
+    });
+    expect(sentHeaders()).toMatchObject({
+      "x-compozy-client-token": "attachment-token",
+      "x-compozy-client-workspace": "global",
+      "x-compozy-client-id": expect.stringMatching(/^web-/),
     });
 
     respond({
@@ -135,12 +148,12 @@ describe("terminal REST requests", () => {
       init: expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ mode: "write", client_id: "client:web" }),
-        headers: expect.objectContaining({
-          "X-Compozy-Client-Token": "attachment-token",
-          "X-Compozy-Client-Workspace": "global",
-          "X-Compozy-Client-ID": expect.stringMatching(/^web-/),
-        }),
       }),
+    });
+    expect(sentHeaders()).toMatchObject({
+      "x-compozy-client-token": "attachment-token",
+      "x-compozy-client-workspace": "global",
+      "x-compozy-client-id": expect.stringMatching(/^web-/),
     });
 
     respond({ content: "ok", seq: "12", truncated: false, busy: false, untrusted: true });

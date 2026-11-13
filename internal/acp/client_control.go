@@ -10,6 +10,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/toolruntime"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Prompt starts one prompt turn and returns the streamed event channel.
@@ -34,13 +35,15 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	promptCtx, cancelPrompt := context.WithCancel(ctx)
 	var active *activePromptState
 	var err error
+	traceCtx := trace.SpanContextFromContext(ctx)
 	if strings.TrimSpace(req.RunID) == "" {
-		active, err = proc.beginPrompt(req.TurnID, d.promptBufferCap, cancelPrompt)
+		active, err = proc.beginPromptState(req.TurnID, "", 0, traceCtx, d.promptBufferCap, cancelPrompt)
 	} else {
 		active, err = proc.beginPromptForRun(
 			req.TurnID,
 			req.RunID,
 			req.Generation,
+			traceCtx,
 			d.promptBufferCap,
 			cancelPrompt,
 		)

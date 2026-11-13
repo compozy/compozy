@@ -10,7 +10,9 @@ import (
 	"time"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/telemetry"
 	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Scheduler owns one mechanical sweep/notify loop.
@@ -425,10 +427,18 @@ func (s *Scheduler) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.Chan():
-			if _, err := s.RunOnce(ctx); err != nil {
-				s.logger.Warn("scheduler.cycle.error", "error", err)
-			}
+			s.tick(ctx)
 		}
+	}
+}
+
+// tick runs one cycle under a scheduler.tick root span, so wakes it sends join the tick's trace.
+func (s *Scheduler) tick(ctx context.Context) {
+	ctx, span := telemetry.Tracer(telemetry.ScopeScheduler).Start(ctx, telemetry.SpanSchedulerTick, trace.WithNewRoot())
+	defer span.End()
+	if _, err := s.RunOnce(ctx); err != nil {
+		s.logger.Warn("scheduler.cycle.error", "error", err)
+		telemetry.MarkError(span, err)
 	}
 }
 

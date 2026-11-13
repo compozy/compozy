@@ -1,4 +1,4 @@
-import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
+import { apiBaseUrl, daemonFetch } from "@/lib/api-client";
 import { z } from "zod";
 
 import {
@@ -110,7 +110,7 @@ export async function fetchWindowManagerSnapshot(
   profile: string,
   signal?: AbortSignal
 ): Promise<WindowManagerSnapshot> {
-  const response = await runtimeFetch(`${apiBaseUrl}${managerUrl(workspaceId, profile)}`, {
+  const response = await daemonFetch(`${apiBaseUrl}${managerUrl(workspaceId, profile)}`, {
     signal,
   });
   return parseWindowManagerSnapshot(await requireSuccess(response, workspaceId));
@@ -124,7 +124,7 @@ export async function registerWindowManagerClient(
   kind: WindowManagerClientKind = "browser",
   signal?: AbortSignal
 ): Promise<WindowManagerRegisteredClientView> {
-  const response = await runtimeFetch(
+  const response = await daemonFetch(
     `${apiBaseUrl}${managerUrl(workspaceId, profile, "/clients")}`,
     {
       ...jsonRequest(
@@ -149,7 +149,7 @@ export async function unregisterWindowManagerClient(
   clientId: string,
   signal?: AbortSignal
 ): Promise<void> {
-  const response = await runtimeFetch(
+  const response = await daemonFetch(
     `${apiBaseUrl}${managerUrl(workspaceId, profile, `/clients/${encodeURIComponent(clientId)}`)}`,
     { method: "DELETE", signal }
   );
@@ -195,7 +195,7 @@ export async function executeWindowManagerCommand(
   command: WindowManagerCommandInput,
   signal?: AbortSignal
 ): Promise<WindowManagerCommandResult> {
-  const response = await runtimeFetch(
+  const response = await daemonFetch(
     `${apiBaseUrl}${managerUrl(workspaceId, profile, "/commands")}`,
     {
       ...jsonRequest(commandBody(workspaceId, clientId, revision, command), signal),

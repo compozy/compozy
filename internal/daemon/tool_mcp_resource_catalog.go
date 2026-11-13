@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -97,6 +98,16 @@ func (c *resourceCatalog[T]) Snapshot() []resources.Record[T] {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return cloneResourceRecords(c.records, c.cloneSpec)
+}
+
+// Contains reports whether any record's spec matches, without cloning the catalog.
+func (c *resourceCatalog[T]) Contains(match func(T) bool) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return slices.ContainsFunc(c.records, func(record resources.Record[T]) bool { return match(record.Spec) })
 }
 
 func (c *resourceCatalog[T]) cloneRecord(record resources.Record[T]) resources.Record[T] {

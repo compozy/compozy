@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/ginutil"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
@@ -125,18 +126,20 @@ type Server struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	hostLoad              doctor.HostLoadSnapshotSource
+	telemetryStatus       core.TelemetryStatusSource
 	deadEntities          doctor.DeadEntitySource
 	agentLoader           core.AgentLoader
 	udsExtendedServices
 
-	engine       *gin.Engine
-	handlers     *Handlers
-	httpServer   *http.Server
-	listener     net.Listener
-	serveDone    chan struct{}
-	serveErr     error
-	streamCancel context.CancelFunc
-	state        serverState
+	engine         *gin.Engine
+	routeTemplates []string
+	handlers       *Handlers
+	httpServer     *http.Server
+	listener       net.Listener
+	serveDone      chan struct{}
+	serveErr       error
+	streamCancel   context.CancelFunc
+	state          serverState
 
 	onProviderAuthSuccess func()
 	providerAuthVerdicts  *authproviders.AuthVerdicts
@@ -306,6 +309,7 @@ func New(opts ...Option) (*Server, error) {
 	server.ensureEngine()
 	server.handlers = newHandlers(server.handlerConfig())
 	registerRoutes(server.engine, server.handlers)
+	server.routeTemplates = ginutil.RouteTemplates(server.engine)
 
 	return server, nil
 }

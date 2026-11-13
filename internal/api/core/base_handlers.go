@@ -111,6 +111,7 @@ type BaseHandlerConfig struct {
 	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
 	HostLoad                    doctor.HostLoadSnapshotSource
 	DeadEntities                doctor.DeadEntitySource
+	TelemetryStatus             TelemetryStatusSource
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
 	Gateway                     GatewayService
@@ -206,6 +207,7 @@ type BaseHandlers struct {
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	HostLoad                     doctor.HostLoadSnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
+	TelemetryStatus              TelemetryStatusSource
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
 	Gateway                      GatewayService
@@ -238,6 +240,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	defaults := normalizeBaseHandlerConfig(cfg)
 	handlers := baseHandlersFromConfig(cfg, defaults)
 	handlers.SessionChanges = cfg.SessionChanges
+	handlers.TelemetryStatus = cfg.TelemetryStatus
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()

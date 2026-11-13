@@ -1,0 +1,56 @@
+{
+ "cli": {
+  "state": "ok",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": true,
+  "traces": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:36:03.234465046Z",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:36:13.232412101Z",
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ },
+ "http": {
+  "state": "ok",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": true,
+  "traces": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:36:18.234084778Z",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:36:18.231804968Z",
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ },
+ "uds": {
+  "state": "ok",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": true,
+  "traces": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:36:18.234084778Z",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": true,
+   "last_export_at": "2026-11-11T05:36:18.231804968Z",
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ }
+}

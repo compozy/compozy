@@ -509,6 +509,89 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 			}
 		}
 	})
+
+	// UT-026: every row of the _dx.md OTel line table.
+	exported := time.Date(2026, 11, 7, 14, 2, 11, 0, time.UTC)
+	healthy := contract.OTelSignalStatusPayload{Enabled: true, LastExportAt: exported}
+	otelLines := []struct {
+		name string
+		otel *contract.OTelStatusPayload
+		want string
+	}{
+		{name: "Should render OTel disabled", otel: &contract.OTelStatusPayload{State: "disabled"}, want: "disabled"},
+		{
+			name: "Should render OTel inactive when local observability is off",
+			otel: &contract.OTelStatusPayload{State: "inactive_observability_disabled"},
+			want: "inactive (observability.enabled = false)",
+		},
+		{
+			name: "Should render healthy OTel export",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "grpc", EndpointHost: "collector.local:4317", SampleRatio: 0.25,
+				Traces: healthy, Metrics: healthy,
+			},
+			want: "ok · grpc → collector.local:4317 · traces ok, metrics ok · sample 0.25",
+		},
+		{
+			name: "Should render OTel metrics off",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "http/protobuf", EndpointHost: "localhost:4318", SampleRatio: 1, Traces: healthy,
+			},
+			want: "ok · http/protobuf → localhost:4318 · traces ok, metrics off · sample 1.0",
+		},
+		{
+			name: "Should render a degraded OTel signal with its failures",
+			otel: &contract.OTelStatusPayload{
+				State: "degraded", Protocol: "grpc", EndpointHost: "collector.local:4317", SampleRatio: 0.25,
+				Traces: healthy,
+				Metrics: contract.OTelSignalStatusPayload{
+					Enabled: true, LastExportAt: exported, LastErrorClass: "http_401", FailedExports: 12,
+				},
+			},
+			want: "degraded · grpc → collector.local:4317 · traces ok, metrics http_401 (12 failed) · sample 0.25",
+		},
+		{
+			name: "Should render OTel forwarding to providers",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "grpc", EndpointHost: "collector.local:4317", SampleRatio: 0.25,
+				ForwardToProviders: true, Traces: healthy, Metrics: healthy,
+			},
+			want: "ok · grpc → collector.local:4317 · traces ok, metrics ok · sample 0.25 · forwarding to providers",
+		},
+		{
+			name: "Should render OTel signals pending before their first export",
+			otel: &contract.OTelStatusPayload{
+				State: "ok", Protocol: "http/protobuf", EndpointHost: "localhost:4318", SampleRatio: 1,
+				Traces:  contract.OTelSignalStatusPayload{Enabled: true},
+				Metrics: contract.OTelSignalStatusPayload{Enabled: true},
+			},
+			want: "ok · http/protobuf → localhost:4318 · traces pending, metrics pending · sample 1.0",
+		},
+		{name: "Should render unknown OTel status from an older daemon", want: "--"},
+	}
+	for _, tt := range otelLines {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{
+				statusFn: func(context.Context) (StatusRecord, error) {
+					return StatusRecord{
+						Daemon: DaemonStatus{Status: "ready", PID: 42, StartedAt: fixedTestNow},
+						OTel:   tt.otel,
+					}, nil
+				},
+			})
+
+			stdout, _, err := executeRootCommand(t, deps, "status")
+			if err != nil {
+				t.Fatalf("executeRootCommand() error = %v", err)
+			}
+			want := "\nOTel:               " + tt.want + "\n"
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("status output = %q, want line %q", stdout, want)
+			}
+		})
+	}
 }
 
 func TestDrainCommandsUpdateDaemonAdmission(t *testing.T) {

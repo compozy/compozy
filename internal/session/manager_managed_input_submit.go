@@ -82,6 +82,10 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	}
 	defer session.finishPromptSetup()
 	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(setup.leaseCtx, true)
+	// Goal, continuation and compaction turns are session turns too: same span, duration and write totals.
+	promptExecutionCtx, turnTrace := startPromptTurnTrace(promptExecutionCtx, session, setup.request)
+	var err error
+	defer turnTrace.failSetup(session, &err)
 	setManagedInputPromptState(session, setup.request)
 	session.setCurrentPromptCancel(cancelPromptExecution)
 	stateOwned := true
@@ -113,7 +117,8 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	}
 	turnState := newPromptRequestDispatchState(session, setup.request, message)
 	turnState.managed = setup.execution
-	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
+	turnState.turnTrace = turnTrace
+	if err = m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
 	}

@@ -1,0 +1,56 @@
+{
+ "cli": {
+  "state": "degraded",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": false,
+  "traces": {
+   "enabled": true,
+   "last_error_class": "header_ref_unresolved",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": true,
+   "last_error_class": "header_ref_unresolved",
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ },
+ "http": {
+  "state": "degraded",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": false,
+  "traces": {
+   "enabled": true,
+   "last_error_class": "header_ref_unresolved",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": true,
+   "last_error_class": "header_ref_unresolved",
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ },
+ "uds": {
+  "state": "degraded",
+  "protocol": "http/protobuf",
+  "endpoint_host": "localhost:4318",
+  "sample_ratio": 1,
+  "forward_to_providers": false,
+  "traces": {
+   "enabled": true,
+   "last_error_class": "header_ref_unresolved",
+   "failed_exports": 0
+  },
+  "metrics": {
+   "enabled": true,
+   "last_error_class": "header_ref_unresolved",
+   "failed_exports": 0
+  },
+  "dropped_spans": 0
+ }
+}

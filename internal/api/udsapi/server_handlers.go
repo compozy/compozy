@@ -107,6 +107,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 
 func withHandlerServices(cfg *handlerConfig, base *core.BaseHandlerConfig) *core.BaseHandlerConfig {
 	base.SessionChanges = cfg.sessionChanges
+	base.TelemetryStatus = cfg.telemetryStatus
 	base.OnProviderAuthSuccess = cfg.onProviderAuthSuccess
 	base.ProviderAuthVerdicts = cfg.providerAuthVerdicts
 	return base

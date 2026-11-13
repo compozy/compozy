@@ -368,13 +368,15 @@ func WithDispatcherTaskActorRecorder(recorder SessionTaskActorRecorder) Dispatch
 }
 
 // Dispatch executes one automation request through the shared governance path.
-func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, error) {
+func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (_ *Run, err error) {
 	if ctx == nil {
 		return nil, errors.New("automation: dispatch context is required")
 	}
 	if err := req.Validate("dispatch"); err != nil {
 		return nil, err
 	}
+	ctx, span := startRunSpan(ctx, req)
+	defer func() { endRunSpan(span, err) }()
 	if req.Kind != DispatchKindManual {
 		// Scheduled, trigger, and extension runs yield to host CPU pressure at admission.
 		ctx = admission.WithBackgroundWork(ctx)

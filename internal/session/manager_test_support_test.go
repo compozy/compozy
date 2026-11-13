@@ -75,7 +75,7 @@ func reportSessionStop(t *testing.T, h *harness, sessionID string) {
 	}
 }
 
-func newHarness(t *testing.T, extraOpts ...Option) *harness {
+func newHarness(t testing.TB, extraOpts ...Option) *harness {
 	t.Helper()
 
 	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
@@ -160,7 +160,7 @@ func newHostedMCPHarness(t *testing.T, extraOpts ...Option) *harness {
 	return newHarness(t, append(extraOpts, WithHostedMCPLauncher(hosted))...)
 }
 
-func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manager {
+func newManagerWithHarness(t testing.TB, h *harness, extraOpts ...Option) *Manager {
 	t.Helper()
 	claudeProvider, err := h.cfg.ResolveProvider(runtimeProviderClaude)
 	if err != nil {

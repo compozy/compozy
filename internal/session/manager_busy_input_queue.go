@@ -48,6 +48,7 @@ func (m *Manager) enqueueBusyPrompt(
 		}
 		return SendPromptResult{}, err
 	}
+	m.queuedTurnLinks.remember(ctx, entry.ID)
 	m.emitTranscriptMarker(
 		ctx,
 		session,

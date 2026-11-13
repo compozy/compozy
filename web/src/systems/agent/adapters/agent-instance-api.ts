@@ -1,4 +1,4 @@
-import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
+import { apiBaseUrl, clientID, daemonFetch } from "@/lib/api-client";
 
 import type {
   AgentActivityPayload,
@@ -66,7 +66,7 @@ async function failure(response: Response, fallback: string) {
  */
 async function request<T>(path: string, options: RequestOptions): Promise<T> {
   const { method = "GET", body, signal, fallback } = options;
-  const response = await runtimeFetch(new URL(path, apiBaseUrl), {
+  const response = await daemonFetch(new URL(path, apiBaseUrl), {
     method,
     signal,
     headers: {

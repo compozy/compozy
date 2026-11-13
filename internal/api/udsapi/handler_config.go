@@ -83,6 +83,7 @@ type handlerConfig struct {
 	skillResources        core.SkillResourceSyncer
 	runtimeMemory         doctor.RuntimeMemorySnapshotSource
 	hostLoad              doctor.HostLoadSnapshotSource
+	telemetryStatus       core.TelemetryStatusSource
 	deadEntities          doctor.DeadEntitySource
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument

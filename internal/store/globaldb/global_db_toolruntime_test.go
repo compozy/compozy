@@ -340,7 +340,7 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		})
 	}
 	t.Parallel()
-	ctx := testutil.Context(t)
+	ctx := globalMigrationTestContext(t)
 	suite := t
 	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 	copyCurrentSchemaGlobalDBSeed(t, path)

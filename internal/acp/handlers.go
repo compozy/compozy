@@ -240,7 +240,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if p.executionPolicy == ExecutionPolicyTriage {
 		return p.triagePermission(ctx, request)
 	}
-	turnID := p.activeTurnID()
+	turnID, turnSpan := p.activeTraceContext()
 	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)
 	toolCallID := strings.TrimSpace(string(request.ToolCall.ToolCallId))
@@ -292,11 +292,13 @@ func (p *AgentProcess) resolvePermissionRequest(
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw, expiresAt)
 	wait := max(time.Until(expiresAt), 0)
 
+	waitSpan := startPermissionWaitSpan(ctx, turnSpan)
 	decision, actor := p.awaitPendingPermission(ctx, pending, wait, cancellationActor)
 	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 	if appliedDecision == "" {
 		appliedDecision = decisionCanceled
 	}
+	endPermissionWaitSpan(waitSpan, appliedDecision)
 	if p.permissionExpiryCountsAsDenial(actor, decision) {
 		p.permissionDenials.Record(digest, denialEpoch)
 	}
