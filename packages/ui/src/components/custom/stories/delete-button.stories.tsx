@@ -25,7 +25,10 @@ export const Rest: Story = {};
 
 export const Open: Story = { args: { phase: "open" } };
 
-/** Uncontrolled, mounted asking for confirmation: a host that opens straight into the confirm. */
+/**
+ * Uncontrolled, mounted asking for confirmation. Focus stays where it was: only a host the user
+ * opened straight into the confirm passes `autoFocusCancel`.
+ */
 export const DefaultOpen: Story = { args: { defaultPhase: "open" } };
 
 /** Confirm waits for a precondition, such as a destination for the removed item's contents. */

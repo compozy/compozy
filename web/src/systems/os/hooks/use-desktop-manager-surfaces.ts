@@ -54,10 +54,18 @@ export function useDesktopManagerSurfaces() {
       });
       return members.length === 0 ? [] : [{ id: tab.id, leadWindowId, members }];
     });
+    // Read from the daemon's tabs, not the projected ones: a tab whose app this web does not know
+    // is dropped from `tabs` but still moves when the desktop closes. Only a tab holding one blank
+    // New Tab has nothing to move (R2-08, FB-F-07).
+    const movableTabCount = desktop.tabs.filter(tab => {
+      const windowIds = tabWindowIds(tab);
+      return !(windowIds.length === 1 && projection?.windows[windowIds[0]!]?.app === "new-tab");
+    }).length;
     return {
       id: desktop.id,
       name: desktop.name,
       tabs,
+      movableTabCount,
       activeTabId,
       // The thumbnail draws the tab this client shows on the desktop.
       activeRoot: desktop.tabs.find(tab => tab.id === activeTabId)?.root ?? null,

@@ -12,12 +12,15 @@ export interface UseDeleteButtonInput {
   onPhaseChange: ((phase: DeleteButtonPhase) => void) | undefined;
   onCancel: (() => void) | undefined;
   confirmedDuration: number;
+  /** Mounted open, focus starts on the cross; otherwise focus moves only on a phase change. */
+  autoFocusCancel: boolean;
 }
 
 /**
- * The delete button's phase machine: controlled or own phase, focus moved to the cross on open
- * and back to the bin on cancel, and the confirmed check held briefly before the button rests
- * again (a controlled button hears "rest" through onPhaseChange).
+ * The delete button's phase machine: controlled or own phase, focus moved to the cross when the
+ * button opens and back to the bin on cancel, and the confirmed check held briefly before the
+ * button rests again (a controlled owner hears "rest" through onPhaseChange). Focus never moves on
+ * mount unless the host asks for it with `autoFocusCancel`.
  */
 export function useDeleteButton({
   phase,
@@ -25,16 +28,17 @@ export function useDeleteButton({
   onPhaseChange,
   onCancel,
   confirmedDuration,
+  autoFocusCancel,
 }: UseDeleteButtonInput) {
   const [ownPhase, setOwnPhase] = React.useState<DeleteButtonPhase>(defaultPhase);
   const current = phase ?? ownPhase;
   const reduced = useReducedMotionConfig() === true;
   const binRef = React.useRef<HTMLButtonElement | null>(null);
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
-  // Where focus goes once the next phase has rendered its controls; a button mounted open (by
-  // either phase prop) starts on the cross.
+  // Where focus goes once the next phase has rendered its controls. A button mounted open starts
+  // on the cross only when its host asks: mounting is not a user action.
   const focusNext = React.useRef<"bin" | "cancel" | null>(
-    (phase ?? defaultPhase) === "open" ? "cancel" : null
+    autoFocusCancel && (phase ?? defaultPhase) === "open" ? "cancel" : null
   );
 
   const go = (next: DeleteButtonPhase, focus: "bin" | "cancel" | null) => {

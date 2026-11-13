@@ -174,6 +174,12 @@ describe("window manager store", () => {
     // One entry reason at a time: the action replaces the overflow request and the reverse.
     expect(selectDesktopOverviewSegmentRequest(state(store))).toBeNull();
 
+    // The card applied it: the overview stays open and the action is gone, so a remount of that
+    // card does not apply it again.
+    store.trigger.overviewDesktopActionConsumed();
+    expect(selectWindowManagerOverlay(state(store))).toEqual({ kind: "desktops-overview" });
+    expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();
+
     store.trigger.overlayClosed();
     expect(selectWindowManagerOverlay(state(store))).toBeNull();
     expect(selectDesktopOverviewDesktopAction(state(store))).toBeNull();

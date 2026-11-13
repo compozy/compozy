@@ -130,11 +130,9 @@ export function useDesktopCardDrag(
     const onCancel = () => store.trigger.cancelled();
     const onKey = (key: KeyboardEvent) => {
       if (key.key !== "Escape") return;
-      if (store.getSnapshot().context.phase === "dragging") {
-        // Escape cancels the card drag only; the overview stays open.
-        key.preventDefault();
-        key.stopPropagation();
-      }
+      // Escape cancels the press or the drag only; the overview stays open (R2-10).
+      key.preventDefault();
+      key.stopPropagation();
       store.trigger.cancelled();
     };
 

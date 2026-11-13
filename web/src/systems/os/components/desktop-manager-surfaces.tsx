@@ -6,6 +6,7 @@ import { useDesktopOverviewDrag } from "../hooks/use-desktop-overview-drag";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useTabSessions } from "../hooks/use-os-tab-bar";
 import type { OsWindow } from "../lib/os-types";
+import { windowManagerStore } from "../stores/window-manager-store";
 import {
   DesktopsOverview,
   type DesktopOverviewItem,
@@ -77,7 +78,8 @@ export function DesktopManagerSurfaces({
   // the menubar and the rail stay in place.
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const { coordinator } = useOsShell();
-  const { startOverviewTabDrag, dropTargetDesktopId, dropSurface } = useDesktopOverviewDrag();
+  const { startOverviewTabDrag, dropTargetDesktopId, dropSurface, dragKind } =
+    useDesktopOverviewDrag();
   const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => ({
     ...desktop,
     needsYou: needsYouDesktopIds.has(desktop.id),
@@ -116,6 +118,8 @@ export function DesktopManagerSurfaces({
         state={overview}
         initialFocusSegment={model.overviewSegmentRequest}
         desktopAction={model.overviewDesktopAction}
+        onDesktopActionApplied={() => windowManagerStore.trigger.overviewDesktopActionConsumed()}
+        dragKind={dragKind}
         dropSurface={dropSurface}
         busy={model.pending !== null}
         canMutate={model.canMutate}

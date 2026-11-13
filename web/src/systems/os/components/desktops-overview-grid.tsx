@@ -21,6 +21,8 @@ type DesktopsOverviewGridProps = Pick<
   | "onChooseTab"
   | "onTabPointerDown"
   | "dropTargetDesktopId"
+  | "dragKind"
+  | "onDesktopActionApplied"
 > & {
   state: Extract<DesktopsOverviewState, { status: "ready" }>;
   busy: boolean;
@@ -72,6 +74,8 @@ export function DesktopsOverviewGrid({
   initialFocusRef,
   desktopAction,
   dropTargetDesktopId,
+  dragKind,
+  onDesktopActionApplied,
   onOpenChange,
   onSwitchDesktop,
   onRenameDesktop,
@@ -99,11 +103,13 @@ export function DesktopsOverviewGrid({
         desktop={desktop}
         desktops={state.desktops}
         dropTarget={!floating && dropTargetDesktopId === desktop.id}
+        dragKind={dragKind}
         index={index}
         initialAction={
           !floating && desktopAction?.desktopId === desktop.id ? desktopAction.action : undefined
         }
         lifted={floating}
+        onInitialActionApplied={onDesktopActionApplied}
         sessionOf={sessionOf}
         thumbnailRef={
           !floating && desktop.id === initialFocusDesktopId ? initialFocusRef : undefined

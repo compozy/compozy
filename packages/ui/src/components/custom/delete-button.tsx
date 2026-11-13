@@ -1,5 +1,6 @@
 "use client";
 
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 
@@ -20,15 +21,19 @@ export interface DeleteButtonProps extends Omit<
   /** Accessible name of the confirm check; defaults to `Confirm: <label>`. */
   confirmLabel?: string;
   /**
-   * Controlled phase; omitted, the button runs itself. A controlled button mounted `"open"` starts
-   * with focus on the cross, and hears `"rest"` through `onPhaseChange` after the confirmed hold.
+   * Controlled phase; omitted, the button runs itself. A controlled owner hears `"rest"` through
+   * `onPhaseChange` after the confirmed hold and decides when to pass it.
    */
   phase?: DeleteButtonPhase;
-  /**
-   * The phase an uncontrolled button mounts in. `"open"` mounts it asking for confirmation, with
-   * focus on the cross, as if the bin had just been pressed.
-   */
+  /** The phase an uncontrolled button mounts in. `"open"` mounts it asking for confirmation. */
   defaultPhase?: Exclude<DeleteButtonPhase, "confirmed">;
+  /**
+   * Mounted open (by either phase prop), focus starts on the cross, for a host the user opened
+   * straight into the confirm. Off, focus moves only when the phase changes after mount.
+   */
+  autoFocusCancel?: boolean;
+  /** The bin button, for a host that returns focus to it after cancelling the confirm itself. */
+  binRef?: React.Ref<HTMLButtonElement>;
   onPhaseChange?: (phase: DeleteButtonPhase) => void;
   /** Confirm stays unavailable until this is true (for example, until a destination is chosen). */
   canConfirm?: boolean;
@@ -62,6 +67,8 @@ function DeleteButton({
   onConfirm,
   onCancel,
   confirmedDuration = 1200,
+  autoFocusCancel = false,
+  binRef: hostBinRef,
   className,
   ...props
 }: DeleteButtonProps) {
@@ -71,7 +78,9 @@ function DeleteButton({
     onPhaseChange,
     onCancel,
     confirmedDuration,
+    autoFocusCancel,
   });
+  const mergedBinRef = useMergedRefs(binRef, hostBinRef);
   const open = current === "open";
   const confirmed = current === "confirmed";
 
@@ -132,7 +141,7 @@ function DeleteButton({
           </m.span>
         ) : (
           <m.button
-            ref={binRef}
+            ref={mergedBinRef}
             animate={{ opacity: 1 }}
             aria-label={label}
             className={cn(

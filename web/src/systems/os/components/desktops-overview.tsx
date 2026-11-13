@@ -1,5 +1,5 @@
 import { MonitorUp, Plus, RefreshCw } from "@compozy/ui/icons";
-import { useRef, type PointerEvent } from "react";
+import { useRef, useState, type PointerEvent } from "react";
 
 import {
   Alert,
@@ -35,6 +35,11 @@ export interface DesktopOverviewItem {
   name: string;
   /** The desktop's tabs in bar order. */
   tabs: readonly DesktopOverviewTab[];
+  /**
+   * Tabs closing the desktop moves elsewhere, counted on the daemon's tabs: every tab but one
+   * holding a lone blank New Tab, including tabs whose app this web does not show.
+   */
+  movableTabCount: number;
   /** The tab this client shows on the desktop. */
   activeTabId: TabId | null;
   /** That tab's split tree, drawn as the card's thumbnail. */
@@ -77,6 +82,8 @@ export interface DesktopsOverviewProps {
   initialFocusSegment?: DesktopOverviewFocusSegment | null;
   /** Opened from a desktop indicator's menu: the card finishes the action, focus lands in it. */
   desktopAction?: DesktopOverviewAction | null;
+  /** The card applied `desktopAction`; the owner clears it so a card remount does not reapply it. */
+  onDesktopActionApplied?: () => void;
   /**
    * A tab is being dragged: the overview is a drop surface and is not modal, so it neither traps
    * focus nor makes the dragged tab inert, and the release is not an outside press.
@@ -98,6 +105,8 @@ export interface DesktopsOverviewProps {
   onTabPointerDown?: (tabId: TabId, event: PointerEvent<HTMLElement>) => void;
   /** The card a dragged tab would move to on release. */
   dropTargetDesktopId?: string | null;
+  /** What the drag moves: a whole tab, or one window leaving its split (a window head). */
+  dragKind?: "tab" | "window";
   /** Live session facts for tab titles and signals. */
   sessionOf?: (win: OsWindow) => SessionPayload | undefined;
   onRetry?: () => void;
@@ -119,6 +128,7 @@ export function DesktopsOverview({
   state,
   initialFocusSegment,
   desktopAction = null,
+  onDesktopActionApplied,
   dropSurface = false,
   busy = false,
   canMutate = true,
@@ -132,15 +142,21 @@ export function DesktopsOverview({
   onChooseTab,
   onTabPointerDown,
   dropTargetDesktopId = null,
+  dragKind = "tab",
   sessionOf = noSession,
   onRetry,
   onResolveConflict,
 }: DesktopsOverviewProps) {
   const initialFocusRef = useRef<HTMLButtonElement | null>(null);
+  // The card consumes the action once applied, so the overview keeps the one it opened with: the
+  // dialog's initial focus must not move to a thumbnail while the card's action holds focus.
+  const [openingAction, setOpeningAction] = useState(desktopAction);
+  if (desktopAction !== null && desktopAction !== openingAction) setOpeningAction(desktopAction);
+  if (!open && openingAction !== null) setOpeningAction(null);
   const ready = state.status === "ready" ? state : null;
   const empty = ready?.desktops.length === 0;
   // A menu action focuses inside its card (the rename field, the close confirm), not the thumbnail.
-  const requestedFocusDesktopId = desktopAction
+  const requestedFocusDesktopId = openingAction
     ? null
     : (nearestHiddenDesktopId(initialFocusSegment) ?? ready?.activeDesktopId ?? null);
   const initialFocusDesktopId =
@@ -223,8 +239,10 @@ export function DesktopsOverview({
                 initialFocusDesktopId={initialFocusDesktopId}
                 initialFocusRef={initialFocusRef}
                 desktopAction={desktopAction}
+                onDesktopActionApplied={onDesktopActionApplied}
                 sessionOf={sessionOf}
                 dropTargetDesktopId={dropTargetDesktopId}
+                dragKind={dragKind}
                 onOpenChange={onOpenChange}
                 onSwitchDesktop={onSwitchDesktop}
                 onRenameDesktop={onRenameDesktop}

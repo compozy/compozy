@@ -2,8 +2,8 @@
 // Invariant: the bin opens a cancel/confirm pair without acting; only the check confirms, and only
 // when confirmation is available; the cross and Escape cancel and return focus to the bin; each
 // phase is announced; a button rests again after the confirmed hold, a controlled one by telling its
-// owner; a button mounted
-// open asks for confirmation with focus on the cross.
+// owner; a button mounted open asks for confirmation and takes focus only when its host asks; the
+// host can reach the bin through a ref.
 // Boundary IN: DeleteButton phases, focus, keyboard, callbacks, live region.
 // Boundary OUT: what the host deletes and how it reacts.
 import { act, render, screen } from "@testing-library/react";
@@ -67,20 +67,41 @@ describe("DeleteButton", () => {
     expect(callbacks.onConfirm).not.toHaveBeenCalled();
   });
 
-  it("Should mount open with focus on the cross when the default phase is open", async () => {
-    const user = userEvent.setup();
-    const callbacks = setup({ defaultPhase: "open" });
+  it.each([
+    { mode: "uncontrolled", props: { defaultPhase: "open" as const } },
+    { mode: "controlled", props: { phase: "open" as const } },
+  ])("Should mount $mode open without taking focus", ({ props }) => {
+    const callbacks = setup(props);
 
     expect(screen.getByRole("group", { name: "Close Review" })).toHaveAttribute(
       "data-phase",
       "open"
     );
+    expect(screen.getByRole("button", { name: "Cancel" })).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
+    expect(callbacks.onPhaseChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { mode: "uncontrolled", props: { defaultPhase: "open" as const } },
+    { mode: "controlled", props: { phase: "open" as const } },
+  ])("Should mount $mode open with focus on the cross when the host asks", async ({ props }) => {
+    const user = userEvent.setup();
+    const callbacks = setup({ ...props, autoFocusCancel: true });
+
     expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
     expect(callbacks.onPhaseChange).not.toHaveBeenCalled();
 
     await user.keyboard("{Escape}");
     expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Close Review" })).toHaveFocus();
+    expect(callbacks.onPhaseChange).toHaveBeenLastCalledWith("rest");
+  });
+
+  it("Should hand the host its bin to return focus to", () => {
+    const binRef = { current: null as HTMLButtonElement | null };
+    setup({ binRef });
+
+    expect(binRef.current).toBe(screen.getByRole("button", { name: "Close Review" }));
   });
 
   it("Should return an uncontrolled button to rest after the confirmed hold", async () => {

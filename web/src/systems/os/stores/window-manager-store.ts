@@ -150,6 +150,11 @@ export function createWindowManagerStore() {
         overviewSegmentRequest: null,
         overviewDesktopAction: { ...event.request },
       }),
+      // The card applied the action: a remount of that card must not apply it again (R2-02).
+      overviewDesktopActionConsumed: state =>
+        state.overviewDesktopAction === null
+          ? undefined
+          : { ...state, overviewDesktopAction: null },
       desktopStateObserved: (
         state,
         event: { activeDesktopId: string; reconciledIntent: DesktopTransitionIntent | null }

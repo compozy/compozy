@@ -457,6 +457,13 @@ describe("desktop chrome projection subscriptions", () => {
       expect(result.current.desktops[0]?.tabs[0]?.members[0]?.nodeId).toBe("leaf:moved");
       act(() => shell.setRuntimeState({ windows: {} }));
       expect(result.current.desktops[0]?.tabs).toEqual([]);
+      // A tab whose app this web does not show leaves the card but still moves on close (R2-08).
+      expect(result.current.desktops[0]?.movableTabCount).toBe(1);
+      act(() =>
+        shell.setRuntimeState({ windows: { [primary.id]: { ...primary, app: "new-tab" } } })
+      );
+      // A lone blank New Tab has nothing to move.
+      expect(result.current.desktops[0]?.movableTabCount).toBe(0);
       act(() => windowManagerStore.trigger.overlayClosed());
       const closedRenders = renders;
       act(() => shell.setRuntimeState({ windows: { [primary.id]: primary } }));
@@ -1447,25 +1454,43 @@ describe("useDesktopCardDrag", () => {
     expect(result.current.previewOrder).toEqual(["a", "b", "c"]);
   });
 
-  it("Should cancel on Escape without sending a reorder or closing the overview", () => {
-    const onReorder = vi.fn();
-    const { result } = renderHook(() => useDesktopCardDrag(["a", "b", "c"], onReorder));
-    const cards = cardGrid(["a", "b", "c"]);
+  it.each([
+    { gesture: "drag", travelTo: 250 },
+    { gesture: "press below the drag threshold", travelTo: 52 },
+  ])(
+    "Should cancel a $gesture on Escape without sending a reorder or closing the overview",
+    ({ travelTo }) => {
+      const onReorder = vi.fn();
+      const { result } = renderHook(() => useDesktopCardDrag(["a", "b", "c"], onReorder));
+      const cards = cardGrid(["a", "b", "c"]);
+      // Where the overview's dismissal listens: past the window, Escape must not arrive.
+      const overviewEscape = vi.fn();
+      document.addEventListener("keydown", overviewEscape);
 
-    press(result.current.start, cards.get("a")!);
-    pointer("pointermove", 250);
-    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
-    act(() => {
-      window.dispatchEvent(escape);
-    });
+      try {
+        press(result.current.start, cards.get("a")!);
+        pointer("pointermove", travelTo);
+        const escape = new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        });
+        act(() => {
+          document.body.dispatchEvent(escape);
+        });
 
-    expect(escape.defaultPrevented).toBe(true);
-    expect(result.current.drag).toBeNull();
-    pointer("pointermove", 150);
-    pointer("pointerup", 150);
-    expect(result.current.drag).toBeNull();
-    expect(onReorder).not.toHaveBeenCalled();
-  });
+        expect(escape.defaultPrevented).toBe(true);
+        expect(overviewEscape).not.toHaveBeenCalled();
+        expect(result.current.drag).toBeNull();
+        pointer("pointermove", 250);
+        pointer("pointerup", 250);
+        expect(result.current.drag).toBeNull();
+        expect(onReorder).not.toHaveBeenCalled();
+      } finally {
+        document.removeEventListener("keydown", overviewEscape);
+      }
+    }
+  );
 
   it("Should cancel when the desktop order changes under the drag", () => {
     const onReorder = vi.fn();

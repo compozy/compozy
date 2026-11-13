@@ -35,6 +35,7 @@ const CONTROL: DesktopOverviewItem = {
   name: "Main",
   switchShortcut: "⌃1",
   tabs: [tab("t-main", W.auth, W.tasks, W.terminal), tab("t-dash", W.dash)],
+  movableTabCount: 2,
   activeTabId: "t-main",
   activeRoot: split(
     "main",
@@ -50,6 +51,7 @@ const REVIEW: DesktopOverviewItem = {
   switchShortcut: "⌃2",
   needsYou: true,
   tabs: [tab("t-review", W.review, W.agents), tab("t-files", W.files)],
+  movableTabCount: 2,
   activeTabId: "t-review",
   activeRoot: split("review", "horizontal", [leaf(W.review), leaf(W.agents)], [0.62, 0.38]),
 };
@@ -59,6 +61,7 @@ const RESEARCH: DesktopOverviewItem = {
   name: "Research",
   switchShortcut: "⌃3",
   tabs: [tab("t-docs", W.docs)],
+  movableTabCount: 1,
   activeTabId: "t-docs",
   activeRoot: leaf(W.docs),
 };
@@ -76,6 +79,7 @@ const FULL: DesktopOverviewItem[] = [
       tab("t-files2", W.files),
       tab("t-docs2", W.docs),
     ],
+    movableTabCount: 6,
   },
   REVIEW,
   RESEARCH,

@@ -12,35 +12,23 @@ import {
   cn,
 } from "@compozy/ui";
 import { GripVertical, Pencil } from "@compozy/ui/icons";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useState, type PointerEvent, type ReactNode, type RefObject } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
+import { useDesktopCardActions } from "../hooks/use-desktop-card-actions";
 import { DESKTOP_DROP_TARGET_ATTRIBUTE } from "../hooks/use-os-tab-drag";
 import type { OsAppId, OsWindow } from "../lib/os-types";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
 import { DesktopOverviewCardMenu } from "./desktop-overview-card-menu";
 import { DesktopOverviewTabRow } from "./desktop-overview-tab-row";
-import type { DesktopOverviewItem, DesktopOverviewTab } from "./desktops-overview";
+import type { DesktopOverviewItem } from "./desktops-overview";
 
 /** Tab rows a card lists before it counts the rest as "+N more" (US-014.EC-3). */
 const DESKTOP_CARD_TAB_ROWS = 4;
 
 function tabCount(count: number): string {
   return `${count} tab${count === 1 ? "" : "s"}`;
-}
-
-/** A tab holding only a blank New Tab: closing its desktop has nothing to move (FB-F-07). */
-function isPlaceholderTab(tab: DesktopOverviewTab): boolean {
-  return tab.members.length === 1 && tab.members[0]!.app === "new-tab";
 }
 
 export interface DesktopOverviewCardProps {
@@ -52,8 +40,12 @@ export interface DesktopOverviewCardProps {
   sessionOf: (win: OsWindow) => SessionPayload | undefined;
   /** A dragged tab is over this card and would move here on release. */
   dropTarget?: boolean;
+  /** What the drag over this card moves: a whole tab, or one window leaving its split. */
+  dragKind?: "tab" | "window";
   /** Opened from the desktop's indicator menu: the card starts renaming or closing. */
   initialAction?: "rename" | "close";
+  /** The card applied `initialAction`; the owner consumes it so a remount does not reapply it. */
+  onInitialActionApplied?: () => void;
   /** The floating copy of a card being dragged to a new position. */
   lifted?: boolean;
   thumbnailRef?: RefObject<HTMLButtonElement | null>;
@@ -65,15 +57,6 @@ export interface DesktopOverviewCardProps {
   onReorder: (order: number) => void;
   onDelete: (destinationId: string | null) => void;
   onMoveTab: (leadWindowId: string, destinationDesktopId: string) => void;
-}
-
-/**
- * A pending close: the confirm's phase and where the desktop's tabs go, empty until one is chosen.
- * The card owns the phase, so a remount (after a rename) cannot reopen the confirm by itself.
- */
-interface Closing {
-  phase: "open" | "confirmed";
-  destinationId: string;
 }
 
 /**
@@ -90,7 +73,9 @@ export function DesktopOverviewCard({
   busy,
   sessionOf,
   dropTarget = false,
+  dragKind = "tab",
   initialAction,
+  onInitialActionApplied,
   lifted = false,
   thumbnailRef,
   onSwitch,
@@ -102,32 +87,13 @@ export function DesktopOverviewCard({
   onDelete,
   onMoveTab,
 }: DesktopOverviewCardProps) {
-  const [renaming, setRenaming] = useState(initialAction === "rename");
-  const [closing, setClosing] = useState<Closing | null>(
-    initialAction === "close" ? { phase: "open", destinationId: "" } : null
-  );
-  const closeRef = useRef<HTMLDivElement | null>(null);
-  // Set when the card, not the delete button, cancels the confirm; focus then returns to the bin.
-  const refocusBin = useRef(false);
-  useEffect(() => {
-    if (closing !== null || !refocusBin.current) return;
-    refocusBin.current = false;
-    closeRef.current?.querySelector<HTMLElement>('[data-slot="delete-button-bin"]')?.focus();
-  }, [closing]);
+  const { renaming, setRenaming, closing, setClosing, binRef, cancelCloseOnEscape } =
+    useDesktopCardActions(initialAction, onInitialActionApplied);
   const needsYou = desktop.needsYou === true && !active;
   const shown = desktop.tabs.slice(0, DESKTOP_CARD_TAB_ROWS);
   const hidden = desktop.tabs.length - shown.length;
   const destinations = desktops.filter(candidate => candidate.id !== desktop.id);
-  const needsDestination = desktop.tabs.some(tab => !isPlaceholderTab(tab));
-  // The destination picker sits outside the delete button, so Escape there reaches the card first;
-  // it cancels the confirm and stays inside the overview (FB-F-12).
-  const cancelCloseOnEscape = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== "Escape" || closing?.phase !== "open") return;
-    event.preventDefault();
-    event.stopPropagation();
-    refocusBin.current = true;
-    setClosing(null);
-  };
+  const needsDestination = desktop.movableTabCount > 0;
   const apps = new Map<string, OsAppId>();
   for (const tab of desktop.tabs) for (const member of tab.members) apps.set(member.id, member.app);
 
@@ -215,7 +181,9 @@ export function DesktopOverviewCard({
               </DesktopCardAction>
               {desktops.length > 1 ? (
                 <DeleteButton
-                  ref={closeRef}
+                  binRef={binRef}
+                  // Opened from the indicator menu's Close desktop, the confirm takes focus.
+                  autoFocusCancel={initialAction === "close"}
                   phase={closing?.phase ?? "rest"}
                   canConfirm={!needsDestination || (closing?.destinationId ?? "") !== ""}
                   disabled={busy}
@@ -238,7 +206,7 @@ export function DesktopOverviewCard({
         )}
         {closing !== null && needsDestination ? (
           <label className="flex items-center gap-2 text-small-body text-muted-foreground">
-            <span className="shrink-0">Move {tabCount(desktop.tabs.length)} to</span>
+            <span className="shrink-0">Move {tabCount(desktop.movableTabCount)} to</span>
             <NativeSelect
               className="flex-1"
               disabled={busy}
@@ -279,7 +247,7 @@ export function DesktopOverviewCard({
           ) : null}
           {dropTarget ? (
             <li className="mt-1 rounded-sm border border-dashed border-brand py-1 text-center text-meta text-brand-strong">
-              Move tab here
+              Move {dragKind} here
             </li>
           ) : null}
         </ul>

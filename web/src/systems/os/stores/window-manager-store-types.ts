@@ -128,6 +128,7 @@ export type WindowManagerStoreEvents = {
   overlayClosed: {};
   overviewSegmentRequested: { request: DesktopOverviewSegmentRequest };
   overviewDesktopActionRequested: { request: DesktopOverviewDesktopAction };
+  overviewDesktopActionConsumed: {};
   desktopStateObserved: {
     activeDesktopId: string;
     reconciledIntent: DesktopTransitionIntent | null;

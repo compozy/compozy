@@ -6,8 +6,9 @@
 // when the desktop has a tab other than a blank New Tab and is absent on the last desktop; Escape
 // anywhere in a card with a pending rename or confirm (the destination picker included) leaves the
 // overlay open; opened from a desktop indicator's Rename or Close desktop, the card starts in that
-// action with focus inside it, once (US-015.EC-2); async states stay recoverable; the thumbnail
-// draws the active tab's split tree once per window, by weight.
+// action with focus inside it and reports it applied, so a remount does not reapply it
+// (US-015.EC-2, R2-02); the destination count and the drop hint follow what moves; async states
+// stay recoverable; the thumbnail draws the active tab's split tree once per window, by weight.
 // Boundary IN: DesktopsOverview state rendering, local forms, accessibility, keyboard, callback
 // payloads, and DesktopLayoutThumbnail.
 // Boundary OUT: TanStack Query snapshots, the tab drag store and its hit tests, window-manager
@@ -57,6 +58,7 @@ const DESKTOPS: DesktopOverviewItem[] = [
     id: "control",
     name: "Control",
     tabs: [tab("tab-dashboard", DASHBOARD)],
+    movableTabCount: 1,
     activeTabId: "tab-dashboard",
     activeRoot: { id: "n-dashboard", kind: "leaf", windowId: "dashboard" },
   },
@@ -64,6 +66,7 @@ const DESKTOPS: DesktopOverviewItem[] = [
     id: "build",
     name: "Build",
     tabs: [tab("tab-agents", AGENTS, TASKS)],
+    movableTabCount: 1,
     activeTabId: "tab-agents",
     activeRoot: null,
     needsYou: true,
@@ -73,6 +76,8 @@ const DESKTOPS: DesktopOverviewItem[] = [
     id: "research",
     name: "Research",
     tabs: [tab("tab-blank", NEW_TAB)],
+    // Counted on the daemon's tabs by the surfaces hook: a lone blank New Tab moves nothing.
+    movableTabCount: 0,
     activeTabId: "tab-blank",
     activeRoot: { id: "n-blank", kind: "leaf", windowId: "blank" },
   },
@@ -326,6 +331,34 @@ describe("DesktopsOverview", () => {
     expect(within(build).queryByRole("combobox")).not.toBeInTheDocument();
   });
 
+  it("R2-02: Should apply an indicator menu action once, not again when its card remounts", () => {
+    const onDesktopActionApplied = vi.fn();
+    const props: DesktopsOverviewProps = {
+      open: true,
+      state: { status: "ready", desktops: DESKTOPS, activeDesktopId: "control" },
+      desktopAction: { desktopId: "research", action: "rename" },
+      onDesktopActionApplied,
+      onOpenChange: vi.fn(),
+      onCreateDesktop: vi.fn(),
+      onSwitchDesktop: vi.fn(),
+      onRenameDesktop: vi.fn(),
+      onReorderDesktop: vi.fn(),
+      onDeleteDesktop: vi.fn(),
+      onMoveTab: vi.fn(),
+      onChooseTab: vi.fn(),
+    };
+    const { rerender } = render(<DesktopsOverview {...props} />);
+
+    expect(within(card("Research")).getByLabelText("Desktop name")).toBeInTheDocument();
+    expect(onDesktopActionApplied).toHaveBeenCalledOnce();
+    // The owner consumed the action; then the card remounts, as a dragged card does on release.
+    rerender(<DesktopsOverview {...props} desktopAction={null} state={{ status: "loading" }} />);
+    rerender(<DesktopsOverview {...props} desktopAction={null} />);
+
+    expect(within(card("Research")).queryByLabelText("Desktop name")).not.toBeInTheDocument();
+    expect(onDesktopActionApplied).toHaveBeenCalledOnce();
+  });
+
   it("FB-F-07: Should close a desktop holding only a blank New Tab with no destination", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview();
@@ -343,6 +376,7 @@ describe("DesktopsOverview", () => {
     const mixed: DesktopOverviewItem = {
       ...DESKTOPS[2]!,
       tabs: [tab("tab-blank", NEW_TAB), tab("tab-dashboard-2", osWindow("dash-2", "dashboard"))],
+      movableTabCount: 1,
     };
     const callbacks = renderOverview({
       state: {
@@ -354,7 +388,8 @@ describe("DesktopsOverview", () => {
     const research = card("Research");
 
     await user.click(within(research).getByRole("button", { name: "Close Research" }));
-    expect(within(research).getByText("Move 2 tabs to")).toBeInTheDocument();
+    // The daemon moves the real tab only; the blank New Tab is not counted (R2-03).
+    expect(within(research).getByText("Move 1 tab to")).toBeInTheDocument();
     const confirm = within(research).getByRole("button", { name: "Confirm: Close Research" });
     expect(confirm).toBeDisabled();
     await user.selectOptions(within(research).getByRole("combobox"), "Control");
@@ -377,6 +412,13 @@ describe("DesktopsOverview", () => {
     expect(within(card("Research")).getByText("Move tab here")).toBeInTheDocument();
     expect(card("Build")).not.toHaveAttribute("data-drop-target");
     expect(card("Build")).toHaveAttribute("data-desktop-drop-target", "build");
+  });
+
+  it("Should name a window on the target card while a window head is dragged", () => {
+    renderOverview({ dropTargetDesktopId: "research", dragKind: "window" });
+
+    expect(within(card("Research")).getByText("Move window here")).toBeInTheDocument();
+    expect(within(card("Research")).queryByText("Move tab here")).not.toBeInTheDocument();
   });
 
   it("Should hand a press on a tab row to the tab drag", () => {
