@@ -85,6 +85,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       store.trigger.discardRequested();
       forget();
     },
+    resourceKey,
   });
   const deleteFlow = useAgentDeleteFlow({
     agent: agentQuery.data,

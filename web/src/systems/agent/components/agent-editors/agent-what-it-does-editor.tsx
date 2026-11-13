@@ -25,6 +25,7 @@ function LoadedEditor({ payload, ...props }: AgentEditorProps & { payload: Agent
     dirty: document.changes > 0,
     entityName: "Instructions",
     onDiscard: document.discard,
+    resourceKey: document.resourceKey,
   });
   return (
     <>

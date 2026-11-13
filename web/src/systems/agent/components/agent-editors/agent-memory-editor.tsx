@@ -15,6 +15,7 @@ function LoadedEditor({ payload, ...props }: AgentEditorProps & { payload: Agent
     dirty: model.document.changes > 0,
     entityName: "Memory",
     onDiscard: model.document.discard,
+    resourceKey: model.document.resourceKey,
   });
   const { workspaces } = useActiveWorkspace();
   const scopeLabel = (scope: string) =>

@@ -111,6 +111,7 @@ export function useEditorDocument<TForm>({
   const shownSource = raw ?? (baseline.block ? baseline.source : compose(form));
 
   return {
+    resourceKey,
     baseline,
     form,
     raw,

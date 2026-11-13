@@ -148,6 +148,27 @@ describe("useUnsavedGuard", () => {
     expect(onDiscard).toHaveBeenCalledTimes(1);
   });
 
+  it("Should drop only the left resource's edits when a reused editor moves on [#1653]", () => {
+    mockUseBlocker.mockReturnValue({ status: "blocked", proceed: mockProceed, reset: mockReset });
+    const discardA = vi.fn();
+    const discardB = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ resourceKey, onDiscard }: { resourceKey: string; onDiscard: () => void }) =>
+        useUnsavedGuard({ dirty: true, entityName: "Permissions", onDiscard, resourceKey }),
+      { initialProps: { resourceKey: "agent-a", onDiscard: discardA } }
+    );
+
+    act(() => result.current.proceed?.());
+    expect(discardA).not.toHaveBeenCalled();
+    // The editor stays mounted and resumes another agent's dirty draft.
+    rerender({ resourceKey: "agent-b", onDiscard: discardB });
+    expect(discardA).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(discardB).not.toHaveBeenCalled();
+    expect(discardA).toHaveBeenCalledTimes(1);
+  });
+
   describe("inside a window of the desktop shell [B-1]", () => {
     function shell(port: Partial<WindowNavigationGuardPort>) {
       const held: Array<{ windowId: string; edits: UnsavedWindowEdits }> = [];

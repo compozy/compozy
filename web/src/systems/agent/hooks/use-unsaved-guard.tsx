@@ -20,6 +20,11 @@ export interface UseUnsavedGuardOptions {
    * that unmounts still holding edits keeps them as a draft for its next mount (#1653).
    */
   onDiscard?: () => void;
+  /**
+   * The resource the editor shows. A Discard answered for a navigation drops the edits of the
+   * resource it was answered on, once the editor leaves that resource or goes.
+   */
+  resourceKey?: string;
 }
 
 export interface UseUnsavedGuardResult {
@@ -51,6 +56,7 @@ export function useUnsavedGuard({
   dirty,
   entityName,
   onDiscard,
+  resourceKey,
 }: UseUnsavedGuardOptions): UseUnsavedGuardResult {
   const windowId = use(WindowScopeContext);
   const windows = use(WindowNavigationGuardContext);
@@ -76,22 +82,30 @@ export function useUnsavedGuard({
   });
 
   // The shell reads the current name and discard when it asks, after this render. One object
-  // for the editor's life, so the unmount cleanup reads what the last render left.
-  const latest = useRef({ entityName, onDiscard, discardOnLeave: false });
+  // for the editor's life, so cleanups read what the last render left.
+  const latest = useRef<{
+    entityName: string;
+    onDiscard: (() => void) | undefined;
+    /** The discard a navigation's Discard was answered with, bound to the resource it left. */
+    pendingDiscard: (() => void) | null;
+  }>({ entityName, onDiscard, pendingDiscard: null });
   useEffect(() => {
     latest.current.entityName = entityName;
     latest.current.onDiscard = onDiscard;
   });
   useEffect(() => {
     // Edits changed after a Discard whose navigation another guard held: they are new edits.
-    latest.current.discardOnLeave = false;
+    latest.current.pendingDiscard = null;
   }, [dirty]);
   useEffect(() => {
     const current = latest.current;
+    // Runs when the editor leaves the resource or goes, before it settles on the next one.
     return () => {
-      if (current.discardOnLeave) current.onDiscard?.();
+      const pending = current.pendingDiscard;
+      current.pendingDiscard = null;
+      pending?.();
     };
-  }, []);
+  }, [resourceKey]);
   const [edits] = useState<UnsavedWindowEdits>(() => ({
     get entityName() {
       return latest.current.entityName;
@@ -106,10 +120,11 @@ export function useUnsavedGuard({
     question?.presenter === edits ? question : null
   );
 
-  // A Discard answered for a navigation drops the edits once the editor goes: another editor's
-  // guard may still hold the same navigation, and then these edits stay.
+  // A Discard answered for a navigation drops this resource's edits once the editor leaves it:
+  // another editor's guard may still hold the same navigation, and then these edits stay. The
+  // discard is this render's, so a reused editor never drops the next resource's edits.
   const proceed = () => {
-    latest.current.discardOnLeave = true;
+    latest.current.pendingDiscard = onDiscard ?? null;
     blocker.proceed?.();
   };
 

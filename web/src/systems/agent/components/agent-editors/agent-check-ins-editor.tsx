@@ -21,6 +21,7 @@ function LoadedEditor({
     dirty: model.document.changes > 0,
     entityName: "Heartbeat",
     onDiscard: model.document.discard,
+    resourceKey: model.document.resourceKey,
   });
   return (
     <>

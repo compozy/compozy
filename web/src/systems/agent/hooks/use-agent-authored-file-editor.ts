@@ -102,6 +102,7 @@ export function useAgentAuthoredFileEditor({
       store.trigger.discarded();
       forget();
     },
+    resourceKey,
   });
   const editorError = "error" in editor ? editor.error : null;
   const revisions = history && "revisions" in history ? (history.revisions ?? []) : [];
