@@ -9,7 +9,7 @@ import {
   WindowManagerSettingsApplyError,
   type WindowManagerSettingsSaveResult,
 } from "../adapters/window-manager-layouts-api";
-import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
+import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-config-ranges";
 import { type WindowManagerConfig, windowManagerKeys } from "@/systems/os";
 
 export type WindowManagerConfigEditorPhase =
@@ -22,8 +22,6 @@ export type WindowManagerConfigEditorPhase =
 
 export type WindowManagerConfigProblem =
   | { field: "gaps"; message: string }
-  | { field: "snap"; message: string }
-  | { field: "repeatRatios"; message: string }
   | { field: "historyLimit"; message: string };
 
 interface WindowManagerConfigEditorStoreContext {
@@ -231,30 +229,6 @@ function collectProblems(config: WindowManagerConfig): WindowManagerConfigProble
     problems.push({
       field: "gaps",
       message: `Gaps run from ${ranges.gap.min} to ${ranges.gap.max} pixels.`,
-    });
-  }
-  if (
-    !inRange(config.snap.edgeBand, ranges.edgeBand) ||
-    !inRange(config.snap.cornerReach, ranges.cornerReach) ||
-    !inRange(config.snap.exitSlack, ranges.exitSlack)
-  ) {
-    problems.push({ field: "snap", message: "A snap threshold is outside its range." });
-  }
-  const ratios = config.snap.repeatRatios;
-  const canonical = ratios.map(ratio => Math.round(ratio * 1_000_000));
-  if (ratios.length < ranges.repeatStops.min || ratios.length > ranges.repeatStops.max) {
-    problems.push({
-      field: "repeatRatios",
-      message: `Keep between ${ranges.repeatStops.min} and ${ranges.repeatStops.max} repeat widths.`,
-    });
-  } else if (new Set(canonical).size !== ratios.length) {
-    problems.push({ field: "repeatRatios", message: "Two repeat widths sit at the same stop." });
-  } else if (
-    !ratios.every(ratio => ratio >= ranges.repeatRatio.min && ratio <= ranges.repeatRatio.max)
-  ) {
-    problems.push({
-      field: "repeatRatios",
-      message: "Repeat widths run from a tenth of the screen to nine tenths.",
     });
   }
   if (!inRange(config.historyLimit, ranges.historyLimit)) {

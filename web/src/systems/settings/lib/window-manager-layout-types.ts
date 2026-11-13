@@ -1,85 +1,37 @@
-export type WindowManagerLayoutAxis = "horizontal" | "vertical";
+import type { WindowManagerSnapshot } from "@/systems/os";
+
 export type WindowManagerLayoutAspect = "any" | "portrait" | "landscape";
 export type WindowManagerLayoutOverflow = "stack" | "reject";
-export type WindowManagerLayoutScopeKind = "global" | "workspace";
+/** The daemon's resource scopes for a saved layout: user-wide or one project. */
+export type WindowManagerLayoutScopeKind = "user" | "workspace";
 
-export interface WindowManagerNormalizedRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+/**
+ * The editor edits the shell's own v6 topology types, read off the snapshot the
+ * OS barrel exports, so a tab in Settings and a tab in the shell are one shape.
+ */
+export type WindowManagerLayoutDesktop = WindowManagerSnapshot["desktops"][number];
+export type WindowManagerLayoutTab = WindowManagerLayoutDesktop["tabs"][number];
+export type WindowManagerLayoutNode = WindowManagerLayoutTab["root"];
+export type WindowManagerLayoutSplit = Extract<WindowManagerLayoutNode, { kind: "split" }>;
+export type WindowManagerLayoutLeaf = Extract<WindowManagerLayoutNode, { kind: "leaf" }>;
+export type WindowManagerLayoutAxis = WindowManagerLayoutSplit["axis"];
+export type WindowManagerLayoutWindow = WindowManagerSnapshot["windows"][string];
+export type WindowManagerLayoutRoute = WindowManagerLayoutWindow["route"];
 
-export type WindowManagerLayoutNode =
-  | {
-      id: string;
-      kind: "leaf";
-      windowId: string;
-    }
-  | {
-      id: string;
-      kind: "stack";
-      windowIds: string[];
-      activeId: string;
-    }
-  | {
-      id: string;
-      kind: "split";
-      axis: WindowManagerLayoutAxis;
-      children: WindowManagerLayoutNode[];
-      weights: number[];
-    };
+/** A side of a window a moved window lands on; it picks the split axis and the order. */
+export type WindowManagerLayoutEdge = "left" | "right" | "top" | "bottom";
 
-export interface WindowManagerLayoutGroup {
-  id: string;
-  frame: WindowManagerNormalizedRect;
-  root: WindowManagerLayoutNode;
-}
-
-export interface WindowManagerLayoutFloatingStack {
-  id: string;
-  windowIds: string[];
-  activeId: string | null;
-  rect: WindowManagerNormalizedRect;
-  minimized: boolean;
-}
-
-export interface WindowManagerLayoutDesktop {
-  id: string;
-  name: string;
-  order: number;
-  groups: WindowManagerLayoutGroup[];
-  floating: string[];
-  floatingStacks: WindowManagerLayoutFloatingStack[];
-}
-
-export interface WindowManagerLayoutWindow {
-  id: string;
-  app: string;
-  instanceKey: string | null;
-  route: {
-    pathname: string;
-    search: Record<string, unknown>;
-  };
-  navStack: {
-    pathname: string;
-    search: Record<string, unknown>;
-  }[];
-  pinned: boolean;
-  placement: "tiled" | "stacked" | "floating";
-  desktopId: string;
-  floatingRect: WindowManagerNormalizedRect;
-  minimized: boolean;
-  zoomed: boolean;
-  returnAnchor: unknown | null;
-}
-
+/**
+ * The version 6 layout document: the snapshot without revision, history and
+ * closed entries. `overrides` stays in wire form (snake_case), because the
+ * editor never edits it and must send it back exactly as the daemon gave it.
+ */
 export interface WindowManagerLayoutDocument {
-  version: 5;
+  version: 6;
   workspaceId: string;
-  desktops: WindowManagerLayoutDesktop[];
-  windows: Record<string, WindowManagerLayoutWindow>;
-  overrides: Record<string, unknown>;
+  desktops: readonly WindowManagerLayoutDesktop[];
+  windows: Readonly<Record<string, WindowManagerLayoutWindow>>;
+  overrides: Readonly<Record<string, unknown>>;
 }
 
 export interface WindowManagerLayoutState {
@@ -102,11 +54,11 @@ export interface WindowManagerLayoutValidation {
 export interface WindowManagerLayoutChanges {
   desktopIds: string[];
   windowIds: string[];
-  groupIds: string[];
+  tabIds: string[];
   nodeIds: string[];
   clientIds: string[];
-  stackGrouped: string[];
-  stackUngrouped: string[];
+  tabSplit: string[];
+  tabUnsplit: string[];
 }
 
 export interface WindowManagerLayoutPreview {
@@ -114,6 +66,8 @@ export interface WindowManagerLayoutPreview {
   changed: boolean;
   changes: WindowManagerLayoutChanges;
   diagnostics: WindowManagerLayoutDiagnostic[];
+  /** The layout the daemon would hold after the replace: version 6 whatever version was sent. */
+  document: WindowManagerLayoutDocument;
 }
 
 export interface WindowManagerLayoutApplyResult {
@@ -122,6 +76,17 @@ export interface WindowManagerLayoutApplyResult {
   diagnostics: WindowManagerLayoutDiagnostic[];
 }
 
+/**
+ * A saved profile's document as the daemon stored it. Profiles saved before
+ * tabs and splits can still hold a version 4 or 5 document; the daemon converts
+ * it on read, so the editor keeps the stored form untouched until it asks the
+ * daemon for the version 6 result (US-022.AC-3).
+ */
+export type WindowManagerLayoutProfileSource =
+  | { kind: "current"; document: WindowManagerLayoutDocument }
+  | { kind: "earlier"; version: number; wire: Readonly<Record<string, unknown>> };
+
+/** What Settings writes: always a version 6 document. */
 export interface WindowManagerLayoutProfile {
   version: 1;
   id: string;
@@ -132,6 +97,13 @@ export interface WindowManagerLayoutProfile {
   document: WindowManagerLayoutDocument;
 }
 
+export interface WindowManagerLayoutProfileSpec extends Omit<
+  WindowManagerLayoutProfile,
+  "document"
+> {
+  source: WindowManagerLayoutProfileSource;
+}
+
 export interface WindowManagerLayoutResourceRecord {
   kind: "window_layout";
   id: string;
@@ -140,7 +112,7 @@ export interface WindowManagerLayoutResourceRecord {
     kind: WindowManagerLayoutScopeKind;
     id: string;
   };
-  spec: WindowManagerLayoutProfile;
+  spec: WindowManagerLayoutProfileSpec;
   createdAt: string;
   updatedAt: string;
 }

@@ -56,16 +56,6 @@ function Subject({ x, y, width, height }: { x: number; y: number; width: number;
   );
 }
 
-export function DiagramFloatOnTop() {
-  return (
-    <Diagram>
-      <Pane height={30} width={38} x={3} y={4} />
-      <Pane height={30} width={40} x={45} y={4} />
-      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="40" x="26" y="12" />
-    </Diagram>
-  );
-}
-
 export function DiagramSplitBesideFocus() {
   return (
     <Diagram>
@@ -140,26 +130,6 @@ export function DiagramKeysOnly() {
         strokeLinejoin="round"
         strokeWidth="1.6"
       />
-    </Diagram>
-  );
-}
-
-export function DiagramDragWindow() {
-  return (
-    <Diagram>
-      <Pane height={26} width={26} x={3} y={8} />
-      <Pane height={26} width={26} x={33} y={8} />
-      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="32" x="52" y="2" />
-    </Diagram>
-  );
-}
-
-export function DiagramDragGroup() {
-  return (
-    <Diagram>
-      <Pane height={26} width={26} x={3} y={8} />
-      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="20" x="42" y="2" />
-      <rect className="fill-surface-2 stroke-fg" height="24" rx="2" width="20" x="64" y="2" />
     </Diagram>
   );
 }

@@ -22,7 +22,7 @@ const SCOPES: ReadonlyArray<{ value: WindowManagerLayoutScopeKind; label: string
       hint: "Visible only inside this project.",
     },
     {
-      value: "global",
+      value: "user",
       label: "Every project",
       hint: "Available in every project on this machine.",
     },

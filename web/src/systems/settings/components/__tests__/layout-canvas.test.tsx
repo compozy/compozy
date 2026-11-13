@@ -1,174 +1,163 @@
-// Suite: the layout canvas ↔ projector contract
-// Invariant: the canvas draws what `projectLayout` produced — one tile per
-// projected window, one handle per seam — and marks the topology the daemon
-// refuses (overlapping groups) rather than drawing it as if it were fine.
-// Boundary IN: a draft desktop + the global config's gaps.
-// Boundary OUT: drag arithmetic (owned by seam-preview), the inspector.
-import { render, screen } from "@testing-library/react";
+// Suite: the layout canvas ↔ tab tree contract
+// Invariant: the canvas draws one tab's split tree — one tile per leaf, one
+// seam between neighbouring members — and every seam edit it emits is a tree
+// that still satisfies the daemon's weight rules.
+// Boundary IN: a v6 draft document and one of its tabs.
+// Boundary OUT: tab and window edits (owned by the layout document edit suite),
+// the inspector.
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { WindowManagerConfig } from "@/systems/os";
-
-import { layoutCanvasProjection } from "../../lib/window-manager-layout-canvas";
 import type {
-  WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
+  WindowManagerLayoutNode,
+  WindowManagerLayoutTab,
 } from "../../lib/window-manager-layout-types";
 import { LayoutCanvas } from "../layouts/layout-canvas";
 
-const CONFIG = {
-  gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
-} as WindowManagerConfig;
-
-function windowAt(id: string, desktopId: string) {
+function windowAt(id: string, tabId: string) {
   return {
     id,
-    app: "tasks",
-    instanceKey: null,
-    route: { pathname: "/tasks", search: {} },
+    app: "terminal",
+    route: { pathname: `/terminal/${id}`, search: "", hash: "" },
     navStack: [],
-    pinned: false,
-    placement: "tiled" as const,
-    desktopId,
-    floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },
-    minimized: false,
-    zoomed: false,
-    returnAnchor: null,
-  };
+    desktopId: "desktop:main",
+    tabId,
+  } as unknown as WindowManagerLayoutDocument["windows"][string];
 }
 
-function documentWith(desktop: WindowManagerLayoutDesktop): WindowManagerLayoutDocument {
-  return {
-    version: 5,
-    workspaceId: "workspace-a",
-    desktops: [desktop],
-    windows: {
-      "app:one": windowAt("app:one", desktop.id),
-      "app:two": windowAt("app:two", desktop.id),
-      "app:float": { ...windowAt("app:float", desktop.id), placement: "floating" },
-    },
-    overrides: {},
-  };
-}
-
-const SPLIT_DESKTOP: WindowManagerLayoutDesktop = {
-  id: "desktop-one",
-  name: "Build",
-  order: 0,
-  floating: ["app:float"],
-  floatingStacks: [],
-  groups: [
-    {
-      id: "group-main",
-      frame: { x: 0, y: 0, w: 1, h: 1 },
-      root: {
-        id: "split-main",
+const NESTED_TAB: WindowManagerLayoutTab = {
+  id: "tab:work",
+  pinned: false,
+  root: {
+    id: "split:outer",
+    kind: "split",
+    axis: "horizontal",
+    weights: [0.6, 0.4],
+    children: [
+      { id: "leaf:one", kind: "leaf", windowId: "app:one" },
+      {
+        id: "split:inner",
         kind: "split",
-        axis: "horizontal",
+        axis: "vertical",
         weights: [0.5, 0.5],
         children: [
-          { id: "leaf-one", kind: "leaf", windowId: "app:one" },
-          { id: "leaf-two", kind: "leaf", windowId: "app:two" },
+          { id: "leaf:two", kind: "leaf", windowId: "app:two" },
+          { id: "leaf:three", kind: "leaf", windowId: "app:three" },
         ],
       },
-    },
-  ],
+    ],
+  },
 };
 
-function renderCanvas(desktop: WindowManagerLayoutDesktop, onSelect = vi.fn()) {
-  const document = documentWith(desktop);
-  const projection = layoutCanvasProjection(document, desktop, CONFIG, 1);
+const DOCUMENT: WindowManagerLayoutDocument = {
+  version: 6,
+  workspaceId: "ws-1",
+  desktops: [
+    {
+      id: "desktop:main",
+      name: "Main",
+      order: 0,
+      activeTabId: NESTED_TAB.id,
+      tabs: [NESTED_TAB],
+    } as unknown as WindowManagerLayoutDocument["desktops"][number],
+  ],
+  windows: {
+    "app:one": windowAt("app:one", NESTED_TAB.id),
+    "app:two": windowAt("app:two", NESTED_TAB.id),
+    "app:three": windowAt("app:three", NESTED_TAB.id),
+  },
+  overrides: {},
+};
+
+function renderCanvas(
+  tab: WindowManagerLayoutTab = NESTED_TAB,
+  { onSelect = vi.fn(), onRootChange = vi.fn(), selectedWindowId = null as string | null } = {}
+) {
   render(
     <LayoutCanvas
-      config={CONFIG}
-      desktop={desktop}
-      document={document}
-      projection={projection}
-      selection={null}
-      onDesktopChange={vi.fn()}
-      onFloatingRectChange={vi.fn()}
+      document={DOCUMENT}
+      selectedWindowId={selectedWindowId}
+      tab={tab}
+      onRootChange={onRootChange}
       onSelect={onSelect}
     />
   );
-  return projection;
+  return { onSelect, onRootChange };
+}
+
+function weightsOf(node: WindowManagerLayoutNode, splitId: string): number[] {
+  if (node.kind === "leaf") return [];
+  if (node.id === splitId) return node.weights;
+  return node.children.flatMap(child => weightsOf(child, splitId));
 }
 
 describe("LayoutCanvas", () => {
-  it("Should draw one tile per projected window and one handle per seam", () => {
-    const projection = renderCanvas(SPLIT_DESKTOP);
+  it("Should draw one tile per leaf and one seam between neighbouring members", () => {
+    renderCanvas();
 
-    expect(projection.windows).toHaveLength(2);
-    expect(projection.seams).toHaveLength(1);
-    for (const projected of projection.windows) {
-      expect(screen.getByTestId(`layout-canvas-tile-${projected.windowId}`)).toBeInTheDocument();
+    expect(screen.getByTestId("layout-canvas")).toHaveAttribute("data-tab-id", "tab:work");
+    for (const id of ["app:one", "app:two", "app:three"]) {
+      expect(screen.getByTestId(`layout-canvas-tile-${id}`)).toBeInTheDocument();
     }
-    for (const seam of projection.seams) {
-      expect(screen.getByTestId(`layout-canvas-seam-${seam.id}`)).toBeInTheDocument();
-    }
+    expect(screen.getByTestId("layout-canvas-split-split:outer")).toBeInTheDocument();
+    expect(screen.getByTestId("layout-canvas-split-split:inner")).toBeInTheDocument();
+    expect(screen.getAllByRole("slider")).toHaveLength(2);
+    expect(screen.getByTestId("layout-canvas-seam-split:outer-0")).toBeInTheDocument();
+    expect(screen.getByTestId("layout-canvas-seam-split:inner-0")).toBeInTheDocument();
   });
 
-  it("Should give every divider and group edge a keyboard-operable slider", () => {
-    renderCanvas(SPLIT_DESKTOP);
+  it("Should draw a single-window tab as one tile with no seams", () => {
+    renderCanvas({
+      id: "tab:solo",
+      pinned: false,
+      root: { id: "leaf:solo", kind: "leaf", windowId: "app:one" },
+    });
 
-    const sliders = screen.getAllByRole("slider");
-    // One seam plus four edges of the single group.
-    expect(sliders).toHaveLength(5);
-    for (const slider of sliders) {
-      expect(slider).toHaveAttribute("aria-valuenow");
-      expect(slider).toHaveAttribute("tabindex", "0");
-    }
+    expect(screen.getByTestId("layout-canvas-tile-app:one")).toBeInTheDocument();
+    expect(screen.queryAllByRole("slider")).toHaveLength(0);
   });
 
-  it("Should let keyboard users clear the layout selection", async () => {
+  it("Should select a window when its tile is clicked and mark the selected one", async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
-    renderCanvas(SPLIT_DESKTOP, onSelect);
+    const { onSelect } = renderCanvas(NESTED_TAB, { selectedWindowId: "app:two" });
 
-    screen.getByRole("button", { name: "Clear layout selection" }).focus();
-    await user.keyboard("{Enter}");
-
-    expect(onSelect).toHaveBeenCalledWith(null);
-  });
-
-  it("Should show floating windows above the tiled ones", () => {
-    renderCanvas(SPLIT_DESKTOP);
-
-    expect(screen.getByTestId("layout-canvas-floating-app:float")).toBeInTheDocument();
-  });
-
-  it("Should mark the groups whose frames cover each other", () => {
-    const overlapping: WindowManagerLayoutDesktop = {
-      ...SPLIT_DESKTOP,
-      floating: [],
-      groups: [
-        {
-          id: "group-a",
-          frame: { x: 0, y: 0, w: 0.7, h: 1 },
-          root: { id: "leaf-one", kind: "leaf", windowId: "app:one" },
-        },
-        {
-          id: "group-b",
-          frame: { x: 0.5, y: 0, w: 0.5, h: 1 },
-          root: { id: "leaf-two", kind: "leaf", windowId: "app:two" },
-        },
-      ],
-    };
-    renderCanvas(overlapping);
-
-    expect(screen.getByTestId("layout-canvas-group-group-a")).toHaveAttribute(
-      "data-overlapping",
+    expect(screen.getByTestId("layout-canvas-tile-app:two")).toHaveAttribute(
+      "aria-pressed",
       "true"
     );
-    expect(screen.getByTestId("layout-canvas-group-group-b")).toHaveAttribute(
-      "data-overlapping",
-      "true"
+    expect(screen.getByTestId("layout-canvas-tile-app:one")).toHaveAttribute(
+      "aria-pressed",
+      "false"
     );
+
+    await user.click(screen.getByTestId("layout-canvas-tile-app:three"));
+
+    expect(onSelect).toHaveBeenCalledWith("app:three");
   });
 
-  it("Should say when a desktop has nothing on it", () => {
-    renderCanvas({ ...SPLIT_DESKTOP, groups: [], floating: [] });
+  it("Should move a seam from the keyboard and keep the split's weights summing to 1", () => {
+    const { onRootChange } = renderCanvas();
+    const seam = screen.getByTestId("layout-canvas-seam-split:outer-0");
 
-    expect(screen.getByText("No windows on this desktop")).toBeInTheDocument();
+    expect(seam).toHaveAttribute("aria-valuenow", "60");
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    expect(onRootChange).toHaveBeenCalledTimes(1);
+    const root = onRootChange.mock.calls[0]?.[0] as WindowManagerLayoutNode;
+    const weights = weightsOf(root, "split:outer");
+    expect(weights[0]).toBeCloseTo(0.62, 6);
+    expect(weights.reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 6);
+    expect(weightsOf(root, "split:inner")).toEqual([0.5, 0.5]);
+  });
+
+  it("Should balance a seam's pair on double-click", () => {
+    const { onRootChange } = renderCanvas();
+
+    fireEvent.doubleClick(screen.getByTestId("layout-canvas-seam-split:outer-0"));
+
+    const root = onRootChange.mock.calls[0]?.[0] as WindowManagerLayoutNode;
+    expect(weightsOf(root, "split:outer")).toEqual([0.5, 0.5]);
   });
 });

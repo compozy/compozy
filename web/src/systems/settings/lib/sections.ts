@@ -62,7 +62,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Layouts",
     icon: PanelTop,
     group: "workspace",
-    keywords: "window manager desktops profiles split stack geometry snap focus shortcuts alias",
+    keywords: "window manager desktops tabs splits profiles gaps focus shortcuts alias",
   },
   {
     slug: "profiles",

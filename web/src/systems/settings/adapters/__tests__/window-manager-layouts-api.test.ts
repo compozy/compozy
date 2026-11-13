@@ -1,13 +1,16 @@
 import { parseSettingsWindowManagerSection } from "@/systems/os";
 // Suite: window-manager Settings adapter
-// Invariant: the editor reads document + CAS revision from one authoritative snapshot, and
-// resource discovery returns the complete unbounded collection exposed by the daemon.
+// Invariant: the editor reads document + CAS revision from one authoritative snapshot,
+// resource discovery returns the complete unbounded collection exposed by the daemon, a
+// document of any accepted version becomes version 6 only through the daemon's preview,
+// and Settings never writes a retired window-manager option back.
 // Owning layer: Settings HTTP adapter. Boundary OUT: React Query cache and editor presentation.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { windowManagerSnapshotFixture } from "@/systems/os/mocks";
 import {
   settingsWindowManagerSectionFixture,
+  windowManagerEarlierLayoutResourceFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "../../mocks/window-manager-fixtures";
@@ -19,6 +22,7 @@ import {
 import {
   updateWindowManagerSettings,
   applyWindowManagerLayout,
+  convertWindowManagerLayoutDocument,
   deleteWindowManagerLayoutProfile,
   exportWindowManagerLayout,
   getWindowManagerLayoutState,
@@ -73,6 +77,28 @@ describe("window-manager layouts API", () => {
       config: { gaps: config.gaps, global_shortcuts: config.globalShortcuts },
     });
     expect(result.apply).toEqual(receipt);
+  });
+
+  it("Should leave every retired option out of a window-manager save", async () => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({ ...settingsWindowManagerSectionFixture, apply: receipt })
+    );
+
+    await updateWindowManagerSettings(config);
+
+    const sent = JSON.parse(apiMocks.fetch.mock.calls[0]?.[1].body).config;
+    for (const retired of [
+      "raise_on_focus",
+      "drag_away_policy",
+      "group_move_modifier",
+      "snap",
+      "bindings",
+    ]) {
+      expect(sent).not.toHaveProperty(retired);
+    }
+    expect(sent).toHaveProperty("focus_policy");
+    expect(sent).toHaveProperty("shortcuts");
   });
 
   it.each([
@@ -175,8 +201,7 @@ describe("window-manager layouts API", () => {
     expect(state).toMatchObject({
       revision: windowManagerSnapshotFixture.revision,
       document: {
-        // The editor still edits v5 documents until S7 moves it to the tab model.
-        version: 5,
+        version: 6,
         workspaceId: windowManagerSnapshotFixture.workspace_id,
       },
     });
@@ -212,7 +237,11 @@ describe("window-manager layouts API", () => {
         jsonResponse({ workspace_id: "workspace-a", valid: true, diagnostics: [] })
       )
       .mockResolvedValueOnce(
-        jsonResponse({ snapshot: { revision: 8 }, changed: false, changes: {} })
+        jsonResponse({
+          snapshot: { ...windowManagerLayoutDocumentFixture, revision: 8 },
+          changed: false,
+          changes: {},
+        })
       )
       .mockResolvedValueOnce(jsonResponse({ snapshot: { revision: 8 }, applied: true }))
       .mockResolvedValueOnce(jsonResponse({ record: windowManagerLayoutResourceFixture }))
@@ -265,5 +294,69 @@ describe("window-manager layouts API", () => {
         status: 502,
       }
     );
+  });
+
+  it("Should convert a document of an earlier version through a layout.replace preview", async () => {
+    const earlier = windowManagerEarlierLayoutResourceFixture.spec.document as Record<
+      string,
+      unknown
+    >;
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        snapshot: { ...windowManagerLayoutDocumentFixture, revision: 7 },
+        changed: true,
+        changes: { tab_ids: ["tab:main"] },
+      })
+    );
+
+    const document = await convertWindowManagerLayoutDocument(
+      "workspace-a",
+      "marketing",
+      7,
+      earlier
+    );
+
+    expect(apiMocks.fetch).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/window-manager/preview?profile=marketing",
+      expect.objectContaining({ method: "POST" })
+    );
+    const request = JSON.parse(apiMocks.fetch.mock.calls[0]?.[1].body);
+    expect(request).toMatchObject({
+      command_id: "layout.replace",
+      expected_revision: 7,
+      payload: { document: { ...earlier, workspace_id: "workspace-a" } },
+    });
+    expect(document.version).toBe(6);
+    expect(document.desktops.map(desktop => desktop.id)).toEqual(
+      windowManagerLayoutDocumentFixture.desktops.map(desktop => desktop.id)
+    );
+  });
+
+  it("Should surface the daemon's refusal when a document cannot be converted", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "unsupported layout version 3" }), { status: 422 })
+    );
+
+    await expect(
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", 7, { version: 3 })
+    ).rejects.toThrow("unsupported layout version 3");
+  });
+
+  it("Should list a profile saved before tabs and splits as an earlier source, untouched", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        records: [windowManagerEarlierLayoutResourceFixture, windowManagerLayoutResourceFixture],
+      })
+    );
+
+    const [earlier, current] = await listWindowManagerLayoutProfiles("workspace-a", "marketing");
+
+    expect(earlier?.scope.kind).toBe("user");
+    expect(earlier?.spec.source).toEqual({
+      kind: "earlier",
+      version: 5,
+      wire: windowManagerEarlierLayoutResourceFixture.spec.document,
+    });
+    expect(current?.spec.source.kind).toBe("current");
   });
 });

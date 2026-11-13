@@ -19,8 +19,8 @@ import {
   parseWindowManagerLayoutValidation,
   windowManagerLayoutDocumentToWire,
   windowManagerProfileToWire,
-  windowManagerSettingsConfigToWire,
 } from "../lib/window-manager-layout-schema";
+import { windowManagerSettingsConfigToWire } from "../lib/window-manager-settings-wire";
 import type {
   WindowManagerLayoutApplyResult,
   WindowManagerLayoutDocument,
@@ -215,6 +215,37 @@ export async function validateWindowManagerLayout(
   );
 }
 
+function previewRequest(
+  workspaceId: string,
+  revision: number,
+  document: Record<string, unknown>,
+  clientId?: string
+) {
+  return {
+    workspace_id: workspaceId,
+    command_id: "layout.replace",
+    expected_revision: revision,
+    ...(clientId ? { client_id: clientId } : {}),
+    actor: { kind: "web", id: clientId ?? "settings" },
+    origin: "web-settings",
+    payload: { document: { ...document, workspace_id: workspaceId } },
+  };
+}
+
+async function postLayoutPreview(
+  workspaceId: string,
+  profile: string,
+  body: unknown,
+  fallback: string,
+  signal?: AbortSignal
+): Promise<WindowManagerLayoutPreview> {
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/preview")}`,
+    { ...jsonRequest(body, signal), method: "POST" }
+  );
+  return parseWindowManagerLayoutPreview(await requireJson(response, fallback));
+}
+
 export async function previewWindowManagerLayout(
   workspaceId: string,
   profile: string,
@@ -223,32 +254,38 @@ export async function previewWindowManagerLayout(
   clientId?: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutPreview> {
-  const response = await runtimeFetch(
-    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/preview")}`,
-    {
-      ...jsonRequest(
-        {
-          workspace_id: workspaceId,
-          command_id: "layout.replace",
-          expected_revision: revision,
-          ...(clientId ? { client_id: clientId } : {}),
-          actor: { kind: "web", id: clientId ?? "settings" },
-          origin: "web-settings",
-          payload: {
-            document: windowManagerLayoutDocumentToWire({
-              ...document,
-              workspaceId,
-            }),
-          },
-        },
-        signal
-      ),
-      method: "POST",
-    }
+  return postLayoutPreview(
+    workspaceId,
+    profile,
+    previewRequest(workspaceId, revision, windowManagerLayoutDocumentToWire(document), clientId),
+    "Unable to preview the layout",
+    signal
   );
-  return parseWindowManagerLayoutPreview(
-    await requireJson(response, "Unable to preview the layout")
+}
+
+/**
+ * Turns a layout document of any accepted version (4, 5 or 6) into the
+ * version 6 document the daemon would hold, without applying it. The daemon
+ * converts earlier versions on every read (`layout_decode.go`), and a
+ * `layout.replace` preview returns the resulting snapshot, so the web never
+ * converts a document itself. An invalid document fails with the daemon's
+ * validation error and changes nothing.
+ */
+export async function convertWindowManagerLayoutDocument(
+  workspaceId: string,
+  profile: string,
+  revision: number,
+  wire: Readonly<Record<string, unknown>>,
+  signal?: AbortSignal
+): Promise<WindowManagerLayoutDocument> {
+  const preview = await postLayoutPreview(
+    workspaceId,
+    profile,
+    previewRequest(workspaceId, revision, { ...wire }),
+    "Unable to read the layout file",
+    signal
   );
+  return preview.document;
 }
 
 export async function applyWindowManagerLayout(

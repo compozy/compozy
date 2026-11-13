@@ -9,9 +9,9 @@ interface LayoutReviewBarProps {
 type ReviewTone = "neutral" | "warning" | "success" | "destructive";
 
 /**
- * The gate between an edit and the workspace. It is docked inside the stage
- * rather than floating: the layout document and the global settings are two
- * different saves, and two overlapping floating bars is how the old page read.
+ * The gate between an edit and the workspace. It is docked inside the stage,
+ * not overlaid on the page: the layout document and the global settings are
+ * two different saves, and two overlapping save bars is how the old page read.
  *
  * Apply stays shut until the daemon has validated *this* draft — the review is
  * keyed by a fingerprint of the document, so a single keystroke afterwards
@@ -129,13 +129,13 @@ function describe(
 
 function changeSummary(changes: {
   desktopIds: string[];
-  groupIds: string[];
+  tabIds: string[];
   nodeIds: string[];
   windowIds: string[];
 }): string {
   const parts = [
     plural(changes.desktopIds.length, "desktop"),
-    plural(changes.groupIds.length, "group"),
+    plural(changes.tabIds.length, "tab"),
     plural(changes.nodeIds.length, "branch"),
     plural(changes.windowIds.length, "window"),
   ].filter((part): part is string => part !== null);

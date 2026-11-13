@@ -17,6 +17,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../adapters/window-manager-layouts-api", () => ({
   applyWindowManagerLayout: apiMocks.apply,
+  convertWindowManagerLayoutDocument: vi.fn(),
   previewWindowManagerLayout: apiMocks.preview,
   validateWindowManagerLayout: apiMocks.validate,
 }));
@@ -28,19 +29,18 @@ import { LayoutReviewBar } from "../layouts/layout-review-bar";
 const INITIAL: WindowManagerLayoutState = {
   revision: 7,
   document: {
-    version: 5,
+    version: 6,
     workspaceId: "workspace-a",
     desktops: [
       {
         id: "desktop-one",
         name: "Build",
         order: 0,
-        floating: [],
-        floatingStacks: [],
-        groups: [
+        activeTabId: "tab-main",
+        tabs: [
           {
-            id: "group-main",
-            frame: { x: 0, y: 0, w: 1, h: 1 },
+            id: "tab-main",
+            pinned: false,
             root: { id: "leaf-one", kind: "leaf", windowId: "app:tasks" },
           },
         ],
@@ -53,18 +53,13 @@ const INITIAL: WindowManagerLayoutState = {
         instanceKey: null,
         route: { pathname: "/tasks", search: {} },
         navStack: [],
-        pinned: false,
-        placement: "tiled",
         desktopId: "desktop-one",
-        floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },
-        minimized: false,
-        zoomed: false,
-        returnAnchor: null,
+        tabId: "tab-main",
       },
     },
     overrides: {},
   },
-};
+} as unknown as WindowManagerLayoutState;
 
 function Harness() {
   const editor = useWindowManagerLayoutEditor("workspace-a", "marketing", INITIAL);
@@ -111,11 +106,14 @@ describe("LayoutReviewBar", () => {
       changes: {
         desktopIds: ["desktop-one"],
         windowIds: [],
-        groupIds: [],
+        tabIds: [],
         nodeIds: [],
         clientIds: [],
+        tabSplit: [],
+        tabUnsplit: [],
       },
       diagnostics: [],
+      document: INITIAL.document,
     });
     apiMocks.apply.mockResolvedValue({ revision: 8, applied: true, diagnostics: [] });
   });
@@ -158,20 +156,24 @@ describe("LayoutReviewBar", () => {
       workspaceId: "workspace-a",
       valid: false,
       diagnostics: [
-        { code: "topology.group_overlap", path: "groups.group-main", message: "groups overlap" },
+        {
+          code: "topology.split_weight_sum",
+          path: "desktops[0].tabs[0].root",
+          message: "split weights must sum to 1",
+        },
       ],
     });
     renderBar();
     fireEvent.click(screen.getByTestId("edit-desktop"));
     fireEvent.click(screen.getByTestId("layout-review-check"));
 
-    await waitFor(() => expect(screen.getByText("topology.group_overlap")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("topology.split_weight_sum")).toBeInTheDocument());
     expect(apiMocks.preview).not.toHaveBeenCalled();
     expect(screen.getByTestId("layout-review-apply")).toBeDisabled();
     expect(screen.getByTestId("layout-review-status")).toHaveTextContent("1 problem to fix");
 
     fireEvent.click(screen.getByTestId("edit-desktop"));
-    expect(screen.queryByText("topology.group_overlap")).not.toBeInTheDocument();
+    expect(screen.queryByText("topology.split_weight_sum")).not.toBeInTheDocument();
     expect(screen.getByTestId("layout-review-apply")).toBeDisabled();
   });
 });

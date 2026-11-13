@@ -35,6 +35,7 @@ import {
 import {
   settingsWindowManagerDesktopIds,
   settingsWindowManagerSnapshotFixture,
+  windowManagerEarlierLayoutResourceFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
@@ -268,7 +269,7 @@ export const handlers: HttpHandler[] = [
       changed: true,
       changes: {
         desktop_ids: [settingsWindowManagerDesktopIds.build],
-        group_ids: ["group-main"],
+        tab_ids: ["tab-main"],
         node_ids: ["split-main"],
         window_ids: [],
       },
@@ -280,7 +281,10 @@ export const handlers: HttpHandler[] = [
     ({ params }) => {
       const workspaceId = String(params.workspace_id);
       return HttpResponse.json({
-        records: [layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id)],
+        records: [
+          windowManagerEarlierLayoutResourceFixture,
+          layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id),
+        ],
       });
     }
   ),

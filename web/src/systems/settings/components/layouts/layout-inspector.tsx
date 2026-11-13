@@ -1,172 +1,186 @@
-import { Eyebrow, PropertyRow } from "@compozy/ui";
+import { ArrowLeft, ArrowRight, Pin, PinOff, X } from "@compozy/ui/icons";
 
-import type { LayoutSelection } from "../../hooks/use-layout-canvas-selection";
-import { overlappingGroupIds } from "../../lib/window-manager-layout-canvas";
-import { fractionLabel } from "../../lib/window-manager-layout-detents";
-import { layoutOrientationOf } from "../../lib/window-manager-layout-mutations";
-import { findLayoutNode, layoutNodeWindowIds } from "../../lib/window-manager-layout-tree";
+import { Button, Eyebrow, PropertyRow } from "@compozy/ui";
+
+import {
+  closeLayoutTab,
+  moveLayoutTab,
+  replaceLayoutTabRoot,
+  setLayoutDefaultTab,
+  setLayoutTabPinned,
+} from "../../lib/window-manager-layout-mutations";
+import {
+  findLayoutLeaf,
+  findLayoutParentSplit,
+  layoutNodeWindowIds,
+} from "../../lib/window-manager-layout-tree";
 import { layoutWindowFace } from "../../lib/window-manager-layout-window-face";
 import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
-  WindowManagerLayoutNode,
+  WindowManagerLayoutTab,
 } from "../../lib/window-manager-layout-types";
-import { LayoutInspectorNode } from "./layout-inspector-node";
+import { LayoutInspectorSplit } from "./layout-inspector-node";
 import { LayoutInspectorWindow } from "./layout-inspector-window";
 
 interface LayoutInspectorProps {
   document: WindowManagerLayoutDocument;
   desktop: WindowManagerLayoutDesktop;
-  selection: LayoutSelection;
-  onDesktopChange: (next: WindowManagerLayoutDesktop) => void;
+  tab: WindowManagerLayoutTab;
+  windowId: string | null;
+  onChange: (next: WindowManagerLayoutDocument) => void;
+  onReveal: (tabId: string, windowId: string | null) => void;
 }
 
-/** What the selection on the canvas is, and the few things it can be told to do. */
+/** The tab on the canvas, and — when one is picked — a window of it and the split it sits in. */
 export function LayoutInspector({
   document,
   desktop,
-  selection,
-  onDesktopChange,
+  tab,
+  windowId,
+  onChange,
+  onReveal,
 }: LayoutInspectorProps) {
-  if (selection === null) return <DesktopInspector desktop={desktop} />;
-  if (selection.kind === "group")
-    return <GroupInspector desktop={desktop} groupId={selection.id} />;
-  if (selection.kind === "window") {
-    return <FloatingWindowInspector document={document} windowId={selection.id} />;
+  const leaf = windowId === null ? null : findLayoutLeaf(tab.root, windowId);
+  if (leaf === null) {
+    return (
+      <InspectorShell subtitle={tab.id} title={tabTitle(document, tab)}>
+        <LayoutInspectorTab desktop={desktop} document={document} tab={tab} onChange={onChange} />
+      </InspectorShell>
+    );
   }
+  const split = findLayoutParentSplit(tab.root, leaf.id);
+  const window = document.windows[leaf.windowId];
+  const face = layoutWindowFace(window, leaf.windowId);
   return (
-    <NodeInspector
-      desktop={desktop}
-      document={document}
-      nodeId={selection.id}
-      onDesktopChange={onDesktopChange}
-    />
-  );
-}
-
-function DesktopInspector({ desktop }: { desktop: WindowManagerLayoutDesktop }) {
-  return (
-    <InspectorShell subtitle={`${desktop.id} · order ${desktop.order}`} title={desktop.name}>
-      <section className="flex flex-col gap-2">
-        <Eyebrow className="text-faint">Nothing selected</Eyebrow>
-        <p className="text-form-label leading-normal text-subtle">
-          Click a window to change what it holds or how it splits. Drag a divider to rebalance, or a
-          group edge to repartition the desktop.
-        </p>
-      </section>
-      <section className="flex flex-col gap-2">
-        <Eyebrow className="text-faint">Desktop</Eyebrow>
-        <div>
-          <PropertyRow label="Groups" mono>
-            {desktop.groups.length}
-          </PropertyRow>
-          <PropertyRow label="Tiled windows" mono>
-            {desktop.groups.reduce(
-              (total, group) => total + layoutNodeWindowIds(group.root).length,
-              0
-            )}
-          </PropertyRow>
-          <PropertyRow label="Floating" mono>
-            {desktop.floating.length}
-          </PropertyRow>
-        </div>
-      </section>
-    </InspectorShell>
-  );
-}
-
-function GroupInspector({
-  desktop,
-  groupId,
-}: {
-  desktop: WindowManagerLayoutDesktop;
-  groupId: string;
-}) {
-  const group = desktop.groups.find(candidate => candidate.id === groupId);
-  if (!group) return null;
-  const overlaps = overlappingGroupIds(desktop).has(group.id);
-  return (
-    <InspectorShell subtitle={group.id} title="Group">
-      <section className="flex flex-col gap-2">
-        <Eyebrow className="text-faint">Share of the desktop</Eyebrow>
-        <div>
-          <PropertyRow label="Left" mono>
-            {fractionLabel(group.frame.x)}
-          </PropertyRow>
-          <PropertyRow label="Top" mono>
-            {fractionLabel(group.frame.y)}
-          </PropertyRow>
-          <PropertyRow label="Width" mono>
-            {fractionLabel(group.frame.w)}
-          </PropertyRow>
-          <PropertyRow label="Height" mono>
-            {fractionLabel(group.frame.h)}
-          </PropertyRow>
-        </div>
-      </section>
-      {overlaps ? (
-        <p className="text-form-label text-destructive" role="status">
-          This group overlaps another one. CompozyOS refuses a desktop whose groups cover each
-          other.
-        </p>
+    <InspectorShell subtitle={`${leaf.windowId} · ${face.detail}`} title={face.title}>
+      <LayoutInspectorWindow
+        desktop={desktop}
+        document={document}
+        tab={tab}
+        windowId={leaf.windowId}
+        onChange={onChange}
+        onReveal={onReveal}
+      />
+      {split ? (
+        <LayoutInspectorSplit
+          root={tab.root}
+          split={split}
+          onRootChange={root => onChange(replaceLayoutTabRoot(document, desktop.id, tab.id, root))}
+        />
       ) : null}
     </InspectorShell>
   );
 }
 
-function FloatingWindowInspector({
-  document,
-  windowId,
-}: {
-  document: WindowManagerLayoutDocument;
-  windowId: string;
-}) {
-  const window = document.windows[windowId];
-  if (!window) return null;
-  const face = layoutWindowFace(window, windowId);
-  return (
-    <InspectorShell subtitle={`${window.id} · ${window.route.pathname}`} title={face.title}>
-      <section className="flex flex-col gap-2">
-        <Eyebrow className="text-faint">Floating window</Eyebrow>
-        <div>
-          <PropertyRow label="Placement">{window.placement}</PropertyRow>
-          <PropertyRow label="Minimized">{window.minimized ? "Yes" : "No"}</PropertyRow>
-          <PropertyRow label="Size" mono>
-            {`${fractionLabel(window.floatingRect.w)} × ${fractionLabel(window.floatingRect.h)}`}
-          </PropertyRow>
-        </div>
-      </section>
-      <p className="text-form-label leading-normal text-subtle">
-        Drag it on the canvas to reposition. Floating windows sit above every group on this desktop.
-      </p>
-    </InspectorShell>
-  );
+function tabTitle(document: WindowManagerLayoutDocument, tab: WindowManagerLayoutTab): string {
+  const lead = layoutNodeWindowIds(tab.root)[0] ?? "";
+  return layoutWindowFace(document.windows[lead], lead).title;
 }
 
-function layoutNodeTitle(node: WindowManagerLayoutNode): string {
-  if (node.kind === "split") return layoutOrientationOf(node.axis) === "rows" ? "Rows" : "Columns";
-  return node.kind === "stack" ? "Stack" : "Window";
-}
-
-function NodeInspector({
+function LayoutInspectorTab({
   document,
   desktop,
-  nodeId,
-  onDesktopChange,
-}: Omit<LayoutInspectorProps, "selection"> & { nodeId: string }) {
-  const found = findLayoutNode(desktop, nodeId);
-  if (!found) return null;
-  const { node } = found;
+  tab,
+  onChange,
+}: {
+  document: WindowManagerLayoutDocument;
+  desktop: WindowManagerLayoutDesktop;
+  tab: WindowManagerLayoutTab;
+  onChange: (next: WindowManagerLayoutDocument) => void;
+}) {
+  const windows = layoutNodeWindowIds(tab.root).length;
+  const index = desktop.tabs.findIndex(candidate => candidate.id === tab.id);
+  const area = desktop.tabs.filter(candidate => candidate.pinned === tab.pinned);
+  const areaIndex = area.findIndex(candidate => candidate.id === tab.id);
+  const opensHere = desktop.activeTabId === tab.id;
+  const commit = (next: WindowManagerLayoutDocument) => {
+    if (next !== document) onChange(next);
+  };
+
   return (
-    <InspectorShell subtitle={node.id} title={layoutNodeTitle(node)}>
-      <LayoutInspectorNode desktop={desktop} node={node} onDesktopChange={onDesktopChange} />
-      <LayoutInspectorWindow
-        desktop={desktop}
-        document={document}
-        node={node}
-        onDesktopChange={onDesktopChange}
-      />
-    </InspectorShell>
+    <>
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Tab</Eyebrow>
+        <div>
+          <PropertyRow label="Position" mono>
+            {`${index + 1} of ${desktop.tabs.length}`}
+          </PropertyRow>
+          <PropertyRow label="Windows" mono>
+            {windows}
+          </PropertyRow>
+          <PropertyRow label="Pinned">{tab.pinned ? "Yes" : "No"}</PropertyRow>
+          <PropertyRow label="Opens on this tab">{opensHere ? "Yes" : "No"}</PropertyRow>
+        </div>
+        <p className="text-form-label leading-normal text-subtle">
+          Click a window to swap it, split beside it or move it to a tab of its own. Drag a line
+          between windows to resize them.
+        </p>
+      </section>
+
+      <section className="flex flex-wrap gap-1.5">
+        <Button
+          aria-label="Move tab left"
+          data-testid="layout-tab-move-left"
+          disabled={areaIndex <= 0}
+          size="icon-xs"
+          type="button"
+          variant="secondary"
+          onClick={() => commit(moveLayoutTab(document, desktop.id, tab.id, -1))}
+        >
+          <ArrowLeft aria-hidden="true" className="size-3.5" />
+        </Button>
+        <Button
+          aria-label="Move tab right"
+          data-testid="layout-tab-move-right"
+          disabled={areaIndex === area.length - 1}
+          size="icon-xs"
+          type="button"
+          variant="secondary"
+          onClick={() => commit(moveLayoutTab(document, desktop.id, tab.id, 1))}
+        >
+          <ArrowRight aria-hidden="true" className="size-3.5" />
+        </Button>
+        <Button
+          data-testid="layout-tab-pin"
+          size="xs"
+          type="button"
+          variant="secondary"
+          onClick={() => commit(setLayoutTabPinned(document, desktop.id, tab.id, !tab.pinned))}
+        >
+          {tab.pinned ? (
+            <PinOff aria-hidden="true" className="size-3.5" />
+          ) : (
+            <Pin aria-hidden="true" className="size-3.5" />
+          )}
+          {tab.pinned ? "Unpin" : "Pin"}
+        </Button>
+        <Button
+          data-testid="layout-tab-default"
+          disabled={opensHere}
+          size="xs"
+          type="button"
+          variant="secondary"
+          onClick={() => commit(setLayoutDefaultTab(document, desktop.id, tab.id))}
+        >
+          Open desktop here
+        </Button>
+        <Button
+          data-testid="layout-tab-close"
+          disabled={desktop.tabs.length < 2}
+          size="xs"
+          type="button"
+          variant="ghost"
+          onClick={() => commit(closeLayoutTab(document, desktop.id, tab.id))}
+        >
+          <X aria-hidden="true" className="size-3.5" />
+          Close tab
+        </Button>
+      </section>
+      {desktop.tabs.length < 2 ? (
+        <p className="text-form-hint text-subtle">A desktop keeps at least one tab.</p>
+      ) : null}
+    </>
   );
 }
 

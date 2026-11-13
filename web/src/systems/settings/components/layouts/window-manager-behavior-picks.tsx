@@ -6,9 +6,6 @@ import { SettingRow } from "../setting-row";
 import {
   DiagramClickAndKeys,
   DiagramCrossfade,
-  DiagramDragGroup,
-  DiagramDragWindow,
-  DiagramFloatOnTop,
   DiagramFoldIntoStack,
   DiagramInstant,
   DiagramKeysOnly,
@@ -39,18 +36,17 @@ const NEW_WINDOW: PickRow<"newWindowPolicy"> = {
   label: "New windows",
   description: "Where a window lands when it opens without a home.",
   options: [
-    { value: "tab", label: "Tab in focused window", diagram: DiagramTabInFocus },
+    { value: "tab", label: "New tab", diagram: DiagramTabInFocus },
     { value: "beside_focus", label: "Split beside focus", diagram: DiagramSplitBesideFocus },
-    { value: "floating", label: "Float on top", diagram: DiagramFloatOnTop },
   ],
 };
 
 const SMALL_VIEWPORT: PickRow<"smallViewportPolicy"> = {
   key: "smallViewportPolicy",
   label: "Not enough room",
-  description: "When the screen can no longer hold every tile side by side.",
+  description: "When the screen can no longer hold every window of a split side by side.",
   options: [
-    { value: "stack", label: "Fold into a stack", diagram: DiagramFoldIntoStack },
+    { value: "stack", label: "One window at a time", diagram: DiagramFoldIntoStack },
     { value: "reject", label: "Refuse the layout", diagram: DiagramRefuse },
   ],
 };
@@ -62,16 +58,6 @@ const FOCUS: PickRow<"focusPolicy"> = {
   options: [
     { value: "click_directional", label: "Click and keys", diagram: DiagramClickAndKeys },
     { value: "directional", label: "Keys only", diagram: DiagramKeysOnly },
-  ],
-};
-
-const DRAG_AWAY: PickRow<"dragAwayPolicy"> = {
-  key: "dragAwayPolicy",
-  label: "Dragging a tiled window",
-  description: "What comes along when you pull one out of its group.",
-  options: [
-    { value: "window", label: "Just that window", diagram: DiagramDragWindow },
-    { value: "group", label: "Its whole group", diagram: DiagramDragGroup },
   ],
 };
 
@@ -109,17 +95,12 @@ const TOGGLES = [
     label: "Focus follows the pointer",
     description: "A window takes focus as soon as the pointer enters it.",
   },
-  {
-    key: "raiseOnFocus",
-    label: "Raise on focus",
-    description: "Bring a focused floating window above its peers.",
-  },
 ] as const;
 
 /**
- * Seven enums that used to be seven selects. Each option is the arrangement it
- * produces, so the choice is read rather than decoded — and the two drag
- * modifiers are the keys themselves.
+ * The kept behavior enums, each drawn as the arrangement it produces, so the
+ * choice is read rather than decoded — and the swap modifier is the keys
+ * themselves. Retired keys (`_spec.md` §Config Lifecycle) have no control here.
  */
 export function WindowManagerBehaviorPicks({
   draft,
@@ -133,15 +114,8 @@ export function WindowManagerBehaviorPicks({
       <DiagramPickRow draft={draft} row={NEW_WINDOW} setDraft={setDraft} />
       <DiagramPickRow draft={draft} row={SMALL_VIEWPORT} setDraft={setDraft} />
       <DiagramPickRow draft={draft} row={FOCUS} setDraft={setDraft} />
-      <DiagramPickRow draft={draft} row={DRAG_AWAY} setDraft={setDraft} />
       <DiagramPickRow draft={draft} row={TRANSITION} setDraft={setDraft} />
 
-      <ModifierRow
-        help="Hold this while dragging to take the group instead of one window."
-        label="Move the whole group"
-        value={draft.groupMoveModifier}
-        onChange={groupMoveModifier => setDraft(current => ({ ...current, groupMoveModifier }))}
-      />
       <ModifierRow
         help="Hold this while dropping onto another window to trade places."
         label="Swap two windows"

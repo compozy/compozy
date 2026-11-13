@@ -4,18 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
-import { applyWindowManagerLayout } from "../adapters/window-manager-layouts-api";
-import { parseImportedWindowManagerLayoutDocument } from "../lib/window-manager-layout-import";
+import {
+  applyWindowManagerLayout,
+  convertWindowManagerLayoutDocument,
+} from "../adapters/window-manager-layouts-api";
 import {
   windowManagerLayoutFingerprint,
   windowManagerLayoutReviewOptions,
 } from "../lib/window-manager-layout-query";
 import type {
-  WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
   WindowManagerLayoutPreview,
+  WindowManagerLayoutProfileSource,
   WindowManagerLayoutState,
-  WindowManagerNormalizedRect,
 } from "../lib/window-manager-layout-types";
 import { windowManagerKeys } from "@/systems/os";
 
@@ -254,38 +255,47 @@ export function useWindowManagerLayoutEditor(
     });
 
   const updateDraft = (draft: WindowManagerLayoutDocument) => store.trigger.draftChanged({ draft });
-  const importDocument = async (file: File) => {
+  /** Takes one edit from `window-manager-layout-mutations`; a refused edit returns the draft itself. */
+  const edit = (next: WindowManagerLayoutDocument) => {
+    if (next !== context.draft) updateDraft(next);
+  };
+  const failImport = (cause: unknown, fallback: string) =>
+    store.trigger.importFailed({ error: cause instanceof Error ? cause : new Error(fallback) });
+  /** Any accepted version goes to the daemon, and the editor edits the version 6 it returns. */
+  const loadWire = async (wire: Readonly<Record<string, unknown>>, fallback: string) => {
     try {
-      const value: unknown = JSON.parse(await file.text());
-      const imported = parseImportedWindowManagerLayoutDocument(value);
-      updateDraft({ ...imported, workspaceId });
+      const converted = await convertWindowManagerLayoutDocument(
+        workspaceId,
+        profileId,
+        context.revision,
+        wire
+      );
+      updateDraft({ ...converted, workspaceId });
     } catch (cause) {
-      store.trigger.importFailed({
-        error:
-          cause instanceof Error ? cause : new Error("The selected file is not a layout document."),
-      });
+      failImport(cause, fallback);
     }
   };
-  const setDesktop = (index: number, next: WindowManagerLayoutDesktop) => {
-    updateDraft({
-      ...context.draft,
-      desktops: context.draft.desktops.map((desktop, position) =>
-        position === index ? next : desktop
-      ),
-    });
+  const importDocument = async (file: File) => {
+    let value: unknown;
+    try {
+      value = JSON.parse(await file.text());
+    } catch (cause) {
+      failImport(cause, "The selected file is not a layout document.");
+      return;
+    }
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      failImport(null, "The selected file is not a layout document.");
+      return;
+    }
+    await loadWire(value as Record<string, unknown>, "The selected file is not a layout document.");
   };
-  const setDesktopName = (index: number, name: string) => {
-    const desktop = context.draft.desktops[index];
-    if (!desktop) return;
-    setDesktop(index, { ...desktop, name });
-  };
-  const setFloatingRect = (windowId: string, floatingRect: WindowManagerNormalizedRect) => {
-    const window = context.draft.windows[windowId];
-    if (!window) return;
-    updateDraft({
-      ...context.draft,
-      windows: { ...context.draft.windows, [windowId]: { ...window, floatingRect } },
-    });
+  /** A saved layout opens as is, or — saved before tabs and splits — converted by the daemon. */
+  const loadSource = async (source: WindowManagerLayoutProfileSource) => {
+    if (source.kind === "current") {
+      updateDraft({ ...structuredClone(source.document), workspaceId });
+      return;
+    }
+    await loadWire(source.wire, "This saved layout could not be opened.");
   };
 
   const currentReview = review.data?.fingerprint === fingerprint ? review.data : null;
@@ -297,6 +307,7 @@ export function useWindowManagerLayoutEditor(
     dirty,
     draft: context.draft,
     exportDocument: () => structuredClone(context.draft),
+    edit,
     importDocument,
     importError: context.phase === "error" ? (context.error?.message ?? null) : null,
     mutationError: context.error ?? review.error ?? applyMutation.error,
@@ -306,9 +317,7 @@ export function useWindowManagerLayoutEditor(
     reviewed,
     reviewCurrent: reviewed !== null,
     revision: context.revision,
-    setDesktop,
-    setDesktopName,
-    setFloatingRect,
+    loadSource,
     updateDraft,
     validation: currentReview?.validation ?? null,
   };
