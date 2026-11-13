@@ -50,55 +50,34 @@ export interface OsSplitSeamProps extends Omit<
 const SEAM_HIT_PX = 12;
 
 /**
- * The line between two members and the only resize affordance: a hit area wider than the
- * visible line, double-click to balance, arrow keys when focused.
+ * The separator's value range and focus stop: present only when the seam can be moved. Every key is
+ * set either way, so a non-interactive seam clears what the caller passed for them.
  */
-export function OsSplitSeam({
-  axis,
-  gap = 0,
-  valueNow,
+function seamControlAttributes(interactive: boolean, valueNow: number | undefined) {
+  return interactive
+    ? { "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": valueNow, tabIndex: 0 }
+    : {
+        "aria-valuemin": undefined,
+        "aria-valuemax": undefined,
+        "aria-valuenow": undefined,
+        tabIndex: undefined,
+      };
+}
+
+/** The seam's drawn parts: the hairline, the grab bar, and the minimum-size label or overlay. */
+function OsSplitSeamMarks({
+  row,
+  interactive,
   state,
-  onPointerDown,
-  onKeyDown,
-  onDoubleClick,
-  className,
-  style,
   children,
-  ref,
-  ...props
-}: OsSplitSeamProps) {
-  const row = axis === "horizontal";
-  const interactive = onPointerDown !== undefined;
-  // The separator owns its hit box even at a zero gap: it is wider than the gap and negative
-  // margins give the difference back, so it takes exactly `gap` of layout space.
-  const size = Math.max(gap, SEAM_HIT_PX);
-  const overhang = (gap - size) / 2;
-  const box: CSSProperties = row
-    ? { width: size, marginLeft: overhang, marginRight: overhang }
-    : { height: size, marginTop: overhang, marginBottom: overhang };
+}: {
+  row: boolean;
+  interactive: boolean;
+  state: OsSplitSeamProps["state"];
+  children: ReactNode;
+}) {
   return (
-    <div
-      {...props}
-      ref={ref}
-      role="separator"
-      aria-orientation={row ? "vertical" : "horizontal"}
-      aria-label="Resize windows"
-      aria-valuemin={interactive ? 0 : undefined}
-      aria-valuemax={interactive ? 100 : undefined}
-      aria-valuenow={interactive ? valueNow : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      className={cn(
-        "group/seam relative z-10 shrink-0 outline-none",
-        interactive && (row ? "cursor-col-resize" : "cursor-row-resize"),
-        className
-      )}
-      style={{ ...style, ...box }}
-      data-slot="os-split-seam"
-      data-state={state}
-      onDoubleClick={onDoubleClick}
-      onKeyDown={onKeyDown}
-      onPointerDown={onPointerDown}
-    >
+    <>
       {/* The hairline sits centered in the gap. */}
       <span
         className={cn(
@@ -132,6 +111,60 @@ export function OsSplitSeam({
       ) : (
         children
       )}
+    </>
+  );
+}
+
+/**
+ * The line between two members and the only resize affordance: a hit area wider than the
+ * visible line, double-click to balance, arrow keys when focused.
+ */
+export function OsSplitSeam({
+  axis,
+  gap = 0,
+  valueNow,
+  state,
+  onPointerDown,
+  onKeyDown,
+  onDoubleClick,
+  className,
+  style,
+  children,
+  ref,
+  ...props
+}: OsSplitSeamProps) {
+  const row = axis === "horizontal";
+  const interactive = onPointerDown !== undefined;
+  // The separator owns its hit box even at a zero gap: it is wider than the gap and negative
+  // margins give the difference back, so it takes exactly `gap` of layout space.
+  const size = Math.max(gap, SEAM_HIT_PX);
+  const overhang = (gap - size) / 2;
+  const box: CSSProperties = row
+    ? { width: size, marginLeft: overhang, marginRight: overhang }
+    : { height: size, marginTop: overhang, marginBottom: overhang };
+  return (
+    <div
+      {...props}
+      ref={ref}
+      role="separator"
+      aria-orientation={row ? "vertical" : "horizontal"}
+      aria-label="Resize windows"
+      {...seamControlAttributes(interactive, valueNow)}
+      className={cn(
+        "group/seam relative z-10 shrink-0 outline-none",
+        interactive && (row ? "cursor-col-resize" : "cursor-row-resize"),
+        className
+      )}
+      style={{ ...style, ...box }}
+      data-slot="os-split-seam"
+      data-state={state}
+      onDoubleClick={onDoubleClick}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+    >
+      <OsSplitSeamMarks row={row} interactive={interactive} state={state}>
+        {children}
+      </OsSplitSeamMarks>
     </div>
   );
 }
