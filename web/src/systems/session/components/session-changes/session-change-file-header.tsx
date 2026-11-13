@@ -139,35 +139,8 @@ export function SessionChangeFileHeader({
         >
           {letter}
         </span>
-        {/* A long path loses its start, not its end: siblings that share a long prefix keep
-            their nearest folders, file name and extension. `rtl` moves the ellipsis to the
-            start; the isolated `ltr` span keeps the path itself left-to-right. */}
-        <p
-          className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]"
-          title={item.prevPath ? `${item.prevPath} → ${item.path}` : item.path}
-        >
-          <span dir="ltr">
-            {item.prevPath ? (
-              <>
-                <SplitPath path={item.prevPath} />
-                <span className="text-muted-foreground"> → </span>
-              </>
-            ) : null}
-            <SplitPath path={item.path} />
-          </span>
-        </p>
-        {item.file.generated ? (
-          <Pill size="xs" tone="neutral">
-            Generated
-          </Pill>
-        ) : null}
-        {item.file.sensitive ? (
-          <Lock aria-label="Sensitive" className="size-3 shrink-0 text-muted-foreground" />
-        ) : null}
-        <span className="flex shrink-0 items-center gap-1 font-mono text-xs tabular-nums">
-          <span className="text-success">+{item.file.additions}</span>
-          <span className="text-destructive">−{item.file.deletions}</span>
-        </span>
+        <ChangeFilePath item={item} />
+        <ChangeFileMarks item={item} />
         {state.status === "pending" && item.loadable !== false && !state.collapsed ? (
           <Spinner aria-label="Loading diff" className="size-3" />
         ) : null}
@@ -201,6 +174,50 @@ export function SessionChangeFileHeader({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The changed path, a rename as `old → new`. A long path loses its start, not its end: siblings
+ * that share a long prefix keep their nearest folders, file name and extension. `rtl` moves the
+ * ellipsis to the start; the isolated `ltr` span keeps the path itself left-to-right.
+ */
+function ChangeFilePath({ item }: { item: SessionChangeItem }) {
+  return (
+    <p
+      className="min-w-0 flex-1 truncate text-left font-mono text-xs [direction:rtl]"
+      title={item.prevPath ? `${item.prevPath} → ${item.path}` : item.path}
+    >
+      <span dir="ltr">
+        {item.prevPath ? (
+          <>
+            <SplitPath path={item.prevPath} />
+            <span className="text-muted-foreground"> → </span>
+          </>
+        ) : null}
+        <SplitPath path={item.path} />
+      </span>
+    </p>
+  );
+}
+
+/** Generated and Sensitive marks, then the `+N −M` line counts. */
+function ChangeFileMarks({ item }: { item: SessionChangeItem }) {
+  return (
+    <>
+      {item.file.generated ? (
+        <Pill size="xs" tone="neutral">
+          Generated
+        </Pill>
+      ) : null}
+      {item.file.sensitive ? (
+        <Lock aria-label="Sensitive" className="size-3 shrink-0 text-muted-foreground" />
+      ) : null}
+      <span className="flex shrink-0 items-center gap-1 font-mono text-xs tabular-nums">
+        <span className="text-success">+{item.file.additions}</span>
+        <span className="text-destructive">−{item.file.deletions}</span>
+      </span>
+    </>
   );
 }
 
