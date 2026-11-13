@@ -115,6 +115,12 @@ window. Drag a window by its header onto another window of the same tab to move 
 hold Shift (`swap_modifier`) while dropping to swap the two windows instead. Escape cancels a drag
 and restores the bar as it was.
 
+To swap without the pointer, focus a window in a split and use **Window › Swap ▸** (**Left**,
+**Right**, **Up**, **Down**) or the palette commands **Swap left**, **Swap right**, **Swap up**, and
+**Swap down**: the focused window trades places with the nearest window shown on that side and
+keeps focus. A side with no window does nothing (swaps never wrap), and **Layout undo** puts both
+back. The four commands ship unbound; assign a chord in Settings → Shortcuts.
+
 The line between two split windows is a seam. Drag it, or focus it and use the arrow keys (2% per
 press, 10% with Shift), to resize the windows on either side; double-click it to give both sides the
 same size. Each app keeps its own minimum size: a seam stops, and a drop target is not offered, where
@@ -169,6 +175,7 @@ window takes the main column), **Columns** (all side by side), **Grid** (up to f
 | `window.close`                                           | ⌘W          | Close window                                    |
 | `window.tile.left`, `right`, `top`, `bottom`             | ⌃⌥ + arrow  | Move the focused window to that edge of its tab |
 | `window.unsplit`                                         | unbound     | Move to new tab                                 |
+| `window.swap.left`, `right`, `up`, `down`                | unbound     | Swap the focused window with its neighbor       |
 | `window.tab.move_left`, `window.tab.move_right`          | unbound     | Move tab left or right                          |
 | `window.focus.left`, `right`, `up`, `down`               | ⌃ + arrow   | Focus the neighboring window                    |
 | `layout.balance`                                         | ⌃⌥B         | Balance sizes                                   |

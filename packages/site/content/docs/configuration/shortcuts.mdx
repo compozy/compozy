@@ -129,6 +129,7 @@ platforms; an explicit `control` remains Control everywhere.
 | `window.tile.left` / `.right`                       | ⌃⌥← / ⌃⌥→    |
 | `window.tile.top` / `.bottom`                       | ⌃⌥↑ / ⌃⌥↓    |
 | `window.unsplit`                                    | Unbound      |
+| `window.swap.left` / `.right` / `.up` / `.down`     | Unbound      |
 | `window.tab.move_left` / `.move_right`              | Unbound      |
 | `window.tab.new`                                    | ⌘T           |
 | `window.tab.next` / `.previous`                     | ⌃Tab / ⌃⇧Tab |
@@ -145,6 +146,8 @@ platforms; an explicit `control` remains Control everywhere.
 
 `window.tile.left`, `.right`, `.top`, and `.bottom` move the focused window to that edge of its tab.
 `window.unsplit` is **Move to new tab**: it takes the focused window out of its split into its own tab.
+`window.swap.left`, `.right`, `.up`, and `.down` swap the focused split window with the nearest window
+shown on that side of its tab; with no window there they do nothing.
 
 Retired in v0.7.0: `window.minimize`, `window.zoom`, `window.toggle_floating`,
 `window.tile.top-left`, `.top-right`, `.bottom-left`, `.bottom-right`, `window.merge_all`, and

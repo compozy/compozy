@@ -881,6 +881,25 @@ describe("WindowManagerRuntime", () => {
       expect(sentCommands()).toEqual(["focus app:agents", "focus app:tasks", "focus app:agents"]);
     });
 
+    it("Should swap the focused window with its neighbour on that side and never wrap [#1658]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+
+      // Focus wrap is on, yet nothing lies left of Tasks: a swap that way sends nothing.
+      runtime.swapDirection("left");
+      runtime.swapDirection("right");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!(splitAnswer(splitView("app:tasks", 2)));
+
+      expect(sentCommands()).toEqual(["window.swap"]);
+      expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]![4].payload).toEqual({
+        first_window_id: "app:tasks",
+        second_window_id: "app:agents",
+      });
+      // `window.swap` leaves focus alone: the moved window keeps it.
+      await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:tasks"));
+    });
+
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startSplitRuntime();

@@ -275,6 +275,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     deleteDesktop: vi.fn(),
     moveWindowToDesktop: vi.fn(),
     focusDirection: vi.fn(),
+    swapDirection: vi.fn(),
     undoLayout: vi.fn(),
     redoLayout: vi.fn(),
     balanceFocusedLayout: vi.fn(),

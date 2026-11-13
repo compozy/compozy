@@ -269,6 +269,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   /** Moves the window's whole tab, split included, to the end of another desktop's bar. */
   moveWindowToDesktop(windowId: string, destinationDesktopId: string): void;
   focusDirection(direction: FocusDirection): void;
+  /** Swaps the focused window with its on-screen neighbour on that side of the active tab. */
+  swapDirection(direction: FocusDirection): void;
   undoLayout(): void;
   redoLayout(): void;
   balanceFocusedLayout(): void;

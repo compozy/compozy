@@ -186,6 +186,17 @@ func shellCommands() []cmdpalette.Descriptor {
 			section: coreSectionTiling, icon: coreIconPanelTop, when: splitWindowWhen,
 		})
 	}
+	// Swap trades the focused window's place with its on-screen neighbour on that side of its tab.
+	swaps := []struct{ id, title, icon string }{
+		{"left", "Swap left", coreIconArrowLeft}, {"right", "Swap right", "arrow-right"},
+		{"up", "Swap up", "arrow-up"}, {"down", "Swap down", "arrow-down"},
+	}
+	for _, swap := range swaps {
+		definitions = append(definitions, shellCommandDefinition{
+			id: cmdpalette.CommandID("window.swap." + swap.id), title: swap.title,
+			section: coreSectionTiling, icon: swap.icon, when: splitWindowWhen,
+		})
+	}
 	for slot := 1; slot <= 8; slot++ {
 		definitions = append(definitions, shellCommandDefinition{
 			id:    cmdpalette.CommandID(fmt.Sprintf("window.tab.jump.%d", slot)),

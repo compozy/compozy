@@ -2,7 +2,12 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { focusWindowCommand, openWindowCommand } from "../lib/window-manager-command-builders";
 import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
-import { directionalFocusTarget } from "../lib/window-manager-navigation";
+import {
+  activeTabCandidates,
+  directionalFocusTarget,
+  directionalSwapTarget,
+  type FocusCandidate,
+} from "../lib/window-manager-navigation";
 import type {
   OsDesktopBounds,
   OsDesktopRuntime,
@@ -55,21 +60,10 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
    */
   focusDirection(direction: FocusDirection): void {
     const config = this.view.windowManagerConfig;
-    const activeDesktopId = this.view.activeDesktopId;
-    if (config === null || activeDesktopId === null) return;
-    const tabId = this.view.activeTabIds[activeDesktopId];
-    const projection = tabId === undefined ? undefined : this.view.projections[tabId];
-    if (projection === undefined) return;
-    const candidates = projection.windows.flatMap(projected =>
-      projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
-    );
-    // A focus still waiting for its answer is where the operator already is: the view names the
-    // focus before it until that answer shows, and a press meanwhile must not start from there.
-    const pending = this.focusTurns.pendingFocus();
-    const from =
-      pending !== null && candidates.some(candidate => candidate.id === pending)
-        ? pending
-        : this.view.focusedId;
+    if (config === null) return;
+    const candidates = activeTabCandidates(this.view);
+    if (candidates.length === 0) return;
+    const from = this.directionalSource(candidates);
     const target = directionalFocusTarget({
       candidates,
       focusedId: from,
@@ -78,6 +72,29 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     });
     if (target === null || target === from) return;
     this.dispatch(focusWindowCommand(target, { replaceable: true }));
+  }
+
+  /**
+   * Trades the focused window's place with its on-screen neighbour on that side of the active tab,
+   * from the newest focus this client asked for. Never wraps; nothing on that side is a no-op. The
+   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone.
+   */
+  swapDirection(direction: FocusDirection): void {
+    const from = this.directionalSource(activeTabCandidates(this.view));
+    const target = directionalSwapTarget(this.view, from, direction);
+    if (from === null || target === null) return;
+    this.swapWindows(from, target);
+  }
+
+  /**
+   * A focus still waiting for its answer is where the operator already is: the view names the
+   * focus before it until that answer shows, and a press meanwhile must not start from there.
+   */
+  private directionalSource(candidates: readonly FocusCandidate[]): string | null {
+    const pending = this.focusTurns.pendingFocus();
+    return pending !== null && candidates.some(candidate => candidate.id === pending)
+      ? pending
+      : this.view.focusedId;
   }
 
   undoLayout(): void {

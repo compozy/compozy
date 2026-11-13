@@ -9,6 +9,7 @@ import {
   MenubarTrigger,
 } from "@compozy/ui";
 
+import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { usePaletteCommand, usePaletteRegistry } from "../../hooks/use-palette-registry";
 import {
@@ -17,7 +18,8 @@ import {
   useWindowMoveTargets,
   type WindowMoveTarget,
 } from "../../hooks/use-window-move-targets";
-import { moveFocusedWindowToDesktopId } from "../../lib/cmd-palette-window-ops";
+import { moveFocusedWindowToDesktopId, SWAP_DIRECTIONS } from "../../lib/cmd-palette-window-ops";
+import { directionalSwapTarget } from "../../lib/window-manager-navigation";
 import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
@@ -44,6 +46,19 @@ const ARRANGE_COMMANDS = [
   "layout.arrange.grid",
 ] as const;
 const BALANCE_COMMAND = "layout.balance";
+type SwapDirection = (typeof SWAP_DIRECTIONS)[number];
+/** Window › Swap: one destination per direction, labelled by the side it trades with. */
+const SWAP_LABELS: Record<SwapDirection, string> = {
+  left: "Left",
+  right: "Right",
+  up: "Up",
+  down: "Down",
+};
+/** The swap family shares one availability (a window in a split), read from its first id. */
+const SWAP_FAMILY_COMMAND = "window.swap.left";
+function swapCommandId(direction: SwapDirection): string {
+  return `window.swap.${direction}`;
+}
 /** Why "Move to desktop" has nothing to offer on a single desktop. */
 const MOVE_NEEDS_DESKTOP_REASON = "needs another desktop";
 function menuGroup(id: string, content: React.ReactNode) {
@@ -86,11 +101,88 @@ function MoveToDesktopItem({
 }
 
 /**
- * Window menu: Move to new tab (a split member), Arrange ▸ with Balance, Move to desktop (the
- * focused window's whole tab), All desktops, Close. Grouping and order are curated here (BR-17);
- * directional focus and layout undo/redo stay palette and keyboard commands. Every item's label,
- * chord, availability and reason are projections of the registry, so an item shows the same truth
- * as its palette row and its chord.
+ * One "Swap" destination. The side is the destination itself, not a second copy
+ * of the command title; availability comes from the registry projection and the
+ * item keeps its chord when one is bound.
+ */
+function SwapDirectionItem({
+  direction,
+  onRun,
+}: {
+  direction: SwapDirection;
+  onRun: (commandId: string) => void;
+}) {
+  const commandId = swapCommandId(direction);
+  const command = usePaletteCommand(commandId);
+  if (command === null) return null;
+  return (
+    <MenubarItem
+      data-testid={`os-menubar-command-${commandId}`}
+      disabled={!command.available}
+      onClick={() => onRun(commandId)}
+    >
+      <span className="min-w-0 flex-1 truncate">{SWAP_LABELS[direction]}</span>
+      {command.chords.length > 0 ? <MenubarShortcut>{command.chords[0]}</MenubarShortcut> : null}
+    </MenubarItem>
+  );
+}
+
+/**
+ * Window › Swap: the directions in which the focused window has an on-screen
+ * neighbour in its tab. Outside a split the entry disables in place with the
+ * registry's reason, as "Move to new tab" does; a side with no neighbour is absent.
+ */
+function SwapMenu({ onRun }: { onRun: (commandId: string) => void }) {
+  const family = usePaletteCommand(SWAP_FAMILY_COMMAND);
+  const directions = useDesktop(
+    state =>
+      SWAP_DIRECTIONS.filter(
+        direction => directionalSwapTarget(state, state.focusedId, direction) !== null
+      ),
+    sameDirections
+  );
+  if (family === null) return null;
+  if (!family.available || directions.length === 0) {
+    return (
+      <MenubarItem data-testid="os-menu-swap" disabled>
+        <span className="min-w-0 flex-1">
+          <span className="block">Swap</span>
+          {!family.available && family.reason ? (
+            <span className="block text-eyebrow text-muted-foreground">{family.reason}</span>
+          ) : null}
+        </span>
+      </MenubarItem>
+    );
+  }
+  return (
+    <MenubarSub>
+      <MenubarSubTrigger data-testid="os-menu-swap">Swap</MenubarSubTrigger>
+      <MenubarSubContent>
+        {directions.map(direction => (
+          <SwapDirectionItem key={direction} direction={direction} onRun={onRun} />
+        ))}
+      </MenubarSubContent>
+    </MenubarSub>
+  );
+}
+
+function sameDirections(
+  left: readonly SwapDirection[] | undefined,
+  right: readonly SwapDirection[]
+): boolean {
+  return (
+    left !== undefined &&
+    left.length === right.length &&
+    left.every((direction, index) => direction === right[index])
+  );
+}
+
+/**
+ * Window menu: Move to new tab and Swap ▸ (a split member), Arrange ▸ with Balance, Move to
+ * desktop (the focused window's whole tab), All desktops, Close. Grouping and order are curated
+ * here (BR-17); directional focus and layout undo/redo stay palette and keyboard commands. Every
+ * item's chord, availability and reason are projections of the registry, so an item shows the same
+ * truth as its palette row and its chord.
  */
 export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
   const registry = usePaletteRegistry();
@@ -111,8 +203,13 @@ export function WindowMenu({ open, onOpenChange, onRun }: WindowMenuProps) {
           groups={[
             menuGroup(
               "split",
-              has("window.unsplit") ? (
-                <MenubarCommandItem commandId="window.unsplit" onRun={onRun} />
+              has("window.unsplit") || has(SWAP_FAMILY_COMMAND) ? (
+                <>
+                  {has("window.unsplit") ? (
+                    <MenubarCommandItem commandId="window.unsplit" onRun={onRun} />
+                  ) : null}
+                  <SwapMenu onRun={onRun} />
+                </>
               ) : null
             ),
             menuGroup(

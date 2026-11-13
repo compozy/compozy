@@ -2344,6 +2344,53 @@ test("Tabs-split E2E-007: a head dropped on a sibling's top edge stacks them, an
   await expect.poll(arrangement).toEqual({ axis: "vertical", members: [tasksID, agentsID] });
 });
 
+// Invariant: the palette's directional swap trades the focused member with its on-screen
+// neighbour on that side, focus stays on the moved window, and one layout undo restores the places
+// (#1658). Owner: `window.swap.*` client ops + `window.swap` / `layout.undo`.
+test("Tabs-split #1658: palette Swap right trades the focused member with its neighbour, and undo restores it", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID, marketplaceID] = await openFixtureWindows(runtime, workspace.id, [
+    "tasks",
+    "agents",
+    "marketplace",
+  ]);
+  if (!tasksID || !agentsID || !marketplaceID) throw new Error("swap fixture needs three windows");
+  await splitWindowBeside(runtime, workspace.id, agentsID, tasksID, "right");
+  await splitWindowBeside(runtime, workspace.id, marketplaceID, agentsID, "right");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  const members = async () => {
+    const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+    return tab ? nodeWindowIds(tab.root) : [];
+  };
+  await expect.poll(members).toEqual([tasksID, agentsID, marketplaceID]);
+  const clientID = await browserClientId(appPage);
+  const focused = async () =>
+    (await windowManagerClient(runtime, workspace.id, clientID)).focused_window_id;
+  await focusWindow(appPage, shell.window(tasksID));
+  await expect.poll(focused).toBe(tasksID);
+
+  const runPaletteCommand = async (query: string, commandId: string) => {
+    await appPage.keyboard.press("ControlOrMeta+K");
+    const palette = appPage.getByTestId("os-command-palette");
+    await expect(palette).toBeVisible();
+    await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(query);
+    await paletteRow(palette, commandId).click();
+    await expect(palette).toHaveCount(0);
+  };
+
+  await runPaletteCommand("swap", "window.swap.right");
+  await expect.poll(members).toEqual([agentsID, tasksID, marketplaceID]);
+  await expect.poll(focused).toBe(tasksID);
+
+  await runPaletteCommand("undo layout", "layout.undo");
+  await expect.poll(members).toEqual([tasksID, agentsID, marketplaceID]);
+});
+
 // Invariant: a seam drag changes only its two sides' shares and persists; a double-click
 // balances them; arrow keys move a focused seam; Escape mid-drag cancels it (US-009). Owner: seam hook + `layout.resize`
 // and `layout.balance`.

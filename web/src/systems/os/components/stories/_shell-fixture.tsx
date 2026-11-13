@@ -185,6 +185,7 @@ export function createLiveStoryShell({
     deleteDesktop: fn(),
     moveWindowToDesktop: fn(),
     focusDirection: fn(),
+    swapDirection: fn(),
     undoLayout: fn(),
     redoLayout: fn(),
     balanceFocusedLayout: fn(),

@@ -104,6 +104,19 @@ describe("cmd-palette client-op table — splits", () => {
     ]);
   });
 
+  it("Should route each swap direction to the controller's directional swap [#1658]", () => {
+    const context = opContext(tabBarFixture(), "w-2");
+    for (const direction of ["left", "right", "up", "down"]) {
+      void run(`window.swap.${direction}`, context);
+    }
+    expect(vi.mocked(context.manager.swapDirection).mock.calls).toEqual([
+      ["left"],
+      ["right"],
+      ["up"],
+      ["down"],
+    ]);
+  });
+
   it("Should no-op split ops without a focused window and keep retired ids unhandled [US-018]", () => {
     const context = opContext(null, null);
     void run("window.unsplit", context);

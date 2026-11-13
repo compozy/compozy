@@ -1,5 +1,6 @@
 import type { OsArrangePreset } from "./os-types";
 import { leadWindowId, tabWindowIds } from "./tab-model";
+import type { TabProjection } from "./tab-projection-types";
 import type { FocusDirection, LayoutDesktop, PixelRect, WindowId } from "./window-manager-types";
 
 interface Point {
@@ -108,4 +109,40 @@ export function directionalFocusTarget(input: {
         return distance || left.id.localeCompare(right.id);
       })[0]?.id ?? null
   );
+}
+
+/** The part of the desktop view that directional moves read: the active tab and its projection. */
+export interface ActiveTabView {
+  activeDesktopId: string | null;
+  activeTabIds: Readonly<Record<string, string>>;
+  projections: Readonly<Record<string, Pick<TabProjection, "windows">>>;
+}
+
+/**
+ * The windows shown on screen in the active tab, where the projection puts them. Members behind
+ * a collapsed split's switcher are not candidates.
+ */
+export function activeTabCandidates(view: ActiveTabView): FocusCandidate[] {
+  if (view.activeDesktopId === null) return [];
+  const tabId = view.activeTabIds[view.activeDesktopId];
+  const projection = tabId === undefined ? undefined : view.projections[tabId];
+  if (projection === undefined) return [];
+  return projection.windows.flatMap(projected =>
+    projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
+  );
+}
+
+/**
+ * The window a directional swap trades places with: the nearest on-screen window of the active
+ * tab on that side of `fromId`, by the same geometry as directional focus but never wrapping.
+ * Null when `fromId` is not on screen there or nothing lies on that side.
+ */
+export function directionalSwapTarget(
+  view: ActiveTabView,
+  fromId: WindowId | null,
+  direction: FocusDirection
+): WindowId | null {
+  const candidates = activeTabCandidates(view);
+  if (fromId === null || !candidates.some(candidate => candidate.id === fromId)) return null;
+  return directionalFocusTarget({ candidates, focusedId: fromId, direction, wrap: false });
 }
