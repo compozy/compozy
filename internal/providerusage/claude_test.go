@@ -426,8 +426,10 @@ func TestClaudeKeychain(t *testing.T) {
 				reader := &fakeClaudeKeychain{data: credential, err: tc.err}
 				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
 					WithClaudeKeychain(reader), WithClaudePlatform("darwin"))
-				_, err := c.Identity(t.Context(), target, IntentBackground)
+				identity, err := c.Identity(t.Context(), target, IntentBackground)
 				requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
+				// The expired file keeps its identity so same-owner usage can stay stale.
+				requireEqual(t, false, identity == (CredentialIdentity{}))
 				requireEqual(t, tc.calls, reader.calls.Load())
 				requireEqual(t, int32(0), reader.interactive.Load())
 			})
