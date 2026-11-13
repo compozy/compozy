@@ -19,6 +19,7 @@ import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
   OsDesktopRuntimeStore,
   OsWindow,
+  OsWindowRoute,
   WindowManagerController,
   WindowManagerCommandOutcome,
 } from "../../lib/os-types";
@@ -1434,7 +1435,11 @@ describe("WindowPaneHosts", () => {
     }
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
     const focus = { windowId: "w" };
-    const hosts = new WindowPaneHosts({ isFocused: windowId => windowId === focus.windowId });
+    const content = { route: { pathname: "/files", search: {} } as OsWindowRoute };
+    const hosts = new WindowPaneHosts({
+      isFocused: windowId => windowId === focus.windowId,
+      routeOf: () => content.route,
+    });
     const host = hosts.hostOf("w");
     const surface = document.createElement("section");
     const scroller = document.createElement("div");
@@ -1473,6 +1478,7 @@ describe("WindowPaneHosts", () => {
     return {
       hosts,
       focus,
+      content,
       sized,
       surface,
       scroller,
@@ -1616,6 +1622,7 @@ describe("WindowPaneHosts", () => {
       queryClient.setQueryData(statusKeys.current(), { daemon: {} });
       const hosts = new WindowPaneHosts({
         isFocused: windowId => shell.controller.getState().focusedId === windowId,
+        routeOf: windowId => shell.controller.getState().windows[windowId]?.route ?? null,
       });
       const userFocus = vi.spyOn(shell.coordinator, "userFocus");
       const ShellProvider = shell.wrapper;
@@ -1741,6 +1748,48 @@ describe("WindowPaneHosts", () => {
     root.remove();
     hosts.retain(new Set(["w"]));
     expect(sized.has(root)).toBe(false);
+    cleanup();
+  });
+
+  it("Should not write an offset onto content that replaced it while the pane was hidden [R13-05]", () => {
+    const { hosts, content, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(140);
+
+    surface.hidden = true;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    // A `window navigate` on the hidden pane: same container, new content.
+    content.route = { pathname: "/files", search: { path: "docs" } };
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should sweep scroll containers an in-window navigation removed [R13-04]", () => {
+    const { hosts, scroller, surface, first, scrollTo, cleanup } = setup();
+    hosts.place("w", first);
+    scrollTo(30);
+    // Page after page of new content, each scrolled once, while the pane stays shown.
+    const pages: HTMLElement[] = [];
+    for (let index = 0; index < 40; index += 1) {
+      const page = document.createElement("div");
+      surface.append(page);
+      page.scrollTop = 10 + index;
+      page.dispatchEvent(new Event("scroll"));
+      page.remove();
+      pages.push(page);
+    }
+    const retained = (
+      hosts as unknown as { hosts: Map<string, { offsets: Map<Element, unknown> }> }
+    ).hosts.get("w")!.offsets;
+
+    // At most twice what the pane still holds (the floor of 16), never one entry per page.
+    expect(retained.size).toBeLessThanOrEqual(17);
+    expect(retained.has(scroller)).toBe(true);
     cleanup();
   });
 

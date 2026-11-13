@@ -71,7 +71,11 @@ export function useDeskTabPanes(
   );
   // Read at the moment a host acts, never from a render: focus may have moved since.
   const [hosts] = useState(
-    () => new WindowPaneHosts({ isFocused: windowId => manager.getState().focusedId === windowId })
+    () =>
+      new WindowPaneHosts({
+        isFocused: windowId => manager.getState().focusedId === windowId,
+        routeOf: windowId => manager.getState().windows[windowId]?.route ?? null,
+      })
   );
   const paneWindowIds = visited.flatMap(tabId => {
     const tab = tabs.find(entry => entry.id === tabId);

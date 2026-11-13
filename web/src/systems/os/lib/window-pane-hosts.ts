@@ -1,10 +1,17 @@
+import type { OsWindowRoute } from "./os-types";
+import { sameOsWindowRoute } from "./window-manager-route";
+
 const HOST_SLOT = "os-window-host";
+/** Below this many recorded containers a pane is never swept. */
+const SWEEP_FLOOR = 16;
 /** Where re-insertions stop mattering: the desk layer holds every desktop, tab and slot. */
 const DESK_LAYER = '[data-slot="os-desk-layer"]';
 
 interface ScrollOffset {
   top: number;
   left: number;
+  /** The window's route when the container scrolled: the content the offset belongs to. */
+  route: OsWindowRoute | null;
 }
 
 interface PaneHost {
@@ -12,6 +19,8 @@ interface PaneHost {
   element: HTMLElement;
   /** The last offsets each scroll container inside the pane reported. */
   offsets: Map<Element, ScrollOffset>;
+  /** Recording a new container past this size sweeps the ones no longer in the pane. */
+  sweepAt: number;
   /** Whether the pane's surface had a box at the last observation; `null` before the first. */
   rendered: boolean | null;
   /** The pane roots the resize observer watches, so they can be released by name. */
@@ -22,6 +31,8 @@ interface PaneHost {
 export interface PaneHostWindows {
   /** Whether the window holds this client's authoritative focus now. */
   isFocused(windowId: string): boolean;
+  /** The window's current route. */
+  routeOf(windowId: string): OsWindowRoute | null;
 }
 
 /** Not hidden by the pane, its tab or a collapsed split: an element the browser renders. */
@@ -39,11 +50,17 @@ function isRendered(element: Element): boolean {
  * collapsed split), loses the scroll offsets of its scroll containers and its focused element.
  * The host keeps both for every app:
  * - A capture-phase `scroll` listener on the host records each container's offsets as they change
- *   (one map write per scroll event; the offsets are already laid out when it fires).
+ *   (one map write per scroll event; the offsets are already laid out when it fires), with the
+ *   window's route at that moment. Containers that left the pane (an in-window navigation
+ *   replaced them) are swept when a new container is recorded past twice the size of the last
+ *   sweep, and when the pane's root changes: amortized O(1) per scroll, and the map stays within
+ *   twice the containers the pane still holds.
  * - Placing the host in a slot, re-inserting it with an ancestor (a keyed reorder of tab layers,
  *   collapsed split members or desktops moves their DOM nodes without remounting a slot), and the
  *   pane's surface getting a box again after it had none write back every recorded offset the
- *   browser dropped (now 0), which lays the pane out once. A re-insertion is seen by a
+ *   browser dropped (now 0), which lays the pane out once. An offset belongs to the content that
+ *   scrolled: one recorded under another route (a `window navigate` while the pane was hidden, a
+ *   route change just before it hid) is dropped instead of written onto the new content. A re-insertion is seen by a
  *   `childList` mutation observer on the slot's ancestors up to the desk layer: those lists change
  *   only when the layout does, never with an app's content. The same observer watches each host's
  *   own children, so a pane root that mounts after `place` is observed for size too.
@@ -148,6 +165,7 @@ export class WindowPaneHosts {
       windowId,
       element,
       offsets: new Map(),
+      sweepAt: SWEEP_FLOOR,
       rendered: null,
       observed: new Set(),
     };
@@ -155,9 +173,7 @@ export class WindowPaneHosts {
       "scroll",
       event => {
         const target = event.target;
-        if (target instanceof Element) {
-          host.offsets.set(target, { top: target.scrollTop, left: target.scrollLeft });
-        }
+        if (target instanceof Element) this.record(host, target);
       },
       { capture: true, passive: true }
     );
@@ -209,6 +225,7 @@ export class WindowPaneHosts {
       const own = record.target instanceof Element ? this.byElement.get(record.target) : undefined;
       if (own !== undefined) {
         this.trackRoots(own);
+        this.sweep(own);
         continue;
       }
       for (const node of record.addedNodes) {
@@ -232,9 +249,28 @@ export class WindowPaneHosts {
     if (shownAgain) this.restore(host);
   }
 
+  private record(host: PaneHost, container: Element): void {
+    const known = host.offsets.has(container);
+    host.offsets.set(container, {
+      top: container.scrollTop,
+      left: container.scrollLeft,
+      route: this.windows.routeOf(host.windowId),
+    });
+    if (!known && host.offsets.size > host.sweepAt) this.sweep(host);
+  }
+
+  /** Drops the containers no longer in the pane; the next sweep waits for twice what is left. */
+  private sweep(host: PaneHost): void {
+    for (const container of host.offsets.keys()) {
+      if (!host.element.contains(container)) host.offsets.delete(container);
+    }
+    host.sweepAt = Math.max(SWEEP_FLOOR, host.offsets.size * 2);
+  }
+
   private restore(host: PaneHost): void {
+    const route = this.windows.routeOf(host.windowId);
     for (const [element, offset] of host.offsets) {
-      if (!host.element.contains(element)) {
+      if (!host.element.contains(element) || !sameOsWindowRoute(offset.route, route)) {
         host.offsets.delete(element);
         continue;
       }
