@@ -40,7 +40,7 @@ func (r *windowManagerRegistry) expireMigrationBackups(ctx context.Context, rele
 			if err := json.Unmarshal(entry.Value, &status); err != nil {
 				return fmt.Errorf("decode migration status for backup retention: %w", err)
 			}
-			if status.State != "migrated" {
+			if status.State != windowManagerMigrationMigrated {
 				continue
 			}
 			backup, err := r.engine.Get(ctx, workspace, windowManagerStateDomain, windowManagerLegacyKey(profile))

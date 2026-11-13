@@ -31,12 +31,15 @@ func (c *snapshotConverter) mergeIslands(desktopID DesktopID, groups []LayoutGro
 					if axis == AxisVertical {
 						start, extent = g.Frame.Y, g.Frame.Height
 					}
-					if start+extent <= cut+1e-9 {
+					switch {
+					case start+extent <= cut+1e-9:
 						left = append(left, g)
-					} else if start >= cut-1e-9 {
+					case start >= cut-1e-9:
 						right = append(right, g)
-					} else {
+					default:
 						crossing = true
+					}
+					if crossing {
 						break
 					}
 				}

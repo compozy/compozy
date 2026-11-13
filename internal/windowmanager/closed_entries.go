@@ -24,11 +24,3 @@ func pushClosedEntry(snapshot *Snapshot, entry ClosedEntry, limit int) {
 		)
 	}
 }
-
-func closedEntryWindowIDs(entry ClosedEntry) []WindowID {
-	windowIDs := make([]WindowID, 0, len(entry.Windows))
-	for _, window := range entry.Windows {
-		windowIDs = append(windowIDs, window.ID)
-	}
-	return windowIDs
-}

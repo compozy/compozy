@@ -6,26 +6,6 @@ import (
 	"slices"
 )
 
-func clampRect(rect NormalizedRect) NormalizedRect {
-	if !finite(rect.Width) || rect.Width <= 0 {
-		rect.Width = 0.56
-	}
-	if !finite(rect.Height) || rect.Height <= 0 {
-		rect.Height = 0.62
-	}
-	rect.Width = min(rect.Width, 1)
-	rect.Height = min(rect.Height, 1)
-	if !finite(rect.X) {
-		rect.X = 0.22
-	}
-	if !finite(rect.Y) {
-		rect.Y = 0.18
-	}
-	rect.X = min(max(rect.X, 0), 1-rect.Width)
-	rect.Y = min(max(rect.Y, 0), 1-rect.Height)
-	return rect
-}
-
 func fullRect() NormalizedRect { return NormalizedRect{Width: 1, Height: 1} }
 
 func projectedRects(snapshot Snapshot, desktopID DesktopID) map[WindowID]NormalizedRect {

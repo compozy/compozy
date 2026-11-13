@@ -106,7 +106,6 @@ func (v *snapshotValidator) validateWindowRecords() {
 		if _, exists := v.desktops[window.DesktopID]; !exists {
 			v.add("topology.window_desktop_unknown", path+".desktop_id", "window desktop does not exist")
 		}
-
 	}
 }
 
@@ -297,20 +296,6 @@ func (v *snapshotValidator) validateNodeWindow(
 
 func (v *snapshotValidator) add(code, path, message string) {
 	v.diagnostics = append(v.diagnostics, Diagnostic{Code: code, Path: path, Message: message})
-}
-
-func validRect(rect NormalizedRect) bool {
-	return finite(rect.X) && finite(rect.Y) && finite(rect.Width) && finite(rect.Height) &&
-		rect.X >= 0 && rect.Y >= 0 && rect.Width > 0 && rect.Height > 0 &&
-		rect.X+rect.Width <= 1+weightTolerance && rect.Y+rect.Height <= 1+weightTolerance
-}
-
-func rectsOverlap(left, right NormalizedRect) bool {
-	if !validRect(left) || !validRect(right) {
-		return false
-	}
-	return left.X < right.X+right.Width-weightTolerance && right.X < left.X+left.Width-weightTolerance &&
-		left.Y < right.Y+right.Height-weightTolerance && right.Y < left.Y+left.Height-weightTolerance
 }
 
 func valueOrZero[T comparable](value *T) T {

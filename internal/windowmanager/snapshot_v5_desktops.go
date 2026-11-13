@@ -53,7 +53,7 @@ func (c *snapshotConverter) convertGroups(d DesktopV5, converted *Desktop) {
 			converted.Tabs = append(converted.Tabs, c.rootTabs(TabID(g.ID), g.Root)...)
 		}
 	}
-	if len(groups) == 1 && groups[0].Root.Kind == "stack" && groups[0].Root.ActiveID != nil {
+	if len(groups) == 1 && groups[0].Root.Kind == legacyNodeKindStack && groups[0].Root.ActiveID != nil {
 		converted.ActiveTabID = tabHolding(converted.Tabs, *groups[0].Root.ActiveID)
 	}
 }
@@ -104,9 +104,9 @@ func (c *snapshotConverter) appendFloatingTabs(d DesktopV5, converted *Desktop) 
 		id := WindowID(c.allocate("win-newtab-" + string(d.ID)))
 		c.windows[id] = WindowV5{
 			ID:        id,
-			App:       "new-tab",
+			App:       newTabApp,
 			DesktopID: d.ID,
-			Route:     RouteIntent{Pathname: "/new-tab", Search: RouteSearch{}},
+			Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
 			NavStack:  []RouteIntent{},
 		}
 		converted.Tabs = append(converted.Tabs, c.solo(id))

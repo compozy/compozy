@@ -32,32 +32,12 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 		return reduction{}, nil
 	case noTopologyCommand:
 		return reduction{}, nil
-	case CreateDesktopCommand:
-		changed, err = r.createDesktop(s, c)
-	case UpdateDesktopCommand:
-		changed, err = r.updateDesktop(s, c)
-	case ReorderDesktopCommand:
-		changed, err = r.reorderDesktop(s, c)
-	case DeleteDesktopCommand:
-		changed, err = r.deleteDesktop(s, c)
-	case OpenWindowCommand:
-		changed, err = r.openWindow(s, c)
-	case NavigateWindowCommand:
-		changed, err = r.navigateWindow(s, c)
-	case CloseWindowCommand:
-		changed, err = r.closeWindow(s, c)
-	case MoveWindowCommand:
-		changed, err = r.moveWindow(s, c)
-	case SwapWindowsCommand:
-		changed, err = r.swapWindows(s, c)
 	case ReorderTabCommand:
 		changed, err = r.reorderTab(s, c)
 	case ActivateTabCommand:
 		changed, err = r.activateTab(s, c)
 	case PinWindowCommand:
 		changed, err = r.pinWindow(s, c)
-	case ReopenCommand:
-		changed, err = r.reopenWindow(s)
 	case adjacentTabsCommand:
 		changed, err = r.placeAdjacentTabs(s, c)
 	case ArrangeLayoutCommand:
@@ -72,14 +52,8 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 		changed, err = r.redo(s)
 	case ReplaceLayoutCommand:
 		changed, err = r.replace(s, c)
-	case terminalRetirementCommand:
-		changed = r.retireTerminalWindows(s, c.ids)
-	case workspaceUnregisteredCommand:
-		changed, err = r.retireUnregisteredWorkspaceWindows(s, c.binding)
-	case sessionDeletionCommand:
-		changed, err = r.retireDeletedSessionWindows(s, c.sessionID)
 	default:
-		return reduction{}, fmt.Errorf("unsupported durable command %T: %w", command, ErrInvalidCommand)
+		changed, err = r.reduceLifecycle(s, command)
 	}
 	if err != nil {
 		return reduction{}, err
@@ -90,6 +64,42 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 		}
 	}
 	return reduction{changed: changed, applied: changed, changes: r.changes.result()}, nil
+}
+
+func (r *reducer) reduceLifecycle(s *Snapshot, command Command) (bool, error) {
+	switch c := command.(type) {
+	case CreateDesktopCommand:
+		return r.createDesktop(s, c)
+	case UpdateDesktopCommand:
+		return r.updateDesktop(s, c)
+	case ReorderDesktopCommand:
+		return r.reorderDesktop(s, c)
+	case DeleteDesktopCommand:
+		return r.deleteDesktop(s, c)
+
+	case OpenWindowCommand:
+		return r.openWindow(s, c)
+	case NavigateWindowCommand:
+		return r.navigateWindow(s, c)
+	case CloseWindowCommand:
+		return r.closeWindow(s, c)
+	case MoveWindowCommand:
+		return r.moveWindow(s, c)
+	case SwapWindowsCommand:
+		return r.swapWindows(s, c)
+
+	case ReopenCommand:
+		return r.reopenWindow(s)
+
+	case terminalRetirementCommand:
+		return r.retireTerminalWindows(s, c.ids), nil
+	case workspaceUnregisteredCommand:
+		return r.retireUnregisteredWorkspaceWindows(s, c.binding)
+	case sessionDeletionCommand:
+		return r.retireDeletedSessionWindows(s, c.sessionID)
+	default:
+		return false, fmt.Errorf("unsupported durable command %T: %w", command, ErrInvalidCommand)
+	}
 }
 
 type changeBuilder struct {

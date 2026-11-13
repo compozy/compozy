@@ -551,34 +551,6 @@ func documentRevision(t *testing.T, manager *Manager, workspaceID WorkspaceID) R
 	return snapshot.Revision
 }
 
-func newWindowTabTestManager(
-	t *testing.T,
-	repository Repository,
-	resolver WorkspaceResolver,
-) *Manager {
-	t.Helper()
-	manager, err := NewService(
-		repository,
-		resolver,
-		nil,
-		DefaultConfig(),
-		WithIDGenerator(func(kind string) (string, error) {
-			return fmt.Sprintf("%s-%d", kind, windowTabManagerIDSequence.Add(1)), nil
-		}),
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := manager.Close(); closeErr != nil {
-			t.Errorf("Manager.Close() error = %v", closeErr)
-		}
-	})
-	return manager
-}
-
-var windowTabManagerIDSequence atomic.Int64
-
 func TestWorkspaceIsolation(t *testing.T) {
 	t.Run("Should keep workspace snapshots, history, and authorization partitions independent", func(t *testing.T) {
 		t.Parallel()

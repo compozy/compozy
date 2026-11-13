@@ -479,6 +479,5 @@ func TestMigrateSnapshotV5(t *testing.T) {
 		if out.Windows["win-newtab-d1-2"].ID == "" || out.ClosedEntries[0].Windows[0].ID != "win-newtab-d1" {
 			t.Fatalf("closed window collision = %+v", out)
 		}
-
 	})
 }

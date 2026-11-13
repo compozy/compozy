@@ -7,45 +7,10 @@ func (r *reducer) closeWindow(s *Snapshot, c CloseWindowCommand) (bool, error) {
 	if !ok {
 		return false, ErrWindowNotFound
 	}
-	d := &s.Desktops[p.desktopIndex]
-	tab := d.Tabs[p.tabIndex]
-	entry := ClosedEntry{DesktopID: d.ID, ClosedAt: r.now().UTC()}
-	if c.Scope == CloseScopeTab {
-		ids := nodeWindowIDs(tab.Root)
-		if len(ids) == 1 && tab.Pinned {
-			return false, ErrWindowPinned
-		}
-		entry.Windows = []Window{cloneWindow(s.Windows[c.WindowID])}
-		if len(ids) > 1 {
-			entry.Member = captureClosedMember(tab, c.WindowID)
-		} else {
-			entry.Tabs = []ClosedTab{{ID: tab.ID, Pinned: tab.Pinned, Root: cloneNode(tab.Root), Index: p.tabIndex}}
-		}
-	} else {
-		for i, t := range d.Tabs {
-			selected := false
-			switch c.Scope {
-			case CloseScopeGroup:
-				selected = i == p.tabIndex
-			case CloseScopeOthers:
-				selected = i != p.tabIndex
-			case CloseScopeRight:
-				selected = i > p.tabIndex
-			case CloseScopeLeft:
-				selected = i < p.tabIndex
-			case CloseScopeAll:
-				selected = true
-			default:
-				return false, ErrInvalidCommand
-			}
-			if !selected || (c.Scope != CloseScopeGroup && t.Pinned) {
-				continue
-			}
-			entry.Tabs = append(entry.Tabs, ClosedTab{ID: t.ID, Pinned: t.Pinned, Root: cloneNode(t.Root), Index: i})
-			for _, id := range nodeWindowIDs(t.Root) {
-				entry.Windows = append(entry.Windows, cloneWindow(s.Windows[id]))
-			}
-		}
+	tab := s.Desktops[p.desktopIndex].Tabs[p.tabIndex]
+	entry, err := r.captureClosedEntry(s, c, p)
+	if err != nil {
+		return false, err
 	}
 	if len(entry.Windows) == 0 {
 		return false, nil
@@ -69,6 +34,50 @@ func (r *reducer) closeWindow(s *Snapshot, c CloseWindowCommand) (bool, error) {
 	pushClosedEntry(s, entry, r.config.ClosedEntryLimit)
 	r.changes.desktop(entry.DesktopID)
 	return true, nil
+}
+
+func (r *reducer) captureClosedEntry(s *Snapshot, c CloseWindowCommand, p windowPlacement) (ClosedEntry, error) {
+	d := &s.Desktops[p.desktopIndex]
+	tab := d.Tabs[p.tabIndex]
+	entry := ClosedEntry{DesktopID: d.ID, ClosedAt: r.now().UTC()}
+	if c.Scope == CloseScopeTab {
+		ids := nodeWindowIDs(tab.Root)
+		if len(ids) == 1 && tab.Pinned {
+			return ClosedEntry{}, ErrWindowPinned
+		}
+		entry.Windows = []Window{cloneWindow(s.Windows[c.WindowID])}
+		if len(ids) > 1 {
+			entry.Member = captureClosedMember(tab, c.WindowID)
+		} else {
+			entry.Tabs = []ClosedTab{{ID: tab.ID, Pinned: tab.Pinned, Root: cloneNode(tab.Root), Index: p.tabIndex}}
+		}
+	} else {
+		for i, t := range d.Tabs {
+			selected := false
+			switch c.Scope {
+			case CloseScopeGroup:
+				selected = i == p.tabIndex
+			case CloseScopeOthers:
+				selected = i != p.tabIndex
+			case CloseScopeRight:
+				selected = i > p.tabIndex
+			case CloseScopeLeft:
+				selected = i < p.tabIndex
+			case CloseScopeAll:
+				selected = true
+			default:
+				return ClosedEntry{}, ErrInvalidCommand
+			}
+			if !selected || (c.Scope != CloseScopeGroup && t.Pinned) {
+				continue
+			}
+			entry.Tabs = append(entry.Tabs, ClosedTab{ID: t.ID, Pinned: t.Pinned, Root: cloneNode(t.Root), Index: i})
+			for _, id := range nodeWindowIDs(t.Root) {
+				entry.Windows = append(entry.Windows, cloneWindow(s.Windows[id]))
+			}
+		}
+	}
+	return entry, nil
 }
 
 func captureClosedMember(tab Tab, id WindowID) *ClosedMember {

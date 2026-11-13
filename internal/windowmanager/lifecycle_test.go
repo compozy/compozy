@@ -17,26 +17,6 @@ import (
 	"testing"
 )
 
-func openSessionTestWindow(
-	t *testing.T,
-	manager *Manager,
-	workspaceID WorkspaceID,
-	windowID WindowID,
-	sessionID string,
-	desktopID DesktopID,
-) Result {
-	t.Helper()
-	key := sessionID
-	return executeTestCommand(t, manager, workspaceID, nil, OpenWindowCommand{Window: WindowSpec{
-		ID:           windowID,
-		App:          "session",
-		InstanceKey:  &key,
-		Route:        testRoute(fmt.Sprintf("/session/%s", sessionID)),
-		DesktopID:    desktopID,
-		FloatingRect: fullRect(),
-	}})
-}
-
 func TestWindowTabNavigationV3(t *testing.T) {
 	t.Run(
 		"Should cap navigation at the effective limit while retaining newest ancestors [UT-008][UT-031]",
@@ -685,10 +665,10 @@ func TestTabsAndSplits(t *testing.T) {
 	t.Run("Should close full split tab (UT-006)", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)
-		r := splitTestWindows(t, e, "a", "b")
+		splitTestWindows(t, e, "a", "b")
 		executeTestCommand(t, e.manager, "workspace-a", nil, PinWindowCommand{WindowID: "a", Pinned: true})
 		before := tabFor(t, mustSnapshot(t, e.manager, "workspace-a"), "a")
-		r = executeTestCommand(
+		r := executeTestCommand(
 			t,
 			e.manager,
 			"workspace-a",
@@ -817,7 +797,6 @@ func TestTabsAndSplits(t *testing.T) {
 		if valueOrZero(tabs[len(tabs)-1].Root.WindowID) != "b" {
 			t.Fatalf("clamped reopen = %+v", tabs)
 		}
-
 	})
 	t.Run("Should restore split geometry and pin (UT-014)", func(t *testing.T) {
 		t.Parallel()
@@ -893,7 +872,6 @@ func TestTabsAndSplits(t *testing.T) {
 				t.Fatalf("fallback desktop = %s, want %s", r.Snapshot.Windows["b"].DesktopID, want)
 			}
 		}
-
 	})
 	t.Run("Should collapse records neighbor (UT-027)", func(t *testing.T) {
 		t.Parallel()

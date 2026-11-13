@@ -13,10 +13,7 @@ func WindowManagerSnapshotFromDomain(snapshot windowmanager.Snapshot) (WindowMan
 	if err != nil {
 		return WindowManagerSnapshot{}, err
 	}
-	windows, err := windowManagerWindowsFromDomain(snapshot.Windows)
-	if err != nil {
-		return WindowManagerSnapshot{}, err
-	}
+	windows := windowManagerWindowsFromDomain(snapshot.Windows)
 	return WindowManagerSnapshot{
 		Version: snapshot.Version, WorkspaceID: snapshot.WorkspaceID, Revision: revision,
 		Desktops: windowManagerDesktopsFromDomain(snapshot.Desktops), Windows: windows,
@@ -27,10 +24,7 @@ func WindowManagerSnapshotFromDomain(snapshot windowmanager.Snapshot) (WindowMan
 
 // WindowManagerLayoutFromDomain converts a domain layout to its stable wire form.
 func WindowManagerLayoutFromDomain(document windowmanager.LayoutDocument) (WindowManagerLayoutDocument, error) {
-	windows, err := windowManagerWindowsFromDomain(document.Windows)
-	if err != nil {
-		return WindowManagerLayoutDocument{}, err
-	}
+	windows := windowManagerWindowsFromDomain(document.Windows)
 	return WindowManagerLayoutDocument{
 		Version: document.Version, WorkspaceID: document.WorkspaceID,
 		Desktops: windowManagerDesktopsFromDomain(document.Desktops),
@@ -132,7 +126,7 @@ func WindowManagerResultFromDomain(result *windowmanager.Result) (WindowManagerR
 }
 
 // WindowManagerPreviewFromDomain converts a command preview.
-func WindowManagerPreviewFromDomain(preview windowmanager.Preview) (WindowManagerPreview, error) {
+func WindowManagerPreviewFromDomain(preview *windowmanager.Preview) (WindowManagerPreview, error) {
 	snapshot, err := WindowManagerSnapshotFromDomain(preview.Snapshot)
 	if err != nil {
 		return WindowManagerPreview{}, err
@@ -159,7 +153,7 @@ func WindowManagerPreviewFromDomain(preview windowmanager.Preview) (WindowManage
 
 func windowManagerWindowsFromDomain(
 	windows map[windowmanager.WindowID]windowmanager.Window,
-) (map[string]WindowManagerWindow, error) {
+) map[string]WindowManagerWindow {
 	result := make(map[string]WindowManagerWindow, len(windows))
 	for id, w := range windows {
 		result[string(id)] = WindowManagerWindow{
@@ -172,7 +166,7 @@ func windowManagerWindowsFromDomain(
 			TabID:       w.TabID,
 		}
 	}
-	return result, nil
+	return result
 }
 
 func windowManagerWindowsToDomain(

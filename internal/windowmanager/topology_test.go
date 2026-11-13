@@ -87,16 +87,3 @@ func TestNormalizeSnapshot(t *testing.T) {
 		}
 	})
 }
-
-func topologyDiagnosticCodes(t *testing.T, err error) []string {
-	t.Helper()
-	topology, ok := errors.AsType[*TopologyError](err)
-	if !ok {
-		t.Fatalf("error=%v", err)
-	}
-	var codes []string
-	for _, d := range topology.Diagnostics {
-		codes = append(codes, d.Code)
-	}
-	return codes
-}

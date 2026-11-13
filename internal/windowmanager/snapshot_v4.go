@@ -70,24 +70,3 @@ func rewriteRetiredWindow(window Window) Window {
 	}
 	return window
 }
-
-func rewriteSnapshotRetiredApps(snapshot *Snapshot) {
-	rewriteRetiredWindows(snapshot.Windows)
-	for i := range snapshot.ClosedEntries {
-		for j, window := range snapshot.ClosedEntries[i].Windows {
-			snapshot.ClosedEntries[i].Windows[j] = rewriteRetiredWindow(window)
-		}
-	}
-	for _, entries := range [][]HistoryEntry{snapshot.History.Undo, snapshot.History.Redo} {
-		for i := range entries {
-			rewriteRetiredWindows(entries[i].Before.Windows)
-			rewriteRetiredWindows(entries[i].After.Windows)
-		}
-	}
-}
-
-func rewriteRetiredWindows(windows map[WindowID]Window) {
-	for id, window := range windows {
-		windows[id] = rewriteRetiredWindow(window)
-	}
-}

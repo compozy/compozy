@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const legacyNodeKindStack NodeKind = "stack"
+
 type SnapshotV5 struct {
 	Version       uint32                `json:"version"`
 	WorkspaceID   WorkspaceID           `json:"workspace_id"`

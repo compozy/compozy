@@ -20,12 +20,9 @@ func (r *reducer) moveWindow(snapshot *Snapshot, c MoveWindowCommand) (bool, err
 	if err != nil {
 		return false, err
 	}
-	_, _, edge := placementAxis(c.Placement)
-	if !edge && c.Placement != DropTab && c.Placement != DropCenter {
-		return false, fmt.Errorf("placement %q: %w", c.Placement, ErrInvalidCommand)
-	}
-	if edge && targetID == "" {
-		return false, ErrInvalidCommand
+	edge, err := validateMovePlacement(c.Placement, targetID)
+	if err != nil {
+		return false, err
 	}
 	whole := c.MoveGroup || len(nodeWindowIDs(source.Root)) == 1
 	if whole && targetID == source.ID {
@@ -50,13 +47,32 @@ func (r *reducer) moveWindow(snapshot *Snapshot, c MoveWindowCommand) (bool, err
 		if err := r.mergeMovedTree(snapshot, d, targetID, incoming, c); err != nil {
 			return false, err
 		}
-
 	} else {
 		if err := r.placeMovedTab(snapshot, d, source, incoming, w, targetID, whole); err != nil {
 			return false, err
 		}
-
 	}
+	r.recordMoveSourceChanges(snapshot, source, whole)
+	for _, id := range nodeWindowIDs(incoming) {
+		r.changes.window(id)
+	}
+	r.changes.desktop(w.DesktopID)
+	r.changes.desktop(d.ID)
+	return true, nil
+}
+
+func validateMovePlacement(placement DropPlacement, targetID TabID) (bool, error) {
+	_, _, edge := placementAxis(placement)
+	if !edge && placement != DropTab && placement != DropCenter {
+		return false, fmt.Errorf("placement %q: %w", placement, ErrInvalidCommand)
+	}
+	if edge && targetID == "" {
+		return false, ErrInvalidCommand
+	}
+	return edge, nil
+}
+
+func (r *reducer) recordMoveSourceChanges(snapshot *Snapshot, source Tab, whole bool) {
 	r.changes.tab(source.ID)
 	if !whole {
 		if sd, ti, exists := findTab(snapshot, source.ID); exists && len(nodeWindowIDs(sd.Tabs[ti].Root)) == 1 {
@@ -65,12 +81,6 @@ func (r *reducer) moveWindow(snapshot *Snapshot, c MoveWindowCommand) (bool, err
 	} else if len(nodeWindowIDs(source.Root)) > 1 {
 		r.changes.tabUnsplit(source.ID)
 	}
-	for _, id := range nodeWindowIDs(incoming) {
-		r.changes.window(id)
-	}
-	r.changes.desktop(w.DesktopID)
-	r.changes.desktop(d.ID)
-	return true, nil
 }
 
 func splitAtRoot(root, incoming LayoutNode, p DropPlacement, generate idGenerator) (LayoutNode, bool, error) {

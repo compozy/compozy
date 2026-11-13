@@ -85,7 +85,6 @@ func (r *reducer) retireUnregisteredWorkspaceWindows(snapshot *Snapshot, binding
 		)
 		if before != len(entry.Windows) {
 			changed = true
-
 		}
 		*entry = pruneClosedEntry(*entry)
 	}

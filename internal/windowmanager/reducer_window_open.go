@@ -34,7 +34,6 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 		if err := r.insertOpenWindow(snapshot, d, window.ID, *anchor, active); err != nil {
 			return false, err
 		}
-
 	} else {
 		tab, err := r.newTab(window.ID)
 		if err != nil {

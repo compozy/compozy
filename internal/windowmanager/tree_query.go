@@ -105,11 +105,3 @@ func findNodeInSnapshot(snapshot *Snapshot, id NodeID) (*LayoutNode, bool) {
 }
 
 func containsWindowID(ids []WindowID, id WindowID) bool { return slices.Contains(ids, id) }
-func appendUniqueWindowIDs(ids []WindowID, candidates ...WindowID) []WindowID {
-	for _, id := range candidates {
-		if !slices.Contains(ids, id) {
-			ids = append(ids, id)
-		}
-	}
-	return ids
-}

@@ -197,7 +197,7 @@ func (c *snapshotConverter) reserveNodes(node LayoutNodeV5) {
 }
 
 func (c *snapshotConverter) rootTabs(id TabID, root LayoutNodeV5) []Tab {
-	if root.Kind == "stack" {
+	if root.Kind == legacyNodeKindStack {
 		tabs := make([]Tab, 0, len(root.WindowIDs))
 		for i, w := range root.WindowIDs {
 			var tab Tab
@@ -224,7 +224,7 @@ func (c *snapshotConverter) treeTabs(id TabID, root LayoutNodeV5) []Tab {
 			Axis:     clonePointer(old.Axis),
 			Weights:  slices.Clone(old.Weights),
 		}
-		if old.Kind == "stack" {
+		if old.Kind == legacyNodeKindStack {
 			active := WindowID("")
 			if len(old.WindowIDs) > 0 {
 				active = old.WindowIDs[0]
@@ -293,7 +293,7 @@ func legacyZoomTarget(d DesktopV5, s SnapshotV5) (WindowID, DesktopID, bool) {
 }
 
 func legacyNodeWindows(n LayoutNodeV5) []WindowID {
-	if n.Kind == "stack" {
+	if n.Kind == legacyNodeKindStack {
 		return slices.Clone(n.WindowIDs)
 	}
 	if n.Kind == NodeKindLeaf && n.WindowID != nil {

@@ -1259,7 +1259,8 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 				if err := server.Listener.Close(); err != nil {
 					t.Fatal(err)
 				}
-				listener, err := net.Listen("unix", filepath.Join(socketDir, "s"))
+				var listenConfig net.ListenConfig
+				listener, err := listenConfig.Listen(t.Context(), "unix", filepath.Join(socketDir, "s"))
 				if err != nil {
 					t.Fatal(err)
 				}

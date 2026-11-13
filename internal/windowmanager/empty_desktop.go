@@ -1,5 +1,10 @@
 package windowmanager
 
+const (
+	newTabApp  = "new-tab"
+	newTabPath = "/new-tab"
+)
+
 func (r *reducer) ensureDesktopTabs(s *Snapshot) error {
 	for i := range s.Desktops {
 		d := &s.Desktops[i]
@@ -9,9 +14,9 @@ func (r *reducer) ensureDesktopTabs(s *Snapshot) error {
 		window, err := r.newOpenWindow(
 			s,
 			WindowSpec{
-				App:       "new-tab",
+				App:       newTabApp,
 				DesktopID: d.ID,
-				Route:     RouteIntent{Pathname: "/new-tab", Search: RouteSearch{}},
+				Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
 			},
 		)
 		if err != nil {
@@ -60,8 +65,8 @@ func DefaultSnapshot(id WorkspaceID) Snapshot {
 		Windows: map[WindowID]Window{
 			windowID: {
 				ID:        windowID,
-				App:       "new-tab",
-				Route:     RouteIntent{Pathname: "/new-tab", Search: RouteSearch{}},
+				App:       newTabApp,
+				Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
 				NavStack:  []RouteIntent{},
 				DesktopID: "desktop-default",
 				TabID:     tabID,
@@ -107,8 +112,8 @@ func repairEmptyDesktops(s *Snapshot) {
 		}
 		s.Windows[id] = Window{
 			ID:        id,
-			App:       "new-tab",
-			Route:     RouteIntent{Pathname: "/new-tab", Search: RouteSearch{}},
+			App:       newTabApp,
+			Route:     RouteIntent{Pathname: newTabPath, Search: RouteSearch{}},
 			NavStack:  []RouteIntent{},
 			DesktopID: d.ID,
 			TabID:     tab.ID,

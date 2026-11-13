@@ -11,6 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
+const (
+	windowManagerMigrationMigrated = "migrated"
+	windowManagerMigrationFailed   = "failed"
+)
+
 func windowManagerLegacyKey(profile string) string    { return "legacy:" + profile }
 func windowManagerMigrationKey(profile string) string { return "migration:" + profile }
 
@@ -47,14 +52,14 @@ func (r *windowManagerRepository) migrateSnapshot(
 		conversionErr = errors.New("snapshot workspace mismatch")
 	}
 	status := windowmanager.MigrationStatus{
-		State:       "migrated",
+		State:       windowManagerMigrationMigrated,
 		FromVersion: storedWindowManagerSnapshotVersion(entry.Value),
 		At:          time.Now().UTC(),
 		Summary:     &summary,
 	}
 	if conversionErr != nil {
 		snapshot = windowmanager.DefaultSnapshot(workspace)
-		status.State, status.Summary, status.Error = "failed", nil, migrationDiagnostic(conversionErr)
+		status.State, status.Summary, status.Error = windowManagerMigrationFailed, nil, migrationDiagnostic(conversionErr)
 		status.FailureRevision = snapshot.Revision
 	}
 	backup, err := r.migrationBackupOp(ctx, workspace, entry, &status)
@@ -133,7 +138,7 @@ func (r *windowManagerRepository) migrationBackupOp(
 		if err != nil {
 			return nil, err
 		}
-		if previous.State == "failed" {
+		if previous.State == windowManagerMigrationFailed {
 			// Only an explicit successful retry can retire a failed backup.
 			*status = previous
 			return nil, nil
@@ -205,7 +210,7 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 	status windowmanager.MigrationStatus,
 	replace bool,
 ) (windowmanager.MigrationStatus, error) {
-	if status.State != "failed" {
+	if status.State != windowManagerMigrationFailed {
 		return status, fmt.Errorf("no failed migration: %w", windowmanager.ErrInvalidCommand)
 	}
 	current, revision, _, err := r.loadCurrent(ctx, workspace)
@@ -238,7 +243,7 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 		return status, err
 	}
 	snapshot.Revision, snapshot.UpdatedAt, snapshot.Migration = next, status.At, nil
-	status.State, status.Error, status.Summary = "migrated", nil, &summary
+	status.State, status.Error, status.Summary = windowManagerMigrationMigrated, nil, &summary
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return status, err

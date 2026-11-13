@@ -198,15 +198,14 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 		return Preview{}, err
 	}
 	request = m.canonicalCommandApps(ctx, request)
-	commandID, err := validateCommandRequest(request)
-	if err != nil {
+	if _, err := validateCommandRequest(request); err != nil {
 		return Preview{}, err
 	}
 	request, deprecations := canonicalCommandSurfaces(request)
 	if m.deprecationObserver != nil {
 		m.deprecationObserver(ctx, request, deprecations)
 	}
-	commandID = request.Payload.CommandID()
+	commandID := request.Payload.CommandID()
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {
 		return Preview{}, err
