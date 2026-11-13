@@ -20,12 +20,14 @@ export interface MenubarUpdateIndicatorProps {
   onOpenUpdates: () => void;
 }
 
-const OFFER_CLASS = "rounded-pill bg-brand-tint px-3 text-brand-strong hover:bg-brand-tint-strong";
+// The brand gradient rim carries the colour; the label stays in neutral ink so
+// the pill does not read as colour on colour.
+const OFFER_CLASS = "rounded-pill bg-brand-tint px-3 text-fg hover:bg-brand-tint-strong";
 const FAILED_CLASS = "rounded-pill bg-destructive-tint px-3 text-destructive hover:opacity-90";
 // The running update is disabled so it cannot be clicked twice, but it is still
-// the offer pill mid-flight: keep the accent ink instead of Button's
-// `disabled:text-subtle`, which reads as grey on the accent tint.
-const UPDATING_CLASS = `${OFFER_CLASS} disabled:text-brand-strong`;
+// the offer pill mid-flight: keep the label ink instead of Button's
+// `disabled:text-subtle`, which reads as a faded grey on the accent tint.
+const UPDATING_CLASS = `${OFFER_CLASS} disabled:text-fg`;
 
 /**
  * The menubar's one-click update.

@@ -21,7 +21,7 @@ const meta: Meta<typeof StarBorder> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const PILL = "rounded-pill bg-brand-tint px-3 text-brand-strong hover:bg-brand-tint-strong";
+const PILL = "rounded-pill bg-brand-tint px-3 text-fg hover:bg-brand-tint-strong";
 
 /** The glows travel the rim: top edge left to right, bottom edge right to left. */
 export const Animated: Story = {
@@ -38,7 +38,7 @@ export const Animated: Story = {
 export const Static: Story = {
   render: () => (
     <StarBorder animated={false}>
-      <Button className={`${PILL} disabled:text-brand-strong`} disabled size="sm" variant="ghost">
+      <Button className={`${PILL} disabled:text-fg`} disabled size="sm" variant="ghost">
         Updating…
       </Button>
     </StarBorder>
