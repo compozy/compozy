@@ -1,7 +1,8 @@
 // Suite: the layout canvas ↔ tab tree contract
-// Invariant: the canvas draws one tab's split tree — one tile per leaf, one
-// seam between neighbouring members — and every seam edit it emits is a tree
-// that still satisfies the daemon's weight rules.
+// Invariant: the canvas draws one tab's split tree through the shell's split
+// renderer — one tile per leaf, one seam between neighbouring members — and
+// every seam edit it emits is a tree that still satisfies the daemon's weight
+// rules.
 // Boundary IN: a v6 draft document and one of its tabs.
 // Boundary OUT: tab and window edits (owned by the layout document edit suite),
 // the inspector.
@@ -101,9 +102,10 @@ describe("LayoutCanvas", () => {
     for (const id of ["app:one", "app:two", "app:three"]) {
       expect(screen.getByTestId(`layout-canvas-tile-${id}`)).toBeInTheDocument();
     }
-    expect(screen.getByTestId("layout-canvas-split-split:outer")).toBeInTheDocument();
-    expect(screen.getByTestId("layout-canvas-split-split:inner")).toBeInTheDocument();
-    expect(screen.getAllByRole("slider")).toHaveLength(2);
+    const canvas = screen.getByTestId("layout-canvas");
+    expect(canvas.querySelector('[data-split-id="split:outer"]')).not.toBeNull();
+    expect(canvas.querySelector('[data-split-id="split:inner"]')).not.toBeNull();
+    expect(screen.getAllByRole("separator")).toHaveLength(2);
     expect(screen.getByTestId("layout-canvas-seam-split:outer-0")).toBeInTheDocument();
     expect(screen.getByTestId("layout-canvas-seam-split:inner-0")).toBeInTheDocument();
   });
@@ -116,7 +118,7 @@ describe("LayoutCanvas", () => {
     });
 
     expect(screen.getByTestId("layout-canvas-tile-app:one")).toBeInTheDocument();
-    expect(screen.queryAllByRole("slider")).toHaveLength(0);
+    expect(screen.queryAllByRole("separator")).toHaveLength(0);
   });
 
   it("Should select a window when its tile is clicked and mark the selected one", async () => {

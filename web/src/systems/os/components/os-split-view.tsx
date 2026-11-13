@@ -3,6 +3,7 @@ import {
   createContext,
   Fragment,
   use,
+  type ComponentProps,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
@@ -54,7 +55,10 @@ function useSplitView(): SplitViewContextValue {
   return value;
 }
 
-export interface OsSplitSeamProps {
+export interface OsSplitSeamProps extends Omit<
+  ComponentProps<"div">,
+  "onPointerDown" | "onKeyDown" | "onDoubleClick"
+> {
   axis: LayoutAxis;
   /** The inner gap the seam spans, in pixels; the projection allots exactly this between members. */
   gap?: number;
@@ -64,6 +68,8 @@ export interface OsSplitSeamProps {
   onPointerDown?: (event: PointerEvent<HTMLElement>) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
   onDoubleClick?: () => void;
+  /** An overlay drawn on the seam while it is held, in place of the minimum-size label. */
+  children?: ReactNode;
 }
 
 /**
@@ -78,11 +84,18 @@ export function OsSplitSeam({
   onPointerDown,
   onKeyDown,
   onDoubleClick,
+  className,
+  style,
+  children,
+  ref,
+  ...props
 }: OsSplitSeamProps) {
   const row = axis === "horizontal";
   const interactive = onPointerDown !== undefined;
   return (
     <div
+      {...props}
+      ref={ref}
       role="separator"
       aria-orientation={row ? "vertical" : "horizontal"}
       aria-label="Resize windows"
@@ -92,9 +105,10 @@ export function OsSplitSeam({
       tabIndex={interactive ? 0 : undefined}
       className={cn(
         "group/seam relative z-10 shrink-0 outline-none",
-        interactive && (row ? "cursor-col-resize" : "cursor-row-resize")
+        interactive && (row ? "cursor-col-resize" : "cursor-row-resize"),
+        className
       )}
-      style={row ? { width: gap } : { height: gap }}
+      style={{ ...style, ...(row ? { width: gap } : { height: gap }) }}
       data-slot="os-split-seam"
       data-state={state}
       onDoubleClick={onDoubleClick}
@@ -133,7 +147,9 @@ export function OsSplitSeam({
         >
           Minimum size
         </span>
-      ) : null}
+      ) : (
+        children
+      )}
     </div>
   );
 }

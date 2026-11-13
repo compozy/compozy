@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { parseWindowManagerSnapshot } from "@/systems/os";
+
+import { windowManagerSnapshotToLayoutState } from "./window-manager-layout-projection";
 import type {
   WindowManagerLayoutApplyResult,
   WindowManagerLayoutChanges,
@@ -253,27 +256,32 @@ export function parseWindowManagerLayoutValidation(value: unknown): WindowManage
 }
 
 /**
- * The snapshot a preview returns carries the document plus its runtime fields
- * (closed entries, migration, timestamps); only the revision and the document
- * are read. For a `layout.replace` this document is the daemon's version 6
+ * The snapshot a preview returns is the full workspace snapshot, so it goes
+ * through the shell's own parser and is projected exactly as a fetched
+ * snapshot is. For a `layout.replace` its document is the daemon's version 6
  * result for whatever version was sent, which is how an earlier document is
  * converted without a converter in the web.
  */
 export function parseWindowManagerLayoutPreview(value: unknown): WindowManagerLayoutPreview {
   return z
     .object({
-      snapshot: z.object({ revision: safeRevisionSchema, ...documentFields }),
+      snapshot: z.unknown(),
       changed: z.boolean(),
       changes: changesSchema,
       diagnostics: z.array(diagnosticSchema).nullish(),
     })
-    .transform((preview): WindowManagerLayoutPreview => ({
-      revision: preview.snapshot.revision,
-      changed: preview.changed,
-      changes: preview.changes,
-      diagnostics: preview.diagnostics ?? [],
-      document: toDocument(preview.snapshot),
-    }))
+    .transform((preview): WindowManagerLayoutPreview => {
+      const state = windowManagerSnapshotToLayoutState(
+        parseWindowManagerSnapshot(preview.snapshot)
+      );
+      return {
+        revision: state.revision,
+        changed: preview.changed,
+        changes: preview.changes,
+        diagnostics: preview.diagnostics ?? [],
+        document: state.document,
+      };
+    })
     .parse(value);
 }
 

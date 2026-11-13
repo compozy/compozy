@@ -1,7 +1,8 @@
-import { Fragment } from "react";
-
 import { cn } from "@compozy/ui";
 
+import { OsSplitView, type OsSplitSeamSlot } from "@/systems/os";
+
+import { findLayoutNode } from "../../lib/window-manager-layout-tree";
 import type {
   WindowManagerLayoutDocument,
   WindowManagerLayoutNode,
@@ -20,10 +21,19 @@ interface LayoutCanvasProps {
 }
 
 /**
- * One tab's content, laid out the way the shell lays it out
- * (`os-split-view.tsx`): each split is a flex row or column whose members grow
- * by their weights, separated by seams. There are no frames to drag — a tab is
- * its split tree and nothing else.
+ * The draft lays nothing out on screen, so no split is ever collapsed and no
+ * live window or session backs a tile.
+ */
+const NO_COLLAPSED: [] = [];
+const NO_LIVE_WINDOWS = {};
+const noSession = () => undefined;
+const noShowMember = () => undefined;
+
+/**
+ * One tab's content, laid out by the shell's own split renderer
+ * (`OsSplitView`): each split is a flex row or column whose members grow by
+ * their weights, separated by seams. The editor supplies the tiles and the
+ * seams, which edit the draft instead of the running workspace.
  */
 export function LayoutCanvas({
   document,
@@ -32,45 +42,16 @@ export function LayoutCanvas({
   onSelect,
   onRootChange,
 }: LayoutCanvasProps) {
-  const renderNode = (node: WindowManagerLayoutNode) => {
-    if (node.kind === "leaf") {
-      return (
-        <LayoutCanvasTile
-          selected={node.windowId === selectedWindowId}
-          window={document.windows[node.windowId]}
-          windowId={node.windowId}
-          onSelect={() => onSelect(node.windowId)}
-        />
-      );
-    }
+  const renderSeam = (slot: OsSplitSeamSlot) => {
+    const split = findLayoutNode(tab.root, slot.splitId);
+    if (split === null || split.kind !== "split") return null;
     return (
-      <div
-        className={cn(
-          "flex min-h-0 min-w-0 flex-1",
-          node.axis === "horizontal" ? "flex-row" : "flex-col"
-        )}
-        data-split-id={node.id}
-        data-testid={`layout-canvas-split-${node.id}`}
-      >
-        {node.children.map((child, index) => (
-          <Fragment key={child.id}>
-            {index > 0 ? (
-              <LayoutCanvasSeam
-                index={index - 1}
-                root={tab.root}
-                split={node}
-                onChange={onRootChange}
-              />
-            ) : null}
-            <div
-              className="flex min-h-0 min-w-0"
-              style={{ flex: `${node.weights[index] ?? 1} 1 0` }}
-            >
-              {renderNode(child)}
-            </div>
-          </Fragment>
-        ))}
-      </div>
+      <LayoutCanvasSeam
+        index={slot.boundaryIndex}
+        root={tab.root}
+        split={split}
+        onChange={onRootChange}
+      />
     );
   };
 
@@ -83,7 +64,22 @@ export function LayoutCanvas({
       data-testid="layout-canvas"
       data-tab-id={tab.id}
     >
-      {renderNode(tab.root)}
+      <OsSplitView
+        collapsed={NO_COLLAPSED}
+        renderSeam={renderSeam}
+        renderWindow={windowId => (
+          <LayoutCanvasTile
+            selected={windowId === selectedWindowId}
+            window={document.windows[windowId]}
+            windowId={windowId}
+            onSelect={() => onSelect(windowId)}
+          />
+        )}
+        root={tab.root}
+        sessionOf={noSession}
+        windows={NO_LIVE_WINDOWS}
+        onShowMember={noShowMember}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { WindowManagerSnapshot } from "@/systems/os";
+import type { LayoutAxis, LayoutNode, LayoutTab, WindowManagerSnapshot } from "@/systems/os";
 
 export type WindowManagerLayoutAspect = "any" | "portrait" | "landscape";
 export type WindowManagerLayoutOverflow = "stack" | "reject";
@@ -6,15 +6,15 @@ export type WindowManagerLayoutOverflow = "stack" | "reject";
 export type WindowManagerLayoutScopeKind = "user" | "workspace";
 
 /**
- * The editor edits the shell's own v6 topology types, read off the snapshot the
- * OS barrel exports, so a tab in Settings and a tab in the shell are one shape.
+ * The editor edits the shell's own v6 topology types from the OS barrel, so a
+ * tab in Settings and a tab in the shell are one shape and one renderer.
  */
 export type WindowManagerLayoutDesktop = WindowManagerSnapshot["desktops"][number];
-export type WindowManagerLayoutTab = WindowManagerLayoutDesktop["tabs"][number];
-export type WindowManagerLayoutNode = WindowManagerLayoutTab["root"];
-export type WindowManagerLayoutSplit = Extract<WindowManagerLayoutNode, { kind: "split" }>;
-export type WindowManagerLayoutLeaf = Extract<WindowManagerLayoutNode, { kind: "leaf" }>;
-export type WindowManagerLayoutAxis = WindowManagerLayoutSplit["axis"];
+export type WindowManagerLayoutTab = LayoutTab;
+export type WindowManagerLayoutNode = LayoutNode;
+export type WindowManagerLayoutSplit = Extract<LayoutNode, { kind: "split" }>;
+export type WindowManagerLayoutLeaf = Extract<LayoutNode, { kind: "leaf" }>;
+export type WindowManagerLayoutAxis = LayoutAxis;
 export type WindowManagerLayoutWindow = WindowManagerSnapshot["windows"][string];
 export type WindowManagerLayoutRoute = WindowManagerLayoutWindow["route"];
 

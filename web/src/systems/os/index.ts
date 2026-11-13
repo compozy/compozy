@@ -94,12 +94,23 @@ export {
   type WindowManagerController,
 } from "./lib/os-types";
 export type {
+  LayoutAxis,
+  LayoutNode,
+  LayoutTab,
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerDragModifier,
   WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
+export { parseWindowManagerSnapshot } from "./lib/window-manager-schemas";
+export {
+  OsSplitSeam,
+  OsSplitView,
+  type OsSplitSeamProps,
+  type OsSplitSeamSlot,
+  type OsSplitViewProps,
+} from "./components/os-split-view";
 export type {
   WindowManagerGlobalShortcutMap,
   WindowManagerGlobalShortcutRegistration,

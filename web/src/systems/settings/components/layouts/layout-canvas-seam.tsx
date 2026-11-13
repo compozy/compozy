@@ -1,5 +1,7 @@
 import { cn } from "@compozy/ui";
 
+import { OsSplitSeam } from "@/systems/os";
+
 import { useLayoutDraftSeam } from "../../hooks/use-layout-draft-seam";
 import type {
   WindowManagerLayoutNode,
@@ -15,47 +17,25 @@ interface LayoutCanvasSeamProps {
 }
 
 /**
- * The line between two members, drawn like the shell's split seam
- * (`os-split-view.tsx`): a hairline with a wider hit area, accent on hover and
- * drag. It is also a slider — arrow keys move it, double-click balances the
- * pair — so a split can be tuned without a pointer.
+ * The shell's split seam (`OsSplitSeam`) driving the draft: drag it, nudge it
+ * with the arrow keys, double-click to balance the pair. While it is held it
+ * shows both shares, brand-coloured when they sit on a detent.
  */
 export function LayoutCanvasSeam({ root, split, index, onChange }: LayoutCanvasSeamProps) {
   const model = useLayoutDraftSeam(root, split, index, onChange);
   const row = split.axis === "horizontal";
 
   return (
-    <div
-      aria-label="Resize windows"
-      aria-orientation={row ? "vertical" : "horizontal"}
-      aria-valuemax={100}
-      aria-valuemin={0}
-      aria-valuenow={Math.round(model.ratio * 100)}
+    <OsSplitSeam
       aria-valuetext={`${model.leadingLabel} and ${model.trailingLabel}`}
-      className={cn(
-        "group/seam relative z-10 shrink-0 bg-line outline-none",
-        row ? "w-px cursor-col-resize" : "h-px cursor-row-resize"
-      )}
-      data-dragging={model.dragging ? "true" : undefined}
+      axis={split.axis}
       data-testid={`layout-canvas-seam-${split.id}-${index}`}
-      role="slider"
-      tabIndex={0}
-      onClick={event => event.stopPropagation()}
+      state={model.dragging ? "drag" : undefined}
+      valueNow={Math.round(model.ratio * 100)}
       onDoubleClick={model.onDoubleClick}
       onKeyDown={model.onKeyDown}
       onPointerDown={model.onPointerDown}
     >
-      <span className={cn("absolute", row ? "inset-y-0 -inset-x-1.5" : "inset-x-0 -inset-y-1.5")} />
-      <span
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute rounded-pill transition-colors duration-fast",
-          row ? "inset-y-0 -left-px w-0.75" : "inset-x-0 -top-px h-0.75",
-          "group-hover/seam:bg-brand group-focus-visible/seam:bg-brand",
-          "group-focus-visible/seam:shadow-focus-ring",
-          model.dragging && "bg-brand"
-        )}
-      />
       {model.dragging ? (
         <span
           className={cn(
@@ -68,6 +48,6 @@ export function LayoutCanvasSeam({ root, split, index, onChange }: LayoutCanvasS
           {model.leadingLabel} · {model.trailingLabel}
         </span>
       ) : null}
-    </div>
+    </OsSplitSeam>
   );
 }

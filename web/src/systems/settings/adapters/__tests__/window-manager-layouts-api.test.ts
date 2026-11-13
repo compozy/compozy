@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { windowManagerSnapshotFixture } from "@/systems/os/mocks";
 import {
   settingsWindowManagerSectionFixture,
+  settingsWindowManagerSnapshotFixture,
   windowManagerEarlierLayoutResourceFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
@@ -238,7 +239,7 @@ describe("window-manager layouts API", () => {
       )
       .mockResolvedValueOnce(
         jsonResponse({
-          snapshot: { ...windowManagerLayoutDocumentFixture, revision: 8 },
+          snapshot: { ...settingsWindowManagerSnapshotFixture, revision: 8 },
           changed: false,
           changes: {},
         })
@@ -303,7 +304,7 @@ describe("window-manager layouts API", () => {
     >;
     apiMocks.fetch.mockResolvedValueOnce(
       jsonResponse({
-        snapshot: { ...windowManagerLayoutDocumentFixture, revision: 7 },
+        snapshot: { ...settingsWindowManagerSnapshotFixture, revision: 7 },
         changed: true,
         changes: { tab_ids: ["tab:main"] },
       })
@@ -328,7 +329,7 @@ describe("window-manager layouts API", () => {
     });
     expect(document.version).toBe(6);
     expect(document.desktops.map(desktop => desktop.id)).toEqual(
-      windowManagerLayoutDocumentFixture.desktops.map(desktop => desktop.id)
+      settingsWindowManagerSnapshotFixture.desktops.map(desktop => desktop.id)
     );
   });
 

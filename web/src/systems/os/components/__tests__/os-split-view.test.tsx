@@ -3,7 +3,8 @@
 // separators, and a collapsed split keeps every member mounted while its switcher names them and
 // asks the shell to show the picked one. Configured gaps lay out exactly as the projection allots
 // them — outer gaps pad the content and each seam spans the inner gap — so drop zones and seams
-// drawn from the projection sit on the panes.
+// drawn from the projection sit on the panes. A caller composing the seam (the Settings layout
+// editor) can name it and overlay its own readout, but the shell's gap and limit label still win.
 // Owning layer: OsSplitView rendering a TabProjection's collapsed set. Projection math: lib/tab-projection.
 // Boundary OUT: window panes (renderWindow) and focus commands (onShowMember).
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -12,7 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { OsWindow } from "../../lib/os-types";
 import type { ProjectionGaps } from "../../lib/tab-projection-types";
 import type { CollapsedSplit, LayoutNode } from "../../lib/window-manager-types";
-import { OsSplitView } from "../os-split-view";
+import { OsSplitSeam, OsSplitView } from "../os-split-view";
 
 function win(id: string, app: OsWindow["app"]): OsWindow {
   return {
@@ -135,5 +136,42 @@ describe("OsSplitView", () => {
     renderSplit();
     const [vertical] = screen.getAllByRole("separator");
     expect(vertical!.style.width).toBe("0px");
+  });
+
+  it("Should keep the shell's gap and limit label over a composing caller's props", () => {
+    const { rerender } = render(
+      <OsSplitSeam
+        aria-valuetext="1/2 and 1/2"
+        axis="horizontal"
+        data-testid="editor-seam"
+        gap={8}
+        style={{ width: 99 }}
+        valueNow={50}
+        onPointerDown={vi.fn()}
+      >
+        <span>readout</span>
+      </OsSplitSeam>
+    );
+
+    const seam = screen.getByTestId("editor-seam");
+    expect(seam).toHaveAttribute("role", "separator");
+    expect(seam).toHaveAttribute("aria-valuetext", "1/2 and 1/2");
+    expect(seam).toHaveAttribute("aria-valuenow", "50");
+    expect(seam.style.width).toBe("8px");
+    expect(within(seam).getByText("readout")).toBeInTheDocument();
+
+    rerender(
+      <OsSplitSeam
+        axis="horizontal"
+        data-testid="editor-seam"
+        state="limit"
+        onPointerDown={vi.fn()}
+      >
+        <span>readout</span>
+      </OsSplitSeam>
+    );
+
+    expect(within(screen.getByTestId("editor-seam")).getByText("Minimum size")).toBeInTheDocument();
+    expect(screen.queryByText("readout")).not.toBeInTheDocument();
   });
 });
