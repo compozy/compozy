@@ -18,16 +18,20 @@ import (
 
 func (d commandDeps) withDefaults() commandDeps {
 	d = d.withRegistryDefaults()
+	d = d.withClientTimeoutDefaults()
 	d = d.withRuntimeDefaults()
 	d = d.withBootstrapDefaults()
 	d = d.withTimingDefaults()
-	d = d.withClientTimeoutDefaults()
 	return d
 }
 
-// withClientTimeoutDefaults wires the daemon client after every dependency it
-// reads (getenv, loadConfig) has its default.
+// withClientTimeoutDefaults wires the daemon client before any closure that
+// captures commandDeps, and after the config loader it resolves the budget from.
+// A later client default would leave the MCP runner holding a nil factory.
 func (d commandDeps) withClientTimeoutDefaults() commandDeps {
+	if d.getenv == nil {
+		d.getenv = os.Getenv
+	}
 	if d.newClient == nil {
 		d.newClient = func(target ClientTarget) (DaemonClient, error) {
 			timeout, err := resolveClientRequestTimeout(d.getenv, d.loadConfig)
