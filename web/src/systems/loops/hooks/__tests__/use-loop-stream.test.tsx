@@ -136,7 +136,7 @@ describe("useLoopStream", () => {
     "Should bound a pending cached refresh while preserving the %s boundary",
     async boundary => {
       // The coordinator batches wakes with queueMicrotask. Keep that queue on
-      // the same clock as its recovery deadline, including promise continuations.
+      // the same clock as its recovery deadline.
       vi.useFakeTimers({
         toFake: [
           "Date",

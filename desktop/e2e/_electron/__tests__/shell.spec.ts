@@ -1679,7 +1679,7 @@ test("E2E-004 E2E-013 E2E-014: running deep links reject hostile paths and launc
       await defaultNavigation;
       // The explicit default intent focuses Home after hydration. Wait for
       // both its normalized URL and committed focus before the next link.
-      await expect(product).toHaveURL(/\/$/u);
+      await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
       const home = appWindow(product, "dashboard");
       await expect(home).toBeVisible();
       await expect(windowPane(home)).toHaveAttribute("data-focused", "");
@@ -1720,7 +1720,7 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   const hostile = await launchDesktop({ home: cold.home, argv: ["compozyos://open/../../etc"] });
   const product = await hostile.product();
   // The explicit default intent wins over saved Settings focus after hydration.
-  await expect(product).toHaveURL(/\/$/u);
+  await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
   const home = appWindow(product, "dashboard");
   await expect(home).toBeVisible();
   await expect(windowPane(home)).toHaveAttribute("data-focused", "");
