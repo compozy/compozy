@@ -62,6 +62,13 @@ If app apply fails and no operation remains active, use **Retry update** in the 
 or run `compozy update` again. A stalled transfer is canceled and recorded as failed; a native
 staging failure leaves the app open. The retry rechecks the release and verifies its artifact.
 
+The app reads its update feed from `raw.githubusercontent.com`. When a network blocks that host,
+the app downloads the release the daemon selected directly from the GitHub release and verifies it
+against the sha256 from the release's signed `checksums.txt`. A failed download records its network
+error, for example `net::ERR_CONNECTION_CLOSED`, in the update status and in
+`~/.compozy/logs/update-history.jsonl`; `desktop.log` records the feed failure that triggered the
+fallback.
+
 If an older installed app cannot run its own updater, download the current package for your
 architecture from the GitHub release and install it over the existing app. A new release cannot
 repair updater code already running in an older process. The runtime home and session data live

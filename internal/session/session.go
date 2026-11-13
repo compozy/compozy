@@ -61,6 +61,7 @@ type Info struct {
 	BoardColumn              BoardColumn
 	linkedWork               []LinkedWorkItem
 	ParentTitle              string
+	TreeParentSessionID      string
 	Children                 *store.SessionBoardCounts
 	runtimeStrategy          acp.RuntimeApplicationStrategy
 	VerdictOnly              bool `json:"-"`

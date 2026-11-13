@@ -71,17 +71,19 @@ type ListQuery struct {
 	AgentName         string
 	ParentSessionID   string
 	RootSessionID     string
-	SearchFields      string
-	Search            string
-	Resumable         bool
-	AttentionOnly     bool
-	Badges            []Badge
-	Archive           store.SessionArchiveFilter
-	Later             store.SessionLaterFilter
-	Sort              string
-	Cursor            string
-	Limit             int
-	SkipTotal         bool
+	// ExcludeRootSessionID leaves out that session and every session rooted at it.
+	ExcludeRootSessionID string
+	SearchFields         string
+	Search               string
+	Resumable            bool
+	AttentionOnly        bool
+	Badges               []Badge
+	Archive              store.SessionArchiveFilter
+	Later                store.SessionLaterFilter
+	Sort                 string
+	Cursor               string
+	Limit                int
+	SkipTotal            bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -110,6 +112,7 @@ type sessionListFingerprint struct {
 	AgentName       string                     `json:"agent"`
 	ParentSessionID string                     `json:"parent"`
 	RootSessionID   string                     `json:"root"`
+	ExcludeRoot     string                     `json:"exclude_root,omitempty"`
 	SearchFields    string                     `json:"search_fields,omitempty"`
 	Search          string                     `json:"q"`
 	Resumable       bool                       `json:"resumable"`
@@ -248,31 +251,32 @@ func sessionCatalogPageQuery(
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
 	query := store.SessionCatalogPageQuery{
-		Columns:           normalized.Columns,
-		HideChildren:      normalized.HideChildren,
-		Subagents:         normalized.Subagents,
-		SkipTotal:         normalized.SkipTotal,
-		ReadScope:         normalized.ReadScope,
-		WorkspaceID:       normalized.WorkspaceID,
-		WorkspaceIDs:      normalized.WorkspaceIDs,
-		WorktreeID:        normalized.WorktreeID,
-		State:             normalized.State,
-		SessionType:       string(normalized.SessionType),
-		AgentName:         normalized.AgentName,
-		ParentSessionID:   normalized.ParentSessionID,
-		RootSessionID:     normalized.RootSessionID,
-		SearchFields:      normalized.SearchFields,
-		Search:            normalized.Search,
-		AttentionOnly:     normalized.AttentionOnly,
-		Badges:            badgeStrings(normalized.Badges),
-		Resumable:         normalized.Resumable,
-		Archive:           normalized.Archive,
-		Later:             normalized.Later,
-		Sort:              normalized.Sort,
-		Limit:             normalized.Limit + 1,
-		After:             after,
-		ExcludeIDs:        activeIDs,
-		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
+		Columns:              normalized.Columns,
+		HideChildren:         normalized.HideChildren,
+		Subagents:            normalized.Subagents,
+		SkipTotal:            normalized.SkipTotal,
+		ReadScope:            normalized.ReadScope,
+		WorkspaceID:          normalized.WorkspaceID,
+		WorkspaceIDs:         normalized.WorkspaceIDs,
+		WorktreeID:           normalized.WorktreeID,
+		State:                normalized.State,
+		SessionType:          string(normalized.SessionType),
+		AgentName:            normalized.AgentName,
+		ParentSessionID:      normalized.ParentSessionID,
+		RootSessionID:        normalized.RootSessionID,
+		ExcludeRootSessionID: normalized.ExcludeRootSessionID,
+		SearchFields:         normalized.SearchFields,
+		Search:               normalized.Search,
+		AttentionOnly:        normalized.AttentionOnly,
+		Badges:               badgeStrings(normalized.Badges),
+		Resumable:            normalized.Resumable,
+		Archive:              normalized.Archive,
+		Later:                normalized.Later,
+		Sort:                 normalized.Sort,
+		Limit:                normalized.Limit + 1,
+		After:                after,
+		ExcludeIDs:           activeIDs,
+		ExcludeSpawnRoles:    []string{SpawnRoleAutoTitle},
 
 		ExcludeFinishedAutomation: normalized.ExcludeFinishedAutomation,
 		ExcludeAutomation:         normalized.ExcludeAutomation,
@@ -334,6 +338,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		AgentName:       query.AgentName,
 		ParentSessionID: query.ParentSessionID,
 		RootSessionID:   query.RootSessionID,
+		ExcludeRoot:     query.ExcludeRootSessionID,
 		SearchFields:    query.SearchFields,
 		Search:          query.Search,
 		Resumable:       query.Resumable,

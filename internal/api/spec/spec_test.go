@@ -3430,7 +3430,12 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
 
 		addCheckInToolSchemaFields(baseline)
+		addSessionCatalogExcludeRootParameter(baseline, current)
 		addDaemonReadinessSchema(t, baseline, current)
+		// #1644: session payloads name the parent a continued child is listed under.
+		if addSessionTreeParentSchema(baseline) == 0 {
+			t.Fatal("approved tree_parent_session_id addition: no historical session schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -5672,6 +5677,29 @@ func addSessionLaterSchemas(value any) int {
 	return count
 }
 
+// addSessionTreeParentSchema adds the optional tree_parent_session_id to every session payload
+// (the schemas carrying parent_title); existing fields and required sets stay unchanged.
+func addSessionTreeParentSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionTreeParentSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionTreeParentSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["parent_title"] == nil || properties["badge"] == nil {
+			return count
+		}
+		properties["tree_parent_session_id"] = map[string]any{"type": "string"}
+		count++
+	}
+	return count
+}
+
 func addSessionAttentionDismissibleSchema(value any) int {
 	count := 0
 	switch node := value.(type) {
@@ -6059,6 +6087,37 @@ func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
 		t.Fatal("status daemon schema is missing the readiness property")
 	}
 	daemonProperties(baseline, false)["readiness"] = deref(readiness, 0)
+}
+
+// addSessionCatalogExcludeRootParameter admits the additive exclude_root query
+// parameter on every session catalog route that gained it, at its current index.
+func addSessionCatalogExcludeRootParameter(baseline, current map[string]any) {
+	oldPaths := baseline["paths"].(map[string]any)
+	for path, item := range current["paths"].(map[string]any) {
+		oldItem, ok := oldPaths[path].(map[string]any)
+		if !ok {
+			continue
+		}
+		newGet, ok := item.(map[string]any)["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		oldGet, ok := oldItem["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		newParameters, _ := newGet["parameters"].([]any)
+		for index, parameter := range newParameters {
+			if parameter.(map[string]any)["name"] != "exclude_root" {
+				continue
+			}
+			oldParameters, _ := oldGet["parameters"].([]any)
+			if index > len(oldParameters) {
+				index = len(oldParameters)
+			}
+			oldGet["parameters"] = slices.Insert(oldParameters, index, parameter)
+		}
+	}
 }
 
 func addCheckInToolSchemaFields(value any) {

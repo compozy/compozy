@@ -109,6 +109,11 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam("children", "Managed child visibility", []string{"include", "exclude"}),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
+			queryParam(
+				"exclude_root",
+				"Leave out this session and every session rooted at it (for example, a session's own tree)",
+				false,
+			),
 			queryParam("worktree", "Filter by exact bound worktree id", false),
 			queryParam(
 				"q",
@@ -302,6 +307,11 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			enumQueryParam("children", "Managed child visibility", []string{"include", "exclude"}),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
+			queryParam(
+				"exclude_root",
+				"Leave out this session and every session rooted at it (for example, a session's own tree)",
+				false,
+			),
 			boolQueryParam("resumable", "Only count sessions eligible for explicit attach"),
 			enumQueryParam(
 				"state",

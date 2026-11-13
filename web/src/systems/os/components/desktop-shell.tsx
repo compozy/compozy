@@ -24,7 +24,7 @@ import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopIndicatorsSurface } from "./desktop-indicators-surface";
 import { DesktopSessionDialogs, WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
-import { ProcessesLeftRunningHost } from "@/systems/session";
+import { ProcessesLeftRunningHost, SessionParentPickerHost } from "@/systems/session";
 
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
@@ -392,6 +392,7 @@ function DesktopShellScopedBody({
         open={overlays.activeOverlay === "left-running"}
         onOpenChange={open => overlays.setOverlayOpen("left-running", open)}
       />
+      <SessionParentPickerHost />
       <OsAboutDialog
         open={overlays.activeOverlay === "about"}
         onOpenChange={open => overlays.setOverlayOpen("about", open)}

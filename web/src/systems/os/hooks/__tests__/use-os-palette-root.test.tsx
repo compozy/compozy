@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
 // palette-session-filters), and daemon command transport.
 import { sessionLinkDialogStore } from "@/systems/session/hooks/use-session-link-dialog";
+import { sessionParentPickerStore } from "@/systems/session/hooks/use-session-parent-picker";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -1430,6 +1431,31 @@ describe("useOsPaletteRoot", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(sessionLinkDialogStore.getSnapshot().context.sessionId).toBe("session:focused");
     sessionLinkDialogStore.trigger.closed();
+  });
+
+  // Invariant: Move under… reaches the focused session's parent picker, only once asked for.
+  it("Should offer Move under for the focused session and open its parent picker", () => {
+    const focused = windowFixture({
+      app: "session",
+      id: "window:session",
+      instanceKey: "session:focused",
+      route: { pathname: "/agents/codex/sessions/session%3Afocused", search: {} },
+    });
+    paletteMocks.desktop = desktopFixture({ [focused.id]: focused }, focused.id);
+    paletteMocks.fallbackAgentEnabled = true;
+    const onOpenChange = vi.fn();
+    const { result } = renderRoot(true, onOpenChange);
+    expect(result.current.entities.moveSessionId).toBeNull();
+
+    act(() => result.current.setQuery("parent"));
+    expect(result.current.entities.moveSessionId).toBe("session:focused");
+    // A matched focused-session command is a direct result: no agent fallback ahead of it.
+    expect(result.current.fallback).toBeNull();
+
+    act(() => result.current.moveSession("session:focused"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe("session:focused");
+    sessionParentPickerStore.trigger.closed();
   });
 
   it("Should render contextual Go to tab results, attention, and no empty group [UT-100]", () => {

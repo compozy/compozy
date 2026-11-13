@@ -233,7 +233,20 @@ func validateAdoptSource(node *reparentNode) error {
 	if node.sessionType != SessionTypeUser || node.lineage.SpawnRole != "" {
 		return reparentRefusal(ReparentRefusalSourceNotUser, node.id, "only user sessions can be adopted")
 	}
-	if node.lineage.ParentSessionID != "" || node.lineage.Kind != store.LineageKindRoot {
+	switch {
+	case node.lineage.Kind == store.LineageKindContinue || node.lineage.Kind == store.LineageKindFork:
+		// The parent pointer records the source this session was derived from; adopting
+		// would overwrite that provenance, so derived sessions keep their lineage.
+		return reparentRefusal(
+			ReparentRefusalSourceHasParent, node.id,
+			"continued and forked sessions stay linked to the session they came from",
+		)
+	case node.lineage.Kind == store.LineageKindProvenance && node.lineage.ParentSessionID != "":
+		return reparentRefusal(
+			ReparentRefusalSourceHasParent, node.id,
+			"session already has a parent; make it top-level first",
+		)
+	case node.lineage.ParentSessionID != "" || node.lineage.Kind != store.LineageKindRoot:
 		return reparentRefusal(ReparentRefusalSourceHasParent, node.id, "session already has a parent")
 	}
 	return nil

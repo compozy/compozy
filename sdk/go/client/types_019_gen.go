@@ -315,6 +315,7 @@ type SessionPayload struct {
 	PullRequestLookup        *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
 	BoardColumn              BoardColumn                      `json:"board_column"`
 	ParentTitle              string                           `json:"parent_title,omitempty"`
+	TreeParentSessionID      string                           `json:"tree_parent_session_id,omitempty"`
 	WaitingOn                WaitingOn                        `json:"waiting_on,omitempty"`
 	Children                 *SessionChildrenPayload          `json:"children,omitzero"`
 	EffectiveWorkspaceAccess string                           `json:"effective_workspace_access"`

@@ -2906,7 +2906,7 @@
     "output_schema_digest": "dfcc464da52bebfaaef726291887b1b5f288d72af5455a0cf50d509353f2930e",
     "result_contract": "compact_full",
     "compact_output_schema_digest": "dfcc464da52bebfaaef726291887b1b5f288d72af5455a0cf50d509353f2930e",
-    "full_output_schema_digest": "283eb31bd2816d3dad14f5470e01bf4424b156f05d468d52764d6b57aa2f2d48"
+    "full_output_schema_digest": "fd6e7c776be17c5cbcbac4e217c591fae6c026cbe8b88d0514612174f9ebf668"
   },
   {
     "tool_id": "compozy__session_mark_seen",

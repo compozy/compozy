@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// ListTerminalsAggregateParams carries the path, query, and header parameters.
+type ListTerminalsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListTerminalsAggregate List workspace terminals
 func (c *Client) ListTerminalsAggregate(ctx context.Context, params ListTerminalsAggregateParams) (*TerminalListResponse, error) {
 	path := "/api/terminals"
@@ -223,6 +231,7 @@ type ListWorkspaceSessionsParams struct {
 	Children                  *string   `url:"children"`
 	Parent                    *string   `url:"parent"`
 	Root                      *string   `url:"root"`
+	ExcludeRoot               *string   `url:"exclude_root"`
 	Worktree                  *string   `url:"worktree"`
 	Q                         *string   `url:"q"`
 	SearchFields              *string   `url:"search_fields"`
@@ -284,6 +293,9 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	}
 	if params.Root != nil {
 		query.Set("root", *params.Root)
+	}
+	if params.ExcludeRoot != nil {
+		query.Set("exclude_root", *params.ExcludeRoot)
 	}
 	if params.Worktree != nil {
 		query.Set("worktree", *params.Worktree)

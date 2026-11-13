@@ -1,11 +1,12 @@
 // Suite: session list worktree scoping
 // Invariant: a worktree scope is a server-side filter that enters the query key, so two window
 // scopes produce two distinct session queries and a fallback removes the filter entirely rather
-// than sending an empty one.
+// than sending an empty one. A tree exclusion (the parent picker's candidates) follows the same rule.
 // Owning layer: session query layer. Canonical suite: this lib test.
 import { describe, expect, it } from "vitest";
 
 import { sessionKeys } from "../query-keys";
+import { sessionCatalogOptions } from "../session-catalog-options";
 import { normalizeSessionListFilters, sessionListRequest } from "../session-list-query";
 
 describe("session worktree scoping", () => {
@@ -64,5 +65,17 @@ describe("session worktree scoping", () => {
     expect(sessionKeys.list(named)).not.toEqual(sessionKeys.list(aggregate));
     expect(sessionListRequest(named)).toMatchObject({ profile: "marketing" });
     expect(sessionListRequest(aggregate)).toMatchObject({ all_profiles: true });
+  });
+
+  it("Should keep a tree exclusion in the catalog key and its paged requests", () => {
+    const picker = sessionCatalogOptions({ workspace_id: "ws_alpha", exclude_root: " sess-a " });
+    const other = sessionCatalogOptions({ workspace_id: "ws_alpha", exclude_root: "sess-b" });
+
+    // One picker's candidates must never serve another session's picker.
+    expect(picker.queryKey).not.toEqual(other.queryKey);
+    expect(picker.queryKey.at(-1)).toMatchObject({ exclude_root: "sess-a" });
+    expect(
+      sessionListRequest(normalizeSessionListFilters({ exclude_root: "sess-a" }), "cursor-2")
+    ).toMatchObject({ exclude_root: "sess-a", cursor: "cursor-2" });
   });
 });

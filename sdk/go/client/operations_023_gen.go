@@ -298,6 +298,7 @@ type ListSessionsParams struct {
 	Children                  *string   `url:"children"`
 	Parent                    *string   `url:"parent"`
 	Root                      *string   `url:"root"`
+	ExcludeRoot               *string   `url:"exclude_root"`
 	Worktree                  *string   `url:"worktree"`
 	Q                         *string   `url:"q"`
 	SearchFields              *string   `url:"search_fields"`
@@ -365,6 +366,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	if params.Root != nil {
 		query.Set("root", *params.Root)
 	}
+	if params.ExcludeRoot != nil {
+		query.Set("exclude_root", *params.ExcludeRoot)
+	}
 	if params.Worktree != nil {
 		query.Set("worktree", *params.Worktree)
 	}
@@ -424,27 +428,4 @@ type ListSettingsApplyRecordsParams struct {
 	Status *string `url:"status"`
 	Actor  *string `url:"actor"`
 	Limit  *int    `url:"limit"`
-}
-
-// ListSettingsApplyRecords List config apply records for desired and active generation reconciliation
-func (c *Client) ListSettingsApplyRecords(ctx context.Context, params ListSettingsApplyRecordsParams) (*ConfigApplyRecordsResponse, error) {
-	path := "/api/settings/apply"
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Actor != nil {
-		query.Set("actor", *params.Actor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ConfigApplyRecordsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

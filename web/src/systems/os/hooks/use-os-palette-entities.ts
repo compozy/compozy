@@ -72,6 +72,8 @@ export interface OsPaletteEntities {
   selectWorktree(entry: OsPaletteWorktreeResult): void;
   /** The focused session, when the query reaches its link command. */
   readonly linkSessionId?: string | null;
+  /** The focused session, when the query reaches its Move under… command. */
+  readonly moveSessionId?: string | null;
 }
 
 export interface OsPaletteWorktreeResult extends WorktreeNestEntry {
@@ -142,7 +144,14 @@ function rankEntityRows<T>(
   };
 }
 
-const LINK_COMMAND_LABEL = "Link a pull request or branch";
+const LINK_COMMAND = {
+  label: "Link a pull request or branch",
+  keywords: ["pull request", "branch", "link"],
+};
+const MOVE_UNDER_COMMAND = {
+  label: "Move under another session",
+  keywords: ["parent", "nest", "move", "top-level"],
+};
 
 /** The session the focused window shows, for commands that act on it. */
 function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "windows">) {
@@ -150,8 +159,9 @@ function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "wind
   return focused && osAppId(focused.app) === "session" ? focused.instanceKey : null;
 }
 
-/** The focused session, when the query can reach its link command from this page. */
-function usePaletteLinkCommand(
+/** The focused session, when the query can reach one of its commands from this page. */
+function usePaletteFocusedSessionCommand(
+  command: { label: string; keywords: string[] },
   query: string,
   destination: boolean,
   signals: CmdPaletteRankSignals | null
@@ -160,7 +170,7 @@ function usePaletteLinkCommand(
   const candidates = !destination && focusedSession && query.trim() !== "" ? [focusedSession] : [];
   const ranked = rankEntityRows(
     candidates,
-    id => ({ id, label: LINK_COMMAND_LABEL, keywords: ["pull request", "branch", "link"] }),
+    id => ({ id, label: command.label, keywords: command.keywords }),
     "Session",
     query,
     signals,
@@ -222,7 +232,13 @@ export function useOsPaletteEntities({
   });
   const sessionSearchRan =
     remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
-  const linkSessionId = usePaletteLinkCommand(query, destination, signals);
+  const linkSessionId = usePaletteFocusedSessionCommand(LINK_COMMAND, query, destination, signals);
+  const moveSessionId = usePaletteFocusedSessionCommand(
+    MOVE_UNDER_COMMAND,
+    query,
+    destination,
+    signals
+  );
   const tabs = usePaletteTabs(open, destinationWindowId, sessions.sessions);
 
   const worktrees = projectPaletteWorktrees(
@@ -269,6 +285,7 @@ export function useOsPaletteEntities({
     worktrees: rankedWorktrees.rows,
     worktreeTotal: rankedWorktrees.total,
     linkSessionId,
+    moveSessionId,
     selectWorktree: entry =>
       applyPaletteWorktreeSelection({
         worktreeScopeId,

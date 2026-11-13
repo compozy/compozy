@@ -21,3 +21,5 @@ export { SessionLinkDialogHost } from "./components/session-linked-work/session-
 export { linkNumber } from "./lib/session-linked-work";
 export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
 export { fetchSessionFacets } from "./adapters/session-catalog-api";
+export { requestSessionParentPicker } from "./hooks/use-session-parent-picker";
+export { SessionParentPickerHost } from "./components/session-parent-picker-host";

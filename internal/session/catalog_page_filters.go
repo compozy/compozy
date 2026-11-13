@@ -95,6 +95,7 @@ func trimListQueryText(query *ListQuery) {
 	query.AgentName = strings.TrimSpace(query.AgentName)
 	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
 	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
+	query.ExcludeRootSessionID = strings.TrimSpace(query.ExcludeRootSessionID)
 	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
 	query.Sort = strings.TrimSpace(query.Sort)
 	query.Cursor = strings.TrimSpace(query.Cursor)
@@ -240,10 +241,14 @@ func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
 	if (query.Subagents == childrenExclude && isSubagent) || (query.Subagents == "only" && !isSubagent) {
 		return false
 	}
-	if query.ParentSessionID == "" && query.RootSessionID == "" {
+	if query.ParentSessionID == "" && query.RootSessionID == "" && query.ExcludeRootSessionID == "" {
 		return true
 	}
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+	if query.ExcludeRootSessionID != "" &&
+		(info.ID == query.ExcludeRootSessionID || lineage.RootSessionID == query.ExcludeRootSessionID) {
+		return false
+	}
 	if query.ParentSessionID != "" && lineage.ParentSessionID != query.ParentSessionID {
 		return false
 	}
