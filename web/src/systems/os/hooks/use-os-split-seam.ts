@@ -389,7 +389,10 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       // Waiting only on a non-seam command, the release still takes its place in the seam queue,
       // so seam input made after it (an arrow step, another seam's release) waits behind it.
       if (!ownBusy(manager)) {
-        void trackOwnCommand(manager, manager.commandsSettled().then(() => true));
+        void trackOwnCommand(
+          manager,
+          manager.commandsSettled().then(() => true)
+        );
       }
       const afterOwnSettled = () => {
         if (!live) return;
