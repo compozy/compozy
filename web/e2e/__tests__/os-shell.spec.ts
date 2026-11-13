@@ -3535,28 +3535,25 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   // for every traced action, and that recorder work runs on the renderer thread
   // that this envelope is meant to measure.
   let longTasks: number[] = [];
+  let switchProbe: SwitchProbeRecords = { switches: [], tasks: [], frames: [] };
+  let switchCount = 0;
   try {
     for (const target of targets) await clickAt(target);
     await waitForLongTaskQuiet(appPage);
-    await appPage.evaluate(() => {
-      const tasks: number[] = [];
-      Reflect.set(window, "__osLongTasks", tasks);
-      new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) tasks.push(entry.duration);
-      }).observe({ type: "longtask", buffered: false });
-    });
+    await installSwitchProbe(appPage);
     const start = Date.now();
-    let step = 0;
     while (Date.now() - start < 3000) {
-      const target = targets[step % targets.length];
+      const target = targets[switchCount % targets.length];
       if (target) await clickAt(target);
-      step += 1;
+      switchCount += 1;
     }
-    longTasks = await appPage.evaluate(() => Reflect.get(window, "__osLongTasks") as number[]);
+    switchProbe = await readSwitchProbe(appPage);
+    longTasks = switchProbe.tasks.map(task => task.duration);
   } finally {
     await switchInput.detach();
   }
   const worstFrame = longTasks.length > 0 ? Math.max(...longTasks) : 0;
+  const appOfWindow = new Map([...perfWindowIDs].map(([app, id]) => [id, app]));
 
   const peerA = await openPeerPage(browser, runtime);
   const peerB = await openPeerPage(browser, runtime);
@@ -3609,6 +3606,9 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     restoreMsFromSnapshotResponse: restore,
     switchLongTasksOver50ms: longTasks,
     worstSwitchFrameMs: worstFrame,
+    switchesDispatched: switchCount,
+    // Which switch each long task followed, and what the frames over 50ms spent their time on.
+    switchAttribution: attributeSwitchLongTasks(switchProbe, appOfWindow),
     worstPeerConvergenceTaskMs: worstPeerTask,
   };
   // Surfaced on stdout so completion notes can record the measured numbers.
@@ -3622,6 +3622,135 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstFrame).toBeLessThanOrEqual(50);
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
+
+interface SwitchProbeRecords {
+  /** Each tab press, by the lead window of the pressed tab. */
+  switches: Array<{ at: number; windowId: string | null }>;
+  tasks: Array<{ start: number; duration: number }>;
+  /** Long animation frames over 50ms, with their slowest scripts. */
+  frames: Array<{
+    start: number;
+    duration: number;
+    blockingDuration: number;
+    /** Time from the frame's render start to its end: rAF, style, layout, paint. */
+    renderMs: number | null;
+    /** Time from style and layout start to the frame's end. */
+    styleAndLayoutMs: number | null;
+    scripts: Array<{
+      invoker: string;
+      invokerType: string;
+      source: string;
+      duration: number;
+      forcedStyleAndLayoutMs: number;
+    }>;
+  }>;
+}
+
+/**
+ * Records, page side, every tab press of the switching run with the long tasks and long
+ * animation frames it produced. It only observes: the envelope's assertions read the same
+ * long-task durations as before.
+ */
+async function installSwitchProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const records = {
+      switches: [] as Array<{ at: number; windowId: string | null }>,
+      tasks: [] as Array<{ start: number; duration: number }>,
+      frames: [] as unknown[],
+    };
+    Reflect.set(window, "__osSwitchProbe", records);
+    document.addEventListener(
+      "pointerdown",
+      event => {
+        const tab = event.target instanceof Element ? event.target.closest('[role="tab"]') : null;
+        if (!(tab instanceof HTMLElement)) return;
+        records.switches.push({
+          at: event.timeStamp,
+          windowId: tab.dataset.leadWindowId ?? null,
+        });
+      },
+      { capture: true }
+    );
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        records.tasks.push({ start: entry.startTime, duration: entry.duration });
+      }
+    }).observe({ type: "longtask", buffered: false });
+    if (!PerformanceObserver.supportedEntryTypes.includes("long-animation-frame")) return;
+    const rounded = (value: number) => Math.round(value * 10) / 10;
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        if (entry.duration <= 50) continue;
+        const frame = entry as PerformanceEntry & {
+          blockingDuration: number;
+          renderStart: number;
+          styleAndLayoutStart: number;
+          scripts: Array<{
+            invoker: string;
+            invokerType: string;
+            sourceURL: string;
+            sourceFunctionName: string;
+            sourceCharPosition: number;
+            duration: number;
+            forcedStyleAndLayoutDuration: number;
+          }>;
+        };
+        const end = frame.startTime + frame.duration;
+        records.frames.push({
+          start: rounded(frame.startTime),
+          duration: rounded(frame.duration),
+          blockingDuration: rounded(frame.blockingDuration),
+          renderMs: frame.renderStart > 0 ? rounded(end - frame.renderStart) : null,
+          styleAndLayoutMs:
+            frame.styleAndLayoutStart > 0 ? rounded(end - frame.styleAndLayoutStart) : null,
+          scripts: [...frame.scripts]
+            .sort((left, right) => right.duration - left.duration)
+            .slice(0, 5)
+            .map(script => ({
+              invoker: script.invoker,
+              invokerType: script.invokerType,
+              source: `${script.sourceURL.split("/").pop() ?? ""}:${script.sourceFunctionName}@${script.sourceCharPosition}`,
+              duration: rounded(script.duration),
+              forcedStyleAndLayoutMs: rounded(script.forcedStyleAndLayoutDuration),
+            })),
+        });
+      }
+    }).observe({ type: "long-animation-frame", buffered: false });
+  });
+}
+
+async function readSwitchProbe(page: Page): Promise<SwitchProbeRecords> {
+  // Read at once, as the envelope always has: the measured window ends with the last press.
+  return await page.evaluate(() => Reflect.get(window, "__osSwitchProbe") as SwitchProbeRecords);
+}
+
+/** Each long task with the tab press it followed (the latest press at or before its start). */
+function attributeSwitchLongTasks(
+  probe: SwitchProbeRecords,
+  appOfWindow: ReadonlyMap<string, string>
+) {
+  return probe.tasks.map(task => {
+    let pressIndex = -1;
+    probe.switches.forEach((entry, index) => {
+      if (entry.at <= task.start) pressIndex = index;
+    });
+    const press = pressIndex < 0 ? undefined : probe.switches[pressIndex];
+    const previous = pressIndex > 0 ? probe.switches[pressIndex - 1] : undefined;
+    const frame = probe.frames.find(
+      entry => entry.start <= task.start + 1 && task.start < entry.start + entry.duration
+    );
+    const appOf = (windowId: string | null | undefined) =>
+      windowId ? (appOfWindow.get(windowId) ?? windowId) : null;
+    return {
+      durationMs: Math.round(task.duration),
+      afterSwitchTo: appOf(press?.windowId),
+      switchedFrom: appOf(previous?.windowId),
+      msAfterPress: press === undefined ? null : Math.round(task.start - press.at),
+      pressIndex,
+      frame: frame ?? null,
+    };
+  });
+}
 
 async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<WorkspacePayload> {
   await completeOnboardingIfPrompted(page);
