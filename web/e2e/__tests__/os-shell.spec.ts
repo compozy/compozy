@@ -2805,16 +2805,38 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
   await expect(notice).toHaveCount(0);
 
   // Told once per client: a reload that lists the still-unread item again raises no second toast.
-  // Waited for after the reload, so only the new page's read of the list (or a later poll) counts.
+  // A page-side observer records any toast that mounts, so one that shows and times out before the
+  // check still fails it. The response is awaited after the reload, so only the new page's read of
+  // the list (or a later poll) counts.
+  await appPage.addInitScript(() => {
+    const record = window as typeof window & { __layoutUpgradeToasted?: boolean };
+    record.__layoutUpgradeToasted = false;
+    new MutationObserver(() => {
+      if (document.querySelector('[data-testid="os-attention-toast-layout-upgrade"]')) {
+        record.__layoutUpgradeToasted = true;
+      }
+    }).observe(document, { childList: true, subtree: true });
+  });
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await appPage.waitForResponse(
     response => new URL(response.url()).pathname === "/api/notifications/attention" && response.ok()
   );
   await expect(osShellSelectors(appPage).tabs.first()).toBeVisible();
-  await appPage.evaluate(
-    () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  // Leave the read room to render and run the toast effect before reading the record.
+  const toastedAfterReload = await appPage.evaluate(
+    () =>
+      new Promise<boolean>(resolve =>
+        setTimeout(
+          () =>
+            resolve(
+              (window as typeof window & { __layoutUpgradeToasted?: boolean })
+                .__layoutUpgradeToasted === true
+            ),
+          1_000
+        )
+      )
   );
-  await expect(toast).toHaveCount(0);
+  expect(toastedAfterReload).toBe(false);
 
   const peer = await openPeerPage(browser, runtime);
   try {
