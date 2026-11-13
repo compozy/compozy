@@ -94,7 +94,12 @@ export interface PullRequestMenuTreeInput {
   key?: string;
 }
 
-const sep = (key: string, id: string): MenuTreeNode => ({ kind: "separator", id: `${key}${id}` });
+// Separators carry their own suffix: `link` also names the Link another… item, and node ids key
+// the rendered menu, so they must stay unique.
+const sep = (key: string, id: string): MenuTreeNode => ({
+  kind: "separator",
+  id: `${key}${id}-separator`,
+});
 
 /**
  * The next action first, then Open PR, Review changes and Refresh, then any remaining
