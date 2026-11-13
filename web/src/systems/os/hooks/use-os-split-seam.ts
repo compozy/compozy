@@ -19,10 +19,10 @@ import {
   DEFAULT_WINDOW_MANAGER_WORK_AREA,
 } from "../lib/window-manager-view";
 import type { PixelRect, ProjectedSeam } from "../lib/window-manager-types";
+import { commandClockNow } from "../runtime/window-manager-runtime-helpers";
 import { windowManagerStore } from "../stores/window-manager-store";
 import {
   SEAM_WEIGHT_EPSILON,
-  seamDragAtLimit,
   seamDragCommit,
   seamDragLogic,
   seamKeyStep,
@@ -36,6 +36,7 @@ import {
   ownPending,
   trackOwnCommand,
   type SeamInputScope,
+  type SeamKeyStep,
 } from "./seam-command-queue";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -134,21 +135,23 @@ export type OsSplitSeamState = "drag" | "limit" | undefined;
  * command made while this client has a seam command in flight — on any split, since a seam's
  * geometry depends on the splits around it — waits behind it, strictly one at a time, and keeps
  * the scope and time of its input: it is dropped when the binding or the shown frame changed, its
- * seam unmounted or its deadline passed. The command carries its input time, so the runtime's
- * deadline is what is left of the same one.
+ * seam unmounted or its deadline passed (on the monotonic command clock). Arrow-key steps on one
+ * seam that wait back to back merge into one command. The command carries its input time, so the
+ * runtime's deadline is what is left of the same one.
  *
  * A pointer drag previews the two sides' shares through the shared seam preview, stops at either
  * side's pixel minimum and commits one `layout.resize`. Escape, a cancelled or lost pointer, a
- * frame change, the seam gone or turned, its layout changed by someone else while no seam command
+ * frame change, the seam gone or turned, its layout changed by someone else while no command
  * of this client is in flight, and unmounting cancel it and restore the shares; with an own
- * command in flight, a layout change re-bases it instead.
+ * command in flight (a seam command or any other), a layout change re-bases it instead.
  */
 export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
   const { manager } = useOsShell();
   const store = useStore(seamDragLogic);
+  // The limit state of the frame on screen, so it appears with the clamp, never a frame early.
   const state = useSelector(store, (snapshot): OsSplitSeamState => {
     if (snapshot.context.phase !== "dragging") return undefined;
-    return seamDragAtLimit(snapshot.context) ? "limit" : "drag";
+    return snapshot.context.limitShown ? "limit" : "drag";
   });
   const contextKey = useSeamGestureFrame();
   const cancelRef = useRef<((reason: GestureCancelReason) => void) | null>(null);
@@ -189,7 +192,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
   /** Where and when an input is made, for a command that may have to wait. */
   const inputScope = (): SeamInputScope => ({
     frame: currentSeamFrame(manager),
-    at: Date.now(),
+    at: commandClockNow(),
     mounted: () => mountedRef.current,
   });
 
@@ -217,11 +220,13 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
    */
   const sendSeamCommand = (
     target: ProjectedSeam,
-    author: (current: ProjectedSeam, at: { members: number; inputAt: number }) => void
+    author: (current: ProjectedSeam, at: { members: number; inputAt: number }) => void,
+    step?: SeamKeyStep
   ) => {
     const scope = inputScope();
     afterOwnCommands(manager, {
       scope,
+      ...(step === undefined ? {} : { step }),
       run: () => {
         const view = manager.getState();
         const current = authoritativeSeam(view, projectedWorkArea(), target);
@@ -261,7 +266,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       const inputs = geometryInputs(view);
       if (sameInputs(inputs, seen)) return;
       seen = inputs;
-      follow(view, ownPending(manager) > 0);
+      // Any command of this client in flight — a seam command or not (a palette balance, a
+      // move) — may be what changed the layout: the drag is re-based on it, not cancelled.
+      follow(view, ownPending(manager) > 0 || manager.commandsInFlight());
     };
 
     /** Lets go of the pointer: its listeners, capture, pending frame and pointer cancellations. */
@@ -288,6 +295,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       const drag = store.getSnapshot().context;
       if (drag.phase !== "dragging" || drag.seam === null) return;
       if (generation !== previewGeneration) return;
+      store.trigger.framePresented({});
       windowManagerStore.trigger.seamPreviewSet({
         preview: {
           splitId: drag.seam.splitId,
@@ -300,8 +308,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     };
     /**
      * Holds the drag to the seam's latest unpreviewed layout — the seam the preview is clamped
-     * against. Same geometry: nothing to do. Changed while this client has a seam command in
-     * flight (`owned`): re-based, the seam on screen kept under the pointer, and shown at once.
+     * against. Same geometry: re-admitted and shown. Changed while this client has a command that
+     * can move the layout in flight, seam command or not, or while its release is held behind one
+     * (`owned`): re-based, the seam on screen kept under the pointer, and shown at once.
      * Changed otherwise, turned to the other axis, separating another pair, or gone: cancelled.
      */
     const follow = (view: OsDesktopRuntimeStore, owned: boolean): boolean => {
@@ -317,7 +326,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
         return false;
       }
       if (sameSeamGeometry(latest, drag.seam)) {
+        // Shown with the layout that changed it, the preview and its limit state together.
         store.trigger.readmitted({ admit });
+        showPreview();
         return true;
       }
       if (!owned || latest.orientation !== drag.seam.orientation) {
@@ -362,14 +373,15 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       // The release frame is the last one shown, and the commit sends its shift.
       showPreview();
       const scope = inputScope();
-      if (!ownBusy(manager)) {
+      if (!ownBusy(manager) && !manager.commandsInFlight()) {
         commit(false, scope.at);
         return;
       }
-      // A seam command of this client is in flight (or queued), and its result may move the
-      // layout this release would be sent against: hold the release, previewed, in line behind
-      // it; once everything ahead has settled, author it against the latest layout and send — or
-      // cancel it if its input no longer holds by then.
+      // A command of this client that can move the layout is in flight (or a seam command
+      // queued), and its result may move the layout this release would be sent against: hold the
+      // release, previewed, in the seam queue, which runs it once nothing of this client is in
+      // flight ahead of it; then author it against the latest layout and send — or cancel it if
+      // its input no longer holds by then.
       detach();
       afterOwnCommands(manager, {
         scope,
@@ -409,22 +421,27 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     const direction = keyDirection(event.key);
     if (direction === null) return;
     event.preventDefault();
-    const step = direction * seamKeyStep(event);
-    sendSeamCommand(seam, (current, { inputAt }) => {
-      // The same admission a drag frame goes through, against the layout at send time: a step
-      // never leaves the split one member at a time, so the focused seam stays mounted.
-      const admitted = authoritativeSeamShift(
-        manager.getState(),
-        projectedWorkArea(),
-        current,
-        step * current.axisSpan
-      );
-      if (admitted === null) return;
-      const delta = seamWeightDelta(admitted.seam, admitted.shiftPx);
-      if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
-      const fence = fenceFor(current, inputAt);
-      void sent(manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fence));
-    });
+    // Key repeat while earlier steps wait merges into the waiting step on this seam.
+    const step: SeamKeyStep = { seamId: seam.id, weight: direction * seamKeyStep(event) };
+    sendSeamCommand(
+      seam,
+      (current, { inputAt }) => {
+        // The same admission a drag frame goes through, against the layout at send time: a step
+        // never leaves the split one member at a time, so the focused seam stays mounted.
+        const admitted = authoritativeSeamShift(
+          manager.getState(),
+          projectedWorkArea(),
+          current,
+          step.weight * current.axisSpan
+        );
+        if (admitted === null) return;
+        const delta = seamWeightDelta(admitted.seam, admitted.shiftPx);
+        if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
+        const fence = fenceFor(current, inputAt);
+        void sent(manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fence));
+      },
+      step
+    );
   };
 
   /**

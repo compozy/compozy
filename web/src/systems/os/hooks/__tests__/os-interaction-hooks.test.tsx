@@ -256,6 +256,9 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     moveTab: vi.fn(),
     resizeLayout: vi.fn(() => acceptedOutcome()),
     balanceLayout: vi.fn(() => acceptedOutcome()),
+    balanceTab: vi.fn(),
+    commandsInFlight: vi.fn(() => false),
+    commandsSettled: vi.fn(async () => {}),
     navigateWindow: vi.fn(() => acceptedOutcome()),
     retargetWindow: vi.fn(() => acceptedOutcome()),
     popWindowRoute: vi.fn(() => acceptedOutcome()),
@@ -2652,8 +2655,10 @@ const EXACT_SEAM: ProjectedSeam = {
 // shares and send nothing. While this client has a seam command in flight on any split, the drag
 // is re-based on the latest layout instead and its release waits for that command, so what it
 // sends always equals what its preview showed, clamp included (US-009.EC-1). Keyboard and
-// pair-balance resizes carry the same fence; every seam command carries its input time, from
-// which the runtime counts its deadline.
+// pair-balance resizes carry the same fence; every seam command carries its input time on the
+// monotonic command clock, from which the runtime counts its deadline. Arrow steps waiting back to
+// back on one seam merge into one resize; an own command of any kind in flight re-bases a drag
+// instead of cancelling it; the limit state shows with the frame that reaches the clamp.
 // Owning layer: the seam gesture hook over the shared seam drag store (hooks/seam-drag-store).
 describe("useOsSplitSeam gesture lifecycle", () => {
   let frames: FrameRequestCallback[] = [];
@@ -2776,6 +2781,51 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
 
     expectCancelled(shell, seam);
+  });
+
+  it("Should re-base a drag on this client's own non-seam command and hold its release until that command settles", async () => {
+    const { shell, seam } = startSeamDrag(snapshotWithSplit([0.5, 0.5]));
+    let settleBalance!: () => void;
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(true);
+    vi.mocked(shell.controller.commandsSettled).mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        settleBalance = resolve;
+      })
+    );
+
+    // Released while a palette balance of this client is in flight: nothing is sent yet.
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+    expect(seam).toHaveAttribute("data-state", "drag");
+    // An arrow pressed after the release waits behind it.
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+
+    // Its result lands: the held drag is re-based, the seam shown at 560 kept under the pointer,
+    // 260px from where 30/70 lays it out.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    expect(windowManagerStore.getSnapshot().context.seamPreview?.deltaPx).toBeCloseTo(260);
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    await act(async () => settleBalance());
+
+    // Authored against the balanced layout: +0.26 from 30/70, never +0.06 on top of it; the
+    // arrow goes out after it.
+    await waitFor(() => expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2));
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      1,
+      "split:main",
+      0,
+      expect.closeTo(0.26),
+      fenceAt(8)
+    );
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      fenceAt(8)
+    );
   });
 
   it("Should fence an arrow-key resize and a pair balance like a drag", async () => {
@@ -2904,6 +2954,8 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     await settle();
     expect(previewDelta()).toBeCloseTo(-100);
     fireEvent.pointerMove(seam, { pointerId: 4, clientX: 800, clientY: 300 });
+    // The clamped frame is not on screen yet, so neither is its limit state.
+    expect(seam).toHaveAttribute("data-state", "drag");
     flushFrames();
     // Past 780 the trailing side would drop under its floor: the preview stops at 78/22.
     expect(previewDelta()).toBeCloseTo(200);
@@ -3127,6 +3179,108 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
     const shares = sharesAfterResizes(shell, [0.32, 0.38, 0.3], 1);
     for (const share of shares) expect(share).toBeGreaterThanOrEqual(0.22 - 1e-9);
+  });
+
+  it("Should merge arrow steps waiting on one seam into one resize, so key repeat stops on release", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+
+    // Key repeat against a slow daemon: the first step is in flight and four more wait behind it.
+    for (const key of ["ArrowRight", "ArrowRight", "ArrowRight", "ArrowLeft", "ArrowRight"]) {
+      fireEvent.keyDown(seam, { key });
+    }
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      fenceAt(7)
+    );
+
+    // Once it lands, the waiting steps go out as one resize of their sum: +0.04, then nothing.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.52, 0.48], 8) }));
+    await settle();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.04),
+      fenceAt(8)
+    );
+  });
+
+  it("Should hold an arrow step pressed while this client's own non-seam command is in flight and author it against its result", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    let settleBalance!: () => void;
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(true);
+    vi.mocked(shell.controller.commandsSettled).mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        settleBalance = resolve;
+      })
+    );
+
+    // A palette balance of this client is in flight: the step waits for its result.
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    await act(async () => settleBalance());
+
+    await waitFor(() =>
+      expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+        "split:main",
+        0,
+        expect.closeTo(0.02),
+        fenceAt(8)
+      )
+    );
+  });
+
+  it("Should keep seam input behind a release that still waits on an own non-seam command once the seam command ahead of it settles", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settleArrow = deferResize(shell);
+    let settleBalance!: () => void;
+    vi.mocked(shell.controller.commandsSettled).mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        settleBalance = resolve;
+      })
+    );
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    // A palette balance of this client is in flight as well.
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(true);
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    // The arrow's resize settles; the release now waits on the balance, and an arrow pressed
+    // meanwhile waits behind it instead of going out first.
+    await settleArrow();
+    fireEvent.keyDown(seam, { key: "ArrowLeft" });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    await act(async () => settleBalance());
+    await waitFor(() => expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3));
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.06),
+      fenceAt(7)
+    );
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      3,
+      "split:main",
+      0,
+      expect.closeTo(-0.02),
+      fenceAt(7)
+    );
   });
 
   it("Should compute an arrow press made while a resize is in flight against that resize's result", async () => {
@@ -3367,7 +3521,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
   });
 
   it("Should drop a queued keystroke older than the command deadline, counted from the key press", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.useFakeTimers({ toFake: ["performance"] });
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
     const seam = screen.getByTestId("seam");
@@ -3375,25 +3529,41 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     fireEvent.keyDown(seam, { key: "ArrowRight" });
     fireEvent.keyDown(seam, { key: "ArrowRight" });
 
-    vi.setSystemTime(Date.now() + WINDOW_MANAGER_COMMAND_DEADLINE_MS + 1);
+    vi.advanceTimersByTime(WINDOW_MANAGER_COMMAND_DEADLINE_MS + 1);
     await settle();
 
     expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
   });
 
-  it("Should send a keystroke resumed near its deadline with the time of the key press (AS-F-13)", async () => {
+  it("Should keep a queued keystroke through a wall-clock step: its deadline runs on a monotonic clock", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
     const seam = screen.getByTestId("seam");
     const settle = deferResize(shell);
     fireEvent.keyDown(seam, { key: "ArrowRight" });
-    const pressedAt = Date.now();
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    // The system clock jumps a minute ahead while the second key waits; no time has passed.
+    vi.setSystemTime(Date.now() + 60_000);
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should send a keystroke resumed near its deadline with the time of the key press (AS-F-13)", async () => {
+    vi.useFakeTimers({ toFake: ["performance"] });
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    const pressedAt = performance.now();
     fireEvent.keyDown(seam, { key: "ArrowRight" });
 
     // Resumed 7.5s after the press: it goes out still carrying the press time, so the runtime
     // gives it what is left of the same 8s, not a new deadline behind other commands.
-    vi.setSystemTime(pressedAt + 7_500);
+    vi.advanceTimersByTime(7_500);
     await settle();
 
     expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
@@ -3406,7 +3576,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
   });
 
   it("Should cancel a held release older than the command deadline and restore the shares", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.useFakeTimers({ toFake: ["performance"] });
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
     const seam = stubPointerCapture(screen.getByTestId("seam"));
@@ -3417,7 +3587,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
     expect(seam).toHaveAttribute("data-state", "drag");
 
-    vi.setSystemTime(Date.now() + WINDOW_MANAGER_COMMAND_DEADLINE_MS + 1);
+    vi.advanceTimersByTime(WINDOW_MANAGER_COMMAND_DEADLINE_MS + 1);
     await settle();
 
     expect(seam).not.toHaveAttribute("data-state");
@@ -3537,17 +3707,19 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     });
     fireEvent.keyDown(seam, { key: "ArrowRight" });
     fireEvent.keyDown(seam, { key: "ArrowRight" });
-    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    // A balance queued behind the second step, so the two waiting commands stay separate.
+    fireEvent.doubleClick(seam);
 
-    // The second throws as it is sent; the third still goes out.
+    // The second step throws as it is sent; the balance behind it still goes out.
     await settle();
-    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.balanceLayout).toHaveBeenCalledOnce();
     expect(errors).toHaveBeenCalledOnce();
 
     // Nothing is left holding the queue: the next press goes out at once.
     await act(async () => {});
     fireEvent.keyDown(seam, { key: "ArrowRight" });
-    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(4);
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
   });
 
   it("Should cancel a drag whose seam turns to the other axis while this client's resize is in flight (R7-02)", async () => {

@@ -19,6 +19,7 @@ import {
   seamSplitFitsEven,
   type AdmittedSeamShift,
 } from "./tab-projection";
+import { planTabBalance, type TabBalancePlan } from "./tab-balance-admission";
 import { resolveActiveTabId } from "./tab-model";
 import { effectiveWindowManagerConfig } from "./window-manager-config";
 import type {
@@ -171,7 +172,28 @@ export function authoritativeSeamSplitFitsEven(
   return input === null ? null : seamSplitFitsEven(input, target);
 }
 
+/**
+ * What a tab-wide "Balance sizes" sends against the authoritative layout: `planTabBalance`. Null
+ * when the tab is not in the snapshot or the layout is not loaded.
+ */
+export function authoritativeTabBalance(
+  view: AuthoritativeView,
+  workArea: PixelRect,
+  tabId: TabId
+): TabBalancePlan | null {
+  const tab = view.snapshot?.desktops
+    .flatMap(desktop => desktop.tabs)
+    .find(candidate => candidate.id === tabId);
+  const input = tab === undefined ? null : authoritativeTabInput(view, workArea, tab);
+  return input === null ? null : planTabBalance(input);
+}
+
 function authoritativeSplitInput(view: AuthoritativeView, workArea: PixelRect, splitId: string) {
+  const tab = view.snapshot === null ? null : tabWithSplit(view.snapshot, splitId);
+  return tab === null ? null : authoritativeTabInput(view, workArea, tab);
+}
+
+function authoritativeTabInput(view: AuthoritativeView, workArea: PixelRect, tab: LayoutTab) {
   const { snapshot, windowManagerConfig: config } = view;
   if (snapshot === null || config === null) return null;
   const context: ProjectionContext = {
@@ -181,8 +203,7 @@ function authoritativeSplitInput(view: AuthoritativeView, workArea: PixelRect, s
     focusOrder: view.client?.focusOrder ?? [],
     compact: view.presentation === "compact",
   };
-  const tab = tabWithSplit(snapshot, splitId);
-  return tab === null ? null : projectionInputFor(tab, context);
+  return projectionInputFor(tab, context);
 }
 
 function findSplitMembers(node: LayoutNode, splitId: string): number | null {

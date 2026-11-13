@@ -178,7 +178,7 @@ function renderBar(options: BarOptions = {}) {
     moveTab: vi.fn(),
     splitWithTab: vi.fn(),
     arrangeLayout: vi.fn(),
-    balanceLayout: vi.fn(),
+    balanceTab: vi.fn(),
   } as unknown as WindowManagerController;
   const coordinator = {
     userFocus: vi.fn(async () => true),
@@ -580,7 +580,7 @@ describe("OsTabBar", () => {
     act(() => screen.getByTestId("os-tab-arrange-menu-tab:split").focus());
     await user.keyboard("{ArrowRight}");
     await user.click(await screen.findByRole("menuitem", { name: "Balance sizes" }));
-    expect(manager.balanceLayout).toHaveBeenCalledExactlyOnceWith({ tabId: "tab:split" });
+    expect(manager.balanceTab).toHaveBeenCalledExactlyOnceWith("tab:split");
   });
 
   it("Should offer no retired window control in the tab menu [US-018.AC-1]", async () => {

@@ -234,6 +234,12 @@ export interface WindowManagerController extends OsDesktopRuntime {
     target: { tabId?: string; splitId?: string },
     fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome;
+  /** "Balance sizes" for a whole tab, admitted so that no split turns to one member at a time. */
+  balanceTab(tabId: TabId): void;
+  /** Whether a command of this client that can move the layout (not a focus) is in flight. */
+  commandsInFlight(): boolean;
+  /** Resolves once no such command of this client is in flight; at once when none is. */
+  commandsSettled(): Promise<void>;
   navigateWindow(
     id: string,
     route: OsWindowRoute,

@@ -171,7 +171,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   balanceFocusedLayout(): void {
     const focused = this.view.focusedId ? this.view.windows[this.view.focusedId] : undefined;
     if (!focused?.inSplit) return;
-    this.balanceLayout({ tabId: focused.tabId });
+    this.balanceTab(focused.tabId);
   }
 
   protected buildView(): OsDesktopRuntimeStore {

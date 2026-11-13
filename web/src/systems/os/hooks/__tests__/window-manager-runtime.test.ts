@@ -1002,8 +1002,9 @@ describe("WindowManagerRuntime", () => {
   });
 
   it("Should hold a command that carries its input time to the deadline counted from that input", async () => {
-    // Fake clock for both halves of the deadline: `Date.now()` and the timer that aborts it.
-    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    // Fake clock for both halves of the deadline: the monotonic command clock and the timer that
+    // aborts it.
+    vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
     const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(ms => {
       const controller = new AbortController();
       setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
@@ -1049,7 +1050,7 @@ describe("WindowManagerRuntime", () => {
       rebase: { splitId, boundaryIndex: 0 },
       inputAt,
     });
-    const pressedAt = Date.now();
+    const pressedAt = performance.now();
 
     // 7s later a resize on another split enters the queue and stays in flight; it has no input
     // time, so its deadline counts from now as before.
@@ -2617,6 +2618,67 @@ describe("WindowManagerRuntime", () => {
     ]);
     runtime.stop();
   });
+
+  it.each([
+    {
+      kind: "resize",
+      send: (runtime: WindowManagerRuntime) => runtime.resizeLayout("split:one", 0, -0.1),
+      sent: "layout.resize",
+    },
+    {
+      kind: "focus",
+      send: (runtime: WindowManagerRuntime) => runtime.focusWindow("app:agents"),
+      sent: "focus app:agents",
+    },
+  ])(
+    "Should plan a tab balance against the layout this client's $kind in flight leaves",
+    async ({ send, sent }) => {
+      const queryClient = new QueryClient();
+      const snapshot = snapshotWithSplitTab();
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      const answers = deferCommandAnswers();
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: "app:tasks",
+        focusOrder: ["app:tasks"],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+      const inFlight = send(runtime);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+
+      // Asked for while the command is in flight: nothing is planned or sent until it settles.
+      runtime.balanceFocusedLayout();
+      await flushCommandQueue();
+      expect(sentCommands()).toEqual([sent]);
+
+      // The command's answer takes the split away: planned against that, there is nothing to even.
+      answers[0]!({
+        snapshot: { ...SNAPSHOT, revision: snapshot.revision + 1 },
+        applied: true,
+        changes: EMPTY_CHANGES,
+        diagnostics: [],
+        deprecations: [],
+        client: null,
+        rebasedFrom: null,
+      });
+      await expect(inFlight.completion).resolves.toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(runtime.commandsInFlight()).toBe(false);
+      expect(sentCommands()).toEqual([sent]);
+      runtime.stop();
+    }
+  );
 
   it("Should describe a bare daemon refusal code in plain language", async () => {
     vi.useFakeTimers();

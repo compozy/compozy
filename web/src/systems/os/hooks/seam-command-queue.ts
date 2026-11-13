@@ -1,6 +1,6 @@
-import type { OsDesktopRuntime } from "../lib/os-types";
+import type { WindowManagerController } from "../lib/os-types";
 import type { PixelRect } from "../lib/window-manager-types";
-import { commandTimeLeft } from "../runtime/window-manager-runtime-helpers";
+import { commandClockNow, commandTimeLeft } from "../runtime/window-manager-runtime-helpers";
 import type { WindowManagerBinding } from "../stores/window-manager-store-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 
@@ -20,8 +20,17 @@ export function formatSeamFrame(
   return `${bound}|${desktopId}/${shown.activeTabIds[desktopId] ?? ""}|${area}`;
 }
 
+/**
+ * What the seam queue reads of the runtime: the shown frame, and this client's own commands in
+ * flight that can move the layout, seam command or not.
+ */
+export type SeamCommandRuntime = Pick<
+  WindowManagerController,
+  "getState" | "commandsInFlight" | "commandsSettled"
+>;
+
 /** The frame a seam input made now would carry. */
-export function currentSeamFrame(manager: OsDesktopRuntime): string {
+export function currentSeamFrame(manager: SeamCommandRuntime): string {
   const { binding, workArea } = windowManagerStore.getSnapshot().context;
   return formatSeamFrame(binding, manager.getState(), workArea?.rect);
 }
@@ -37,6 +46,15 @@ export interface SeamInputScope {
   readonly mounted: () => boolean;
 }
 
+/**
+ * An arrow-key step on one seam, in weight space. The command that carries it reads `weight` when
+ * it runs, so a later step merged into it while it waits is sent with it.
+ */
+export interface SeamKeyStep {
+  readonly seamId: string;
+  weight: number;
+}
+
 /** A seam command waiting behind this client's seam commands in flight. */
 export interface QueuedSeamCommand {
   readonly scope: SeamInputScope;
@@ -44,6 +62,8 @@ export interface QueuedSeamCommand {
   readonly run: () => void;
   /** Gives up without sending: the input's scope or age no longer holds. */
   readonly drop?: () => void;
+  /** Set on an arrow-key step: queued steps on one seam merge into one command. */
+  readonly step?: SeamKeyStep;
 }
 
 /**
@@ -89,9 +109,9 @@ export function seamInputHolds(scope: SeamInputScope, frame: string, now: number
 }
 
 /** Runs one queued command, or drops it when its input no longer holds; never throws. */
-function resume(manager: OsDesktopRuntime, command: QueuedSeamCommand): void {
+function resume(manager: SeamCommandRuntime, command: QueuedSeamCommand): void {
   try {
-    if (seamInputHolds(command.scope, currentSeamFrame(manager), Date.now())) command.run();
+    if (seamInputHolds(command.scope, currentSeamFrame(manager), commandClockNow())) command.run();
     else command.drop?.();
   } catch (error) {
     // One failing command must not leave the client's seams busy behind it forever.
@@ -105,23 +125,69 @@ function resume(manager: OsDesktopRuntime, command: QueuedSeamCommand): void {
  * each one is authored against the layout the one before it leaves.
  */
 export function trackOwnCommand(
-  manager: OsDesktopRuntime,
+  manager: SeamCommandRuntime,
   completion: Promise<boolean>
 ): Promise<boolean> {
   const own = ownCommandsOf(manager);
   own.pending += 1;
   return completion.finally(() => {
     own.pending -= 1;
-    while (own.pending === 0) {
-      const next = own.queued.shift();
-      if (next === undefined) break;
-      resume(manager, next);
-    }
+    resumeQueued(manager, own);
   });
 }
 
-/** Runs `command` now when no seam command of this client is in flight or queued, else queues it. */
-export function afterOwnCommands(manager: OsDesktopRuntime, command: QueuedSeamCommand): void {
-  if (ownBusy(manager)) ownCommandsOf(manager).queued.push(command);
-  else resume(manager, command);
+/**
+ * Resumes queued seam commands one at a time while none of this client's is in flight. While an
+ * own non-seam command (a palette balance, a move) is in flight, its result may move the layout
+ * the next one would be authored against: the queue waits for it, counted as an own command.
+ */
+function resumeQueued(manager: SeamCommandRuntime, own: OwnCommands): void {
+  while (own.pending === 0 && own.queued.length > 0) {
+    if (manager.commandsInFlight()) {
+      void trackOwnCommand(
+        manager,
+        manager.commandsSettled().then(() => true)
+      );
+      return;
+    }
+    const next = own.queued.shift();
+    if (next !== undefined) resume(manager, next);
+  }
+}
+
+/**
+ * Runs `command` now when no command of this client that can move the layout is in flight and no
+ * seam command is queued, else queues it.
+ * An arrow-key step queued right behind a waiting step on the same seam is added to that step
+ * instead, so key repeat against a slow daemon sends one command for what is held, not one per
+ * keystroke that keeps resizing after the key is released.
+ */
+export function afterOwnCommands(manager: SeamCommandRuntime, command: QueuedSeamCommand): void {
+  if (!ownBusy(manager) && !manager.commandsInFlight()) {
+    resume(manager, command);
+    return;
+  }
+  const own = ownCommandsOf(manager);
+  if (!ownBusy(manager)) {
+    // Only an own non-seam command is in flight: the command waits for it in the queue.
+    own.queued.push(command);
+    resumeQueued(manager, own);
+    return;
+  }
+  const queued = own.queued;
+  // Only into the newest queued command, so every command stays in input order. The merged step
+  // keeps the earlier input's scope and time, so it still expires with that input.
+  const lastStep = queued.at(-1)?.step;
+  const lastFrame = queued.at(-1)?.scope.frame;
+  const step = command.step;
+  if (
+    step !== undefined &&
+    lastStep !== undefined &&
+    lastStep.seamId === step.seamId &&
+    lastFrame === command.scope.frame
+  ) {
+    lastStep.weight += step.weight;
+    return;
+  }
+  queued.push(command);
 }

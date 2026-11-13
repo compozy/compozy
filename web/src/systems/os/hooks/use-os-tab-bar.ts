@@ -240,8 +240,8 @@ function useOsTabCommands() {
       const lead = leadOf(tabId);
       if (lead) manager.arrangeLayout(lead.leadId, preset);
     },
-    /** "Balance sizes": evens every split of the tab. */
-    balance: (tabId: string) => manager.balanceLayout({ tabId }),
+    /** "Balance sizes": evens every split of the tab that can be evened without collapsing one. */
+    balance: (tabId: string) => manager.balanceTab(tabId),
     reopen: () => void manager.reopenWindow(),
     /** Opens a New Tab right after the active tab and raises its destination picker. */
     openNewTab: () => {

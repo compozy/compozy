@@ -16,6 +16,14 @@ export const WINDOW_MANAGER_DIAGNOSTIC_TTL_MS = 5_000;
 export const WINDOW_MANAGER_COMMAND_DEADLINE_MS = 8_000;
 
 /**
+ * The clock command deadlines are counted on: monotonic, so a wall-clock step while input waits
+ * neither drops it early nor extends it. `inputAt` values come from this clock.
+ */
+export function commandClockNow(): number {
+  return performance.now();
+}
+
+/**
  * What is left of a command's deadline at `now`: counted from the input that authored it when the
  * command carries that time, from now otherwise. Zero or less means it has expired.
  */
