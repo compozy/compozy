@@ -19,7 +19,7 @@ import {
   type WindowMoveTarget,
 } from "../../hooks/use-window-move-targets";
 import { moveFocusedWindowToDesktopId, SWAP_DIRECTIONS } from "../../lib/cmd-palette-window-ops";
-import { directionalSwapTarget } from "../../lib/window-manager-navigation";
+import { activeTabCandidates, directionalSwapTarget } from "../../lib/window-manager-navigation";
 import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
@@ -140,8 +140,9 @@ function SwapMenu({ onRun }: { onRun: (commandId: string) => void }) {
   const family = usePaletteCommand(SWAP_FAMILY_COMMAND);
   const directions = useDesktop(state => {
     const from = manager.directionalFocusId();
+    const candidates = activeTabCandidates(state);
     return SWAP_DIRECTIONS.filter(
-      direction => directionalSwapTarget(state, from, direction) !== null
+      direction => directionalSwapTarget(candidates, from, direction) !== null
     );
   }, sameDirections);
   if (family === null) return null;

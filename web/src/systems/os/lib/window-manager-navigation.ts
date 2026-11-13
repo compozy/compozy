@@ -133,16 +133,15 @@ export function activeTabCandidates(view: ActiveTabView): FocusCandidate[] {
 }
 
 /**
- * The window a directional swap trades places with: the nearest on-screen window of the active
- * tab on that side of `fromId`, by the same geometry as directional focus but never wrapping.
- * Null when `fromId` is not on screen there or nothing lies on that side.
+ * The window a directional swap trades places with: the nearest of `candidates` on that side of
+ * `fromId`, by the same geometry as directional focus but never wrapping. Null when `fromId` is not
+ * among them or nothing lies on that side.
  */
 export function directionalSwapTarget(
-  view: ActiveTabView,
+  candidates: readonly FocusCandidate[],
   fromId: WindowId | null,
   direction: FocusDirection
 ): WindowId | null {
-  const candidates = activeTabCandidates(view);
   if (fromId === null || !candidates.some(candidate => candidate.id === fromId)) return null;
   return directionalFocusTarget({ candidates, focusedId: fromId, direction, wrap: false });
 }

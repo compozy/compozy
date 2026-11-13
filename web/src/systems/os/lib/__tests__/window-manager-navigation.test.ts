@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LayoutDesktop, LayoutNode, LayoutTab } from "../window-manager-types";
 import {
+  activeTabCandidates,
   arrangeParticipants,
   directionalFocusTarget,
   directionalSwapTarget,
@@ -108,11 +109,13 @@ describe("directionalSwapTarget", () => {
       },
     };
   }
-  const three = view([
-    { id: "left", x: 0 },
-    { id: "middle", x: 100 },
-    { id: "right", x: 200 },
-  ]);
+  const three = activeTabCandidates(
+    view([
+      { id: "left", x: 0 },
+      { id: "middle", x: 100 },
+      { id: "right", x: 200 },
+    ])
+  );
 
   it("Should pick the nearest neighbour on that side and never wrap", () => {
     expect(directionalSwapTarget(three, "left", "right")).toBe("middle");
@@ -123,13 +126,16 @@ describe("directionalSwapTarget", () => {
   });
 
   it("Should only consider windows on screen, and nothing from a window that is not", () => {
-    const collapsed = view([
-      { id: "left", x: 0 },
-      { id: "hidden", x: 100, shown: false },
-    ]);
+    const collapsed = activeTabCandidates(
+      view([
+        { id: "left", x: 0 },
+        { id: "hidden", x: 100, shown: false },
+      ])
+    );
     expect(directionalSwapTarget(collapsed, "left", "right")).toBeNull();
     expect(directionalSwapTarget(collapsed, "hidden", "left")).toBeNull();
     expect(directionalSwapTarget(three, null, "right")).toBeNull();
-    expect(directionalSwapTarget({ ...three, activeDesktopId: null }, "left", "right")).toBeNull();
+    const detached = { ...view([{ id: "left", x: 0 }]), activeDesktopId: null };
+    expect(activeTabCandidates(detached)).toEqual([]);
   });
 });

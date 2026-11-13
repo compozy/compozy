@@ -1,15 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import {
-  focusWindowCommand,
-  openWindowCommand,
-  swapWindowsCommand,
-} from "../lib/window-manager-command-builders";
+import { focusWindowCommand, openWindowCommand } from "../lib/window-manager-command-builders";
 import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
 import {
   activeTabCandidates,
   directionalFocusTarget,
   directionalSwapTarget,
+  type FocusCandidate,
 } from "../lib/window-manager-navigation";
 import type {
   OsDesktopBounds,
@@ -20,7 +17,7 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import type { FocusDirection, FocusWindowOptions } from "../lib/window-manager-types";
+import type { FocusDirection, FocusWindowOptions, PixelRect } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { buildOsDesktopRuntimeView } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -80,23 +77,50 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   /**
    * Trades the focused window's place with its on-screen neighbour on that side of the active tab,
    * from the newest focus this client asked for. Never wraps; nothing on that side is a no-op. The
-   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone. A swap pressed
-   * while an earlier one still waits picks its neighbour from the layout that one leaves, so two
-   * quick presses move the window two places instead of undoing each other.
+   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone. The swap is
+   * sent at once, in order with every other command; the neighbour is read from the layout with
+   * this client's unanswered swaps applied, so two quick presses move the window two places.
    */
   swapDirection(direction: FocusDirection): void {
     const from = this.directionalFocusId();
-    if (from === null) return;
-    const inputAt = Date.now();
-    const run = (): Promise<boolean> | boolean => {
-      const target = directionalSwapTarget(this.view, from, direction);
-      if (target === null) return false;
-      return this.dispatch({ ...swapWindowsCommand(from, target), inputAt }).completion;
+    const candidates = this.swapCandidates();
+    const target = directionalSwapTarget(candidates, from, direction);
+    const fromRect = candidates.find(candidate => candidate.id === from)?.rect;
+    if (from === null || target === null || fromRect === undefined) return;
+    const outcome = this.swapWindows(from, target);
+    if (!outcome.accepted) return;
+    const pending = { first: from, second: target, firstRect: fromRect };
+    this.pendingSwaps.push(pending);
+    const settle = () => {
+      this.pendingSwaps = this.pendingSwaps.filter(entry => entry !== pending);
     };
-    this.swapTurn = this.swapTurn.then(run, run);
+    void outcome.completion.then(settle, settle);
   }
 
-  private swapTurn: Promise<unknown> = Promise.resolve();
+  /** Swaps sent but not yet answered, oldest first, with where the first window stood. */
+  private pendingSwaps: Array<{ first: string; second: string; firstRect: PixelRect }> = [];
+
+  /**
+   * The active tab's on-screen windows with this client's unanswered swaps applied. A swap whose
+   * first window no longer stands where it did already shows (its answer or a stream update came)
+   * or was overtaken, and adds nothing.
+   */
+  private swapCandidates(): FocusCandidate[] {
+    let candidates = activeTabCandidates(this.view);
+    for (const swap of this.pendingSwaps) {
+      const first = candidates.find(candidate => candidate.id === swap.first);
+      const second = candidates.find(candidate => candidate.id === swap.second);
+      if (first === undefined || second === undefined || !sameRect(first.rect, swap.firstRect)) {
+        continue;
+      }
+      candidates = candidates.map(candidate => {
+        if (candidate.id === first.id) return { ...candidate, rect: second.rect };
+        if (candidate.id === second.id) return { ...candidate, rect: first.rect };
+        return candidate;
+      });
+    }
+    return candidates;
+  }
 
   /**
    * The window directional focus and swaps start from. A focus still waiting for its answer is
@@ -259,4 +283,8 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
       },
     });
   };
+}
+
+function sameRect(left: PixelRect, right: PixelRect): boolean {
+  return left.x === right.x && left.y === right.y && left.w === right.w && left.h === right.h;
 }
