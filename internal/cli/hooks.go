@@ -73,6 +73,14 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			seen := map[string]bool{}
+			for _, hook := range hooks {
+				warning := hookspkg.RetiredWindowManagerEventWarning(hookspkg.HookEvent(hook.Event))
+				if warning != "" && !seen[hook.Event] {
+					cmd.PrintErrln("warning: " + warning)
+					seen[hook.Event] = true
+				}
+			}
 			return writeCommandOutput(cmd, hookListBundle(hooks))
 		},
 	}

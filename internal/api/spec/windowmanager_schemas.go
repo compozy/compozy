@@ -107,6 +107,15 @@ func customizeWindowManagerSchemas(schemas openapi3.Schemas) {
 	customizeWindowManagerRouteIntent(schemas)
 }
 
+func customizeWindowManagerWorkspaceConfigSchema(schema *openapi3.Schema) {
+	for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+		if property := schema.Properties[name]; property != nil && property.Value != nil {
+			property.Value.Deprecated = true
+			property.Value.Description = "Deprecated: accepted and ignored; remove before v0.8.0."
+		}
+	}
+}
+
 func customizeWindowManagerRouteIntent(schemas openapi3.Schemas) {
 	payload := schemas["WindowManagerNavigateWindowPayload"]
 	if payload == nil || payload.Value == nil {

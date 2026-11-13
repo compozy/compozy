@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +37,7 @@ func loadConfigForDisplay(
 	if err != nil {
 		return compozyconfig.Config{}, "", err
 	}
+	loadOptions = append(loadOptions, windowManagerWarningOutput(cmd))
 	cfg, err := compozyconfig.LoadForHome(homePaths, loadOptions...)
 	if err != nil {
 		return compozyconfig.Config{}, "", err
@@ -94,6 +95,7 @@ func loadConfigForDisplayScope(
 		}
 		options = append(options, compozyconfig.WithProfile(profileName))
 	}
+	options = append(options, windowManagerWarningOutput(cmd))
 	cfg, err := compozyconfig.LoadForHome(homePaths, options...)
 	return cfg, err
 }
@@ -388,4 +390,10 @@ func configValueContainsRedaction(value any) bool {
 		}
 	}
 	return false
+}
+
+func windowManagerWarningOutput(cmd *cobra.Command) compozyconfig.LoadOption {
+	return compozyconfig.WithWindowManagerWarning(func(key string, translated bool) {
+		cmd.PrintErrln(windowmanager.RetiredConfigWarning(key, translated))
+	})
 }

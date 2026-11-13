@@ -1,7 +1,5 @@
 package windowmanager
 
-import "fmt"
-
 type noTopologyCommand struct{ id CommandID }
 
 func (c noTopologyCommand) CommandID() CommandID { return c.id }
@@ -22,15 +20,7 @@ func (adjacentTabsCommand) CommandID() CommandID { return CommandWindowStackGrou
 func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Deprecation) {
 	deprecations := []Deprecation{}
 	report := func(surface string) {
-		deprecations = append(
-			deprecations,
-			Deprecation{
-				Code:           "window_manager_surface_deprecated",
-				Surface:        surface,
-				RemovalRelease: "v0.8.0",
-				Message:        fmt.Sprintf("%s is deprecated and will be removed in v0.8.0.", surface),
-			},
-		)
+		deprecations = append(deprecations, SurfaceDeprecation(surface))
 	}
 	switch c := request.Payload.(type) {
 	case ToggleFloatingCommand, ZoomWindowCommand, ResizeWindowCommand, FrameResizeLayoutCommand:
@@ -136,7 +126,7 @@ func canonicalOpenCommand(c OpenWindowCommand, report func(string)) Command {
 	if c.Window.FloatingRect != (NormalizedRect{}) {
 		report("window.open.window.floating_rect")
 	}
-	if c.RestoreWindowID != nil {
+	if c.RestoreWindowID != nil && *c.RestoreWindowID != "" {
 		report("window.open.restore_window_id")
 	}
 	if c.Window.Floating {

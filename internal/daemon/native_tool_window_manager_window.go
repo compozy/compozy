@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -30,6 +31,12 @@ func (n *daemonNativeTools) windowList(
 		WorkspaceID: snapshot.WorkspaceID,
 		Revision:    snapshot.Revision,
 		Windows:     windows,
+	}
+	payload.Deprecations = []windowmanager.Deprecation{}
+	if input.IncludeMinimized {
+		payload.Deprecations = append(payload.Deprecations, windowmanager.SurfaceDeprecation("compozy__window_list.include_minimized"))
+		windowManagerSurfaceDeprecationLogger(slog.Default(), &deprecatedWindowSurfaces)(ctx,
+			windowmanager.CommandRequest{Actor: windowManagerActor(scope)}, payload.Deprecations)
 	}
 	return structuredResult(payload, fmt.Sprintf("listed %d windows at revision %d", len(windows), payload.Revision))
 }

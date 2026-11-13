@@ -37,6 +37,7 @@ func newWindowCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newWindowCloseCommand(deps))
 	cmd.AddCommand(newWindowGroupCommand(deps))
 	cmd.AddCommand(newWindowActivateCommand(deps))
+	cmd.AddCommand(newWindowReorderCommand(deps))
 	cmd.AddCommand(newWindowPinCommand(deps, true))
 	cmd.AddCommand(newWindowPinCommand(deps, false))
 	cmd.AddCommand(newWindowReopenCommand(deps))
@@ -75,7 +76,7 @@ func newWindowOpenCommand(deps commandDeps) *cobra.Command {
 	var values windowOpenFlagValues
 	cmd := &cobra.Command{
 		Use:   windowManagerOpenKey,
-		Short: "Open a window or restore a minimized window",
+		Short: "Open a window as a tab or split member",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runWindowOpenCommand(cmd, deps, flags, values)
@@ -205,22 +206,22 @@ func (values *windowOpenFlagValues) addFlags(cmd *cobra.Command) {
 		&values.restoreID,
 		"restore",
 		"",
-		"Restore this minimized window instead of opening a new one",
+		"Deprecated: activate this existing window; removed in v0.8.0",
 	)
 	cmd.Flags().StringVar(
 		&values.rectRaw,
 		windowManagerRectFlag,
 		"",
-		"Floating rect as x,y,width,height in normalized coordinates",
+		"Deprecated: ignored floating rect; removed in v0.8.0",
 	)
 	cmd.Flags().BoolVar(&values.insertTiled, "tiled", false, "Insert beside client focus when possible")
 	cmd.Flags().BoolVar(
 		&values.floating,
 		"floating",
 		false,
-		"Open a free floating window whatever the new-window policy",
+		"Deprecated: open a tab; removed in v0.8.0",
 	)
-	cmd.Flags().StringVar(&values.stackTarget, "stack-target", "", "Add the new window to this window's stack")
+	cmd.Flags().StringVar(&values.stackTarget, "stack-target", "", "Open a tab after this window's tab")
 	addWindowManagerRouteFlags(cmd, &values.pathname, &values.searchJSON)
 }
 
@@ -230,7 +231,7 @@ func newWindowCloseCommand(deps commandDeps) *cobra.Command {
 	var minimize bool
 	var scope string
 	cmd := &cobra.Command{
-		Use: windowCloseKey, Short: "Close or minimize a window and reflow its group", Args: cobra.NoArgs,
+		Use: windowCloseKey, Short: "Close a window or tabs by scope", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			windowID, err := requiredWindowManagerFlag(windowID, "id")
 			if err != nil {
@@ -267,8 +268,8 @@ func newWindowCloseCommand(deps commandDeps) *cobra.Command {
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&windowID, "id", "", "Window ID")
-	cmd.Flags().BoolVar(&minimize, "minimize", false, "Keep the window available for restore")
-	cmd.Flags().StringVar(&scope, "scope", "tab", "Close scope: tab, group, others, or right")
+	cmd.Flags().BoolVar(&minimize, "minimize", false, "Deprecated no-op: keep the window open; removed in v0.8.0")
+	cmd.Flags().StringVar(&scope, "scope", "tab", "Close scope: tab, group, others, right, left, or all")
 	return cmd
 }
 
@@ -282,6 +283,10 @@ func parseWindowManagerCloseScope(raw string) (windowmanager.CloseScope, error) 
 		return windowmanager.CloseScopeOthers, nil
 	case string(windowmanager.CloseScopeRight):
 		return windowmanager.CloseScopeRight, nil
+	case string(windowmanager.CloseScopeLeft):
+		return windowmanager.CloseScopeLeft, nil
+	case string(windowmanager.CloseScopeAll):
+		return windowmanager.CloseScopeAll, nil
 	default:
 		return "", newWindowManagerCLIValidationError(
 			windowManagerCLIValidationInvalidValue,

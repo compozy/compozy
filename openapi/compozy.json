@@ -4052,6 +4052,8 @@
         "type": "object"
       },
       "BindingsConfig": {
+        "deprecated": true,
+        "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
         "properties": {
           "bottom_center": {
             "type": "string"
@@ -31589,6 +31591,9 @@
               "spawn.ttl_expired",
               "spawn.reaped",
               "session.attention.changed",
+              "window_manager.tab.split",
+              "window_manager.tab.unsplit",
+              "window_manager.tab.activated",
               "window_manager.layout.applied",
               "window_manager.desktop.created",
               "window_manager.desktop.deleted",
@@ -36290,6 +36295,8 @@
         "type": "object"
       },
       "SnapConfig": {
+        "deprecated": true,
+        "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
         "properties": {
           "corner_reach": {
             "format": "double",
@@ -48821,6 +48828,8 @@
             "type": "string"
           },
           "drag_away_policy": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "nullable": true,
             "type": "string"
           },
@@ -48850,6 +48859,8 @@
             ]
           },
           "group_move_modifier": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "nullable": true,
             "type": "string"
           },
@@ -48866,6 +48877,8 @@
             "type": "string"
           },
           "raise_on_focus": {
+            "deprecated": true,
+            "description": "Deprecated: accepted and ignored; remove before v0.8.0.",
             "nullable": true,
             "type": "boolean"
           },
@@ -65702,6 +65715,9 @@
                 "spawn.ttl_expired",
                 "spawn.reaped",
                 "session.attention.changed",
+                "window_manager.tab.split",
+                "window_manager.tab.unsplit",
+                "window_manager.tab.activated",
                 "window_manager.layout.applied",
                 "window_manager.desktop.created",
                 "window_manager.desktop.deleted",
@@ -90602,6 +90618,9 @@
                 "spawn.ttl_expired",
                 "spawn.reaped",
                 "session.attention.changed",
+                "window_manager.tab.split",
+                "window_manager.tab.unsplit",
+                "window_manager.tab.activated",
                 "window_manager.layout.applied",
                 "window_manager.desktop.created",
                 "window_manager.desktop.deleted",

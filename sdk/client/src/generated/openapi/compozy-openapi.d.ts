@@ -9178,6 +9178,10 @@ export interface components {
       expected_worktree_id?: string | null;
       worktree: string;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     BindingsConfig: {
       bottom_center: string;
       top_center: string;
@@ -17015,6 +17019,9 @@ export interface components {
         | "spawn.ttl_expired"
         | "spawn.reaped"
         | "session.attention.changed"
+        | "window_manager.tab.split"
+        | "window_manager.tab.unsplit"
+        | "window_manager.tab.activated"
         | "window_manager.layout.applied"
         | "window_manager.desktop.created"
         | "window_manager.desktop.deleted"
@@ -18386,6 +18393,10 @@ export interface components {
     SkillsResponse: {
       skills: components["schemas"]["SkillPayload"][];
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SnapConfig: {
       /** Format: double */
       corner_reach: number;
@@ -22158,15 +22169,27 @@ export interface components {
       bindings?: components["schemas"]["BindingsConfig"] | null;
       closed_entry_limit?: number | null;
       desktop_transition?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       drag_away_policy?: string | null;
       focus_follows_pointer?: boolean | null;
       focus_policy?: string | null;
       focus_wrap?: boolean | null;
       gaps?: components["schemas"]["GapsConfig"] | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       group_move_modifier?: string | null;
       history_limit?: number | null;
       nav_stack_limit?: number | null;
       new_window_policy?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       raise_on_focus?: boolean | null;
       shortcuts?: {
         [key: string]: string | string[];
@@ -33393,6 +33416,9 @@ export interface operations {
           | "spawn.ttl_expired"
           | "spawn.reaped"
           | "session.attention.changed"
+          | "window_manager.tab.split"
+          | "window_manager.tab.unsplit"
+          | "window_manager.tab.activated"
           | "window_manager.layout.applied"
           | "window_manager.desktop.created"
           | "window_manager.desktop.deleted"
@@ -50144,6 +50170,9 @@ export interface operations {
           | "spawn.ttl_expired"
           | "spawn.reaped"
           | "session.attention.changed"
+          | "window_manager.tab.split"
+          | "window_manager.tab.unsplit"
+          | "window_manager.tab.activated"
           | "window_manager.layout.applied"
           | "window_manager.desktop.created"
           | "window_manager.desktop.deleted"

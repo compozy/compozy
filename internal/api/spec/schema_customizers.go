@@ -103,6 +103,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 			{Value: openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())},
 		}}
 	},
+	reflect.TypeFor[windowmanager.WorkspaceConfig]():           customizeWindowManagerWorkspaceConfigSchema,
 	reflect.TypeFor[contract.UpdateSettingsAttentionRequest](): customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionResponse]():      customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionPayload]():       customizeClosedObjectSchema,

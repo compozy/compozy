@@ -11,6 +11,10 @@ import (
 )
 
 func decodeSnapshotJSON(encoded []byte, target any) error {
+	encoded, err := translateDocumentOverridesJSON(encoded)
+	if err != nil {
+		return err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
@@ -143,17 +147,11 @@ func convertLegacyOverrides(legacy WorkspaceConfigV5, current *WorkspaceConfig) 
 	if err != nil {
 		return fmt.Errorf("encode legacy overrides: %w", err)
 	}
-	if err := json.Unmarshal(encodedOverrides, current); err != nil {
+	decoded, err := DecodeWorkspaceConfigJSON(encodedOverrides)
+	if err != nil {
 		return err
 	}
-	current.RaiseOnFocus = nil
-	current.DragAwayPolicy = nil
-	current.GroupMoveModifier = nil
-	current.Snap = nil
-	current.Bindings = nil
-	if current.NewWindowPolicy != nil && *current.NewWindowPolicy == NewWindowFloating {
-		current.NewWindowPolicy = new(NewWindowTab)
-	}
+	*current = decoded
 	return nil
 }
 

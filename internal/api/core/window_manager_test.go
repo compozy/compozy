@@ -737,6 +737,49 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept retired override values before strict layout request decoding", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		path := windowManagerTestPath("workspace-a")
+		exported := performWindowManagerTestRequest(t, fixture.router, http.MethodGet, path+"/layout", "")
+		requireWindowManagerStatus(t, exported, http.StatusOK)
+		var document map[string]json.RawMessage
+		decodeWindowManagerTestBody(t, exported, &document)
+		document["overrides"] = json.RawMessage(`{"focus_wrap":true,"new_window_policy":"floating",` +
+			`"raise_on_focus":0,"drag_away_policy":false,"group_move_modifier":[],` +
+			`"snap":{"edge_band":"ignored","repeat_ratios":42},"bindings":{"top_center":false}}`)
+		body := marshalWindowManagerTestJSON(t, map[string]any{
+			"workspace_id": "workspace-a", "expected_revision": 0, "document": document,
+		})
+		replaced := performWindowManagerTestRequest(t, fixture.router, http.MethodPut, path+"/layout", body)
+		requireWindowManagerStatus(t, replaced, http.StatusOK)
+		var result contract.WindowManagerResult
+		decodeWindowManagerTestBody(t, replaced, &result)
+		if result.Snapshot.Overrides.FocusWrap == nil || !*result.Snapshot.Overrides.FocusWrap ||
+			result.Snapshot.Overrides.NewWindowPolicy == nil ||
+			*result.Snapshot.Overrides.NewWindowPolicy != windowmanager.NewWindowTab {
+			t.Fatalf("kept overrides were lost: %+v", result.Snapshot.Overrides)
+		}
+		encoded := marshalWindowManagerTestJSON(t, result.Snapshot.Overrides)
+		if encoded != `{"new_window_policy":"tab","focus_wrap":true}` {
+			t.Fatalf("effective overrides = %s", encoded)
+		}
+		document["overrides"] = json.RawMessage(`{"raise_on_focus":false,"drag_away_policy":"",` +
+			`"group_move_modifier":"","snap":null,"bindings":null}`)
+		validated := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
+			marshalWindowManagerTestJSON(t, map[string]any{"workspace_id": "workspace-a", "document": document}))
+		requireWindowManagerStatus(t, validated, http.StatusOK)
+		var validation contract.WindowManagerLayoutValidationResponse
+		decodeWindowManagerTestBody(t, validated, &validation)
+		if !validation.Valid {
+			t.Fatalf("v0.6 zero values rejected: %+v", validation)
+		}
+		document["overrides"] = json.RawMessage(`{"snap":{"unknown":true}}`)
+		rejected := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
+			marshalWindowManagerTestJSON(t, map[string]any{"workspace_id": "workspace-a", "document": document}))
+		requireWindowManagerError(t, rejected, http.StatusUnprocessableEntity, contract.WindowManagerErrorInvalidCommand)
+	})
+
 	t.Run("Should hand the resolved profile to the window-manager provider", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)

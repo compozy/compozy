@@ -1,11 +1,11 @@
 ---
 title: "compozy layout balance"
-description: "Equalize one split or every split in a group"
+description: "Equalize one split or every split in a tab"
 ---
 
 ## compozy layout balance
 
-Equalize one split or every split in a group
+Equalize one split or every split in a tab
 
 ```
 compozy layout balance [flags]
@@ -16,11 +16,12 @@ compozy layout balance [flags]
 ```
       --actor-id string    Optional actor identifier
       --client string      Connected presentation client ID
-      --group string       Layout group ID
+      --group string       Deprecated alias of --tab; removed in v0.8.0
   -h, --help               help for balance
       --origin string      Command origin label (default "cli")
       --revision uint      Expected workspace revision
       --split string       Split node ID
+      --tab string         Tab ID
       --workspace string   Override workspace (ID, name, or path)
 ```
 

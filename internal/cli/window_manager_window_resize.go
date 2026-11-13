@@ -13,7 +13,7 @@ func newWindowResizeCommand(deps commandDeps) *cobra.Command {
 	var windowID, rectRaw string
 	cmd := &cobra.Command{
 		Use:   windowManagerResizeKey,
-		Short: "Resize a window frame; a tiled split member detaches into its own island",
+		Short: "Deprecated no-op: use layout resize; removed in v0.8.0",
 		Example: "  # Output example\n" +
 			"  # Set WINDOW_ID to an existing window ID.\n" +
 			"  compozy window resize --id \"$WINDOW_ID\" --rect 0.10,0.10,0.80,0.80",

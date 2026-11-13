@@ -157,14 +157,25 @@ func (r *cmdPaletteBindingsResolver) resolveBindingsFromSnapshot(
 	}
 	aliases := make(map[cmdpalette.CommandID]string, len(paletteConfig.Aliases))
 	for commandID, alias := range paletteConfig.Aliases {
-		if _, exists := bindable[commandID]; !exists {
+		resolved, deprecated := windowmanager.CommandAlias(commandID)
+		r.warnDeprecatedBinding(commandID)
+		if _, explicit := paletteConfig.Aliases[resolved]; deprecated && explicit {
+			continue
+		}
+		if _, exists := bindable[resolved]; !exists {
 			r.logDeadBinding(workspaceID, commandID, "alias")
 			continue
 		}
-		aliases[cmdpalette.CommandID(commandID)] = alias
+		aliases[cmdpalette.CommandID(resolved)] = alias
 	}
 	for _, diagnostic := range diagnostics {
+		if windowmanager.RetiredShortcut(diagnostic.CommandID) {
+			continue
+		}
 		r.logDeadBinding(workspaceID, diagnostic.CommandID, "shortcut")
+	}
+	for commandID := range windowConfig.Shortcuts {
+		r.warnDeprecatedBinding(commandID)
 	}
 	return bindings, aliases, nil
 }
@@ -346,4 +357,14 @@ func (r *cmdPaletteBindingsResolver) logDeadBinding(
 		"command_id", strings.TrimSpace(commandID),
 		"config_kind", kind,
 	)
+}
+
+// Compatibility warnings for stored command IDs are removed with the v0.8.0 shims.
+func (r *cmdPaletteBindingsResolver) warnDeprecatedBinding(id string) {
+	_, alias := windowmanager.CommandAlias(id)
+	if !alias && !windowmanager.RetiredShortcut(id) {
+		return
+	}
+	windowManagerSurfaceDeprecationLogger(r.logger, &deprecatedWindowSurfaces)(context.Background(),
+		windowmanager.CommandRequest{Actor: windowmanager.Actor{Kind: "config"}}, []windowmanager.Deprecation{windowmanager.SurfaceDeprecation(id)})
 }

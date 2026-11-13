@@ -61,21 +61,21 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 		&arrangement,
 		windowManagerArrangementFlag,
 		"",
-		"Arrangement: horizontal, vertical, grid, stack, or main_stack",
+		"Arrangement: horizontal, vertical, grid, main_stack, or stack (deprecated)",
 	)
 	cmd.Flags().StringVar(
 		&frameRaw,
 		windowManagerFrameFlag,
 		"",
-		"Group frame as x,y,width,height; defaults to the full desktop",
+		"Deprecated: ignored frame; removed in v0.8.0",
 	)
-	cmd.Flags().StringVar(&groupID, windowManagerGroupFlag, "", "Stable group ID; generated when omitted")
+	cmd.Flags().StringVar(&groupID, windowManagerGroupFlag, "", "Deprecated: ignored group ID; removed in v0.8.0")
 	cmd.Flags().StringVar(&resourceID, windowManagerResourceFlag, "", "Declarative layout resource ID")
 	cmd.Flags().BoolVar(
 		&keepFrames,
 		windowManagerKeepFramesFlag,
 		false,
-		"Arrange each named window's whole tab frame as one participant, keeping the deck intact",
+		"Deprecated: ignored; removed in v0.8.0",
 	)
 	return cmd
 }
@@ -202,7 +202,7 @@ func newLayoutFrameResizeCommand(deps commandDeps) *cobra.Command {
 	var edits []string
 	cmd := &cobra.Command{
 		Use:   "frame-resize",
-		Short: "Atomically rewrite island frames to move a shared tiled boundary",
+		Short: "Deprecated no-op: use layout resize; removed in v0.8.0",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			desktopID, err := requiredWindowManagerFlag(desktopID, "desktop")
@@ -273,14 +273,15 @@ func parseWindowManagerFrameEdits(values []string) ([]contract.WindowManagerGrou
 
 func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
-	var groupID, splitID string
+	var groupID, splitID, tabID string
 	cmd := &cobra.Command{
-		Use: "balance", Short: "Equalize one split or every split in a group", Args: cobra.NoArgs,
+		Use: "balance", Short: "Equalize one split or every split in a tab", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			groupSet := strings.TrimSpace(groupID) != ""
 			splitSet := strings.TrimSpace(splitID) != ""
-			if groupSet == splitSet {
-				return errors.New("cli: exactly one of --group or --split is required")
+			tabSet := strings.TrimSpace(tabID) != ""
+			if (groupSet && (splitSet || tabSet)) || (splitSet == tabSet && !groupSet) {
+				return errors.New("cli: exactly one of --tab, --group, or --split is required")
 			}
 			var group *windowmanager.GroupID
 			if groupSet {
@@ -295,7 +296,7 @@ func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {
 				deps,
 				contract.WindowManagerCommandLayoutBalance,
 				contract.WindowManagerBalanceLayoutPayload{
-					GroupID: group, SplitID: split,
+					GroupID: group, SplitID: split, TabID: windowManagerBalanceTabID(tabID),
 				},
 			)
 			if err != nil {
@@ -309,7 +310,8 @@ func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	flags.add(cmd)
-	cmd.Flags().StringVar(&groupID, windowManagerGroupFlag, "", "Layout group ID")
+	cmd.Flags().StringVar(&tabID, "tab", "", "Tab ID")
+	cmd.Flags().StringVar(&groupID, windowManagerGroupFlag, "", "Deprecated alias of --tab; removed in v0.8.0")
 	cmd.Flags().StringVar(&splitID, "split", "", "Split node ID")
 	return cmd
 }
@@ -368,4 +370,11 @@ func isWindowManagerArrangement(arrangement windowmanager.Arrangement) bool {
 	default:
 		return false
 	}
+}
+
+func windowManagerBalanceTabID(value string) *windowmanager.TabID {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return new(windowmanager.TabID(strings.TrimSpace(value)))
 }

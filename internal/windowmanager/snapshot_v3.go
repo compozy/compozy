@@ -46,6 +46,10 @@ type legacySnapshotV3 struct {
 // The result carries the next revision: its content differs from what any
 // client cached under the stored revision.
 func MigrateLegacySnapshotV3(encoded []byte) (SnapshotV5, error) {
+	encoded, err := translateDocumentOverridesJSON(encoded)
+	if err != nil {
+		return SnapshotV5{}, fmt.Errorf("decode legacy window-manager overrides: %w", err)
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	var legacy legacySnapshotV3

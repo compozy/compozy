@@ -23,9 +23,10 @@ type windowManagerDesktopsResult struct {
 }
 
 type windowManagerWindowsResult struct {
-	WorkspaceID windowmanager.WorkspaceID `json:"workspace_id"`
-	Revision    windowmanager.Revision    `json:"revision"`
-	Windows     []windowmanager.Window    `json:"windows"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	WorkspaceID  windowmanager.WorkspaceID   `json:"workspace_id"`
+	Revision     windowmanager.Revision      `json:"revision"`
+	Windows      []windowmanager.Window      `json:"windows"`
 }
 
 type windowManagerClientsResult struct {

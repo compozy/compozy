@@ -46,6 +46,9 @@ func windowManagerCommands() []cmdpalette.Descriptor {
 	commands := make([]cmdpalette.Descriptor, 0, len(windowmanager.CommandIDs()))
 	for _, windowManagerID := range windowmanager.CommandIDs() {
 		id := cmdpalette.CommandID(windowManagerID)
+		if windowManagerRetiredCommand(windowManagerID) {
+			continue
+		}
 		if _, exists := shellIDs[id]; exists {
 			continue
 		}
@@ -71,4 +74,15 @@ func clientContextRequirement(id cmdpalette.CommandID) []cmdpalette.Predicate {
 		}}
 	}
 	return nil
+}
+
+func windowManagerRetiredCommand(id windowmanager.CommandID) bool {
+	switch id {
+	case windowmanager.CommandWindowToggleFloating, windowmanager.CommandWindowZoom, windowmanager.CommandWindowResize,
+		windowmanager.CommandLayoutFrameResize, windowmanager.CommandWindowStackGroup,
+		windowmanager.CommandWindowStackReorder, windowmanager.CommandWindowStackSetActive:
+		return true
+	default:
+		return false
+	}
 }

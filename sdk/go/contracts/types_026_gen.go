@@ -188,6 +188,9 @@ type WindowManagerActor struct {
 }
 
 type WindowManagerChanges struct {
+	TabIDs         []string `json:"tab_ids,omitempty"`
+	TabSplit       []string `json:"tab_split,omitempty"`
+	TabUnsplit     []string `json:"tab_unsplit,omitempty"`
 	DesktopIDs     []string `json:"desktop_ids,omitempty"`
 	WindowIDs      []string `json:"window_ids,omitempty"`
 	GroupIDs       []string `json:"group_ids,omitempty"`

@@ -2582,6 +2582,114 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	// IT-010: the real native gateway preserves deprecated tools with structured guidance.
+	t.Run("Should accept every retired window tool with actionable deprecations [IT-010]", func(t *testing.T) {
+		t.Parallel()
+		manager, err := windowmanager.NewService(windowmanager.NewMemoryRepository(), windowmanager.NewMemoryWorkspaceResolver("workspace-a"), nil, windowmanager.DefaultConfig())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager("workspace-a"), WindowManagers: staticWindowManagers{manager: manager}, Workspaces: nativeTestWorkspaceService(t)}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "workspace-a", SessionID: "session-a", AgentName: "agent-a"}
+		call := func(id toolspkg.ToolID, input string) windowManagerCommandResult {
+			t.Helper()
+			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)})
+			if err != nil {
+				t.Fatalf("%s: %v", id, err)
+			}
+			var payload windowManagerCommandResult
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			return payload
+		}
+		for _, id := range []string{"window-a", "window-b"} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			call(toolspkg.ToolIDWindowOpen, fmt.Sprintf(`{"expected_revision":%d,"window_id":%q,"app":"terminal","route":{"pathname":"/terminal/test","search":{}}}`, snapshot.Revision, id))
+		}
+		for _, item := range []struct {
+			id         toolspkg.ToolID
+			fields     string
+			translated bool
+		}{
+			{toolspkg.ToolIDWindowFloat, `"window_id":"window-a"`, false},
+			{toolspkg.ToolIDWindowZoom, `"window_id":"window-a"`, false},
+			{toolspkg.ToolIDWindowResize, `"window_id":"window-a","frame":{"x":0,"y":0,"width":1,"height":1}`, false},
+			{toolspkg.ToolIDLayoutFrameResize, `"desktop_id":"desktop-default","edits":[{"group_id":"unused","frame":{"x":0,"y":0,"width":1,"height":1}}]`, false},
+			{toolspkg.ToolIDWindowGroup, `"target_window_id":"window-a","window_ids":["window-b"]`, true},
+		} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := call(item.id, fmt.Sprintf(`{"expected_revision":%d,%s}`, snapshot.Revision, item.fields))
+			if result.Applied != item.translated || len(result.Deprecations) != 1 {
+				t.Fatalf("%s result=%+v", item.id, result)
+			}
+			warning := result.Deprecations[0]
+			if warning.Surface != item.id.String() || warning.Replacement == "" || warning.Message == "" || warning.RemovalRelease != "v0.8.0" {
+				t.Fatalf("%s deprecation=%+v", item.id, warning)
+			}
+			if !item.translated && result.Revision != snapshot.Revision {
+				t.Fatalf("retired %s changed revision", item.id)
+			}
+		}
+		for _, include := range []bool{false, true} {
+			listed, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDWindowList, Input: json.RawMessage(fmt.Sprintf(`{"include_minimized":%v}`, include))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload windowManagerWindowsResult
+			if err := json.Unmarshal(listed.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if include {
+				want = 1
+			}
+			if len(payload.Windows) != 2 || len(payload.Deprecations) != want {
+				t.Fatalf("listed=%+v", payload)
+			}
+			if include && (payload.Deprecations[0].Surface != "compozy__window_list.include_minimized" || payload.Deprecations[0].Replacement == "") {
+				t.Fatalf("deprecation=%+v", payload.Deprecations)
+			}
+		}
+		for _, id := range []string{"window.stack.reorder", "window.stack.set_active"} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := `"window_id":"window-a"`
+			if id == "window.stack.reorder" {
+				fields += `,"index":0`
+			}
+			preview, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDLayoutPreview, Input: json.RawMessage(fmt.Sprintf(`{"expected_revision":%d,"command_id":%q,"payload":{%s}}`, snapshot.Revision, id, fields))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload compactPreviewResult
+			if err := json.Unmarshal(preview.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Deprecations) != 1 || payload.Deprecations[0].Surface != id || payload.Deprecations[0].Replacement == "" {
+				t.Fatalf("preview=%+v", payload)
+			}
+			after, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil || after.Revision != snapshot.Revision {
+				t.Fatalf("preview mutated revision: %+v err=%v", after, err)
+			}
+		}
+
+	})
+
 	t.Run("Should execute window manager tools through scoped revisioned state", func(t *testing.T) {
 		t.Parallel()
 

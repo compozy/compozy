@@ -7,6 +7,7 @@ import (
 )
 
 type compactSnapshot struct {
+	Migration   *windowmanager.MigrationStatus                  `json:"migration,omitzero"`
 	Version     uint32                                          `json:"version"`
 	WorkspaceID windowmanager.WorkspaceID                       `json:"workspace_id"`
 	Revision    windowmanager.Revision                          `json:"revision"`
@@ -18,6 +19,7 @@ type compactSnapshot struct {
 
 func projectCompactSnapshot(p windowmanager.Snapshot) compactSnapshot {
 	return compactSnapshot{
+		Migration:   p.Migration,
 		Version:     p.Version,
 		WorkspaceID: p.WorkspaceID,
 		Revision:    p.Revision,

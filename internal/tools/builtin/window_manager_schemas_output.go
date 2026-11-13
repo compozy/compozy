@@ -42,6 +42,7 @@ const windowManagerReadOutputSchema = `{
 		"snapshot":{"type":"object"},
 		"document":{"type":"object"},
 		"valid":{"type":"boolean"},
+		"deprecations":` + windowManagerDeprecationsSchema + `,
 		"diagnostics":` + windowManagerDiagnosticsSchema + `
 	},
 	"required":["workspace_id","revision"],

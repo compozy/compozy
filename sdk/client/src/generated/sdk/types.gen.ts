@@ -1153,6 +1153,11 @@ export type BindSessionWorktreeRequest = {
   worktree: string;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type BindingsConfig = {
   bottom_center: string;
   top_center: string;
@@ -8780,6 +8785,9 @@ export type SettingsHookDeclarationPayload = {
     | "spawn.ttl_expired"
     | "spawn.reaped"
     | "session.attention.changed"
+    | "window_manager.tab.split"
+    | "window_manager.tab.unsplit"
+    | "window_manager.tab.activated"
     | "window_manager.layout.applied"
     | "window_manager.desktop.created"
     | "window_manager.desktop.deleted"
@@ -10149,6 +10157,11 @@ export type SkillsResponse = {
   skills: Array<SkillPayload>;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SnapConfig = {
   corner_reach: number;
   edge_band: number;
@@ -13150,15 +13163,30 @@ export type WorkspaceConfig = {
   bindings?: BindingsConfig | null;
   closed_entry_limit?: number | null;
   desktop_transition?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   drag_away_policy?: string | null;
   focus_follows_pointer?: boolean | null;
   focus_policy?: string | null;
   focus_wrap?: boolean | null;
   gaps?: GapsConfig | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   group_move_modifier?: string | null;
   history_limit?: number | null;
   nav_stack_limit?: number | null;
   new_window_policy?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   raise_on_focus?: boolean | null;
   shortcuts?: {
     [key: string]: string | Array<string>;
@@ -21811,6 +21839,9 @@ export type GetHookCatalogData = {
       | "spawn.ttl_expired"
       | "spawn.reaped"
       | "session.attention.changed"
+      | "window_manager.tab.split"
+      | "window_manager.tab.unsplit"
+      | "window_manager.tab.activated"
       | "window_manager.layout.applied"
       | "window_manager.desktop.created"
       | "window_manager.desktop.deleted"
@@ -34552,6 +34583,9 @@ export type GetHookRunsData = {
       | "spawn.ttl_expired"
       | "spawn.reaped"
       | "session.attention.changed"
+      | "window_manager.tab.split"
+      | "window_manager.tab.unsplit"
+      | "window_manager.tab.activated"
       | "window_manager.layout.applied"
       | "window_manager.desktop.created"
       | "window_manager.desktop.deleted"

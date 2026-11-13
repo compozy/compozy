@@ -64,6 +64,36 @@ func encodeFixture(t *testing.T, v any) []byte {
 }
 
 func TestMigrateSnapshotV5(t *testing.T) {
+	t.Run("Should translate retired overrides at every stored snapshot decoder", func(t *testing.T) {
+		t.Parallel()
+		legacy := legacyFixture("a")
+		legacy.Desktops[0].Groups = []LayoutGroupV5{oldGroup("g", oldLeaf("a"), fullRect())}
+		current := convertFixture(t, legacy)
+		for _, version := range []uint32{3, 4, 5, SnapshotVersion} {
+			var raw map[string]json.RawMessage
+			encoded := encodeFixture(t, legacy)
+			if version == SnapshotVersion {
+				encoded = encodeFixture(t, current)
+			}
+			if err := json.Unmarshal(encoded, &raw); err != nil {
+				t.Fatal(err)
+			}
+			raw["version"] = encodeFixture(t, version)
+			raw["overrides"] = json.RawMessage(`{"new_window_policy":"floating","history_limit":25,` +
+				`"raise_on_focus":[],"snap":{"edge_band":false},"bindings":{"top_center":42}}`)
+			got, _, err := DecodeSnapshot(encodeFixture(t, raw))
+			if err != nil {
+				t.Fatalf("version %d: %v", version, err)
+			}
+			if got.Overrides.NewWindowPolicy == nil || *got.Overrides.NewWindowPolicy != NewWindowTab ||
+				got.Overrides.HistoryLimit == nil || *got.Overrides.HistoryLimit != 25 ||
+				got.Overrides.RaiseOnFocus != nil || got.Overrides.Snap != nil || got.Overrides.Bindings != nil ||
+				len(got.Windows) != 1 {
+				t.Fatalf("version %d: snapshot = %+v", version, got)
+			}
+		}
+	})
+
 	t.Run("Should root stack order and active (UT-040)", func(t *testing.T) {
 		t.Parallel()
 		s := legacyFixture("a", "b", "c")

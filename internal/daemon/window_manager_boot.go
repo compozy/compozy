@@ -75,6 +75,7 @@ func (d *Daemon) bootWindowManager(
 		windowmanager.WithAppDeprecationObserver(
 			windowManagerAppDeprecationLogger(state.logger, &deprecatedWindowApps),
 		),
+		windowmanager.WithDeprecationObserver(windowManagerSurfaceDeprecationLogger(state.logger, &deprecatedWindowSurfaces)),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
 		windowmanager.WithClientUnregisteredObserver(closeCmdPaletteClientViews(state)),
 		windowmanager.WithGlobalShortcutFailureObserver(notifyGlobalHotkeyRegistrationFailure(state)),
@@ -338,18 +339,6 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, err
 	}
-	edgeBand, err := windowManagerInteger("snap.edge_band", defaults.Snap.EdgeBand, 4, 128)
-	if err != nil {
-		return compozyconfig.WindowManagerConfig{}, err
-	}
-	cornerReach, err := windowManagerInteger("snap.corner_reach", defaults.Snap.CornerReach, 16, 512)
-	if err != nil {
-		return compozyconfig.WindowManagerConfig{}, err
-	}
-	exitSlack, err := windowManagerInteger("snap.exit_slack", defaults.Snap.ExitSlack, 0, 64)
-	if err != nil {
-		return compozyconfig.WindowManagerConfig{}, err
-	}
 	return compozyconfig.WindowManagerConfig{
 		NewWindowPolicy:     string(defaults.NewWindowPolicy),
 		SmallViewportPolicy: string(defaults.SmallViewportPolicy),
@@ -366,13 +355,6 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 		DesktopTransition:   string(defaults.DesktopTransition),
 		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner: inner, Top: top, Right: right, Bottom: bottom, Left: left,
-		},
-		Snap: compozyconfig.WindowManagerSnapConfig{
-			EdgeBand: edgeBand, CornerReach: cornerReach, ExitSlack: exitSlack,
-			RepeatRatios: append([]float64(nil), defaults.Snap.RepeatRatios...),
-		},
-		Bindings: compozyconfig.WindowManagerBindingConfig{
-			TopCenter: defaults.Bindings.TopCenter, BottomCenter: defaults.Bindings.BottomCenter,
 		},
 		Shortcuts: windowmanager.CloneShortcutMap(defaults.Shortcuts),
 	}, nil

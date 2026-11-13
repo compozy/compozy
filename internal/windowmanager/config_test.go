@@ -51,23 +51,22 @@ func TestEffectiveConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("effectiveConfig() error = %v", err)
 		}
-		if effective.NewWindowPolicy != NewWindowFloating ||
+		if effective.NewWindowPolicy != NewWindowTab ||
 			effective.SmallViewportPolicy != SmallViewportReject ||
 			effective.FocusPolicy != FocusDirectional || !effective.FocusWrap || !effective.FocusFollowsPointer ||
 			effective.RaiseOnFocus ||
-			effective.DragAwayPolicy != DragAwayGroup ||
-			effective.GroupMoveModifier != dragModifierMeta ||
+			effective.DragAwayPolicy != "" ||
+			effective.GroupMoveModifier != "" ||
 			effective.SwapModifier != dragModifierControl ||
 			effective.HistoryLimit != 7 || effective.NavStackLimit != 8 || effective.ClosedEntryLimit != 9 ||
 			effective.DesktopTransition != DesktopTransitionInstant {
 			t.Fatalf("effective behavioral config = %+v", effective)
 		}
-		if effective.Gaps != gaps || effective.Bindings != bindings || len(effective.Snap.RepeatRatios) != 2 ||
+		if effective.Gaps != gaps || effective.Bindings != (BindingsConfig{}) || len(effective.Snap.RepeatRatios) != 0 ||
 			!slices.Equal(effective.Shortcuts["layout.balance"], ShortcutBinding{"meta+shift+KeyB"}) {
 			t.Fatalf("effective structural config = %+v", effective)
 		}
 
-		effective.Snap.RepeatRatios[0] = 0.2
 		effective.Shortcuts["layout.balance"][0] = "changed"
 		if snap.RepeatRatios[0] != 0.4 || shortcuts["layout.balance"][0] != " Shift + Meta + KeyB " {
 			t.Fatal("effective config aliases caller-owned collections")
@@ -152,11 +151,11 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 	t.Run("Should diagnose duplicate chords across and within arrays [UT-039,UT-040]", func(t *testing.T) {
 		t.Parallel()
 		across := map[string]ShortcutBinding{
-			"window.close":    {"alt+KeyQ", "control+KeyQ"},
-			"window.minimize": {"control+KeyQ"},
+			"window.close":      {"alt+KeyQ", "control+KeyQ"},
+			"window.focus.left": {"control+KeyQ"},
 		}
 		if _, err := CanonicalShortcutsV2(across, DefaultBindableIDs()); !errors.Is(err, ErrInvalidCommand) ||
-			!stringsContainAll(err.Error(), "control+KeyQ", "window.close", "window.minimize") {
+			!stringsContainAll(err.Error(), "control+KeyQ", "window.close", "window.focus.left") {
 			t.Fatalf("cross-action duplicate error = %v", err)
 		}
 		within := map[string]ShortcutBinding{"window.close": {"alt+KeyQ", "ALT + KeyQ"}}
@@ -400,11 +399,6 @@ func TestConfigValidation(t *testing.T) {
 			wantError: `focus policy "wrap": window manager invalid command`,
 		},
 		{
-			name:      "Should reject an unknown drag-away policy",
-			mutate:    func(config *Config) { config.DragAwayPolicy = "desktop" },
-			wantError: `drag away policy "desktop": window manager invalid command`,
-		},
-		{
 			name:      "Should reject a non-positive history limit",
 			mutate:    func(config *Config) { config.HistoryLimit = 0 },
 			wantError: "history limit 0 must be between 1 and 500: window manager invalid command",
@@ -420,11 +414,6 @@ func TestConfigValidation(t *testing.T) {
 			wantError: `desktop transition "flip": window manager invalid command`,
 		},
 		{
-			name:      "Should reject an unknown group modifier",
-			mutate:    func(config *Config) { config.GroupMoveModifier = "command" },
-			wantError: `group move modifier "command": window manager invalid command`,
-		},
-		{
 			name:      "Should reject an unknown swap modifier",
 			mutate:    func(config *Config) { config.SwapModifier = "command" },
 			wantError: `swap modifier "command": window manager invalid command`,
@@ -438,36 +427,6 @@ func TestConfigValidation(t *testing.T) {
 			name:      "Should reject a non-finite gap",
 			mutate:    func(config *Config) { config.Gaps.Inner = math.NaN() },
 			wantError: "gaps must be finite and non-negative: window manager invalid command",
-		},
-		{
-			name:      "Should reject invalid snap thresholds",
-			mutate:    func(config *Config) { config.Snap.EdgeBand = 0 },
-			wantError: "snap thresholds are invalid: window manager invalid command",
-		},
-		{
-			name:      "Should require repeat ratios",
-			mutate:    func(config *Config) { config.Snap.RepeatRatios = nil },
-			wantError: "repeat ratios are required: window manager invalid command",
-		},
-		{
-			name:      "Should reject an out-of-range repeat ratio",
-			mutate:    func(config *Config) { config.Snap.RepeatRatios = []float64{0.05} },
-			wantError: "repeat ratio 0.05 is invalid: window manager invalid command",
-		},
-		{
-			name:      "Should reject duplicate repeat ratios",
-			mutate:    func(config *Config) { config.Snap.RepeatRatios = []float64{0.5, 0.5} },
-			wantError: "repeat ratio 0.5 is duplicated: window manager invalid command",
-		},
-		{
-			name:      "Should reject an unknown edge binding",
-			mutate:    func(config *Config) { config.Bindings.TopCenter = "tile" },
-			wantError: `binding "tile": window manager invalid command`,
-		},
-		{
-			name:      "Should reject the unsupported stack edge binding",
-			mutate:    func(config *Config) { config.Bindings.TopCenter = "stack" },
-			wantError: `binding "stack": window manager invalid command`,
 		},
 		{
 			name: "Should reject an empty member mixed with a chord",
@@ -610,6 +569,88 @@ func TestServiceDefaultConfigLifecycle(t *testing.T) {
 		if len(second.Snapshot.History.Undo) != 1 ||
 			second.Snapshot.History.Undo[0].CommandID != CommandDesktopCreate {
 			t.Fatalf("history after live defaults = %+v, want one create entry", second.Snapshot.History.Undo)
+		}
+	})
+}
+
+// UT-056: workspace JSON translation has the same semantics as TOML and stays strict.
+func TestRetiredWorkspaceOverrides(t *testing.T) {
+	t.Run("Should translate retired overrides while rejecting unknown fields", func(t *testing.T) {
+		t.Parallel()
+		warnings := map[string]int{}
+		input := []byte(`{"new_window_policy":"floating","raise_on_focus":42,"drag_away_policy":false,"group_move_modifier":[],"snap":{"edge_band":false,"corner_reach":-5,"exit_slack":"bad","repeat_ratios":42},"bindings":{"top_center":true,"bottom_center":42}}`)
+		_, err := translateWorkspaceConfigJSON(input, func(key string, _ bool) { warnings[key]++ })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(warnings) != 10 {
+			t.Fatalf("warnings=%v", warnings)
+		}
+		for key, count := range warnings {
+			if count != 1 {
+				t.Fatalf("%s warned %d times", key, count)
+			}
+		}
+		overrides, err := DecodeWorkspaceConfigJSON(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		effective, err := effectiveConfig(DefaultConfig(), overrides)
+		if err != nil || effective.NewWindowPolicy != NewWindowTab || effective.Snap.EdgeBand != 0 {
+			t.Fatalf("effective=%+v err=%v", effective, err)
+		}
+		encoded, err := json.Marshal(overrides)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(encoded) != `{"new_window_policy":"tab"}` {
+			t.Fatalf("effective overrides retain retired keys: %s", encoded)
+		}
+		for _, invalid := range []string{`{"snap":{"unknown":true}}`, `{"unknown":true}`, `{"gaps":{"inner":1,"unknown":true}}`} {
+			if _, err := DecodeWorkspaceConfigJSON([]byte(invalid)); err == nil {
+				t.Fatalf("unknown field accepted: %s", invalid)
+			}
+		}
+	})
+}
+
+// UT-057: stored retired bindings survive, but never resolve to executable actions.
+func TestRetiredShortcutResolution(t *testing.T) {
+	t.Run("Should preserve retired bindings without resolving an action", func(t *testing.T) {
+		t.Parallel()
+		bindings := map[string]ShortcutBinding{"window.minimize": {"alt+KeyM"}, "window.merge_all": {"alt+KeyM"}, "window.tab.detach": {"alt+KeyM"}, "window.tile.left": {"alt+KeyH"}, "window.unsplit": {"alt+KeyU"}, "window.tab.move_left": {"alt+KeyJ"}, "window.tab.move_right": {"alt+KeyL"}}
+		stored, err := CanonicalShortcutsV2(bindings, DefaultBindableIDs())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(stored["window.minimize"], bindings["window.minimize"]) {
+			t.Fatal("retired stored binding lost")
+		}
+		effective, _, err := TolerantEffectiveKeymap(stored, DefaultBindableIDs())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"window.minimize", "window.merge_all", "window.tab.detach"} {
+			if _, active := effective[id]; active {
+				t.Fatalf("retired shortcut %s resolves to an action", id)
+			}
+			if len(DefaultKeymap()[id]) != 0 {
+				t.Fatalf("retired shortcut %s has a default", id)
+			}
+		}
+		if !slices.Equal(effective["window.tile.left"], ShortcutBinding{"alt+KeyH"}) {
+			t.Fatalf("root-edge binding=%v", effective)
+		}
+		for _, id := range []string{"window.unsplit", "window.tab.move_left", "window.tab.move_right"} {
+			if len(DefaultKeymap()[id]) != 0 || len(effective[id]) != 1 {
+				t.Fatalf("new binding %s: %v", id, effective[id])
+			}
+		}
+		bindable := DefaultBindableIDs()
+		bindable[string(CommandWindowTabReorder)] = struct{}{}
+		alias, err := EffectiveKeymap(map[string]ShortcutBinding{string(CommandWindowStackReorder): {"alt+KeyR"}}, bindable)
+		if err != nil || !slices.Equal(alias[string(CommandWindowTabReorder)], ShortcutBinding{"alt+KeyR"}) {
+			t.Fatalf("alias=%v err=%v", alias, err)
 		}
 	})
 }

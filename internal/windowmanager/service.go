@@ -24,6 +24,7 @@ type Manager struct {
 	globalShortcutObserver GlobalShortcutFailureObserver
 	workspaceConfig        WorkspaceConfigResolver
 	appDeprecationObserver AppDeprecationObserver
+	deprecationObserver    DeprecationObserver
 	defaultsMu             sync.RWMutex
 
 	mu               sync.Mutex
@@ -105,6 +106,7 @@ func NewService(
 		clientObserver:         resolved.clientObserver,
 		workspaceConfig:        resolved.workspaceConfig,
 		appDeprecationObserver: resolved.appDeprecationObserver,
+		deprecationObserver:    resolved.deprecationObserver,
 		workspaceLocks:         make(map[WorkspaceID]*workspaceLock),
 		clients:                make(map[WorkspaceID]map[ClientID]ClientView),
 		clientTokens:           make(map[WorkspaceID]map[ClientID][32]byte),
@@ -140,6 +142,9 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 		return Result{}, err
 	}
 	request, deprecations := canonicalCommandSurfaces(request)
+	if m.deprecationObserver != nil {
+		m.deprecationObserver(ctx, request, deprecations)
+	}
 	commandID = request.Payload.CommandID()
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {
@@ -198,6 +203,9 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 		return Preview{}, err
 	}
 	request, deprecations := canonicalCommandSurfaces(request)
+	if m.deprecationObserver != nil {
+		m.deprecationObserver(ctx, request, deprecations)
+	}
 	commandID = request.Payload.CommandID()
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {

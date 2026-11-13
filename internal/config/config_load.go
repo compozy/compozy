@@ -8,6 +8,7 @@ import (
 )
 
 type loadOptions struct {
+	windowManagerWarning      func(string, bool)
 	workspaceRoot             string
 	profileName               string
 	skipDotEnv                bool
@@ -108,6 +109,7 @@ func Load(opts ...LoadOption) (Config, error) {
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
+		options.windowManagerWarning,
 	)
 }
 
@@ -142,6 +144,7 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
+		options.windowManagerWarning,
 	)
 }
 
@@ -152,8 +155,19 @@ func loadWithHome(
 	skipWorkspaceOverlayFiles bool,
 	skipValidate bool,
 	lookup envLookup,
+	warning func(string, bool),
 ) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
+	if warning != nil {
+		seen := make(map[string]bool)
+		cfg.WindowManager.retiredKeyWarning = func(key string, translated bool) {
+			if seen[key] {
+				return
+			}
+			seen[key] = true
+			warning(key, translated)
+		}
+	}
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
 	}

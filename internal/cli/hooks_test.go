@@ -408,3 +408,26 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 		}
 	})
 }
+
+// IT-015: hooks list owns stderr warnings while preserving the catalog JSON.
+func TestHooksListRetiredWindowEvents(t *testing.T) {
+	t.Run("Should warn once per retired event and preserve catalog JSON", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, &stubClient{hookCatalogFn: func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error) {
+			return []HookCatalogRecord{{Name: "old-group", Event: "window_manager.stack.grouped"}, {Name: "old-group-2", Event: "window_manager.stack.grouped"}, {Name: "old-ungroup", Event: "window_manager.stack.ungrouped"}}, nil
+		}})
+		stdout, stderr, err := executeRootCommand(t, deps, "hooks", "list", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var records []HookCatalogRecord
+		if err := json.Unmarshal([]byte(stdout), &records); err != nil || len(records) != 3 {
+			t.Fatalf("stdout=%s err=%v", stdout, err)
+		}
+		for _, event := range []string{"window_manager.stack.grouped", "window_manager.stack.ungrouped"} {
+			if strings.Count(stderr, "warning: "+event+" is retired and never fires;") != 1 {
+				t.Fatalf("stderr=%s", stderr)
+			}
+		}
+	})
+}

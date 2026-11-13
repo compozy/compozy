@@ -111,7 +111,7 @@ func TestWindowManagerTabLayoutContract(t *testing.T) {
 			}},
 			Windows: map[windowmanager.WindowID]windowmanager.Window{},
 			Overrides: windowmanager.WorkspaceConfig{HistoryLimit: new(20),
-				Snap:      &windowmanager.SnapConfig{RepeatRatios: []float64{0.5, 0.75}},
+				Gaps:      &windowmanager.GapsConfig{Inner: 4},
 				Shortcuts: map[string]windowmanager.ShortcutBinding{"layout.balance": {"Meta+Shift+KeyB"}}},
 		}
 		wire, err := contract.WindowManagerLayoutFromDomain(document)
@@ -136,12 +136,12 @@ func TestWindowManagerTabLayoutContract(t *testing.T) {
 		wire.Desktops[0].Tabs[0].Root.Weights[0] = 0.9
 		*wire.Desktops[0].Tabs[0].Root.Children[0].WindowID = "wire-window"
 		*wire.Overrides.HistoryLimit = 99
-		wire.Overrides.Snap.RepeatRatios[0] = 0.25
+		wire.Overrides.Gaps.Inner = 8
 		wire.Overrides.Shortcuts["layout.balance"][0] = "Alt+KeyB"
 		if document.Desktops[0].Tabs[0].ID != "tab:main" ||
 			document.Desktops[0].Tabs[0].Root.Weights[0] != 0.37 ||
 			*document.Desktops[0].Tabs[0].Root.Children[0].WindowID != a ||
-			*document.Overrides.HistoryLimit != 20 || document.Overrides.Snap.RepeatRatios[0] != 0.5 ||
+			*document.Overrides.HistoryLimit != 20 || document.Overrides.Gaps.Inner != 4 ||
 			document.Overrides.Shortcuts["layout.balance"][0] != "Meta+Shift+KeyB" {
 			t.Fatal("wire conversion aliases domain layout")
 		}
@@ -150,11 +150,11 @@ func TestWindowManagerTabLayoutContract(t *testing.T) {
 		domain.Desktops[0].Tabs[0].Root.Weights[0] = 0.2
 		*domain.Desktops[0].Tabs[0].Root.Children[0].WindowID = "domain-window"
 		*domain.Overrides.HistoryLimit = 8
-		domain.Overrides.Snap.RepeatRatios[0] = 0.1
+		domain.Overrides.Gaps.Inner = 12
 		domain.Overrides.Shortcuts["layout.balance"][0] = "Control+KeyB"
 		if wire.Desktops[0].Tabs[0].ID != "wire-mutated" || wire.Desktops[0].Tabs[0].Root.Weights[0] != 0.9 ||
 			*wire.Desktops[0].Tabs[0].Root.Children[0].WindowID != "wire-window" ||
-			*wire.Overrides.HistoryLimit != 99 || wire.Overrides.Snap.RepeatRatios[0] != 0.25 ||
+			*wire.Overrides.HistoryLimit != 99 || wire.Overrides.Gaps.Inner != 8 ||
 			wire.Overrides.Shortcuts["layout.balance"][0] != "Alt+KeyB" {
 			t.Fatal("domain conversion aliases wire layout")
 		}

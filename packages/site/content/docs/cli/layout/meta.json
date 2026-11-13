@@ -13,6 +13,7 @@
         "resize",
         "undo",
         "validate",
-        "watch"
+        "watch",
+        "migration"
     ]
 }

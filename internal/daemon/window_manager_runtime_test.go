@@ -39,7 +39,7 @@ func TestWindowManagerHookBridge(t *testing.T) {
 			{command: windowmanager.CommandWindowMove, hook: hookspkg.HookWindowManagerWindowMoved},
 			{command: windowmanager.CommandWindowOpen, hook: hookspkg.HookWindowManagerWindowOpened},
 			{command: windowmanager.CommandWindowClose, hook: hookspkg.HookWindowManagerWindowClosed},
-			{command: windowmanager.CommandWindowStackSetActive, hook: hookspkg.HookWindowManagerStackActivated},
+			{command: windowmanager.CommandWindowTabActivate, hook: hookspkg.HookWindowManagerStackActivated},
 		}
 		seen := make(chan hookspkg.WindowManagerPayload, len(events))
 		declarations := make([]hookspkg.HookDecl, 0, len(events))
@@ -154,33 +154,24 @@ func TestWindowManagerHookBridge(t *testing.T) {
 				event: windowmanager.Event{
 					CommandID: windowmanager.CommandWindowClose,
 					Changes: windowmanager.ChangeSet{
-						WindowIDs:      []windowmanager.WindowID{"window-a", "window-b"},
-						StackUngrouped: []windowmanager.NodeID{"stack-a"},
+						WindowIDs:  []windowmanager.WindowID{"window-a", "window-b"},
+						TabUnsplit: []windowmanager.TabID{"tab-a"},
 					},
 				},
 				want: []hookspkg.HookEvent{
 					hookspkg.HookWindowManagerWindowClosed,
-					hookspkg.HookWindowManagerStackUngrouped,
+					hookspkg.HookWindowManagerTabUnsplit,
 				},
 			},
 			{
-				name: "merge all",
-				event: windowmanager.Event{
-					CommandID: windowmanager.CommandWindowStackGroup,
-					Changes: windowmanager.ChangeSet{
-						StackGrouped:   []windowmanager.NodeID{"stack-target"},
-						StackUngrouped: []windowmanager.NodeID{"stack-source"},
-					},
-				},
-				want: []hookspkg.HookEvent{
-					hookspkg.HookWindowManagerStackGrouped,
-					hookspkg.HookWindowManagerStackUngrouped,
-				},
+				name:  "retired group outcomes never emit",
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowStackGroup, Changes: windowmanager.ChangeSet{StackGrouped: []windowmanager.NodeID{"legacy"}, StackUngrouped: []windowmanager.NodeID{"legacy"}}},
+				want:  nil,
 			},
 			{
 				name:  "durable activation",
-				event: windowmanager.Event{CommandID: windowmanager.CommandWindowStackSetActive},
-				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerStackActivated},
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowTabActivate},
+				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated},
 			},
 			{
 				name:  "presentation focus",
@@ -1302,6 +1293,88 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		}
 		if len(persisted.Windows) != 1 || persisted.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatal("exited agent PTY left a persisted window")
+		}
+	})
+}
+
+// IT-014: real manager commits feed the daemon bridge and async hook dispatch.
+func TestWindowManagerTabHookTransitions(t *testing.T) {
+	t.Run("Should dispatch split unsplit and dual activation hooks from real commits", func(t *testing.T) {
+		t.Parallel()
+		observed := make(chan hookspkg.WindowManagerPayload, 8)
+		declarations := []hookspkg.HookDecl{}
+		for _, event := range []hookspkg.HookEvent{hookspkg.HookWindowManagerTabSplit, hookspkg.HookWindowManagerTabUnsplit, hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated, hookspkg.HookWindowManagerStackGrouped, hookspkg.HookWindowManagerStackUngrouped} {
+			declarations = append(declarations, hookspkg.HookDecl{Name: event.String(), Event: event, Mode: hookspkg.HookModeAsync, ExecutorKind: hookspkg.HookExecutorNative})
+		}
+		dispatcher := hookspkg.NewHooks(hookspkg.WithLogger(discardLogger()), hookspkg.WithNativeDeclarations(declarations), hookspkg.WithAsyncWorkerCount(1), hookspkg.WithAsyncQueueCapacity(8), hookspkg.WithExecutorResolver(func(hookspkg.HookDecl) (hookspkg.Executor, error) {
+			return hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.WindowManagerPayload) (hookspkg.WindowManagerObservationPatch, error) {
+				observed <- payload
+				return hookspkg.WindowManagerObservationPatch{}, nil
+			}), nil
+		}))
+		t.Cleanup(dispatcher.Close)
+		if err := dispatcher.Rebuild(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		manager, err := windowmanager.NewService(windowmanager.NewMemoryRepository(), windowmanager.NewMemoryWorkspaceResolver("workspace-a"), nil, windowmanager.DefaultConfig(), windowmanager.WithEventObserver(newWindowManagerHookObserver(&bootState{hookDispatcher: dispatcher, logger: discardLogger()})))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		execute := func(command windowmanager.Command, client *windowmanager.ClientID) windowmanager.Result {
+			t.Helper()
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := manager.Execute(t.Context(), windowmanager.CommandRequest{WorkspaceID: "workspace-a", CommandID: command.CommandID(), ExpectedRevision: snapshot.Revision, ClientID: client, Payload: command, Actor: windowmanager.Actor{Kind: "cli", ID: "operator"}, Origin: "hook-integration"})
+			if err != nil {
+				t.Fatalf("%s: %v", command.CommandID(), err)
+			}
+			return result
+		}
+		for _, id := range []windowmanager.WindowID{"window-a", "window-b"} {
+			execute(windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{ID: id, App: "terminal", Route: windowmanager.RouteIntent{Pathname: "/terminal/test", Search: windowmanager.RouteSearch{}}}}, nil)
+		}
+		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		desktop := snapshot.Windows["window-a"].DesktopID
+		execute(windowmanager.MoveWindowCommand{WindowID: "window-b", DestinationDesktopID: desktop, TargetWindowID: new(windowmanager.WindowID("window-a")), Placement: windowmanager.DropRight}, nil)
+		execute(windowmanager.MoveWindowCommand{WindowID: "window-b", DestinationDesktopID: desktop, Placement: windowmanager.DropTab}, nil)
+		client := windowmanager.ClientID("client-a")
+		if _, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{WorkspaceID: "workspace-a", ClientID: client, ActiveDesktopID: desktop}); err != nil {
+			t.Fatal(err)
+		}
+		execute(windowmanager.ActivateTabCommand{WindowID: "window-a"}, &client)
+		execute(windowmanager.FocusWindowCommand{WindowID: new(windowmanager.WindowID("window-b"))}, &client)
+		// Unregister flushes the pending focus through the production coalescer.
+		if err := manager.UnregisterClient(t.Context(), "workspace-a", client); err != nil {
+			t.Fatal(err)
+		}
+		dispatcher.Close()
+		close(observed)
+		counts := map[hookspkg.HookEvent]int{}
+		coalesced := 0
+		for payload := range observed {
+			counts[payload.Event]++
+			if payload.WorkspaceID != "workspace-a" || payload.Revision == 0 || payload.Timestamp.IsZero() || payload.Origin == "" || payload.Actor.Kind == "" || len(payload.Changes.TabIDs) == 0 {
+				t.Fatalf("incomplete envelope: %+v", payload)
+			}
+			if payload.Actor.ID == "active_coalescer" {
+				coalesced++
+				if payload.CommandID != string(windowmanager.CommandWindowTabActivate) {
+					t.Fatalf("coalesced command: %+v", payload)
+				}
+			}
+		}
+		if counts[hookspkg.HookWindowManagerTabSplit] != 1 || counts[hookspkg.HookWindowManagerTabUnsplit] != 1 || counts[hookspkg.HookWindowManagerTabActivated] != 2 || counts[hookspkg.HookWindowManagerStackActivated] != 2 || len(counts) != 4 || coalesced != 2 {
+			t.Fatalf("events=%v coalesced=%d", counts, coalesced)
 		}
 	})
 }

@@ -388,6 +388,35 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain typed deprecated workspace override fields for current clients", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		overrides := componentSchema(t, document, "WorkspaceConfig")
+		for _, name := range []string{
+			"new_window_policy", "small_viewport_policy", "focus_policy", "focus_wrap", "focus_follows_pointer",
+			"swap_modifier", "history_limit", "nav_stack_limit", "closed_entry_limit", "desktop_transition", "gaps", "shortcuts",
+		} {
+			if propertySchema(t, overrides, name) == nil {
+				t.Fatalf("kept override %s has no schema", name)
+			}
+		}
+		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier"} {
+			if !propertySchema(t, overrides, name).Deprecated {
+				t.Fatalf("retired override %s is missing its deprecated schema", name)
+			}
+		}
+		assertSchemaIncludesType(t, propertySchema(t, overrides, "raise_on_focus"), openapi3.TypeBoolean)
+		for _, entry := range []struct{ property, component string }{{"snap", "SnapConfig"}, {"bindings", "BindingsConfig"}} {
+			propertySchema(t, overrides, entry.property)
+			if !componentSchema(t, document, entry.component).Deprecated {
+				t.Fatalf("retired override %s has no deprecated component", entry.property)
+			}
+		}
+	})
+
 	t.Run("Should describe tabs and window membership without retired topology", func(t *testing.T) {
 		t.Parallel()
 		document, err := Document()

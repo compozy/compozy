@@ -219,8 +219,8 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(window manager) error = %v", err)
 		}
-		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[1] != 0.75 {
-			t.Fatalf("WindowManager.Snap.RepeatRatios = %#v, want [0.5 0.75 0.25]", got)
+		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 0 {
+			t.Fatalf("retired WindowManager.Snap.RepeatRatios retained: %#v", got)
 		}
 		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
 			got,
@@ -3052,6 +3052,56 @@ func TestConfigSetCarriesDaemonReloadWarnings(t *testing.T) {
 		}
 		if !strings.Contains(human, warning) {
 			t.Fatalf("config set human output = %q, want the warning", human)
+		}
+	})
+}
+
+// IT-007: CLI owns warning placement; config parsing uses the real temporary home.
+func TestConfigShowRetiredWindowManagerKeys(t *testing.T) {
+	t.Run("Should print retired key warnings only on stderr", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(home.ConfigFile), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(home.ConfigFile, []byte(`[window_manager]
+raise_on_focus = "invalid"
+drag_away_policy = 123
+new_window_policy = "floating"
+[window_manager.snap]
+repeat_ratios = false
+`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		stdout, stderr, err := executeRootCommand(t, deps, "config", "show", "-o", "json")
+		if err != nil {
+			t.Fatalf("config show: %v stderr=%s", err, stderr)
+		}
+		var output configShowRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"raise_on_focus", "drag_away_policy", "snap.repeat_ratios"} {
+			want := "warning: window_manager." + key + " is retired and ignored; remove it before v0.8.0."
+			if strings.Count(stderr, want) != 1 {
+				t.Fatalf("warning %s: %s", key, stderr)
+			}
+		}
+		if strings.Count(stderr, `warning: window_manager.new_window_policy = "floating" is deprecated; use "tab" before v0.8.0.`) != 1 {
+			t.Fatalf("policy warning: %s", stderr)
+		}
+		windowConfig := output.Config["window_manager"].(map[string]any)
+		if windowConfig["new_window_policy"] != "tab" {
+			t.Fatalf("config=%v", windowConfig)
+		}
+		for _, key := range []string{"raise_on_focus", "drag_away_policy", "snap"} {
+			if _, present := windowConfig[key]; present {
+				t.Fatalf("retired key %s retained", key)
+			}
 		}
 	})
 }

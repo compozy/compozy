@@ -14,6 +14,7 @@ type windowMoveFlagValues struct {
 	windowID    string
 	destination string
 	targetID    string
+	targetTabID string
 	placement   string
 	rectRaw     string
 	moveGroup   bool
@@ -24,7 +25,7 @@ func newWindowMoveCommand(deps commandDeps) *cobra.Command {
 	var values windowMoveFlagValues
 	cmd := &cobra.Command{
 		Use:   windowManagerMoveKey,
-		Short: "Move a window or tiled group to an explicit destination",
+		Short: "Move a window or tab to an explicit destination",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runWindowMoveCommand(cmd, deps, flags, values)
@@ -33,15 +34,16 @@ func newWindowMoveCommand(deps commandDeps) *cobra.Command {
 	flags.add(cmd)
 	cmd.Flags().StringVar(&values.windowID, "id", "", "Window ID")
 	cmd.Flags().StringVar(&values.destination, "desktop", "", "Destination desktop ID")
+	cmd.Flags().StringVar(&values.targetTabID, "tab", "", "Target tab for root-edge placement")
 	cmd.Flags().StringVar(&values.targetID, automationTargetKey, "", "Target window for structural placement")
 	cmd.Flags().StringVar(
 		&values.placement,
 		"placement",
-		string(windowmanager.DropFloating),
-		"Placement: floating, before, after, left, right, top, bottom, or center",
+		string(windowmanager.DropTab),
+		"Placement: tab, before, after, left, right, top, bottom, center, or floating (deprecated)",
 	)
-	cmd.Flags().StringVar(&values.rectRaw, windowManagerRectFlag, "", "Floating rect as x,y,width,height")
-	cmd.Flags().BoolVar(&values.moveGroup, "group", false, "Move the complete tiled group")
+	cmd.Flags().StringVar(&values.rectRaw, windowManagerRectFlag, "", "Deprecated: ignored floating rect; removed in v0.8.0")
+	cmd.Flags().BoolVar(&values.moveGroup, "group", false, "Move the complete tab")
 	return cmd
 }
 
@@ -82,69 +84,31 @@ func windowMovePayload(
 	if err != nil {
 		return contract.WindowManagerMoveWindowPayload{}, err
 	}
+	tab, err := optionalWindowManagerID[windowmanager.TabID](cmd, "tab", values.targetTabID)
+	if err != nil {
+		return contract.WindowManagerMoveWindowPayload{}, err
+	}
+	if tab != nil && target != nil {
+		return contract.WindowManagerMoveWindowPayload{}, newWindowManagerCLIValidationError(
+			windowManagerCLIValidationConflicting, "tab",
+			errors.New("cli: --tab and --target are mutually exclusive"),
+		)
+	}
 	return contract.WindowManagerMoveWindowPayload{
 		WindowID:             windowmanager.WindowID(windowID),
 		DestinationDesktopID: windowmanager.DesktopID(destination),
 		TargetWindowID:       target,
+		TargetTabID:          tab,
 		Placement:            placement,
 		FloatingRect:         rect,
 		MoveGroup:            values.moveGroup,
 	}, nil
 }
 
-// windowMoveGroupPlacement validates the frame-level combinations: a floating
-// rect without a target moves the frame, a structural placement with a target
-// splices or folds the whole frame beside it.
-func windowMoveGroupPlacement(
-	cmd *cobra.Command,
-	values windowMoveFlagValues,
-) (*windowmanager.WindowID, windowmanager.DropPlacement, *windowmanager.NormalizedRect, error) {
-	placement := windowmanager.DropPlacement(strings.TrimSpace(values.placement))
-	if !isWindowManagerDropPlacement(placement) {
-		return nil, "", nil, fmt.Errorf("cli: unsupported --placement %q", values.placement)
-	}
-	target, err := optionalWindowManagerID[windowmanager.WindowID](cmd, automationTargetKey, values.targetID)
-	if err != nil {
-		return nil, "", nil, err
-	}
-	if target == nil {
-		if cmd.Flags().Changed("placement") && placement != windowmanager.DropFloating {
-			return nil, "", nil, newWindowManagerCLIValidationError(
-				windowManagerCLIValidationRequired,
-				automationTargetKey,
-				errors.New("cli: --group with structural --placement requires --target"),
-			)
-		}
-		rect, rectErr := optionalWindowManagerRect(cmd, values.rectRaw)
-		if rectErr != nil {
-			return nil, "", nil, rectErr
-		}
-		return nil, placement, rect, nil
-	}
-	if placement == windowmanager.DropFloating {
-		return nil, "", nil, newWindowManagerCLIValidationError(
-			windowManagerCLIValidationRequired,
-			windowManagerGroupFlag,
-			errors.New("cli: --group with --target requires a structural --placement"),
-		)
-	}
-	if cmd.Flags().Changed(windowManagerRectFlag) {
-		return nil, "", nil, newWindowManagerCLIValidationError(
-			windowManagerCLIValidationConflicting,
-			windowManagerGroupFlag,
-			fmt.Errorf("cli: --group with --target cannot be combined with --%s", windowManagerRectFlag),
-		)
-	}
-	return target, placement, nil, nil
-}
-
 func windowMovePlacement(
 	cmd *cobra.Command,
 	values windowMoveFlagValues,
 ) (*windowmanager.WindowID, windowmanager.DropPlacement, *windowmanager.NormalizedRect, error) {
-	if values.moveGroup {
-		return windowMoveGroupPlacement(cmd, values)
-	}
 	placement := windowmanager.DropPlacement(strings.TrimSpace(values.placement))
 	if !isWindowManagerDropPlacement(placement) {
 		return nil, "", nil, fmt.Errorf("cli: unsupported --placement %q", values.placement)
@@ -153,21 +117,12 @@ func windowMovePlacement(
 	if err != nil {
 		return nil, "", nil, err
 	}
-	if placement != windowmanager.DropFloating && target == nil {
-		return nil, "", nil, newWindowManagerCLIValidationError(
-			windowManagerCLIValidationRequired,
-			automationTargetKey,
-			errors.New("cli: --target is required for structural placement"),
-		)
+	if placement != windowmanager.DropTab && placement != windowmanager.DropFloating && target == nil && strings.TrimSpace(values.targetTabID) == "" {
+		return nil, "", nil, newWindowManagerCLIValidationError(windowManagerCLIValidationRequired, automationTargetKey,
+			errors.New("cli: --target or --tab is required for structural placement"))
 	}
 	rect, err := optionalWindowManagerRect(cmd, values.rectRaw)
-	if err != nil {
-		return nil, "", nil, err
-	}
-	if rect != nil && placement != windowmanager.DropFloating {
-		return nil, "", nil, errors.New("cli: --rect is only valid with --placement=floating")
-	}
-	return target, placement, rect, nil
+	return target, placement, rect, err
 }
 
 func newWindowSwapCommand(deps commandDeps) *cobra.Command {
@@ -212,7 +167,7 @@ func newWindowFloatCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	var windowID, rectRaw string
 	cmd := &cobra.Command{
-		Use: "float", Short: "Toggle a window between floating and tiled placement", Args: cobra.NoArgs,
+		Use: "float", Short: "Deprecated no-op: use window move --placement tab; removed in v0.8.0", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			windowID, err := requiredWindowManagerFlag(windowID, "id")
 			if err != nil {
@@ -242,7 +197,7 @@ func newWindowFloatCommand(deps commandDeps) *cobra.Command {
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&windowID, "id", "", "Window ID")
-	cmd.Flags().StringVar(&rectRaw, windowManagerRectFlag, "", "Floating rect as x,y,width,height")
+	cmd.Flags().StringVar(&rectRaw, windowManagerRectFlag, "", "Deprecated: ignored floating rect; removed in v0.8.0")
 	return cmd
 }
 
@@ -250,7 +205,7 @@ func newWindowZoomCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	var windowID string
 	cmd := &cobra.Command{
-		Use: "zoom", Short: "Toggle whether a window fills its desktop", Args: cobra.NoArgs,
+		Use: "zoom", Short: "Deprecated no-op: use window move --placement tab; removed in v0.8.0", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			windowID, err := requiredWindowManagerFlag(windowID, "id")
 			if err != nil {
@@ -281,7 +236,7 @@ func newWindowZoomCommand(deps commandDeps) *cobra.Command {
 
 func isWindowManagerDropPlacement(placement windowmanager.DropPlacement) bool {
 	switch placement {
-	case windowmanager.DropFloating, windowmanager.DropBefore, windowmanager.DropAfter,
+	case windowmanager.DropTab, windowmanager.DropFloating, windowmanager.DropBefore, windowmanager.DropAfter,
 		windowmanager.DropLeft, windowmanager.DropRight, windowmanager.DropTop,
 		windowmanager.DropBottom, windowmanager.DropCenter:
 		return true

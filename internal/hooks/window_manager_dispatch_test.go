@@ -1,8 +1,12 @@
 package hooks
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -17,8 +21,9 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 		HookWindowManagerWindowMoved,
 		HookWindowManagerWindowOpened,
 		HookWindowManagerWindowClosed,
-		HookWindowManagerStackGrouped,
-		HookWindowManagerStackUngrouped,
+		HookWindowManagerTabSplit,
+		HookWindowManagerTabUnsplit,
+		HookWindowManagerTabActivated,
 		HookWindowManagerStackActivated,
 	}
 	seen := make(chan WindowManagerPayload, len(events))
@@ -101,10 +106,10 @@ func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 		Origin: "native:compozy__window_manager_layout_arrange",
 	}
 	switch event {
-	case HookWindowManagerStackGrouped:
-		payload.Changes.StackGrouped = []string{"stack-grouped"}
-	case HookWindowManagerStackUngrouped:
-		payload.Changes.StackUngrouped = []string{"stack-ungrouped"}
+	case HookWindowManagerTabSplit:
+		payload.Changes.TabSplit = []string{"tab-a"}
+	case HookWindowManagerTabUnsplit:
+		payload.Changes.TabUnsplit = []string{"tab-a"}
 	}
 	return payload
 }
@@ -112,14 +117,14 @@ func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 func assertWindowManagerEventChanges(t *testing.T, event HookEvent, changes WindowManagerChanges) {
 	t.Helper()
 	switch event {
-	case HookWindowManagerStackGrouped:
-		if len(changes.StackGrouped) != 1 || changes.StackGrouped[0] != "stack-grouped" ||
-			len(changes.StackUngrouped) != 0 {
+	case HookWindowManagerTabSplit:
+		if len(changes.TabSplit) != 1 || changes.TabSplit[0] != "tab-a" ||
+			len(changes.TabUnsplit) != 0 {
 			t.Fatalf("grouped stack changes = %#v", changes)
 		}
-	case HookWindowManagerStackUngrouped:
-		if len(changes.StackUngrouped) != 1 || changes.StackUngrouped[0] != "stack-ungrouped" ||
-			len(changes.StackGrouped) != 0 {
+	case HookWindowManagerTabUnsplit:
+		if len(changes.TabUnsplit) != 1 || changes.TabUnsplit[0] != "tab-a" ||
+			len(changes.TabSplit) != 0 {
 			t.Fatalf("ungrouped stack changes = %#v", changes)
 		}
 	case HookWindowManagerStackActivated:
@@ -141,6 +146,15 @@ func dispatchWindowManagerTestPayload(
 	payload WindowManagerPayload,
 ) error {
 	switch event {
+	case HookWindowManagerTabSplit:
+		_, err := hooks.DispatchWindowManagerTabSplit(ctx, payload)
+		return err
+	case HookWindowManagerTabUnsplit:
+		_, err := hooks.DispatchWindowManagerTabUnsplit(ctx, payload)
+		return err
+	case HookWindowManagerTabActivated:
+		_, err := hooks.DispatchWindowManagerTabActivated(ctx, payload)
+		return err
 	case HookWindowManagerLayoutApplied:
 		_, err := hooks.DispatchWindowManagerLayoutApplied(ctx, payload)
 		return err
@@ -171,4 +185,47 @@ func dispatchWindowManagerTestPayload(
 	default:
 		return fmt.Errorf("unexpected window-manager event %q", event)
 	}
+}
+
+// IT-015: hook loading owns one warning per retired event and load-only dispatch.
+func TestRetiredWindowManagerHooksLoadWithoutDispatch(t *testing.T) {
+	t.Run("Should warn once for load-only hooks without dispatching them", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		var calls atomic.Int64
+		events := []HookEvent{HookWindowManagerStackGrouped, HookWindowManagerStackUngrouped}
+		declarations := []HookDecl{}
+		for _, event := range events {
+			declarations = append(declarations, HookDecl{Name: event.String(), Event: event, Mode: HookModeAsync, ExecutorKind: HookExecutorNative})
+		}
+		h := newTestHooks(t, WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))), WithNativeDeclarations(declarations), WithExecutorResolver(func(HookDecl) (Executor, error) {
+			return NewTypedNativeExecutor(func(_ context.Context, _ RegisteredHook, _ WindowManagerPayload) (WindowManagerObservationPatch, error) {
+				calls.Add(1)
+				return WindowManagerObservationPatch{}, nil
+			}), nil
+		}))
+		for range 2 {
+			if err := h.Rebuild(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, event := range events {
+			if strings.Count(logs.String(), `"surface":"`+event.String()+`"`) != 1 {
+				t.Fatalf("warnings: %s", logs.String())
+			}
+			if err := dispatchWindowManagerTestPayload(t.Context(), h, event, windowManagerDispatchTestPayload(event)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, event := range []HookEvent{HookWindowManagerTabSplit, HookWindowManagerTabUnsplit} {
+			if err := dispatchWindowManagerTestPayload(t.Context(), h, event, windowManagerDispatchTestPayload(event)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Close joins the async workers; no elapsed-time assertion is needed.
+		h.Close()
+		if calls.Load() != 0 {
+			t.Fatalf("retired hook fired %d times", calls.Load())
+		}
+	})
 }

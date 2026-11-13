@@ -1,0 +1,41 @@
+---
+title: "compozy layout migration"
+description: "Inspect or recover the layout upgrade"
+---
+
+## compozy layout migration
+
+Inspect or recover the layout upgrade
+
+### Options
+
+```
+  -h, --help   help for migration
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                              | Description                             |
+| -------------------------------------------------------------------- | --------------------------------------- |
+| [compozy layout migration ack](/docs/cli/layout/migration/ack)       | Acknowledge the layout migration notice |
+| [compozy layout migration retry](/docs/cli/layout/migration/retry)   | Retry the preserved layout migration    |
+| [compozy layout migration status](/docs/cli/layout/migration/status) | Show the layout migration status        |

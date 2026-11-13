@@ -261,6 +261,9 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 	}
 
 	windowManagerDescriptors := map[HookEvent]string{
+		HookWindowManagerTabSplit:       "WindowManagerTabSplitPayload",
+		HookWindowManagerTabUnsplit:     "WindowManagerTabUnsplitPayload",
+		HookWindowManagerTabActivated:   "WindowManagerTabActivatedPayload",
 		HookWindowManagerLayoutApplied:  "WindowManagerLayoutAppliedPayload",
 		HookWindowManagerDesktopCreated: "WindowManagerDesktopCreatedPayload",
 		HookWindowManagerDesktopDeleted: "WindowManagerDesktopDeletedPayload",

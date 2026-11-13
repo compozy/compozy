@@ -54,22 +54,23 @@ func windowDragModifiers() []string {
 
 // WindowManagerConfig controls window topology behavior and browser projection defaults.
 type WindowManagerConfig struct {
+	retiredKeyWarning   func(string, bool)
 	NewWindowPolicy     string                                   `toml:"new_window_policy"`
 	SmallViewportPolicy string                                   `toml:"small_viewport_policy"`
 	FocusPolicy         string                                   `toml:"focus_policy"`
 	FocusWrap           bool                                     `toml:"focus_wrap"`
 	FocusFollowsPointer bool                                     `toml:"focus_follows_pointer"`
-	RaiseOnFocus        bool                                     `toml:"raise_on_focus"`
-	DragAwayPolicy      string                                   `toml:"drag_away_policy"`
-	GroupMoveModifier   string                                   `toml:"group_move_modifier"`
+	RaiseOnFocus        bool                                     `toml:"-" json:"-"`
+	DragAwayPolicy      string                                   `toml:"-" json:"-"`
+	GroupMoveModifier   string                                   `toml:"-" json:"-"`
 	SwapModifier        string                                   `toml:"swap_modifier"`
 	HistoryLimit        int                                      `toml:"history_limit"`
 	NavStackLimit       int                                      `toml:"nav_stack_limit"`
 	ClosedEntryLimit    int                                      `toml:"closed_entry_limit"`
 	DesktopTransition   string                                   `toml:"desktop_transition"`
 	Gaps                WindowManagerGapsConfig                  `toml:"gaps"`
-	Snap                WindowManagerSnapConfig                  `toml:"snap"`
-	Bindings            WindowManagerBindingConfig               `toml:"bindings"`
+	Snap                WindowManagerSnapConfig                  `toml:"-" json:"-"`
+	Bindings            WindowManagerBindingConfig               `toml:"-" json:"-"`
 	Shortcuts           map[string]windowmanager.ShortcutBinding `toml:"shortcuts,omitempty"`
 	GlobalShortcuts     map[string]string                        `toml:"global_shortcuts,omitempty"`
 }
@@ -105,23 +106,13 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 		FocusPolicy:         WindowFocusClickDirectional,
 		FocusWrap:           false,
 		FocusFollowsPointer: false,
-		RaiseOnFocus:        true,
-		DragAwayPolicy:      WindowDragAwayWindow,
-		GroupMoveModifier:   WindowDragModifierAlt,
 		SwapModifier:        WindowDragModifierShift,
 		HistoryLimit:        50,
 		NavStackLimit:       50,
 		ClosedEntryLimit:    20,
 		DesktopTransition:   WindowDesktopTransitionSlide,
 		Gaps:                WindowManagerGapsConfig{},
-		Snap: WindowManagerSnapConfig{
-			EdgeBand: 32, CornerReach: 150, ExitSlack: 16,
-			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
-		},
-		Bindings: WindowManagerBindingConfig{
-			TopCenter: WindowBindingZoom, BottomCenter: WindowBindingZoom,
-		},
-		Shortcuts: map[string]windowmanager.ShortcutBinding{},
+		Shortcuts:           map[string]windowmanager.ShortcutBinding{},
 		GlobalShortcuts: map[string]string{
 			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
 		},
@@ -145,12 +136,6 @@ func (c WindowManagerConfig) Validate() error {
 		return ValidationError{Path: windowManagerClosedEntryLimitPath, Message: "must be between 1 and 100"}
 	}
 	if err := c.Gaps.Validate(); err != nil {
-		return err
-	}
-	if err := c.Snap.Validate(); err != nil {
-		return err
-	}
-	if err := c.Bindings.Validate(); err != nil {
 		return err
 	}
 	if err := validateWindowManagerShortcuts(c.Shortcuts); err != nil {
@@ -188,14 +173,7 @@ func (c WindowManagerConfig) validateEnums() error {
 	); err != nil {
 		return err
 	}
-	if err := validateWindowManagerEnum(
-		"window_manager.drag_away_policy",
-		c.DragAwayPolicy,
-		WindowDragAwayWindow,
-		WindowDragAwayGroup,
-	); err != nil {
-		return err
-	}
+
 	if err := validateWindowManagerEnum(
 		"window_manager.desktop_transition",
 		c.DesktopTransition,
@@ -205,13 +183,7 @@ func (c WindowManagerConfig) validateEnums() error {
 	); err != nil {
 		return err
 	}
-	if err := validateWindowManagerEnum(
-		"window_manager.group_move_modifier",
-		c.GroupMoveModifier,
-		windowDragModifiers()...,
-	); err != nil {
-		return err
-	}
+
 	if err := validateWindowManagerEnum(
 		"window_manager.swap_modifier",
 		c.SwapModifier,

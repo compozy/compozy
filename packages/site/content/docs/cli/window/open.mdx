@@ -1,11 +1,11 @@
 ---
 title: "compozy window open"
-description: "Open a window or restore a minimized window"
+description: "Open a window as a tab or split member"
 ---
 
 ## compozy window open
 
-Open a window or restore a minimized window
+Open a window as a tab or split member
 
 ```
 compozy window open [flags]
@@ -18,17 +18,17 @@ compozy window open [flags]
       --app string            Application route identifier
       --client string         Connected presentation client ID
       --desktop string        Destination desktop; resolved from client focus when omitted
-      --floating              Open a free floating window whatever the new-window policy
+      --floating              Deprecated: open a tab; removed in v0.8.0
   -h, --help                  help for open
       --id string             Stable window ID; generated when omitted
       --instance-key string   Optional application instance key
       --origin string         Command origin label (default "cli")
       --pathname string       Absolute application pathname
-      --rect string           Floating rect as x,y,width,height in normalized coordinates
-      --restore string        Restore this minimized window instead of opening a new one
+      --rect string           Deprecated: ignored floating rect; removed in v0.8.0
+      --restore string        Deprecated: activate this existing window; removed in v0.8.0
       --revision uint         Expected workspace revision
       --search-json string    Route search state as a JSON object
-      --stack-target string   Add the new window to this window's stack
+      --stack-target string   Open a tab after this window's tab
       --tiled                 Insert beside client focus when possible
       --workspace string      Override workspace (ID, name, or path)
 ```

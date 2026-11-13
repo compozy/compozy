@@ -1,11 +1,11 @@
 ---
 title: "compozy window move"
-description: "Move a window or tiled group to an explicit destination"
+description: "Move a window or tab to an explicit destination"
 ---
 
 ## compozy window move
 
-Move a window or tiled group to an explicit destination
+Move a window or tab to an explicit destination
 
 ```
 compozy window move [flags]
@@ -17,13 +17,14 @@ compozy window move [flags]
       --actor-id string    Optional actor identifier
       --client string      Connected presentation client ID
       --desktop string     Destination desktop ID
-      --group              Move the complete tiled group
+      --group              Move the complete tab
   -h, --help               help for move
       --id string          Window ID
       --origin string      Command origin label (default "cli")
-      --placement string   Placement: floating, before, after, left, right, top, bottom, or center (default "floating")
-      --rect string        Floating rect as x,y,width,height
+      --placement string   Placement: tab, before, after, left, right, top, bottom, center, or floating (deprecated) (default "tab")
+      --rect string        Deprecated: ignored floating rect; removed in v0.8.0
       --revision uint      Expected workspace revision
+      --tab string         Target tab for root-edge placement
       --target string      Target window for structural placement
       --workspace string   Override workspace (ID, name, or path)
 ```

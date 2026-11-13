@@ -205,7 +205,11 @@ func canonicalStoredShortcutOverrides(
 
 func validateBindableShortcutIDs(shortcuts map[string]ShortcutBinding, bindableIDs BindableIDs) error {
 	for commandID := range shortcuts {
-		if _, exists := bindableIDs[commandID]; !exists {
+		if RetiredShortcut(commandID) {
+			continue
+		}
+		resolved, _ := CommandAlias(commandID)
+		if _, exists := bindableIDs[resolved]; !exists {
 			return &UnknownShortcutIDError{CommandID: commandID}
 		}
 	}
@@ -333,7 +337,16 @@ func effectiveKeymap(
 		}
 	}
 	for action, binding := range canonical {
-		effective[action] = append(ShortcutBinding(nil), binding...)
+		if RetiredShortcut(action) {
+			continue
+		}
+		resolved, alias := CommandAlias(action)
+		if alias {
+			if _, exists := canonical[resolved]; exists {
+				return nil, fmt.Errorf("shortcut aliases %q and %q both configured: %w", action, resolved, ErrInvalidCommand)
+			}
+		}
+		effective[resolved] = append(ShortcutBinding(nil), binding...)
 	}
 	if err := validateShortcutConflicts(effective); err != nil {
 		return nil, err
@@ -346,6 +359,9 @@ func validateShortcutConflicts(shortcuts map[string]ShortcutBinding) error {
 	slices.Sort(actions)
 	owners := make(map[string]string)
 	for _, action := range actions {
+		if RetiredShortcut(action) {
+			continue
+		}
 		for _, chord := range shortcuts[action] {
 			if owner, exists := owners[chord]; exists {
 				return &ShortcutConflictError{Chord: chord, Owner: owner, Command: action}

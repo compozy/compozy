@@ -21,8 +21,18 @@ func TestProviderAbsorption(t *testing.T) {
 		for _, command := range commands {
 			counts[command.ID]++
 		}
+		retired := map[cmdpalette.CommandID]bool{
+			"window.toggle_floating": true, "window.zoom": true, "window.resize": true, "layout.frame_resize": true,
+			"window.stack.group": true, "window.stack.reorder": true, "window.stack.set_active": true,
+		}
 		for _, windowManagerID := range windowmanager.CommandIDs() {
 			id := cmdpalette.CommandID(windowManagerID)
+			if retired[id] {
+				if counts[id] != 0 {
+					t.Errorf("retired command %q remains visible", id)
+				}
+				continue
+			}
 			if counts[id] != 1 {
 				t.Errorf("command %q count = %d, want 1", id, counts[id])
 			}
@@ -125,8 +135,6 @@ func TestProviderAbsorption(t *testing.T) {
 		expected := map[cmdpalette.CommandID]string{
 			"shell.sessions.toggle":  "",
 			"processes.left_running": "",
-			"window.merge_all":       "needs two windows on this desktop",
-			"window.tab.detach":      "needs a tab in a stack",
 		}
 		for id, reason := range expected {
 			command, ok := byID[id]
@@ -403,5 +411,30 @@ func TestAllProjectsCommand(t *testing.T) {
 			}
 		}
 		t.Fatal("scope command missing")
+	})
+}
+
+// Canonical suite: core command catalog; invariant: public aliases resolve to the shipped tab actions.
+func TestWindowTabCommandAliases(t *testing.T) {
+	t.Run("Should expose live tab commands and resolve retired aliases", func(t *testing.T) {
+		t.Parallel()
+		for old, current := range map[cmdpalette.CommandID]cmdpalette.CommandID{"window.stack.reorder": "window.tab.reorder", "window.stack.set_active": "window.tab.activate"} {
+			replacement, retired := RetiredCommandID(old)
+			if !retired || replacement != current || RetiredCommandRemovalRelease(old) != "v0.8.0" {
+				t.Fatalf("%s alias=%s retired=%v", old, replacement, retired)
+			}
+		}
+		commands := mustCommands(t)
+		for _, id := range []cmdpalette.CommandID{"window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom"} {
+			index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id })
+			if index < 0 || commands[index].Action.Kind != cmdpalette.ActionKindClientOp || commands[index].Action.Op != string(id) {
+				t.Fatalf("missing client action %s", id)
+			}
+		}
+		for _, id := range []cmdpalette.CommandID{"window.merge_all", "window.tab.detach", "window.minimize", "window.zoom", "window.toggle_floating", "window.tile.top-left", "window.tile.top-right", "window.tile.bottom-left", "window.tile.bottom-right"} {
+			if slices.ContainsFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id }) {
+				t.Fatalf("retired action %s visible", id)
+			}
+		}
 	})
 }
