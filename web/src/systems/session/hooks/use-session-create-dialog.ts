@@ -116,6 +116,8 @@ export function useSessionCreateDialogViewModel(
         }
       : { activeWorkspace, projectWorkspaceId, dataScope, userHomeDir }
   );
+  // A named project the catalog has not confirmed blocks creation instead of falling back.
+  const binding = target.namedProjectUnresolved ? null : destination.binding;
   const agentList = useSessionCreateAgents({ destination, target, open: flow.open, agents });
   const selectedAgentName = draft.agentName;
   const environment = useSessionEnvironment({
@@ -127,12 +129,12 @@ export function useSessionCreateDialogViewModel(
       );
       store.trigger.environmentSelected({ environment: next });
     },
-    enabled: flow.open && destination.scope === "project" && destination.binding !== null,
+    enabled: flow.open && destination.scope === "project" && binding !== null,
   });
 
   const submit = useSessionCreateSubmit({
     agents: agentList,
-    binding: destination.binding,
+    binding,
     environment,
     environmentWorkspaceId: destination.environmentWorkspaceId,
     runtimeWorkspaceId: destination.runtimeWorkspaceId,
@@ -157,7 +159,7 @@ export function useSessionCreateDialogViewModel(
     scope: destination.scope,
     destinationLabel: destination.destinationLabel,
     sessionRoot: destination.sessionRoot,
-    destinationReady: destination.binding !== null,
+    destinationReady: binding !== null,
     sessionName: draft.sessionName,
     selectedAgentName,
     isSubmitting,
@@ -238,5 +240,12 @@ function useSessionCreateAgents({
     profile: target.profile,
   });
   if (query.data) return query.data;
-  return runtimeWorkspaceId && !target.projectAxis && !target.profileAxis ? (agents ?? []) : [];
+  // The shell's agents belong to its own project: never stand in for another target's.
+  return runtimeWorkspaceId &&
+    !target.projectAxis &&
+    !target.profileAxis &&
+    !target.namedProject &&
+    !target.namedProjectUnresolved
+    ? (agents ?? [])
+    : [];
 }

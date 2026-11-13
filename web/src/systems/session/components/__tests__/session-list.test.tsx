@@ -1845,8 +1845,8 @@ describe("SessionList row copy actions", () => {
     renderList({ sessions: [{ ...sessions[0]!, branch: "feat/session-menus" }] });
 
     await user.click(screen.getByTestId("session-row-actions-running"));
-    await openSubmenu(user, await screen.findByTestId("session-row-copy-running"));
-    await chooseItem(user, await screen.findByTestId("session-row-copy-branch-running"));
+    await openSubmenu(user, await screen.findByRole("menuitem", { name: "Copy" }));
+    await chooseItem(user, await screen.findByRole("menuitem", { name: "Copy branch name" }));
     expect(writeText).toHaveBeenLastCalledWith("feat/session-menus");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Branch name copied"));
   });

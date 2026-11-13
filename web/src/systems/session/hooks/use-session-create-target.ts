@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
+  USER_SCOPE_SELECTOR,
   useActiveWorkspace,
   type FocusedDataScope,
   type DataScope,
@@ -27,6 +28,11 @@ export interface SessionCreateTarget {
    * is the target instead of the menubar destination, without a picker.
    */
   namedProject: boolean;
+  /**
+   * The opening named a project the catalog does not list (yet, or anymore): the target stays
+   * unresolved and creation is blocked rather than falling back to the menubar destination.
+   */
+  namedProjectUnresolved: boolean;
   /** All profiles is on: the Profile picker is shown. */
   profileAxis: boolean;
   projectOptions: SessionTargetOption[];
@@ -88,9 +94,8 @@ export function useSessionCreateTarget({
     profileOptions.find(option => option.value === current.profile)?.value ??
     profileScope.destination;
 
-  const named = projectAxis
-    ? undefined
-    : active.projectWorkspaces.find(item => item.id === current.project);
+  const namedId = projectAxis || current.project === USER_SCOPE_SELECTOR ? null : current.project;
+  const named = namedId ? active.projectWorkspaces.find(item => item.id === namedId) : undefined;
   const scope = named
     ? sessionTargetScope(named.id)
     : resolveCreateScope(projectValue, active.dataScope);
@@ -102,6 +107,7 @@ export function useSessionCreateTarget({
   return {
     projectAxis,
     namedProject: named !== undefined,
+    namedProjectUnresolved: namedId !== null && named === undefined,
     profileAxis,
     projectOptions,
     projectValue,
