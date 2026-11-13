@@ -1485,7 +1485,26 @@ func TestConfigureRuntime(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "did not confirm") || !IsConfigurationRejection(err) {
 			t.Fatalf("error = %v, want unconfirmed configuration rejection", err)
 		}
+		if strings.Contains(err.Error(), "valid choices") {
+			t.Fatalf("error = %v, claims the requested value is absent from the advertised choices", err)
+		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
+	})
+
+	// Invariant: an unconfirmed readback is retried while the provider snapshot settles.
+	t.Run("Should confirm a reasoning effort after one unconfirmed readback", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "config_options_confirm_on_retry", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(
+			testutil.Context(t),
+			proc,
+			RuntimeConfig{ReasoningEffort: "high"},
+		); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want provider-confirmed reasoning effort", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
 	})
 
 	// Invariant: a notification sent before the provider's response cannot discard that confirmation.
