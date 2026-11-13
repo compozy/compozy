@@ -257,13 +257,21 @@ export function resizeLayoutCommand(
   };
 }
 
-/** Evens one split, or every split of a tab. */
+/**
+ * Evens one split, or every split of a tab. The split guard names boundary 0, which every split
+ * has: the daemon rejects a split guard without a valid boundary, so this one matches exactly
+ * while the split still exists.
+ */
 export function balanceLayoutCommand(target: {
   tabId?: string;
   splitId?: string;
 }): WindowManagerCommandInput | null {
   if (target.splitId) {
-    return { commandId: "layout.balance", payload: { split_id: target.splitId } };
+    return {
+      commandId: "layout.balance",
+      payload: { split_id: target.splitId },
+      rebase: { splitId: target.splitId, boundaryIndex: 0 },
+    };
   }
   if (target.tabId) {
     return {

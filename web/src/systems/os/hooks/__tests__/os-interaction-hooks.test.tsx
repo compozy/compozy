@@ -20,7 +20,12 @@ import type {
   WindowManagerController,
   WindowManagerCommandOutcome,
 } from "../../lib/os-types";
-import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
+import type {
+  LayoutNode,
+  ProjectedSeam,
+  WindowManagerConfig,
+  WindowManagerSnapshot,
+} from "../../lib/window-manager-types";
 import type { WindowManagerGlobalShortcutMap } from "../../lib/window-manager-shortcut-types";
 import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
@@ -43,6 +48,9 @@ import { shortcutAttentionTarget } from "../use-desktop-shell-body";
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
 import { useDesktopCardDrag } from "../use-desktop-card-drag";
 import { windowManagerStore } from "../../stores/window-manager-store";
+import { osTabDragStore } from "../../stores/os-tab-drag-store";
+import { useOsSplitSeam } from "../use-os-split-seam";
+import { useOsTabDragStart } from "../use-os-tab-drag";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
@@ -1478,5 +1486,252 @@ describe("useDesktopCardDrag", () => {
     pointer("pointerup", 250);
     expect(result.current.drag).toBeNull();
     expect(onReorder).not.toHaveBeenCalled();
+  });
+});
+
+function leafNode(windowId: string): LayoutNode {
+  return { id: `leaf:${windowId}`, kind: "leaf", windowId };
+}
+
+function desktopWith(tabs: Array<{ id: string; root: LayoutNode }>) {
+  return {
+    id: "desktop:main",
+    name: "Main",
+    order: 0,
+    tabs: tabs.map(tab => ({ ...tab, pinned: false })),
+    activeTabId: tabs[0]!.id,
+  };
+}
+
+/** jsdom has no pointer capture: the element records it instead. */
+function stubPointerCapture(element: HTMLElement) {
+  const captured = new Set<number>();
+  element.setPointerCapture = vi.fn((pointerId: number) => void captured.add(pointerId));
+  element.hasPointerCapture = vi.fn((pointerId: number) => captured.has(pointerId));
+  element.releasePointerCapture = vi.fn((pointerId: number) => void captured.delete(pointerId));
+  return element;
+}
+
+function TabBarDragHarness({ tabIds }: { tabIds: string[] }) {
+  const { startTabDrag } = useOsTabDragStart();
+  return (
+    <div data-slot="os-tab-bar" data-testid="bar">
+      {tabIds.map(tabId => (
+        <button
+          key={tabId}
+          data-slot="os-tab"
+          data-tab-id={tabId}
+          type="button"
+          onPointerDown={event => startTabDrag(tabId, event)}
+        >
+          {tabId}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function HeadDragHarness({ windowId, onBack }: { windowId: string; onBack: () => void }) {
+  const { startHeadDrag } = useOsTabDragStart();
+  return (
+    <header data-testid="head" onPointerDown={event => startHeadDrag(windowId, event)}>
+      <button type="button" onClick={onBack}>
+        Back
+      </button>
+    </header>
+  );
+}
+
+// Invariant: a tab or window-head drag sends its one command on release, and a press that stays
+// below the drag threshold is a plain click on whatever control is under it.
+// Owning layer: the pointer-to-drag-store wiring in useOsTabDragStart; the gesture rules
+// themselves are owned by the drag store suite.
+describe("useOsTabDragStart pointer gestures", () => {
+  afterEach(() => {
+    act(() => {
+      osTabDragStore.trigger.cancelled();
+      osTabDragStore.trigger.settled();
+    });
+  });
+
+  it("Should dispatch the reorder a released tab drag emits, fenced to the press revision", async () => {
+    const shell = createShell();
+    const windows = Object.fromEntries(
+      ["a", "b", "c"].map(name => [
+        `window:${name}`,
+        windowFixture(`window:${name}`, { tabId: `tab:${name}`, nodeId: `leaf:window:${name}` }),
+      ])
+    );
+    shell.setRuntimeState({
+      windows,
+      desktops: [
+        desktopWith(
+          ["a", "b", "c"].map(name => ({ id: `tab:${name}`, root: leafNode(`window:${name}`) }))
+        ),
+      ],
+      activeTabIds: { "desktop:main": "tab:a" },
+    });
+    render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, { wrapper: shell.wrapper });
+    screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
+    const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
+      const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
+      tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 30);
+      return tab;
+    });
+
+    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 1, clientX: 50, clientY: 15 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 15 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("dragging");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 15 });
+
+    // Moved past the last tab: the tab lands at the end of the bar, in one command.
+    expect(shell.controller.reorderTab).toHaveBeenCalledExactlyOnceWith("window:a", 2, {
+      expectedRevision: SNAPSHOT.revision,
+      rebase: { windowId: "window:a" },
+    });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(tabs[0]!.setPointerCapture).toHaveBeenCalledOnce();
+    // The reorder settled, so the bar shows the daemon's order again.
+    await waitFor(() => expect(osTabDragStore.getSnapshot().context.settling).toBeNull());
+  });
+
+  it("Should leave a head control's click alone when the press never becomes a drag", () => {
+    const shell = createShell();
+    shell.setRuntimeState({
+      desktops: [
+        desktopWith([
+          {
+            id: "tab:main",
+            root: {
+              id: "split:main",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:primary"), leafNode("window:peer")],
+            },
+          },
+        ]),
+      ],
+      activeTabIds: { "desktop:main": "tab:main" },
+    });
+    const onBack = vi.fn();
+    render(<HeadDragHarness windowId="window:primary" onBack={onBack} />, {
+      wrapper: shell.wrapper,
+    });
+    const head = stubPointerCapture(screen.getByTestId("head"));
+    const back = screen.getByRole("button", { name: "Back" });
+
+    fireEvent.pointerDown(back, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 12, clientY: 10 });
+    fireEvent.click(back);
+
+    // Capturing at press would route the click to the head instead of the control.
+    expect(head.setPointerCapture).not.toHaveBeenCalled();
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+  });
+});
+
+const SEAM: ProjectedSeam = {
+  id: "split:main:0",
+  splitId: "split:main",
+  boundaryIndex: 0,
+  orientation: "vertical",
+  rect: { x: 496, y: 0, w: 8, h: 700 },
+  value: 500,
+  minValue: 300,
+  maxValue: 700,
+  axisSpan: 1000,
+  leadingWeight: 0.5,
+  trailingWeight: 0.5,
+  leadingWindowIds: ["window:primary"],
+  trailingWindowIds: ["window:peer"],
+};
+
+function SeamHarness({ seam }: { seam: ProjectedSeam | undefined }) {
+  const { state, onPointerDown } = useOsSplitSeam(seam, 2);
+  return <div data-state={state} data-testid="seam" onPointerDown={onPointerDown} />;
+}
+
+// Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it started
+// from; Escape and a change of the context it was drawn in (US-009.EC-2) cancel it, restore the
+// shares and send nothing.
+// Owning layer: the seam gesture hook over the shared seam drag store (hooks/seam-drag-store).
+describe("useOsSplitSeam gesture lifecycle", () => {
+  let frames: FrameRequestCallback[] = [];
+
+  function flushFrames() {
+    const pending = frames;
+    frames = [];
+    act(() => {
+      for (const frame of pending) frame(16);
+    });
+  }
+
+  function startSeamDrag() {
+    const shell = createShell();
+    shell.setRuntimeState({ activeTabIds: { "desktop:main": "tab:main" } });
+    frames = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    render(<SeamHarness seam={SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    flushFrames();
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toEqual({
+      splitId: "split:main",
+      boundaryIndex: 0,
+      deltaPx: 60,
+    });
+    expect(seam).toHaveAttribute("data-state", "drag");
+    return { shell, seam };
+  }
+
+  afterEach(() => {
+    act(() => windowManagerStore.trigger.seamPreviewCleared());
+  });
+
+  it("Should cancel on Escape: the shares come back and nothing is sent", () => {
+    const { shell, seam } = startSeamDrag();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  it("Should cancel when another tab is shown mid-drag", () => {
+    const { shell, seam } = startSeamDrag();
+
+    act(() => shell.setRuntimeState({ activeTabIds: { "desktop:main": "tab:other" } }));
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  it("Should commit one resize fenced to the revision the drag started from", async () => {
+    const { shell, seam } = startSeamDrag();
+
+    // Another client changes the layout mid-drag: the commit still names the press revision and
+    // the seam's split, so the daemon applies it only while that split is still there.
+    act(() => shell.setRuntimeState({ snapshot: { ...SNAPSHOT, revision: 9 } }));
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.06),
+      { expectedRevision: SNAPSHOT.revision, rebase: { splitId: "split:main", boundaryIndex: 0 } }
+    );
+    await waitFor(() => expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull());
   });
 });

@@ -3,8 +3,8 @@
 // separators, and a collapsed split keeps every member mounted while its switcher names them and
 // asks the shell to show the picked one. Configured gaps lay out exactly as the projection allots
 // them — outer gaps pad the content and each seam spans the inner gap — so drop zones and seams
-// drawn from the projection sit on the panes. A caller composing the seam (the Settings layout
-// editor) can name it and overlay its own readout, but the shell's gap and limit label still win.
+// drawn from the projection sit on the panes; a seam keeps a box to grab even at a zero gap. A
+// caller composing the seam (the Settings layout editor) can name it and overlay its own readout, but the shell's gap and limit label still win.
 // Owning layer: OsSplitView rendering a TabProjection's collapsed set. Projection math: lib/tab-projection.
 // Boundary OUT: window panes (renderWindow) and focus commands (onShowMember).
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -74,6 +74,14 @@ function renderSplit(collapsed: CollapsedSplit[] = [], gaps?: ProjectionGaps) {
   return { container, onShowMember };
 }
 
+/** The layout space a seam takes along its split's axis: its box plus its (negative) margins. */
+function layoutSpan(seam: HTMLElement, axis: "horizontal" | "vertical"): number {
+  const { style } = seam;
+  return axis === "horizontal"
+    ? parseFloat(style.width) + parseFloat(style.marginLeft) + parseFloat(style.marginRight)
+    : parseFloat(style.height) + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+}
+
 describe("OsSplitView", () => {
   it("Should lay out members by the split's weights with read-only separators", () => {
     const { container } = renderSplit();
@@ -128,14 +136,17 @@ describe("OsSplitView", () => {
       view.style.paddingLeft,
     ]).toEqual(["4px", "6px", "4px", "6px"]);
     const [vertical, horizontal] = screen.getAllByRole("separator");
-    expect(vertical!.style.width).toBe("8px");
-    expect(horizontal!.style.height).toBe("8px");
+    expect(layoutSpan(vertical!, "horizontal")).toBe(8);
+    expect(layoutSpan(horizontal!, "vertical")).toBe(8);
   });
 
-  it("Should take no layout space for a seam without an inner gap", () => {
+  it("Should take no layout space for a seam without an inner gap yet keep a box to grab", () => {
     renderSplit();
-    const [vertical] = screen.getAllByRole("separator");
-    expect(vertical!.style.width).toBe("0px");
+    const [vertical, horizontal] = screen.getAllByRole("separator");
+    expect(layoutSpan(vertical!, "horizontal")).toBe(0);
+    expect(parseFloat(vertical!.style.width)).toBeGreaterThan(0);
+    expect(layoutSpan(horizontal!, "vertical")).toBe(0);
+    expect(parseFloat(horizontal!.style.height)).toBeGreaterThan(0);
   });
 
   it("Should keep the shell's gap and limit label over a composing caller's props", () => {
@@ -157,7 +168,7 @@ describe("OsSplitView", () => {
     expect(seam).toHaveAttribute("role", "separator");
     expect(seam).toHaveAttribute("aria-valuetext", "1/2 and 1/2");
     expect(seam).toHaveAttribute("aria-valuenow", "50");
-    expect(seam.style.width).toBe("8px");
+    expect(layoutSpan(seam, "horizontal")).toBe(8);
     expect(within(seam).getByText("readout")).toBeInTheDocument();
 
     rerender(

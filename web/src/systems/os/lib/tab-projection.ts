@@ -103,6 +103,17 @@ function leafEntries(
   return node.children.flatMap(child => leafEntries(child, node.axis));
 }
 
+/**
+ * Height of the member switcher a collapsed split shows above its member: the member's rect
+ * starts below it, so drop zones and focus geometry match what is on screen.
+ */
+export const MEMBER_SWITCHER_PX = 36;
+
+function belowSwitcher(rect: PixelRect): PixelRect {
+  const offset = Math.min(MEMBER_SWITCHER_PX, rect.h);
+  return { x: rect.x, y: rect.y + offset, w: rect.w, h: rect.h - offset };
+}
+
 function projectCollapsed(
   node: LayoutSplitNode,
   rect: PixelRect,
@@ -114,11 +125,12 @@ function projectCollapsed(
   const windowIds = entries.map(entry => entry.windowId);
   const shownWindowId = shownMember(windowIds, context.focusOrder);
   context.collapsed.push({ splitId: node.id, windowIds, shownWindowId, rect });
+  const memberRect = belowSwitcher(rect);
   for (const entry of entries) {
     context.windows.push({
       windowId: entry.windowId,
       nodeId: entry.nodeId,
-      rect,
+      rect: memberRect,
       shown: visible && entry.windowId === shownWindowId,
       parentAxis: entry.parentAxis,
     });

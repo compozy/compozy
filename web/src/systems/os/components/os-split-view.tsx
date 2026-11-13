@@ -2,6 +2,7 @@ import { PillGroup } from "@compozy/ui";
 import {
   Fragment,
   type ComponentProps,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
@@ -18,6 +19,7 @@ import {
 } from "../hooks/use-split-view";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { descendantWindowIds } from "../lib/layout-minimums";
+import { MEMBER_SWITCHER_PX } from "../lib/tab-projection";
 import type { OsWindow } from "../lib/os-types";
 import type { ProjectionGaps } from "../lib/tab-projection-types";
 import type {
@@ -44,6 +46,9 @@ export interface OsSplitSeamProps extends Omit<
   children?: ReactNode;
 }
 
+/** The seam's hit box across its axis: what a pointer can grab, whatever the inner gap. */
+const SEAM_HIT_PX = 12;
+
 /**
  * The line between two members and the only resize affordance: a hit area wider than the
  * visible line, double-click to balance, arrow keys when focused.
@@ -64,6 +69,13 @@ export function OsSplitSeam({
 }: OsSplitSeamProps) {
   const row = axis === "horizontal";
   const interactive = onPointerDown !== undefined;
+  // The separator owns its hit box even at a zero gap: it is wider than the gap and negative
+  // margins give the difference back, so it takes exactly `gap` of layout space.
+  const size = Math.max(gap, SEAM_HIT_PX);
+  const overhang = (gap - size) / 2;
+  const box: CSSProperties = row
+    ? { width: size, marginLeft: overhang, marginRight: overhang }
+    : { height: size, marginTop: overhang, marginBottom: overhang };
   return (
     <div
       {...props}
@@ -80,16 +92,14 @@ export function OsSplitSeam({
         interactive && (row ? "cursor-col-resize" : "cursor-row-resize"),
         className
       )}
-      style={{ ...style, ...(row ? { width: gap } : { height: gap }) }}
+      style={{ ...style, ...box }}
       data-slot="os-split-seam"
       data-state={state}
       onDoubleClick={onDoubleClick}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
     >
-      {/* Hit area wider than the visible line. */}
-      <span className={cn("absolute", row ? "inset-y-0 -inset-x-1.5" : "inset-x-0 -inset-y-1.5")} />
-      {/* The hairline sits centered in the gap, so a zero gap takes no layout space. */}
+      {/* The hairline sits centered in the gap. */}
       <span
         className={cn(
           "pointer-events-none absolute bg-line",
@@ -147,8 +157,9 @@ function MemberSwitcher({ collapsed }: { collapsed: CollapsedSplit }) {
   });
   return (
     <div
-      className="flex h-9 shrink-0 items-center justify-center border-b border-line bg-sunken px-2"
+      className="flex shrink-0 items-center justify-center border-b border-line bg-sunken px-2"
       data-slot="os-split-member-switcher"
+      style={{ height: MEMBER_SWITCHER_PX }}
     >
       <PillGroup
         aria-label="Windows in this split"

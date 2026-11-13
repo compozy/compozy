@@ -218,7 +218,13 @@ export interface WindowManagerController extends OsDesktopRuntime {
   splitWithTab(hostTabId: TabId, chosenTabId: TabId): void;
   /** Moves the window's tab one step left or right within its pinned or unpinned range. */
   moveTab(windowId: string, direction: "left" | "right"): void;
-  resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
+  /** A fenced resize (a seam drag) is refused when its split or boundary no longer exists. */
+  resizeLayout(
+    splitId: string,
+    boundaryIndex: number,
+    delta: number,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
   balanceLayout(target: { tabId?: string; splitId?: string }): void;
   navigateWindow(
     id: string,

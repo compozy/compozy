@@ -212,9 +212,10 @@ describe("projectTab collapsed splits", () => {
       },
     ]);
     expect(projection.windows.map(window => [window.windowId, window.rect, window.shown])).toEqual([
-      ["window:a", { x: 0, y: 0, w: 500, h: 700 }, false],
-      ["window:b", { x: 0, y: 0, w: 500, h: 700 }, false],
-      ["window:c", { x: 0, y: 0, w: 500, h: 700 }, true],
+      // Members sit below the member switcher, where they are drawn.
+      ["window:a", { x: 0, y: 36, w: 500, h: 664 }, false],
+      ["window:b", { x: 0, y: 36, w: 500, h: 664 }, false],
+      ["window:c", { x: 0, y: 36, w: 500, h: 664 }, true],
     ]);
     expect(projection.seams).toEqual([]);
     expect(projection.diagnostics).toEqual([

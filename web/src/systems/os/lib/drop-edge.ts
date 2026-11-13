@@ -1,3 +1,4 @@
+import { descendantWindowIds } from "./layout-minimums";
 import { projectTab } from "./tab-projection";
 import type { ProjectionGaps, TabProjection, WindowMinimums } from "./tab-projection-types";
 import type {
@@ -180,19 +181,34 @@ export interface DropFitInput {
   minimums: WindowMinimums;
 }
 
-function shortfalls(tab: LayoutTab, input: DropFitInput): number {
+/** Where a projected tab falls short: the nodes it reports and the windows those hold. */
+interface Shortfalls {
+  nodeIds: Set<LayoutNodeId>;
+  windowIds: Set<WindowId>;
+}
+
+function shortfallsOf(tab: LayoutTab, input: DropFitInput): Shortfalls {
   const projection = projectTab({
     tab,
     workArea: input.workArea,
     gaps: input.gaps,
     minimums: input.minimums,
   });
-  return projection.diagnostics.length;
+  const windowIds = new Set<WindowId>();
+  for (const split of projection.collapsed) {
+    for (const windowId of split.windowIds) windowIds.add(windowId);
+  }
+  for (const diagnostic of projection.diagnostics) {
+    if (diagnostic.code === "minimum-unmet") windowIds.add(diagnostic.windowId);
+  }
+  return { nodeIds: new Set(projection.diagnostics.map(entry => entry.nodeId)), windowIds };
 }
 
 /**
- * A drop is offered only when its result keeps every member at its pixel minimum: it is withheld
- * when the resulting tab has a member or split that no longer fits and did not before.
+ * A drop is offered only when its result keeps every member it adds at its pixel minimum: no
+ * incoming window may land in a split that shows one member at a time or below its minimum, and
+ * the drop may not make any other node fall short. A shortfall the tab already had is kept only
+ * by identity — the same node, holding none of the incoming windows.
  */
 export function dropFits(input: DropFitInput): boolean {
   const base =
@@ -204,7 +220,10 @@ export function dropFits(input: DropFitInput): boolean {
     input.drop.kind === "root"
       ? insertAtRootEdge(base, input.incoming, input.drop.edge)
       : insertBesideWindow(base, input.drop.windowId, input.incoming, input.drop.edge);
-  return (
-    shortfalls({ ...input.tab, root }, input) <= shortfalls({ ...input.tab, root: base }, input)
-  );
+  const before = shortfallsOf({ ...input.tab, root: base }, input);
+  const after = shortfallsOf({ ...input.tab, root }, input);
+  if (descendantWindowIds(input.incoming).some(windowId => after.windowIds.has(windowId))) {
+    return false;
+  }
+  return Array.from(after.nodeIds).every(nodeId => before.nodeIds.has(nodeId));
 }

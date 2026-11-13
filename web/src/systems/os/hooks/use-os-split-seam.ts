@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 
+import {
+  bindLayoutGestureCancellation,
+  type GestureCancelReason,
+} from "../lib/layout-gesture-cancellation";
 import { seamWeightDelta } from "../lib/seam-preview";
 import type { ProjectedSeam } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
+import {
+  SEAM_WEIGHT_EPSILON,
+  seamDragAtLimit,
+  seamDragCommit,
+  seamDragLogic,
+  seamKeyStep,
+} from "./seam-drag-store";
+import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
-
-/** Matches the daemon's no-op band for `layout.resize`. */
-const SEAM_WEIGHT_EPSILON = 0.000001;
-
-/** Keyboard step in weight space: 2% per arrow, 10% with Shift. */
-export function seamKeyStep(event: { shiftKey: boolean }): number {
-  return event.shiftKey ? 0.1 : 0.02;
-}
 
 function keyDirection(key: string): -1 | 1 | null {
   if (key === "ArrowLeft" || key === "ArrowUp") return -1;
@@ -19,101 +24,131 @@ function keyDirection(key: string): -1 | 1 | null {
   return null;
 }
 
-/** A pixel drag pushes past a member's minimum: the seam stops there and says so. */
-function atLimit(seam: ProjectedSeam, deltaPx: number): boolean {
-  const value = seam.value + deltaPx;
-  return value < seam.minValue || value > seam.maxValue;
-}
-
 function clearPreview(): void {
   windowManagerStore.trigger.seamPreviewCleared();
+}
+
+/**
+ * What a seam drag is drawn against: the client binding, the shown desktop and tab, and the work
+ * area. Hidden tabs stay mounted, so a tab or desktop switch must cancel a drag explicitly.
+ */
+function useSeamGestureContext(): string {
+  const binding = useSelector(windowManagerStore, snapshot => {
+    const value = snapshot.context.binding;
+    return value === null ? "" : `${value.workspaceId}/${value.profileId}/${value.clientId}`;
+  });
+  const area = useSelector(windowManagerStore, snapshot => {
+    const rect = snapshot.context.workArea?.rect;
+    return rect === undefined ? "" : `${rect.x},${rect.y},${rect.w},${rect.h}`;
+  });
+  const shown = useDesktop(state => {
+    const desktopId = state.activeDesktopId ?? "";
+    return `${desktopId}/${state.activeTabIds[desktopId] ?? ""}`;
+  });
+  return `${binding}|${shown}|${area}`;
 }
 
 export type OsSplitSeamState = "drag" | "limit" | undefined;
 
 /**
- * One seam's gesture: a pointer drag previews the two sides' shares through the shared seam
- * preview, stops at either side's pixel minimum, and commits one `layout.resize`; Escape restores
- * the shares. Arrow keys resize in steps and a double-click balances the two sides.
+ * One seam's gesture. A pointer drag previews the two sides' shares through the shared seam
+ * preview, stops at either side's pixel minimum, and commits one `layout.resize` fenced to the
+ * revision it started from. Escape, a cancelled or lost pointer, a context change (another tab,
+ * desktop, binding or work area) and unmounting cancel it and restore the shares. Arrow keys
+ * resize in steps and a double-click balances the two sides.
  */
 export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: number) {
   const { manager } = useOsShell();
-  const [state, setState] = useState<OsSplitSeamState>(undefined);
-  const stopRef = useRef<(() => void) | null>(null);
-  const vertical = seam?.orientation === "vertical";
+  const store = useStore(seamDragLogic);
+  const state = useSelector(store, (snapshot): OsSplitSeamState => {
+    if (snapshot.context.phase !== "dragging") return undefined;
+    return seamDragAtLimit(snapshot.context) ? "limit" : "drag";
+  });
+  const contextKey = useSeamGestureContext();
+  const cancelRef = useRef<((reason: GestureCancelReason) => void) | null>(null);
 
-  // A remote commit can unmount the seam mid-drag; never leave a stale preview behind.
-  useEffect(() => () => stopRef.current?.(), []);
-
-  const commit = (captured: ProjectedSeam, delta: number) => {
-    if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) {
-      clearPreview();
-      return;
-    }
-    // The preview stays until the command settles, so the panes never flash back.
-    void manager
-      .resizeLayout(captured.splitId, captured.boundaryIndex, delta)
-      .completion.finally(clearPreview);
-  };
+  // A drag outlives neither its seam nor the context it was drawn in.
+  const seamId = seam?.id;
+  useEffect(() => {
+    const drag = store.getSnapshot().context;
+    if (drag.phase !== "dragging") return;
+    if (drag.seam?.id === seamId && drag.contextKey === contextKey) return;
+    cancelRef.current?.("context-changed");
+  }, [store, seamId, contextKey]);
+  useEffect(() => () => cancelRef.current?.("disposed"), []);
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (seam === undefined || event.button !== 0 || stopRef.current !== null) return;
+    const revision = manager.getState().snapshot?.revision;
+    if (seam === undefined || revision === undefined || event.button !== 0) return;
+    if (store.getSnapshot().context.phase !== "idle") return;
     // Suppresses the browser's text selection under the moving pointer.
     event.preventDefault();
     const element = event.currentTarget;
     const pointerId = event.pointerId;
-    const captured = seam;
-    const origin = vertical ? event.clientX : event.clientY;
-    let deltaPx = 0;
+    const vertical = seam.orientation === "vertical";
+    const coordinate = (pointer: { clientX: number; clientY: number }) =>
+      vertical ? pointer.clientX : pointer.clientY;
     let frame: number | null = null;
-    element.setPointerCapture(pointerId);
-    setState("drag");
 
-    const stop = () => {
-      stopRef.current = null;
+    const teardown = () => {
+      cancelRef.current = null;
       if (frame !== null) cancelAnimationFrame(frame);
-      window.removeEventListener("keydown", onKey, true);
+      frame = null;
+      unbindCancellation();
       element.removeEventListener("pointermove", onMove);
       element.removeEventListener("pointerup", onUp);
-      element.removeEventListener("pointercancel", onCancel);
-      element.removeEventListener("lostpointercapture", onCancel);
       if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
-      setState(undefined);
+    };
+    const cancel = (reason: GestureCancelReason) => {
+      teardown();
+      store.trigger.dragCancelled({ reason });
+      clearPreview();
     };
     const onMove = (move: globalThis.PointerEvent) => {
       if (move.pointerId !== pointerId) return;
-      deltaPx = (vertical ? move.clientX : move.clientY) - origin;
-      setState(atLimit(captured, deltaPx) ? "limit" : "drag");
+      store.trigger.pointerMoved({ pointerId, coordinate: coordinate(move) });
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
         frame = null;
+        const drag = store.getSnapshot().context;
+        if (drag.phase !== "dragging" || drag.seam === null) return;
         windowManagerStore.trigger.seamPreviewSet({
-          preview: { splitId: captured.splitId, boundaryIndex: captured.boundaryIndex, deltaPx },
+          preview: {
+            splitId: drag.seam.splitId,
+            boundaryIndex: drag.seam.boundaryIndex,
+            deltaPx: drag.deltaPx,
+          },
         });
       });
     };
     const onUp = (up: globalThis.PointerEvent) => {
       if (up.pointerId !== pointerId) return;
-      deltaPx = (vertical ? up.clientX : up.clientY) - origin;
-      stop();
-      commit(captured, seamWeightDelta(captured, deltaPx));
+      store.trigger.pointerMoved({ pointerId, coordinate: coordinate(up) });
+      const commit = seamDragCommit(store.getSnapshot().context);
+      teardown();
+      store.trigger.dragEnded({ pointerId });
+      if (commit === null) {
+        clearPreview();
+        return;
+      }
+      // The preview stays until the command settles, so the panes never flash back.
+      void manager
+        .resizeLayout(commit.splitId, commit.boundaryIndex, commit.delta, commit.fence)
+        .completion.finally(clearPreview);
     };
-    const onCancel = () => {
-      stop();
-      clearPreview();
-    };
-    const onKey = (key: globalThis.KeyboardEvent) => {
-      if (key.key !== "Escape") return;
-      key.preventDefault();
-      key.stopPropagation();
-      onCancel();
-    };
-    stopRef.current = onCancel;
-    window.addEventListener("keydown", onKey, true);
+
+    element.setPointerCapture(pointerId);
+    store.trigger.dragStarted({
+      pointerId,
+      coordinate: coordinate(event),
+      seam,
+      revision,
+      contextKey,
+    });
+    const unbindCancellation = bindLayoutGestureCancellation(window, cancel);
+    cancelRef.current = cancel;
     element.addEventListener("pointermove", onMove);
     element.addEventListener("pointerup", onUp);
-    element.addEventListener("pointercancel", onCancel);
-    element.addEventListener("lostpointercapture", onCancel);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {

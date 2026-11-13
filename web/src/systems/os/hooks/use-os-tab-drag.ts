@@ -281,6 +281,8 @@ function trackGesture(
   const root = document.documentElement;
   const previousUserSelect = root.style.userSelect;
 
+  let captured = false;
+
   const update = () => {
     const state = manager.getState();
     osTabDragStore.trigger.moved({
@@ -288,7 +290,17 @@ function trackGesture(
       zone: resolveZone(state, session, point, swapHeld),
       swapHeld,
     });
-    if (osTabDragStore.getSnapshot().context.phase === "dragging") root.style.userSelect = "none";
+    if (osTabDragStore.getSnapshot().context.phase !== "dragging") return;
+    root.style.userSelect = "none";
+    // Capture only once the press became a drag: a captured pointer sends its click to the
+    // capture target, so a press that stays a click must reach the head control under it.
+    if (captured) return;
+    captured = true;
+    try {
+      element.setPointerCapture(pointerId);
+    } catch {
+      // A pointer that already ended cannot be captured; window listeners still see the release.
+    }
   };
   const stop = () => {
     window.removeEventListener("pointermove", onMove, true);
@@ -299,7 +311,7 @@ function trackGesture(
     window.removeEventListener("blur", onCancel);
     dropped.unsubscribe();
     root.style.userSelect = previousUserSelect;
-    if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+    if (captured && element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
   };
   const onMove = (move: PointerEvent) => {
     if (move.pointerId !== pointerId) return;
@@ -313,13 +325,15 @@ function trackGesture(
     swapHeld = modifierHeld(swapModifier(), up);
     update();
     const dragged = osTabDragStore.getSnapshot().context.phase === "dragging";
-    stop();
+    // `released` emits the drop: release while the `dropped` listener is still subscribed,
+    // then tear the gesture down.
     osTabDragStore.trigger.released();
+    stop();
     if (dragged) swallowNextClick();
   };
   const onCancel = () => {
-    stop();
     osTabDragStore.trigger.cancelled();
+    stop();
   };
   const onKey = (key: KeyboardEvent) => {
     if (key.type === "keydown" && key.key === "Escape") {
@@ -336,11 +350,6 @@ function trackGesture(
     if (osTabDragStore.getSnapshot().context.phase === "dragging") update();
   };
 
-  try {
-    element.setPointerCapture(pointerId);
-  } catch {
-    // A pointer that already ended cannot be captured; window listeners still see the release.
-  }
   window.addEventListener("pointermove", onMove, true);
   window.addEventListener("pointerup", onUp, true);
   window.addEventListener("pointercancel", onCancel, true);

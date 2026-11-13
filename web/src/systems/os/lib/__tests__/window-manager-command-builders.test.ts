@@ -119,6 +119,15 @@ describe("balanceLayoutCommand", () => {
     });
     expect(balanceLayoutCommand({})).toBeNull();
   });
+
+  it("Should guard a split balance with a boundary every split has, so the daemon can match it", () => {
+    // The daemon refuses a split guard whose boundary index is missing or out of range.
+    expect(balanceLayoutCommand({ splitId: "split:a" })?.rebase).toEqual({
+      splitId: "split:a",
+      boundaryIndex: 0,
+    });
+    expect(balanceLayoutCommand({ tabId: "tab:a" })?.rebase).toEqual({ tabId: "tab:a" });
+  });
 });
 
 describe("split commands", () => {

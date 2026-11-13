@@ -136,4 +136,68 @@ describe("drop result", () => {
       })
     ).toBe(true);
   });
+
+  it("UT-033: a tab that already shows one member at a time takes no member that cannot fit", () => {
+    const minimums = {
+      a: { width: 400, height: 200 },
+      b: { width: 400, height: 200 },
+      c: { width: 400, height: 200 },
+    };
+    // 600px cannot hold a and b side by side: the split already shows one member at a time.
+    const collapsedArea: PixelRect = { x: 0, y: 0, w: 600, h: 800 };
+    const base = { tab: TWO_UP, incoming: leaf("c"), gaps: GAPS, minimums };
+    expect(
+      projectTab({ tab: TWO_UP, workArea: collapsedArea, gaps: GAPS, minimums }).collapsed
+    ).not.toEqual([]);
+    expect(
+      dropFits({ ...base, workArea: collapsedArea, drop: { kind: "root", edge: "right" } })
+    ).toBe(false);
+    expect(
+      dropFits({
+        ...base,
+        workArea: collapsedArea,
+        drop: { kind: "window", windowId: "b", nodeId: "leaf:b", edge: "right" },
+      })
+    ).toBe(false);
+  });
+
+  it("UT-033: a shortfall the tab already had is kept by identity when the new member fits", () => {
+    const tab: LayoutTab = {
+      id: "tab:mixed",
+      pinned: false,
+      root: {
+        id: "split:root",
+        kind: "split",
+        axis: "horizontal",
+        weights: [0.5, 0.5],
+        children: [
+          leaf("a"),
+          {
+            id: "split:v",
+            kind: "split",
+            axis: "vertical",
+            weights: [0.5, 0.5],
+            children: [leaf("b"), leaf("c")],
+          },
+        ],
+      },
+    };
+    const minimums = {
+      a: { width: 300, height: 200 },
+      b: { width: 300, height: 200 },
+      c: { width: 300, height: 200 },
+      d: { width: 300, height: 200 },
+    };
+    // 300px tall: b and c cannot stack, so split:v already shows one member at a time.
+    const wide: PixelRect = { x: 0, y: 0, w: 1200, h: 300 };
+    const base = { tab, incoming: leaf("d"), gaps: GAPS, minimums, workArea: wide };
+    expect(dropFits({ ...base, drop: { kind: "root", edge: "left" } })).toBe(true);
+    // Stacking d under a leaves 150px each: d itself would fall short.
+    expect(
+      dropFits({
+        ...base,
+        drop: { kind: "window", windowId: "a", nodeId: "leaf:a", edge: "bottom" },
+      })
+    ).toBe(false);
+  });
 });

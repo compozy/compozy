@@ -58,9 +58,10 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
   resizeLayout = (
     splitId: string,
     boundaryIndex: number,
-    delta: number
+    delta: number,
+    fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome =>
-    this.dispatch(resizeLayoutCommand(splitId, boundaryIndex, delta));
+    this.dispatch({ ...resizeLayoutCommand(splitId, boundaryIndex, delta), ...fence });
 
   balanceLayout = (target: { tabId?: string; splitId?: string }): void => {
     const command = balanceLayoutCommand(target);
