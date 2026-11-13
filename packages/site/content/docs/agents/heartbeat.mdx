@@ -256,6 +256,10 @@ Common deterministic codes:
 Logs and audit rows redact actor identities, never include raw claim tokens or full prompt
 transcripts, and use workspace-relative paths.
 
+Scheduler batches share one successful-wake count across targets. Each request uses the
+lower of the daemon's `max_wakes_per_cycle` and its resolved configuration limit;
+a target override cannot increase the daemon-wide cap or create a separate quota.
+
 ## Boundaries with other authorities
 
 - `HEARTBEAT.md` is **not** task-run lease heartbeat. `task_runs` + `ClaimNextRun` +

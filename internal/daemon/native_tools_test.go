@@ -182,7 +182,9 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 	} {
 		t.Run(operation.name, func(t *testing.T) {
 			_, err := operation.call(t.Context(), scope, toolspkg.CallRequest{
-				ToolID: operation.id, Input: json.RawMessage(`{"worktree":"  "}`),
+				ToolID: operation.id, SessionID: scope.SessionID, RunID: scope.RunID,
+				Generation: scope.Generation, AgentName: scope.AgentName,
+				Input: json.RawMessage(`{"worktree":"  "}`),
 			})
 			requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
 			if !strings.Contains(err.Error(), "worktree") {

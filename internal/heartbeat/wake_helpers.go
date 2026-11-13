@@ -1,6 +1,7 @@
 package heartbeat
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,6 +17,22 @@ func (s *ManagedWakeService) currentTime() time.Time {
 		return time.Now().UTC()
 	}
 	return now.UTC()
+}
+
+func (s *ManagedWakeService) resolveWakeRequest(ctx context.Context, req WakeRequest) (WakeRequest, error) {
+	if req.PolicyTarget == nil && s.targetResolver != nil {
+		target, err := s.targetResolver(ctx, req)
+		if err != nil {
+			return WakeRequest{}, err
+		}
+		req.PolicyTarget = &target
+	}
+	if req.PolicyTarget != nil && req.PolicyTarget.Config.IsZero() {
+		target := *req.PolicyTarget
+		target.Config = s.config
+		req.PolicyTarget = &target
+	}
+	return normalizeWakeRequest(req)
 }
 
 func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {

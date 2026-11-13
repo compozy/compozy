@@ -1703,6 +1703,68 @@ func TestManagedHeartbeatDiskWake(t *testing.T) {
 		})
 	}
 
+	t.Run("Should bound resolved target limits by the shared scheduler cycle count", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		if err := os.WriteFile(fixture.heartbeatPath,
+			[]byte(validHeartbeatBody("Batch policy", "Inspect context.")), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		limits := map[string]int{"sess-first": 1, "sess-lower": 1, "sess-higher": 3, "sess-global": 3}
+		requests := make([]heartbeat.WakeRequest, 0, len(limits))
+		for _, id := range []string{"sess-first", "sess-lower", "sess-higher", "sess-global"} {
+			registerManagedHeartbeatSession(t, fixture, id)
+			requests = append(requests, heartbeat.WakeRequest{WorkspaceID: fixture.workspaceID,
+				AgentName: "coder", SessionID: id, Source: heartbeat.WakeSourceScheduler})
+		}
+		cfg := fixture.target.Config
+		cfg.MaxWakesPerCycle = 2
+		resolved := 0
+		prompter := &recordingHeartbeatPrompter{}
+		service, err := heartbeat.NewManagedWakeService(
+			fixture.db,
+			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-first")},
+			prompter, cfg,
+			heartbeat.WithWakeClock(func() time.Time { return fixture.now }),
+			heartbeat.WithWakeTargetResolver(func(
+				_ context.Context, req heartbeat.WakeRequest,
+			) (heartbeat.AuthoringTarget, error) {
+				resolved++
+				target := fixture.target
+				target.Config.MaxWakesPerCycle = limits[req.SessionID]
+				return target, nil
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decisions, err := service.WakeMany(fixture.ctx, requests)
+		if err != nil || len(decisions) != len(requests) || resolved != len(requests) {
+			t.Fatalf("batch = %+v, %v; resolved %d targets", decisions, err, resolved)
+		}
+		for index, want := range []heartbeat.WakeResult{
+			heartbeat.WakeResultSent, heartbeat.WakeResultRateLimited,
+			heartbeat.WakeResultSent, heartbeat.WakeResultRateLimited,
+		} {
+			if decisions[index].Result != want {
+				t.Fatalf("decision %d = %+v, want %s", index, decisions[index], want)
+			}
+			if want == heartbeat.WakeResultRateLimited &&
+				decisions[index].Reason != heartbeat.WakeReasonHeartbeatRateLimited {
+				t.Fatalf("rate-limited decision %d = %+v", index, decisions[index])
+			}
+			state, err := fixture.db.GetHeartbeatWakeState(fixture.ctx,
+				fixture.workspaceID, "coder", requests[index].SessionID)
+			if err != nil || state.LastResult != want {
+				t.Fatalf("persisted decision %d = %+v, %v", index, state, err)
+			}
+		}
+		prompts := prompter.requestsSnapshot()
+		if len(prompts) != 2 || prompts[0].SessionID != "sess-first" || prompts[1].SessionID != "sess-higher" {
+			t.Fatalf("batch prompts = %+v", prompts)
+		}
+	})
+
 	t.Run("Should use daemon config for a zero-config target and reject a different agent", func(t *testing.T) {
 		t.Parallel()
 		fixture := newHeartbeatFixture(t)

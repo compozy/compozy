@@ -321,7 +321,11 @@ func TestManagerIntegrationPermissionLifetime(t *testing.T) {
 				}
 				select {
 				case err := <-result:
-					if err != nil {
+					if source == "daemon" && mode == "expiry" {
+						if !errors.Is(err, acp.ErrPermissionExpired) {
+							t.Fatalf("daemon expiry error = %v, want ErrPermissionExpired", err)
+						}
+					} else if err != nil {
 						t.Fatal(err)
 					}
 				case <-ctx.Done():

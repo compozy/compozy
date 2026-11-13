@@ -202,19 +202,7 @@ func (s *ManagedWakeService) Wake(ctx context.Context, req WakeRequest) (WakeDec
 	if ctx == nil {
 		return WakeDecision{}, errors.New("heartbeat: wake context is required")
 	}
-	if req.PolicyTarget == nil && s.targetResolver != nil {
-		target, err := s.targetResolver(ctx, req)
-		if err != nil {
-			return WakeDecision{}, err
-		}
-		req.PolicyTarget = &target
-	}
-	if req.PolicyTarget != nil && req.PolicyTarget.Config.IsZero() {
-		target := *req.PolicyTarget
-		target.Config = s.config
-		req.PolicyTarget = &target
-	}
-	normalized, err := normalizeWakeRequest(req)
+	normalized, err := s.resolveWakeRequest(ctx, req)
 	if err != nil {
 		return WakeDecision{}, err
 	}
@@ -241,7 +229,17 @@ func (s *ManagedWakeService) WakeMany(ctx context.Context, requests []WakeReques
 	sent := 0
 	var errs []error
 	for _, req := range requests {
-		if sent >= s.config.MaxWakesPerCycle {
+		req, err := s.resolveWakeRequest(ctx, req)
+		if err != nil {
+			errs = append(errs, err)
+			decisions = append(decisions, s.failedWakeManyDecision(err))
+			continue
+		}
+		limit := s.config.MaxWakesPerCycle
+		if req.PolicyTarget != nil {
+			limit = min(limit, req.PolicyTarget.Config.MaxWakesPerCycle)
+		}
+		if sent >= limit {
 			decision, err := s.recordRateLimited(ctx, req)
 			if err != nil {
 				errs = append(errs, err)
