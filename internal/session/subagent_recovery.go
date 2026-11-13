@@ -79,7 +79,20 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 			// rows keep their own path, which also releases the worktree and wakes the
 			// parent; failDelegation returns the original cause for them.
 			if row.Isolation == SubagentIsolationWorktree {
-				s.recoveryResult(ctx, row.ID, "orphaned_isolation", s.recoverIsolation(ctx, row))
+				// A failed rollback must not keep the row running until the next boot:
+				// settle it and wake the parent anyway. The checkout stays queued for
+				// recoverIsolationCleanup, which retries the rollback from disk.
+				if err := s.recoverIsolation(ctx, row); err != nil {
+					s.recoveryResult(ctx, row.ID, "orphaned_isolation_compensation", err)
+					s.recoveryResult(
+						ctx,
+						row.ID,
+						"orphaned_isolation",
+						s.settleRecoveredIsolation(ctx, row, subagentRecoveredInterrupted),
+					)
+					continue
+				}
+				s.recoveryResult(ctx, row.ID, "orphaned_isolation", nil)
 				continue
 			}
 			s.recoveryResult(ctx, row.ID, "orphaned_delegation", s.failRecovered(ctx, row, ""))
@@ -152,7 +165,7 @@ func (s *subagentService) recoverChild(ctx context.Context, row store.SessionSub
 // live delegate call, no caller is left to receive the failure, so the parent
 // is told through an ordinary wake (always, whatever the original wait policy).
 func (s *subagentService) failRecovered(ctx context.Context, row store.SessionSubagent, child string) error {
-	failed, err := s.failDelegation(ctx, row, child, errors.New("delegation interrupted"))
+	failed, err := s.failDelegation(ctx, row, child, errors.New(subagentRecoveredInterrupted))
 	if err != nil {
 		return err
 	}
