@@ -38,7 +38,16 @@ function createHarness() {
     router.history,
     route => `${route.pathname}${router.options.stringifySearch(route.search)}`
   );
-  const disconnect = connectRouterEntries(router, bridge, entries);
+  // As the mounted app's Transitioner does: a history with subscribers no longer loads on its own
+  // (router-core `commitLocation`), so the router loads each history change from here.
+  const stopLoading = router.history.subscribe(() => {
+    void router.load();
+  });
+  const stopEntries = connectRouterEntries(router, bridge, entries);
+  const disconnect = () => {
+    stopEntries();
+    stopLoading();
+  };
   const currentKey = () => router.history.location.state.__TSR_key ?? null;
   return { router, entries, bridge, disconnect, currentKey };
 }

@@ -1,4 +1,4 @@
-import type { AnyRouter } from "@tanstack/react-router";
+import type { RouterEvents, RouterHistory } from "@tanstack/react-router";
 
 import type { OsWindowRoute } from "./os-types";
 import type { OsRouterPort } from "./routing-coordinator-contract";
@@ -65,13 +65,22 @@ export class RouterEntryBridge {
   }
 }
 
+/** What `connectRouterEntries` reads from the router: its history and its finished loads. */
+export interface RouterEntrySource {
+  history: Pick<RouterHistory, "subscribe">;
+  subscribe(
+    eventType: "onResolved",
+    listener: (event: RouterEvents["onResolved"]) => void
+  ): () => void;
+}
+
 /**
  * Feeds the ledger every history change as it happens (the history notifies inside push, replace
  * and on Back or Forward, before the router loads and reports the route) and every load the
  * router finishes. Returns the unsubscribe.
  */
 export function connectRouterEntries(
-  router: AnyRouter,
+  router: RouterEntrySource,
   bridge: RouterEntryBridge,
   entries: RoutingEntryLedger
 ): () => void {
