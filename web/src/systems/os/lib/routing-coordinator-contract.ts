@@ -49,6 +49,9 @@ export interface RouteReconciliation {
   inFlight: boolean;
   /** The route lands a just-created session; retries keep preferring a Session window. */
   createdSession?: boolean;
-  /** This client's own navigation asked for it: the keyboard follows the focus it lands (#1655). */
-  keyboard?: boolean;
+  /**
+   * This client's own navigation asked for it: the keyboard follows the focus it lands (#1655).
+   * The `KeyboardFocusHandoff.begin` mark taken when it was asked for.
+   */
+  keyboardSince?: number;
 }

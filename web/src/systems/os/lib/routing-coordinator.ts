@@ -74,7 +74,7 @@ export class RoutingCoordinator {
         this.desktopDefaultViewIntentPending = false;
       },
       reportAuthoritativeState: () => this.reportAuthoritativeState(),
-      handOffKeyboard: windowId => this.handOffKeyboard(windowId),
+      handOffKeyboard: (windowId, since) => this.handOffKeyboard(windowId, since),
     });
   }
 
@@ -104,7 +104,7 @@ export class RoutingCoordinator {
       return;
     }
     // Back/Forward and links are this client's own navigation: the keyboard follows its focus.
-    this.reconciler.queue(route, { keyboard: true });
+    this.reconciler.queue(route, { keyboardSince: this.keyboardFocus.begin() });
   }
 
   /**
@@ -244,6 +244,7 @@ export class RoutingCoordinator {
    */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
     const intentToken = ++this.nextUserIntentToken;
+    const keyboardSince = this.keyboardFocus.begin();
     const before = this.manager.getState();
     const outcome = this.manager.openOrFocus(target);
     const id = outcome.windowId;
@@ -260,7 +261,7 @@ export class RoutingCoordinator {
     if (entry !== null) this.pushRoute(entry);
     else if (!this.activations.settling) this.reportAuthoritativeState();
     if (!applied) return null;
-    if (intentToken === newest && state.focusedId === id) this.handOffKeyboard(id);
+    if (intentToken === newest && state.focusedId === id) this.handOffKeyboard(id, keyboardSince);
     return id;
   }
 
@@ -271,12 +272,13 @@ export class RoutingCoordinator {
     const host = createdSessionHostWindow(this.manager.getState(), target);
     if (host === null) return this.userOpen(target);
     const intentToken = ++this.nextUserIntentToken;
+    const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
     if (await outcome.completion) {
       if (isCurrent()) {
         this.pushRoute(target.route);
-        this.handOffKeyboard(host.id);
+        this.handOffKeyboard(host.id, keyboardSince);
       }
       return host.id;
     }
@@ -326,6 +328,7 @@ export class RoutingCoordinator {
    * meanwhile defer to it, so the entry before a burst stays a Back target.
    */
   private async activate(windowId: string, keyboard = false): Promise<boolean> {
+    const keyboardSince = this.keyboardFocus.begin();
     const start = this.activations.begin(
       this.manager.getState(),
       windowId,
@@ -340,7 +343,7 @@ export class RoutingCoordinator {
     // Reports deferred to activations catch up once none is left in flight.
     else if (!this.activations.settling) this.reportAuthoritativeState();
     const landed = start.intent === newest && state.focusedId === windowId;
-    if (landed && keyboard) this.handOffKeyboard(windowId);
+    if (landed && keyboard) this.handOffKeyboard(windowId, keyboardSince);
     return landed;
   }
 
@@ -426,13 +429,17 @@ export class RoutingCoordinator {
    * its own): the keyboard follows it once it lands. A newer focus that replaced it hands off itself.
    */
   async followKeyboard(focus: WindowManagerOpenOutcome | null): Promise<void> {
+    const keyboardSince = this.keyboardFocus.begin();
     if (focus === null || !(await focus.completion.catch(() => false))) return;
-    this.handOffKeyboard(focus.windowId);
+    this.handOffKeyboard(focus.windowId, keyboardSince);
   }
 
-  /** The keyboard follows a focus change this client asked for, once it is still the focus. */
-  private handOffKeyboard(windowId: string): void {
-    if (this.manager.getState().focusedId === windowId) this.keyboardFocus.request(windowId);
+  /**
+   * The keyboard follows a focus change this client asked for, once it is still the focus and no
+   * pointer press placed focus since the change began (`since`).
+   */
+  private handOffKeyboard(windowId: string, since: number): void {
+    if (this.manager.getState().focusedId === windowId) this.keyboardFocus.request(windowId, since);
   }
 
   private pushRoute(route: OsWindowRoute, ...origin: [origin?: "operator"]): void {

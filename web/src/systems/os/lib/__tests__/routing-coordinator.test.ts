@@ -737,11 +737,11 @@ describe("RoutingCoordinator", () => {
 
     // A chord (tab next, "Focus last window"), the dock and the palette carry the keyboard.
     await coordinator.userFocus(agents.id, { keyboard: true });
-    expect(request).toHaveBeenLastCalledWith(agents.id);
+    expect(request).toHaveBeenLastCalledWith(agents.id, expect.any(Number));
     await coordinator.userActivateWindow(settings.id);
-    expect(request).toHaveBeenLastCalledWith(settings.id);
+    expect(request).toHaveBeenLastCalledWith(settings.id, expect.any(Number));
     await coordinator.userOpen({ app: "agents" });
-    expect(request).toHaveBeenLastCalledWith(agents.id);
+    expect(request).toHaveBeenLastCalledWith(agents.id, expect.any(Number));
     coordinator.reportRouteMatch(agents.route, history.current());
 
     // Back to an earlier window's entry.
@@ -749,7 +749,7 @@ describe("RoutingCoordinator", () => {
     history.back();
     const backEntry = history.current();
     coordinator.reportRouteMatch(route("/settings/general"), backEntry);
-    await vi.waitFor(() => expect(request).toHaveBeenCalledWith(settings.id));
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith(settings.id, expect.any(Number)));
   });
 
   it("Should hold user route intent until window commands become available", () => {

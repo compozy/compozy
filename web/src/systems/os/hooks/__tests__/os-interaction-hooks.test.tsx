@@ -1685,7 +1685,7 @@ describe("WindowPaneHosts", () => {
 
       // A focus-left chord moved this client's focus back to the window.
       focus.windowId = "w";
-      handoff.request("w");
+      handoff.request("w", handoff.begin());
 
       expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
       expect(document.activeElement).toBe(field);
@@ -1699,7 +1699,7 @@ describe("WindowPaneHosts", () => {
       const composer = elsewhere();
       composer.focus();
 
-      handoff.request("w");
+      handoff.request("w", handoff.begin());
 
       expect(document.activeElement).toBe(surface);
       // Focusable for the handoff only: a later click on an empty area does not focus it.
@@ -1720,7 +1720,7 @@ describe("WindowPaneHosts", () => {
       field.disabled = true;
 
       focus.windowId = "w";
-      handoff.request("w");
+      handoff.request("w", handoff.begin());
 
       expect(document.activeElement).toBe(surface);
     });
@@ -1737,7 +1737,7 @@ describe("WindowPaneHosts", () => {
       box(0, 0);
 
       // Tab next: the window manager focused the window before its tab renders.
-      handoff.request("w");
+      handoff.request("w", handoff.begin());
       expect(document.activeElement).toBe(composer);
       surface.hidden = false;
       box(640, 480);
@@ -1780,13 +1780,30 @@ describe("WindowPaneHosts", () => {
       onTestFinished(() => palette.remove());
       input.focus();
 
-      handoff.request("w");
+      handoff.request("w", handoff.begin());
       expect(document.activeElement).toBe(input);
 
       // The palette closes and returns focus to where it opened from.
       palette.remove();
       composer.focus();
       expect(document.activeElement).toBe(field);
+    });
+
+    it("Should not take the caret from a field the operator clicked while the focus change was in flight", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      composer.focus();
+
+      // A directional focus starts; before the daemon answers, the operator clicks a field.
+      const since = handoff.begin();
+      composer.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      handoff.request("w", since);
+
+      expect(document.activeElement).toBe(composer);
     });
 
     it("Should drop a waiting handoff when the operator presses a pointer", () => {
@@ -1800,7 +1817,7 @@ describe("WindowPaneHosts", () => {
       surface.hidden = true;
       box(0, 0);
 
-      handoff.request("w");
+      handoff.request("w", handoff.begin());
       composer.dispatchEvent(new Event("pointerdown", { bubbles: true }));
       surface.hidden = false;
       box(640, 480);

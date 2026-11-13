@@ -19,8 +19,11 @@ export interface RouteReconcilerHost {
   /** A reconciliation carrying the desktop default-view intent applied. */
   settleDesktopDefaultViewIntent(): void;
   reportAuthoritativeState(): void;
-  /** A reconciliation this client's own navigation asked for focused `windowId` (#1655). */
-  handOffKeyboard(windowId: string): void;
+  /**
+   * A reconciliation this client's own navigation asked for focused `windowId` (#1655); `since`
+   * is the handoff mark taken when it was asked for.
+   */
+  handOffKeyboard(windowId: string, since: number): void;
 }
 
 /**
@@ -59,16 +62,16 @@ export class RouteReconciler {
    * The desktop URL (`/`) opens nothing — it focuses an existing dashboard window on the active
    * desktop or leaves the desktop as-is (first run stays empty, US-001.EC-1).
    */
-  queue(route: OsWindowRoute, options: { keyboard?: boolean } = {}): void {
+  queue(route: OsWindowRoute, options: { keyboardSince?: number } = {}): void {
     const current = this.current;
-    const keyboard = options.keyboard === true;
+    const keyboardSince = options.keyboardSince;
     const desktopDefaultView = carriesDesktopDefaultViewIntent(
       route,
       this.host.desktopDefaultViewIntentPending(),
       current
     );
     if (current && sameOsWindowRoute(current.route, route)) {
-      if (keyboard && current.keyboard !== true) this.current = { ...current, keyboard };
+      if (keyboardSince !== undefined) this.current = { ...current, keyboardSince };
       if (!current.inFlight) this.reconcilePending();
       return;
     }
@@ -78,7 +81,7 @@ export class RouteReconciler {
       route,
       desktopDefaultView,
       inFlight: false,
-      ...(keyboard ? { keyboard } : {}),
+      ...(keyboardSince === undefined ? {} : { keyboardSince }),
     };
     this.reconcilePending();
   }
@@ -139,10 +142,10 @@ export class RouteReconciler {
         return;
       }
       if (pending.desktopDefaultView) this.host.settleDesktopDefaultViewIntent();
-      const keyboard = this.current?.keyboard === true;
+      const keyboardSince = this.current?.keyboardSince;
       this.current = null;
       this.host.reportAuthoritativeState();
-      if (keyboard) this.host.handOffKeyboard(outcome.windowId);
+      if (keyboardSince !== undefined) this.host.handOffKeyboard(outcome.windowId, keyboardSince);
     });
   }
 }

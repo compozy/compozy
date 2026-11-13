@@ -20,9 +20,24 @@ export type KeyboardFocusTarget = (windowId: string) => boolean;
 export class KeyboardFocusHandoff {
   private pending: { windowId: string; until: number } | null = null;
   private readonly targets = new Set<KeyboardFocusTarget>();
+  /** Pointer presses so far (`cancel`): an action compares it with what it saw when it began. */
+  private presses = 0;
 
-  /** Asks for the keyboard to follow focus into `windowId`; a newer request replaces it. */
-  request(windowId: string): void {
+  /**
+   * Marks the start of an own focus change that settles later; pass the mark to `request`. A
+   * pointer press in between (a click into a field while the daemon answers) wins: the handoff
+   * the action asks for then does nothing.
+   */
+  begin(): number {
+    return this.presses;
+  }
+
+  /**
+   * Asks for the keyboard to follow focus into `windowId`; a newer request replaces it. `since`
+   * is the action's `begin` mark.
+   */
+  request(windowId: string, since: number): void {
+    if (since !== this.presses) return;
     this.pending = { windowId, until: Date.now() + KEYBOARD_HANDOFF_LIMIT_MS };
     this.offer();
   }
@@ -43,8 +58,12 @@ export class KeyboardFocusHandoff {
     if (this.pending === null) this.pending = pending;
   }
 
-  /** The operator placed focus themselves: a handoff still waiting no longer applies. */
+  /**
+   * The operator placed focus themselves with a pointer: a handoff still waiting no longer
+   * applies, nor does one an action in flight would ask for.
+   */
   cancel(): void {
+    this.presses += 1;
     this.pending = null;
   }
 
