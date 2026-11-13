@@ -67,9 +67,9 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	store := newMockWorkspaceStore(ws)
 	loadedConfig := validConfig(homePaths)
 	loadedConfig.WindowManager.HistoryLimit = 77
-	loadedConfig.WindowManager.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
 	loadedConfig.WindowManager.Shortcuts = map[string]windowmanager.ShortcutBinding{
-		"window.focus.left": {"alt+KeyH"},
+		"window.focus.left":  {"alt+KeyH"},
+		"window.focus.right": {"alt+KeyL"},
 	}
 	loader := &countingConfigLoader{cfg: loadedConfig}
 	currentTime := time.Unix(1_700_000_000, 0).UTC()
@@ -95,8 +95,8 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		) {
 		t.Fatalf("Resolve(first) WindowManager = %#v, want loaded config", first.Config.WindowManager)
 	}
-	first.Config.WindowManager.Snap.RepeatRatios[0] = 0.4
-	first.Config.WindowManager.Shortcuts["window.focus.left"] = windowmanager.ShortcutBinding{"meta+KeyH"}
+	first.Config.WindowManager.Shortcuts["window.focus.left"][0] = "meta+KeyH"
+	first.Config.WindowManager.Shortcuts["window.focus.right"] = windowmanager.ShortcutBinding{"meta+KeyL"}
 
 	currentTime = currentTime.Add(1 * time.Minute)
 	second, err := resolver.Resolve(ctx, ws.ID)
@@ -109,14 +109,17 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	if !second.ResolvedAt.Equal(first.ResolvedAt) {
 		t.Fatalf("ResolvedAt on cache hit = %v, want %v", second.ResolvedAt, first.ResolvedAt)
 	}
-	if got := second.Config.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[0] != 0.5 {
-		t.Fatalf("Resolve(cache hit) repeat ratios = %#v, want isolated loaded ratios", got)
-	}
 	if got := second.Config.WindowManager.Shortcuts["window.focus.left"]; !slices.Equal(
 		got,
 		windowmanager.ShortcutBinding{"alt+KeyH"},
 	) {
-		t.Fatalf("Resolve(cache hit) shortcut = %q, want isolated alt+KeyH", got)
+		t.Fatalf("Resolve(cache hit) shortcut elements = %q, want isolated alt+KeyH", got)
+	}
+	if got := second.Config.WindowManager.Shortcuts["window.focus.right"]; !slices.Equal(
+		got,
+		windowmanager.ShortcutBinding{"alt+KeyL"},
+	) {
+		t.Fatalf("Resolve(cache hit) shortcut map entry = %q, want isolated alt+KeyL", got)
 	}
 
 	modTime := time.Unix(1_700_000_100, 0).UTC()

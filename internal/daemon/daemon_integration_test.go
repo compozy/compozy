@@ -2480,7 +2480,10 @@ func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
 		windowClosedOutput := filepath.Join(t.TempDir(), "window-closed.json")
 		windowGroupedOutput := filepath.Join(t.TempDir(), "window-grouped.json")
 		windowUngroupedOutput := filepath.Join(t.TempDir(), "window-ungrouped.json")
-		windowActivatedOutput := filepath.Join(t.TempDir(), "window-activated.json")
+		windowSplitOutput := filepath.Join(t.TempDir(), "window-split.json")
+		windowUnsplitOutput := filepath.Join(t.TempDir(), "window-unsplit.json")
+		windowTabActivatedOutput := filepath.Join(t.TempDir(), "window-tab-activated.json")
+		windowStackActivatedOutput := filepath.Join(t.TempDir(), "window-stack-activated.json")
 
 		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "config.toml"), `
 [[hooks.declarations]]
@@ -2519,11 +2522,32 @@ command = "`+windowScriptPath+`"
 args = ["`+windowCountOutput+`", "`+windowUngroupedOutput+`"]
 
 [[hooks.declarations]]
-name = "window-activated"
+name = "window-split"
+event = "window_manager.tab.split"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowSplitOutput+`"]
+
+[[hooks.declarations]]
+name = "window-unsplit"
+event = "window_manager.tab.unsplit"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowUnsplitOutput+`"]
+
+[[hooks.declarations]]
+name = "window-tab-activated"
+event = "window_manager.tab.activated"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowTabActivatedOutput+`"]
+
+[[hooks.declarations]]
+name = "window-stack-activated"
 event = "window_manager.stack.activated"
 mode = "async"
 command = "`+windowScriptPath+`"
-args = ["`+windowCountOutput+`", "`+windowActivatedOutput+`"]
+args = ["`+windowCountOutput+`", "`+windowStackActivatedOutput+`"]
 `)
 		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "agents", "coder", "AGENT.md"), `---
 name: coder
@@ -2639,45 +2663,76 @@ body
 			if !ok {
 				t.Fatalf("boot() hooks runtime = %T, want *hooks.Hooks", d.hooks)
 			}
+			retiredHooks := []struct {
+				name   string
+				event  hookspkg.HookEvent
+				output string
+			}{
+				{"window-grouped", hookspkg.HookWindowManagerStackGrouped, windowGroupedOutput},
+				{"window-ungrouped", hookspkg.HookWindowManagerStackUngrouped, windowUngroupedOutput},
+			}
+			for _, item := range retiredHooks {
+				entries, err := windowHookDispatcher.Catalog(hookspkg.CatalogFilter{
+					WorkspaceID: resolvedWorkspace.ID,
+					Event:       item.event,
+				})
+				if err != nil {
+					t.Fatalf("Catalog(%s) error = %v", item.event, err)
+				}
+				if len(entries) != 1 || entries[0].Name != item.name || entries[0].Source != hookspkg.HookSourceConfig {
+					t.Fatalf("Catalog(%s) = %#v, want retained configured hook %q", item.event, entries, item.name)
+				}
+			}
 			windowObserver := newWindowManagerHookObserver(&bootState{
 				logger:         discardLogger(),
 				hookDispatcher: windowHookDispatcher,
 			})
+			type hookDelivery struct {
+				event  hookspkg.HookEvent
+				output string
+			}
 			windowEvents := []struct {
-				command windowmanager.CommandID
-				changes windowmanager.ChangeSet
-				event   hookspkg.HookEvent
-				output  string
+				command    windowmanager.CommandID
+				changes    windowmanager.ChangeSet
+				deliveries []hookDelivery
 			}{
 				{
 					command: windowmanager.CommandWindowOpen,
-					event:   hookspkg.HookWindowManagerWindowOpened,
-					output:  windowOpenedOutput,
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerWindowOpened, windowOpenedOutput},
+					},
 				},
 				{
 					command: windowmanager.CommandWindowClose,
-					event:   hookspkg.HookWindowManagerWindowClosed,
-					output:  windowClosedOutput,
-				},
-				{
-					command: windowmanager.CommandWindowStackGroup,
-					changes: windowmanager.ChangeSet{StackGrouped: []windowmanager.NodeID{"stack-a"}},
-					event:   hookspkg.HookWindowManagerStackGrouped,
-					output:  windowGroupedOutput,
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerWindowClosed, windowClosedOutput},
+					},
 				},
 				{
 					command: windowmanager.CommandWindowMove,
-					changes: windowmanager.ChangeSet{StackUngrouped: []windowmanager.NodeID{"stack-a"}},
-					event:   hookspkg.HookWindowManagerStackUngrouped,
-					output:  windowUngroupedOutput,
+					changes: windowmanager.ChangeSet{TabSplit: []windowmanager.TabID{"tab-a"}},
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerTabSplit, windowSplitOutput},
+					},
 				},
 				{
-					command: windowmanager.CommandWindowStackSetActive,
-					event:   hookspkg.HookWindowManagerStackActivated,
-					output:  windowActivatedOutput,
+					command: windowmanager.CommandWindowMove,
+					changes: windowmanager.ChangeSet{TabUnsplit: []windowmanager.TabID{"tab-a"}},
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerTabUnsplit, windowUnsplitOutput},
+					},
+				},
+				{
+					command: windowmanager.CommandWindowTabActivate,
+					deliveries: []hookDelivery{
+						{hookspkg.HookWindowManagerTabActivated, windowTabActivatedOutput},
+						{hookspkg.HookWindowManagerStackActivated, windowStackActivatedOutput},
+					},
 				},
 			}
+			var deliveryCount int
 			for index, item := range windowEvents {
+				deliveryCount += len(item.deliveries)
 				windowObserver(testutil.Context(t), windowmanager.Event{
 					WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.ID),
 					Revision:    windowmanager.Revision(index + 1),
@@ -2686,33 +2741,51 @@ body
 					OccurredAt:  time.Date(2026, 7, 30, 12, index, 0, 0, time.UTC),
 				})
 			}
-			waitForCondition(t, "five window-manager script hook deliveries", func() bool {
+			waitForCondition(t, "six window-manager script hook deliveries", func() bool {
 				payload, err := os.ReadFile(windowCountOutput)
-				return err == nil && len(strings.Fields(string(payload))) == len(windowEvents)
+				return err == nil && len(strings.Fields(string(payload))) == deliveryCount
 			})
-			for _, item := range windowEvents {
-				payload, err := os.ReadFile(item.output)
-				if err != nil {
-					t.Fatalf("os.ReadFile(%q) error = %v", item.output, err)
-				}
-				var captured hookspkg.WindowManagerPayload
-				if err := json.Unmarshal(payload, &captured); err != nil {
-					t.Fatalf("json.Unmarshal(%s hook payload) error = %v; body=%s", item.event, err, payload)
-				}
-				if captured.Event != item.event || captured.WorkspaceID != resolvedWorkspace.ID {
-					t.Fatalf("captured %s hook payload = %#v", item.event, captured)
+			for index, item := range windowEvents {
+				for _, delivery := range item.deliveries {
+					payload, err := os.ReadFile(delivery.output)
+					if err != nil {
+						t.Fatalf("os.ReadFile(%q) error = %v", delivery.output, err)
+					}
+					var captured hookspkg.WindowManagerPayload
+					if err := json.Unmarshal(payload, &captured); err != nil {
+						t.Fatalf("json.Unmarshal(%s hook payload) error = %v; body=%s", delivery.event, err, payload)
+					}
+					if captured.Event != delivery.event || captured.WorkspaceID != resolvedWorkspace.ID ||
+						captured.CommandID != string(item.command) || captured.Revision != uint64(index+1) {
+						t.Fatalf("captured %s hook payload = %#v", delivery.event, captured)
+					}
+					if delivery.event == hookspkg.HookWindowManagerTabSplit &&
+						!slices.Equal(captured.Changes.TabSplit, []string{"tab-a"}) {
+						t.Fatalf("tab.split hook changes = %#v", captured.Changes)
+					}
+					if delivery.event == hookspkg.HookWindowManagerTabUnsplit &&
+						!slices.Equal(captured.Changes.TabUnsplit, []string{"tab-a"}) {
+						t.Fatalf("tab.unsplit hook changes = %#v", captured.Changes)
+					}
 				}
 			}
 			windowObserver(testutil.Context(t), windowmanager.Event{
 				WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.ID),
 				CommandID:   windowmanager.CommandWindowFocus,
 			})
+			// Drain queued scripts before asserting that retired hooks received nothing.
+			windowHookDispatcher.Close()
+			for _, item := range retiredHooks {
+				if _, err := os.Stat(item.output); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("retired %s hook output exists or is unreadable: %v", item.event, err)
+				}
+			}
 			countPayload, err := os.ReadFile(windowCountOutput)
 			if err != nil {
 				t.Fatalf("os.ReadFile(%q) error = %v", windowCountOutput, err)
 			}
-			if len(strings.Fields(string(countPayload))) != len(windowEvents) {
-				t.Fatalf("window hook invocation count = %q, want exactly %d", countPayload, len(windowEvents))
+			if len(strings.Fields(string(countPayload))) != deliveryCount {
+				t.Fatalf("window hook invocation count = %q, want exactly %d", countPayload, deliveryCount)
 			}
 		})
 	})
