@@ -1,5 +1,5 @@
 import { useSelector } from "@xstate/store-react";
-import { useCallback } from "react";
+import { useMemo } from "react";
 
 import { toast } from "@compozy/ui";
 
@@ -63,12 +63,15 @@ export function useEditorDocument<TForm>({
       current.key !== key ||
       shouldAdoptSnapshot(current.store.getSnapshot().context, snapshot, countChanges)
   );
-  const isDirty = useCallback(
-    (context: EditorDocumentContext<TForm>) =>
-      countEditorDocumentChanges(context, countChanges) > 0,
+  const draftPolicy = useMemo(
+    () => ({
+      isDirty: (context: EditorDocumentContext<TForm>) =>
+        countEditorDocumentChanges(context, countChanges) > 0,
+      isBusy: (context: EditorDocumentContext<TForm>) => context.phase === "saving",
+    }),
     [countChanges]
   );
-  useRetainedEditorDraft(draftKey, store, isDirty);
+  useRetainedEditorDraft(draftKey, store, draftPolicy);
   const document = useSelector(store, state => state.context);
   const { baseline, form, raw, conflict, phase, problem } = document;
 

@@ -318,6 +318,43 @@ describe("useAgentSettingsPage", () => {
       expect(third.result.current.draft?.prompt).toBe("Their prompt");
     });
 
+    it("Should keep one draft per editor of the same agent", () => {
+      const first = renderHook(page, { wrapper: createWrapper() });
+      const second = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "First window" }));
+      act(() => second.result.current.patchDraft({ prompt: "Second window" }));
+      first.unmount();
+      second.unmount();
+
+      const newest = renderHook(page, { wrapper: createWrapper() });
+      expect(newest.result.current.draft?.prompt).toBe("Second window");
+      act(() => mocks.guard?.onDiscard?.());
+      newest.unmount();
+
+      const older = renderHook(page, { wrapper: createWrapper() });
+      expect(older.result.current.dirty).toBe(true);
+      expect(older.result.current.draft?.prompt).toBe("First window");
+    });
+
+    it("Should not keep edits a save running at unmount went on to write", async () => {
+      let finish!: (agent: unknown) => void;
+      mocks.updateMutateAsync.mockReturnValueOnce(
+        new Promise(resolve => {
+          finish = resolve;
+        })
+      );
+      const first = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "Saved while closing" }));
+      act(() => first.result.current.onSave());
+      first.unmount();
+
+      await act(async () =>
+        finish({ ...primaryAgentFixture, origin: "workspace", prompt: "Saved while closing" })
+      );
+      const second = renderHook(page, { wrapper: createWrapper() });
+      expect(second.result.current.dirty).toBe(false);
+    });
+
     it("Should not bring back edits that were saved", async () => {
       const first = renderHook(page, { wrapper: createWrapper() });
       act(() => first.result.current.patchDraft({ prompt: "Saved prompt" }));

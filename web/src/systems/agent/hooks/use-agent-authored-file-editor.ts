@@ -18,7 +18,7 @@ import {
 } from "../stores/agent-authored-file-editor-store";
 import type { AgentHeartbeatHistoryResponse, AgentSoulHistoryResponse } from "../types";
 import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
-import { useRetainedEditorDraft } from "./use-retained-editor-draft";
+import { type RetainedDraftPolicy, useRetainedEditorDraft } from "./use-retained-editor-draft";
 import { useUnsavedGuard } from "./use-unsaved-guard";
 
 export type { AuthoredFileKind, AuthoredFilePayload };
@@ -39,6 +39,11 @@ export type UseAgentAuthoredFileEditorArgs =
       AuthoredFileEditorCallbacks<"heartbeat"> & {
         history: AgentHeartbeatHistoryResponse | undefined;
       });
+
+const AUTHORED_FILE_DRAFT_POLICY: RetainedDraftPolicy<AuthoredFileEditorState> = {
+  isDirty: isAuthoredFileEditorDirty,
+  isBusy: context => context.phase === "saving" || context.phase === "validating",
+};
 
 const CREATE_BODIES: Record<AuthoredFileKind, string> = {
   soul: "# Soul\n\nDefine persona and constraints.\n",
@@ -82,7 +87,7 @@ export function useAgentAuthoredFileEditor({
       current.key !== nextResourceKey ||
       shouldAdoptAuthoredFileSource(current.store.getSnapshot().context, input)
   );
-  useRetainedEditorDraft(draftKey, store, isAuthoredFileEditorDirty);
+  useRetainedEditorDraft(draftKey, store, AUTHORED_FILE_DRAFT_POLICY);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const dirty = isAuthoredFileEditorDirty(editor);

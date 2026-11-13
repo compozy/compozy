@@ -145,8 +145,8 @@ interface AuthoredFileEditorTrigger {
 }
 
 /**
- * A `retained` draft (#1653), kept from an editor of this file that went away unsaved, seeds the
- * store instead of the payload; a write or validation it was running resumes ready.
+ * A `retained` draft (#1653), kept from an editor of this file that went away unsaved, is the
+ * store's context as it is, instead of a seed from the payload.
  */
 export function createAuthoredFileEditorLogic(retained?: AuthoredFileEditorState) {
   return createStoreLogic<
@@ -155,7 +155,7 @@ export function createAuthoredFileEditorLogic(retained?: AuthoredFileEditorState
     Record<never, never>,
     AuthoredFileEditorInput
   >({
-    context: input => (retained ? resumeState(retained) : seedState(input, 0)),
+    context: input => retained ?? seedState(input, 0),
     on: {
       draftChanged: (context, event) => {
         if (context.phase === "saving") return;
@@ -393,12 +393,6 @@ function toAuthoredFileEditorInput(
 
 function isAgentHeartbeatPayload(payload: AuthoredFilePayload): payload is AgentHeartbeatPayload {
   return "preferences" in payload;
-}
-
-function resumeState(retained: AuthoredFileEditorState): AuthoredFileEditorState {
-  return retained.phase === "saving" || retained.phase === "validating"
-    ? toReady(retained)
-    : retained;
 }
 
 /** Whether the draft differs from the file it was read from. */

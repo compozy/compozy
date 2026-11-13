@@ -45,14 +45,15 @@ function seed<TForm>(snapshot: EditorSnapshot<TForm>): EditorDocumentContext<TFo
 
 /**
  * Form, raw file and conflict for one authored file; reads and writes stay in the owning hook.
- * A `retained` draft (#1653) resumes idle: a save it was running finished, or not, elsewhere.
+ * A `retained` draft (#1653), kept from an editor of this file that went away unsaved, is the
+ * store's context as it is.
  */
 export function createEditorDocumentStore<TForm>(
   snapshot: EditorSnapshot<TForm>,
   retained?: EditorDocumentContext<TForm>
 ) {
   return createStore({
-    context: retained ? { ...retained, phase: "idle" as EditorPhase } : seed(snapshot),
+    context: retained ?? seed(snapshot),
     on: {
       formChanged: (context, event: { form: TForm }) => ({ ...context, form: event.form }),
       rawChanged: (context, event: { raw: string | null }) => ({

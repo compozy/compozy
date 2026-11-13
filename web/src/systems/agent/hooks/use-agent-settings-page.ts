@@ -11,7 +11,7 @@ import {
 } from "../stores/agent-settings-editor-store";
 import { validateAgentSettingsDraft, type AgentSettingsDraft } from "../lib/agent-settings-draft";
 import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
-import { useRetainedEditorDraft } from "./use-retained-editor-draft";
+import { type RetainedDraftPolicy, useRetainedEditorDraft } from "./use-retained-editor-draft";
 import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import { useAgent, useUpdateAgent } from "./use-agents";
 import { useAgentDeleteFlow } from "./use-agent-delete-flow";
@@ -23,6 +23,11 @@ import { useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
 import { useAgentWindowScope } from "./use-agent-window-scope";
 
 import { useProfileReadScope } from "@/systems/profiles";
+
+const SETTINGS_DRAFT_POLICY: RetainedDraftPolicy<AgentSettingsEditorState> = {
+  isDirty: isAgentSettingsEditorDirty,
+  isBusy: context => context.phase === "saving" || context.phase === "reloading",
+};
 
 export interface UseAgentSettingsPageOptions {
   name: string;
@@ -59,7 +64,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       current.key !== nextResourceKey ||
       shouldAdoptAgentSettingsSource(current.store.getSnapshot().context, agentQuery.data)
   );
-  useRetainedEditorDraft(draftKey, store, isAgentSettingsEditorDirty);
+  useRetainedEditorDraft(draftKey, store, SETTINGS_DRAFT_POLICY);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const {

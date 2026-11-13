@@ -92,8 +92,7 @@ export function createAgentSettingsEditorLogic() {
     Record<never, never>,
     AgentSettingsEditorInput
   >({
-    context: input =>
-      input.retained ? resumeState(input.retained) : seedState(input.resourceKey, input.agent, 0),
+    context: input => input.retained ?? seedState(input.resourceKey, input.agent, 0),
     on: {
       draftReplaced: (context, event) => {
         if (context.phase === "saving" || context.phase === "reloading") return;
@@ -193,13 +192,6 @@ function seedState(
     baseline: agent ?? null,
     draft: agent ? buildSettingsDraftFromAgent(agent) : null,
   };
-}
-
-/** A retained draft resumes ready: a save or reload it was running settled, or not, elsewhere. */
-function resumeState(retained: AgentSettingsEditorState): AgentSettingsEditorState {
-  return retained.phase === "saving" || retained.phase === "reloading"
-    ? toReady(retained)
-    : retained;
 }
 
 /** Whether the draft differs from the definition it was read from. */
