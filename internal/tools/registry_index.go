@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -51,20 +50,14 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			}
 			continue
 		}
-		descriptors, err := provider.List(ctx, scope)
+		descriptors, err := r.listProvider(ctx, provider, providerIndex, scope)
 		if err != nil {
-			return nil, fmt.Errorf("tools: list provider %s: %w", sourceKey(provider.ID()), err)
+			return nil, err
 		}
-		slices.SortFunc(descriptors, func(a Descriptor, b Descriptor) int {
-			return strings.Compare(a.ID.String(), b.ID.String())
-		})
 		for descriptorIndex := range descriptors {
-			descriptor := &descriptors[descriptorIndex]
-			if err := descriptor.Validate(); err != nil {
-				return nil, indexValidationError(descriptor.ID, err)
-			}
-			applyMCPReadAuthority(descriptor, inputs.MCPReadOnlyTools)
-			index.add(cloneDescriptor(*descriptor), provider, providerIndex, true)
+			descriptor := cloneDescriptor(descriptors[descriptorIndex])
+			applyMCPReadAuthority(&descriptor, inputs.MCPReadOnlyTools)
+			index.add(descriptor, provider, providerIndex, true)
 		}
 	}
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {

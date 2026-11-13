@@ -90,10 +90,11 @@ type HostedService struct {
 	now                  func() time.Time
 	nonceReader          func([]byte) error
 
-	launches          map[string]*hostedLaunchRecord
-	binds             map[string]*hostedBindRecord
-	projectionCache   hostedProjectionCache
-	sharedProjections hostedSharedProjectionCache
+	launches           map[string]*hostedLaunchRecord
+	binds              map[string]*hostedBindRecord
+	projectionCache    hostedProjectionCache
+	sharedProjections  hostedSharedProjectionCache
+	projectionListings hostedProjectionListings
 	// bindReleases wakes projection streams when binds are released so they end promptly.
 	bindReleases changeSignal
 }

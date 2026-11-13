@@ -62,6 +62,26 @@ func (p registryTestProvider) Resolve(_ context.Context, _ Scope, id ToolID) (Ha
 	return handle, ok, nil
 }
 
+type scopedListingTestProvider struct {
+	registryTestProvider
+	calls atomic.Int64
+	fail  atomic.Bool
+}
+
+var _ ProjectionScopeProvider = (*scopedListingTestProvider)(nil)
+
+func (p *scopedListingTestProvider) List(ctx context.Context, scope Scope) ([]Descriptor, error) {
+	p.calls.Add(1)
+	if p.fail.Load() {
+		return nil, errors.New("listing failed")
+	}
+	return p.registryTestProvider.List(ctx, scope)
+}
+
+func (p *scopedListingTestProvider) ProjectionScope(scope Scope) Scope {
+	return Scope{ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID}
+}
+
 type registryTestHandle struct {
 	descriptor   Descriptor
 	availability Availability
@@ -496,6 +516,55 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should list a scoped provider once per projection scope among passes sharing listings", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: passes sharing ProjectionListings reuse one successful listing per provider
+		// projection scope, never reuse a failure, and keep caller views isolated.
+		alpha := descriptorWithID(ToolIDTaskRead, "Read task")
+		provider := &scopedListingTestProvider{registryTestProvider: providerWithDescriptors(alpha.Source, alpha)}
+		inputs := DefaultPolicyInputs()
+		inputs.Session = SessionToolPolicy{Enforced: true, Tools: []ToolID{alpha.ID}}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		project := func(ctx context.Context, sessionID string, workspaceID string) []ToolView {
+			t.Helper()
+			views, err := registry.SessionProjection(ctx, Scope{SessionID: sessionID, WorkspaceID: workspaceID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, alpha.ID)
+			return views
+		}
+		shared := WithProjectionListings(t.Context(), NewProjectionListings())
+		first := project(shared, "sess-a", "ws-1")
+		first[0].Descriptor.Description = "caller mutation"
+		if second := project(shared, "sess-b", "ws-1"); second[0].Descriptor.Description != alpha.Description {
+			t.Fatalf("shared listing leaked a caller mutation: %q", second[0].Descriptor.Description)
+		}
+		if calls := provider.calls.Load(); calls != 1 {
+			t.Fatalf("same projection scope listed %d times, want 1", calls)
+		}
+		project(shared, "sess-c", "ws-2")
+		project(t.Context(), "sess-a", "ws-1")
+		if calls := provider.calls.Load(); calls != 3 {
+			t.Fatalf("distinct scope and unshared pass listed %d times in total, want 3", calls)
+		}
+
+		retry := WithProjectionListings(t.Context(), NewProjectionListings())
+		provider.fail.Store(true)
+		if _, err := registry.SessionProjection(retry, Scope{SessionID: "sess-a", WorkspaceID: "ws-1"}); err == nil {
+			t.Fatal("failed listing returned no error")
+		}
+		provider.fail.Store(false)
+		project(retry, "sess-b", "ws-1")
+		if calls := provider.calls.Load(); calls != 5 {
+			t.Fatalf("listing after a failure ran %d times in total, want 5", calls)
+		}
+	})
 
 	t.Run("Should avoid probing denied backends while retaining operator diagnostics", func(t *testing.T) {
 		t.Parallel()

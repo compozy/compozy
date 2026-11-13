@@ -147,7 +147,7 @@ func (s *HostedService) boundedUnversionedProjection(
 	var response HostedProjectionResponse
 	for attempt := 0; ; attempt++ {
 		var err error
-		response, err = buildHostedProjection(ctx, registry, record)
+		response, err = buildHostedProjection(s.withProjectionListings(ctx, epoch), registry, record)
 		if err != nil {
 			return HostedProjectionResponse{}, err
 		}
@@ -196,6 +196,7 @@ func (s *HostedService) releaseProjectionCaches(bindIDs []string) {
 		s.projectionCache.remove(bindID)
 	}
 	s.sharedProjections.clear()
+	s.projectionListings.clear()
 	s.bindReleases.notify(nil)
 }
 
