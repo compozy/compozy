@@ -10,6 +10,7 @@ import {
   useEffect,
   useLayoutEffect,
 } from "react";
+import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -245,7 +246,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     splitWithTab: vi.fn(),
     moveTab: vi.fn(),
     resizeLayout: vi.fn(() => acceptedOutcome()),
-    balanceLayout: vi.fn(),
+    balanceLayout: vi.fn(() => acceptedOutcome()),
     navigateWindow: vi.fn(() => acceptedOutcome()),
     retargetWindow: vi.fn(() => acceptedOutcome()),
     popWindowRoute: vi.fn(() => acceptedOutcome()),
@@ -1564,6 +1565,12 @@ function HeadDragHarness({ windowId, onBack }: { windowId: string; onBack: () =>
       <button type="button" onClick={onBack}>
         Back
       </button>
+      {/* The window title: a full-title popover trigger, and still the head's grab surface. */}
+      <h1 data-slot="topbar-title">
+        <button type="button">Agents</button>
+      </h1>
+      {/* A head picker's popup renders in a portal, outside the head's DOM. */}
+      {createPortal(<input aria-label="Picker filter" />, document.body)}
     </header>
   );
 }
@@ -1728,6 +1735,38 @@ describe("useOsTabDragStart pointer gestures", () => {
     // No reorder leaves once the tab left the bar.
     expect(shell.controller.reorderTab).not.toHaveBeenCalled();
     layer.remove();
+  });
+
+  it("Should drag a window head by its title, a popover trigger, past the threshold", () => {
+    renderSplitHead();
+    const head = stubPointerCapture(screen.getByTestId("head"));
+    const title = screen.getByRole("button", { name: "Agents" });
+
+    fireEvent.pointerDown(title, { button: 0, pointerId: 6, clientX: 100, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
+    fireEvent.pointerMove(window, { pointerId: 6, clientX: 140, clientY: 10 });
+
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({
+      phase: "dragging",
+      session: { source: { kind: "head", windowId: "window:primary" } },
+    });
+    expect(head.setPointerCapture).toHaveBeenCalledOnce();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+  });
+
+  it("Should never arm a drag from a press inside a popup portaled out of the head", () => {
+    const shell = renderSplitHead();
+    const filter = screen.getByRole("textbox", { name: "Picker filter" });
+
+    // React still delivers this press to the head's handler, though it is not in the head.
+    fireEvent.pointerDown(filter, { button: 0, pointerId: 7, clientX: 10, clientY: 300 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    fireEvent.pointerMove(window, { pointerId: 7, clientX: 80, clientY: 300 });
+    fireEvent.pointerUp(window, { pointerId: 7, clientX: 80, clientY: 300 });
+
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
   });
 
   const onHeadBack = vi.fn();
@@ -1995,5 +2034,50 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       fence
     );
     expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+  });
+  it("Should keep a drag when this seam's own earlier resize lands, and cancel on someone else's", async () => {
+    let settle!: (applied: boolean) => void;
+    const firstShell = startSeamDrag(snapshotWithSplit([0.5, 0.5]));
+    const { shell, seam } = firstShell;
+    vi.mocked(shell.controller.resizeLayout).mockImplementationOnce(() => ({
+      accepted: true,
+      completion: new Promise<boolean>(resolve => {
+        settle = resolve;
+      }),
+    }));
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+
+    // Grab the same seam again before the first resize is acknowledged.
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 5, clientX: 560, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 5, clientX: 600, clientY: 300 });
+    flushFrames();
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({ deltaPx: 40 });
+
+    // The first resize's own echo changes the weights: the second drag carries on.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.56, 0.44], 8) }));
+    await act(async () => settle(true));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    // The first resize settling does not clear the second drag's preview.
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({ deltaPx: 40 });
+
+    // Another client's change afterwards still cancels it.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.7, 0.3], 9) }));
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    fireEvent.pointerUp(seam, { pointerId: 5, clientX: 600, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should fence a two-member balance like a drag", () => {
+    const shell = createShell();
+    render(<SeamHarness seam={SEAM} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.balanceLayout).toHaveBeenCalledExactlyOnceWith(
+      { splitId: "split:main" },
+      { expectedRevision: SNAPSHOT.revision, rebase: { splitId: "split:main", boundaryIndex: 0 } }
+    );
   });
 });

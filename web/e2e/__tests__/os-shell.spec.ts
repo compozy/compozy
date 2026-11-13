@@ -2301,7 +2301,9 @@ test("Tabs-split E2E-007: a head dropped on a sibling's top edge stacks them, an
   await showTab(appPage, runtime, workspace.id, tasksID);
   await expect(shell.window(agentsID)).toBeVisible();
 
-  const head = (windowId: string) => shell.window(windowId).locator('[data-slot="os-window-head"]');
+  // The title is the head's grab surface; the head's centre may land on a picker or an action.
+  const head = (windowId: string) =>
+    shell.window(windowId).locator('[data-slot="os-window-head"] [data-slot="topbar-title"]');
   const tasksBox = await requiredBox(shell.window(tasksID));
   await startPointerDrag(appPage, await boxCenter(head(agentsID)));
   await movePointer(appPage, {
@@ -2447,7 +2449,10 @@ test("Tabs-split E2E-009: Move to new tab unsplits a member, and a closed member
   // A head dropped on the bar becomes its own tab at the marker.
   await splitAgain();
   const lastTab = await requiredBox(shell.tabs.last());
-  const head = shell.window(agentsID).locator('[data-slot="os-window-head"]');
+  // Grab the head by its title: its controls (pickers, actions) never start a drag.
+  const head = shell
+    .window(agentsID)
+    .locator('[data-slot="os-window-head"] [data-slot="topbar-title"]');
   await startPointerDrag(appPage, await boxCenter(head));
   await movePointer(appPage, {
     x: lastTab.x + lastTab.width * 0.8,

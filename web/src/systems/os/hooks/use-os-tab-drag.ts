@@ -323,12 +323,13 @@ function trackGesture(
     if (up.pointerId !== pointerId) return;
     point = { x: up.clientX, y: up.clientY };
     swapHeld = modifierHeld(swapModifier(), up);
-    update();
-    const dragged = osTabDragStore.getSnapshot().context.phase === "dragging";
+    let dragged = false;
     // `released` emits the drop: release while the `dropped` listener is still subscribed,
-    // then tear the gesture down even when the drop's dispatch throws, so no listener, capture
-    // or selection lock outlives this gesture.
+    // then tear the gesture down even when the last hit test or the drop's dispatch throws, so
+    // no listener, capture or selection lock outlives this gesture.
     try {
+      update();
+      dragged = osTabDragStore.getSnapshot().context.phase === "dragging";
       osTabDragStore.trigger.released();
     } catch (error) {
       // The command never left: no answer will clear a reorder's held bar order.
@@ -375,15 +376,27 @@ const INTERACTIVE_CONTROL_SELECTOR =
   "button, a[href], input, textarea, select, [contenteditable='true'], [role='button'], [role='menuitem']";
 
 /**
- * Whether a press started on a control inside the drag source (a head's back button, crumbs or
- * app actions; a tab's close button). The source itself may be a control — a tab is a button —
- * and still drags.
+ * Parts of a drag source that are controls yet stay its grab surface: a window head's title
+ * opens its full-title popover on click, and capture starts only past the drag threshold, so a
+ * plain click still opens it.
  */
-function pressedOnInnerControl(event: ReactPointerEvent<HTMLElement>): boolean {
-  const origin = event.target instanceof Element ? event.target : null;
-  const control = origin?.closest(INTERACTIVE_CONTROL_SELECTOR);
-  if (!control) return false;
-  return control !== event.currentTarget && event.currentTarget.contains(control);
+const GRAB_SURFACE_SELECTOR = '[data-slot="topbar-title"]';
+
+/**
+ * Whether a press must not arm a drag: it started outside the source's own DOM (React delivers
+ * presses inside a portaled popup — a head picker's menu or its input — to the source's handler),
+ * or on a control inside the source (a head's Back, crumbs, app actions or window controls; a
+ * tab's close button). The source itself may be a control — a tab is a button — and still drags.
+ */
+function pressRefusesDrag(event: ReactPointerEvent<HTMLElement>): boolean {
+  const source = event.currentTarget;
+  const origin = event.target instanceof Node ? event.target : null;
+  if (origin === null || !source.contains(origin)) return true;
+  const element = origin instanceof Element ? origin : origin.parentElement;
+  const control = element?.closest(INTERACTIVE_CONTROL_SELECTOR);
+  if (!control || control === source || !source.contains(control)) return false;
+  const surface = control.closest(GRAB_SURFACE_SELECTOR);
+  return surface === null || !source.contains(surface);
 }
 
 /**
@@ -399,7 +412,7 @@ export function useOsTabDragStart() {
     anyDesktop = false
   ) => {
     if (event.button !== 0 || osTabDragStore.getSnapshot().context.phase !== "idle") return;
-    if (pressedOnInnerControl(event)) return;
+    if (pressRefusesDrag(event)) return;
     const state = manager.getState();
     const session = dragSession(state, pick(state), anyDesktop);
     if (session !== null) trackGesture(manager, session, event);

@@ -32,6 +32,7 @@ function startedStore() {
     seam: SEAM,
     revision: 12,
     contextKey: "binding|desktop/tab|area",
+    weightsKey: "0.5,0.5",
   });
   return store;
 }

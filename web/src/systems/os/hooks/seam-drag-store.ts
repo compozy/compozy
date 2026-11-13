@@ -22,6 +22,8 @@ export interface SeamDragState {
   seam: ProjectedSeam | null;
   revision: LayoutRevision | null;
   contextKey: string | null;
+  /** The split's committed weights the drag is drawn on; only this client's own echo moves it. */
+  weightsKey: string | null;
   /** Why the last drag ended without a commit; null after a commit or before any drag. */
   cancelReason: GestureCancelReason | null;
 }
@@ -33,7 +35,10 @@ export type SeamDragEvents = {
     seam: ProjectedSeam;
     revision: LayoutRevision;
     contextKey: string;
+    weightsKey: string;
   };
+  /** This client's own earlier resize landed: its weights are the drag's new baseline. */
+  weightsAcknowledged: { weightsKey: string };
   pointerMoved: { pointerId: number; coordinate: number };
   dragEnded: { pointerId: number };
   dragCancelled: { reason: GestureCancelReason };
@@ -48,6 +53,7 @@ function idleSeamDrag(cancelReason: GestureCancelReason | null): SeamDragState {
     seam: null,
     revision: null,
     contextKey: null,
+    weightsKey: null,
     cancelReason,
   };
 }
@@ -65,8 +71,13 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
         seam: event.seam,
         revision: event.revision,
         contextKey: event.contextKey,
+        weightsKey: event.weightsKey,
         cancelReason: null,
       };
+    },
+    weightsAcknowledged: (state, event) => {
+      if (state.phase !== "dragging" || state.weightsKey === event.weightsKey) return;
+      return { ...state, weightsKey: event.weightsKey };
     },
     pointerMoved: (state, event) => {
       if (state.phase !== "dragging" || state.pointerId !== event.pointerId) return;

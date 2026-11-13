@@ -225,7 +225,11 @@ export interface WindowManagerController extends OsDesktopRuntime {
     delta: number,
     fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome;
-  balanceLayout(target: { tabId?: string; splitId?: string }): void;
+  /** A fenced balance (a seam double-click) is refused when its split no longer exists. */
+  balanceLayout(
+    target: { tabId?: string; splitId?: string },
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
   navigateWindow(
     id: string,
     route: OsWindowRoute,

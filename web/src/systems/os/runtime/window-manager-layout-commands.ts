@@ -63,9 +63,13 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
   ): WindowManagerCommandOutcome =>
     this.dispatch({ ...resizeLayoutCommand(splitId, boundaryIndex, delta), ...fence });
 
-  balanceLayout = (target: { tabId?: string; splitId?: string }): void => {
+  balanceLayout = (
+    target: { tabId?: string; splitId?: string },
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome => {
     const command = balanceLayoutCommand(target);
-    if (command !== null) this.dispatch(command);
+    if (command === null) return { accepted: false, completion: Promise.resolve(false) };
+    return this.dispatch({ ...command, ...fence });
   };
 
   /** "Move to new tab": a split member becomes its own tab right after its source tab. */
