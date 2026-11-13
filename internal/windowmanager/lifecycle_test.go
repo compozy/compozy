@@ -618,6 +618,9 @@ func TestTabsAndSplits(t *testing.T) {
 	t.Run("Should activate the deprecated restore target without a commit", func(t *testing.T) {
 		t.Parallel()
 		e := threeTabs(t)
+		splitTestWindows(t, e, "a", "b")
+		executeTestCommand(t, e.manager, "workspace-a", nil, CreateDesktopCommand{DesktopID: "d2", Name: "Second"})
+		openTestWindow(t, e.manager, "workspace-a", nil, "d", "d2")
 		client := ClientID("caller")
 		registerTestClient(t, e.manager, "workspace-a", client)
 		before := mustSnapshot(t, e.manager, "workspace-a")
@@ -655,9 +658,29 @@ func TestTabsAndSplits(t *testing.T) {
 		if _, err := e.manager.Preview(t.Context(), request); !errors.Is(err, ErrWindowNotFound) {
 			t.Fatalf("Preview(missing restore) error=%v", err)
 		}
+		for _, target := range []WindowID{"b", "d", "a"} {
+			r = executeTestCommand(
+				t,
+				e.manager,
+				"workspace-a",
+				&client,
+				OpenWindowCommand{RestoreWindowID: new(target)},
+			)
+			window := before.Windows[target]
+			if r.Applied || !reflect.DeepEqual(r.Snapshot, before) ||
+				!reflect.DeepEqual(r.Changes, ChangeSet{}) || r.Client == nil ||
+				r.Client.ActiveDesktopID != window.DesktopID ||
+				r.Client.ActiveTab[window.DesktopID] != window.TabID ||
+				valueOrZero(r.Client.FocusedWindowID) != target {
+				t.Fatalf("restore %s=%+v", target, r)
+			}
+		}
+		executeTestCommand(t, e.manager, "workspace-a", nil, UpdateDesktopCommand{
+			DesktopID: before.Desktops[0].ID, Name: before.Desktops[0].Name,
+		})
 		if !reflect.DeepEqual(mustSnapshot(t, e.manager, "workspace-a"), before) ||
 			len(e.repository.Commits("workspace-a")) != commitsBefore {
-			t.Fatal("restore changed durable state")
+			t.Fatal("restore changed durable state or queued a tab activation")
 		}
 	})
 	t.Run("Should open without client (UT-004)", func(t *testing.T) {

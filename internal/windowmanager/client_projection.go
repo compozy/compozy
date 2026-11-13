@@ -17,7 +17,8 @@ func (m *Manager) projectClientViews(
 	case terminalRetirementCommand, sessionDeletionCommand, workspaceUnregisteredCommand:
 		lifecycle = true
 	}
-	if request.ClientID == nil && request.Payload.CommandID() == CommandWindowNavigate && !lifecycle {
+	if request.ClientID == nil && request.Payload != nil && request.Payload.CommandID() == CommandWindowNavigate &&
+		!lifecycle {
 		return clientViewProjection{}, nil
 	}
 	m.mu.Lock()
@@ -84,13 +85,12 @@ func projectDurableClientView(
 func projectIssuedCommand(view ClientView, snapshot Snapshot, payload Command) ClientView {
 	var id WindowID
 	switch c := payload.(type) {
-	case reuseWindowCommand:
-		id = c.id
+	case FocusWindowCommand:
+		if c.WindowID != nil {
+			id = *c.WindowID
+		}
 	case OpenWindowCommand:
 		id = c.Window.ID
-		if c.RestoreWindowID != nil {
-			id = *c.RestoreWindowID
-		}
 	case NavigateWindowCommand:
 		id = c.WindowID
 	case MoveWindowCommand:
@@ -296,7 +296,7 @@ func resolvedProjectionRequest(before, after Snapshot, request CommandRequest) C
 	var id WindowID
 	switch c := request.Payload.(type) {
 	case OpenWindowCommand:
-		if c.Window.ID != "" || c.RestoreWindowID != nil {
+		if c.Window.ID != "" {
 			return request
 		}
 		for _, candidate := range sortedWindowIDs(after.Windows) {

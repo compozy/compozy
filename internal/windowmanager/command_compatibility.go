@@ -1,9 +1,5 @@
 package windowmanager
 
-type noTopologyCommand struct{ id CommandID }
-
-func (c noTopologyCommand) CommandID() CommandID { return c.id }
-
 type reuseWindowCommand struct{ id WindowID }
 
 func (reuseWindowCommand) CommandID() CommandID { return CommandWindowOpen }
@@ -19,6 +15,7 @@ func (c adjacentTabsCommand) CommandID() CommandID { return c.id }
 
 // canonicalCommandSurfaces keeps the v0.6 request vocabulary through v0.7; remove in v0.8.0.
 func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Deprecation) {
+	request.CommandID = request.Payload.CommandID()
 	deprecations := []Deprecation{}
 	report := func(surface string) {
 		deprecations = append(deprecations, SurfaceDeprecation(surface))
@@ -26,11 +23,11 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 	switch c := request.Payload.(type) {
 	case ToggleFloatingCommand, ZoomWindowCommand, ResizeWindowCommand, FrameResizeLayoutCommand:
 		report(string(c.CommandID()))
-		request.Payload = noTopologyCommand{id: c.CommandID()}
+		request.Payload = nil
 	case CloseWindowCommand:
 		if c.Minimize {
 			report("window.close.minimize")
-			request.Payload = noTopologyCommand{id: c.CommandID()}
+			request.Payload = nil
 		}
 	case OpenWindowCommand:
 		request.Payload = canonicalOpenCommand(c, report)
@@ -57,8 +54,18 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 		c.GroupID = nil
 		request.Payload = c
 	}
-	request.CommandID = request.Payload.CommandID()
+	if request.Payload != nil {
+		request.CommandID = request.Payload.CommandID()
+	}
 	return request, deprecations
+}
+
+// canonicalProjectionSurfaces translates restore activation without a durable focus command; remove in v0.8.0.
+func canonicalProjectionSurfaces(request CommandRequest) CommandRequest {
+	if c, reuse := request.Payload.(reuseWindowCommand); reuse {
+		request.Payload = FocusWindowCommand{WindowID: new(c.id)}
+	}
+	return request
 }
 
 // reduceCommandSurfaces resolves v0.6 shims before the v6 reducer; remove in v0.8.0.
@@ -69,7 +76,7 @@ func reduceCommandSurfaces(s *Snapshot, command Command, r *reducer) (reduction,
 			return reduction{}, ErrWindowNotFound
 		}
 		return reduction{}, nil
-	case noTopologyCommand:
+	case nil:
 		return reduction{}, nil
 	case adjacentTabsCommand:
 		beforeMembers := tabMemberCounts(s)

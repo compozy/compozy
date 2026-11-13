@@ -18,7 +18,7 @@ func (m *Manager) executeDurable(
 		return Result{}, err
 	}
 	if !reduced.changed {
-		projection, err := m.projectClientViews(request.WorkspaceID, snapshot, request)
+		projection, err := m.projectClientViews(request.WorkspaceID, snapshot, canonicalProjectionSurfaces(request))
 		if err != nil {
 			return Result{}, err
 		}

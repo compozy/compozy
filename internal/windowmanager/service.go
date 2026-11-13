@@ -150,7 +150,7 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 	if m.deprecationObserver != nil {
 		m.deprecationObserver(ctx, request, deprecations)
 	}
-	commandID = request.Payload.CommandID()
+	commandID = request.CommandID
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {
 		return Result{}, err
@@ -213,7 +213,7 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 	if m.deprecationObserver != nil {
 		m.deprecationObserver(ctx, request, deprecations)
 	}
-	commandID := request.Payload.CommandID()
+	commandID := request.CommandID
 	lock, err := m.lockFor(request.WorkspaceID)
 	if err != nil {
 		return Preview{}, err
