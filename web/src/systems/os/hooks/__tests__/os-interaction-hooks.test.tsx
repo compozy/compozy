@@ -1794,6 +1794,29 @@ describe("WindowPaneHosts", () => {
     cleanup();
   });
 
+  /**
+   * A 200px scroller over content that can be emptied and grown again, writes clamped to the
+   * scrollable range the way the browser clamps them.
+   */
+  function clampingContent(scroller: HTMLElement) {
+    const rows = document.createElement("div");
+    scroller.append(rows);
+    const layout = { height: 1_000, top: 0 };
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, get: () => 200 });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => Math.max(200, layout.height),
+    });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      get: () => layout.top,
+      set: (value: number) => {
+        layout.top = Math.min(Math.max(0, value), Math.max(0, layout.height - 200));
+      },
+    });
+    return { rows, layout };
+  }
+
   it("Should leave a scroll owner's offset to it and tell it the pane shows again [A-1]", () => {
     const { hosts, surface, first, box, cleanup } = setup();
     const owner = document.createElement("div");
@@ -1816,6 +1839,58 @@ describe("WindowPaneHosts", () => {
     // One writer: the owner restores itself on the event; the host never wrote its offset.
     expect(told).toHaveBeenCalledTimes(2);
     expect(owner.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should write an offset the content could not hold once the content grows [A-3]", () => {
+    const { hosts, surface, scroller, first, scrollTo, resize, box, cleanup } = setup();
+    const { rows, layout } = clampingContent(scroller);
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(600);
+
+    // Hidden, the virtualized list unmounts its rows: shown again, the write clamps to 0.
+    surface.hidden = true;
+    layout.height = 0;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(0);
+
+    // The rows mount again in a later frame; the offset lands as soon as they can hold it.
+    layout.height = 1_000;
+    resize(rows, 640, 1_000);
+    expect(scroller.scrollTop).toBe(600);
+    cleanup();
+  });
+
+  it("Should write a restored offset its container dropped back to 0 until the operator scrolls [A-3]", () => {
+    const { hosts, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    clampingContent(scroller);
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(600);
+    surface.hidden = true;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(600);
+
+    // The container's own logic, re-reading what it saw while hidden, moves back to the top.
+    scrollTo(0);
+    expect(scroller.scrollTop).toBe(600);
+
+    // The operator's gesture ends it: their scroll to the top stays and is the new offset.
+    scroller.dispatchEvent(new Event("wheel"));
+    scrollTo(0);
+    expect(scroller.scrollTop).toBe(0);
+    surface.hidden = true;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(0);
     cleanup();
   });
 

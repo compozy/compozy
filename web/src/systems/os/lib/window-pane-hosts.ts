@@ -5,6 +5,7 @@ import {
 } from "@/lib/scroll-owner";
 
 import type { OsWindowRoute } from "./os-types";
+import { PaneScrollSettler } from "./pane-scroll-settler";
 import { sameOsWindowRoute } from "./window-manager-route";
 
 const HOST_SLOT = "os-window-host";
@@ -42,6 +43,8 @@ export interface PaneHostWindows {
 }
 
 const OWNER_SELECTOR = `[${SCROLL_OWNER_ATTRIBUTE}]`;
+/** Input that is the operator taking a pane's scroll, ending any restore still settling there. */
+const GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
 
 /**
  * One DOM host per window, owned by a desktop's tab layer. A window's pane renders into its host
@@ -68,8 +71,11 @@ const OWNER_SELECTOR = `[${SCROLL_OWNER_ATTRIBUTE}]`;
  *   desk layer: those lists change only when the layout does, never with an app's content. The
  *   same observer watches each host's own children, so a pane root that mounts after `place` is
  *   observed for size too.
- *   It runs before the apps' own resize handling for that frame (its observer is created first),
- *   so an app that sets its offset again still has the last word.
+ *   It runs before the apps' own resize handling for that frame (its observer is created first).
+ *   Content that cannot hold its offset at that moment (a virtualized list whose rows unmounted
+ *   while hidden, a code view that measured its lines at 0) gets it when it grows, and an offset
+ *   the container's own logic drops back to 0 is written again, for a bounded settling time
+ *   (`PaneScrollSettler`); an app that moves the container anywhere else keeps its move.
  * - Focus that last landed inside the pane returns to that element (`preventScroll`) when it was
  *   lost to the move or the hiding: only while nothing else holds focus (`body`), so a drag
  *   source or a tab the operator clicked keeps it, and only while the pane's window holds the
@@ -88,6 +94,7 @@ export class WindowPaneHosts {
   private readonly windows: PaneHostWindows;
   private readonly hosts = new Map<string, PaneHost>();
   private readonly byElement = new WeakMap<Element, PaneHost>();
+  private readonly settler = new PaneScrollSettler();
   /** Where focus last landed inside a pane, while nothing outside the panes took it since. */
   private lastFocus: { windowId: string; element: HTMLElement } | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -142,6 +149,7 @@ export class WindowPaneHosts {
       host.observed.clear();
       this.hosts.delete(windowId);
       if (this.lastFocus?.windowId === windowId) this.lastFocus = null;
+      this.settler.releaseOwner(host);
     }
   }
 
@@ -154,6 +162,7 @@ export class WindowPaneHosts {
     this.listening?.removeEventListener("focusin", this.handleFocusIn, true);
     this.listening?.removeEventListener("focusout", this.handleFocusOut, true);
     this.listening = null;
+    this.settler.dispose();
     for (const host of this.hosts.values()) {
       host.rendered = null;
       host.observed.clear();
@@ -182,6 +191,12 @@ export class WindowPaneHosts {
       },
       { capture: true, passive: true }
     );
+    for (const gesture of GESTURES) {
+      element.addEventListener(gesture, () => this.settler.releaseOwner(host), {
+        capture: true,
+        passive: true,
+      });
+    }
     this.hosts.set(windowId, host);
     this.byElement.set(element, host);
     return host;
@@ -251,12 +266,13 @@ export class WindowPaneHosts {
     const rendered = entry.contentRect.width > 0 || entry.contentRect.height > 0;
     const shownAgain = rendered && host.rendered === false;
     host.rendered = rendered;
+    if (!rendered) this.settler.releaseOwner(host);
     if (shownAgain) this.restore(host);
   }
 
   private record(host: PaneHost, container: Element): void {
-    // An owner keeps its own position.
-    if (container.hasAttribute(SCROLL_OWNER_ATTRIBUTE)) return;
+    // An owner keeps its own position; a restore still settling consumes the scrolls it causes.
+    if (container.hasAttribute(SCROLL_OWNER_ATTRIBUTE) || this.settler.scrolled(container)) return;
     const known = host.offsets.has(container);
     host.offsets.set(container, {
       top: container.scrollTop,
@@ -283,9 +299,8 @@ export class WindowPaneHosts {
       }
       if (!isRendered(element)) continue;
       // Only an offset the browser dropped: one the app already set again (a terminal syncing
-      // to its buffer) is the app's.
-      if (element.scrollTop === 0 && offset.top !== 0) element.scrollTop = offset.top;
-      if (element.scrollLeft === 0 && offset.left !== 0) element.scrollLeft = offset.left;
+      // to its buffer) is the app's. Content that cannot hold it yet gets it once it grows.
+      this.settler.restore(element, offset, host);
     }
     // Scroll owners restore themselves, in the same frame.
     for (const owner of host.element.querySelectorAll(OWNER_SELECTOR)) {
