@@ -148,7 +148,9 @@ func TestTurnTelemetryReceiver(t *testing.T) {
 		}
 		traces := postFootprintExport(t, receiver.collector.URL+otlptest.TracesPath,
 			&coltracepb.ExportTraceServiceRequest{ResourceSpans: []*tracepb.ResourceSpans{{
-				ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{{Name: "turn"}}}},
+				ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{{
+					Name: "turn", TraceId: []byte("0123456789abcdef"), SpanId: []byte("01234567"),
+				}}}},
 			}}})
 		metrics := postFootprintExport(t, receiver.collector.URL+otlptest.MetricsPath,
 			&colmetricpb.ExportMetricsServiceRequest{ResourceMetrics: []*metricpb.ResourceMetrics{{
