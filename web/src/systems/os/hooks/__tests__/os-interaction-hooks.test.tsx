@@ -9,6 +9,7 @@ import {
   type RefObject,
   useEffect,
   useLayoutEffect,
+  useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -278,16 +279,16 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     clearConflict: vi.fn(),
     refreshSnapshot: vi.fn(async () => true),
   };
-  const coordinator = new RoutingCoordinator(controller, {
-    navigate: vi.fn(),
-    replace: vi.fn(),
-  });
+  const history = { navigate: vi.fn(), replace: vi.fn() };
+  const coordinator = new RoutingCoordinator(controller, history);
   const shell: OsShellHandle = { projection, manager: controller, coordinator };
   const wrapper = ({ children }: { children: ReactNode }) => (
     <OsShellContext.Provider value={shell}>{children}</OsShellContext.Provider>
   );
   return {
     controller,
+    coordinator,
+    history,
     get state() {
       return currentState;
     },
@@ -1403,7 +1404,9 @@ describe("useVisitedTabs", () => {
 });
 
 // Invariant: a pane keeps the scroll offsets of its scroll containers and its focused element
-// across a slot change and across being hidden and shown, unless focus was given elsewhere.
+// across a slot change and across being hidden and shown, unless focus was given elsewhere; DOM
+// focus returns only into the window that holds the client's authoritative focus, so a restore
+// never reads as the operator choosing a window [AS-F-20, R13-02].
 // Owning layer: the pane hosts the desk layer's slots place; canonical suite: OS interaction hooks.
 // jsdom does not lay out or reset offsets: each case removes what the browser would lose and
 // asserts what the hosts write back.
@@ -1422,7 +1425,8 @@ describe("WindowPaneHosts", () => {
       disconnect() {}
     }
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
-    const hosts = new WindowPaneHosts();
+    const focus = { windowId: "w" };
+    const hosts = new WindowPaneHosts({ isFocused: windowId => windowId === focus.windowId });
     const host = hosts.hostOf("w");
     const surface = document.createElement("section");
     const scroller = document.createElement("div");
@@ -1460,6 +1464,7 @@ describe("WindowPaneHosts", () => {
     };
     return {
       hosts,
+      focus,
       surface,
       scroller,
       field,
@@ -1545,6 +1550,149 @@ describe("WindowPaneHosts", () => {
 
     expect(document.activeElement).toBe(document.body);
     cleanup();
+  });
+
+  it("Should restore scroll but not focus into a pane whose window lost focus meanwhile", () => {
+    const {
+      hosts,
+      focus,
+      surface,
+      scroller,
+      field,
+      first,
+      scrollTo,
+      loseLayoutState,
+      box,
+      cleanup,
+    } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(90);
+    field.focus();
+
+    surface.hidden = true;
+    loseLayoutState();
+    box(0, 0);
+    // A directional focus, an open beside it or a peer's move gave another window the focus.
+    focus.windowId = "other";
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(90);
+    expect(document.activeElement).toBe(document.body);
+
+    // Kept for when the window has focus again.
+    surface.hidden = true;
+    box(0, 0);
+    focus.windowId = "w";
+    surface.hidden = false;
+    box(640, 480);
+    expect(document.activeElement).toBe(field);
+    cleanup();
+  });
+
+  describe("through the pane's focus capture", () => {
+    function renderPanes() {
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        }
+      );
+      const shell = createShell();
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(workspaceKeys.list(), []);
+      queryClient.setQueryData(statusKeys.current(), { daemon: {} });
+      const hosts = new WindowPaneHosts({
+        isFocused: windowId => shell.controller.getState().focusedId === windowId,
+      });
+      const userFocus = vi.spyOn(shell.coordinator, "userFocus");
+      const ShellProvider = shell.wrapper;
+      function Pane({ windowId }: { windowId: string }) {
+        const member = useOsWindowMember(windowId);
+        return (
+          <section onFocusCapture={member.handleFocusCapture}>
+            <textarea aria-label={`${windowId} composer`} />
+          </section>
+        );
+      }
+      function Slot({ windowId }: { windowId: string }) {
+        const slotRef = useRef<HTMLDivElement>(null);
+        useLayoutEffect(() => hosts.place(windowId, slotRef.current!), [windowId]);
+        return <div ref={slotRef} />;
+      }
+      /** `nested`: the open turned the tab into a split, so the window's slot remounts. */
+      function Desk({ nested }: { nested: boolean }) {
+        return (
+          <>
+            {nested ? (
+              <div>
+                <Slot key="nested" windowId="window:primary" />
+              </div>
+            ) : (
+              <Slot key="single" windowId="window:primary" />
+            )}
+            {createPortal(<Pane windowId="window:primary" />, hosts.hostOf("window:primary"))}
+          </>
+        );
+      }
+      const view = render(
+        <QueryClientProvider client={queryClient}>
+          <ShellProvider>
+            <Desk nested={false} />
+          </ShellProvider>
+        </QueryClientProvider>
+      );
+      const composer = screen.getByRole("textbox", { name: "window:primary composer" });
+      const remount = () =>
+        view.rerender(
+          <QueryClientProvider client={queryClient}>
+            <ShellProvider>
+              <Desk nested />
+            </ShellProvider>
+          </QueryClientProvider>
+        );
+      const cleanup = () => {
+        view.unmount();
+        hosts.dispose();
+        queryClient.clear();
+      };
+      return { shell, composer, remount, userFocus, cleanup };
+    }
+
+    it("Should leave focus on the window an open beside a focused input gave it [AS-F-20]", () => {
+      const { shell, composer, remount, userFocus, cleanup } = renderPanes();
+      composer.focus();
+      expect(userFocus).not.toHaveBeenCalled();
+      const refocus = vi.spyOn(composer, "focus");
+
+      // The open lands beside A and the authoritative focus moves to it, B.
+      act(() => shell.setRuntimeState({ focusedId: "window:peer" }));
+      act(() => remount());
+
+      expect(refocus).not.toHaveBeenCalled();
+      expect(userFocus).not.toHaveBeenCalled();
+      expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+      expect(shell.history.navigate).not.toHaveBeenCalled();
+      cleanup();
+    });
+
+    it("Should return the caret in the focused window without a focus command or history entry", () => {
+      const { shell, composer, remount, userFocus, cleanup } = renderPanes();
+      composer.focus();
+      const refocus = vi.spyOn(composer, "focus");
+
+      act(() => remount());
+
+      expect(refocus).toHaveBeenCalledOnce();
+      expect(document.activeElement).toBe(composer);
+      expect(userFocus).not.toHaveBeenCalled();
+      expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+      expect(shell.history.navigate).not.toHaveBeenCalled();
+      cleanup();
+    });
   });
 
   it("Should not write offsets back while a shown pane only resizes", () => {

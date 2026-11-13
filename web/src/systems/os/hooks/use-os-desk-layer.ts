@@ -2,7 +2,7 @@ import { shallowEqual } from "@xstate/store";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { descendantWindowIds } from "../lib/layout-minimums";
-import type { OsPresentation, OsViewportState } from "../lib/os-types";
+import type { OsPresentation, OsViewportState, WindowManagerController } from "../lib/os-types";
 import type { LayoutDesktop, LayoutTab, TabId } from "../lib/window-manager-types";
 import { WindowPaneHosts } from "../lib/window-pane-hosts";
 import { useDesktop } from "./use-desktop";
@@ -62,13 +62,17 @@ export interface DeskTabPanes {
  */
 export function useDeskTabPanes(
   tabs: readonly LayoutTab[],
-  shownTabId: TabId | null
+  shownTabId: TabId | null,
+  manager: Pick<WindowManagerController, "getState">
 ): DeskTabPanes {
   const visited = useVisitedTabs(
     tabs.map(tab => tab.id),
     shownTabId
   );
-  const [hosts] = useState(() => new WindowPaneHosts());
+  // Read at the moment a host acts, never from a render: focus may have moved since.
+  const [hosts] = useState(
+    () => new WindowPaneHosts({ isFocused: windowId => manager.getState().focusedId === windowId })
+  );
   const paneWindowIds = visited.flatMap(tabId => {
     const tab = tabs.find(entry => entry.id === tabId);
     return tab === undefined ? [] : descendantWindowIds(tab.root);

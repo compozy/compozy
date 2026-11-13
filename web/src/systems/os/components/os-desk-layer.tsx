@@ -169,7 +169,7 @@ function DeskLayer({
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
 }) {
-  const { coordinator } = useOsShell();
+  const { coordinator, manager } = useOsShell();
   const projections = useDesktop(state => state.projections);
   const gaps = useDesktop(state => state.windowManagerConfig?.gaps);
   const { incoming, interactive, style } = desktopLayerView({
@@ -187,7 +187,7 @@ function DeskLayer({
     drag.contentTabId !== null &&
     tabs.some(tab => tab.id === drag.contentTabId);
   const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
-  const { visited, paneWindowIds, hosts } = useDeskTabPanes(tabs, shownTabId);
+  const { visited, paneWindowIds, hosts } = useDeskTabPanes(tabs, shownTabId, manager);
   const renderWindow = (windowId: string) => (
     <OsWindowSlot key={windowId} hosts={hosts} windowId={windowId} />
   );

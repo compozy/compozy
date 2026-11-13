@@ -14,6 +14,12 @@ interface PaneHost {
   rendered: boolean | null;
 }
 
+/** What the hosts read from the window manager, at the moment they act. */
+export interface PaneHostWindows {
+  /** Whether the window holds this client's authoritative focus now. */
+  isFocused(windowId: string): boolean;
+}
+
 /** Not hidden by the pane, its tab or a collapsed split: an element the browser renders. */
 function isRendered(element: Element): boolean {
   return element.isConnected && element.closest("[hidden]") === null;
@@ -36,11 +42,19 @@ function isRendered(element: Element): boolean {
  *   so an app that sets its offset again still has the last word.
  * - Focus that last landed inside the pane returns to that element (`preventScroll`) when it was
  *   lost to the move or the hiding: only while nothing else holds focus (`body`), so a drag
- *   source or a tab the operator clicked keeps it.
+ *   source or a tab the operator clicked keeps it, and only while the pane's window holds the
+ *   client's authoritative focus. A passive relocation never changes routing intent: the pane's
+ *   focus capture reads a focus landing in an unfocused window as the operator choosing it, so a
+ *   restore there would take focus from the window an open, a peer's move or a directional focus
+ *   gave it. In the focused window the capture is a no-op (`useOsWindowMember` sends nothing for
+ *   the window that already has focus). The remembered element is kept while its window is not
+ *   focused: the next restore after the window has focus again (a show, a move) still returns
+ *   the caret where the operator left it.
  * Apps keep their own scroll ownership: a restored offset reads to them as a scroll without a
  * gesture, and the transcript re-pins its end afterwards only while it is following the end.
  */
 export class WindowPaneHosts {
+  private readonly windows: PaneHostWindows;
   private readonly hosts = new Map<string, PaneHost>();
   private readonly byElement = new WeakMap<Element, PaneHost>();
   /** Where focus last landed inside a pane, while nothing outside the panes took it since. */
@@ -49,6 +63,10 @@ export class WindowPaneHosts {
   private listening: Document | null = null;
   /** Set while a host leaves its slot: the blur that causes is not the operator's. */
   private detaching = false;
+
+  constructor(windows: PaneHostWindows) {
+    this.windows = windows;
+  }
 
   /** The host for a window, created on first use; a `display: contents` box adds no layout. */
   hostOf(windowId: string): HTMLElement {
@@ -162,6 +180,7 @@ export class WindowPaneHosts {
     const active = host.element.ownerDocument.activeElement;
     const unclaimed = active === null || active === host.element.ownerDocument.body;
     if (!unclaimed || !host.element.contains(focus.element) || !isRendered(focus.element)) return;
+    if (!this.windows.isFocused(host.windowId)) return;
     focus.element.focus({ preventScroll: true });
   }
 
