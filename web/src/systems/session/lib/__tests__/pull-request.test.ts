@@ -6,6 +6,8 @@
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
+import type { MenuTreeNode } from "@compozy/ui";
+
 import {
   buildAddressReviewPrompt,
   buildFixChecksPrompt,
@@ -376,6 +378,33 @@ describe("pullRequestMenuModel", () => {
       onPrompt: () => undefined,
     });
     expect(primary).toMatchObject({ kind: "item", id: "fix", title: "Branch diverged" });
+  });
+
+  // Invariant: node ids key the rendered menu, so every entry's id is unique, separators included.
+  it("Should give every menu entry a unique id when all actions are offered", () => {
+    const ids: string[] = [];
+    const collect = (nodes: readonly MenuTreeNode[]) => {
+      for (const node of nodes) {
+        ids.push(node.id);
+        if ("children" in node && node.children) collect(node.children);
+      }
+    };
+    collect(
+      pullRequestMenuTree({
+        pullRequest: DX_PR,
+        branch: "feat/dx",
+        controllable: true,
+        key: "lead-",
+        onPrompt: () => undefined,
+        onRefresh: () => undefined,
+        onOpenSession: () => undefined,
+        onCopy: () => undefined,
+        onLink: () => undefined,
+        onUnlink: () => undefined,
+      })
+    );
+    expect(ids).toContain("lead-link");
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("UT-062: a non-controllable session offers only Open PR and Refresh", () => {

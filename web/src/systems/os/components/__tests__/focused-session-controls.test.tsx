@@ -20,8 +20,9 @@ import {
   type FocusedSessionControls,
 } from "../focused-session-controls";
 
-vi.mock("@/systems/session", async importOriginal => ({
-  ...(await importOriginal<typeof import("@/systems/session")>()),
+// Mocked at its defining module, not the `@/systems/session` barrel: the barrel reaches the os
+// barrel and back to this host, so a barrel factory hands the host the real hook.
+vi.mock("@/systems/session/hooks/use-session-list-view", () => ({
   useSessionListView: vi.fn(() => ({ search: "", catalog: null })),
 }));
 vi.mock("../desktop-shell-dialogs", () => ({ DesktopSessionDialogs: () => null }));

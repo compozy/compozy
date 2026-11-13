@@ -10,7 +10,7 @@
 // Boundary IN: successive layout states from the query; the convert adapter.
 // Boundary OUT: canvas rendering, transport, the profile editor.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -463,6 +463,8 @@ describe("useWindowManagerLayoutEditor", () => {
     act(() => {
       load = result.current.loadSource({ kind: "earlier", version: 5, wire: EARLIER_WIRE });
     });
+    // The conversion request leaves after the wire is read; edit while it is in flight.
+    await waitFor(() => expect(apiMocks.convert).toHaveBeenCalledTimes(1));
     act(() => {
       result.current.edit(renameDesktop(result.current.draft, "Edited"));
     });
