@@ -19,7 +19,9 @@ func (r *windowManagerRegistry) MigrationNotifications(
 	ctx context.Context, workspaces []windowmanager.WorkspaceID,
 ) ([]windowmanager.MigrationNotice, error) {
 	reader, ok := r.engine.(interface {
-		DomainEntriesByPrefix(context.Context, []clientstate.WorkspaceID, string, string) (map[clientstate.WorkspaceID][]clientstate.Entry, error)
+		DomainEntriesByPrefix(
+			context.Context, []clientstate.WorkspaceID, string, string,
+		) (map[clientstate.WorkspaceID][]clientstate.Entry, error)
 	})
 	if !ok {
 		return nil, errors.New("daemon: migration notification source is unavailable")
