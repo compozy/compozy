@@ -2053,7 +2053,7 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expectCancelled(shell, seam);
   });
 
-  it("Should fence an arrow-key resize and a pair balance like a drag", () => {
+  it("Should fence an arrow-key resize and a pair balance like a drag", async () => {
     const shell = createShell();
     const wide: ProjectedSeam = { ...SEAM, leadingWeight: 0.3, trailingWeight: 0.5 };
     render(<SeamHarness memberCount={3} seam={wide} />, { wrapper: shell.wrapper });
@@ -2064,6 +2064,8 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     };
 
     fireEvent.keyDown(seam, { key: "ArrowRight" });
+    // The balance waits behind a resize in flight on the split; let the arrow's settle first.
+    await act(async () => {});
     fireEvent.doubleClick(seam);
 
     expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(

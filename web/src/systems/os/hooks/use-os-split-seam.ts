@@ -1,5 +1,5 @@
 import { useSelector, useStore } from "@xstate/store-react";
-import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 
 import {
   bindLayoutGestureCancellation,
@@ -173,9 +173,23 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
   });
   const contextKey = useSeamGestureFrame();
   const cancelRef = useRef<((reason: GestureCancelReason) => void) | null>(null);
+  /** The live drag's check of a published layout against the seam it is based on. */
+  const watchRef = useRef<((view: OsDesktopRuntimeStore) => void) | null>(null);
+  const dragging = state !== undefined;
 
-  // A drag outlives neither its seam nor the frame it was drawn in; the seam's own layout is
-  // watched by the drag itself, on every snapshot.
+  // Every snapshot under a drag — held release included — is checked against the seam it is based
+  // on: its ancestors' weights and its members' minimums move it as much as its own split's
+  // weights. The check runs as the snapshot is published, so a re-based delta is drawn in the same
+  // frame as the new layout; attached before paint, it first catches up on anything published
+  // since the press.
+  useLayoutEffect(() => {
+    if (!dragging) return;
+    const check = (view: OsDesktopRuntimeStore) => watchRef.current?.(view);
+    check(manager.getState());
+    return manager.subscribe(check);
+  }, [dragging, manager]);
+
+  // A drag outlives neither its seam nor the frame it was drawn in.
   const seamId = seam?.id;
   useEffect(() => {
     const drag = store.getSnapshot().context;
@@ -228,7 +242,13 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     let frame: number | null = null;
     let live = true;
     let unbindCancellation = () => {};
-    let unwatchLayout = () => {};
+    // The snapshot this drag has checked last, starting with the one it was pressed on.
+    let seen = manager.getState().snapshot;
+    const watch = (view: OsDesktopRuntimeStore) => {
+      if (view.snapshot === seen) return;
+      seen = view.snapshot;
+      follow(view, ownPending(manager, splitId) > 0);
+    };
 
     /** Lets go of the pointer: its listeners, capture, pending frame and pointer cancellations. */
     const detach = () => {
@@ -242,7 +262,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     const teardown = () => {
       live = false;
       cancelRef.current = null;
-      unwatchLayout();
+      if (watchRef.current === watch) watchRef.current = null;
       detach();
     };
     const cancel = (reason: GestureCancelReason) => {
@@ -342,15 +362,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     cancelRef.current = cancel;
     element.addEventListener("pointermove", onMove);
     element.addEventListener("pointerup", onUp);
-    // Every snapshot under the drag is checked against the seam it is based on: its ancestors'
-    // weights and its members' minimums move it as much as its own split's weights. Checked as the
-    // snapshot is published, so the re-based delta is drawn in the same frame as the new layout.
-    let seen = manager.getState().snapshot;
-    unwatchLayout = manager.subscribe(view => {
-      if (view.snapshot === seen) return;
-      seen = view.snapshot;
-      follow(view, ownPending(manager, splitId) > 0);
-    });
+    watchRef.current = watch;
     // The seam on screen may still show an earlier command of this client that has not landed:
     // base the drag on the layout its preview is clamped against, anchored where the seam shows.
     if (ownPending(manager, splitId) > 0) follow(manager.getState(), true);
