@@ -12,12 +12,53 @@ const RESUME_MAX_FRAMES = 60;
 /** Consecutive frames the resumed row must rest before the hold ends early. */
 const RESUME_STABLE_FRAMES = 4;
 
+/** The appearance variables the shell writes on the root: text size, font, tracking. */
+const USER_APPEARANCE_PREFIX = "--user-";
+
 /**
- * What lays the transcript's text out: the viewport's width and the appearance settings the
- * shell writes on the root element (text size, font, tracking). A change in either reflows rows.
+ * What lays the transcript's text out: the viewport's width and the text appearance the shell
+ * writes on the root element. A change in either reflows rows; a theme change does not.
  */
 function textLayoutOf(viewport: HTMLElement): string {
-  return `${viewport.clientWidth}|${viewport.ownerDocument.documentElement.style.cssText}`;
+  const root = viewport.ownerDocument.documentElement.style;
+  let layout = `${viewport.clientWidth}`;
+  for (let index = 0; index < root.length; index += 1) {
+    const name = root.item(index);
+    if (!name.startsWith(USER_APPEARANCE_PREFIX)) continue;
+    layout += `|${name}:${root.getPropertyValue(name)}`;
+  }
+  return layout;
+}
+
+/** The element under the viewport's top edge and how far into it that edge is, as a share. */
+interface TextAnchor {
+  element: Element;
+  share: number;
+}
+
+/**
+ * The text the reader is on: the element under the viewport's top edge. Text appended below it
+ * does not move it, and a reflow moves it with its own lines, so it keeps the reader's place
+ * through both; a row-level anchor cannot tell them apart. `null` where hit testing is absent.
+ */
+function textAnchorAt(viewport: HTMLElement): TextAnchor | null {
+  const document = viewport.ownerDocument;
+  if (typeof document.elementFromPoint !== "function") return null;
+  const box = viewport.getBoundingClientRect();
+  const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 1);
+  if (hit === null || hit === viewport || !viewport.contains(hit)) return null;
+  const rect = hit.getBoundingClientRect();
+  if (rect.height <= 0) return null;
+  return { element: hit, share: Math.min(1, Math.max(0, (box.top - rect.top) / rect.height)) };
+}
+
+/** Where the text anchor puts the viewport now; `null` once its element left or lost its box. */
+function textTargetOf(viewport: HTMLElement, text: TextAnchor): number | null {
+  if (!text.element.isConnected || !viewport.contains(text.element)) return null;
+  const rect = text.element.getBoundingClientRect();
+  if (rect.height <= 0) return null;
+  const box = viewport.getBoundingClientRect();
+  return viewport.scrollTop + rect.top - box.top + text.share * rect.height;
 }
 
 /** The row at the viewport's top edge, how far into it the reader is, and the raw offset. */
@@ -31,6 +72,8 @@ interface ReadingAnchor {
   layout: string;
   /** The viewport's offset when read: the place when the row left the list while hidden. */
   top: number;
+  /** The text under the top edge, preferred over the row's measurements while it is mounted. */
+  text: TextAnchor | null;
 }
 
 /**
@@ -53,10 +96,10 @@ export function observeRenderedElementOffset(
  * Where the transcript resumes when its pane is rendered again (after a tab switch, a move into
  * a split, a collapsed switcher). Following pins the end again; a turn that started while the
  * pane was hidden gets its new-turn anchor (`placeTurn`); otherwise the row the reader was on
- * returns to the same depth under the top edge, read from the virtualizer's measurements. With
- * the same text layout that depth is kept in pixels, so a reply that grew while hidden does not
- * move the text the reader was on; after a width or text-size change it is kept as a share of
- * the row's height, so the reflowed row keeps the same text in view. The rows re-measure over
+ * returns under the top edge. The text element that was under the edge is put back there, so
+ * neither a reply that grew below the reader nor a width or text-size reflow moves the text in
+ * view. Without that element (it unmounted), the row's measurements decide: the same pixel depth
+ * at the same text layout, the same share of the row after a reflow. The rows re-measure over
  * the next frames (a new width, rows that mounted on show) and the virtualizer compensates for
  * them, so the row is held there until it rests, for at most {@link RESUME_MAX_FRAMES}, or until
  * the reader's gesture, a move no re-measure explains, a mode change, or the controller's own
@@ -100,10 +143,19 @@ export function useThreadScrollResume(
       }
       const depth = Math.max(0, top - item.start);
       const fraction = item.size > 0 ? Math.min(1, depth / item.size) : 0;
-      anchor = { key: item.key, depth, fraction, layout: textLayoutOf(viewport), top };
+      anchor = {
+        key: item.key,
+        depth,
+        fraction,
+        layout: textLayoutOf(viewport),
+        top,
+        text: textAnchorAt(viewport),
+      };
     };
     /** Where the anchored row puts the viewport now, by its current measurement. */
     const targetOf = (reading: ReadingAnchor): number => {
+      const text = reading.text === null ? null : textTargetOf(viewport, reading.text);
+      if (text !== null) return text;
       const item = virtualizer.measurementsCache.find(entry => entry.key === reading.key);
       if (item === undefined) return reading.top;
       // Same text layout: the text above the reader did not move, whatever was appended below.
@@ -139,7 +191,12 @@ export function useThreadScrollResume(
         step();
         settle();
         stable = Math.abs(viewport.scrollTop - before) >= 1 ? 0 : stable + 1;
-        if (stable >= RESUME_STABLE_FRAMES || frames >= RESUME_MAX_FRAMES) return release();
+        if (stable >= RESUME_STABLE_FRAMES || frames >= RESUME_MAX_FRAMES) {
+          // The place it rests on is the reader's now: the next show resumes from it.
+          release();
+          read();
+          return;
+        }
         frame = requestAnimationFrame(tick);
       };
       frame = requestAnimationFrame(tick);

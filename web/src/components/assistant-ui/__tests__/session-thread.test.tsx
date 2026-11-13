@@ -9041,8 +9041,14 @@ describe("useThreadScrollResume", () => {
     viewport.scrollTop = 600;
     fireEvent.scroll(viewport);
 
-    // The reply in row b streamed on: text was appended below the reader.
+    // The reply in row b streamed on: text was appended below the reader. A theme switch writes
+    // the root's color scheme, which lays no text out.
+    const root = document.documentElement;
+    onTestFinished(() => {
+      root.style.removeProperty("color-scheme");
+    });
     hideAndShow(() => {
+      root.style.setProperty("color-scheme", "dark");
       rows[1]!.size = 1_600;
     });
 
@@ -9068,6 +9074,61 @@ describe("useThreadScrollResume", () => {
 
     expect(placeTurn.current).toHaveBeenCalledWith(viewport);
     expect(viewport.scrollTop).toBe(1_000);
+  });
+
+  it("Should resume from the place the last show settled on", async () => {
+    const { rows, layout, viewport, store, hideAndShow } = setupResume();
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    hideAndShow(() => {
+      layout.width = 400;
+      for (const row of rows) row.size = 800;
+    });
+    expect(viewport.scrollTop).toBe(1_200);
+    for (let index = 0; index < 8; index += 1) await frame();
+
+    // Hidden again with no scroll in between, and the reply grows at the new width: 400px into
+    // row b stays 400px, read where the last show settled, not from the layout before it.
+    hideAndShow(() => {
+      rows[1]!.size = 1_600;
+    });
+    expect(viewport.scrollTop).toBe(1_200);
+  });
+
+  it("Should keep the text the reader was on when a reply grows and reflows while hidden", () => {
+    const { rows, layout, viewport, store, hideAndShow } = setupResume();
+    // The paragraph under the top edge, at 500px into the content, 400px tall.
+    const paragraph = document.createElement("p");
+    viewport.append(paragraph);
+    const text = { offset: 500, height: 400 };
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 800, 500));
+    vi.spyOn(paragraph, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, text.offset - viewport.scrollTop, 800, text.height)
+    );
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => paragraph,
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    });
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // Narrower and longer: the paragraph reflows to 600px at 700px, and the reply grows far
+    // past it. A share of the whole row would land in text appended below the reader.
+    hideAndShow(() => {
+      layout.width = 400;
+      rows[1]!.size = 4_000;
+      text.offset = 700;
+      text.height = 600;
+    });
+
+    // A quarter into the paragraph, as the reader left it.
+    expect(viewport.scrollTop).toBe(850);
   });
 
   it("Should hold the resumed row while rows re-measure, and yield to any other move", async () => {

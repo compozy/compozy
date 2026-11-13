@@ -1883,6 +1883,30 @@ describe("WindowPaneHosts", () => {
     cleanup();
   });
 
+  it("Should drop a hidden container's offset across a route change in a shown pane (#1654)", () => {
+    const { hosts, content, surface, first, box, cleanup } = setup();
+    const drawer = document.createElement("div");
+    surface.append(drawer);
+    hosts.place("w", first);
+    box(640, 480);
+    drawer.scrollTop = 260;
+    drawer.dispatchEvent(new Event("scroll"));
+
+    // The drawer is collapsed when the window navigates: its new content never scrolled.
+    drawer.hidden = true;
+    drawer.scrollTop = 0;
+    content.route = { pathname: "/files", search: { path: "src" } };
+    hosts.syncRoutes();
+    drawer.hidden = false;
+    surface.hidden = true;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(drawer.scrollTop).toBe(0);
+    cleanup();
+  });
+
   it("Should not record the offset a container reads while its pane is hidden (#1654)", () => {
     const { hosts, surface, scroller, first, scrollTo, box, cleanup } = setup();
     hosts.place("w", first);

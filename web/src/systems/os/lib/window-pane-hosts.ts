@@ -164,7 +164,8 @@ export class WindowPaneHosts {
       this.settler.releaseOwner(host);
       if (host.rendered === false || !isRendered(host.element)) continue;
       for (const [container, offset] of host.offsets) {
-        if (host.element.contains(container)) offset.route = route;
+        // A hidden container kept no evidence of the new content: its offset stays dropped.
+        if (host.element.contains(container) && isRendered(container)) offset.route = route;
       }
     }
   }
