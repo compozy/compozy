@@ -6,25 +6,22 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 )
 
-const requiresFocusedWindowReason = "requires a focused window"
-
 type shellCommandDefinition struct {
 	id                 cmdpalette.CommandID
 	title              string
 	section            string
 	icon               string
-	needsFocus         bool
 	availabilityExempt bool
-	// when overrides the focused-window requirement for commands whose
-	// relevance is a different piece of client context.
+	// when gates commands whose relevance is a piece of client context beyond an
+	// attached shell. An attached client always has a focused window: its view is
+	// repaired to the active tab's lead window, and every desktop holds a tab.
 	when []cmdpalette.Predicate
 }
 
-// arrangeWhen gates layout presets on a focused window with at least one
-// visible peer on its desktop: with a single window they have nothing to lay
-// out, so they read disabled with a reason instead of doing nothing.
+// arrangeWhen gates layout presets on a second window on the focused window's
+// desktop: with a single window they have nothing to lay out, so they read
+// disabled with a reason instead of doing nothing.
 var arrangeWhen = []cmdpalette.Predicate{
-	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: requiresFocusedWindowReason},
 	{
 		Key:      cmdpalette.ContextDesktopWindowCount,
 		Operator: cmdpalette.PredicateGreaterThanOrEqual,
@@ -33,8 +30,14 @@ var arrangeWhen = []cmdpalette.Predicate{
 	},
 }
 
+// attachedClientWhen keeps an availability-exempt command refused when the daemon
+// evaluates it with no attached client: exemption skips that refusal, while a
+// client-context predicate restores it. An attached client always matches.
+var attachedClientWhen = []cmdpalette.Predicate{
+	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires an attached shell"},
+}
+
 var splitWindowWhen = []cmdpalette.Predicate{
-	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: requiresFocusedWindowReason},
 	{Key: cmdpalette.ContextWindowStacked, Value: true, Reason: "needs a window in a split"},
 }
 
@@ -73,8 +76,8 @@ var fixedShellCommands = []shellCommandDefinition{
 		title:              "Back",
 		section:            coreSectionShell,
 		icon:               coreIconArrowLeft,
-		needsFocus:         true,
 		availabilityExempt: true,
+		when:               attachedClientWhen,
 	},
 	{id: "sidebar.toggle", title: "Toggle sidebar", section: coreSectionShell, icon: "panel-left"},
 	{id: "shell.sessions.toggle", title: "Toggle sessions", section: coreSectionShell, icon: "list"},
@@ -85,22 +88,21 @@ var fixedShellCommands = []shellCommandDefinition{
 		icon:               "keyboard",
 		availabilityExempt: true,
 	},
-	{id: "window.close", title: "Close window", section: coreSectionWindow, icon: "x-square", needsFocus: true},
+	{id: "window.close", title: "Close window", section: coreSectionWindow, icon: "x-square"},
 	{id: "window.focus.left", title: "Focus left", section: coreSectionWindow, icon: coreIconArrowLeft},
 	{id: "window.focus.right", title: "Focus right", section: coreSectionWindow, icon: "arrow-right"},
 	{id: "window.focus.up", title: "Focus up", section: coreSectionWindow, icon: "arrow-up"},
 	{id: "window.focus.down", title: "Focus down", section: coreSectionWindow, icon: "arrow-down"},
 	{id: "window.focus.last", title: "Focus last window", section: coreSectionWindow, icon: "history"},
 	{id: "window.tab.new", title: "New tab", section: coreSectionTabs, icon: coreIconPlus},
-	{id: "window.tab.next", title: "Next tab", section: coreSectionTabs, icon: coreIconChevronRight, needsFocus: true},
+	{id: "window.tab.next", title: "Next tab", section: coreSectionTabs, icon: coreIconChevronRight},
 	{
-		id:         "window.tab.previous",
-		title:      "Previous tab",
-		section:    coreSectionTabs,
-		icon:       coreIconChevronLeft,
-		needsFocus: true,
+		id:      "window.tab.previous",
+		title:   "Previous tab",
+		section: coreSectionTabs,
+		icon:    coreIconChevronLeft,
 	},
-	{id: "window.tab.last", title: "Last tab", section: coreSectionTabs, icon: "history", needsFocus: true},
+	{id: "window.tab.last", title: "Last tab", section: coreSectionTabs, icon: "history"},
 	{id: "window.tab.reopen", title: "Reopen closed tab", section: coreSectionTabs, icon: "rotate-ccw"},
 	{id: "session.cycle.previous", title: "Previous session", section: coreSectionSessions, icon: coreIconChevronLeft},
 	{id: "session.cycle.next", title: "Next session", section: coreSectionSessions, icon: coreIconChevronRight},
@@ -162,18 +164,16 @@ func shellCommands() []cmdpalette.Descriptor {
 			when:    splitWindowWhen,
 		},
 		shellCommandDefinition{
-			id:         "window.tab.move_left",
-			title:      "Move tab left",
-			section:    coreSectionTabs,
-			icon:       coreIconArrowLeft,
-			needsFocus: true,
+			id:      "window.tab.move_left",
+			title:   "Move tab left",
+			section: coreSectionTabs,
+			icon:    coreIconArrowLeft,
 		},
 		shellCommandDefinition{
-			id:         "window.tab.move_right",
-			title:      "Move tab right",
-			section:    coreSectionTabs,
-			icon:       "arrow-right",
-			needsFocus: true,
+			id:      "window.tab.move_right",
+			title:   "Move tab right",
+			section: coreSectionTabs,
+			icon:    "arrow-right",
 		},
 	)
 	placements := []struct{ id, title string }{
@@ -189,7 +189,7 @@ func shellCommands() []cmdpalette.Descriptor {
 	for slot := 1; slot <= 8; slot++ {
 		definitions = append(definitions, shellCommandDefinition{
 			id:    cmdpalette.CommandID(fmt.Sprintf("window.tab.jump.%d", slot)),
-			title: fmt.Sprintf("Go to tab %d", slot), section: coreSectionTabs, icon: "square-stack", needsFocus: true,
+			title: fmt.Sprintf("Go to tab %d", slot), section: coreSectionTabs, icon: "square-stack",
 		})
 	}
 	for slot := 1; slot <= 9; slot++ {
@@ -202,7 +202,7 @@ func shellCommands() []cmdpalette.Descriptor {
 		definitions = append(definitions, shellCommandDefinition{
 			id:    cmdpalette.CommandID(fmt.Sprintf("window.move_to_desktop.%d", slot)),
 			title: fmt.Sprintf("Move window to desktop %d", slot), section: coreSectionDesktops,
-			icon: coreIconMonitor, needsFocus: true,
+			icon: coreIconMonitor,
 		})
 	}
 	commands := make([]cmdpalette.Descriptor, 0, len(definitions))
@@ -212,13 +212,8 @@ func shellCommands() []cmdpalette.Descriptor {
 			command.Action.Op = "palette.open"
 		}
 		command.AvailabilityExempt = definition.availabilityExempt
-		switch {
-		case definition.when != nil:
+		if definition.when != nil {
 			command.When = append([]cmdpalette.Predicate(nil), definition.when...)
-		case definition.needsFocus:
-			command.When = []cmdpalette.Predicate{{
-				Key: cmdpalette.ContextWindowFocused, Value: true, Reason: requiresFocusedWindowReason,
-			}}
 		}
 		commands = append(commands, command)
 	}

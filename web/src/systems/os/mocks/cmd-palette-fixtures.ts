@@ -7,6 +7,7 @@ import type {
   CmdPaletteRankSignals,
   CmdPaletteCatalogResponse,
   CmdPaletteCommand,
+  CmdPalettePredicate,
   PaletteRegistry,
   ResolvedPaletteCommand,
 } from "../lib/cmd-palette-types";
@@ -64,8 +65,13 @@ export function paletteRegistryFixture(
   };
 }
 
-const focusedWindowPredicate = [
-  { key: "window.focused", value: true, reason: "requires a focused window" },
+const twoWindowsPredicate: CmdPalettePredicate[] = [
+  {
+    key: "desktop.windowCount",
+    operator: "greater_than_or_equal",
+    value: 2,
+    reason: "needs two windows on this desktop",
+  },
 ];
 
 export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
@@ -108,7 +114,6 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     icon: "x-square",
     bindings: ["meta+KeyW"],
     execution: { retry_safe: false, single_flight: true },
-    when: focusedWindowPredicate,
   }),
   baseCommand({
     id: "window.unsplit",
@@ -122,14 +127,14 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     title: "Columns",
     section: "Layout",
     icon: "columns-2",
-    when: focusedWindowPredicate,
+    when: twoWindowsPredicate,
   }),
   baseCommand({
     id: "layout.arrange.grid",
     title: "Grid",
     section: "Layout",
     icon: "layout-grid",
-    when: focusedWindowPredicate,
+    when: twoWindowsPredicate,
   }),
   baseCommand({
     id: "layout.balance",
@@ -150,14 +155,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     title: "Main and stack",
     section: "Layout",
     icon: "columns-2",
-    when: [
-      {
-        key: "desktop.windowCount",
-        operator: "greater_than_or_equal",
-        value: 2,
-        reason: "needs two windows on this desktop",
-      },
-    ],
+    when: twoWindowsPredicate,
   }),
   baseCommand({
     id: "window.tab.new",
@@ -171,7 +169,6 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     title: "Move tab left",
     section: "Tabs",
     icon: "arrow-left",
-    when: focusedWindowPredicate,
   }),
   baseCommand({
     id: "window.move",

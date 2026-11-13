@@ -185,23 +185,21 @@ func TestProviderAbsorption(t *testing.T) {
 			}
 			// A preset has nothing to lay out without a peer: it reads disabled
 			// with the reason instead of running as a no-op.
-			if len(command.When) != 2 || command.When[0].Key != cmdpalette.ContextWindowFocused ||
-				command.When[1].Key != cmdpalette.ContextDesktopWindowCount ||
-				command.When[1].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
-				command.When[1].Value != 2 || command.When[1].Reason != "needs two windows on this desktop" {
-				t.Errorf("command %q when = %#v, want focused window + two windows on this desktop", id, command.When)
+			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextDesktopWindowCount ||
+				command.When[0].Operator != cmdpalette.PredicateGreaterThanOrEqual ||
+				command.When[0].Value != 2 || command.When[0].Reason != "needs two windows on this desktop" {
+				t.Errorf("command %q when = %#v, want two windows on this desktop", id, command.When)
 			}
 		}
 	})
 
-	t.Run("Should require a focused split member for unsplit and root-edge moves", func(t *testing.T) {
+	t.Run("Should require a split member for unsplit and root-edge moves", func(t *testing.T) {
 		t.Parallel()
 		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor)
 		for _, command := range mustCommands(t) {
 			byID[command.ID] = command
 		}
 		want := []cmdpalette.Predicate{
-			{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window"},
 			{Key: cmdpalette.ContextWindowStacked, Value: true, Reason: "needs a window in a split"},
 		}
 		for _, id := range []cmdpalette.CommandID{
@@ -214,7 +212,7 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
-	t.Run("Should give every desktop slot a focus-gated move-window command", func(t *testing.T) {
+	t.Run("Should give every desktop slot a move-window command gated only on an attached shell", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)
 		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
@@ -235,8 +233,10 @@ func TestProviderAbsorption(t *testing.T) {
 			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
 				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
 			}
-			if len(command.When) != 1 || command.When[0].Key != cmdpalette.ContextWindowFocused {
-				t.Errorf("command %q when = %#v, want the focused-window requirement", id, command.When)
+			// An attached client always has a focused window, so no predicate narrows it further.
+			if len(command.When) != 0 || command.AvailabilityExempt {
+				t.Errorf("command %q when = %#v exempt = %t, want only the attached-shell gate",
+					id, command.When, command.AvailabilityExempt)
 			}
 			if binding, bindable := keymap[string(id)]; !bindable || len(binding) != 0 {
 				t.Errorf("DefaultKeymap()[%q] = %v (bindable %t), want unbound", id, binding, bindable)
