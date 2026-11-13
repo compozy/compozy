@@ -9,7 +9,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@compozy/ui";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
@@ -41,6 +41,23 @@ const ARRANGE_ITEMS: readonly { preset: OsArrangePreset; label: string }[] = [
 ];
 
 type SessionOf = (win: OsWindow) => SessionPayload | undefined;
+
+/**
+ * Where focus goes when a tab's menu closes: the tab it was opened from. The menu's trigger is the
+ * plate wrapper, which takes no focus, and the menu's default return lands on the trigger's first
+ * tabbable descendant; a tab off the bar's one roving stop has none, so focus fell out of the bar.
+ * Focus that already moved on, into a window the closing click landed in, stays there.
+ */
+function tabReturnFocus(plate: HTMLElement | null): HTMLElement | false {
+  const tab = plate?.querySelector<HTMLElement>('[role="tab"]');
+  if (!tab) return false;
+  const focused = tab.ownerDocument.activeElement;
+  const movedOn =
+    focused !== null &&
+    focused !== tab.ownerDocument.body &&
+    focused.closest('[role="menu"]') === null;
+  return movedOn ? false : tab;
+}
 
 /** One "Split with ▸" destination, named like its tab. */
 function SplitWithItem({
@@ -241,10 +258,12 @@ export function OsTabMenu({
   const canMoveRight = adjacentTabIndex(barTabs, tabId, "right") !== null;
   const others = bar.tabs.filter(entry => entry.tab.id !== tabId);
   const windowCount = bar.tabs.reduce((sum, entry) => sum + entry.members.length, 0);
+  const plateRef = useRef<HTMLDivElement>(null);
 
   return (
     <ContextMenu>
       <ContextMenuTrigger
+        ref={plateRef}
         data-testid={`os-tab-menu-${tabId}`}
         render={
           <div
@@ -256,7 +275,7 @@ export function OsTabMenu({
           </div>
         }
       />
-      <ContextMenuContent>
+      <ContextMenuContent finalFocus={() => tabReturnFocus(plateRef.current)}>
         <ContextMenuItem onClick={() => bar.pin(tabId, !pinned)}>
           {pinned ? "Unpin tab" : "Pin tab"}
         </ContextMenuItem>

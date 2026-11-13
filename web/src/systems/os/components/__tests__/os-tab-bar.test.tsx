@@ -3,7 +3,7 @@
 // selected, activates a tab through its lead window, closes it by button, middle click, and menu
 // (never a pinned tab by middle click), skips pinned tabs in bulk closes, keeps one tab stop that
 // follows the active tab while focus is outside the bar, hands focus on when the focused tab
-// closes, and opens the overflow list only when tabs at the floor no longer fit. The tab menu offers a menu equivalent for every
+// closes, returns focus to the tab a menu came from when Escape closes it, and opens the overflow list only when tabs at the floor no longer fit. The tab menu offers a menu equivalent for every
 // drag (Move left/right within the pin range, Split with ▸, Arrange ▸) and no retired control.
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
@@ -400,6 +400,41 @@ describe("OsTabBar", () => {
 
     act(() => menu.remove());
     await waitFor(() => expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus());
+  });
+
+  it("Should return focus to the tab a menu opened by keyboard came from when Escape closes it [F9]", async () => {
+    const user = userEvent.setup();
+    renderBar();
+    // A tab that is not the active one, so it is off the bar's stop while its menu holds focus.
+    const dash = screen.getByTestId("os-tab-tab:dash");
+
+    act(() => dash.focus());
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await waitFor(() =>
+      expect(screen.getByRole("menu").contains(document.activeElement)).toBe(true)
+    );
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(dash).toHaveFocus());
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByTestId("os-tab-tab:tasks")).toHaveFocus();
+  });
+
+  it("Should return focus to the tab a right-click menu came from when Escape closes it [F9]", async () => {
+    const user = userEvent.setup();
+    renderBar();
+    const vault = screen.getByTestId("os-tab-tab:vault");
+
+    act(() => screen.getByRole("button", { name: "Outside" }).focus());
+    fireEvent.contextMenu(vault);
+    await waitFor(() =>
+      expect(screen.getByRole("menu").contains(document.activeElement)).toBe(true)
+    );
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(vault).toHaveFocus());
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus();
   });
 
   it("Should hand focus to the first tab when tabs remain but none is active [R3-08]", () => {
