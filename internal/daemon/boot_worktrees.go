@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -46,8 +47,9 @@ type daemonWorktreeWorkspaceResolver struct {
 		workspacepkg.RuntimeResolver
 		List(context.Context) ([]workspacepkg.Workspace, error)
 	}
-	homePaths    config.HomePaths
-	profileNames session.ProfileNameResolver
+	homePaths     config.HomePaths
+	profileNames  session.ProfileNameResolver
+	trashProfiles func(context.Context) ([]profilepkg.Profile, error)
 }
 
 func (r daemonWorktreeWorkspaceResolver) ResolveWorktreeWorkspace(
@@ -200,13 +202,17 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 		cleanup.add(func(context.Context) error { pulls.Close(); return nil })
 	}
 	root := state.cfg.Worktrees.ResolveRoot(d.homePaths)
+	workspaceResolver := daemonWorktreeWorkspaceResolver{
+		resolver: state.workspaceResolver, homePaths: d.homePaths,
+		profileNames: bootProfileNameResolver{state: state},
+	}
+	if state.profiles != nil {
+		workspaceResolver.trashProfiles = state.profiles.ListIdentities
+	}
 	service := worktree.NewService(
 		registry.WorktreeStore(),
 		runner,
-		worktree.WithWorkspaceResolver(daemonWorktreeWorkspaceResolver{
-			resolver: state.workspaceResolver, homePaths: d.homePaths,
-			profileNames: bootProfileNameResolver{state: state},
-		}),
+		worktree.WithWorkspaceResolver(workspaceResolver),
 		worktree.WithPullRequests(pulls),
 		worktree.WithConfig(state.cfg.Worktrees, root),
 		worktree.WithHooks(daemonWorktreeHookDispatcher{hooks: state.hookDispatcher, now: d.now}),
@@ -222,6 +228,10 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 	if err := service.RecoverCreations(ctx); err != nil {
 		return fmt.Errorf("daemon: recover worktree lifecycle: %w", err)
 	}
+	service.StartTrashCollector(ctx, func() bool {
+		return state.runtimeWorkers.hostLoad != nil && state.runtimeWorkers.hostLoad.Snapshot().Pressured
+	})
+	cleanup.add(func(context.Context) error { service.Close(); return nil })
 	if branchStore, ok := state.registry.(sessionBranchStore); ok && pulls != nil {
 		adapter := sessionPullRequestAdapter{
 			runtime:  state.currentExtensionRuntime,
@@ -273,4 +283,43 @@ func (d *Daemon) bootManagedDeliveries(ctx context.Context, state *bootState, cl
 		}()
 	}
 	return nil
+}
+
+// ListWorktreeTrashRoots is collector-only; ordinary workspace enumeration stays metadata-only.
+func (r daemonWorktreeWorkspaceResolver) ListWorktreeTrashRoots(ctx context.Context) ([]string, error) {
+	workspaces, err := r.ListWorktreeWorkspaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := []string{""}
+	if r.trashProfiles != nil {
+		identities, err := r.trashProfiles(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, identity := range identities {
+			profiles = append(profiles, identity.Name)
+		}
+	}
+	roots := make(map[string]bool)
+	var resolveErr error
+	for _, workspace := range workspaces {
+		for _, profileName := range profiles {
+			// Read layers directly: archived profiles cannot resolve active runtime workspaces.
+			cfg, err := config.LoadForHome(r.homePaths,
+				config.WithWorkspaceRoot(workspace.Root), config.WithProfile(profileName))
+			if err != nil {
+				resolveErr = errors.Join(resolveErr, err)
+				continue
+			}
+			roots[cfg.Worktrees.ResolveRoot(r.homePaths)] = true
+		}
+	}
+	result := make([]string, 0, len(roots))
+	for root := range roots {
+		if root != "" {
+			result = append(result, root)
+		}
+	}
+	return result, resolveErr
 }

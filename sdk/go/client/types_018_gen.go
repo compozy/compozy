@@ -2,10 +2,24 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// SessionApprovalResponse is a daemon API value.
+type SessionApprovalResponse struct {
+	Outcome          string `json:"outcome"`
+	InteractionID    string `json:"interaction_id,omitempty"`
+	RequestID        string `json:"request_id"`
+	Decision         string `json:"decision"`
+	ResolvedDecision string `json:"resolved_decision,omitempty"`
+}
+
+// SessionAttachPayload is a daemon API value.
+type SessionAttachPayload struct {
+	SessionID       string    `json:"session_id"`
+	AttachedTo      string    `json:"attached_to"`
+	AttachExpiresAt time.Time `json:"attach_expires_at"`
+	AttachedAt      time.Time `json:"attached_at"`
+}
 
 // SessionAttachResponse is a daemon API value.
 type SessionAttachResponse struct {
@@ -400,46 +414,4 @@ type SessionDerivedPayload struct {
 type SessionEnvBindingPayload struct {
 	Ref      string `json:"ref"`
 	Required bool   `json:"required"`
-}
-
-// SessionEventPayload is a daemon API value.
-type SessionEventPayload struct {
-	Origin               *PromptOriginMeta        `json:"origin,omitzero"`
-	ID                   string                   `json:"id"`
-	SessionID            string                   `json:"session_id"`
-	Sequence             int64                    `json:"sequence"`
-	TurnID               string                   `json:"turn_id"`
-	Type                 string                   `json:"type"`
-	AgentName            string                   `json:"agent_name"`
-	WorkspaceID          string                   `json:"workspace_id,omitempty"`
-	WorkspacePath        string                   `json:"workspace_path,omitempty"`
-	WorktreeID           string                   `json:"worktree_id,omitempty"`
-	TaskID               string                   `json:"task_id,omitempty"`
-	RunID                string                   `json:"run_id,omitempty"`
-	Generation           int64                    `json:"generation,omitzero"`
-	WorkflowID           string                   `json:"workflow_id,omitempty"`
-	ClaimTokenHash       string                   `json:"claim_token_hash,omitempty"`
-	LeaseUntil           *time.Time               `json:"lease_until,omitempty"`
-	CoordinatorSessionID string                   `json:"coordinator_session_id,omitempty"`
-	SchedulerReason      string                   `json:"scheduler_reason,omitempty"`
-	HookEvent            string                   `json:"hook_event,omitempty"`
-	HookName             string                   `json:"hook_name,omitempty"`
-	ActorKind            string                   `json:"actor_kind,omitempty"`
-	ActorID              string                   `json:"actor_id,omitempty"`
-	ReleaseReason        string                   `json:"release_reason,omitempty"`
-	ParentSessionID      string                   `json:"parent_session_id,omitempty"`
-	RootSessionID        string                   `json:"root_session_id,omitempty"`
-	SpawnDepth           int                      `json:"spawn_depth"`
-	Content              json.RawMessage          `json:"content"`
-	Goal                 *GoalPromptMeta          `json:"goal,omitzero"`
-	StopReason           StopReason               `json:"stop_reason,omitempty"`
-	StopDetail           string                   `json:"stop_detail,omitempty"`
-	Failure              *SessionFailurePayload   `json:"failure,omitzero"`
-	ProviderError        *ProviderErrorDiagnostic `json:"provider_error,omitzero"`
-	Timestamp            time.Time                `json:"timestamp"`
-}
-
-// SessionEventsResponse is a daemon API value.
-type SessionEventsResponse struct {
-	Events []SessionEventPayload `json:"events"`
 }

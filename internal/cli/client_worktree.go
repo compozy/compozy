@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -21,6 +22,7 @@ type WorktreeCreateRequest = contract.CreateWorktreeRequest
 type WorktreeExitActionRequest = contract.RunWorktreeExitActionRequest
 
 type worktreeClientAPI interface {
+	RemoveWorktrees(context.Context, string, contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error)
 	ListWorktrees(context.Context, string, bool, bool) (WorktreeListRecord, error)
 	CreateWorktree(context.Context, string, WorktreeCreateRequest) (WorktreeRecord, error)
 	CancelWorktreeCreate(context.Context, string, string) error
@@ -248,5 +250,17 @@ func (c *daemonClient) SubmitWorktreeDelivery(
 		credentials,
 		&response,
 	)
+	return response, err
+}
+
+func (c *daemonClient) RemoveWorktrees(
+	ctx context.Context, workspaceRef string, request contract.RemoveWorktreesRequest,
+) (contract.RemoveWorktreesResponse, error) {
+	var response contract.RemoveWorktreesResponse
+	client := *c.httpClient
+	// Each target pays for independent safety checks, hooks, teardown and branch cleanup.
+	client.Timeout = max(client.Timeout, defaultUnixSocketClientTimeout*time.Duration(max(1, len(request.Targets))))
+	err := c.doJSONWithClient(ctx, http.MethodPost, worktreeCollectionPath(workspaceRef)+"/remove",
+		nil, request, &response, &client)
 	return response, err
 }

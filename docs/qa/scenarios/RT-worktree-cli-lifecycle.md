@@ -81,3 +81,10 @@ Isolated-lab walk on 2026-11-03 with two worktrees based on `feat/integration`, 
 `worktree_safety_check_failed` (exit 65). The fixed build refused the unmerged one with
 `worktree_unpushed_requires_force` (exit 65, `risk.unpushed_commits` 1, file kept), `--force`
 removed it, and the merged one removed without `--force`. Evidence is in the PR description.
+
+2026-11-13 #1663 impact: preview a clean, dirty and unknown target together with
+`remove clean dirty unknown --dry-run -o json`; verify ordered per-item risk/refusals and unchanged
+files, state and hook counts. Omit `--dry-run` and confirm one refusal does not stop clean removal,
+partial failure exits nonzero, and singular JSON receipts remain unchanged. Repeat a failed
+`removing` target by ID without restarting. The existing CLI and real-Git lifecycle suites own
+coverage; this revision uses CI only under the operator's local-verification prohibition.

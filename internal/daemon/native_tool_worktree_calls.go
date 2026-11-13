@@ -38,11 +38,13 @@ type nativeWorktreeCreateInput struct {
 }
 
 type nativeWorktreeRemoveInput struct {
-	Workspace    string `json:"workspace"`
-	Ref          string `json:"ref"`
-	Path         string `json:"path"`
-	Force        bool   `json:"force"`
-	DeleteBranch bool   `json:"delete_branch"`
+	Targets      []contract.WorktreeRemovalTarget `json:"targets"`
+	DryRun       bool                             `json:"dry_run"`
+	Workspace    string                           `json:"workspace"`
+	Ref          string                           `json:"ref"`
+	Path         string                           `json:"path"`
+	Force        bool                             `json:"force"`
+	DeleteBranch bool                             `json:"delete_branch"`
 }
 
 func (n *daemonNativeTools) worktreeList(
@@ -155,6 +157,9 @@ func (n *daemonNativeTools) worktreeRemove(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.Targets != nil || input.DryRun {
+		return n.worktreeRemoveBatch(ctx, scope, req, input)
+	}
 	if strings.TrimSpace(input.Path) != "" {
 		return n.worktreeRemoveDiscovered(ctx, scope, req, input)
 	}
@@ -258,4 +263,29 @@ func nativeWorktreeToolError(id toolspkg.ToolID, err error) *toolspkg.ToolError 
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeBackendFailed, id, err.Error(), err, toolspkg.ReasonBackendUnhealthy,
 	)
+}
+
+func (n *daemonNativeTools) worktreeRemoveBatch(
+	ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest, input nativeWorktreeRemoveInput,
+) (toolspkg.ToolResult, error) {
+	targets := input.Targets
+	if targets == nil {
+		targets = []contract.WorktreeRemovalTarget{{Ref: input.Ref, Path: input.Path}}
+	} else if strings.TrimSpace(input.Ref) != "" || input.Path != "" {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeInvalidInput, req.ToolID,
+			"targets cannot be combined with ref or path", toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	}
+	request := contract.RemoveWorktreesRequest{
+		Targets: targets, Force: input.Force, DeleteBranch: input.DeleteBranch, DryRun: input.DryRun,
+	}
+	if err := core.ValidateWorktreeRemovalBatch(request); err != nil {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeInvalidInput, req.ToolID,
+			err.Error(), toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	}
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.Workspace, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	result := core.RemoveWorktreeBatch(ctx, n.deps.Worktrees, workspaceID, request, nil, nil)
+	return structuredResult(result, fmt.Sprintf("%d worktree removal results", len(result.Results)))
 }

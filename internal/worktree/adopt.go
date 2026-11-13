@@ -39,6 +39,9 @@ func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePa
 	if canonicalCandidate == canonicalWorkspace {
 		return nil, ErrAdoptionMainCheckout
 	}
+	if err := s.rejectAdoptionTrash(ctx, workspace, canonicalCandidate); err != nil {
+		return nil, err
+	}
 	commonDir, err := s.commonDir(ctx, workspace.Root)
 	if err != nil {
 		return nil, err
@@ -63,6 +66,24 @@ func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePa
 		return nil, fmt.Errorf("worktree: inspect adopted path: %w", getErr)
 	}
 	return s.insertAdoptedWorktree(ctx, profileID, workspaceID, canonicalCandidate, identity.adminGitDir, *matched)
+}
+
+func (s *Service) rejectAdoptionTrash(ctx context.Context, workspace Workspace, candidate string) error {
+	trashRoots, err := s.trashRoots(ctx)
+	if err != nil {
+		s.logTrashError(err)
+	}
+	_, managedRoot := s.worktreeSettings(workspace)
+	if managedRoot != "" {
+		trashRoots = append(trashRoots, filepath.Join(managedRoot, trashDirectory))
+	}
+	for _, trash := range trashRoots {
+		within, err := fileutil.PathWithinRoot(trash, candidate)
+		if err != nil || within {
+			return refusal(ErrAdoptionUnreadable, "candidate is inside a worktree trash directory")
+		}
+	}
+	return nil
 }
 
 func (s *Service) insertAdoptedWorktree(

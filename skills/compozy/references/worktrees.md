@@ -181,6 +181,48 @@ force. With **Also delete local branches** selected, this also authorizes deleti
 branches; the root and default branches remain protected. Other refusals cannot be forced. Discovered rows offer **Delete worktree…** (stale rows: **Remove
 stale entry…**) and join **Select worktrees…**. They are removed by Git path and keep their branch.
 
+## Batch Removal And Preview
+
+Use `compozy worktree remove <ref> [<ref>...] --dry-run -o json` to inspect up to 100 targets.
+Native `compozy__worktree_remove` accepts `targets: [{"ref":"name-or-id"},{"path":"listed-path"}]`
+and optional `dry_run`, `force`, `delete_branch`. Each target requires exactly one selector;
+`expect_stale` is path-only, and path targets cannot be combined with `delete_branch`.
+Singular native `ref` or `path` also accepts `dry_run: true`.
+HTTP/UDS expose the same request as `POST /api/workspaces/{workspace_id}/worktrees/remove`.
+
+Preview returns `{dry_run: true, results: [...]}` with per-item `ready`, `refused` or `failed`,
+current `risk` when available, and deterministic `code`/`error` on refusal or failure. It does not
+run hooks or teardown, write status or change checkout/registry state. Actual removal rechecks
+safety; the preview is not an authorization token. Non-dry batches return `removed`, `refused`
+or `failed` in input order and continue after each failure. Inspect every result, including branch
+outcomes. CLI non-dry batches fail if any item fails. Existing singular calls without `dry_run`
+keep their request and response shapes.
+
+Registered checkout removal stages bytes under `<worktrees-root>/.compozy-trash/<id>` after safety,
+hooks and teardown, then clears Git metadata and finishes the row before background deletion.
+One daemon worker paces deletion, yields during CPU pressure and sweeps leftovers on boot.
+A failed rename falls back to synchronous deletion. Do not treat staged files as active worktrees.
+A failed fenced read rolls the original row back; repeat removal by ID to reconcile an abandoned
+`removing` row without restarting the daemon. An active removal keeps its exclusive usage lock.
+The collector rediscovers workspace/profile roots on startup and only sweeps `.compozy-trash`
+directories bearing its ownership marker. Unmarked directories and system Trash stay untouched.
+Checkouts with submodule metadata use synchronous Git removal to retain its safety checks.
+The CLI gives batches one ordinary request budget per target; caller cancellation still applies.
+Before clearing registration, non-force removal rechecks the staged checkout and restores it on
+new changes. Adoption rejects trash paths, and collection preserves live registered checkouts.
+
+If restoring a refused staged checkout fails, its record stays `removing` and collection keeps
+its bytes. Retry removal after freeing the original path: recovery verifies the saved Git pointer,
+restores the checkout and repeats safety checks before permitting any discard. Relative Git
+pointers and orphaned checkouts use synchronous removal. After the staged safety check succeeds,
+CompozyOS saves durable removal approval before clearing Git registration. If that cleanup finishes
+before an interrupted state write, recovery uses the approval to finish the removal record without
+restoring a checkout with missing Git metadata. An external Git prune without that approval keeps
+the record `removing` and preserves staged bytes for recovery. Managed roots reached through
+parent-directory symlinks use their resolved location consistently for staging, recovery and cleanup;
+the trash directory itself must still pass the ownership and symlink checks. Literal percent signs,
+escape-like sequences and Unicode in configured directory names are preserved.
+
 ## Configuration And Errors
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and

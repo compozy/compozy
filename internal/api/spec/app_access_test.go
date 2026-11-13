@@ -521,6 +521,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"removeMarketplaceSource",
 			"removeDiscoveredWorktree",
 			"removeWorktree",
+			"removeWorktrees",
 			"renameGatewayDevice",
 			"renameProfile",
 			"repairSession",

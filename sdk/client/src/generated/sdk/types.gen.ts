@@ -6519,6 +6519,18 @@ export type RemoveDiscoveredWorktreeRequest = {
   path: string;
 };
 
+export type RemoveWorktreesRequest = {
+  delete_branch?: boolean;
+  dry_run?: boolean;
+  force?: boolean;
+  targets: Array<WorktreeRemovalTarget>;
+};
+
+export type RemoveWorktreesResponse = {
+  dry_run: boolean;
+  results: Array<WorktreeRemovalResult>;
+};
+
 export type RenameProfilePlan = {
   dormant_placements: Array<ProfilePlacement>;
   machine_folders: Array<string>;
@@ -13525,6 +13537,16 @@ export type WorktreeRemovalRefusalPayload = {
   risk: WorktreeRemovalRiskPayload;
 };
 
+export type WorktreeRemovalResult = {
+  branch?: WorktreeBranchOutcomePayload | null;
+  code?: string;
+  error?: string;
+  risk?: WorktreeRemovalRiskPayload | null;
+  state: string;
+  target: WorktreeRemovalTarget;
+  worktree_id?: string;
+};
+
 export type WorktreeRemovalRiskPayload = {
   changed_files: number;
   deletions: number;
@@ -13532,6 +13554,12 @@ export type WorktreeRemovalRiskPayload = {
   insertions: number;
   leftover_files: number;
   unpushed_commits: number;
+};
+
+export type WorktreeRemovalTarget = {
+  expect_stale?: boolean;
+  path?: string;
+  ref?: string;
 };
 
 export type WorktreeRepoPayload = {
@@ -44926,6 +44954,68 @@ export type RemoveDiscoveredWorktreeResponses = {
 
 export type RemoveDiscoveredWorktreeResponse =
   RemoveDiscoveredWorktreeResponses[keyof RemoveDiscoveredWorktreeResponses];
+
+export type RemoveWorktreesData = {
+  /**
+   * JSON request body
+   */
+  body: RemoveWorktreesRequest;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile.
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/worktrees/remove";
+};
+
+export type RemoveWorktreesErrors = {
+  /**
+   * Invalid worktree request
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Worktree operation conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Invalid worktree configuration
+   */
+  422: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveWorktreesError = RemoveWorktreesErrors[keyof RemoveWorktreesErrors];
+
+export type RemoveWorktreesResponses = {
+  /**
+   * Per-target removal results or dry-run risk; inspect every result
+   */
+  200: RemoveWorktreesResponse;
+};
+
+export type RemoveWorktreesResponse2 = RemoveWorktreesResponses[keyof RemoveWorktreesResponses];
 
 export type RemoveWorktreeData = {
   body?: never;

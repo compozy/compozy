@@ -67,12 +67,13 @@ func (s *Service) remove(
 	id string,
 	mode removalMode,
 ) (*RemovalRefusal, error) {
-	item, err := s.store.Get(ctx, workspaceID, id)
-	if errors.Is(err, ErrNotFound) || item == nil {
-		return nil, ErrNotFound
-	}
+	item, err := s.Resolve(ctx, workspaceID, id)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read removal target: %w", err)
+	}
+	item, err = s.reconcileRemovalOnAccess(ctx, item)
+	if err != nil {
+		return nil, err
 	}
 	if item.State == StateRemoved || item.State == StateDismissed {
 		return nil, nil
@@ -86,10 +87,7 @@ func (s *Service) remove(
 	}
 	defer releaseUsage()
 
-	item, err = s.store.Get(ctx, workspaceID, item.ID)
-	if errors.Is(err, ErrNotFound) || item == nil {
-		return nil, ErrNotFound
-	}
+	item, err = s.Resolve(ctx, workspaceID, item.ID)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: reread removal target: %w", err)
 	}
@@ -117,13 +115,13 @@ func (s *Service) remove(
 }
 
 func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalMode) (_ *RemovalRefusal, err error) {
-	restoreReady := true
+	restoreReady := item.State != StateRemoving
 	defer func() {
 		if !restoreReady {
 			return
 		}
-		if revertErr := s.store.SetState(
-			context.WithoutCancel(ctx), item.WorkspaceID, item.ID, StateReady, s.now().UTC(),
+		if _, revertErr := s.store.CompareAndSwapState(
+			context.WithoutCancel(ctx), item.WorkspaceID, item.ID, StateRemoving, StateReady, s.now().UTC(),
 		); revertErr != nil {
 			s.logger.Error(
 				"worktree removal fence rollback failed",
@@ -146,11 +144,25 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalM
 	if err != nil {
 		return nil, err
 	}
-	defer release()
+	var staged string
+	defer func() {
+		release()
+		s.releaseTrash(staged)
+	}()
 
-	item, err = s.requireFencedRemovalTarget(ctx, item, false)
+	current, err := s.requireFencedRemovalTarget(ctx, item, false)
 	if err != nil {
 		return nil, err
+	}
+	item = current
+	if !restoreReady {
+		staged, err = s.restoreStagedRemoval(workspace, item)
+		if err != nil {
+			// The staged checkout may contain changes a previous attempt refused.
+			restoreReady = staged == ""
+			return nil, err
+		}
+		restoreReady = staged == "" || hasAbsoluteCheckoutPointer(item.Path, item.GitDir)
 	}
 	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal {
@@ -166,10 +178,11 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalM
 	}
 
 	// Hooks can run arbitrary code. Close that final race before deleting.
-	item, err = s.requireFencedRemovalTarget(ctx, item, true)
+	current, err = s.requireFencedRemovalTarget(ctx, item, true)
 	if err != nil {
 		return nil, err
 	}
+	item = current
 	terminal, _, refusalResult, err = s.prepareFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal {
 		restoreReady = false
@@ -181,25 +194,15 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalM
 	// Once Git starts deleting, a client disconnect must not strand the record
 	// in removing: the deletion and its bookkeeping finish together.
 	completionCtx := context.WithoutCancel(ctx)
-	removedDespiteError, refusalResult, err := s.runFencedRemoval(
-		completionCtx, workspace.Root, item, commonDir, mode.force,
-	)
-	if removedDespiteError {
-		restoreReady = false
-	}
-	if err != nil || refusalResult != nil {
-		return refusalResult, err
-	}
-
-	restoreReady = false
-	return nil, s.finishRemoval(completionCtx, workspace, item, mode)
+	var irreversible bool
+	var removalRefusal *RemovalRefusal
+	staged, irreversible, removalRefusal, err = s.completeFencedRemoval(completionCtx, workspace, item, commonDir, mode)
+	restoreReady = !irreversible
+	return removalRefusal, err
 }
 
 func (s *Service) readFencedRemovalTarget(ctx context.Context, item Worktree) (Worktree, error) {
-	current, err := s.store.Get(ctx, item.WorkspaceID, item.ID)
-	if errors.Is(err, ErrNotFound) || current == nil {
-		return Worktree{}, ErrNotFound
-	}
+	current, err := s.Resolve(ctx, item.WorkspaceID, item.ID)
 	if err != nil {
 		return Worktree{}, err
 	}

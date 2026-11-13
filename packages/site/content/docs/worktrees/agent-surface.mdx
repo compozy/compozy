@@ -32,6 +32,7 @@ HTTP and Unix-domain-socket transports use the same handlers and payloads:
 | -------- | --------------------------------------------------------------------- |
 | `GET`    | `/api/workspaces/{workspace_id}/worktrees`                            |
 | `POST`   | `/api/workspaces/{workspace_id}/worktrees`                            |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/remove`                     |
 | `POST`   | `/api/workspaces/{workspace_id}/worktrees/adopt`                      |
 | `POST`   | `/api/workspaces/{workspace_id}/worktrees/discovered/remove`          |
 | `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}`              |
@@ -72,6 +73,13 @@ The lazy `compozy__worktree` toolset contains:
 with `ref` to delete the local branch after the checkout is removed. The result then carries a `branch` outcome; see
 [Delete the local branch](/docs/worktrees/removal-and-recovery#delete-the-local-branch) for the
 safety rules and kept-branch reasons.
+
+For multiple targets, pass `targets: [{"ref":"feature-auth"},{"ref":"feature-search"}]`.
+Add `dry_run: true` to measure per-target risk without hooks, teardown or mutation. Batch and
+preview calls return `{dry_run, results}` in input order; inspect every result because one refusal
+does not stop other targets. The HTTP/UDS batch endpoint accepts the same body and returns 200
+with per-item outcomes. CLI callers use `worktree remove <ref> [<ref>...] --dry-run -o json`.
+See [Preview and remove a batch](/docs/worktrees/removal-and-recovery#preview-and-remove-a-batch).
 
 There are no direct native tools for adopt, exit, commit, push, pull request creation, cancel, or
 dismiss. Use structured CLI or HTTP/UDS for those actions. Related tools are

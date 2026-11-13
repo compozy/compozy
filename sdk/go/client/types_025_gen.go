@@ -7,6 +7,53 @@ import (
 	"time"
 )
 
+// SubagentWorktreePayload is a daemon API value.
+type SubagentWorktreePayload struct {
+	ID                string                      `json:"id"`
+	Name              string                      `json:"name"`
+	Branch            string                      `json:"branch"`
+	BaseRef           string                      `json:"base_ref"`
+	BaseSHA           string                      `json:"base_sha,omitempty"`
+	Path              string                      `json:"path"`
+	HeadSHA           string                      `json:"head_sha,omitempty"`
+	CommitsAhead      *int                        `json:"commits_ahead,omitempty"`
+	DirtyFiles        *int                        `json:"dirty_files,omitempty"`
+	ObservedAt        *time.Time                  `json:"observed_at,omitempty"`
+	PullRequestStatus string                      `json:"pull_request_status,omitempty"`
+	PullRequest       *SubagentPullRequestPayload `json:"pull_request,omitempty"`
+}
+
+// SubagentsSnapshotEvent is a daemon API value.
+type SubagentsSnapshotEvent struct {
+	SessionID string            `json:"session_id"`
+	Subagents []SubagentPayload `json:"subagents"`
+}
+
+// SubmitTaskRunReviewVerdictRequest is a daemon API value.
+type SubmitTaskRunReviewVerdictRequest struct {
+	RunID   string           `json:"run_id"`
+	Verdict RunReviewVerdict `json:"verdict"`
+}
+
+// SubprocessHealthAggregatePayload is a daemon API value.
+type SubprocessHealthAggregatePayload struct {
+	Status    string                           `json:"status"`
+	Monitored int                              `json:"monitored"`
+	Healthy   int                              `json:"healthy"`
+	Unhealthy int                              `json:"unhealthy"`
+	Sessions  []SubprocessHealthSessionPayload `json:"sessions,omitempty"`
+}
+
+// SubprocessHealthSessionPayload is a daemon API value.
+type SubprocessHealthSessionPayload struct {
+	SessionID           string     `json:"session_id"`
+	WorkspaceID         string     `json:"workspace_id"`
+	AgentName           string     `json:"agent_name"`
+	ConsecutiveFailures int        `json:"consecutive_failures"`
+	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
+	Reason              string     `json:"reason,omitempty"`
+}
+
 // SuggestionSource is a daemon API value.
 type SuggestionSource string
 
@@ -398,53 +445,3 @@ type TaskExecutionRequest struct {
 	IdempotencyKey string          `json:"idempotency_key,omitempty"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
-
-// TaskExecutionResponse is a daemon API value.
-type TaskExecutionResponse struct {
-	Task TaskPayload    `json:"task"`
-	Run  TaskRunPayload `json:"run"`
-}
-
-// TaskFanOutRunDesignationRequest is a daemon API value.
-type TaskFanOutRunDesignationRequest struct {
-	Brief          string          `json:"brief"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-}
-
-// TaskHealthPayload is a daemon API value.
-type TaskHealthPayload struct {
-	Status                string                    `json:"status"`
-	QueueDepthTotal       int                       `json:"queue_depth_total"`
-	OldestQueuedAt        *time.Time                `json:"oldest_queued_at,omitempty"`
-	OldestQueueAgeMilli   int64                     `json:"oldest_queue_age_ms"`
-	QueueDepth            []TaskQueueDepthPayload   `json:"queue_depth,omitempty"`
-	StuckRuns             []StuckTaskRunPayload     `json:"stuck_runs,omitempty"`
-	ActiveOrphanRuns      int                       `json:"active_orphan_runs"`
-	TaskTotals            []TaskStatusTotalPayload  `json:"task_totals,omitempty"`
-	RunTotals             []TaskRunTotalPayload     `json:"run_totals,omitempty"`
-	OwnerTotals           []TaskOwnerTotalPayload   `json:"owner_totals,omitempty"`
-	ForcedStopsSinceStart int                       `json:"forced_stops_since_start"`
-	RecoverySinceStart    TaskRecoveryTotalsPayload `json:"recovery_since_start"`
-}
-
-// TaskInboxFacetsPayload is a daemon API value.
-type TaskInboxFacetsPayload struct {
-	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
-	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
-}
-
-// TaskInboxItemPayload is a daemon API value.
-type TaskInboxItemPayload struct {
-	Task             TaskInboxTaskPayload   `json:"task"`
-	Lane             TaskInboxLane          `json:"lane"`
-	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
-	BlockingReason   string                 `json:"blocking_reason,omitempty"`
-	LatestActivityAt time.Time              `json:"latest_activity_at"`
-	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
-	Triage           TaskTriageStatePayload `json:"triage"`
-}
-
-// TaskInboxLane is a daemon API value.
-type TaskInboxLane string

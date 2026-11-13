@@ -4,6 +4,51 @@ package client
 
 import "time"
 
+// SettingsMCPSecretValuesPayload is a daemon API value.
+type SettingsMCPSecretValuesPayload struct {
+	SecretEnv         map[string]string `json:"secret_env,omitempty"`
+	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
+}
+
+// SettingsMCPServerItemPayload is a daemon API value.
+type SettingsMCPServerItemPayload struct {
+	ReadOnlyTools     []string                               `json:"read_only_tools,omitempty"`
+	HeadersConfigured bool                                   `json:"headers_configured,omitzero"`
+	Owner             string                                 `json:"owner,omitempty"`
+	RuntimeName       string                                 `json:"runtime_name,omitempty"`
+	Override          *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name              string                                 `json:"name"`
+	Transport         string                                 `json:"transport"`
+	Command           string                                 `json:"command,omitempty"`
+	Args              []string                               `json:"args,omitempty"`
+	EnvKeys           []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys     []string                               `json:"secret_env_keys,omitempty"`
+	URL               string                                 `json:"url,omitempty"`
+	Auth              *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus        *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus     *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope             SettingsScopeKind                      `json:"scope"`
+	WorkspaceID       string                                 `json:"workspace_id,omitempty"`
+	Profile           string                                 `json:"profile,omitempty"`
+	CatalogEntry      string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion    string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata    SettingsSourceMetadataPayload          `json:"source_metadata"`
+}
+
+// SettingsMCPServerPayload is a daemon API value.
+type SettingsMCPServerPayload struct {
+	ReadOnlyTools []string                      `json:"read_only_tools,omitempty"`
+	Headers       map[string]string             `json:"headers,omitempty"`
+	Name          string                        `json:"name"`
+	Transport     string                        `json:"transport,omitempty"`
+	Command       string                        `json:"command,omitempty"`
+	Args          []string                      `json:"args,omitempty"`
+	Env           map[string]string             `json:"env,omitempty"`
+	SecretEnv     map[string]string             `json:"secret_env,omitempty"`
+	URL           string                        `json:"url,omitempty"`
+	Auth          *SettingsMCPAuthConfigPayload `json:"auth,omitzero"`
+}
+
 // SettingsMCPServerResponse is a daemon API value.
 type SettingsMCPServerResponse struct {
 	Server SettingsMCPServerItemPayload `json:"server"`
@@ -398,46 +443,4 @@ type SettingsShellMutationResponse struct {
 type SettingsShellPayload struct {
 	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
 	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
-}
-
-// SettingsShellResponse is a daemon API value.
-type SettingsShellResponse struct {
-	Warnings        []string                        `json:"warnings"`
-	LegacyScope     SettingsShellLegacyScopePayload `json:"legacy_scope"`
-	Section         SettingsSectionName             `json:"section"`
-	Scope           SettingsUserScopeKind           `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind         `json:"available_scopes"`
-	Config          SettingsShellPayload            `json:"config"`
-}
-
-// SettingsShellSessionGroupBy is a daemon API value.
-type SettingsShellSessionGroupBy string
-
-// SettingsShellSessionScope is a daemon API value.
-type SettingsShellSessionScope string
-
-// SettingsShellSessionSort is a daemon API value.
-type SettingsShellSessionSort string
-
-// SettingsShellSessionsPayload is a daemon API value.
-type SettingsShellSessionsPayload struct {
-	GroupBy SettingsShellSessionGroupBy `json:"group_by,omitempty"`
-	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
-	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
-}
-
-// SettingsShellTextSize is a daemon API value.
-type SettingsShellTextSize string
-
-// SettingsSkillSourceCollisionPayload is a daemon API value.
-type SettingsSkillSourceCollisionPayload struct {
-	Name          string `json:"name"`
-	WinnerRootID  string `json:"winner_root_id"`
-	QualifiedForm string `json:"qualified_form"`
-}
-
-// SettingsSkillSourceInheritancePayload is a daemon API value.
-type SettingsSkillSourceInheritancePayload struct {
-	Sources       bool `json:"sources"`
-	CustomSources bool `json:"custom_sources"`
 }

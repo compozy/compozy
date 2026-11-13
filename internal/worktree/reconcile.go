@@ -205,3 +205,25 @@ func (s *Service) restoreMissing(ctx context.Context, workspace Workspace, item 
 	}
 	return nil
 }
+
+func (s *Service) reconcileRemovalOnAccess(ctx context.Context, item *Worktree) (*Worktree, error) {
+	if item.State != StateRemoving {
+		return item, nil
+	}
+	release, acquired := s.usage.tryAcquireExclusive(worktreeUsageKey(item.WorkspaceID, item.ID))
+	if !acquired {
+		return item, nil
+	}
+	defer release()
+	current, err := s.Resolve(ctx, item.WorkspaceID, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	if current.State != StateRemoving {
+		return current, nil
+	}
+	if err := s.recoverRemoval(ctx, *current); err != nil {
+		return nil, err
+	}
+	return s.Resolve(ctx, item.WorkspaceID, item.ID)
+}

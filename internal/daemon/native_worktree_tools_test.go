@@ -20,6 +20,7 @@ import (
 )
 
 type nativeWorktreeServiceStub struct {
+	preview        func(context.Context, string, worktree.RemovalTarget, bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error)
 	createAccepted func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	create         func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	list           func(context.Context, string, bool) (*worktree.DetailedListing, error)
@@ -183,6 +184,72 @@ func (s *nativeWorktreeServiceStub) DeleteLocalBranch(
 
 func TestNativeWorktreeTools(t *testing.T) {
 	t.Parallel()
+
+	for _, dryRun := range []bool{true, false} {
+		t.Run(fmt.Sprintf("Should return per-item removal outcomes with dry_run %t", dryRun), func(t *testing.T) {
+			t.Parallel()
+			service := &nativeWorktreeServiceStub{
+				resolve: func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+					return &worktree.Worktree{ID: ref, WorkspaceID: workspaceID}, nil
+				},
+				preview: func(_ context.Context, _ string, target worktree.RemovalTarget, _ bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
+					if !dryRun {
+						t.Fatal("removal ran preview")
+					}
+					if target.Ref == "dirty" {
+						risk := worktree.RemovalRisk{ChangedFiles: 3}
+						return risk, &worktree.RemovalRefusal{
+							Code: worktree.ErrDirtyRequiresForce.Error(),
+							Risk: risk,
+						}, worktree.ErrDirtyRequiresForce
+					}
+					return worktree.RemovalRisk{}, nil, nil
+				},
+				remove: func(_ context.Context, _ string, ref string, _ bool) (*worktree.RemovalRefusal, error) {
+					if dryRun {
+						t.Fatal("preview removed a checkout")
+					}
+					if ref == "dirty" {
+						return &worktree.RemovalRefusal{
+							Code: worktree.ErrDirtyRequiresForce.Error(),
+							Risk: worktree.RemovalRisk{ChangedFiles: 3},
+						}, worktree.ErrDirtyRequiresForce
+					}
+					return nil, nil
+				},
+			}
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service},
+				nativeApproveAllPolicyInputs(),
+			)
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeRemove,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"workspace":"ws-a","targets":[{"ref":"dirty"},{"ref":"clean"}],"dry_run":%t}`,
+					dryRun,
+				)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload contract.RemoveWorktreesResponse
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.DryRun != dryRun || len(payload.Results) != 2 || payload.Results[0].State != "refused" ||
+				payload.Results[0].Risk.ChangedFiles != 3 {
+				t.Fatalf("payload = %s", result.Structured)
+			}
+			want := "removed"
+			if dryRun {
+				want = "ready"
+			}
+			if payload.Results[1].State != want {
+				t.Fatalf("clean result = %#v", payload.Results[1])
+			}
+		})
+	}
 	t.Run("Should exclude removed worktrees by default", func(t *testing.T) {
 		t.Parallel()
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -891,4 +958,16 @@ func (*nativeLinkedWorkFailure) SessionLinkedWork(
 	[]*session.Info,
 ) (map[string]session.LinkedWorkProjection, error) {
 	return nil, nil
+}
+
+func (s *nativeWorktreeServiceStub) PreviewRemoval(
+	ctx context.Context,
+	workspaceID string,
+	target worktree.RemovalTarget,
+	force bool,
+) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
+	if s.preview == nil {
+		return worktree.RemovalRisk{}, nil, errors.New("unexpected PreviewRemoval call")
+	}
+	return s.preview(ctx, workspaceID, target, force)
 }
