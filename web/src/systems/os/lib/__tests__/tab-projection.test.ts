@@ -1,7 +1,8 @@
 // Suite: tab split projection
 // Invariant: WM-WEB-001/002/003 — a tab's split tree projects deterministically from its weights
 // with one shared gap on every boundary and no overlap; every seam is split_id + boundary_index
-// with bounds from the adjacent branches' floors; and a split whose members cannot fit (or any
+// with bounds from the adjacent branches' floors, a collapsed branch's floor including its member
+// switcher (US-009.EC-1); and a split whose members cannot fit (or any
 // split in the compact viewport) shows one member at a time without touching the weights (UT-037).
 // Boundary IN: pure tab-to-pixel projection.
 // Boundary OUT: daemon normalization/validation and rendered split view.
@@ -193,6 +194,84 @@ describe("projectTab seams", () => {
     expect(nested?.leadingWindowIds).toEqual(["window:b"]);
     expect(nested?.trailingWindowIds).toEqual(["window:c"]);
     expect(new Set(projection.seams.map(seam => seam.id)).size).toBe(projection.seams.length);
+  });
+});
+
+/** 500×600 split vertically: a horizontal pair on top, one window below; every window 300×200. */
+function stackedPair(weights: readonly number[] = [1, 1]): LayoutTab {
+  return {
+    id: "tab:stack",
+    pinned: false,
+    root: {
+      id: "split:outer",
+      kind: "split",
+      axis: "vertical",
+      weights,
+      children: [
+        {
+          id: "split:top",
+          kind: "split",
+          axis: "horizontal",
+          weights: [1, 1],
+          children: [
+            { id: "leaf:a", kind: "leaf", windowId: "window:a" },
+            { id: "leaf:b", kind: "leaf", windowId: "window:b" },
+          ],
+        },
+        { id: "leaf:c", kind: "leaf", windowId: "window:c" },
+      ],
+    },
+  };
+}
+
+const STACK_MINIMUMS = {
+  "window:a": { width: 300, height: 200 },
+  "window:b": { width: 300, height: 200 },
+  "window:c": { width: 300, height: 200 },
+};
+
+function stackedInput(workArea: PixelRect, weights?: readonly number[]): TabProjectionInput {
+  return {
+    tab: stackedPair(weights),
+    workArea,
+    gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+    minimums: STACK_MINIMUMS,
+  };
+}
+
+// US-009.EC-1: a collapsed member keeps its own minimum below its member switcher.
+describe("projectTab collapsed member footprint", () => {
+  it("Should stop a seam where a collapsed branch's member still meets its minimum below the switcher", () => {
+    // The pair cannot sit side by side in 500px, so the top branch shows one member at a time.
+    const projection = projectTab(stackedInput({ x: 0, y: 0, w: 500, h: 600 }));
+
+    expect(projection.collapsed).toEqual([expect.objectContaining({ splitId: "split:top" })]);
+    const outer = projection.seams.find(seam => seam.id === "split:outer:0");
+    // 200px of member + the 36px switcher on top; 200px for the window below.
+    expect(outer).toMatchObject({ value: 300, minValue: 236, maxValue: 400 });
+  });
+
+  it("Should collapse the parent when a collapsed branch's member would fall under its minimum", () => {
+    // At 215px the top branch would leave its member 179px tall: the outer split cannot hold it.
+    const projection = projectTab(stackedInput({ x: 0, y: 0, w: 500, h: 430 }));
+
+    expect(projection.collapsed).toEqual([expect.objectContaining({ splitId: "split:outer" })]);
+    expect(projection.seams).toEqual([]);
+  });
+
+  it("Should report a collapsed member that cannot meet its minimum below the switcher", () => {
+    const projection = projectTab(stackedInput({ x: 0, y: 0, w: 500, h: 220 }));
+
+    expect(projection.collapsed).toEqual([expect.objectContaining({ splitId: "split:outer" })]);
+    expect(projection.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "minimum-unmet",
+          windowId: "window:c",
+          available: { width: 500, height: 184 },
+        }),
+      ])
+    );
   });
 });
 

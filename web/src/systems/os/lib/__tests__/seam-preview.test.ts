@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applySeamPreviewToTab, seamWeightDelta } from "../seam-preview";
+import { projectTab } from "../tab-projection";
 import type { LayoutTab, ProjectedSeam } from "../window-manager-types";
 
 const SEAM: ProjectedSeam = {
@@ -60,6 +61,47 @@ describe("seamWeightDelta", () => {
     // minValue caps leftward travel at value-300 = -200px.
     expect(seamWeightDelta(SEAM, -500)).toBeCloseTo(-200 / 992, 10);
     expect(seamWeightDelta(SEAM, 500)).toBeCloseTo(200 / 992, 10);
+  });
+
+  it("Should stop above a collapsed branch's switcher, at its member's minimum (US-009.EC-1)", () => {
+    // 500×600, a 300×200 pair on top (collapsed: it cannot sit side by side) over one window.
+    const projection = projectTab({
+      tab: {
+        id: "tab:stack",
+        pinned: false,
+        root: {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights: [1, 1],
+          children: [
+            {
+              id: "split:top",
+              kind: "split",
+              axis: "horizontal",
+              weights: [1, 1],
+              children: [
+                { id: "leaf:a", kind: "leaf", windowId: "window:a" },
+                { id: "leaf:b", kind: "leaf", windowId: "window:b" },
+              ],
+            },
+            { id: "leaf:c", kind: "leaf", windowId: "window:c" },
+          ],
+        },
+      },
+      workArea: { x: 0, y: 0, w: 500, h: 600 },
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: {
+        "window:a": { width: 300, height: 200 },
+        "window:b": { width: 300, height: 200 },
+        "window:c": { width: 300, height: 200 },
+      },
+    });
+    const seam = projection.seams.find(entry => entry.id === "split:outer:0");
+    if (seam === undefined) throw new Error("expected the outer seam");
+
+    // Dragging the seam 200px up stops at 236px: 200px of member under the 36px switcher.
+    expect(seamWeightDelta(seam, -200)).toBeCloseTo(-64 / 600);
   });
 
   it("Should floor both adjacent weights at the daemon minimum", () => {

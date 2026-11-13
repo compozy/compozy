@@ -127,6 +127,16 @@ function projectCollapsed(
   context.collapsed.push({ splitId: node.id, windowIds, shownWindowId, rect });
   const memberRect = belowSwitcher(rect);
   for (const entry of entries) {
+    const minimum = minimumForWindow(entry.windowId, context.minimums);
+    if (!sizeFits(memberRect, minimum)) {
+      context.diagnostics.push({
+        code: "minimum-unmet",
+        nodeId: entry.nodeId,
+        windowId: entry.windowId,
+        required: minimum,
+        available: { width: memberRect.w, height: memberRect.h },
+      });
+    }
     context.windows.push({
       windowId: entry.windowId,
       nodeId: entry.nodeId,
@@ -148,9 +158,10 @@ function seamForBoundary(
   const leading = childRects[boundaryIndex];
   const trailing = childRects[boundaryIndex + 1];
   if (!leadingNode || !trailingNode || !leading || !trailing) return null;
-  // A branch may shrink until it would collapse, not only until its split stops fitting.
-  const leadingMinimum = collapsedFloor(leadingNode, context.minimums);
-  const trailingMinimum = collapsedFloor(trailingNode, context.minimums);
+  // A branch may shrink until it would no longer fit, collapsed or not: a collapsed branch keeps
+  // room for its member switcher above its member.
+  const leadingMinimum = minimumExtent(leadingNode, leading, node.axis, context);
+  const trailingMinimum = minimumExtent(trailingNode, trailing, node.axis, context);
   const weights = normalizedWeights(node);
   const horizontal = node.axis === "horizontal";
   const axisSpan = childRects.reduce(
@@ -175,8 +186,8 @@ function seamForBoundary(
       orientation: "vertical",
       rect: { x: start, y: leading.y, w: width, h: leading.h },
       value: start + width / 2,
-      minValue: leading.x + leadingMinimum.width + width / 2,
-      maxValue: trailing.x + trailing.w - trailingMinimum.width - width / 2,
+      minValue: leading.x + leadingMinimum + width / 2,
+      maxValue: trailing.x + trailing.w - trailingMinimum - width / 2,
     };
   }
   const start = leading.y + leading.h;
@@ -186,28 +197,36 @@ function seamForBoundary(
     orientation: "horizontal",
     rect: { x: leading.x, y: start, w: leading.w, h: height },
     value: start + height / 2,
-    minValue: leading.y + leadingMinimum.height + height / 2,
-    maxValue: trailing.y + trailing.h - trailingMinimum.height - height / 2,
+    minValue: leading.y + leadingMinimum + height / 2,
+    maxValue: trailing.y + trailing.h - trailingMinimum - height / 2,
   };
 }
 
-/**
- * The least space a node can occupy: a window needs its own minimum, while a split can always
- * fall back to showing one member at a time, so it needs only its largest member's minimum.
- * Using this floor lets only the split that cannot fit collapse instead of every ancestor.
- */
-function collapsedFloor(node: LayoutNode, minimums: WindowMinimums): PixelSize {
-  if (node.kind === "leaf") return minimumForWindow(node.windowId, minimums);
-  return descendantWindowIds(node).reduce<PixelSize>(
-    (floor, windowId) => {
-      const minimum = minimumForWindow(windowId, minimums);
-      return {
-        width: Math.max(floor.width, minimum.width),
-        height: Math.max(floor.height, minimum.height),
-      };
-    },
-    { width: 0, height: 0 }
+function sizeFits(rect: PixelRect, minimum: PixelSize): boolean {
+  return rect.w >= minimum.width && rect.h >= minimum.height;
+}
+
+/** Whether a split shown one member at a time fits: every member, below the switcher. */
+function collapsedFits(node: LayoutNode, rect: PixelRect, minimums: WindowMinimums): boolean {
+  const member = belowSwitcher(rect);
+  return descendantWindowIds(node).every(windowId =>
+    sizeFits(member, minimumForWindow(windowId, minimums))
   );
+}
+
+/**
+ * Whether a node fits a rect as the projection would lay it out: a window needs its own minimum;
+ * a split lays out by its weights when every child fits, and otherwise shows one member at a time,
+ * which needs every member's minimum below the member switcher. Using this rather than the full
+ * laid-out minimum lets only the split that cannot fit collapse instead of every ancestor.
+ */
+function fitsIn(node: LayoutNode, rect: PixelRect, context: ProjectionContext): boolean {
+  if (node.kind === "leaf")
+    return sizeFits(rect, minimumForWindow(node.windowId, context.minimums));
+  if (!context.compact && childrenFit(node, splitRects(node, rect, context.innerGap), context)) {
+    return true;
+  }
+  return collapsedFits(node, rect, context.minimums);
 }
 
 function childrenFit(
@@ -217,10 +236,44 @@ function childrenFit(
 ): boolean {
   return node.children.every((child, index) => {
     const childRect = childRects[index];
-    if (childRect === undefined) return false;
-    const floor = collapsedFloor(child, context.minimums);
-    return childRect.w >= floor.width && childRect.h >= floor.height;
+    return childRect !== undefined && fitsIn(child, childRect, context);
   });
+}
+
+/**
+ * The least extent along `axis` a node can take within `rect`'s cross size: a window's minimum,
+ * or the least extent at which a split still fits, laid out or one member at a time.
+ */
+function minimumExtent(
+  node: LayoutNode,
+  rect: PixelRect,
+  axis: LayoutAxis,
+  context: ProjectionContext
+): number {
+  const horizontal = axis === "horizontal";
+  if (node.kind === "leaf") {
+    const minimum = minimumForWindow(node.windowId, context.minimums);
+    return horizontal ? minimum.width : minimum.height;
+  }
+  const members = descendantWindowIds(node).map(windowId =>
+    minimumForWindow(windowId, context.minimums)
+  );
+  // Shown one member at a time, the split needs its widest member and, above the tallest, the
+  // switcher: the upper bound of the search, and the answer when the cross size never fits.
+  const collapsed = horizontal
+    ? Math.max(0, ...members.map(minimum => minimum.width))
+    : Math.max(0, ...members.map(minimum => minimum.height)) + MEMBER_SWITCHER_PX;
+  const sized = (extent: number): PixelRect =>
+    horizontal ? { ...rect, w: extent } : { ...rect, h: extent };
+  if (!fitsIn(node, sized(collapsed), context)) return collapsed;
+  let low = 0;
+  let high = collapsed;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (fitsIn(node, sized(middle), context)) high = middle;
+    else low = middle + 1;
+  }
+  return high;
 }
 
 function projectNode(
