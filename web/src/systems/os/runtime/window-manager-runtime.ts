@@ -130,7 +130,12 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     const release = this.pendingSwaps.record(first, second, shown);
     if (release === null) return outcome;
     this.publish();
-    void outcome.completion.then(release, release);
+    // A refused swap publishes before it settles; republish so menus drop the predicted places.
+    const settle = () => {
+      release();
+      this.publish();
+    };
+    void outcome.completion.then(settle, settle);
     return outcome;
   }
 
