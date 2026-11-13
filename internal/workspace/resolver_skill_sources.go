@@ -40,14 +40,18 @@ func (r *Resolver) SkillsConfig(ws Workspace, profileName string) (compozyconfig
 		r.mu.Unlock()
 		return skills, nil
 	}
+	// Invalidate and InvalidateAll bump the generation; a load they overtake must not be published.
+	generation := r.agentConfigGeneration
 	r.mu.Unlock()
 	loaded, err := r.loadWorkspaceConfig(ws.RootDir, profileName)
 	if err != nil {
 		return compozyconfig.SkillsConfig{}, fmt.Errorf("workspace: load config for %q: %w", ws.RootDir, err)
 	}
 	r.mu.Lock()
-	r.skillsConfigCache[cacheKey] = &cachedSkillsConfig{
-		rootDir: ws.RootDir, skills: cloneSkillsConfig(loaded.Skills), snapshots: snapshots, lastAccess: now,
+	if generation == r.agentConfigGeneration {
+		r.skillsConfigCache[cacheKey] = &cachedSkillsConfig{
+			rootDir: ws.RootDir, skills: cloneSkillsConfig(loaded.Skills), snapshots: snapshots, lastAccess: now,
+		}
 	}
 	r.mu.Unlock()
 	return loaded.Skills, nil

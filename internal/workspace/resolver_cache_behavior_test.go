@@ -146,6 +146,57 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not publish a skills config load overtaken by invalidation", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name       string
+			invalidate func(*Resolver, string)
+		}{
+			{
+				name:       "Should reload after InvalidateAll runs during the load",
+				invalidate: func(r *Resolver, _ string) { r.InvalidateAll() },
+			},
+			{
+				name:       "Should reload after Invalidate of the workspace runs during the load",
+				invalidate: func(r *Resolver, workspaceID string) { r.Invalidate(workspaceID) },
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				home := newTestHomePaths(t)
+				ws := Workspace{ID: "ws_skills_config_race", Name: "repo", RootDir: t.TempDir()}
+				var loads atomic.Int32
+				firstLoadStarted, releaseFirstLoad := make(chan struct{}), make(chan struct{})
+				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
+					WithProfileConfigLoader(func(rootDir, profileName string) (compozyconfig.Config, error) {
+						if loads.Add(1) == 1 {
+							close(firstLoadStarted)
+							<-releaseFirstLoad
+						}
+						return compozyconfig.LoadForHome(home,
+							compozyconfig.WithWorkspaceRoot(rootDir), compozyconfig.WithProfile(profileName))
+					}))
+				firstErr := make(chan error, 1)
+				go func() {
+					_, err := r.SkillsConfig(ws, "design")
+					firstErr <- err
+				}()
+				<-firstLoadStarted
+				test.invalidate(r, ws.ID)
+				close(releaseFirstLoad)
+				if err := <-firstErr; err != nil {
+					t.Fatalf("SkillsConfig(overtaken load) error = %v", err)
+				}
+				if _, err := r.SkillsConfig(ws, "design"); err != nil {
+					t.Fatalf("SkillsConfig(after invalidation) error = %v", err)
+				}
+				if got := loads.Load(); got != 2 {
+					t.Fatalf("config loads = %d, want 2: the load overtaken by invalidation was reused", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should bound cached discovery age without extending it on cache hits", func(t *testing.T) {
 		t.Parallel()
 		home := newTestHomePaths(t)
