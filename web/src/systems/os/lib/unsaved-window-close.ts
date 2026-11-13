@@ -11,13 +11,15 @@ import type { WindowCloseGuard } from "./window-close-targets";
 /**
  * Operator close admission for windows whose editors hold unsaved edits (#1653). Editors hold
  * their windows while dirty; a close covering held windows asks once for all of them. Keep
- * editing cancels the whole close, Discard drops the edits and lets it go on. View-only closes
- * never reach a guard: the editors keep their drafts when they unmount.
+ * editing cancels the whole close; Discard lets it go on, and the edits are dropped only once the
+ * close went through (`settled`), so a later guard or a refused command leaves them intact.
+ * View-only closes never reach a guard: the editors keep their drafts when they unmount.
  */
 export class UnsavedWindowClose implements UnsavedWindowEditsPort {
   readonly question = createAtom<UnsavedCloseQuestion | null>(null);
   private readonly held = new Map<string, Set<UnsavedWindowEdits>>();
   private asking: ReadonlySet<string> = new Set();
+  private confirmed: readonly UnsavedWindowEdits[] = [];
 
   hold(windowId: string, edits: UnsavedWindowEdits): () => void {
     const set = this.held.get(windowId) ?? new Set<UnsavedWindowEdits>();
@@ -54,8 +56,15 @@ export class UnsavedWindowClose implements UnsavedWindowEditsPort {
       });
     });
     if (!discard || !isCurrent()) return false;
-    for (const id of windowIds) for (const edits of this.held.get(id) ?? []) edits.discard();
+    this.confirmed = windowIds.flatMap(id => Array.from(this.held.get(id) ?? []));
     return true;
+  };
+
+  /** Drops the edits a Discard answered for, once their windows closed. */
+  readonly settled = (closed: boolean): void => {
+    const confirmed = this.confirmed;
+    this.confirmed = [];
+    if (closed) for (const edits of confirmed) edits.discard();
   };
 }
 

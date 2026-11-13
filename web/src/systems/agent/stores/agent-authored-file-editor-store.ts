@@ -395,6 +395,11 @@ function isAgentHeartbeatPayload(payload: AuthoredFilePayload): payload is Agent
   return "preferences" in payload;
 }
 
+/** The editor as one resumes it: a write or validation it was running settles elsewhere. */
+export function idleAuthoredFileEditor(context: AuthoredFileEditorState): AuthoredFileEditorState {
+  return context.phase === "saving" || context.phase === "validating" ? toReady(context) : context;
+}
+
 /** Whether the draft differs from the file it was read from. */
 export function isAuthoredFileEditorDirty(context: AuthoredFileEditorState): boolean {
   return context.draft !== context.baseline.body;

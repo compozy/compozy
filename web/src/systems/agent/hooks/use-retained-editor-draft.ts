@@ -1,6 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-import { retainEditorDraft, takeRetainedEditorDraft } from "../lib/retained-editor-drafts";
+import {
+  isRetainedEditorDraft,
+  retainEditorDraft,
+  takeRetainedEditorDraft,
+} from "../lib/retained-editor-drafts";
 
 interface DraftStore<TContext> {
   getSnapshot(): { context: TContext };
@@ -13,38 +17,71 @@ export interface RetainedDraftPolicy<TContext> {
   isDirty(context: TContext): boolean;
   /** A save or reread is running; its outcome decides what is left to keep. */
   isBusy(context: TContext): boolean;
+  /** The context as an editor resumes it: a busy phase becomes idle. */
+  idle(context: TContext): TContext;
+}
+
+interface DraftBox<TContext> {
+  store: DraftStore<TContext> | null;
+  /** What this editor retained when it went away, until something drops it. */
+  retained: { key: string; context: TContext } | null;
 }
 
 /**
- * Keeps an editor's unsaved edits when it goes away without Save or Discard (#1653). The store
- * must be seeded from `retainedEditorDraft(key)` as it is: the mounted editor takes that draft,
- * so it owns the edits while mounted. When the editor unmounts, or moves to another resource,
- * still holding edits, they are retained under `key` for the next editor of that resource; a
- * save running then settles first, so saved work is not kept as unsaved.
+ * Keeps an editor's unsaved edits when it goes away without Save or Discard (#1653). Only the
+ * store's first creation seeds from `retainedEditorDraft(key)`, as it is: the mounted editor takes
+ * that draft, so it owns the edits while mounted. When the editor unmounts, or moves to another
+ * resource, still holding edits, they are retained under `key` for the next editor of that
+ * resource. A save still running then (it may wait on a question nobody can answer now) keeps
+ * the edits at once and, when it settles, replaces them with what is left, so saved work is not
+ * kept as unsaved. A store replaced under the same key (a reload, a clean editor following the
+ * server) retains nothing.
+ *
+ * Returns `forget`, which drops what this editor retained: a Discard answered for a window that
+ * closed after the editor went away still drops its edits.
  */
 export function useRetainedEditorDraft<TContext>(
   key: string,
   store: DraftStore<TContext>,
   policy: RetainedDraftPolicy<TContext>
-): void {
+): { forget: () => void } {
+  const [box] = useState<DraftBox<TContext>>(() => ({ store: null, retained: null }));
   useEffect(() => {
-    // Before any event reaches the new store, its context is the draft it was seeded from.
+    box.store = store;
+    // Before any event reaches a new store, its context is the draft it was seeded from, if any.
     takeRetainedEditorDraft(key, store.getSnapshot().context);
-    return () => {
+  }, [box, key, store]);
+  useEffect(
+    () => () => {
+      const current = box.store;
+      if (current === null) return;
       const retain = (context: TContext) => {
-        if (policy.isDirty(context)) retainEditorDraft(key, context);
+        if (!policy.isDirty(context)) return;
+        const draft = policy.idle(context);
+        retainEditorDraft(key, draft);
+        box.retained = { key, context: draft };
       };
       // Read the store, not the last render: a Discard answered just before unmount counts.
-      const context = store.getSnapshot().context;
-      if (!policy.isBusy(context)) {
-        retain(context);
-        return;
-      }
-      const subscription = store.subscribe(snapshot => {
+      const context = current.getSnapshot().context;
+      retain(context);
+      if (!policy.isBusy(context)) return;
+      const subscription = current.subscribe(snapshot => {
         if (policy.isBusy(snapshot.context)) return;
         subscription.unsubscribe();
+        // Only while the draft kept at unmount is still unclaimed: forgotten or taken, it is done.
+        const kept = box.retained;
+        if (kept === null || kept.key !== key || !isRetainedEditorDraft(key, kept.context)) return;
+        takeRetainedEditorDraft(key, kept.context);
+        box.retained = null;
         retain(snapshot.context);
       });
-    };
-  }, [key, store, policy]);
+    },
+    [box, key, policy]
+  );
+  const [forget] = useState(() => () => {
+    const retained = box.retained;
+    box.retained = null;
+    if (retained) takeRetainedEditorDraft(retained.key, retained.context);
+  });
+  return { forget };
 }

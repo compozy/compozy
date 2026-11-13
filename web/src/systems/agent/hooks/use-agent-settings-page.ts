@@ -5,6 +5,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   createAgentSettingsEditorLogic,
+  idleAgentSettingsEditor,
   isAgentSettingsEditorDirty,
   shouldAdoptAgentSettingsSource,
   type AgentSettingsEditorState,
@@ -27,6 +28,7 @@ import { useProfileReadScope } from "@/systems/profiles";
 const SETTINGS_DRAFT_POLICY: RetainedDraftPolicy<AgentSettingsEditorState> = {
   isDirty: isAgentSettingsEditorDirty,
   isBusy: context => context.phase === "saving" || context.phase === "reloading",
+  idle: idleAgentSettingsEditor,
 };
 
 export interface UseAgentSettingsPageOptions {
@@ -49,22 +51,22 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
 
   const resourceKey = JSON.stringify([destination, runtimeWorkspaceId, name]);
   const draftKey = retainedDraftKey("agent-settings", resourceKey);
-  // Edits kept from an editor of this agent that went away unsaved come back as unsaved (#1653).
-  const create = () =>
-    createAgentSettingsEditorLogic().createStore({
-      resourceKey,
-      agent: agentQuery.data,
-      retained: retainedEditorDraft<AgentSettingsEditorState>(draftKey),
-    });
+  // Edits kept from an editor of this agent that went away unsaved come back as unsaved (#1653);
+  // only a new editor resumes them, never a store replaced while this one is mounted.
   const { store } = useStoreBinding(
     resourceKey,
-    create,
-    create,
+    () =>
+      createAgentSettingsEditorLogic().createStore({
+        resourceKey,
+        agent: agentQuery.data,
+        retained: retainedEditorDraft<AgentSettingsEditorState>(draftKey),
+      }),
+    () => createAgentSettingsEditorLogic().createStore({ resourceKey, agent: agentQuery.data }),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAgentSettingsSource(current.store.getSnapshot().context, agentQuery.data)
   );
-  useRetainedEditorDraft(draftKey, store, SETTINGS_DRAFT_POLICY);
+  const { forget } = useRetainedEditorDraft(draftKey, store, SETTINGS_DRAFT_POLICY);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const {
@@ -81,7 +83,10 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const guard = useUnsavedGuard({
     dirty,
     entityName: name,
-    onDiscard: () => store.trigger.discardRequested(),
+    onDiscard: () => {
+      store.trigger.discardRequested();
+      forget();
+    },
   });
   const deleteFlow = useAgentDeleteFlow({
     agent: agentQuery.data,

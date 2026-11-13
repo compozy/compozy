@@ -194,6 +194,13 @@ function seedState(
   };
 }
 
+/** The editor as one resumes it: a save or reload it was running settles elsewhere. */
+export function idleAgentSettingsEditor(
+  context: AgentSettingsEditorState
+): AgentSettingsEditorState {
+  return context.phase === "saving" || context.phase === "reloading" ? toReady(context) : context;
+}
+
 /** Whether the draft differs from the definition it was read from. */
 export function isAgentSettingsEditorDirty(context: AgentSettingsEditorState): boolean {
   return isDirty(context);

@@ -39,6 +39,11 @@ export function retainEditorDraft(key: string, draft: unknown): void {
   syncUnloadWarning();
 }
 
+/** Whether `draft` is still held under `key`, unclaimed by an editor. */
+export function isRetainedEditorDraft(key: string, draft: unknown): boolean {
+  return drafts.get(key)?.includes(draft) ?? false;
+}
+
 /** Removes `draft` from `key`'s drafts; another editor's draft of the resource stays. */
 export function takeRetainedEditorDraft(key: string, draft: unknown): void {
   const held = drafts.get(key);

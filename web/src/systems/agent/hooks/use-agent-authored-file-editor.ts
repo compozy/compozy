@@ -5,6 +5,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   createAuthoredFileEditorLogic,
+  idleAuthoredFileEditor,
   isAuthoredFileEditorDirty,
   isAuthoredFileMissing,
   shouldAdoptAuthoredFileSource,
@@ -43,6 +44,7 @@ export type UseAgentAuthoredFileEditorArgs =
 const AUTHORED_FILE_DRAFT_POLICY: RetainedDraftPolicy<AuthoredFileEditorState> = {
   isDirty: isAuthoredFileEditorDirty,
   isBusy: context => context.phase === "saving" || context.phase === "validating",
+  idle: idleAuthoredFileEditor,
 };
 
 const CREATE_BODIES: Record<AuthoredFileKind, string> = {
@@ -74,27 +76,30 @@ export function useAgentAuthoredFileEditor({
       ? { resourceKey, kind: "soul", payload }
       : { resourceKey, kind: "heartbeat", payload };
   const draftKey = retainedDraftKey("authored-file", resourceKey);
-  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653).
-  const create = () =>
-    createAuthoredFileEditorLogic(
-      retainedEditorDraft<AuthoredFileEditorState>(draftKey)
-    ).createStore(input);
+  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653);
+  // only a new editor resumes them, never a store replaced while this one is mounted.
   const { replace, store } = useStoreBinding(
     resourceKey,
-    create,
-    create,
+    () =>
+      createAuthoredFileEditorLogic(
+        retainedEditorDraft<AuthoredFileEditorState>(draftKey)
+      ).createStore(input),
+    () => createAuthoredFileEditorLogic().createStore(input),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAuthoredFileSource(current.store.getSnapshot().context, input)
   );
-  useRetainedEditorDraft(draftKey, store, AUTHORED_FILE_DRAFT_POLICY);
+  const { forget } = useRetainedEditorDraft(draftKey, store, AUTHORED_FILE_DRAFT_POLICY);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const dirty = isAuthoredFileEditorDirty(editor);
   const guard = useUnsavedGuard({
     dirty,
     entityName: fileLabel,
-    onDiscard: () => store.trigger.discarded(),
+    onDiscard: () => {
+      store.trigger.discarded();
+      forget();
+    },
   });
   const editorError = "error" in editor ? editor.error : null;
   const revisions = history && "revisions" in history ? (history.revisions ?? []) : [];

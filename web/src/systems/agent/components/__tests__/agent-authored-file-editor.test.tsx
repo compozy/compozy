@@ -252,7 +252,7 @@ describe("AgentAuthoredFileEditor", () => {
     const user = userEvent.setup();
     const retry = vi.fn();
     const onSave = vi.fn().mockRejectedValue(new AgentDigestConflictError("stale"));
-    render(
+    const editor = () => (
       <AgentAuthoredFileEditor
         resourceKey={resourceKeyA}
         kind="soul"
@@ -266,6 +266,7 @@ describe("AgentAuthoredFileEditor", () => {
         onRetry={retry}
       />
     );
+    const view = render(editor());
 
     await user.type(screen.getByTestId("agent-soul-textarea"), " changed");
     await user.click(screen.getByTestId("agent-soul-save"));
@@ -275,6 +276,12 @@ describe("AgentAuthoredFileEditor", () => {
     expect(screen.getByTestId("agent-soul-reload")).toBeVisible();
     await user.click(screen.getByTestId("agent-soul-reload"));
     expect(retry).toHaveBeenCalledTimes(1);
+    expect((screen.getByTestId("agent-soul-textarea") as HTMLTextAreaElement).value).not.toContain(
+      "changed"
+    );
+    // Reload dropped the edits for good: the next editor of the file keeps no draft of them.
+    view.unmount();
+    render(editor());
     expect((screen.getByTestId("agent-soul-textarea") as HTMLTextAreaElement).value).not.toContain(
       "changed"
     );

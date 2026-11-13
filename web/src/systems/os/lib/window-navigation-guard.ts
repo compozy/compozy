@@ -56,7 +56,11 @@ const SHELL_ROUTE_ID = "/_app";
 /** Whether `route` shows what the window shows, as its app reads its own location. */
 function sameWindowContent(win: OsWindow, route: OsWindowRoute): boolean {
   if (sameOsWindowRoute(win.route, route)) return true;
-  return win.app === "agents" && sameAgentWindowContent(win.route, route);
+  return (
+    win.app === "agents" &&
+    resolveAppDescriptorForPath(route.pathname)?.app.id === "agents" &&
+    sameAgentWindowContent(win.route, route)
+  );
 }
 
 /** The shell's answers to navigation guards, read from the window manager when they ask. */

@@ -49,16 +49,16 @@ export function useEditorDocument<TForm>({
   savedCopy,
 }: UseEditorDocumentArgs<TForm>) {
   const draftKey = retainedDraftKey("document", resourceKey);
-  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653).
-  const create = () =>
-    createEditorDocumentStore(
-      snapshot,
-      retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
-    );
+  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653);
+  // only a new editor resumes them, never a store replaced while this one is mounted.
   const { store } = useStoreBinding(
     resourceKey,
-    create,
-    create,
+    () =>
+      createEditorDocumentStore(
+        snapshot,
+        retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
+      ),
+    () => createEditorDocumentStore(snapshot),
     (current, key) =>
       current.key !== key ||
       shouldAdoptSnapshot(current.store.getSnapshot().context, snapshot, countChanges)
@@ -68,10 +68,12 @@ export function useEditorDocument<TForm>({
       isDirty: (context: EditorDocumentContext<TForm>) =>
         countEditorDocumentChanges(context, countChanges) > 0,
       isBusy: (context: EditorDocumentContext<TForm>) => context.phase === "saving",
+      idle: (context: EditorDocumentContext<TForm>) =>
+        context.phase === "saving" ? { ...context, phase: "idle" as const } : context,
     }),
     [countChanges]
   );
-  useRetainedEditorDraft(draftKey, store, draftPolicy);
+  const { forget } = useRetainedEditorDraft(draftKey, store, draftPolicy);
   const document = useSelector(store, state => state.context);
   const { baseline, form, raw, conflict, phase, problem } = document;
 
@@ -119,7 +121,10 @@ export function useEditorDocument<TForm>({
     setForm: (next: TForm) => store.trigger.formChanged({ form: next }),
     setRaw: (next: string) =>
       store.trigger.rawChanged({ raw: next === compose(form) ? null : next }),
-    discard: () => store.trigger.discarded(),
+    discard: () => {
+      store.trigger.discarded();
+      forget();
+    },
     save,
     chooseTheirs: () => store.trigger.theirsChosen(),
   };

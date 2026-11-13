@@ -2890,8 +2890,9 @@ describe("WindowManagerRuntime guarded close", () => {
   });
 
   // Invariant (#1653): an operator close covering windows whose editors hold unsaved edits asks
-  //   once, before any other guard runs; Keep editing cancels the whole close, Discard drops the
-  //   edits and lets the other guards and the close go on. Windows without edits never ask.
+  //   once, before any other guard runs; Keep editing cancels the whole close, Discard lets the
+  //   other guards and the close go on and drops the edits only once the windows closed. Windows
+  //   without edits never ask.
   describe("with unsaved edits [#1653]", () => {
     function guarded() {
       const { runtime, snapshot } = setup();
@@ -2906,7 +2907,7 @@ describe("WindowManagerRuntime guarded close", () => {
       });
       const unsaved = new UnsavedWindowClose();
       const terminal = vi.fn<WindowCloseGuard>(async () => true);
-      runtime.setCloseGuard(composeCloseGuards(unsaved.guard, terminal));
+      runtime.setCloseGuard(composeCloseGuards(unsaved.guard, terminal), unsaved.settled);
       return { runtime, unsaved, terminal };
     }
 
@@ -2932,6 +2933,23 @@ describe("WindowManagerRuntime guarded close", () => {
       expect(agentsEdits.discard).toHaveBeenCalledTimes(discard ? 1 : 0);
       expect(terminal).toHaveBeenCalledTimes(discard ? 1 : 0);
       expect(executeWindowManagerCommand).toHaveBeenCalledTimes(discard ? 1 : 0);
+      runtime.stop();
+    });
+
+    it("Should keep discarded edits when a later guard refuses the close", async () => {
+      const { runtime, unsaved, terminal } = guarded();
+      terminal.mockResolvedValueOnce(false);
+      const edits = { entityName: "Memory", discard: vi.fn() };
+      unsaved.hold("app:tasks", edits);
+
+      const pending = runtime.closeWindowScoped("app:tasks", "tab");
+      await vi.waitFor(() => expect(unsaved.question.get()).not.toBeNull());
+      unsaved.question.get()!.answer(true);
+
+      await expect(pending).resolves.toBe(false);
+      expect(terminal).toHaveBeenCalledTimes(1);
+      expect(edits.discard).not.toHaveBeenCalled();
+      expect(executeWindowManagerCommand).not.toHaveBeenCalled();
       runtime.stop();
     });
 

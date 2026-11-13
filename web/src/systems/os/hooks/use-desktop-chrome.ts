@@ -99,7 +99,8 @@ export function useDesktopChrome(
   useEffect(() => {
     // Unsaved edits ask first: keeping them must not leave a terminal already terminated.
     manager.setCloseGuard(
-      composeCloseGuards(unsavedClose.guard, terminalClose.guard(terminalWorkspaceId, queryClient))
+      composeCloseGuards(unsavedClose.guard, terminalClose.guard(terminalWorkspaceId, queryClient)),
+      unsavedClose.settled
     );
     return () => {
       unsavedClose.cancel();
