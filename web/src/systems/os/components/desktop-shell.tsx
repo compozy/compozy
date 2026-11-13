@@ -42,6 +42,7 @@ import {
   WorkspaceProfilesHint,
 } from "@/systems/profiles";
 import {
+  ProjectMenuHostProvider,
   SessionCreateDialogHost,
   SessionCreateProvider,
   useSessionCreateActions,
@@ -163,7 +164,10 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
 
   return (
     <WindowScopeContext value={worktreeScope.worktreeScopeId}>
-      <DesktopShellScopedBody {...props} {...worktreeScope} />
+      {/* Below the scope, so New session from any project menu takes the focused window's worktree. */}
+      <ProjectMenuHostProvider>
+        <DesktopShellScopedBody {...props} {...worktreeScope} />
+      </ProjectMenuHostProvider>
     </WindowScopeContext>
   );
 }

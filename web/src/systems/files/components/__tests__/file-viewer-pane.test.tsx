@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -229,7 +230,9 @@ describe("FileViewerPane", () => {
     );
     await screen.findByRole("button", { name: "Choose application" });
     fireEvent.click(screen.getByRole("button", { name: "Choose application" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Cursor" }));
+    // The configured editor leads the menu; the other detected editors sit behind Open in.
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Open in" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Cursor" }));
     await waitFor(() =>
       expect(openWith).toHaveBeenCalledWith({
         target: "cursor",

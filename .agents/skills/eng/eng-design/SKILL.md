@@ -26,6 +26,9 @@ Use the applicable canonical visual authorities for the design decision. The inv
   neutral at rest.
 - Flat depth model; use `--shadow-overlay` for overlays and `--shadow-highlight` for active rims.
 - Pull values from `--color-*`, `--text-*`, `--radius-*`, `--duration-*`, and `--shadow-*` tokens; do not hardcode production hex or one-off sizes.
+- Menu icons (context menu, dropdown, menubar items and submenu triggers) render in
+  `subtle` ink, about 40% dimmer than the `fg` label; the menu primitives own it, so
+  never recolor a menu glyph to `fg` at the call site (`DESIGN.md` section 8).
 - `<Eyebrow>` is the only structural label contract — sentence case by default, uppercase only via `variant="caps"`; do not inline typography tuples for labels.
 - See `DESIGN.md` section 10 for the anti-pattern list and lint/test guardrails.
 

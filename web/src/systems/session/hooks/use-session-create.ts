@@ -45,14 +45,21 @@ export function useSessionCreateActions() {
     }
     if (isSessionCreateSubmitting(store)) return;
     clearPendingTerminalQuote();
+    // A named project other than the acting one starts from its own draft and default agent:
+    // the acting scope's worktree belongs to a different repository.
+    const otherProject =
+      options.workspaceId && options.workspaceId !== runtimeWorkspaceId
+        ? registeredWorkspaces.find(workspace => workspace.id === options.workspaceId)
+        : undefined;
+    const defaultAgent = (otherProject ?? runtimeWorkspace)?.default_agent?.trim() || "";
     store.trigger.dialogOpened({
-      agentName: agentName.trim() || runtimeWorkspace?.default_agent?.trim() || "",
-      workspaceId: runtimeWorkspaceId ?? "",
+      agentName: agentName.trim() || defaultAgent,
+      workspaceId: otherProject?.id ?? runtimeWorkspaceId ?? "",
       ...(options.folderId ? { folderId: options.folderId } : {}),
       ...(options.workspaceId || options.profile
         ? { target: { project: options.workspaceId, profile: options.profile } }
         : {}),
-      ...(scopedWorktree.worktreeId
+      ...(scopedWorktree.worktreeId && !otherProject
         ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
         : {}),
     });

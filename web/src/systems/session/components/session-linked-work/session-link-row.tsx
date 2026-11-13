@@ -2,20 +2,12 @@
  * One linked item in two lines: what it is, then how it's doing. Everything else waits on hover:
  * the tooltip carries the chip's detail, and the number gives way to the row's menu.
  */
-import {
-  FolderGit2,
-  FolderX,
-  GitBranch,
-  MoreHorizontal,
-  Unlink,
-  type LucideIcon,
-} from "@compozy/ui/icons";
+import { FolderGit2, FolderX, GitBranch, MoreHorizontal, type LucideIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
   Button,
   DropdownMenu,
-  DropdownMenuItem,
   DropdownMenuTrigger,
   Icon,
   Item,
@@ -60,6 +52,10 @@ export interface SessionLinkActions {
   onOpenSession: (sessionId: string) => void;
   onRefresh: (item: SessionLinkedWorkItem) => void;
   onPrompt?: (text: string) => void;
+  /** Opens the session's Review panel on Changes; offered on its own branch's item only. */
+  onReviewChanges?: () => void;
+  /** Opens the worktree a linked item lives in, when this client can show it. */
+  worktreeAction?: (item: SessionLinkedWorkItem) => (() => void) | undefined;
 }
 
 function Fact({ children, truncate = false }: { children: ReactNode; truncate?: boolean }) {
@@ -131,8 +127,10 @@ function SessionLinkRowMenu({
   defaultOpen: boolean;
   actions: SessionLinkActions;
 }) {
-  const rolledUp = isRolledUp(item);
+  const own = actions.isOwn(item);
   const { onPrompt } = actions;
+  const openWorktree = actions.worktreeAction?.(item);
+  const child = item.source_session_id;
   return (
     <DropdownMenu defaultOpen={defaultOpen}>
       <DropdownMenuTrigger
@@ -149,21 +147,26 @@ function SessionLinkRowMenu({
         <Icon as={MoreHorizontal} size="sm" />
       </DropdownMenuTrigger>
       <SessionPullRequestMenu
-        controllable={actions.controllable && actions.isOwn(item)}
-        exitRunning={false}
-        footer={
-          rolledUp ? null : (
-            <DropdownMenuItem onClick={() => actions.onUnlink(item)}>
-              <Unlink aria-hidden="true" />
-              Unlink from this session
-            </DropdownMenuItem>
-          )
-        }
+        branch={item.branch}
+        controllable={actions.controllable && own}
         observedAt={item.pull_request_lookup?.observed_at}
+        onLink={actions.onLink}
         onPrompt={onPrompt ? (_kind, text) => onPrompt(text) : undefined}
         onRefresh={() => actions.onRefresh(item)}
         pullRequest={item.pull_request}
         refreshing={actions.refreshing}
+        {...(own && actions.onReviewChanges ? { onReviewChanges: actions.onReviewChanges } : {})}
+        {...(item.worktree_name && openWorktree
+          ? {
+              worktree: {
+                name: item.worktree_name,
+                runsHere: item.runs_here,
+                onOpen: openWorktree,
+              },
+            }
+          : {})}
+        {...(child ? { onOpenSession: () => actions.onOpenSession(child) } : {})}
+        {...(isRolledUp(item) ? {} : { onUnlink: () => actions.onUnlink(item) })}
       />
     </DropdownMenu>
   );

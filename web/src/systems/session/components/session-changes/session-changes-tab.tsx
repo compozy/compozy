@@ -48,6 +48,7 @@ export function SessionChangesTab({ workspaceId, sessionId, review }: SessionCha
   const view = useSessionChangesView({ workspaceId, sessionId, review, rootRef, diffRef });
   const { changes } = view;
   const { summary } = changes;
+  const filesRoot = { kind: "session", workspaceId, sessionId } as const;
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(event.target) || event.metaKey || event.ctrlKey) return;
@@ -97,6 +98,8 @@ export function SessionChangesTab({ workspaceId, sessionId, review }: SessionCha
             return (
               <SessionChangeFileHeader
                 item={change}
+                filesRoot={filesRoot}
+                firstLine={changes.firstLineOf(change.id)}
                 state={state}
                 note={changes.noteOf(change.id)}
                 revealed={view.revealed.has(change.path)}

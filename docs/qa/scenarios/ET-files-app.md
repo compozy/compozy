@@ -4,8 +4,8 @@ area: ET
 title: Browse a project in the Files app with project and root pickers
 persona: Dora
 journey: J-operate-desktop-shell
-expected: The dock shows Files right after Agents; the dock, the palette's "Open project files", the project context menu's "Open files" a transcript path and Changes' "Open in Files" all open or focus one Files window per project (from a session, as a tab of its frame, at the file and line); the head reads Files then the pickers, and the tab names the open file; the root picker switches between the project root and ready worktrees; the project switcher lists live projects; a removed worktree root shows the unavailable state with "Switch to project root".
-entry_points: OS dock Files; command palette Open project files; sessions rail project group header context menu Open files; transcript file path plain click; Review panel Changes Open in Files; /files/<workspace_id>
+expected: The dock shows Files right after Agents; the dock, the palette's "Open project files", every project menu's "Open files" (session list group header, Kanban swimlane, overview tile, Settings project row, menubar project row), a transcript path and Changes' "Open in Files" all open or focus one Files window per project (from a session, as a tab of its frame, at the file and line); the head reads Files then the pickers, and the tab names the open file; the root picker switches between the project root and ready worktrees; the project switcher lists live projects; a removed worktree root shows the unavailable state with "Switch to project root".
+entry_points: OS dock Files; command palette Open project files; project menu Open files (sessions rail group header, Kanban swimlane header, overview tile, Settings project row, menubar project row); transcript file path plain click; Review panel Changes Open in Files; /files/<workspace_id>
 qa_status: pass
 bug_ids: BUG-20261107-files-root-internal-workspace-id
 fix_status: fixed

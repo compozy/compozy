@@ -5,14 +5,18 @@ import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { isEditableTarget } from "../lib/editable-target";
 import { sessionListShortcut, type SessionListShortcut } from "../lib/session-list-threads";
 import type { SessionListShelf } from "../lib/session-list-shelf";
+import type {
+  SessionSelectionMoveUnder,
+  SessionSelectionVerbs,
+} from "../lib/session-selection-verbs";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import {
   useSessionListBulkFolders,
-  type SessionBulkFolderMenu,
   type SessionBulkFolderSource,
 } from "./use-session-list-bulk-folders";
 import { copySessionText } from "../lib/session-copy";
+import { sessionAdoptRefusal } from "../lib/session-reparent";
 import { sessionSelectionCounts, useSessionSelection } from "./use-session-selection";
 
 interface SessionListBulkSelectionInput {
@@ -33,36 +37,27 @@ interface SessionListBulkSelectionInput {
   holdMissing?: (missingIds: readonly string[]) => boolean;
 }
 
-/** What the selection can do, shared by the selection bar's menu and a selected row's context menu. */
-export interface SessionSelectionVerbs {
-  count: number;
-  markSeenable: number;
-  topLevelable: number;
-  stoppable: number;
-  archivable: number;
-  /** Archivable sessions that archiving stops first. */
-  archivableLive: number;
-  unarchivable: number;
-  /** Top-level sessions not yet in Later. */
-  laterable: number;
-  /** Top-level sessions in Later. */
-  backFromLaterable: number;
-  disabled: boolean;
-  onDelete?: () => void;
-  onStop?: () => void;
-  onArchive?: () => void;
-  onUnarchive?: () => void;
-  onMoveToLater?: () => void;
-  onBackFromLater?: () => void;
-  onCopyIds: () => void;
-  onCopyTitles: () => void;
-  onMarkSeen?: () => void;
-  onMakeTopLevel?: () => void;
-  /** Move to folder; absent while the list has no folders to move into. */
-  folders?: SessionBulkFolderMenu;
-}
-
 type ManyHandler = ((sessions: readonly SessionPayload[]) => void) | undefined;
+
+/** Unselected listed sessions a selected one can move under; none outside a selection. */
+function selectionMoveUnder(
+  handler: SessionLifecycleActionHandlers["onMoveUnderMany"],
+  sessions: readonly SessionPayload[],
+  selected: readonly SessionPayload[],
+  selectedIds: ReadonlySet<string>
+): SessionSelectionMoveUnder | undefined {
+  if (!handler || selected.length === 0) return undefined;
+  const parents = sessions.filter(
+    parent =>
+      !selectedIds.has(parent.id) &&
+      selected.some(session => sessionAdoptRefusal(session, parent) === null)
+  );
+  if (parents.length === 0) return undefined;
+  const movable = selected.filter(session =>
+    parents.some(parent => sessionAdoptRefusal(session, parent) === null)
+  ).length;
+  return { parents, movable, onMoveUnder: parent => handler(selected, parent) };
+}
 
 /** Binds an optional bulk verb to the current selection; absent verbs stay absent. */
 function bindToSelection(handler: ManyHandler, selected: readonly SessionPayload[]) {
@@ -158,6 +153,18 @@ export function useSessionListBulkSelection({
       void copySessionText(selectedSessions.map(getSessionDisplayTitle).join("\n"), "Titles"),
     onCopyIds: () =>
       void copySessionText(selectedSessions.map(session => session.id).join("\n"), "Session IDs"),
+    branches: selectedSessions.filter(session => session.branch).length,
+    onCopyBranches: () =>
+      void copySessionText(
+        selectedSessions.flatMap(session => (session.branch ? [session.branch] : [])).join("\n"),
+        "Branch names"
+      ),
+    moveUnder: selectionMoveUnder(
+      sessionActions.onMoveUnderMany,
+      sessions,
+      selectedSessions,
+      selectedIdSet
+    ),
     folders: folderMove?.menu,
   };
 

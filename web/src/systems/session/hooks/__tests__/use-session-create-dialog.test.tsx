@@ -482,6 +482,62 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
+  // Invariant: a project's own menu names that project; outside All projects it is the target,
+  // not the menubar destination, and the created session activates it.
+  it("Should create in the project the opener named outside All projects", async () => {
+    const betaWorkspace: WorkspacePayload = {
+      ...activeWorkspace,
+      id: "ws_beta",
+      name: "beta",
+      root_dir: "/workspace/beta",
+    };
+    mockActive.current = {
+      ...mockActive.current,
+      projectWorkspaces: [activeWorkspace, betaWorkspace],
+    };
+    mockWorkspaceListRef.current = [activeWorkspace, betaWorkspace];
+    mockMutateAsync.mockResolvedValue({ ...createdSession, workspace_id: "ws_beta" });
+    // The named project's own agent list, read for ws_beta.
+    mockUseAgents.mockImplementation((workspaceId: string) => ({
+      data: workspaceId === "ws_beta" ? agents : undefined,
+    }));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent", { project: "ws_beta" }));
+    expect(result.current.destinationAxes.project).toBeUndefined();
+    expect(result.current.destinationLabel).toContain("beta");
+    await act(async () => result.current.submit());
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_name: "codex-agent", workspace: "ws_beta" })
+    );
+    await waitFor(() => expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith("ws_beta"));
+  });
+
+  it("Should block creation while the named project is missing from the catalog", async () => {
+    // The catalog is still loading (or the project was removed): never the menubar project.
+    mockActive.current = { ...mockActive.current, projectWorkspaces: [activeWorkspace] };
+    mockUseAgents.mockReturnValue({ data: undefined });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent", { project: "ws_beta" }));
+    expect(result.current.destinationReady).toBe(false);
+    // The shell's agents belong to the active project and never stand in for the named one.
+    expect(result.current.agents).toEqual([]);
+    await act(async () => result.current.submit());
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toBe("Choose a destination before starting the session.");
+  });
+
   it("W-07 Should start a User session in User without a project picker, worktree or activation", async () => {
     mockUserHomeDir.current = "/Users/operator";
     mockWorktreeListingRef.current = emptyWorktreeListingFixture;

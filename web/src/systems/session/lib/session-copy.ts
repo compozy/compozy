@@ -1,15 +1,27 @@
 import { toast } from "@compozy/ui";
 
-type SessionCopyKind = "Session ID" | "Session IDs" | "Title" | "Titles";
+export type SessionCopyKind =
+  | "Session ID"
+  | "Session IDs"
+  | "Title"
+  | "Titles"
+  | "Branch name"
+  | "Branch names"
+  | "Pull request link"
+  | "Pull request links";
 
 const COPY_NOUN: Record<SessionCopyKind, string> = {
   "Session ID": "session ID",
   "Session IDs": "session IDs",
   Title: "title",
   Titles: "titles",
+  "Branch name": "branch name",
+  "Branch names": "branch names",
+  "Pull request link": "pull request link",
+  "Pull request links": "pull request links",
 };
 
-/** Copies session identifiers or a title with the row menus' clipboard and toast policy. */
+/** Copies what a session menu hands out with the menus' clipboard and toast policy. */
 export async function copySessionText(value: string, kind: SessionCopyKind): Promise<void> {
   const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
   const failure = `Couldn't copy the ${COPY_NOUN[kind]}`;

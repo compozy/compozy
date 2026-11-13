@@ -1,8 +1,6 @@
 import {
   ArrowDownAZ,
   CalendarPlus,
-  ChevronsDownUp,
-  ChevronsUpDown,
   CircleAlert,
   Clock,
   FolderGit2,
@@ -23,7 +21,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -120,16 +117,14 @@ export interface SessionViewOptionsMenuProps {
   /** "Show automation runs" (#1355); absent where a surface has no such filter. */
   showAutomation?: boolean;
   onShowAutomationChange?: (show: boolean) => void;
-  allCollapsed: boolean;
-  /** Absent where nothing folds: the action is left out. */
-  onAllCollapsedChange?: (collapsed: boolean) => void;
   /** Prefix of every item's test id. */
   testId: string;
   className?: string;
 }
 
 /**
- * How a window shows its sessions, in one menu: order, grouping and the folds. The List and the
+ * How a window shows its sessions, in one menu: order, grouping and filters (the folds have
+ * their own toolbar button, `SessionFoldAllButton`). The List and the
  * Kanban render the same menu over the same window state.
  */
 export function SessionViewOptionsMenu({
@@ -145,8 +140,6 @@ export function SessionViewOptionsMenu({
   onHideChildrenChange,
   showAutomation = false,
   onShowAutomationChange,
-  allCollapsed,
-  onAllCollapsedChange,
   testId,
   className,
 }: SessionViewOptionsMenuProps) {
@@ -158,7 +151,7 @@ export function SessionViewOptionsMenu({
   const defaultGroupBy = groupByOptions.includes(DEFAULT_SESSION_LIST_PREFERENCES.groupBy)
     ? DEFAULT_SESSION_LIST_PREFERENCES.groupBy
     : "none";
-  const marked = groupBy !== defaultGroupBy || allCollapsed || showsChildren || showsAutomation;
+  const marked = groupBy !== defaultGroupBy || showsChildren || showsAutomation;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
@@ -168,7 +161,12 @@ export function SessionViewOptionsMenu({
         data-testid={`${testId}-view-options-trigger`}
         render={
           <Button
-            className={cn("shrink-0", marked && "bg-surface-2 text-fg", className)}
+            className={cn(
+              "shrink-0",
+              // A non-default view reads as an active toggle: brand ink, no plate (DESIGN.md §9).
+              marked && "text-brand-strong hover:text-brand-strong",
+              className
+            )}
             size="icon-sm"
             type="button"
             variant="quiet"
@@ -218,24 +216,6 @@ export function SessionViewOptionsMenu({
           showAutomation={showAutomation}
           testId={testId}
         />
-        {onAllCollapsedChange ? (
-          <>
-            <DropdownMenuSeparator className={SECTION_DIVIDER} />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                data-testid={`${testId}-collapse-all`}
-                onClick={() => onAllCollapsedChange(!allCollapsed)}
-              >
-                <Icon
-                  as={allCollapsed ? ChevronsUpDown : ChevronsDownUp}
-                  className="text-subtle"
-                  size="sm"
-                />
-                {allCollapsed ? "Expand all" : "Collapse all"}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </>
-        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

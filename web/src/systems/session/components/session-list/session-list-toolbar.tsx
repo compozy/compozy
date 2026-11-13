@@ -5,7 +5,11 @@ import type { SessionListGroupBy, SessionListSort } from "../../lib/session-list
 import { SessionViewOptionsMenu } from "../session-view-options-menu";
 import { SessionListCreateMenu } from "./session-list-create-menu";
 import type { SessionListShelf } from "../../lib/session-list-shelf";
-import { SessionArchivedToggle, SessionLaterToggle } from "./session-toolbar-toggles";
+import {
+  SessionArchivedToggle,
+  SessionFoldAllButton,
+  SessionLaterToggle,
+} from "./session-toolbar-toggles";
 
 export interface SessionListToolbarProps {
   /** Active, the archive, or Later: the two toggles switch between them. */
@@ -43,7 +47,7 @@ export interface SessionListToolbarProps {
  * Contents, order, grouping, and the create action for a session list. Breadth
  * is the topbar globe's (ADR-004); this toolbar has no breadth control.
  *
- * Order, grouping and the folds live in one View options menu. They persist per window and are
+ * Order, grouping and filters live in one View options menu; Collapse all sits beside it. They persist per window and are
  * shared with that window's Kanban; the archive and Later are ways of looking
  * right now, so they reset when the list is reopened. Turning one on turns the
  * other off; turning it off returns to the active list.
@@ -85,12 +89,15 @@ export function SessionListToolbar({
         onLaterChange={on => onShelfChange(on ? "later" : "active")}
         testId={`${testIdPrefix}-later`}
       />
-      <SessionViewOptionsMenu
+      <SessionFoldAllButton
         allCollapsed={allCollapsed}
         className="ml-auto"
+        onAllCollapsedChange={onAllCollapsedChange}
+        testId={testIdPrefix}
+      />
+      <SessionViewOptionsMenu
         groupBy={groupBy}
         groupByOptions={groupByOptions}
-        onAllCollapsedChange={onAllCollapsedChange}
         onGroupByChange={onGroupByChange}
         onShowAutomationChange={onShowAutomationChange}
         onShowEmptyProjectsChange={onShowEmptyProjectsChange}
@@ -106,6 +113,7 @@ export function SessionListToolbar({
           onNewFolder={onNewFolder}
           newFolderUnavailable={newFolderUnavailable}
           testId={testIdPrefix}
+          variant="quiet"
         />
       )}
     </div>

@@ -2,31 +2,22 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   Spinner,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
-import type { SessionPayload } from "../types";
-import { useSessionRowMenuItems } from "../hooks/use-session-row-menu-items";
+import { SessionRowMenuItems, type SessionRowMenuProps } from "./session-row-menu-items";
 
-export interface SessionRowActionsProps {
-  session: SessionPayload;
-  actions: SessionLifecycleActionHandlers;
-}
+export type SessionRowActionsProps = SessionRowMenuProps;
 
-/** State-gated lifecycle menu shared by every session list row. */
-export function SessionRowActions({ session, actions }: SessionRowActionsProps) {
+/** The `…` menu of a session row or card: the same tree as its right-click menu. */
+export function SessionRowActions(props: SessionRowActionsProps) {
+  const { session, actions } = props;
   const pending = actions.pendingSessionIds.includes(session.id) ? actions.pendingAction : null;
   const disabled = actions.pendingAction !== null;
   const title = getSessionDisplayTitle(session);
-  const items = useSessionRowMenuItems(session, actions);
 
   return (
     <DropdownMenu>
@@ -37,35 +28,8 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
       >
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
-        {items.map(item =>
-          item.choices ? (
-            <DropdownMenuSub key={item.id}>
-              <DropdownMenuSubTrigger disabled={disabled}>
-                <item.icon aria-hidden="true" className="size-3" />
-                {item.label}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {item.choices.map(choice => (
-                  <DropdownMenuItem key={choice.id} onClick={choice.onSelect} disabled={disabled}>
-                    {choice.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : (
-            <DropdownMenuItem
-              key={item.id}
-              data-testid={`session-row-${item.id}-${session.id}`}
-              disabled={disabled || item.disabled}
-              onClick={item.onSelect}
-              variant={item.destructive ? "destructive" : undefined}
-            >
-              <item.icon aria-hidden="true" className="size-3" />
-              {item.label}
-            </DropdownMenuItem>
-          )
-        )}
+      <DropdownMenuContent align="end" className="w-auto min-w-56">
+        <SessionRowMenuItems {...props} host="dropdown" />
       </DropdownMenuContent>
     </DropdownMenu>
   );

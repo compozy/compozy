@@ -136,9 +136,9 @@ export function AutomationRow({ view, controls }: AutomationRowProps) {
           size="sm"
         />
         <AutomationOverflowMenu
-          onCopyLink={controls.onCopyLink}
           onDelete={controls.onDelete}
           onEdit={controls.onEdit}
+          onInspect={controls.onInspect}
           onRunNow={controls.onRunNow}
           runDisabled={controls.unavailable}
           runPending={controls.isRunPending(view)}

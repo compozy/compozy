@@ -7,13 +7,8 @@ import {
   resumeSessionFromLater,
   type MoveSessionToLaterRequest,
 } from "../adapters/session-later-api";
-import {
-  batchSkipNote,
-  batchSkipReason,
-  batchVerbPast,
-  reportBatch,
-  type BatchVerb,
-} from "../lib/session-batch-feedback";
+import { batchSkipNote, batchVerbPast, reportBatch } from "../lib/session-batch-feedback";
+import { batchSkipReason, type BatchVerb } from "../lib/session-batch-eligibility";
 import {
   runningSessionIds,
   runSessionBatch,

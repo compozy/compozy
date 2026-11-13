@@ -31,7 +31,8 @@ export { useFileTreeBridge, type FileTreeBridge } from "./hooks/use-file-tree-br
 export { FilesExplorer, type FilesExplorerProps } from "./components/files-explorer";
 export { FileViewerPane, type FileViewerPaneProps } from "./components/file-viewer-pane";
 export { OpenInButton } from "./components/open-in-button";
-export { canListOpenTargets } from "./lib/open-in-targets";
+export { FileMenuItems } from "./components/open-in-menu-items";
+export { canListOpenTargets, canOpenInTargets } from "./lib/open-in-targets";
 export { copyFilePath } from "./lib/copy-file-path";
 export {
   FilesAppNoProjects,

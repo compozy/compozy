@@ -326,11 +326,16 @@ function OsWorkspacesStage({
               activeWorkspaceId={activeWorkspaceId}
               readySelectedWorktreeKey={readySelectedWorktreeKey}
               workingSessionsByWorkspace={workingSessionsByWorkspace}
+              onLeave={() => onOpenChange(false)}
             />
           </OsWorkspacesStrip>
         )}
         {focusedEntry?.kind === "workspace" ? (
-          <WorkspaceProjectActions key={focusedEntry.key} workspace={focusedEntry.node.workspace} />
+          <WorkspaceProjectActions
+            key={focusedEntry.key}
+            workspace={focusedEntry.node.workspace}
+            onLeave={() => onOpenChange(false)}
+          />
         ) : null}
         <OsWorkspacesCaption
           model={empty ? USER_CAPTION : captionFor(focusedEntry, userHomeDir)}
@@ -388,12 +393,14 @@ function WorkspaceTiles({
   activeWorkspaceId,
   readySelectedWorktreeKey,
   workingSessionsByWorkspace,
+  onLeave: leave,
 }: {
   entries: WorkspacesSwitcherEntry[];
   switcher: ReturnType<typeof useWorkspacesSwitcher>;
   activeWorkspaceId: string | null;
   readySelectedWorktreeKey: string | null;
   workingSessionsByWorkspace: OsWorkspacesOverviewProps["workingSessionsByWorkspace"];
+  onLeave: () => void;
 }) {
   return (
     <>
@@ -414,7 +421,7 @@ function WorkspaceTiles({
         }
         const name = entry.node.workspace.name;
         return (
-          <WorkspaceProjectActions key={entry.key} workspace={entry.node.workspace}>
+          <WorkspaceProjectActions key={entry.key} workspace={entry.node.workspace} onLeave={leave}>
             <OsWorkspaceTile
               data-testid={`os-workspace-tile-${entry.key}`}
               name={name}

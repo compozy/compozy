@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { Copy, FolderInput, Hash, Pencil, Trash2 } from "../../icons";
 import { Button } from "../button";
 import {
   DropdownMenu,
@@ -18,6 +19,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../dropdown-menu";
+import type { MenuTreeNode } from "../../lib/menu-tree";
+import { MenuTreeItems } from "../menu-tree";
 
 const meta: Meta<typeof DropdownMenu> = {
   title: "components/ui/DropdownMenu",
@@ -116,6 +119,58 @@ export const WithSubmenu: Story = {
         </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive">Cancel run</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ),
+};
+
+const sessionTree: MenuTreeNode[] = [
+  { kind: "item", id: "rename", label: "Rename session", icon: Pencil },
+  {
+    kind: "sub",
+    id: "copy",
+    label: "Copy",
+    icon: Copy,
+    children: [
+      { kind: "item", id: "copy-id", label: "Copy session ID", icon: Hash },
+      { kind: "item", id: "copy-title", label: "Copy title", icon: Copy },
+    ],
+  },
+  {
+    kind: "sub",
+    id: "move",
+    label: "Move",
+    icon: FolderInput,
+    children: [
+      {
+        kind: "group",
+        id: "folders",
+        label: "Folder",
+        children: [
+          { kind: "item", id: "specs", label: "specs", checked: true },
+          { kind: "item", id: "fixes", label: "fix-patches" },
+        ],
+      },
+    ],
+  },
+  { kind: "separator", id: "end" },
+  { kind: "item", id: "delete", label: "Delete session", icon: Trash2, destructive: true },
+];
+
+export const MenuTree: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "One `MenuTreeNode` tree renders the same rows in a dropdown or a context menu: frequent verbs at the top, related verbs behind a submenu, a group label inside a submenu, destructive last.",
+      },
+    },
+  },
+  render: () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="outline">Session</Button>} />
+      <DropdownMenuContent className="w-auto min-w-56">
+        <MenuTreeItems host="dropdown" nodes={sessionTree} />
       </DropdownMenuContent>
     </DropdownMenu>
   ),

@@ -1,14 +1,6 @@
-import { ArrowDown, ArrowUp, Folder, FolderOutput } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
-import {
-  ContextMenuItem,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  TreeBranchNode,
-  cn,
-} from "@compozy/ui";
+import { TreeBranchNode, cn } from "@compozy/ui";
 
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import {
@@ -82,16 +74,13 @@ export function SessionListProjectFolders({
       drag: dnd.projectHeader(workspaceId, folderId),
       dropEdge: projectDropEdge(dnd.indicator, workspaceId),
       dragging: dnd.dragging?.kind === "project" && dnd.dragging.workspaceId === workspaceId,
-      menuItems: (
-        <ProjectFolderMenuItems
-          folders={moveTargets}
-          folderId={folderId}
-          onMove={target => layout.moveWorkspace(workspaceId, target)}
-          onMoveUp={shift(-1)}
-          onMoveDown={shift(1)}
-          testId={`${testIdPrefix}-group-${group.key}-arrange`}
-        />
-      ),
+      move: {
+        folders: moveTargets,
+        folderId,
+        onMove: target => layout.moveWorkspace(workspaceId, target),
+        order: { up: shift(-1), down: shift(1) },
+        testId: `${testIdPrefix}-group-${group.key}-arrange`,
+      },
     };
   };
   const render = (group: SessionListGroupSpec, folderId: string | null) =>
@@ -153,69 +142,5 @@ export function SessionListProjectFolders({
         ) : null}
       </div>
     </div>
-  );
-}
-
-/** A project header's folder verbs: move into another folder, out of its own, or within it. */
-function ProjectFolderMenuItems({
-  folders,
-  folderId,
-  onMove,
-  onMoveUp,
-  onMoveDown,
-  testId,
-}: {
-  folders: readonly WorkspaceFolderPayload[];
-  folderId: string | null;
-  onMove: (folderId: string | null) => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  testId: string;
-}) {
-  const targets = folders.filter(folder => folder.id !== folderId);
-  return (
-    <>
-      {targets.length > 0 ? (
-        <ContextMenuSub>
-          <ContextMenuSubTrigger data-testid={`${testId}-move-to`}>
-            <Folder aria-hidden="true" className="size-3" />
-            Move to folder
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="min-w-44">
-            {targets.map(folder => (
-              <ContextMenuItem
-                key={folder.id}
-                data-testid={`${testId}-move-to-${folder.id}`}
-                onClick={() => onMove(folder.id)}
-              >
-                {folder.name}
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-      ) : null}
-      {folderId !== null ? (
-        <ContextMenuItem data-testid={`${testId}-move-out`} onClick={() => onMove(null)}>
-          <FolderOutput aria-hidden="true" className="size-3" />
-          Move out of folder
-        </ContextMenuItem>
-      ) : null}
-      <ContextMenuItem
-        data-testid={`${testId}-up`}
-        disabled={onMoveUp === undefined}
-        onClick={onMoveUp}
-      >
-        <ArrowUp aria-hidden="true" className="size-3" />
-        Move project up
-      </ContextMenuItem>
-      <ContextMenuItem
-        data-testid={`${testId}-down`}
-        disabled={onMoveDown === undefined}
-        onClick={onMoveDown}
-      >
-        <ArrowDown aria-hidden="true" className="size-3" />
-        Move project down
-      </ContextMenuItem>
-    </>
   );
 }

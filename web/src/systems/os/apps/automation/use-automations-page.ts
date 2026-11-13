@@ -1,5 +1,3 @@
-import { toast } from "@compozy/ui";
-
 import {
   automationSuggestionsSource,
   compareAutomationViews,
@@ -57,16 +55,6 @@ export function summarizeLoadedAutomations(
     loadedCount: loaded.length,
     nextRunAt: soonestNextRun(loaded),
   };
-}
-
-/** Copies a webhook automation's public link. */
-function copyAutomationLink(view: AutomationView): void {
-  if (!view.webhookPath) return;
-  const url = `${window.location.origin}${view.webhookPath}`;
-  void navigator.clipboard
-    .writeText(url)
-    .then(() => toast.success("Copied link."))
-    .catch(() => toast.error("Couldn't copy the link."));
 }
 
 /** `/automations` view-model: two list queries (minus `start`), merged, sorted and counted. */
@@ -165,7 +153,6 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     ...actions,
     ...summary,
     canLoadMore: lists.canLoadMore,
-    copyLink: copyAutomationLink,
     counts,
     create: editor.create,
     editorDialogProps: editor.editorDialogProps,

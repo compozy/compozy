@@ -14,26 +14,9 @@ import { sessionDetailOptions } from "@/systems/session";
 import { workspaceDetailOptions, worktreesListOptions } from "@/systems/workspace";
 
 import type { FilesRootRef } from "../adapters/files-api";
+import type { OpenIn, OpenInRequest } from "../lib/open-in-targets";
 import { filesKeys } from "../lib/query-keys";
 import { openTargetsOptions, primaryOpenTarget } from "../lib/query-options";
-
-export interface OpenInRequest {
-  /** Root-relative (or absolute, for an outside link) path; empty for the root itself. */
-  path: string;
-  line?: number;
-  directory?: boolean;
-}
-
-export interface OpenIn {
-  targets: OpenTarget[];
-  /** The split button's primary: the last-used target, else the first editor, else reveal. */
-  primary: OpenTarget | undefined;
-  busy: boolean;
-  open(target: OpenTarget, request: OpenInRequest): Promise<void>;
-  /** Re-detects the targets ("Refresh list"). */
-  refresh(): void;
-  openSettings(): void;
-}
 
 async function rootPaths(queryClient: ReturnType<typeof useQueryClient>, root: FilesRootRef) {
   const workspace = await queryClient.ensureQueryData(workspaceDetailOptions(root.workspaceId));
@@ -69,7 +52,7 @@ export function useOpenIn(root: FilesRootRef): OpenIn {
   const navigate = useNavigate();
   const [selected, setSelected] = useState(lastOpenTarget);
   const [busy, setBusy] = useState(false);
-  const { data: targets = [] } = useQuery(openTargetsOptions());
+  const { data: targets = [], isPending } = useQuery(openTargetsOptions());
   const refresh = () => void queryClient.invalidateQueries({ queryKey: filesKeys.openTargets() });
   const openSettings = () => void navigate({ to: EDITOR_SETTINGS_PATH });
 
@@ -109,6 +92,7 @@ export function useOpenIn(root: FilesRootRef): OpenIn {
 
   return {
     targets,
+    loading: isPending,
     primary: primaryOpenTarget(targets, selected),
     busy,
     open,
