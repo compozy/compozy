@@ -54,7 +54,7 @@ export class UnsavedWindowClose implements UnsavedWindowEditsPort {
       });
     });
     if (!discard || !isCurrent()) return false;
-    for (const id of windowIds) for (const edits of [...(this.held.get(id) ?? [])]) edits.discard();
+    for (const id of windowIds) for (const edits of this.held.get(id) ?? []) edits.discard();
     return true;
   };
 }
