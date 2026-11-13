@@ -147,8 +147,54 @@ function projectCollapsed(
   }
 }
 
+/**
+ * Whether the split still lays out side by side once `shift` pixels move across one boundary,
+ * weighted and allocated exactly as a seam preview or `layout.resize` of that shift would be:
+ * the same weight arithmetic as `applySeamPreviewToTab`, the same largest-remainder allocation
+ * and the same fit test that decides between side by side and one member at a time.
+ */
+function fitsShifted(
+  node: LayoutSplitNode,
+  rect: PixelRect,
+  boundaryIndex: number,
+  shift: number,
+  axisSpan: number,
+  context: ProjectionContext
+): boolean {
+  const delta = shift / axisSpan;
+  const weights = [...node.weights];
+  weights[boundaryIndex] = (weights[boundaryIndex] ?? 0) + delta;
+  weights[boundaryIndex + 1] = (weights[boundaryIndex + 1] ?? 0) - delta;
+  const shifted: LayoutSplitNode = { ...node, weights };
+  return childrenFit(shifted, splitRects(shifted, rect, context.innerGap), context);
+}
+
+/**
+ * The farthest whole-pixel shift toward `wanted` the split admits. `wanted` brings one side to its
+ * least extent, but a share that lands on a half pixel can be allocated to the other side, so the
+ * bound backs off pixel by pixel until the split still lays out side by side. A shift of 0 is the
+ * current layout, which fits.
+ */
+function admittedShift(
+  node: LayoutSplitNode,
+  rect: PixelRect,
+  boundaryIndex: number,
+  wanted: number,
+  axisSpan: number,
+  context: ProjectionContext
+): number {
+  // A split with no span cannot be dragged: `seamWeightDelta` moves nothing either.
+  if (axisSpan <= 0) return 0;
+  let shift = wanted;
+  while (shift !== 0 && !fitsShifted(node, rect, boundaryIndex, shift, axisSpan, context)) {
+    shift -= Math.sign(shift);
+  }
+  return shift;
+}
+
 function seamForBoundary(
   node: LayoutSplitNode,
+  rect: PixelRect,
   childRects: readonly PixelRect[],
   boundaryIndex: number,
   context: ProjectionContext
@@ -178,27 +224,37 @@ function seamForBoundary(
     leadingWindowIds: descendantWindowIds(leadingNode),
     trailingWindowIds: descendantWindowIds(trailingNode),
   };
+  // The bounds are the shifts the split still lays out side by side at, by the same rule the
+  // projection applies to the previewed and the committed weights, so a drag stopped at either
+  // bound never shows the split one member at a time.
+  const extent = (childRect: PixelRect) => (horizontal ? childRect.w : childRect.h);
+  const bound = (wanted: number) =>
+    admittedShift(node, rect, boundaryIndex, wanted, axisSpan, context);
+  const leadingShift = bound(leadingMinimum - extent(leading));
+  const trailingShift = bound(extent(trailing) - trailingMinimum);
   if (horizontal) {
     const start = leading.x + leading.w;
     const width = Math.max(0, trailing.x - start);
+    const value = start + width / 2;
     return {
       ...shared,
       orientation: "vertical",
       rect: { x: start, y: leading.y, w: width, h: leading.h },
-      value: start + width / 2,
-      minValue: leading.x + leadingMinimum + width / 2,
-      maxValue: trailing.x + trailing.w - trailingMinimum - width / 2,
+      value,
+      minValue: value + leadingShift,
+      maxValue: value + trailingShift,
     };
   }
   const start = leading.y + leading.h;
   const height = Math.max(0, trailing.y - start);
+  const value = start + height / 2;
   return {
     ...shared,
     orientation: "horizontal",
     rect: { x: leading.x, y: start, w: leading.w, h: height },
-    value: start + height / 2,
-    minValue: leading.y + leadingMinimum + height / 2,
-    maxValue: trailing.y + trailing.h - trailingMinimum - height / 2,
+    value,
+    minValue: value + leadingShift,
+    maxValue: value + trailingShift,
   };
 }
 
@@ -319,7 +375,7 @@ function projectNode(
     if (childRect !== undefined) projectNode(child, childRect, context, node.axis, visible);
   });
   for (let index = 0; index < node.children.length - 1; index += 1) {
-    const seam = seamForBoundary(node, childRects, index, context);
+    const seam = seamForBoundary(node, rect, childRects, index, context);
     if (seam !== null) context.seams.push(seam);
   }
 }

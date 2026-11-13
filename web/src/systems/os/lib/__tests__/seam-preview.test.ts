@@ -196,6 +196,62 @@ describe("applySeamPreviewToTab", () => {
     });
   });
 
+  it("Should lay out side by side at every drag the seam admits when its member shares land on half pixels (F8)", () => {
+    // The QA geometry: a 290×907 column, an even split over an odd span (453.5px per member),
+    // a collapsed pair under its 36px switcher above or below one window, 220px floors.
+    const pair = {
+      id: "split:pair",
+      kind: "split",
+      axis: "horizontal",
+      weights: [0.5, 0.5],
+      children: [
+        { id: "leaf:tasks", kind: "leaf", windowId: "window:tasks" },
+        { id: "leaf:loops", kind: "leaf", windowId: "window:loops" },
+      ],
+    } as const;
+    const agents = { id: "leaf:agents", kind: "leaf", windowId: "window:agents" } as const;
+    const project = (tab: LayoutTab) =>
+      projectTab({
+        tab,
+        workArea: { x: 0, y: 0, w: 290, h: 907 },
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: {
+          "window:tasks": { width: 220, height: 220 },
+          "window:loops": { width: 220, height: 220 },
+          "window:agents": { width: 220, height: 220 },
+        },
+      });
+    for (const children of [
+      [pair, agents],
+      [agents, pair],
+    ]) {
+      const column: LayoutTab = {
+        id: "tab:column",
+        pinned: false,
+        root: {
+          id: "split:column",
+          kind: "split",
+          axis: "vertical",
+          weights: [0.5, 0.5],
+          children,
+        },
+      };
+      const seam = project(column).seams.find(entry => entry.id === "split:column:0");
+      if (seam === undefined) throw new Error("expected the column seam");
+      // The collapsed side never goes under 36px of switcher + 220px of member.
+      const pairIndex = children[0] === pair ? 0 : 1;
+      expect(pairIndex === 0 ? seam.minValue : 907 - seam.maxValue).toBeGreaterThanOrEqual(256);
+
+      // Every drag, in half-pixel steps and past both bounds, previews a layout that keeps the
+      // column side by side: its seam is still there and only the pair is one at a time.
+      for (let deltaPx = -500; deltaPx <= 500; deltaPx += 0.5) {
+        const previewed = project(applySeamPreviewToTab(column, seam, deltaPx));
+        expect(previewed.collapsed.map(entry => entry.splitId)).toEqual(["split:pair"]);
+        expect(previewed.seams.map(entry => entry.id)).toEqual(["split:column:0"]);
+      }
+    }
+  });
+
   it("Should preserve unaffected branch identities when one split changes", () => {
     const base = tab();
 

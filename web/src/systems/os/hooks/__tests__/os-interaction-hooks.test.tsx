@@ -55,6 +55,7 @@ import { useOsSplitSeam } from "../use-os-split-seam";
 import { useOsTabDragStart } from "../use-os-tab-drag";
 import { TAB_DRAG_EXIT_PX } from "../../lib/drop-edge";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
+import { authoritativeSeam } from "../../lib/window-manager-view";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
 import { useDesktopPager, useDesktopShellState } from "../use-desktop-shell-state";
@@ -2096,11 +2097,11 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
   });
   /** A 1000×700 work area with no gaps, so seams sit at weight × 1000 px as in `EXACT_SEAM`. */
-  function exactShell(snapshot: WindowManagerSnapshot, width = 1000) {
+  function exactShell(snapshot: WindowManagerSnapshot, width = 1000, height = 700) {
     act(() =>
       windowManagerStore.trigger.workAreaMeasured({
         workArea: {
-          rect: { x: 0, y: 0, w: width, h: 700 },
+          rect: { x: 0, y: 0, w: width, h: height },
           origin: { x: 0, y: 0 },
           viewportWidth: width,
         },
@@ -2932,6 +2933,65 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       expect.closeTo(-164 / 700),
       seamFence("split:outer", 0, SNAPSHOT.revision)
     );
+  });
+
+  it("Should drag a seam over a collapsed pair to its limit on half-pixel shares and commit one resize there (F8)", () => {
+    // The QA geometry: a 290×907 column split evenly (453.5px per member), the collapsed pair on
+    // top under its 36px switcher, 220px floors.
+    const shell = exactShell(
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights: [0.5, 0.5],
+          children: [
+            {
+              id: "split:top",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:a"), leafNode("window:b")],
+            },
+            leafNode("window:c"),
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        SNAPSHOT.revision
+      ),
+      290,
+      907
+    );
+    const outer = authoritativeSeam(
+      shell.state,
+      { x: 0, y: 0, w: 290, h: 907 },
+      {
+        splitId: "split:outer",
+        boundaryIndex: 0,
+      }
+    );
+    if (outer === null) throw new Error("expected the outer seam");
+    render(<SeamHarness seam={outer} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+
+    // Up to the top of the column, far past the limit.
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 100, clientY: outer.value });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 100, clientY: 0 });
+    flushFrames();
+    expect(seam).toHaveAttribute("data-state", "limit");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({
+      splitId: "split:outer",
+    });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 100, clientY: 0 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo((outer.minValue - outer.value) / outer.axisSpan),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    // The pair keeps 36px of switcher and 220px of member at the limit.
+    expect(outer.minValue).toBeGreaterThanOrEqual(256);
   });
 
   it("Should not arm a press on a seam the stored layout does not have (R7-02)", () => {
