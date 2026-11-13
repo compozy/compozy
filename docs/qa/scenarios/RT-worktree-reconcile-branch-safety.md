@@ -78,3 +78,8 @@ If restoring a refused staged checkout fails, its record stays `removing` and co
 its bytes. Retry removal after freeing the original path: recovery verifies the saved Git pointer,
 restores the checkout and repeats safety checks before permitting any discard. Relative Git
 pointers and orphaned checkouts use synchronous removal.
+
+Fail the removal state write after staged Git registration cleanup. Both repeating removal and
+boot recovery must mark the row removed without restoring an unregistered checkout, emit one
+removed event, and leave staged bytes until collection succeeds. The existing real-Git lifecycle
+suite owns this crash-window invariant.

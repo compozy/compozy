@@ -39,6 +39,12 @@ func (s *Service) restoreStagedRemoval(workspace Workspace, item Worktree) (stri
 	if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
 		return staged, refusal(ErrSafetyCheckFailed, "staged checkout cannot replace an existing or unreadable path")
 	}
+	if _, err := os.Lstat(item.GitDir); errors.Is(err, os.ErrNotExist) {
+		// Git cleanup already committed; finish metadata without restoring a broken checkout.
+		return staged, nil
+	} else if err != nil {
+		return staged, fmt.Errorf("%w: inspect staged Git identity: %v", ErrRemovalFailed, err)
+	}
 	s.trash.mu.Lock()
 	s.trash.active[staged] = true
 	s.trash.mu.Unlock()

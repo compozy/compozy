@@ -90,7 +90,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			return os.Rename(from, to)
 		}
 		f.service.resolver = removalTrashRootsResolver{
-			staticWorkspaceResolver: staticWorkspaceResolver{
+			staticWorkspaceResolver: {
 				workspaces: map[string]Workspace{f.workspace.ID: f.workspace},
 			},
 			roots: []string{f.service.root},
@@ -122,7 +122,9 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 					if from != f.item.Path {
 						return errors.New("restore busy")
 					}
-					if err := os.WriteFile(filepath.Join(from, "changed.txt"), []byte("refused work"), 0o600); err != nil {
+					if err := os.WriteFile(
+						filepath.Join(from, "changed.txt"), []byte("refused work"), 0o600,
+					); err != nil {
 						return err
 					}
 					f.dirty.Store(true)

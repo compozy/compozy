@@ -72,6 +72,55 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	for _, restart := range []bool{false, true} {
+		name := fmt.Sprintf("Should finish staged Git cleanup after state write failure restart=%t", restart)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newRealGitFixture(t)
+			item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+				ProfileID: testWorktreeProfileID, Name: "Staged state recovery",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeErr := errors.New("removal state write failed")
+			f.service.store = &removalStateErrorStore{Store: f.store, err: writeErr}
+			if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(err, writeErr) {
+				t.Fatalf("Remove() = %v, want state write failure", err)
+			}
+			if f.item(item.ID).State != StateRemoving || f.events.count(EventRemoved) != 0 {
+				t.Fatal("failed state write completed removal")
+			}
+			for _, absent := range []string{item.Path, item.GitDir} {
+				if _, err := os.Lstat(absent); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("Git cleanup retained %s: %v", absent, err)
+				}
+			}
+			staged := filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "README.md")
+			assertFileContent(t, staged, "initial\n")
+			f.service = f.newService(f.runner)
+			if restart {
+				err = f.service.RecoverCreations(t.Context())
+			} else {
+				_, err = f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+			}
+			if err != nil || f.item(item.ID).State != StateRemoved || f.events.count(EventRemoved) != 1 {
+				t.Fatalf("recovery = %v, state=%s, events=%d",
+					err, f.item(item.ID).State, f.events.count(EventRemoved))
+			}
+			if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("recovery restored an unregistered checkout: %v", err)
+			}
+			assertFileContent(t, staged, "initial\n")
+			if err := f.service.collectTrash(t.Context(), nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Dir(staged)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("completed recovery retained staged bytes: %v", err)
+			}
+		})
+	}
+
 	t.Run("Should restore a real tracked write made immediately before staging", func(t *testing.T) {
 		t.Parallel()
 		f := newRealGitFixture(t)
@@ -2993,6 +3042,20 @@ type realGitFixture struct {
 type createIntegrationResult struct {
 	item *Worktree
 	err  error
+}
+
+type removalStateErrorStore struct {
+	Store
+	err error
+}
+
+func (s *removalStateErrorStore) SetState(
+	ctx context.Context, workspaceID, id string, state State, updatedAt time.Time,
+) error {
+	if state == StateRemoved {
+		return s.err
+	}
+	return s.Store.SetState(ctx, workspaceID, id, state, updatedAt)
 }
 
 type interceptingGitRunner struct {

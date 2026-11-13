@@ -19,7 +19,7 @@ func TestServiceAdopt(t *testing.T) {
 		t.Parallel()
 		f := newAdoptionTestFixture(t)
 		f.service.resolver = removalTrashRootsResolver{
-			staticWorkspaceResolver: staticWorkspaceResolver{
+			staticWorkspaceResolver: {
 				workspaces: map[string]Workspace{f.workspace.ID: f.workspace},
 			},
 			err: errors.New("unrelated private configuration failure"),
