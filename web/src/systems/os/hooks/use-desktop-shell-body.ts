@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useRef, type RefObject } from "react";
 import { shallowEqual } from "@xstate/store";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -7,11 +7,9 @@ import { notifyUser } from "@/lib/user-feedback";
 import { adjacentShortcutItem } from "../lib/adjacent-shortcut-item";
 import { cycleSessionBoardDrawer } from "../lib/session-board-drawer-cycle";
 import {
-  useSessionSidebarState,
   sessionListVisibleOrder,
   sessionThreadFolds,
   useWorkspaceWorkingSessions,
-  type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
 import { useSwitchProfile } from "@/systems/profiles";
@@ -27,6 +25,7 @@ import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
+import type { FocusedSessionControls } from "../components/focused-session-controls";
 import { useDesktop } from "./use-desktop";
 import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
@@ -59,7 +58,11 @@ export interface DesktopShellBodyOptions {
   /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
   firstRun?: boolean;
   onNewSession: () => void;
-  sessionListView: SessionListViewModel;
+  /**
+   * The focused window's sessions list and rail (`FocusedSessionControlsHost`), read when a
+   * gesture runs: kept per window, they are never the body's to render.
+   */
+  sessionControls: RefObject<FocusedSessionControls | null>;
   /** The daemon's client-command channel reads the current shell seam through this port. */
   clientCommandChannel: ClientCommandChannel;
   /** The attached shell identity the palette invoke header must prove. */
@@ -145,7 +148,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const attention = useOsAttention(
     model.runtimeWorkspace,
     model.sessionCatalogStreamStatus,
-    options.sessionListView.shelf === "archive",
+    // The archive shelf narrows only the modal query, which the shell's attention does not run.
+    false,
     false
   );
   const jumpToSession = useAttentionJump();
@@ -164,9 +168,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const openFiles = useOpenFilesApp();
   const paletteRegistry = usePaletteRegistry();
   const switchProfile = useSwitchProfile();
-  // Shell chrome renders under the focused window's scope: ⌘B, the palette
-  // toggle, and session cycling act on the rail the operator is looking at.
-  const sessionSidebar = useSessionSidebarState();
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
@@ -202,7 +203,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     openWorkspaces: () => overlays.toggleOverlay("workspaces"),
     openNewSession: options.onNewSession,
     toggleSessions: () => overlays.toggleOverlay("sessions"),
-    toggleSidebar: sessionSidebar.toggle,
+    // ⌘B and the palette toggle act on the rail the operator is looking at: the focused window's.
+    toggleSidebar: () => options.sessionControls.current?.sidebar.toggle(),
     toggleAllProjects: model.toggleAllProjects,
     useProfile: (profile, beforeSwitch) => {
       if (profile === "") return;
@@ -224,14 +226,17 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       const state = manager.getState();
       // A board showing a session in its drawer steps through its own cards.
       if (cycleSessionBoardDrawer(state.focusedId, direction)) return;
-      const visibleSessions = sessionListVisibleOrder(options.sessionListView, {
+      const controls = options.sessionControls.current;
+      if (controls === null) return;
+      const { listView, sidebar } = controls;
+      const visibleSessions = sessionListVisibleOrder(listView, {
         queryClient,
-        sessions: options.sessionListView.catalog?.sessions ?? attention.sessions,
+        sessions: listView.catalog?.sessions ?? attention.sessions,
         collapsedThreadIds: sessionThreadFolds({
-          ...sessionSidebar,
-          filtering: (options.sessionListView.search ?? "").trim() !== "",
+          ...sidebar,
+          filtering: (listView.search ?? "").trim() !== "",
         }).collapsedThreads,
-        collapsedFolderIds: sessionSidebar.folderFolds,
+        collapsedFolderIds: sidebar.folderFolds,
       });
       const target = adjacentShortcutItem<SessionPayload>(
         visibleSessions,

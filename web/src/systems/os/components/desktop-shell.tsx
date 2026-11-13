@@ -1,5 +1,5 @@
 import { Outlet } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { WindowNavigationGuardContext } from "@/hooks/use-window-navigation-guard";
 
@@ -31,7 +31,11 @@ import type { MenubarUpdateModel } from "./menubar/menubar-update-indicator";
 import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopIndicatorsSurface } from "./desktop-indicators-surface";
-import { DesktopSessionDialogs, WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
+import { WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
+import {
+  FocusedSessionControlsHost,
+  type FocusedSessionControls,
+} from "./focused-session-controls";
 import { ProcessesLeftRunningHost, SessionParentPickerHost } from "@/systems/session";
 
 import { OsAboutDialog } from "./os-about-dialog";
@@ -55,7 +59,6 @@ import {
   SessionCreateDialogHost,
   SessionCreateProvider,
   useSessionCreateActions,
-  useSessionListView,
 } from "@/systems/session";
 import { useProductUpdate, useReloadOnProductVersionChange } from "@/systems/settings";
 import { DaemonRecoveryNoticeHost, useRuntimeReconnectRefresh } from "@/systems/status";
@@ -173,11 +176,12 @@ type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
 
 /**
  * The body never follows focus itself: a tab switch would re-render the whole shell. Its own hooks
- * resolve the focused window's worktree selection from the scope (New session, attention; the
- * attention modal's order, also read there, is only queried by the modal), so they get the entry
- * that selection comes from (`readScopeId`). It stays the same while focus moves between windows
- * that never chose a worktree. The chrome it renders acts on the focused window
- * (`FocusedWindowScope`), and gestures read the focused scope when they run (`worktreeScopeOf`).
+ * use the scope only to resolve the focused window's worktree selection (New session, attention),
+ * so they get the entry that selection comes from (`readScopeId`), the same while focus moves
+ * between windows that never chose a worktree. (Attention also reads the modal's order there, for
+ * the modal query it never runs.) Everything kept per window acts on the focused window itself:
+ * the chrome under `FocusedWindowScope`, the sessions list and rail in
+ * `FocusedSessionControlsHost`, and gestures reading the focused scope when they run.
  */
 function DesktopShellBody(props: DesktopShellBodyProps) {
   const worktreeScope = useDesktopWorktreeScope(props.model.worktreeListing);
@@ -208,14 +212,7 @@ function DesktopShellScopedBody({
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const profileLifecycleActions = useProfileLifecycleHostActions();
-  // Scope and order are the operator's, persisted by the daemon; the modal
-  // renders them rather than fetching its own.
-  const sessionListView = useSessionListView({
-    scope: model.dataScope,
-    worktreeId: worktreeSelection.activeWorktree?.id,
-    enabled: worktreeSelection.resolved,
-    pending: !worktreeSelection.resolved,
-  });
+  const sessionControls = useRef<FocusedSessionControls | null>(null);
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -240,7 +237,7 @@ function DesktopShellScopedBody({
   } = useDesktopShellBody(model, {
     firstRun,
     onNewSession: openNewSession,
-    sessionListView,
+    sessionControls,
     clientCommandChannel,
     client,
   });
@@ -401,12 +398,15 @@ function DesktopShellScopedBody({
           onOpenChange={open => overlays.setOverlayOpen("palette", open)}
           dispatch={paletteDispatch}
         />
-        <DesktopSessionDialogs
+        <FocusedSessionControlsHost
+          controlsRef={sessionControls}
+          dataScope={model.dataScope}
+          worktreeId={worktreeSelection.activeWorktree?.id}
+          worktreeResolved={worktreeSelection.resolved}
           workspaceId={model.runtimeWorkspaceId}
           open={overlays.activeOverlay === "sessions"}
           onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
-          disconnected={attention.sessionsDisconnected || Boolean(sessionListView.catalog?.failed)}
-          view={sessionListView}
+          attentionDisconnected={attention.sessionsDisconnected}
           onNewSession={options => sessionCreate.openForAgent("", options)}
         />
         <OsShortcutsDialog
