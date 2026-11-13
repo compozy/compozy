@@ -66,3 +66,38 @@ export function decideRouteReconciliation(
     ...(mode === "push" ? { navigateMode: "push" as const } : {}),
   });
 }
+
+/** The focused window's route, or the desktop when nothing is focused. */
+export function focusedRouteOrDesktop(
+  state: ReturnType<RoutingManager["getState"]>
+): OsWindowRoute {
+  const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
+  return focused ? focused.route : { pathname: "/", search: {} };
+}
+
+/**
+ * The router's canonical form of the coordinator's own current navigation (a loader redirect that
+ * adds a session's workspace binding, a search normalization) belongs to the window it shows: its
+ * stored route becomes the canonical one, with no focus change and no history write, so its data
+ * scope reads the binding and the next authoritative report finds the URL already right.
+ *
+ * Adopted only while that navigation is still the current one: `current` says the reported entry
+ * is the history's current entry and no activation is settling, the focused window still holds the
+ * route the coordinator wrote, and the canonical form keeps its path. Otherwise focus has moved on
+ * and the canonical form is dropped; the window is canonicalized the next time it is shown.
+ * Returns the adopted route, `null` when nothing was adopted.
+ */
+export function adoptCanonicalRoute(
+  manager: Pick<RoutingManager, "getState" | "navigateWindow">,
+  written: OsWindowRoute | null,
+  canonical: OsWindowRoute,
+  current: boolean
+): OsWindowRoute | null {
+  if (!current || written === null || sameOsWindowRoute(written, canonical)) return null;
+  const state = manager.getState();
+  const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
+  if (!focused || !sameOsWindowRoute(focused.route, written)) return null;
+  if (canonical.pathname !== written.pathname) return null;
+  manager.navigateWindow(focused.id, canonical);
+  return canonical;
+}

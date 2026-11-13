@@ -64,6 +64,11 @@ export class RoutingEntryLedger {
     return key !== null && this.written.has(key);
   }
 
+  /** True when the reported entry is the one history shows now: no later navigation replaced it. */
+  isCurrent(key: string | null): boolean {
+    return key !== null && key === this.current;
+  }
+
   private own(key: string): void {
     this.written.add(key);
     this.loading.add(key);

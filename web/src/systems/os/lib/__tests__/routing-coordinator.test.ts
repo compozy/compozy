@@ -1669,12 +1669,43 @@ describe("RoutingCoordinator", () => {
       expect(router.replace).not.toHaveBeenCalled();
     });
 
-    it("Should read both reports of a write the router redirects as echoes [AS-F-17, R10-05]", async () => {
+    it("Should adopt the canonical route of its own write for the window still focused [R10-05]", async () => {
+      const unbound = windowFixture("session", "/agents/general/sessions/sess-x", "sess-x");
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, router, store, history } = createCoordinator([unbound, tasks]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(tasks.route, history.current());
+      // All projects: the session window's stored route has no workspace binding yet.
+      await coordinator.userActivateWindow(unbound.id);
+      const written = history.current();
+      const bound = route(unbound.route.pathname, { workspace: "workspace:a" });
+      const redirected = history.redirect();
+      store.spies.openOrFocus.mockClear();
+      store.spies.focusWindow.mockClear();
+      vi.mocked(router.navigate).mockClear();
+      vi.mocked(router.replace).mockClear();
+
+      coordinator.reportRouteMatch(unbound.route, written);
+      coordinator.reportRouteMatch(bound, redirected);
+      coordinator.reportAuthoritativeState();
+      await Promise.resolve();
+
+      expect(store.spies.navigateWindow).toHaveBeenCalledExactlyOnceWith(unbound.id, bound);
+      expect(store.getState().windows[unbound.id]?.route).toEqual(bound);
+      expect(store.getState().focusedId).toBe(unbound.id);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(store.spies.focusWindow).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should read both reports of a redirected write as echoes once focus moved on [AS-F-17, R10-05]", async () => {
       const { coordinator, router, store, history, a, b, writeOfB } = afterWriteOfB();
       // B's loader canonicalizes its URL with a replace while B's entry is still loading.
       const canonicalB = route(b.route.pathname, { workspace: "workspace:b" });
       const redirected = history.redirect();
 
+      // Focus moves on to A before either report: B's canonical form is dropped.
       store.setAuthoritativeFocus(a.id);
       coordinator.reportRouteMatch(b.route, writeOfB);
       coordinator.reportRouteMatch(canonicalB, redirected);
@@ -1683,6 +1714,7 @@ describe("RoutingCoordinator", () => {
       expect(store.getState().focusedId).toBe(a.id);
       expect(store.spies.openOrFocus).not.toHaveBeenCalled();
       expect(store.spies.focusWindow).not.toHaveBeenCalled();
+      expect(store.spies.navigateWindow).not.toHaveBeenCalled();
       expect(router.navigate).not.toHaveBeenCalled();
       expect(router.replace).toHaveBeenLastCalledWith(a.route);
     });

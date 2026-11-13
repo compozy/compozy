@@ -15,7 +15,11 @@ import {
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
-import { decideRouteReconciliation } from "./routing-route-decision";
+import {
+  adoptCanonicalRoute,
+  decideRouteReconciliation,
+  focusedRouteOrDesktop,
+} from "./routing-route-decision";
 import { RoutingEntryLedger } from "./routing-entry-ledger";
 import { WindowActivations } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
@@ -81,6 +85,9 @@ export class RoutingCoordinator {
     // may have moved on since, and the URL follows it instead. During hydration every
     // location stays the held initial intent.
     if (this.phase === "ready" && this.entries.isEcho(entryKey)) {
+      const current = this.entries.isCurrent(entryKey) && !this.activations.settling;
+      const adopted = adoptCanonicalRoute(this.manager, this.currentRoute, route, current);
+      if (adopted !== null) this.currentRoute = adopted;
       this.reportAuthoritativeState();
       return;
     }
@@ -127,7 +134,7 @@ export class RoutingCoordinator {
         this.queueRouteReconciliation(intent);
         return;
       }
-      this.navigateToFocusedOrDesktop();
+      this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
       return;
     }
     if (intent && intent.pathname !== "/") {
@@ -369,7 +376,7 @@ export class RoutingCoordinator {
     this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.closeWindow(windowId, viewOnly))) return false;
-    if (wasFocused) this.navigateToFocusedOrDesktop();
+    if (wasFocused) this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
     return true;
   }
 
@@ -386,12 +393,6 @@ export class RoutingCoordinator {
     this.activations.abandon();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
-  }
-
-  private navigateToFocusedOrDesktop(): void {
-    const state = this.manager.getState();
-    const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
-    this.pushRoute(focused ? focused.route : { pathname: "/", search: {} });
   }
 
   private pushRoute(route: OsWindowRoute): void {
