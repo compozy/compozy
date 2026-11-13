@@ -97,7 +97,8 @@ export function DesktopShell() {
 /** Mounts the shell context and its lifecycle confirmation before rendering desktop content. */
 function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: MenubarUpdateModel }) {
   const controller = useDesktopChromeController();
-  const navigationGuard = createWindowNavigationGuard(controller.chrome.shell.manager);
+  const { shell, unsavedClose } = controller.chrome;
+  const navigationGuard = createWindowNavigationGuard(shell.manager, unsavedClose);
 
   // Zero project workspaces boots into All projects with User focused; the
   // shell never waits for a project before rendering.

@@ -19,7 +19,11 @@ import {
 import { windowManagerStore } from "../stores/window-manager-store";
 import { WindowManagerRuntimeCore } from "./window-manager-runtime-core";
 import { randomWindowManagerId } from "./window-manager-runtime-helpers";
-import { windowCloseTargets, type WindowCloseGuard } from "../lib/window-close-targets";
+import {
+  windowCloseTargets,
+  type WindowCloseGuard,
+  type WindowCloseSettled,
+} from "../lib/window-close-targets";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { isOsReducedMotion } from "../lib/reduced-motion";
@@ -30,11 +34,16 @@ import { isOsReducedMotion } from "../lib/reduced-motion";
  */
 export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   private closeGuard: WindowCloseGuard | null = null;
+  private closeSettled: WindowCloseSettled | null = null;
   private closePending = false;
 
-  /** Installs operator lifecycle admission; replacing it invalidates pending close requests. */
-  setCloseGuard(guard: WindowCloseGuard | null): void {
+  /**
+   * Installs operator lifecycle admission; replacing it invalidates pending close requests.
+   * `settled` hears how every guarded close it asked about ended, once the command completes.
+   */
+  setCloseGuard(guard: WindowCloseGuard | null, settled: WindowCloseSettled | null = null): void {
     this.closeGuard = guard;
+    this.closeSettled = guard ? settled : null;
   }
   navigateWindow = (
     id: string,
@@ -173,6 +182,7 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     if (this.closePending || !windowManagerCommandsAvailable(this.view)) return false;
     const binding = this.binding;
     const guard = this.closeGuard;
+    const settled = this.closeSettled;
     const targets = windowCloseTargets(this.view, windowId, scope);
     if (targets.length === 0) return false;
     const identity = (windows: typeof targets) =>
@@ -186,15 +196,18 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
       windowManagerCommandsAvailable(this.view) &&
       identity(windowCloseTargets(this.view, windowId, scope)) === captured;
     this.closePending = true;
+    let closed = false;
     try {
       if (!(await guard(targets, isCurrent)) || !isCurrent()) return false;
       // Never let a queued close expand to newly opened, unconfirmed tabs.
-      return await this.dispatch({
+      closed = await this.dispatch({
         ...closeWindowCommand(windowId, scope),
         expectedRevision: this.view.snapshot?.revision,
       }).completion;
+      return closed;
     } finally {
       this.closePending = false;
+      settled?.(closed);
     }
   };
 }

@@ -100,3 +100,5 @@ and `bunx turbo run typecheck --filter=./web --only` passed after building the m
 `@compozy/client` declarations. File lint and formatting passed. An initial unrelated
 memory-history wait timed out; the unchanged case passed on repetition. Browser E2E remains
 owned by CI.
+
+qa-impact: 2026-11-13 #1653. The unsaved guard now also covers operator closes (⌘W, window and tab close, bulk closes) and keeps edits an outside command or project switch takes away; walk it in `ET-web-agents-team-profile` and `ET-window-tab-close-reopen`.

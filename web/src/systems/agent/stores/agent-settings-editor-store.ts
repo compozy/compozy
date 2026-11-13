@@ -55,6 +55,8 @@ export type AgentSettingsEditorState =
 export interface AgentSettingsEditorInput {
   resourceKey: string;
   agent: AgentPayload | undefined;
+  /** A draft kept from an editor of this agent that went away unsaved (#1653). */
+  retained?: AgentSettingsEditorState;
 }
 
 export interface AgentSettingsSaveInput {
@@ -90,7 +92,7 @@ export function createAgentSettingsEditorLogic() {
     Record<never, never>,
     AgentSettingsEditorInput
   >({
-    context: input => seedState(input.resourceKey, input.agent, 0),
+    context: input => input.retained ?? seedState(input.resourceKey, input.agent, 0),
     on: {
       draftReplaced: (context, event) => {
         if (context.phase === "saving" || context.phase === "reloading") return;
@@ -190,6 +192,18 @@ function seedState(
     baseline: agent ?? null,
     draft: agent ? buildSettingsDraftFromAgent(agent) : null,
   };
+}
+
+/** The editor as one resumes it: a save or reload it was running settles elsewhere. */
+export function idleAgentSettingsEditor(
+  context: AgentSettingsEditorState
+): AgentSettingsEditorState {
+  return context.phase === "saving" || context.phase === "reloading" ? toReady(context) : context;
+}
+
+/** Whether the draft differs from the definition it was read from. */
+export function isAgentSettingsEditorDirty(context: AgentSettingsEditorState): boolean {
+  return isDirty(context);
 }
 
 export function shouldAdoptAgentSettingsSource(

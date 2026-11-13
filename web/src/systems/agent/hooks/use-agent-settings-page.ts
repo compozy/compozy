@@ -5,14 +5,18 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   createAgentSettingsEditorLogic,
+  idleAgentSettingsEditor,
+  isAgentSettingsEditorDirty,
   shouldAdoptAgentSettingsSource,
   type AgentSettingsEditorState,
 } from "../stores/agent-settings-editor-store";
+import { validateAgentSettingsDraft, type AgentSettingsDraft } from "../lib/agent-settings-draft";
 import {
-  isAgentSettingsDraftDirty,
-  validateAgentSettingsDraft,
-  type AgentSettingsDraft,
-} from "../lib/agent-settings-draft";
+  isDuplicateDraftStore,
+  retainedDraftKey,
+  retainedEditorDraft,
+} from "../lib/retained-editor-drafts";
+import { type RetainedDraftPolicy, useRetainedEditorDraft } from "./use-retained-editor-draft";
 import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import { useAgent, useUpdateAgent } from "./use-agents";
 import { useAgentDeleteFlow } from "./use-agent-delete-flow";
@@ -24,6 +28,12 @@ import { useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
 import { useAgentWindowScope } from "./use-agent-window-scope";
 
 import { useProfileReadScope } from "@/systems/profiles";
+
+const SETTINGS_DRAFT_POLICY: RetainedDraftPolicy<AgentSettingsEditorState> = {
+  isDirty: isAgentSettingsEditorDirty,
+  isBusy: context => context.phase === "saving" || context.phase === "reloading",
+  idle: idleAgentSettingsEditor,
+};
 
 export interface UseAgentSettingsPageOptions {
   name: string;
@@ -44,22 +54,22 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const updateAgent = useUpdateAgent();
 
   const resourceKey = JSON.stringify([destination, runtimeWorkspaceId, name]);
-  const { store } = useStoreBinding(
+  const draftKey = retainedDraftKey("agent-settings", resourceKey);
+  // Edits kept from an editor of this agent that went away unsaved come back as unsaved (#1653);
+  // a store replaced under the same key (a reload, following the server) does not resume them.
+  const create = (retained?: AgentSettingsEditorState) =>
+    createAgentSettingsEditorLogic().createStore({ resourceKey, agent: agentQuery.data, retained });
+  const resume = () => create(retainedEditorDraft<AgentSettingsEditorState>(draftKey));
+  const { replace, store } = useStoreBinding(
     resourceKey,
-    () =>
-      createAgentSettingsEditorLogic().createStore({
-        resourceKey,
-        agent: agentQuery.data,
-      }),
-    () =>
-      createAgentSettingsEditorLogic().createStore({
-        resourceKey,
-        agent: agentQuery.data,
-      }),
+    resume,
+    (previous, previousKey) =>
+      previousKey === resourceKey && !isDuplicateDraftStore(previous) ? create() : resume(),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAgentSettingsSource(current.store.getSnapshot().context, agentQuery.data)
   );
+  const { forget } = useRetainedEditorDraft(draftKey, store, SETTINGS_DRAFT_POLICY, replace);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const {
@@ -73,7 +83,16 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     error,
   } = describeEditor(editor);
 
-  const guard = useUnsavedGuard({ dirty, entityName: name });
+  const guard = useUnsavedGuard({
+    dirty,
+    entityName: name,
+    onDiscard: () => {
+      store.trigger.discardRequested();
+      forget();
+    },
+    resourceKey,
+    revision: editor,
+  });
   const deleteFlow = useAgentDeleteFlow({
     agent: agentQuery.data,
     workspaceId: runtimeWorkspaceId,
@@ -146,12 +165,6 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   };
 }
 
-function isEditorDirty(editor: AgentSettingsEditorState): boolean {
-  return Boolean(
-    editor.baseline && editor.draft && isAgentSettingsDraftDirty(editor.draft, editor.baseline)
-  );
-}
-
 function useAgentSettingsProviders(origin: string | undefined, runtimeWorkspaceId: string | null) {
   const settingsProviders = useSettingsProviders();
   const workspaceDetail = useWorkspace(runtimeWorkspaceId ?? "", {
@@ -170,7 +183,7 @@ function useAgentSettingsProviders(origin: string | undefined, runtimeWorkspaceI
 
 function describeEditor(editor: AgentSettingsEditorState) {
   const draft = editor.draft;
-  const dirty = isEditorDirty(editor);
+  const dirty = isAgentSettingsEditorDirty(editor);
   const validation = draft ? validateAgentSettingsDraft(draft) : null;
   const canSave = Boolean(validation?.canSave);
   const mutationDenied = editor.phase === "denied";

@@ -35,3 +35,6 @@ export type WindowCloseGuard = (
   targets: readonly OsWindow[],
   isCurrent: () => boolean
 ) => Promise<boolean>;
+
+/** Told whether a guarded close ended with the windows closed, after its command settles. */
+export type WindowCloseSettled = (closed: boolean) => void;

@@ -17,6 +17,7 @@ import {
   WindowManagerApiError,
 } from "../../adapters/window-manager-api";
 import type { WindowCloseGuard } from "../../lib/window-close-targets";
+import { composeCloseGuards, UnsavedWindowClose } from "../../lib/unsaved-window-close";
 import type { OsWindowRoute } from "../../lib/os-types";
 import { windowManagerKeys } from "../../lib/window-manager-query";
 import type { WindowManagerSettingsSection } from "../../lib/window-manager-settings-section";
@@ -2985,6 +2986,96 @@ describe("WindowManagerRuntime guarded close", () => {
     finish(false);
     await pending;
     runtime.stop();
+  });
+
+  // Invariant (#1653): an operator close covering windows whose editors hold unsaved edits asks
+  //   once, before any other guard runs; Keep editing cancels the whole close, Discard lets the
+  //   other guards and the close go on and drops the edits only once the windows closed. Windows
+  //   without edits never ask.
+  describe("with unsaved edits [#1653]", () => {
+    function guarded() {
+      const { runtime, snapshot } = setup();
+      vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+        snapshot,
+        applied: true,
+        changes: EMPTY_CHANGES,
+        diagnostics: [],
+        client: null,
+        deprecations: [],
+        rebasedFrom: null,
+      });
+      const unsaved = new UnsavedWindowClose();
+      const terminal = vi.fn<WindowCloseGuard>(async () => true);
+      runtime.setCloseGuard(composeCloseGuards(unsaved.guard, terminal), unsaved.settled);
+      return { runtime, unsaved, terminal };
+    }
+
+    it.each([
+      ["Keep editing", false],
+      ["Discard changes", true],
+    ])("Should ask once for every edited target and honor %s", async (_label, discard) => {
+      const { runtime, unsaved, terminal } = guarded();
+      const tasksEdits = { entityName: "Memory", discard: vi.fn() };
+      const agentsEdits = { entityName: "coder", discard: vi.fn() };
+      unsaved.hold("app:tasks", tasksEdits);
+      unsaved.hold("app:agents", agentsEdits);
+
+      const pending = runtime.closeWindowScoped("app:tasks", "all");
+      await vi.waitFor(() => expect(unsaved.question.get()).not.toBeNull());
+      expect(unsaved.question.get()).toMatchObject({ presenter: tasksEdits, windowCount: 2 });
+      expect(terminal).not.toHaveBeenCalled();
+      unsaved.question.get()!.answer(discard);
+
+      await expect(pending).resolves.toBe(discard);
+      expect(unsaved.question.get()).toBeNull();
+      expect(tasksEdits.discard).toHaveBeenCalledTimes(discard ? 1 : 0);
+      expect(agentsEdits.discard).toHaveBeenCalledTimes(discard ? 1 : 0);
+      expect(terminal).toHaveBeenCalledTimes(discard ? 1 : 0);
+      expect(executeWindowManagerCommand).toHaveBeenCalledTimes(discard ? 1 : 0);
+      runtime.stop();
+    });
+
+    it("Should keep discarded edits when a later guard refuses the close", async () => {
+      const { runtime, unsaved, terminal } = guarded();
+      terminal.mockResolvedValueOnce(false);
+      const edits = { entityName: "Memory", discard: vi.fn() };
+      unsaved.hold("app:tasks", edits);
+
+      const pending = runtime.closeWindowScoped("app:tasks", "tab");
+      await vi.waitFor(() => expect(unsaved.question.get()).not.toBeNull());
+      unsaved.question.get()!.answer(true);
+
+      await expect(pending).resolves.toBe(false);
+      expect(terminal).toHaveBeenCalledTimes(1);
+      expect(edits.discard).not.toHaveBeenCalled();
+      expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+      runtime.stop();
+    });
+
+    it("Should close windows without unsaved edits without asking", async () => {
+      const { runtime, unsaved, terminal } = guarded();
+      const release = unsaved.hold("app:agents", { entityName: "coder", discard: vi.fn() });
+      release();
+
+      await expect(runtime.closeWindowScoped("app:tasks", "all")).resolves.toBe(true);
+      expect(unsaved.question.get()).toBeNull();
+      expect(terminal).toHaveBeenCalledTimes(1);
+      runtime.stop();
+    });
+
+    it("Should cancel the close when an edited window lets its edits go while asked", async () => {
+      const { runtime, unsaved } = guarded();
+      const release = unsaved.hold("app:tasks", { entityName: "Memory", discard: vi.fn() });
+
+      const pending = runtime.closeWindowScoped("app:tasks", "tab");
+      await vi.waitFor(() => expect(unsaved.question.get()).not.toBeNull());
+      release();
+
+      await expect(pending).resolves.toBe(false);
+      expect(unsaved.question.get()).toBeNull();
+      expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+      runtime.stop();
+    });
   });
 });
 

@@ -27,6 +27,8 @@ export function editorDocumentFixture<TForm>(
   overrides: Partial<EditorDocument<TForm>> = {}
 ): EditorDocument<TForm> {
   return {
+    resourceKey: "fixture",
+    revision: null,
     baseline: { digest: "sha256:fixture", source, form, block: null },
     form,
     raw: null,

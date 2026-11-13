@@ -9,7 +9,8 @@ export function sameOsWindowRoute(
   return sameJsonValue(left.search, right.search);
 }
 
-function sameJsonValue(left: unknown, right: unknown): boolean {
+/** Deep equality of JSON values; object key order and `undefined` members do not count. */
+export function sameJsonValue(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
   if (Array.isArray(left) || Array.isArray(right)) {
     if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;

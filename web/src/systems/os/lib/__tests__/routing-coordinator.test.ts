@@ -2103,6 +2103,37 @@ describe("RoutingCoordinator", () => {
       disconnect();
     });
 
+    // Invariant (#1653): the guard asks exactly when the edited resource would go: a route naming
+    // the page the window shows (a search it does not read, a legacy path resolving to the page)
+    // keeps it, another page or the catalog replaces it, a route outside the shell layout takes
+    // every window, and the shell's legacy redirects land elsewhere.
+    it.each([
+      ["keep", "/agents/coder/what-it-does", { ordered: "1" }, "/_app/agents/$name/$page", false],
+      ["keep", "/agents/coder/what-it-does", { panel: "tools" }, "/_app/agents/$name/$page", false],
+      [
+        "keep",
+        "/agents/coder/settings",
+        { section: "instructions" },
+        "/_app/agents/$name/settings",
+        false,
+      ],
+      ["keep", "/agents/coder", { tab: "instructions" }, "/_app/agents/$name/", false],
+      ["replace", "/agents/coder/memory", {}, "/_app/agents/$name/$page", true],
+      ["replace", "/agents", {}, "/_app/agents/", true],
+      ["replace", "/design-system", {}, "/design-system", true],
+      ["keep", "/jobs", {}, "/_app/jobs", false],
+    ] as const)(
+      "Should %s a dirty agent page for %s [#1653]",
+      (_verb, pathname, search, routeId, replaces) => {
+        const editor = windowFixture("agents", "/agents/coder/what-it-does");
+        const settings = windowFixture("settings", "/settings");
+        const state = createStore([editor, settings]).getState();
+        expect(routeReplacesWindowContent(state, editor.id, { pathname, search, routeId })).toBe(
+          replaces
+        );
+      }
+    );
+
     it("Should carry a same-path replace made during an owned load to its window when a competing activation moves focus [AS-F-17]", async () => {
       const tasks = windowFixture("tasks", "/tasks");
       const settings = windowFixture("settings", "/settings");
