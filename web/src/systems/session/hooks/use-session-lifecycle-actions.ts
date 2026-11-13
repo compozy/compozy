@@ -1,10 +1,6 @@
 import { useSessionBatchMenuActions } from "@/systems/session/hooks/use-session-batch-menu-actions";
-import {
-  batchSkipReason,
-  batchSkipNote,
-  batchVerbPast,
-  reportBatch,
-} from "../lib/session-batch-feedback";
+import { batchSkipNote, batchVerbPast, reportBatch } from "../lib/session-batch-feedback";
+import { batchSkipReason } from "../lib/session-batch-eligibility";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useRef, useState } from "react";

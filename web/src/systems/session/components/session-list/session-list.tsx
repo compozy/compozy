@@ -5,6 +5,7 @@ import { Button, SearchInput } from "@compozy/ui";
 
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
+import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
@@ -137,115 +138,118 @@ export function SessionList({
   });
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col"
-      data-testid={`${testIdPrefix}-content`}
-      onKeyDown={bulk.onKeyDown}
-    >
-      {header?.(visibleCount)}
-      <SessionListControls
-        bulk={bulk}
-        view={view}
-        onNewSession={() => onNewSession()}
-        {...listNewFolder(view, {
-          session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
-          project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
-        })}
-        testIdPrefix={testIdPrefix}
-      />
-      <div className="px-3 pb-1.5">
-        <SearchInput
-          value={view.search ?? filter}
-          onChange={view.setSearch ?? setFilter}
-          placeholder="Filter sessions…"
-          aria-label="Filter sessions"
-          containerClassName="min-w-0"
-        />
-      </div>
-      <AlwaysOnListTop
-        currentSessionId={currentSessionId}
-        groupBy={view.groupBy}
-        onOpenSession={onSelectSession}
-        workspaceId={view.focusedWorkspaceId}
-      />
-      <SessionListStatus disconnected={disconnected} view={view} />
-      {grouped ? (
-        <div
-          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
-          data-group-by={view.groupBy}
-        >
-          <SessionListGroupSelectionContext value={groupSelection}>
-            <SessionListGroups
-              view={view}
-              filtering={filtering}
-              collapsedThreads={collapsedThreads}
-              subagentThreads={subagentThreads}
-              currentSessionId={currentSessionId}
-              onThreadBranchChange={onThreadBranchChange}
-              onSelectSession={onSelectSession}
-              onNewSession={onNewSession}
-              sessionActions={sessionActions}
-              testIdPrefix={testIdPrefix}
-              onProjectFolderDialog={setProjectFolderDialog}
-            />
-          </SessionListGroupSelectionContext>
-        </div>
-      ) : sections && layout ? (
-        <SessionListFolderBody
-          sections={sections}
-          layout={layout}
-          folders={folders}
-          view={view}
+    // A row's menu opens a rolled-up item's child session the way the row itself opens.
+    <SessionMenuOpenContext value={onSelectSession}>
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        data-testid={`${testIdPrefix}-content`}
+        onKeyDown={bulk.onKeyDown}
+      >
+        {header?.(visibleCount)}
+        <SessionListControls
           bulk={bulk}
-          filtering={filtering}
-          collapsedThreads={collapsedThreads}
-          subagentThreads={subagentThreads}
-          currentSessionId={currentSessionId}
-          onThreadBranchChange={onThreadBranchChange}
-          onSelectSession={onSelectSession}
-          onNewSession={onNewSession}
-          sessionActions={sessionActions}
-          testIdPrefix={testIdPrefix}
-        />
-      ) : (
-        <SessionListBody
           view={view}
-          threads={threads}
-          collapsedThreads={collapsedThreads}
-          subagentThreads={subagentThreads}
-          currentSessionId={currentSessionId}
-          normalizedFilter={normalizedFilter}
-          onThreadBranchChange={onThreadBranchChange}
-          onSelectSession={onSelectSession}
-          selection={bulk.rowSelection}
-          sessionActions={sessionActions}
+          onNewSession={() => onNewSession()}
+          {...listNewFolder(view, {
+            session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
+            project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
+          })}
           testIdPrefix={testIdPrefix}
         />
-      )}
-      {layout ? (
-        <SessionFolderDialogs
-          state={folders.dialog}
-          onClose={() => folders.setDialog(null)}
-          onCreate={layout.createFolder}
-          onRename={layout.renameFolder}
-          onDelete={layout.deleteFolder}
+        <div className="px-3 pb-1.5">
+          <SearchInput
+            value={view.search ?? filter}
+            onChange={view.setSearch ?? setFilter}
+            placeholder="Filter sessions…"
+            aria-label="Filter sessions"
+            containerClassName="min-w-0"
+          />
+        </div>
+        <AlwaysOnListTop
+          currentSessionId={currentSessionId}
+          groupBy={view.groupBy}
+          onOpenSession={onSelectSession}
+          workspaceId={view.focusedWorkspaceId}
         />
-      ) : null}
-      {projectLayout ? (
-        <SessionFolderDialogs
-          holds="projects"
-          state={projectFolderDialog}
-          onClose={() => setProjectFolderDialog(null)}
-          onCreate={projectLayout.createFolder}
-          onRename={projectLayout.renameFolder}
-          onDelete={projectLayout.deleteFolder}
-        />
-      ) : null}
-      <SessionListTotals totals={view.totals} testIdPrefix={testIdPrefix} />
-      {bulk.folderMove ? (
-        <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
-      ) : null}
-    </div>
+        <SessionListStatus disconnected={disconnected} view={view} />
+        {grouped ? (
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+            data-group-by={view.groupBy}
+          >
+            <SessionListGroupSelectionContext value={groupSelection}>
+              <SessionListGroups
+                view={view}
+                filtering={filtering}
+                collapsedThreads={collapsedThreads}
+                subagentThreads={subagentThreads}
+                currentSessionId={currentSessionId}
+                onThreadBranchChange={onThreadBranchChange}
+                onSelectSession={onSelectSession}
+                onNewSession={onNewSession}
+                sessionActions={sessionActions}
+                testIdPrefix={testIdPrefix}
+                onProjectFolderDialog={setProjectFolderDialog}
+              />
+            </SessionListGroupSelectionContext>
+          </div>
+        ) : sections && layout ? (
+          <SessionListFolderBody
+            sections={sections}
+            layout={layout}
+            folders={folders}
+            view={view}
+            bulk={bulk}
+            filtering={filtering}
+            collapsedThreads={collapsedThreads}
+            subagentThreads={subagentThreads}
+            currentSessionId={currentSessionId}
+            onThreadBranchChange={onThreadBranchChange}
+            onSelectSession={onSelectSession}
+            onNewSession={onNewSession}
+            sessionActions={sessionActions}
+            testIdPrefix={testIdPrefix}
+          />
+        ) : (
+          <SessionListBody
+            view={view}
+            threads={threads}
+            collapsedThreads={collapsedThreads}
+            subagentThreads={subagentThreads}
+            currentSessionId={currentSessionId}
+            normalizedFilter={normalizedFilter}
+            onThreadBranchChange={onThreadBranchChange}
+            onSelectSession={onSelectSession}
+            selection={bulk.rowSelection}
+            sessionActions={sessionActions}
+            testIdPrefix={testIdPrefix}
+          />
+        )}
+        {layout ? (
+          <SessionFolderDialogs
+            state={folders.dialog}
+            onClose={() => folders.setDialog(null)}
+            onCreate={layout.createFolder}
+            onRename={layout.renameFolder}
+            onDelete={layout.deleteFolder}
+          />
+        ) : null}
+        {projectLayout ? (
+          <SessionFolderDialogs
+            holds="projects"
+            state={projectFolderDialog}
+            onClose={() => setProjectFolderDialog(null)}
+            onCreate={projectLayout.createFolder}
+            onRename={projectLayout.renameFolder}
+            onDelete={projectLayout.deleteFolder}
+          />
+        ) : null}
+        <SessionListTotals totals={view.totals} testIdPrefix={testIdPrefix} />
+        {bulk.folderMove ? (
+          <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
+        ) : null}
+      </div>
+    </SessionMenuOpenContext>
   );
 }
 
@@ -379,6 +383,7 @@ function SessionListControls({
                 : null
             }
             testId={testIdPrefix}
+            variant="quiet"
           />
         }
         testIdPrefix={testIdPrefix}

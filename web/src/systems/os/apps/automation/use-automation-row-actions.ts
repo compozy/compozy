@@ -30,7 +30,7 @@ interface AutomationRowActionsInput {
   openEdit: (entity: AutomationJob | AutomationTrigger) => void;
 }
 
-/** Row actions that wait for the daemon (On/Off, Run now) plus Edit and Delete. */
+/** Row actions that wait for the daemon (On/Off, Run now) plus Edit, Inspect and Delete. */
 export function useAutomationRowActions({
   unavailable,
   findEntity,
@@ -39,6 +39,11 @@ export function useAutomationRowActions({
   const pendingStore = useStore(automationPendingLogic);
   const pendingIds = useSelector(pendingStore, snapshot => snapshot.context.pendingIds);
   const [deleteTarget, setDeleteTarget] = useState<AutomationView | null>(null);
+  // The sheet keeps its automation while it closes; the entity is read live from the lists.
+  const [inspected, setInspected] = useState<{ open: boolean; view: AutomationView | null }>({
+    open: false,
+    view: null,
+  });
   const updateJob = useUpdateAutomationJob();
   const updateTrigger = useUpdateAutomationTrigger();
   const runJob = useTriggerAutomationJob();
@@ -93,6 +98,10 @@ export function useAutomationRowActions({
     deletePending: deleteJob.isPending || deleteTrigger.isPending,
     deleteTarget,
     edit,
+    inspect: (view: AutomationView) => setInspected({ open: true, view }),
+    inspectEntity: inspected.view ? findEntity(inspected.view) : undefined,
+    inspectOpen: inspected.open,
+    setInspectOpen: (open: boolean) => setInspected(current => ({ ...current, open })),
     isRunPending: (view: AutomationView) => pendingIds.has(`run:${viewKey(view)}`),
     isTogglePending: (view: AutomationView) => pendingIds.has(`toggle:${viewKey(view)}`),
     runNow,

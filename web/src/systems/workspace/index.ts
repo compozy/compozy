@@ -408,4 +408,6 @@ export {
   WorkspaceProjectPointMenu,
   type WorkspaceProjectMenuPoint,
 } from "./components/workspace-project-actions";
+export { ProjectMenuHostContext, type ProjectMenuHost } from "./contexts/project-menu-host-context";
+export type { ProjectMenuMove, ProjectMenuVerbs } from "./lib/project-menu";
 export { WorkspaceManagement } from "./components/workspace-management";

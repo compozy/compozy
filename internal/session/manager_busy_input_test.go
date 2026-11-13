@@ -6191,6 +6191,95 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		})
 	}
 
+	t.Run(
+		"Should promote runtime-less wakes despite live ACP defaults and keep explicit mismatches queued",
+		func(t *testing.T) {
+			t.Parallel()
+			logs := &mentionLogSink{}
+			f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, []Option{
+				WithLogger(slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			})
+			live := f.sess.runtimeBindingSnapshot().selection
+			live.ACPOptions = nil
+			f.sess.mu.Lock()
+			f.sess.SelectedRuntime = cloneRuntimeSelection(&live)
+			f.sess.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "bypassPermissions"}}
+			f.sess.mu.Unlock()
+			turnID := f.sess.CurrentTurnID()
+			reply, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
+				MessageID: "reply-defaults", Message: "child reply",
+				Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
+					Reason: "completed", WakeEventID: "reply-defaults"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wake, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake("defaults-a"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.h.manager.EnqueueSyntheticWake(
+				t.Context(),
+				f.sess.ID,
+				monitorWake("defaults-b"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			opts := agentOpts("explicit-defaults", "sess-a", false)
+			explicitRuntime := live
+			explicitRuntime.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "default"}}
+			opts.Runtime = &explicitRuntime
+			explicit, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, explicit.QueueEntryID)
+			if err != nil || !sameSessionInputRuntime(stored.Runtime, storeRuntimeSelection(&explicitRuntime)) {
+				t.Fatalf("explicit selection = %#v, %v; want the requested runtime persisted", stored.Runtime, err)
+			}
+			f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+			select {
+			case text := <-f.steered:
+				t.Fatalf("wake injected before the threshold: %q", text)
+			default:
+			}
+			f.advance(2 * time.Minute)
+			f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+			var injected []string
+			for range 2 {
+				injected = append(injected, testutil.Receive(t, "runtime-less wake injected", 5*time.Second, f.steered))
+			}
+			payload := strings.Join(injected, "\n")
+			for _, outcome := range []string{"child reply", "wake defaults-a", "wake defaults-b"} {
+				if strings.Count(payload, outcome) != 1 {
+					t.Fatalf("injected payload = %q, want exactly one %q", payload, outcome)
+				}
+			}
+			for _, id := range []string{reply.ID, wake.ID} {
+				waitForCondition(t, "wake settled in the live turn", func() bool {
+					entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, id)
+					return err == nil && entry.Status == store.SessionInputQueueStatusSent &&
+						entry.TurnID == turnID && entry.SteerDelivery == store.SteerDeliveryInjected
+				})
+			}
+			waitForCondition(t, "promotion pass settled", func() bool { return !f.sess.inputPromotionActive.Load() })
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, explicit.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+				entry.Mode != store.SessionInputQueueModeQueue {
+				t.Fatalf("explicit runtime = %#v, %v; want queued for its own turn", entry, err)
+			}
+			if !strings.Contains(logs.String(), `"reason":"runtime_mismatch"`) ||
+				!strings.Contains(logs.String(), `"entry_id":"`+explicit.QueueEntryID+`"`) ||
+				!strings.Contains(logs.String(), `"session_id":"`+f.sess.ID+`"`) {
+				t.Fatalf("missing runtime-mismatch correlation: %s", logs.String())
+			}
+			if f.sess.CurrentTurnID() != turnID {
+				t.Fatal("wake promotion interrupted the live turn")
+			}
+			drain(t, f)
+		},
+	)
+
 	t.Run("Should inject a coalesced monitor wake into a long turn as a daemon wake", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

@@ -8,7 +8,7 @@ import { isSubagentSession } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
 import type { SessionListShelf } from "../lib/session-list-shelf";
 import type { SessionPayload } from "../types";
-import type { SessionSelectionVerbs } from "./use-session-list-bulk-selection";
+import type { SessionSelectionVerbs } from "../lib/session-selection-verbs";
 
 interface SessionSelectionContext {
   selectedIds: readonly string[];

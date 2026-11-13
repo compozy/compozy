@@ -101,7 +101,11 @@ export interface SessionWindowSelectors {
   viewToggle: Locator;
   /** The `…` trigger of one session's row in this window's sessions list. */
   sessionRowActions(sessionId: string): Locator;
-  /** One verb of that row menu (`rename`, `continue`, `clear`, `delete`, …), rendered in the portal. */
+  /**
+   * One verb of that row menu (`rename`, `clear`, `delete`, …), rendered in the portal. A verb
+   * inside a submenu mounts once its trigger opens: click `derive` before `continue` or `fork`,
+   * `copy` before `copy-id`, `move` before `make-top-level`.
+   */
   sessionRowMenuItem(verb: string, sessionId: string): Locator;
   userMessageAttachmentFileCard: Locator;
   userMessageAttachmentFrame: Locator;

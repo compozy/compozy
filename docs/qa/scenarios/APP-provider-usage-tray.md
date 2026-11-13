@@ -55,7 +55,7 @@ Codex end to end (file credential store, `codex login` done):
 - set `cli_auth_credentials_store = "keyring"` in `$CODEX_HOME/config.toml`: the Codex row turns
   `unsupported` with the keyring message and no keyring prompt appears; restore `"file"`.
 
-Claude on macOS (no `.credentials.json`, login in the Keychain):
+Claude on macOS (login in the Keychain, no usable `.credentials.json`):
 
 - with consent off the collapsed row reads `Needs access`; expanding it shows
   `Needs Keychain access` with **Allow**, and the CLI table ends
@@ -197,3 +197,16 @@ QA impact 2026-11-07 (issue #1326, provider enable toggle): The usage tray drops
 `untested`; `RT-provider-enable-toggle` and the spec task_07 own the walk.
 
 QA 2026-11-07 (issue #1326): not walked live — labs disable provider usage collection by contract. The tray row removal is covered by `TestProviderUsageResolverDisabledProviders` and the web usage tests; status stays `untested` until a live-provider lab walks it. See `docs/qa/reports/2026-11-07-provider-enable-toggle.md`.
+
+## macOS leftover credential file (#1642)
+
+Repeat Allow, explicit Refresh and background collection with an expired leftover
+`.credentials.json` beside a valid routed Keychain login. The row must show the
+Keychain account's usage, and background polls must never open a Keychain dialog.
+With consent off and an unusable file, the row reads `Needs access` instead of a
+login-expired message.
+
+The fallback and platform matrix is owned by
+[ET-provider-usage-surfaces](ET-provider-usage-surfaces.md#macos-leftover-credential-file-1642).
+This change has not been walked locally: the operator requires CI-only verification
+and forbids QA daemons and real credentials.

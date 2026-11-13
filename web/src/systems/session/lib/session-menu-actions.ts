@@ -17,7 +17,7 @@ import {
   UserRound,
 } from "@compozy/ui/icons";
 import type { SessionPayload } from "@/systems/session/types";
-import { batchSkipReason } from "@/systems/session/lib/session-batch-feedback";
+import { batchSkipReason } from "@/systems/session/lib/session-batch-eligibility";
 import { sessionCanMakeTopLevel } from "@/systems/session/lib/session-reparent";
 
 /** Labels, icons and batch eligibility have one owner for row and selection menus. */

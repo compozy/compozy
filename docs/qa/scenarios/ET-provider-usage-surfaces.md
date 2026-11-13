@@ -6,7 +6,7 @@ persona: Ada
 journey: J-provider-usage
 expected: HTTP, UDS, CLI and native tools expose the same profile-scoped cache without credentials; only local explicit actions can authorize Keychain access.
 entry_points: compozy provider usage; /api/provider-usage; compozy__provider_usage_list; compozy__provider_usage_refresh
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -235,3 +235,20 @@ Supporting regression: `TestProviderUsageResolverDisabledProviders` exercises th
 real profile overlay and full daemon boot with collection disabled for credential
 isolation, using temporary homes and dedicated sockets/ports. This is automated runtime
 evidence, not a completed UI walk.
+
+## macOS leftover credential file (#1642)
+
+In an isolated macOS fixture with synthetic credentials, place an expired
+`.credentials.json` beside a valid routed Keychain login. With consent enabled,
+background collection must show the Keychain account's usage with one silent
+Keychain read, then reuse the cached login on later polls without another read or
+any prompt. Explicit Refresh may read the Keychain as it does without a file. A
+valid file must still win without any Keychain read. With an expired file and
+consent off, show `Needs Keychain access`; with denied or timed-out background
+access, show the existing access-recovery state; with no Keychain login, keep the
+file's `Run claude /login` diagnosis. Linux and Windows still use only the file.
+Never read or modify real credentials.
+
+Owning automated coverage: `TestClaudeKeychain` and `TestClaudeCollector` in
+`internal/providerusage/claude_test.go`. Not walked locally for this change: the
+operator requires CI-only verification and forbids QA daemons and real credentials.

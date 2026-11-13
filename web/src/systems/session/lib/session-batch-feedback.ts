@@ -1,39 +1,17 @@
 import { toast } from "@compozy/ui";
 import type { SessionPayload } from "../types";
 import { sessionBatchFailureMessage, type SessionBatchResult } from "./session-batch";
-import { sessionIsInLater } from "./session-later";
+import { BATCH_CHILD_SKIP, type BatchVerb } from "./session-batch-eligibility";
 import { getSessionDisplayTitle } from "./session-display-title";
-import { isSubagentSession } from "./session-hierarchy";
 
-export type BatchVerb = "stop" | "archive" | "unarchive" | "later" | "back-from-later";
-type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level";
+type FeedbackVerb = BatchVerb | "mark-seen" | "make-top-level" | "move-under";
 
 const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
-
-const CHILD_SKIP = "child";
-
-/** Why a selected session sits a verb out; `null` when the verb applies to it. */
-export function batchSkipReason(action: BatchVerb, session: SessionPayload): string | null {
-  const archived = session.archived_at !== null;
-  if (action === "stop") {
-    if (session.state !== "active" && session.state !== "starting") return "not running";
-    return archived ? "archived" : null;
-  }
-  // Subagent sessions archive, unarchive, and move to or back from Later with
-  // their parent (ADR-005), never on their own.
-  if (isSubagentSession(session)) return CHILD_SKIP;
-  if (action === "later") {
-    if (archived) return "archived";
-    return sessionIsInLater(session) ? "already in Later" : null;
-  }
-  if (action === "back-from-later") return sessionIsInLater(session) ? null : "not in Later";
-  if (action === "archive") return archived ? "already archived" : null;
-  return archived ? null : "not archived";
-}
 
 export function batchVerbPast(action: FeedbackVerb): string {
   if (action === "mark-seen") return "marked as seen";
   if (action === "make-top-level") return "made top-level";
+  if (action === "move-under") return "moved";
   if (action === "later") return "moved to Later";
   if (action === "back-from-later") return "back from Later";
   return action === "stop" ? "stopped" : `${action}d`;
@@ -43,6 +21,7 @@ export function batchVerbPast(action: FeedbackVerb): string {
 function batchFailureTitle(action: FeedbackVerb, count: string): string {
   if (action === "mark-seen") return `Couldn't mark ${count} as seen`;
   if (action === "make-top-level") return `Couldn't make ${count} top-level`;
+  if (action === "move-under") return `Couldn't move ${count}`;
   if (action === "later") return `Couldn't move ${count} to Later`;
   if (action === "back-from-later") return `Couldn't bring ${count} back from Later`;
   return `Couldn't ${action} ${count}`;
@@ -54,7 +33,7 @@ export function batchSkipNote(skipped: ReadonlyMap<string, number>): string | un
   if (total === 0) return undefined;
   const reasons = [...skipped]
     .map(([reason, count]) =>
-      reason !== CHILD_SKIP
+      reason !== BATCH_CHILD_SKIP
         ? `${count} ${reason}`
         : `${count} ${count === 1 ? "child session follows its parent" : "child sessions follow their parent"}`
     )

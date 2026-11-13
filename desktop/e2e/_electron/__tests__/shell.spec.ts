@@ -1132,10 +1132,12 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   await files.getByRole("button", { name: "Choose application" }).click();
   await expect(
     product.getByRole("menuitem", {
-      name: process.platform === "darwin" ? "Finder" : "Show in folder",
+      name: process.platform === "darwin" ? "Reveal in Finder" : "Show in folder",
       exact: true,
     })
   ).toBeVisible();
+  // The configured editor leads the menu; the other detected editors sit behind Open in.
+  await product.getByRole("menuitem", { name: "Open in", exact: true }).click();
   await product.getByRole("menuitem", { name: "Cursor", exact: true }).click();
   const recorded = join(desktop.home, "fixtures", "cursor-argv.txt");
   await expect

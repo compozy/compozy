@@ -12,17 +12,19 @@ button: a page can't start programs on your computer.
 The button has two parts. The main part, such as **Open in Cursor**, opens the file with the current
 choice. The arrow, **Choose application**, opens the menu:
 
-| Entry                                                                                                                                  | When it appears                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Configured editor**                                                                                                                  | When [`[desktop] editor_command`](/docs/configuration/config-toml#desktop) is set. Runs that command.                  |
-| Cursor, VS Code, VS Code Insiders, Windsurf, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, PyCharm, Xcode, Android Studio, Fleet | When the app is installed: its command is on your login shell's `PATH`, or, on macOS, its application bundle is found. |
-| **Set an editor in Settings**                                                                                                          | When no editor is configured or detected. Opens Settings.                                                              |
-| **Finder** (macOS), **Show in folder** (Linux), or **Show in Explorer** (Windows)                                                      | Always. Reveals the file in its folder without opening it.                                                             |
-| **Copy path**                                                                                                                          | Always. Copies the project-relative path.                                                                              |
-| **Refresh list** and **Editor settings…**                                                                                              | Always, at the bottom. Refresh list detects editors again; Editor settings opens Settings › General.                   |
+| Entry                                                                                       | What it does                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Open in Configured editor**, or **Open in** the first detected editor                     | Opens the file in [`[desktop] editor_command`](/docs/configuration/config-toml#desktop) when it is set, else in the first installed editor. When neither exists, this row reads **Set an editor in Settings** and opens Settings.                                  |
+| **Open in ▸**                                                                               | Lists every other installed editor: Cursor, VS Code, VS Code Insiders, Windsurf, Zed, Sublime Text, IntelliJ IDEA, WebStorm, GoLand, PyCharm, Xcode, Android Studio, Fleet. **Refresh list** detects editors again; **Editor settings…** opens Settings › General. |
+| **Reveal in Finder** (macOS), **Show in folder** (Linux), or **Show in Explorer** (Windows) | Reveals the file in its folder without opening it.                                                                                                                                                                                                                 |
+| **Copy path**                                                                               | Copies the project-relative path.                                                                                                                                                                                                                                  |
 
-Editors show their brand icon when one is available, otherwise a generic editor icon. Editors open the file at the current line when their command line takes
-one; Fleet opens the file without a line.
+An editor is installed when its command is on your login shell's `PATH`, or, on macOS, when its
+application bundle is found.
+
+The main part of the button shows the editor's brand icon when one is available, otherwise a
+generic editor icon. Editors open the file at the current line when their command line takes one;
+Fleet opens the file without a line.
 
 When an open succeeds, that target becomes the main choice for every file and every window. Until
 then, the main choice is the configured editor if you set one, else the first detected editor, else
@@ -59,8 +61,13 @@ The desktop app makes every launch decision itself; the page only supplies the p
 
 - The viewer header, for the open file.
 - The **Outside this project** state, so you can still open a path the viewer won't read.
-- The file tree: right-click a row, or press <kbd>Shift</kbd>+<kbd>F10</kbd> on it, for **Copy
-  path** and the same targets. Folders open without a line.
-- The tree header's **Open folder in…** button, for the project or worktree root.
+- The file tree: right-click a row, or press <kbd>Shift</kbd>+<kbd>F10</kbd> on it, for the same
+  menu. Folders open without a line.
+- The tree header's **Open folder in…** button, for the project or worktree root. The root has no
+  path to copy, so this menu has no **Copy path**.
+- A changed file's header in the session's **Changes** panel: **More actions** opens the same menu,
+  led by **Open in Files**. Editors open the file at its first changed line. Deleted files have no
+  such menu.
 
-In a browser tab, the tree's row menu keeps only **Copy path**.
+In a browser tab, the tree's row menu keeps only **Copy path**, and Changes headers have no **More
+actions** menu.

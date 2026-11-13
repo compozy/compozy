@@ -107,7 +107,7 @@ test("E2E-003: failing checks lead the chip menu and send one prompt naming the 
   await chip.click();
   const menu = appPage.getByTestId("session-pull-request-menu");
   const items = menu.getByRole("menuitem");
-  await expect(items.first()).toHaveAttribute("data-action", "fix");
+  await expect(items.first()).toHaveAttribute("data-testid", "session-pull-request-action-fix");
   await expect(items.first()).toHaveText("Fix failing checks");
   await browserArtifacts.captureScreenshot("session-pr-chip-fix-menu", appPage);
 

@@ -2,20 +2,10 @@
  * The header keeps today's chip for a single item; past one, a single `8 linked PRs` chip opens the
  * list, so no one item is promoted over the rest. Nothing new at rest, nothing stays open.
  */
-import { ArrowUpRight, FolderGit2, GitPullRequest, Link2, Unlink } from "@compozy/ui/icons";
+import { GitPullRequest } from "@compozy/ui/icons";
 import { useState, type ReactElement, type ReactNode } from "react";
 
-import {
-  Button,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  Icon,
-  Pill,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  cn,
-} from "@compozy/ui";
+import { Button, Icon, Pill, Popover, PopoverContent, PopoverTrigger, cn } from "@compozy/ui";
 
 import { useSessionTopbarClipped } from "../../hooks/use-session-topbar-clipped";
 import {
@@ -119,53 +109,9 @@ export interface SessionLinkedWorkStatusProps extends SessionLinkedWorkListProps
     SessionPullRequestChipProps,
     "exitPlan" | "exitRunning" | "onExitAction" | "onRefresh" | "refreshing" | "onReviewChanges"
   >;
-  /** Opens the worktree a linked item lives in, when this client can show it. */
-  worktreeAction?: (item: SessionLinkedWorkItem) => (() => void) | undefined;
   /** Opens the chip's own menu (prototypes). */
   chipMenuOpen?: boolean;
   onClippedChange?: (clipped: boolean) => void;
-}
-
-/** The chip's link rows, for the case the list has nothing more to say. */
-function ChipLinkActions({
-  lead,
-  runsIn,
-  actions,
-  worktreeAction,
-}: Pick<SessionLinkedWorkStatusProps, "runsIn" | "actions" | "worktreeAction"> & {
-  lead: SessionLinkedWorkItem;
-}) {
-  const openWorktree = worktreeAction?.(lead);
-  const child = lead.source_session_id;
-  return (
-    <>
-      <DropdownMenuLabel className="tracking-normal normal-case">
-        This session runs in {runsIn.name}
-      </DropdownMenuLabel>
-      {lead.worktree_name && openWorktree ? (
-        <DropdownMenuItem onClick={openWorktree}>
-          <Icon as={FolderGit2} size="sm" />
-          Worktree {lead.worktree_name}
-        </DropdownMenuItem>
-      ) : null}
-      {child ? (
-        <DropdownMenuItem onClick={() => actions.onOpenSession(child)}>
-          <Icon as={ArrowUpRight} size="sm" />
-          Open session
-        </DropdownMenuItem>
-      ) : null}
-      <DropdownMenuItem onClick={actions.onLink}>
-        <Icon as={Link2} size="sm" />
-        Link another…
-      </DropdownMenuItem>
-      {isRolledUp(lead) ? null : (
-        <DropdownMenuItem onClick={() => actions.onUnlink(lead)}>
-          <Icon as={Unlink} size="sm" />
-          Unlink from this session
-        </DropdownMenuItem>
-      )}
-    </>
-  );
 }
 
 /** Several items as one chip: no one item is promoted, and the list says each one's status. */
@@ -214,19 +160,27 @@ function SessionLinkedWorkChip(props: SessionLinkedWorkStatusProps) {
       controllable={own && actions.controllable}
       defaultMenuOpen={props.chipMenuOpen}
       facts={lead ? linkFacts(lead) : ownFacts}
-      menuFooter={
-        lead ? (
-          <ChipLinkActions
-            actions={actions}
-            lead={lead}
-            runsIn={props.runsIn}
-            worktreeAction={props.worktreeAction}
-          />
-        ) : undefined
-      }
+      link={lead ? chipLink(lead, actions) : undefined}
       onPrompt={own && actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
     />
   );
+}
+
+/** The lone item's own verbs in the chip menu: its worktree, its child session, link and unlink. */
+function chipLink(
+  lead: SessionLinkedWorkItem,
+  actions: SessionLinkActions
+): SessionPullRequestChipProps["link"] {
+  const openWorktree = actions.worktreeAction?.(lead);
+  const child = lead.source_session_id;
+  return {
+    ...(lead.worktree_name && openWorktree
+      ? { worktree: { name: lead.worktree_name, runsHere: lead.runs_here, onOpen: openWorktree } }
+      : {}),
+    ...(child ? { onOpenSession: () => actions.onOpenSession(child) } : {}),
+    onLink: actions.onLink,
+    ...(isRolledUp(lead) ? {} : { onUnlink: () => actions.onUnlink(lead) }),
+  };
 }
 
 /** The head's status zone: the lone item's chip, or `8 linked PRs` when there are several. */

@@ -24,6 +24,9 @@ import { primarySessionFixture, resetSessionBoardColumnFolds } from "@/systems/s
 import type { SessionPayload } from "@/systems/session";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import { sessionsBoardViewFixture } from "@/systems/session/mocks/sessions-board-view-fixtures";
+import { SESSION_LINK_SETS } from "@/systems/session/mocks/session-links-fixtures";
+import { sessionDetailOptions } from "@/systems/session/lib/query-options";
+import { ownerDataScope, workspaceSelectorForScope } from "@/systems/workspace";
 
 const WINDOW_ID = "w-board";
 
@@ -161,8 +164,9 @@ function FakeSessionView({ title }: { title: string }) {
   return <textarea aria-label="Composer" />;
 }
 
-function renderBoard() {
+function renderBoard(seed?: (client: QueryClient) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seed?.(client);
   const windowSlot = createTopbarSlotStore();
   const ui = () => (
     <QueryClientProvider client={client}>
@@ -248,6 +252,133 @@ describe("SessionBoardWindow drawer", () => {
     // The session's head renders in the drawer; the window keeps the board's.
     expect(within(drawer).getByTestId("session-board-drawer-head")).toHaveTextContent("Session w2");
     expect(windowSlot.getSnapshot()?.crumb).toBe("Sessions");
+  });
+
+  // Invariant: a rolled-up linked-work item names only its child session; Open session from a
+  // card's menu reads the child's agent and opens it in this drawer, not another window.
+  it("Should open a rolled-up item's child session in the drawer from a card's menu", async () => {
+    const lead = SESSION_LINK_SETS.rolledUp[0]!;
+    const childId = lead.source_session_id!;
+    const parent = {
+      ...card("w2", "working"),
+      linked_work: { lead, total: 1, needs_you: 0, pull_requests: 1 },
+    };
+    harness.board = sessionsBoardViewFixture(
+      {
+        needs_you: empty,
+        working: { sessions: [card("w1", "working"), parent], count: 2, hasMore: false },
+        waiting: empty,
+        in_review: empty,
+        done: empty,
+      },
+      empty
+    );
+    setRoute(null, false);
+    renderBoard(client =>
+      client.setQueryData(
+        sessionDetailOptions(workspaceSelectorForScope(ownerDataScope("ws-1")), childId).queryKey,
+        { ...card(childId, "working"), agent_name: "codex" }
+      )
+    );
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+
+    await user.click(screen.getByTestId("session-row-actions-w2"));
+    await user.click(
+      await screen.findByRole("menuitem", { name: `Pull request #${lead.pull_request!.number}` })
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Open session" }));
+
+    await waitFor(() =>
+      expect(harness.userRetarget).toHaveBeenCalledExactlyOnceWith(WINDOW_ID, {
+        app: "session",
+        instanceKey: childId,
+        route: { pathname: `/agents/codex/sessions/${childId}`, search: { drawer: "open" } },
+      })
+    );
+  });
+
+  // Invariant: the latest open wins; a slower child lookup never replaces a later choice.
+  it("Should keep the later child when an earlier child's lookup finishes last", async () => {
+    const [slowLead, , fastLead] = SESSION_LINK_SETS.rolledUp;
+    const slowId = slowLead!.source_session_id!;
+    const fastId = fastLead!.source_session_id!;
+    harness.board = sessionsBoardViewFixture(
+      {
+        needs_you: empty,
+        working: {
+          sessions: [
+            {
+              ...card("w1", "working"),
+              linked_work: { lead: slowLead!, total: 1, needs_you: 0, pull_requests: 1 },
+            },
+            {
+              ...card("w2", "working"),
+              linked_work: { lead: fastLead!, total: 1, needs_you: 0, pull_requests: 1 },
+            },
+          ],
+          count: 2,
+          hasMore: false,
+        },
+        waiting: empty,
+        in_review: empty,
+        done: empty,
+      },
+      empty
+    );
+    let release: () => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (request: Request) =>
+          new Promise<Response>(resolve => {
+            if (!String(request.url ?? request).includes(slowId)) {
+              resolve(new Response(null, { status: 404 }));
+              return;
+            }
+            release = () =>
+              resolve(
+                Response.json({ session: { ...card(slowId, "working"), agent_name: "slow" } })
+              );
+          })
+      )
+    );
+    setRoute(null, false);
+    renderBoard(client =>
+      client.setQueryData(
+        sessionDetailOptions(workspaceSelectorForScope(ownerDataScope("ws-1")), fastId).queryKey,
+        { ...card(fastId, "working"), agent_name: "codex" }
+      )
+    );
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    // Submenus are driven by keys, as the session list suite does: a pointer click on a submenu
+    // item can land before jsdom settles its pointer guard.
+    const openChild = async (cardId: string, number: number) => {
+      await user.click(screen.getByTestId(`session-row-actions-${cardId}`));
+      const trigger = await screen.findByRole("menuitem", { name: `Pull request #${number}` });
+      trigger.focus();
+      await user.keyboard("{ArrowRight}");
+      const submenu = await waitFor(() => {
+        const menu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
+        expect(menu).toBeTruthy();
+        expect(menu).not.toContainElement(trigger);
+        return menu!;
+      });
+      within(submenu).getByRole("menuitem", { name: "Open session" }).focus();
+      await user.keyboard("{Enter}");
+      // The next card's menu must not find this closing menu's Open session.
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    };
+
+    await openChild("w1", slowLead!.pull_request!.number);
+    await openChild("w2", fastLead!.pull_request!.number);
+    await waitFor(() => expect(harness.userRetarget).toHaveBeenCalledTimes(1));
+    await act(async () => release());
+
+    expect(harness.userRetarget).toHaveBeenCalledExactlyOnceWith(WINDOW_ID, {
+      app: "session",
+      instanceKey: fastId,
+      route: { pathname: `/agents/codex/sessions/${fastId}`, search: { drawer: "open" } },
+    });
   });
 
   it("Should close on Escape through the route and return focus to the session's card", async () => {

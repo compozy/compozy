@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
+  USER_SCOPE_SELECTOR,
   useActiveWorkspace,
   type FocusedDataScope,
   type DataScope,
@@ -22,6 +23,16 @@ import {
 export interface SessionCreateTarget {
   /** All projects is on: the Project picker is shown. */
   projectAxis: boolean;
+  /**
+   * Outside All projects, the opening named another project (a project's own menu): that project
+   * is the target instead of the menubar destination, without a picker.
+   */
+  namedProject: boolean;
+  /**
+   * The opening named a project the catalog does not list (yet, or anymore): the target stays
+   * unresolved and creation is blocked rather than falling back to the menubar destination.
+   */
+  namedProjectUnresolved: boolean;
   /** All profiles is on: the Profile picker is shown. */
   profileAxis: boolean;
   projectOptions: SessionTargetOption[];
@@ -79,18 +90,17 @@ export function useSessionCreateTarget({
     focusedBinding
   );
   const profileOptions = profileAxis ? sessionProfileOptions(profiles.data ?? []) : [];
-  const profile =
-    profileOptions.find(option => option.value === current.profile)?.value ??
-    profileScope.destination;
-
-  const scope = resolveCreateScope(projectValue, active.dataScope);
-  const workspace =
-    scope?.kind === "project"
-      ? active.projectWorkspaces.find(item => item.id === scope.workspaceId)
-      : undefined;
+  const profile = resolveProfilePick(profileOptions, current.profile, profileScope.destination);
+  const named = resolveNamedProject(projectAxis, current.project, active.projectWorkspaces);
+  const scope = named.workspace
+    ? sessionTargetScope(named.workspace.id)
+    : resolveCreateScope(projectValue, active.dataScope);
+  const workspace = projectWorkspaceOf(scope, active.projectWorkspaces);
 
   return {
     projectAxis,
+    namedProject: named.workspace !== undefined,
+    namedProjectUnresolved: named.unresolved,
     profileAxis,
     projectOptions,
     projectValue,
@@ -102,6 +112,39 @@ export function useSessionCreateTarget({
     selectProject: value => setPicks({ ...current, project: value }),
     selectProfile: value => setPicks({ ...current, profile: value }),
   };
+}
+
+function resolveProfilePick(
+  options: SessionTargetOption[],
+  selected: string | null,
+  fallback: string
+): string {
+  return options.find(option => option.value === selected)?.value ?? fallback;
+}
+
+/**
+ * Outside All projects, the project an opening named (a project's own menu): its workspace once
+ * the catalog lists it, else unresolved. The User selector and All projects name none.
+ */
+function resolveNamedProject(
+  projectAxis: boolean,
+  project: string | null,
+  workspaces: readonly WorkspacePayload[]
+): { workspace: WorkspacePayload | undefined; unresolved: boolean } {
+  if (projectAxis || !project || project === USER_SCOPE_SELECTOR) {
+    return { workspace: undefined, unresolved: false };
+  }
+  const workspace = workspaces.find(item => item.id === project);
+  return { workspace, unresolved: workspace === undefined };
+}
+
+function projectWorkspaceOf(
+  scope: FocusedDataScope | null,
+  workspaces: readonly WorkspacePayload[]
+): WorkspacePayload | undefined {
+  return scope?.kind === "project"
+    ? workspaces.find(item => item.id === scope.workspaceId)
+    : undefined;
 }
 
 function resolveProjectPick(

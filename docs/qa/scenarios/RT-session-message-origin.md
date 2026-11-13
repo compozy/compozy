@@ -79,6 +79,11 @@ Busy-target policy regression (#760)
 12. Eight consecutive queued agent messages and reply wakes dispatch as one turn: each keeps its own
     origin event and reply watch; a human entry is never merged.
 13. Promotion: keep B in one turn past `session.messaging.queue_promote_after` (shorten it for the lab).
+    With a selected runtime without ACP options and a live Claude binding carrying `mode=bypassPermissions`,
+    queue a session-reply wake and coalesced monitor wakes without explicit runtimes: both inject into
+    the same live turn after the threshold. An entry explicitly selecting different ACP options stays
+    queued, with a debug log containing `session_id`, `entry_id`, and `reason=runtime_mismatch` but no
+    runtime values. After-turn batching still compares the runtimes selected for the next prompt.
     A queued agent message is injected as steer with its original message id; with `0s` it keeps
     waiting; with a human entry waiting it is not promoted. As the operator, Steer an agent queue row
     (works) and try to replace it (409 `input_agent_authored`).

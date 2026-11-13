@@ -335,11 +335,13 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.getAttribute("data-action"))).toEqual([
-      "fix",
-      "open",
-      "refresh",
-      "review-changes",
+    // One pull request menu on the chip, Linked work rows and the session menu.
+    expect(items.map(item => item.dataset.testid)).toEqual([
+      "session-pull-request-action-fix",
+      "session-pull-request-action-open",
+      "session-pull-request-action-review-changes",
+      "session-pull-request-action-refresh",
+      "session-pull-request-action-copy-link",
     ]);
     expect(items[0]).toHaveTextContent("Fix failing checks");
 
@@ -349,7 +351,7 @@ describe("useSessionTopbarSlot", () => {
     expect(onSendPrompt.mock.calls[0]?.[0]).toEqual(expect.stringContaining("lint"));
   });
 
-  it("Should offer a non-controllable session only Open PR and Refresh (UT-062)", async () => {
+  it("Should offer a non-controllable session no exit action or agent prompt (UT-062)", async () => {
     const onRefresh = vi.fn();
     renderWithTopbar(
       <SessionPublisher
@@ -363,12 +365,13 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.getAttribute("data-action"))).toEqual([
-      "open",
-      "refresh",
-      "review-changes",
+    expect(items.map(item => item.dataset.testid)).toEqual([
+      "session-pull-request-action-open",
+      "session-pull-request-action-review-changes",
+      "session-pull-request-action-refresh",
+      "session-pull-request-action-copy-link",
     ]);
-    fireEvent.click(items[1]!);
+    fireEvent.click(items[2]!);
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
@@ -886,7 +889,16 @@ describe("useSessionTopbarSlot", () => {
     });
 
     it("Should keep the session's own chip and actions when nothing is linked", async () => {
-      renderLinks(NO_LINKED_WORK, withPullRequest());
+      // The session window always hands the head its composer (`onSendPrompt`); a prompt with no
+      // composer to reach is absent, not a dead row.
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={NO_LINKED_WORK}
+          onSendPrompt={vi.fn()}
+          onStop={vi.fn()}
+          session={withPullRequest()}
+        />
+      );
       fireEvent.click(screen.getByTestId("session-pull-request-chip"));
       const menu = await screen.findByTestId("session-pull-request-menu");
       expect(within(menu).getByText("Fix failing checks")).toBeInTheDocument();

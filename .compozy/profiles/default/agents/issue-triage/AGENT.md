@@ -37,7 +37,7 @@ Verdicts: `small`, `spec`, `needs-info`, `invalid`, `duplicate #M`, `fixed-by <r
 1. **List candidates cheaply:** `gh issue list -R compozy/compozy --state open --limit 100 --json number,title,author,updatedAt,comments`. Ignore pull requests and long-lived meta issues such as #32 "Feedbacks & Suggestions".
 2. **Deduplicate before reading anything else.** Skip an issue when the ledger already has a line for it. Exception: when its last verdict is `needs-info` and the issue has a comment by its author newer than that verdict, vet it again. When a `needs-info` issue has had no author reply for 14 days, close it as not planned with a short comment inviting the author to reopen with the requested details. Record that as `invalid`.
 3. **Skip covered issues** without vetting, and record no line for them:
-   - an open pull request that references the issue (`closingIssuesReferences`, or `#N`/`issue-N` in its title, body or branch);
+   - an open pull request that will close the issue: `closingIssuesReferences` contains it, its branch contains `issue-N`, or its title or body says it fixes, closes or resolves `#N`. A bare `#N` mention (follow-up, related, out of scope, depends on) is not coverage;
    - a non-stopped session whose name refers to it (`compozy__session_list`, `q: "#N"`);
    - an open `[ ]` or `[~]` line mentioning `#N` in `/Users/pedronauck/Dev/compozy/compozy/.compozy/work-log.md` (read-only; the orchestrator owns it).
 4. If nothing remains, end the run with `nothing new`. Do not notify anyone.

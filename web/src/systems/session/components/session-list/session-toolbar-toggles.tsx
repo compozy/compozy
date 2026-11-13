@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { Archive, Bookmark, type LucideIcon } from "@compozy/ui/icons";
+import {
+  Archive,
+  Bookmark,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  type LucideIcon,
+} from "@compozy/ui/icons";
 
-import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
+import { Button, Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 
 import { SESSION_ARCHIVED_COPY, SESSION_LATER_COPY } from "../../lib/session-toolbar-copy";
 
@@ -147,5 +153,43 @@ export function SessionLaterToggle({
       slot="session-later-toggle"
       testId={testId}
     />
+  );
+}
+
+export interface SessionFoldAllButtonProps {
+  /** Collapse all is on: folders, groups, child session lists and subagent lists. */
+  allCollapsed: boolean;
+  onAllCollapsedChange: (collapsed: boolean) => void;
+  testId: string;
+  className?: string;
+}
+
+/** Collapse all or Expand all; the name and the glyph say what a click will do. */
+export function SessionFoldAllButton({
+  allCollapsed,
+  onAllCollapsedChange,
+  testId,
+  className,
+}: SessionFoldAllButtonProps) {
+  const label = allCollapsed ? "Expand all" : "Collapse all";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label={label}
+            className={cn("shrink-0", className)}
+            data-testid={`${testId}-collapse-all`}
+            onClick={() => onAllCollapsedChange(!allCollapsed)}
+            size="icon-sm"
+            type="button"
+            variant="quiet"
+          />
+        }
+      >
+        <Icon as={allCollapsed ? ChevronsUpDown : ChevronsDownUp} size="sm" />
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -75,3 +75,42 @@ after their success receipts. Switching to a project while confirmation was open
 closed the session window without deleting its target; returning to All projects
 showed that target intact. This current shell transition cannot retain the dialog
 across the switch; the mutation hooks independently use captured ownership.
+
+## Grouped session menus (2026-11-13)
+
+One menu tree per session and one per selection. A list row and a Kanban card render the same
+tree on right-click (and Shift+F10) and behind `…`; a host drops a verb only when it cannot
+apply there. Walk in the session window sidebar, the Sessions modal and the Kanban board.
+
+1. Open a top-level user session's `…` and its right-click menu: both read, in order, Rename
+   session; Copy ▸ (Copy session ID, Copy title, Copy branch name when the session has a branch,
+   Copy pull request link, or links with their count, when it has linked PRs); New from this ▸
+   (Continue with another agent…, Fork session…; absent for archived, spawned, coordinator and
+   system rows); the linked work submenu; Move ▸; Mark as seen when the Needs you is
+   dismissible; Stop session, Move to Later… or Back from Later, Archive or Stop and archive
+   session or Unarchive session; then Clear conversation (the window's own session only) and
+   Delete session last.
+2. Move ▸ holds the Folder group (every folder, the current one checked and inert, Remove from
+   folder when filed), Move under… (opens the parent picker), Make top-level or Take over
+   session, Move to profile ▸, and,
+   in the list's Manual sort only, Move up and Move down. A verb the session cannot take is
+   absent, and Move ▸ disappears when nothing is left in it. A Kanban card offers the same Move ▸
+   without Move up and Move down (columns order the board); its folders are the card's own
+   project and profile's.
+3. A session with one linked item shows `Pull request #N ▸` (or `Branch x ▸`): Open PR,
+   Refresh with the last check time, Copy pull request link (or Copy branch name), Link another…
+   (opens the session and its link dialog) and Unlink from this session (absent for a rolled-up
+   item). With two or more it shows `Linked work N ▸`, one submenu per item with its status as
+   the hint, grouped by Needs you / In progress / Done from five items, at most eight items, then
+   Show all N… (opens the session) and Link another…. The full list is read when the menu opens.
+4. Select several sessions: More actions and a selected row's or card's right-click show the
+   same tree minus single-session verbs: Copy ▸ (Copy session IDs, Copy titles, Copy branch
+   names with a count), Move ▸ (Folder group with New folder…, or the reason the selection
+   cannot move; Move under ▸ with the count that can move and the listed sessions they can move
+   under; Make top-level with its count), Mark as seen, Stop · N active, Move to Later…, Back
+   from Later · N in Later, Archive / Stop and archive, Unarchive · N archived, and Delete N
+   sessions (⌘⌫ on the bar only). A verb no selected session can take is absent.
+
+Not offered from a list row or card (they need the session's window): the pull request agent
+prompts (Fix failing checks, Address review comments) and the exit actions; the selection has
+no Move to profile.

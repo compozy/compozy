@@ -4,7 +4,7 @@ area: ET
 title: Move a session started in the wrong profile to another profile
 persona: Ada
 journey: J-scope-work-by-profile
-expected: "A stopped top-level user session moves to another active profile from the row menu (Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live descendants or unarchived descendants outside the original's subagent archive family refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
+expected: "A stopped top-level user session moves to another active profile from the row menu (Move ▸ Move to profile → profile name → dialog → Move to {profile}), the CLI (`compozy session move-to-profile <id> <profile>`), HTTP/UDS (`POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile`), or the native tool `compozy__session_move_to_profile`. The result is a fork owned by the target profile with the same agent, title, and conversation, and the original archived in its own profile. A bound worktree is removed with its branch and commits kept, and the branch is checked out again in a new worktree owned by the target profile, which the copy binds. Archived, stopped descendants stay in the source profile with unchanged lineage; live descendants or unarchived descendants outside the original's subagent archive family refuse with a blocker count and instructions to stop and archive them first. A running session is refused before anything is sent (web) or with 409 `session_move_to_profile_running`; a worktree with uncommitted changes with 409 `session_move_to_profile_worktree_dirty`; refusals leave the original unarchived and its worktree in place."
 entry_points: web session row menu and Move to profile dialog; compozy session move-to-profile; HTTP/UDS POST /api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile; native compozy__session_move_to_profile
 qa_status: pending
 bug_ids: [1298, 1320]
@@ -29,7 +29,7 @@ Walk (isolated lab, two profiles `default` and `work`, acpmock agent, git worksp
    `work`, bound to a new ready worktree owned by `work` on the same branch; the original worktree
    reads `removed`, the branch still points at the new commit, and the original is archived in
    `default`. Prompt the copy under `--profile work`; it answers.
-5. In the web session list, right-click a stopped worktree session → Move to profile → `work`: the
+5. In the web session list, right-click a stopped worktree session → Move ▸ Move to profile → `work`: the
    dialog shows "Usage so far stays counted in default." and the worktree note; confirming shows
    "Moved to work" / "The original is archived here." and the row leaves the `default` list.
 

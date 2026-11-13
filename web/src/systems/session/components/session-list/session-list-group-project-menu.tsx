@@ -1,27 +1,33 @@
 import type * as React from "react";
 
-import { ContextMenuItem } from "@compozy/ui";
-import { FolderTree } from "@compozy/ui/icons";
-
 import { useOpenFilesApp } from "@/systems/os";
-import { WorkspaceProjectContextMenu, useWorkspaces } from "@/systems/workspace";
+import {
+  WorkspaceProjectContextMenu,
+  useWorkspaces,
+  type ProjectMenuVerbs,
+} from "@/systems/workspace";
 
 import type { SessionListGroupSpec } from "../../lib/session-list-groups";
 
 /**
- * A project group's header takes its project's context menu, the same actions
- * and confirms as every other project surface; the header owns Shift+F10.
- * Profile groups, the User group, and a project the catalog does not list keep
- * an inert trigger, so the header never remounts when the catalog answers.
+ * A project group's header takes the project menu every project surface opens:
+ * New ▸, Open files, Move ▸, Archive, Remove. The header owns Shift+F10. A host
+ * that holds the `+` passes its verbs; the shell supplies the rest. Profile groups,
+ * the User group, and a project the catalog does not list keep an inert trigger
+ * (the User group keeps only its Move ▸ in project folders), so the header never
+ * remounts when the catalog answers.
  */
 export function SessionListGroupProjectMenu({
   group,
-  leadingItems,
+  verbs,
+  testId,
   children,
 }: {
   group: Pick<SessionListGroupSpec, "kind" | "scope">;
-  /** Host items before the project's actions (project folder verbs); they open the menu for User too. */
-  leadingItems?: React.ReactNode;
+  /** The header's own verbs (its `+` and project folders); they win over the shell's. */
+  verbs?: ProjectMenuVerbs;
+  /** Test id prefix of the menu's rows. */
+  testId?: string;
   /** The header element; it becomes the right-click and Shift+F10 target. */
   children: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 }) {
@@ -32,28 +38,14 @@ export function SessionListGroupProjectMenu({
     group.kind === "project" && scope.kind === "project"
       ? workspaces.data?.find(candidate => candidate.id === scope.workspaceId)
       : undefined;
-  const openFilesItem =
-    workspace && openFiles ? (
-      <ContextMenuItem
-        data-testid={`session-list-group-open-files-${workspace.id}`}
-        onClick={() => openFiles(workspace.id)}
-      >
-        <FolderTree />
-        Open files
-      </ContextMenuItem>
-    ) : null;
+  // Without a project behind the header only its place among project folders remains.
+  const own: ProjectMenuVerbs | undefined = workspace
+    ? { ...verbs, openFiles: openFiles ? () => openFiles(workspace.id) : undefined }
+    : verbs?.move
+      ? { move: verbs.move }
+      : undefined;
   return (
-    <WorkspaceProjectContextMenu
-      workspace={workspace}
-      leadingItems={
-        openFilesItem || leadingItems ? (
-          <>
-            {openFilesItem}
-            {leadingItems}
-          </>
-        ) : undefined
-      }
-    >
+    <WorkspaceProjectContextMenu workspace={workspace} verbs={own} testId={testId}>
       {children}
     </WorkspaceProjectContextMenu>
   );
