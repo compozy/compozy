@@ -1669,10 +1669,12 @@ describe("RoutingCoordinator", () => {
       expect(router.replace).not.toHaveBeenCalled();
     });
 
-    it("Should adopt the canonical route of its own write for the window still focused [R10-05]", async () => {
+    /** The coordinator's own activation of a session window its loader redirects to bind. */
+    async function afterOwnActivationOfUnbound() {
       const unbound = windowFixture("session", "/agents/general/sessions/sess-x", "sess-x");
       const tasks = windowFixture("tasks", "/tasks");
-      const { coordinator, router, store, history } = createCoordinator([unbound, tasks]);
+      const harness = createCoordinator([unbound, tasks]);
+      const { coordinator, router, store, history } = harness;
       coordinator.completeHydration();
       coordinator.reportRouteMatch(tasks.route, history.current());
       // All projects: the session window's stored route has no workspace binding yet.
@@ -1684,6 +1686,12 @@ describe("RoutingCoordinator", () => {
       store.spies.focusWindow.mockClear();
       vi.mocked(router.navigate).mockClear();
       vi.mocked(router.replace).mockClear();
+      return { ...harness, unbound, written, bound, redirected };
+    }
+
+    it("Should adopt the canonical route of its own write for the window still focused [R10-05]", async () => {
+      const { coordinator, router, store, unbound, written, bound, redirected } =
+        await afterOwnActivationOfUnbound();
 
       coordinator.reportRouteMatch(unbound.route, written);
       coordinator.reportRouteMatch(bound, redirected);
@@ -1697,6 +1705,44 @@ describe("RoutingCoordinator", () => {
       expect(store.spies.focusWindow).not.toHaveBeenCalled();
       expect(router.navigate).not.toHaveBeenCalled();
       expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should keep the written route when the window refuses the canonical one [R10-05]", async () => {
+      const { coordinator, router, store, unbound, written, bound, redirected } =
+        await afterOwnActivationOfUnbound();
+      store.spies.navigateWindow.mockReturnValueOnce({
+        accepted: false,
+        completion: Promise.resolve(false),
+      });
+
+      coordinator.reportRouteMatch(unbound.route, written);
+      coordinator.reportRouteMatch(bound, redirected);
+      coordinator.reportAuthoritativeState();
+      await Promise.resolve();
+
+      expect(store.spies.navigateWindow).toHaveBeenCalledOnce();
+      expect(store.getState().windows[unbound.id]?.route).toEqual(unbound.route);
+      // Replacing the URL back to the unbound route would redirect again, for every refusal.
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it("Should read the same entry reported twice as one echo when focus moves between reports [E2E-040]", async () => {
+      const { coordinator, router, store, a, b, writeOfB } = afterWriteOfB();
+
+      // The previous route's sync reports B's entry as its load starts; the session route reports
+      // it again once its loader settles. Focus moves to A in between.
+      coordinator.reportRouteMatch(b.route, writeOfB);
+      store.setAuthoritativeFocus(a.id);
+      coordinator.reportRouteMatch(b.route, writeOfB);
+      coordinator.reportAuthoritativeState();
+      await Promise.resolve();
+
+      expect(store.getState().focusedId).toBe(a.id);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(store.spies.focusWindow).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(router.replace).toHaveBeenLastCalledWith(a.route);
     });
 
     it("Should read both reports of a redirected write as echoes once focus moved on [AS-F-17, R10-05]", async () => {
