@@ -104,7 +104,7 @@ export class WindowPaneHosts {
    * Hosts `place` restored in the current task: the re-insertion its slot's mount reports to the
    * mutation observer in the following microtask is the same move, not a second one.
    */
-  private readonly placedThisTurn = new Set<PaneHost>();
+  private readonly placedThisTurn = new Map<PaneHost, object>();
   /** Set while a host leaves its slot: the blur that causes is not the operator's. */
   private detaching = false;
 
@@ -130,9 +130,13 @@ export class WindowPaneHosts {
     this.watchAncestors(slot);
     this.restore(host);
     // Queued after the observer's own notification for this commit's mutations, so it reads
-    // the host as placed and the next turn's re-insertions as new.
-    this.placedThisTurn.add(host);
-    queueMicrotask(() => this.placedThisTurn.delete(host));
+    // the host as placed and the next turn's re-insertions as new; a later `place` of the same
+    // host in this task keeps its own mark.
+    const mark = {};
+    this.placedThisTurn.set(host, mark);
+    queueMicrotask(() => {
+      if (this.placedThisTurn.get(host) === mark) this.placedThisTurn.delete(host);
+    });
     return () => {
       if (host.element.parentNode !== slot) return;
       const active = slot.ownerDocument.activeElement;
