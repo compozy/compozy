@@ -30,16 +30,18 @@ export function useVisitedTabs(
   const [visited, setVisited] = useState<readonly TabId[]>(() =>
     activeTabId === null ? [] : [activeTabId]
   );
-  const live = visited.filter(tabId => tabIds.includes(tabId));
+  const present = new Set(tabIds);
+  const live = visited.filter(tabId => present.has(tabId));
   const next =
-    activeTabId !== null && tabIds.includes(activeTabId) && !live.includes(activeTabId)
+    activeTabId !== null && present.has(activeTabId) && !live.includes(activeTabId)
       ? [...live, activeTabId]
       : live;
   if (next.length !== visited.length || next.some((tabId, index) => tabId !== visited[index])) {
     setVisited(next);
   }
   // Bar order keeps sibling tab layers stable while the set changes.
-  return tabIds.filter(tabId => next.includes(tabId));
+  const kept = new Set(next);
+  return tabIds.filter(tabId => kept.has(tabId));
 }
 
 /** Measures the one shared content area and lists each desktop with its active tab. */

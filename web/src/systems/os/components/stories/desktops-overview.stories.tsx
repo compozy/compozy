@@ -14,7 +14,7 @@ import { DesktopShell } from "./_desktop";
 import { STORY_WINDOWS as W, storySessionOf } from "./_tab-fixtures";
 
 function leaf(win: OsWindow): LayoutNode {
-  return { id: win.nodeId, kind: "leaf", windowId: win.id };
+  return { id: win.nodeId ?? `node:${win.id}`, kind: "leaf", windowId: win.id };
 }
 
 function split(

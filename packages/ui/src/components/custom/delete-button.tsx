@@ -1,8 +1,9 @@
 "use client";
 
-import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 
+import { useDeleteButton } from "../../hooks/use-delete-button";
 import { Check, Trash2, X } from "../../icons";
 import { cn } from "../../lib/utils";
 
@@ -35,9 +36,6 @@ export interface DeleteButtonProps extends Omit<
   confirmedDuration?: number;
 }
 
-const SPRING = { type: "spring", stiffness: 520, damping: 34 } as const;
-const INSTANT = { duration: 0 } as const;
-
 function announcement(phase: DeleteButtonPhase, label: string): string {
   if (phase === "open") return `${label}: confirm or cancel`;
   if (phase === "confirmed") return `${label}: confirmed`;
@@ -64,46 +62,13 @@ function DeleteButton({
   className,
   ...props
 }: DeleteButtonProps) {
-  const [ownPhase, setOwnPhase] = React.useState<DeleteButtonPhase>(defaultPhase);
-  const current = phase ?? ownPhase;
-  const reduced = useReducedMotionConfig() === true;
-  const transition = reduced ? INSTANT : SPRING;
-  const binRef = React.useRef<HTMLButtonElement | null>(null);
-  const cancelRef = React.useRef<HTMLButtonElement | null>(null);
-  // Where focus goes once the next phase has rendered its controls.
-  const focusNext = React.useRef<"bin" | "cancel" | null>(
-    defaultPhase === "open" ? "cancel" : null
-  );
-
-  const go = (next: DeleteButtonPhase, focus: "bin" | "cancel" | null) => {
-    focusNext.current = focus;
-    setOwnPhase(next);
-    onPhaseChange?.(next);
-  };
-
-  React.useEffect(() => {
-    const target = focusNext.current;
-    focusNext.current = null;
-    if (target === "cancel") cancelRef.current?.focus();
-    if (target === "bin") binRef.current?.focus();
-  }, [current]);
-
-  const settle = React.useEffectEvent(() => {
-    setOwnPhase("rest");
-    onPhaseChange?.("rest");
+  const { current, transition, binRef, cancelRef, go, cancel } = useDeleteButton({
+    phase,
+    defaultPhase,
+    onPhaseChange,
+    onCancel,
+    confirmedDuration,
   });
-
-  // An uncontrolled button holds the confirmed check briefly, then rests again.
-  React.useEffect(() => {
-    if (phase !== undefined || ownPhase !== "confirmed") return;
-    const timer = setTimeout(() => settle(), confirmedDuration);
-    return () => clearTimeout(timer);
-  }, [phase, ownPhase, confirmedDuration]);
-
-  const cancel = () => {
-    go("rest", "bin");
-    onCancel?.();
-  };
   const open = current === "open";
   const confirmed = current === "confirmed";
 

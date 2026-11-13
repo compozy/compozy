@@ -91,7 +91,8 @@ function splitRects(node: LayoutSplitNode, rect: PixelRect, gap: number): PixelR
 
 /** The member a collapsed split shows: the one this client focused last, else its first window. */
 function shownMember(windowIds: readonly WindowId[], focusOrder: readonly WindowId[]): WindowId {
-  return focusOrder.find(windowId => windowIds.includes(windowId)) ?? windowIds[0] ?? "";
+  const members = new Set(windowIds);
+  return focusOrder.find(windowId => members.has(windowId)) ?? windowIds[0] ?? "";
 }
 
 function leafEntries(

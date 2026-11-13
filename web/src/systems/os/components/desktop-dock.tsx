@@ -37,7 +37,7 @@ const WAKE =
   "transition-[opacity,filter] duration-shell-slow ease-spring motion-reduce:transition-none";
 
 /**
- * The wired dock: floating renders the left rail beside the desktop; compact
+ * The wired dock: the split presentation renders the left rail beside the desk; compact
  * renders the full-width bottom tab bar. Each claims its own row/column of the
  * shell grid (`DesktopShellScopedBody`) and carries the rail-foot controls.
  * Entries and activation semantics live in `useDesktopDock`.

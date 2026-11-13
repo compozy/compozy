@@ -44,9 +44,17 @@ export const shortcutsSchema = z
   })
   .transform((shortcuts): WindowManagerShortcutMap => shortcuts);
 
+/**
+ * The daemon canonicalizes the retired `floating` policy to `tab`, but an override stored before
+ * tabs may still carry it until v0.8.0: read it as `tab`, never type it as current.
+ */
+const newWindowPolicySchema = z
+  .enum(["floating", "beside_focus", "tab"])
+  .transform(policy => (policy === "floating" ? "tab" : policy));
+
 export const windowManagerWorkspaceConfigSchema = z
   .strictObject({
-    new_window_policy: z.enum(["floating", "beside_focus", "tab"]).optional(),
+    new_window_policy: newWindowPolicySchema.optional(),
     small_viewport_policy: z.enum(["stack", "reject"]).optional(),
     focus_policy: z.enum(["click_directional", "directional"]).optional(),
     focus_wrap: z.boolean().optional(),
@@ -78,7 +86,7 @@ export const windowManagerWorkspaceConfigSchema = z
   }));
 
 export const windowManagerWireConfigSchema = z.strictObject({
-  new_window_policy: z.enum(["floating", "beside_focus", "tab"]),
+  new_window_policy: newWindowPolicySchema,
   small_viewport_policy: z.enum(["stack", "reject"]),
   focus_policy: z.enum(["click_directional", "directional"]),
   focus_wrap: z.boolean(),

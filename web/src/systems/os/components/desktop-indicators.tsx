@@ -1,9 +1,9 @@
 import { Ellipsis } from "@compozy/ui/icons";
-import { useState } from "react";
 import type * as React from "react";
 
 import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from "@compozy/ui";
 
+import { useDesktopIndicatorRoving } from "../hooks/use-desktop-indicator-roving";
 import { DESKTOP_DROP_TARGET_ATTRIBUTE } from "../hooks/use-os-tab-drag";
 import {
   DESKTOP_OVERFLOW_ATTRIBUTE,
@@ -74,47 +74,13 @@ export function DesktopIndicators({
   ...props
 }: DesktopIndicatorsProps) {
   const controls = desktopBarControls(desktops, activeDesktopId);
-  const controlRefs = new Map<string, HTMLButtonElement>();
-  const [rovingKey, setRovingKey] = useState<string>();
+  const { controlProps, rove } = useDesktopIndicatorRoving(controls, activeDesktopId);
   const dragging = dragSourceDesktopId !== null;
-  const activeKey = `desktop:${activeDesktopId}`;
-  const visibleKeys = new Set(controls.map(control => control.key));
-  const tabStopKey = rovingKey && visibleKeys.has(rovingKey) ? rovingKey : activeKey;
 
   if (desktops.length === 0) return null;
 
-  const focusControl = (position: number) => {
-    const control = controls[position];
-    if (!control) return;
-    setRovingKey(control.key);
-    controlRefs.get(control.key)?.focus();
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, key: string) => {
-    const position = controls.findIndex(control => control.key === key);
-    if (position < 0) return;
-    let nextPosition: number | null = null;
-    if (event.key === "ArrowLeft") nextPosition = Math.max(0, position - 1);
-    if (event.key === "ArrowRight") nextPosition = Math.min(controls.length - 1, position + 1);
-    if (event.key === "Home") nextPosition = 0;
-    if (event.key === "End") nextPosition = controls.length - 1;
-    if (nextPosition === null) return;
-    event.preventDefault();
-    focusControl(nextPosition);
-  };
-
-  const controlProps = (control: DesktopBarControl) => ({
-    ref: (node: HTMLButtonElement | null) => {
-      if (node) controlRefs.set(control.key, node);
-      else controlRefs.delete(control.key);
-    },
-    tabIndex: control.key === tabStopKey ? 0 : -1,
-    onFocus: () => setRovingKey(control.key),
-    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => handleKeyDown(event, control.key),
-  });
-
   const openOverflow = (control: Extract<DesktopBarControl, { kind: "overflow" }>) => {
-    setRovingKey(control.key);
+    rove(control.key);
     onOpenOverview({
       direction: control.direction,
       hiddenDesktopIds: control.hiddenDesktopIds,
@@ -194,7 +160,7 @@ export function DesktopIndicators({
             const needsYou = desktop.needsYou === true && !active;
             const label = desktopIndicatorLabel(control, desktops.length, active);
             const select = () => {
-              setRovingKey(control.key);
+              rove(control.key);
               if (!canSwitchDesktop || active) return;
               onSelectDesktop(desktop.id);
             };

@@ -22,7 +22,8 @@ import type {
   WindowManagerMigrationStatus,
   WindowManagerSnapshot,
 } from "../../lib/window-manager-types";
-import { OsUpgradeNotice, upgradeNoticeDescription } from "../os-upgrade-notice";
+import { upgradeNoticeDescription } from "../../lib/upgrade-notice-description";
+import { OsUpgradeNotice } from "../os-upgrade-notice";
 
 const api = vi.hoisted(() => ({ updateWindowManagerMigration: vi.fn() }));
 

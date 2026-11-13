@@ -58,9 +58,9 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     const projection = tabId === undefined ? undefined : this.view.projections[tabId];
     if (projection === undefined) return;
     const target = directionalFocusTarget({
-      candidates: projection.windows
-        .filter(projected => projected.shown)
-        .map(projected => ({ id: projected.windowId, rect: projected.rect })),
+      candidates: projection.windows.flatMap(projected =>
+        projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
+      ),
       focusedId: this.view.focusedId,
       direction,
       wrap: config.focusWrap,

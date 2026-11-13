@@ -49,7 +49,7 @@ function settingsResponse(): WindowManagerSettingsWire {
       },
     ],
     config: {
-      new_window_policy: "floating",
+      new_window_policy: "beside_focus",
       small_viewport_policy: "stack",
       focus_policy: "click_directional",
       focus_wrap: true,
@@ -165,7 +165,7 @@ describe("parseSettingsWindowManagerSection", () => {
 describe("parseSettingsWindowManagerSection.config", () => {
   it("Should project the complete validated global config", () => {
     expect(parseSettingsWindowManagerSection(settingsResponse()).config).toEqual({
-      newWindowPolicy: "floating",
+      newWindowPolicy: "beside_focus",
       smallViewportPolicy: "stack",
       focusPolicy: "click_directional",
       focusWrap: true,
@@ -279,6 +279,16 @@ describe("parseSettingsWindowManagerSection.config", () => {
     response.config.new_window_policy = "tab";
 
     expect(parseSettingsWindowManagerSection(response).config.newWindowPolicy).toBe("tab");
+  });
+
+  // The retired policy is tolerated at the read boundary only (deprecated until v0.8.0).
+  it("Should read the retired floating new-window policy as a tab", () => {
+    const response = settingsResponse();
+    response.config.new_window_policy = "floating";
+    const overrides = windowManagerWorkspaceConfigSchema.parse({ new_window_policy: "floating" });
+
+    expect(parseSettingsWindowManagerSection(response).config.newWindowPolicy).toBe("tab");
+    expect(overrides.newWindowPolicy).toBe("tab");
   });
 
   it("Should accept a binding for an id this client has not hydrated yet", () => {

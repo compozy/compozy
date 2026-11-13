@@ -1,5 +1,5 @@
 import { OverlayContainerContext, SkeletonRows, Spinner } from "@compozy/ui";
-import { memo, Suspense, useDeferredValue, useState, type MouseEvent, type ReactNode } from "react";
+import { memo, Suspense, type ReactNode } from "react";
 
 import { WindowScopeContext } from "@/hooks/use-window-scope";
 import {
@@ -9,10 +9,7 @@ import {
 } from "@/systems/workspace";
 
 import { WindowLiveDataContext } from "../contexts/window-live-data-context";
-import { useDesktop } from "../hooks/use-desktop";
-import { useOsTabDragStart, useOsTabPreviewed, useOsWindowDragged } from "../hooks/use-os-tab-drag";
-import { useOsWindowMember } from "../hooks/use-os-window-member";
-import { useDeskBoundToActingProfile } from "../hooks/use-window-manager-store";
+import { useOsWindowPane } from "../hooks/use-os-window-pane";
 import { osAppId } from "../lib/app-catalog";
 import { getOsApp } from "../lib/app-registry";
 import { ensureWindowSlotStore } from "../lib/window-slot-registry";
@@ -26,47 +23,19 @@ import { OsWindowSurface } from "./os-window-surface";
  * returning to it never reloads its surface.
  */
 export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId: string }) {
-  const member = useOsWindowMember(windowId);
-  const { coordinator, win, focused, liveDataEnabled, windowBinding } = member;
-  const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
-  // Mount layout-heavy bodies, including app skeletons, after the pane commits.
-  const contentHost = useDeferredValue(overlayHost);
-  const deskBound = useDeskBoundToActingProfile();
-  const { startHeadDrag } = useOsTabDragStart();
-  const dragged = useOsWindowDragged(windowId);
-  // A drag previews another tab's content without activating it: its windows show too.
-  const previewed = useOsTabPreviewed(win?.tabId ?? null);
-  const projectedShown = useDesktop(
-    state =>
-      state.projections[win?.tabId ?? ""]?.windows.find(entry => entry.windowId === windowId)
-        ?.shown ?? true
-  );
+  const pane = useOsWindowPane(windowId);
+  const { member, contentHost, deskBound, dragged, visible } = pane;
+  const { win, focused, liveDataEnabled, windowBinding } = member;
   if (!win) return null;
-  const visible = win.shown || (previewed && projectedShown);
   const appId = osAppId(win.app);
   if (appId === null) return null;
   const app = getOsApp(appId);
   const Controller = app.Controller;
   const AppIcon = app.icon;
 
-  // Navigation intent is classified at the click, not inferred from paths
-  // (ADR-011): a link inside the body drills in (`push`); a breadcrumb selects
-  // a parent, and the coordinator checks whether it matches the tab's stack.
-  const classifyNavigation = (event: MouseEvent<HTMLElement>) => {
-    const element = event.target instanceof Element ? event.target : null;
-    if (!element) return;
-    if (element.closest('[data-slot="topbar-back"], [data-slot="topbar-crumb"]')) {
-      coordinator.noteNavigateMode("pop");
-      return;
-    }
-    if (element.closest("a[href]") && element.closest('[data-slot="os-window-body"]')) {
-      coordinator.noteNavigateMode("push");
-    }
-  };
-
   return (
     <OsWindowSurface
-      onClickCapture={classifyNavigation}
+      onClickCapture={pane.classifyNavigation}
       onFocusCapture={member.handleFocusCapture}
       onPointerDownCapture={member.handlePointerDownCapture}
       onPointerEnter={member.handlePointerEnter}
@@ -81,7 +50,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
       slotStore={ensureWindowSlotStore(windowId)}
       // The runtime animates in-window drills against this one named body.
       bodyTransitionName={focused && win.shown ? "os-window-body" : undefined}
-      onHeadPointerDown={event => startHeadDrag(windowId, event)}
+      onHeadPointerDown={pane.startHeadDrag}
       className={dragged ? "relative opacity-45" : "relative"}
       hidden={!visible}
       // Named region landmark per window: assistive tech can jump between
@@ -126,7 +95,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
         )}
       </OverlayContainerContext.Provider>
       <div
-        ref={setOverlayHost}
+        ref={pane.setOverlayHost}
         data-slot="os-window-overlays"
         // contain-paint makes portaled fixed-position scrims resolve against
         // this box, so a dialog dims and travels with its window only.

@@ -23,7 +23,7 @@ export type LayoutAxis = "horizontal" | "vertical";
  */
 export type DropPlacement = "tab" | "left" | "right" | "top" | "bottom";
 export type FocusDirection = "left" | "right" | "up" | "down";
-export type WindowManagerNewWindowPolicy = "floating" | "beside_focus" | "tab";
+export type WindowManagerNewWindowPolicy = "beside_focus" | "tab";
 export type WindowManagerSmallViewportPolicy = "stack" | "reject";
 export type WindowManagerFocusPolicy = "click_directional" | "directional";
 export type WindowManagerDesktopTransition = "slide" | "crossfade" | "instant";

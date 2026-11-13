@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
   type TopbarSlotValue,
   providerKindIconRegistry,
-  type StateGlyphState,
 } from "@compozy/ui";
 import { X } from "@compozy/ui/icons";
 import {
@@ -19,11 +18,7 @@ import {
 } from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  getSessionDisplayTitle,
-  pendingInteractions,
-  type SessionPayload,
-} from "@/systems/session";
+import { pendingInteractions, type SessionPayload } from "@/systems/session";
 
 import {
   pinnedTabWidth,
@@ -31,52 +26,17 @@ import {
   TAB_TILE_STACK_MAX,
   TAB_TILE_WIDTH,
 } from "../hooks/use-os-tab-bar";
+import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { useWindowMemberSlot } from "../hooks/use-window-member-slot";
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
+import { sessionSignal, tabSignal } from "../lib/tab-signal";
 import { TAB_MAX_WIDTH, tabPresentation } from "../lib/tab-width";
 import { ensureWindowSlotStore } from "../lib/window-slot-registry";
 
 const TILE_HEIGHT = 20;
 const TILE_SHRINK = 2;
 
-export interface TabSignal {
-  state: StateGlyphState;
-  /** Accessible name: the glyph stands alone, without a visible label. */
-  label: string;
-}
-
-/** Session badge → the tab's signal; accent marks attention only. */
-export function sessionSignal(session: SessionPayload | undefined): TabSignal | null {
-  switch (session?.badge) {
-    case "running":
-      return { state: "running", label: "Session running" };
-    case "failed":
-      return { state: "failed", label: "Session failed" };
-    case "waiting-for-auth":
-      return { state: "attention", label: "Session needs input" };
-    case "hung":
-    case "needs-attention":
-    case "unhealthy":
-      return { state: "attention", label: "Session needs attention" };
-    default:
-      return null;
-  }
-}
-
-const SIGNAL_RANK: Record<string, number> = { attention: 0, failed: 1, running: 2 };
-
-/** The loudest signal among a tab's members: needs you, then failed, then working. */
-export function tabSignal(signals: readonly (TabSignal | null)[]): TabSignal | null {
-  let loudest: TabSignal | null = null;
-  for (const signal of signals) {
-    if (signal === null) continue;
-    if (loudest === null || (SIGNAL_RANK[signal.state] ?? 9) < (SIGNAL_RANK[loudest.state] ?? 9)) {
-      loudest = signal;
-    }
-  }
-  return loudest;
-}
 
 function sessionProvider(session: SessionPayload | undefined): string | null {
   const runtime = session?.runtime;
@@ -140,16 +100,6 @@ export function OsTabTiles({
       })}
     </span>
   );
-}
-
-/** A window's title: a session's display title, the surface's live label, else the app's name. */
-export function useOsWindowTitle(win: OsWindow, session: SessionPayload | undefined): string {
-  const slot = useWindowMemberSlot(ensureWindowSlotStore(win.id));
-  if (win.app === "session" && session) return getSessionDisplayTitle(session);
-  const label = slot?.tabLabel ?? slot?.crumb;
-  return typeof label === "string" && label.trim() !== ""
-    ? label
-    : getOsAppDescriptor(win.app).title;
 }
 
 /** The tooltip's full trail: every drill-in crumb of the lead window, then the tab's title. */

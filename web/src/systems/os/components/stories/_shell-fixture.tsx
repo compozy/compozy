@@ -30,7 +30,7 @@ export function createStoryShell() {
 const STORY_DESKTOP_ID = "desktop:story";
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,

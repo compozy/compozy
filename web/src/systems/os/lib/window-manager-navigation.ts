@@ -55,7 +55,7 @@ export function arrangeParticipants(
   focusOrder: readonly WindowId[],
   preset: OsArrangePreset
 ): WindowId[] {
-  const anchorTab = desktop.tabs.find(tab => tabWindowIds(tab).includes(anchorId));
+  const anchorTab = desktop.tabs.find(tab => new Set(tabWindowIds(tab)).has(anchorId));
   if (anchorTab === undefined) return [];
   const others = desktop.tabs.flatMap(tab => {
     if (tab.id === anchorTab.id) return [];

@@ -4,7 +4,9 @@ import type { PointerEvent } from "react";
 import type { SessionPayload } from "@/systems/session";
 
 import type { OsWindow } from "../lib/os-types";
-import { OsTabTiles, sessionSignal, tabSignal, useOsWindowTitle } from "./os-tab";
+import { useOsWindowTitle } from "../hooks/use-os-window-title";
+import { sessionSignal, tabSignal } from "../lib/tab-signal";
+import { OsTabTiles } from "./os-tab";
 
 export interface DesktopOverviewTabRowProps {
   tabId: string;

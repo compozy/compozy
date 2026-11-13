@@ -108,9 +108,9 @@ export {
   OsSplitSeam,
   OsSplitView,
   type OsSplitSeamProps,
-  type OsSplitSeamSlot,
   type OsSplitViewProps,
 } from "./components/os-split-view";
+export type { OsSplitSeamSlot } from "./hooks/use-split-view";
 export type {
   WindowManagerGlobalShortcutMap,
   WindowManagerGlobalShortcutRegistration,

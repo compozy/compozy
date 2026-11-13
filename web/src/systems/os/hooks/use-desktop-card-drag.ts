@@ -63,6 +63,7 @@ export function useDesktopCardDrag(
       if (!dragging && Math.hypot(point.x - origin.x, point.y - origin.y) < DRAG_START_PX) return;
       dragging = true;
       const preview = movedOrder(order, desktopId, index);
+      const previewIndex = new Map(preview.map((id, position) => [id, position]));
       const cards = grid.querySelectorAll<HTMLElement>(
         "[data-slot='desktop-card'], [data-slot='desktop-gap']"
       );
@@ -74,8 +75,9 @@ export function useDesktopCardDrag(
           point.x <= rect.right &&
           point.y >= rect.top &&
           point.y <= rect.bottom;
-        if (id !== undefined && over && preview.includes(id)) {
-          index = preview.indexOf(id);
+        const position = id === undefined ? undefined : previewIndex.get(id);
+        if (over && position !== undefined) {
+          index = position;
           break;
         }
       }

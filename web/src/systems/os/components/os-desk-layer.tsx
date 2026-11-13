@@ -20,7 +20,8 @@ import type { TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
 import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
-import { OsSplitSeam, OsSplitView, type OsSplitSeamSlot } from "./os-split-view";
+import type { OsSplitSeamSlot } from "../hooks/use-split-view";
+import { OsSplitSeam, OsSplitView } from "./os-split-view";
 import { OsWindowPane } from "./os-window-pane";
 
 /** Maps transition state to a keyframe name; reduced motion still fires an instant fade so end events run. */

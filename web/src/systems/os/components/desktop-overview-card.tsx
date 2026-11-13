@@ -24,7 +24,7 @@ import { DesktopOverviewTabRow } from "./desktop-overview-tab-row";
 import type { DesktopOverviewItem } from "./desktops-overview";
 
 /** Tab rows a card lists before it counts the rest as "+N more" (US-014.EC-3). */
-export const DESKTOP_CARD_TAB_ROWS = 4;
+const DESKTOP_CARD_TAB_ROWS = 4;
 
 function tabCount(count: number): string {
   return `${count} tab${count === 1 ? "" : "s"}`;

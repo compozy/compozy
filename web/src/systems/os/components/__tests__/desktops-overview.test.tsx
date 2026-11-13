@@ -219,7 +219,8 @@ describe("DesktopsOverview", () => {
   });
 
   it("US-016.AC-2: Should move a tab to another desktop from the card menu", async () => {
-    const user = userEvent.setup();
+    // Submenus open on top of their parent menu, whose guard layer the pointer check would hit.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const callbacks = renderOverview();
 
     fireEvent.contextMenu(card("Build"));

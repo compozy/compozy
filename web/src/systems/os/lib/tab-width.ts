@@ -49,9 +49,10 @@ export function allocateTabWidths(input: TabWidthInput): TabWidthAllocation {
   const rate = (index: number) => (index === input.activeIndex ? ACTIVE_TAB_SHRINK_RATE : 1);
   // Flexbox-style shrink: distribute the deficit by rate, freezing tabs that reach the floor.
   while (deficit > 0.001) {
-    const shrinking = widths
-      .map((width, index) => ({ width, index }))
-      .filter(entry => entry.width > TAB_MIN_WIDTH);
+    const shrinking: Array<{ width: number; index: number }> = [];
+    widths.forEach((width, index) => {
+      if (width > TAB_MIN_WIDTH) shrinking.push({ width, index });
+    });
     if (shrinking.length === 0) break;
     const totalRate = shrinking.reduce((sum, entry) => sum + rate(entry.index), 0);
     let taken = 0;

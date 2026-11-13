@@ -53,7 +53,7 @@ async function flushCommandQueue(): Promise<void> {
 }
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,
@@ -192,6 +192,7 @@ function snapshotWithSplitTab(): WindowManagerSnapshot {
             tabs: [
               {
                 id: tabId,
+                pinned: false,
                 root: {
                   id: "split:one",
                   kind: "split",
@@ -876,6 +877,7 @@ describe("WindowManagerRuntime", () => {
       changes: WindowManagerChangeSet;
       diagnostics: [];
       client: null;
+      deprecations: [];
       rebasedFrom: null;
     }) => void;
     vi.mocked(executeWindowManagerCommand).mockReturnValueOnce(

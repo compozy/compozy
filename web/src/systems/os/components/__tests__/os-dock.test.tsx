@@ -99,7 +99,7 @@ const SNAPSHOT: WindowManagerSnapshot = {
 };
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,
@@ -797,7 +797,7 @@ describe("OsDock", () => {
 
   // The rail foot owns command availability; topology readiness cannot stand in
   // for a missing or unconfirmed palette catalog after a document reload.
-  it.each(["floating", "compact"] as const)(
+  it.each(["split", "compact"] as const)(
     "Should wait for the Settings command in the %s dock without blocking local theme changes",
     async presentation => {
       const user = userEvent.setup();
@@ -1112,6 +1112,7 @@ describe("OsDock", () => {
   });
 
   it("Should close an open destination menu and keep it unavailable while an overlay is active (UT-085)", async () => {
+    // "Open in new window" opened a floating window, which tabs retire; any destination item proves the menu.
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
     const view = renderDock(
@@ -1124,7 +1125,7 @@ describe("OsDock", () => {
     );
     const taskButton = screen.getByRole("button", { name: "Tasks" });
     fireEvent.contextMenu(taskButton);
-    await screen.findByText("Open in new window");
+    await screen.findByText("Open in new desktop");
 
     view.rerender(
       <TooltipProvider delay={0}>
@@ -1137,9 +1138,9 @@ describe("OsDock", () => {
       </TooltipProvider>
     );
 
-    await waitFor(() => expect(screen.queryByText("Open in new window")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Open in new desktop")).not.toBeInTheDocument());
     fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    expect(screen.queryByText("Open in new window")).not.toBeInTheDocument();
+    expect(screen.queryByText("Open in new desktop")).not.toBeInTheDocument();
   });
 
   it("Should open the destination menu with the keyboard and select its focused item (UT-086)", async () => {
@@ -1174,7 +1175,8 @@ describe("OsDock", () => {
     menuTrigger.addEventListener("contextmenu", contextMenuEvents);
     trigger.focus();
     await user.keyboard("{Shift>}{F10}{/Shift}");
-    await screen.findByText("Open in new window");
+    // "Open in new window" opened a floating window, which tabs retire.
+    await screen.findByText("Open in new desktop");
     const keyboardMenuEvent = contextMenuEvents.mock.calls.at(-1)?.[0] as MouseEvent | undefined;
     expect(keyboardMenuEvent?.clientX).toBe(124);
     expect(keyboardMenuEvent?.clientY).toBe(64);

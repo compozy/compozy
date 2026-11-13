@@ -15,6 +15,7 @@ export function useOsWindowMember(windowId: string) {
     return {
       app: window.app,
       instanceKey: window.instanceKey,
+      tabId: window.tabId,
       shown: window.shown,
       inSplit: window.inSplit,
     };

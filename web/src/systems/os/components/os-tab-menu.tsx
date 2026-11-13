@@ -18,7 +18,7 @@ import { useWindowMoveTargets } from "../hooks/use-window-move-targets";
 import { openContextMenuFromKeyboard } from "../lib/context-menu-keyboard";
 import type { OsArrangePreset, OsWindow } from "../lib/os-types";
 import { adjacentTabIndex } from "../lib/window-manager-command-builders";
-import { useOsWindowTitle } from "./os-tab";
+import { useOsWindowTitle } from "../hooks/use-os-window-title";
 
 /** Counts the unpinned tabs each bulk close would reach from this tab. */
 function closeReach(tabs: readonly OsTabModel[], index: number) {

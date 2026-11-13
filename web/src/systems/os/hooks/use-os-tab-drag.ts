@@ -54,9 +54,10 @@ function splitTabFor(
   activeTabId: TabId | null
 ): TabId | null {
   if (activeTabId !== null && activeTabId !== sourceTabId) return activeTabId;
+  const tabs = new Set(tabOrder);
   for (const windowId of state.client?.focusOrder ?? []) {
     const tabId = state.windows[windowId]?.tabId;
-    if (tabId !== undefined && tabId !== sourceTabId && tabOrder.includes(tabId)) return tabId;
+    if (tabId !== undefined && tabId !== sourceTabId && tabs.has(tabId)) return tabId;
   }
   const index = tabOrder.indexOf(sourceTabId);
   return tabOrder[index + 1] ?? tabOrder[index - 1] ?? null;

@@ -267,7 +267,8 @@ describe("OsTabBar", () => {
 
     fireEvent.contextMenu(screen.getByTestId("os-tab-tab:dash"));
     expect(await screen.findByRole("menuitem", { name: "Unpin tab" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Close tab/ })).toBeNull();
+    // "Close tab" may carry its shortcut in the name; "Close tabs to the …" must not match.
+    expect(screen.queryByRole("menuitem", { name: /^Close tab(?!s)/ })).toBeNull();
     // Every other tab is unpinned and to its right.
     expect(screen.getByRole("menuitem", { name: "Close tabs to the left" })).toHaveAttribute(
       "aria-disabled",

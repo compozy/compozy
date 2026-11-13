@@ -74,7 +74,7 @@ const TEST_KEYMAP = {
 } as const;
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,
@@ -498,7 +498,9 @@ describe("useCmdPaletteContext store subscriptions", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, tabActive: false, shown: false },
+          // The daemon counts every window on the active desktop, shown or not (v6): leaving
+          // the desktop is what changes the count.
+          [primary.id]: { ...primary, desktopId: "desktop:elsewhere" },
         },
       })
     );
@@ -1273,8 +1275,8 @@ describe("useOsPaletteExecution keyboard dispatch [UT-129]", () => {
 });
 
 function DeskLayerHarness() {
-  const model = useOsDeskLayer();
-  return <div ref={model.layerRef} data-testid="desk-layer" />;
+  const { layerRef } = useOsDeskLayer();
+  return <div ref={layerRef} data-testid="desk-layer" />;
 }
 
 describe("useOsDeskLayer", () => {

@@ -1,13 +1,9 @@
 import { useState } from "react";
 
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
+import { useDesktopOverviewDrag } from "../hooks/use-desktop-overview-drag";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useTabSessions } from "../hooks/use-os-tab-bar";
-import {
-  useOsTabDragDesktopTarget,
-  useOsTabDragSourceDesktop,
-  useOsTabDragStart,
-} from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
 import {
   DesktopsOverview,
@@ -76,11 +72,7 @@ export function DesktopManagerSurfaces({
   // The overview portals into this desk-sized host so it covers the desk only.
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const { coordinator } = useOsShell();
-  const { startOverviewTabDrag } = useOsTabDragStart();
-  const dropTargetDesktopId = useOsTabDragDesktopTarget();
-  // While a tab is dragged the overview is a drop surface: never modal, so it cannot trap focus,
-  // make the dragged tab inert or take the release as an outside press.
-  const dropSurface = useOsTabDragSourceDesktop() !== null;
+  const { startOverviewTabDrag, dropTargetDesktopId, dropSurface } = useDesktopOverviewDrag();
   const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => ({
     ...desktop,
     needsYou: needsYouDesktopIds.has(desktop.id),

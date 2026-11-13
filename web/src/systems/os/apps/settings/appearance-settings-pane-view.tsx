@@ -109,7 +109,7 @@ export function AppearanceSettingsPaneView({
             help={
               systemReducedMotion
                 ? undefined
-                : "Window, dock, and minimize animations become instant."
+                : "Window and dock animations become instant."
             }
             label="Reduce motion"
           />

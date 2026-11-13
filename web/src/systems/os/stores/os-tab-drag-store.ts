@@ -193,7 +193,7 @@ function contentTarget(
   if (swapHeld && source.kind === "head" && tabId === source.tabId) {
     return { kind: "swap", windowId: drop.windowId, nodeId: drop.nodeId };
   }
-  return { kind: "window", tabId, ...drop };
+  return { ...drop, tabId };
 }
 
 function fence(

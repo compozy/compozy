@@ -1,6 +1,6 @@
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { type SessionPayload, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -105,10 +105,10 @@ export function useTabSessions(hasSession: boolean): ReadonlyMap<string, Session
 
 /** Measures the strip and shares its width among the tabs (UT-030 rules in `tab-width`). */
 function useTabWidths(tabs: readonly OsTabModel[]) {
-  const stripRef = useRef<HTMLDivElement | null>(null);
+  // A callback ref held in state: the bar model carries no ref object read during render.
+  const [strip, stripRef] = useState<HTMLDivElement | null>(null);
   const [stripWidth, setStripWidth] = useState<number | null>(null);
   useEffect(() => {
-    const strip = stripRef.current;
     if (strip === null) return;
     const observer = new ResizeObserver(entries => {
       const entry = entries[0];
@@ -116,7 +116,7 @@ function useTabWidths(tabs: readonly OsTabModel[]) {
     });
     observer.observe(strip);
     return () => observer.disconnect();
-  }, []);
+  }, [strip]);
   const pinned = tabs.filter(model => model.tab.pinned);
   const unpinned = tabs.filter(model => !model.tab.pinned);
   const activeIndex = unpinned.findIndex(model => model.active);

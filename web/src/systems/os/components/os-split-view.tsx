@@ -1,8 +1,6 @@
 import { PillGroup } from "@compozy/ui";
 import {
-  createContext,
   Fragment,
-  use,
   type ComponentProps,
   type KeyboardEvent,
   type PointerEvent,
@@ -12,6 +10,13 @@ import {
 import { cn } from "@/lib/utils";
 import type { SessionPayload } from "@/systems/session";
 
+import {
+  SplitViewContext,
+  useSplitView,
+  type OsSplitSeamSlot,
+  type SplitViewContextValue,
+} from "../hooks/use-split-view";
+import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { descendantWindowIds } from "../lib/layout-minimums";
 import type { OsWindow } from "../lib/os-types";
 import type { ProjectionGaps } from "../lib/tab-projection-types";
@@ -21,39 +26,6 @@ import type {
   LayoutNode,
   ProjectedSeam,
 } from "../lib/window-manager-types";
-import { useOsWindowTitle } from "./os-tab";
-
-interface SplitViewContextValue {
-  windows: Readonly<Record<string, OsWindow>>;
-  collapsed: ReadonlyMap<string, CollapsedSplit>;
-  seams: ReadonlyMap<string, ProjectedSeam>;
-  sessionOf: (win: OsWindow) => SessionPayload | undefined;
-  renderWindow: (windowId: string) => ReactNode;
-  renderSeam: (seam: OsSplitSeamSlot) => ReactNode;
-  onShowMember: (windowId: string) => void;
-  /** Pixels between two members: what each seam occupies, as the projection lays it out. */
-  innerGap: number;
-}
-
-/** One seam's place in the tree, with its projection when the split is laid out. */
-export interface OsSplitSeamSlot {
-  splitId: string;
-  boundaryIndex: number;
-  axis: LayoutAxis;
-  /** Members of the split this seam belongs to. */
-  memberCount: number;
-  /** The inner gap the seam spans; 0 lays members edge to edge with the line drawn over them. */
-  gap: number;
-  seam: ProjectedSeam | undefined;
-}
-
-const SplitViewContext = createContext<SplitViewContextValue | null>(null);
-
-function useSplitView(): SplitViewContextValue {
-  const value = use(SplitViewContext);
-  if (value === null) throw new Error("OsSplitView parts render inside <OsSplitView>.");
-  return value;
-}
 
 export interface OsSplitSeamProps extends Omit<
   ComponentProps<"div">,

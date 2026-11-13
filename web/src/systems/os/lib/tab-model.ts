@@ -37,7 +37,8 @@ export function resolveActiveTabId(
  */
 export function leadWindowId(tab: LayoutTab, focusOrder: readonly WindowId[]): WindowId | null {
   const members = tabWindowIds(tab);
-  return focusOrder.find(windowId => members.includes(windowId)) ?? members[0] ?? null;
+  const memberSet = new Set(members);
+  return focusOrder.find(windowId => memberSet.has(windowId)) ?? members[0] ?? null;
 }
 
 export function findTab(

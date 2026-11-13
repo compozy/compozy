@@ -106,7 +106,7 @@ function client(presentationRevision: number, clientId = "client:web"): WindowMa
 }
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,

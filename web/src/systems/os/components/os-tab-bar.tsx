@@ -15,8 +15,9 @@ import { useOsTabBar, type OsTabBarModel, type OsTabModel } from "../hooks/use-o
 import { useOsTabDrag, useOsTabDragStart } from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
+import { useOsWindowTitle } from "../hooks/use-os-window-title";
 import { OsDragGhost } from "./os-drag-ghost";
-import { OsTab, useOsWindowTitle } from "./os-tab";
+import { OsTab } from "./os-tab";
 import { OsTabMenu } from "./os-tab-menu";
 
 function sessionLookup(sessionById: ReadonlyMap<string, SessionPayload>) {

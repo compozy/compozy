@@ -8,7 +8,8 @@ import { useOsTabDrag } from "../hooks/use-os-tab-drag";
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
 import { leadWindowId, tabWindowIds } from "../lib/tab-model";
-import { OsTabTiles, useOsWindowTitle } from "./os-tab";
+import { useOsWindowTitle } from "../hooks/use-os-window-title";
+import { OsTabTiles } from "./os-tab";
 
 function GhostTitle({
   win,
