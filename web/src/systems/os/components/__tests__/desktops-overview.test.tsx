@@ -359,6 +359,47 @@ describe("DesktopsOverview", () => {
     expect(onDesktopActionApplied).toHaveBeenCalledOnce();
   });
 
+  it("Should apply an indicator menu action that arrives while its card is mounted, once", async () => {
+    const onDesktopActionApplied = vi.fn();
+    const props: DesktopsOverviewProps = {
+      open: true,
+      state: { status: "ready", desktops: DESKTOPS, activeDesktopId: "control" },
+      onDesktopActionApplied,
+      onOpenChange: vi.fn(),
+      onCreateDesktop: vi.fn(),
+      onSwitchDesktop: vi.fn(),
+      onRenameDesktop: vi.fn(),
+      onReorderDesktop: vi.fn(),
+      onDeleteDesktop: vi.fn(),
+      onMoveTab: vi.fn(),
+      onChooseTab: vi.fn(),
+    };
+    const { rerender } = render(<DesktopsOverview {...props} />);
+    const build = card("Build");
+    expect(within(build).queryByRole("combobox")).not.toBeInTheDocument();
+
+    // The overview is open and Build's card is mounted when Close desktop arrives.
+    rerender(
+      <DesktopsOverview {...props} desktopAction={{ desktopId: "build", action: "close" }} />
+    );
+    await waitFor(() =>
+      expect(within(build).getByRole("button", { name: "Cancel" })).toHaveFocus()
+    );
+    expect(within(build).getByRole("combobox")).toBeInTheDocument();
+    expect(onDesktopActionApplied).toHaveBeenCalledOnce();
+
+    // The owner consumed it: the confirm stays as the user left it, nothing is applied again.
+    rerender(<DesktopsOverview {...props} desktopAction={null} />);
+    expect(within(build).getByRole("combobox")).toBeInTheDocument();
+
+    rerender(
+      <DesktopsOverview {...props} desktopAction={{ desktopId: "build", action: "rename" }} />
+    );
+    await waitFor(() => expect(within(build).getByLabelText("Desktop name")).toHaveFocus());
+    expect(within(build).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(onDesktopActionApplied).toHaveBeenCalledTimes(2);
+  });
+
   it("FB-F-07: Should close a desktop holding only a blank New Tab with no destination", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview();

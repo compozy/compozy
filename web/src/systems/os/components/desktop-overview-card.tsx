@@ -87,7 +87,7 @@ export function DesktopOverviewCard({
   onDelete,
   onMoveTab,
 }: DesktopOverviewCardProps) {
-  const { renaming, setRenaming, closing, setClosing, binRef, cancelCloseOnEscape } =
+  const { renaming, setRenaming, closing, setClosing, closeKey, binRef, cancelCloseOnEscape } =
     useDesktopCardActions(initialAction, onInitialActionApplied);
   const needsYou = desktop.needsYou === true && !active;
   const shown = desktop.tabs.slice(0, DESKTOP_CARD_TAB_ROWS);
@@ -181,6 +181,7 @@ export function DesktopOverviewCard({
               </DesktopCardAction>
               {desktops.length > 1 ? (
                 <DeleteButton
+                  key={closeKey}
                   binRef={binRef}
                   // Opened from the indicator menu's Close desktop, the confirm takes focus.
                   autoFocusCancel={initialAction === "close"}
