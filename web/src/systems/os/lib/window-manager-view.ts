@@ -4,26 +4,31 @@ import {
   OS_WINDOW_CONSERVATIVE_MINIMUM,
   osAppId,
 } from "./app-catalog";
-import { applyFrameSeamPreviewToDesktop } from "./frame-seams";
-import { buildDesktopFrames, type OsWindowFrameModel } from "./group-projection";
-import { projectLayout } from "./layout-projection";
-import { applySeamPreviewToDesktop, type SeamPreview } from "./seam-preview";
-import type { SnapTargetConfig } from "./snap-targets";
+import { applySeamPreviewToTab, type SeamPreview } from "./seam-preview";
 import { OS_COMPACT_BREAKPOINT } from "./os-types";
 import type {
   OsAppId,
   OsDesktopRuntimeStore,
-  OsRect,
   OsWallpaper,
   OsWindow,
   OsWindowRoute,
 } from "./os-types";
+import {
+  admitSeamShift,
+  projectTab,
+  seamSplitFitsEven,
+  type AdmittedSeamShift,
+} from "./tab-projection";
+import { resolveActiveTabId } from "./tab-model";
 import { effectiveWindowManagerConfig } from "./window-manager-config";
 import type {
   DesktopId,
-  LayoutProjection,
-  NormalizedRect,
+  LayoutNode,
+  LayoutTab,
   PixelRect,
+  ProjectedSeam,
+  TabId,
+  TabProjection,
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
@@ -37,116 +42,14 @@ export const DEFAULT_WINDOW_MANAGER_WORK_AREA: PixelRect = {
   w: 1440,
   h: 820,
 };
-export const DEFAULT_WINDOW_MANAGER_FLOATING_RECT: NormalizedRect = {
-  x: 0.12,
-  y: 0.08,
-  w: 0.68,
-  h: 0.78,
-};
-
-/**
- * Pointer resolution requires a complete live configuration. Workspace
- * overrides are intentionally not merged with browser-owned defaults here.
- */
-export function snapTargetConfigFromConfig(
-  config: WindowManagerConfig | null
-): SnapTargetConfig | null {
-  if (config === null) return null;
-  return {
-    edgeBand: config.snap.edgeBand,
-    cornerReach: config.snap.cornerReach,
-    exitSlack: config.snap.exitSlack,
-    innerGap: config.gaps.inner,
-    outerGaps: {
-      top: config.gaps.top,
-      right: config.gaps.right,
-      bottom: config.gaps.bottom,
-      left: config.gaps.left,
-    },
-    repeatRatios: config.snap.repeatRatios,
-    topCenter: config.bindings.topCenter,
-    bottomCenter: config.bindings.bottomCenter,
-  };
-}
 
 export function defaultOsWindowRoute(app: OsAppId): OsWindowRoute {
   return { pathname: getOsAppDescriptor(app).paths[0] ?? "/", search: {} };
 }
 
-export function pixelRectToNormalized(rect: OsRect, area: PixelRect): NormalizedRect {
-  if (area.w <= 0 || area.h <= 0) return DEFAULT_WINDOW_MANAGER_FLOATING_RECT;
-  return {
-    x: Math.max(0, Math.min(1, (rect.x - area.x) / area.w)),
-    y: Math.max(0, Math.min(1, (rect.y - area.y) / area.h)),
-    w: Math.max(0.01, Math.min(1, rect.w / area.w)),
-    h: Math.max(0.01, Math.min(1, rect.h / area.h)),
-  };
-}
-
-export function normalizedRectToWire(rect: NormalizedRect): Record<string, number> {
-  return { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
-}
-
-/** Projects one desktop, re-projecting against the unadjusted seam when a live preview is active. */
-function projectDesktopWithSeamPreview(
-  input: Parameters<typeof projectLayout>[0],
-  seamPreview: SeamPreview | null
-): LayoutProjection {
-  const projection = projectLayout(input);
-  if (seamPreview === null) return projection;
-  if (seamPreview.kind === "frame") {
-    const frameSeam = projection.frameSeams.find(candidate => candidate.id === seamPreview.seamId);
-    if (frameSeam === undefined) return projection;
-    return projectLayout({
-      ...input,
-      desktop: applyFrameSeamPreviewToDesktop(input.desktop, frameSeam, seamPreview.deltaPx),
-    });
-  }
-  const seam = projection.seams.find(
-    candidate =>
-      candidate.splitId === seamPreview.splitId &&
-      candidate.boundaryIndex === seamPreview.boundaryIndex
-  );
-  if (seam === undefined) return projection;
-  return projectLayout({
-    ...input,
-    desktop: applySeamPreviewToDesktop(input.desktop, seam, seamPreview.deltaPx),
-  });
-}
-
-export function buildWindowManagerProjections(
-  snapshot: WindowManagerSnapshot | null,
-  client: WindowManagerClientView | null,
-  workArea: PixelRect,
-  config: WindowManagerConfig | null,
-  seamPreview: SeamPreview | null = null
-): Readonly<Record<string, LayoutProjection>> {
-  if (snapshot === null || config === null) return {};
-  const projections: Record<string, LayoutProjection> = {};
-  const minimums = buildWindowManagerMinimums(snapshot);
-  for (const desktop of snapshot.desktops) {
-    projections[desktop.id] = projectDesktopWithSeamPreview(
-      {
-        revision: snapshot.revision,
-        desktop,
-        workArea,
-        gaps: config.gaps,
-        minimums,
-        focusedWindowId: client?.activeDesktopId === desktop.id ? client.focusedWindowId : null,
-        stackActive: client?.stackActive ?? {},
-      },
-      seamPreview
-    );
-  }
-  return projections;
-}
-
 /**
- * Maps every authoritative window to the same floor used by its interactive
- * frame. Typed against the shape it reads rather than the whole snapshot, so the
- * settings editor can pass a layout document and get identical minimums — the
- * projector's `minimum-unmet` and `adaptive-stack` diagnostics only mean
- * something if both surfaces measure against the same floor.
+ * Maps every authoritative window to the pixel floor its app declares. Typed against the shape it
+ * reads rather than the whole snapshot, so a layout document gets identical minimums.
  */
 export function buildWindowManagerMinimums(source: {
   windows: Readonly<Record<string, { id: string; app: string }>>;
@@ -160,13 +63,237 @@ export function buildWindowManagerMinimums(source: {
   );
 }
 
-function normalizedRectToPixels(rect: NormalizedRect, area: PixelRect): OsRect {
+/** This client's active tab per desktop: its own choice, else the default, else the first tab. */
+export function buildActiveTabIds(
+  snapshot: WindowManagerSnapshot | null,
+  client: WindowManagerClientView | null
+): Readonly<Record<DesktopId, TabId>> {
+  const activeTabIds: Record<DesktopId, TabId> = {};
+  for (const desktop of snapshot?.desktops ?? []) {
+    const tabId = resolveActiveTabId(desktop, client?.activeTab);
+    if (tabId !== null) activeTabIds[desktop.id] = tabId;
+  }
+  return activeTabIds;
+}
+
+type AuthoritativeView = Pick<
+  OsDesktopRuntimeStore,
+  "snapshot" | "windowManagerConfig" | "client" | "presentation"
+>;
+
+interface ProjectionContext {
+  workArea: PixelRect;
+  config: WindowManagerConfig;
+  minimums: WindowMinimums;
+  focusOrder: readonly string[];
+  compact: boolean;
+}
+
+function projectionInputFor(tab: LayoutTab, context: ProjectionContext) {
   return {
-    x: Math.round(area.x + rect.x * area.w),
-    y: Math.round(area.y + rect.y * area.h),
-    w: Math.max(1, Math.round(rect.w * area.w)),
-    h: Math.max(1, Math.round(rect.h * area.h)),
+    tab,
+    workArea: context.workArea,
+    gaps: context.config.gaps,
+    minimums: context.minimums,
+    focusOrder: context.focusOrder,
+    compact: context.compact,
   };
+}
+
+/**
+ * The snapshot with a live seam drag applied to its split, so the rendered weights, the
+ * projection and every view of the tab show the previewed shares until `layout.resize` commits.
+ * The frame shows the shift `admitSeamShift` admits against the tab's unpreviewed projection, so
+ * no preview can turn the split to one member at a time.
+ */
+function withSeamPreview(
+  snapshot: WindowManagerSnapshot,
+  context: ProjectionContext,
+  preview: SeamPreview | null | undefined
+): WindowManagerSnapshot {
+  if (!preview) return snapshot;
+  let changed = false;
+  const owner = tabWithSplit(snapshot, preview.splitId);
+  if (owner === null) return snapshot;
+  const desktops = snapshot.desktops.map(desktop => {
+    const tabs = desktop.tabs.map(tab => {
+      // Only the tab that owns the split is projected to admit the shift.
+      if (tab !== owner) return tab;
+      const admitted = admitSeamShift(projectionInputFor(tab, context), preview, preview.deltaPx);
+      if (admitted === null) return tab;
+      const previewed = applySeamPreviewToTab(tab, admitted.seam, admitted.shiftPx);
+      if (previewed !== tab) changed = true;
+      return previewed;
+    });
+    return tabs.some((tab, index) => tab !== desktop.tabs[index]) ? { ...desktop, tabs } : desktop;
+  });
+  return changed ? { ...snapshot, desktops } : snapshot;
+}
+
+/**
+ * One seam as the authoritative snapshot lays it out, before any live preview: the same seam a
+ * seam preview is clamped against, so a gesture based on it commits exactly what it previews.
+ * Null when the split or the boundary no longer exists.
+ */
+export function authoritativeSeam(
+  view: AuthoritativeView,
+  workArea: PixelRect,
+  target: { splitId: string; boundaryIndex: number }
+): ProjectedSeam | null {
+  return authoritativeSeamShift(view, workArea, target, 0)?.seam ?? null;
+}
+
+/**
+ * The shift a seam drag frame requesting `requestedPx` shows, reports and commits against the
+ * authoritative layout: `admitSeamShift`, the same rule the rendered preview goes through. Null
+ * when the split or the boundary no longer exists.
+ */
+export function authoritativeSeamShift(
+  view: AuthoritativeView,
+  workArea: PixelRect,
+  target: { splitId: string; boundaryIndex: number },
+  requestedPx: number
+): AdmittedSeamShift | null {
+  const input = authoritativeSplitInput(view, workArea, target.splitId);
+  return input === null ? null : admitSeamShift(input, target, requestedPx);
+}
+
+/**
+ * Whether the seam's split lays out side by side once `layout.balance` evens it, against the
+ * authoritative layout: `seamSplitFitsEven`. Null when the split or the boundary no longer exists.
+ */
+export function authoritativeSeamSplitFitsEven(
+  view: AuthoritativeView,
+  workArea: PixelRect,
+  target: { splitId: string; boundaryIndex: number }
+): boolean | null {
+  const input = authoritativeSplitInput(view, workArea, target.splitId);
+  return input === null ? null : seamSplitFitsEven(input, target);
+}
+
+function authoritativeSplitInput(view: AuthoritativeView, workArea: PixelRect, splitId: string) {
+  const { snapshot, windowManagerConfig: config } = view;
+  if (snapshot === null || config === null) return null;
+  const context: ProjectionContext = {
+    workArea,
+    config,
+    minimums: buildWindowManagerMinimums(snapshot),
+    focusOrder: view.client?.focusOrder ?? [],
+    compact: view.presentation === "compact",
+  };
+  const tab = tabWithSplit(snapshot, splitId);
+  return tab === null ? null : projectionInputFor(tab, context);
+}
+
+function findSplitMembers(node: LayoutNode, splitId: string): number | null {
+  if (node.kind !== "split") return null;
+  if (node.id === splitId) return node.children.length;
+  for (const child of node.children) {
+    const found = findSplitMembers(child, splitId);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/** The tab whose tree holds the split; null when no tab does. A tree walk, no projection. */
+function tabWithSplit(snapshot: WindowManagerSnapshot, splitId: string): LayoutTab | null {
+  for (const desktop of snapshot.desktops) {
+    for (const tab of desktop.tabs) {
+      if (findSplitMembers(tab.root, splitId) !== null) return tab;
+    }
+  }
+  return null;
+}
+
+/** How many members a split has in the authoritative snapshot; null when it is not there. */
+export function authoritativeSplitMembers(
+  snapshot: WindowManagerSnapshot | null,
+  splitId: string
+): number | null {
+  for (const desktop of snapshot?.desktops ?? []) {
+    for (const tab of desktop.tabs) {
+      const found = findSplitMembers(tab.root, splitId);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
+/** Every tab's split tree projected against the one measured content area. */
+export function buildWindowManagerProjections(input: {
+  snapshot: WindowManagerSnapshot | null;
+  client: WindowManagerClientView | null;
+  workArea: PixelRect;
+  config: WindowManagerConfig | null;
+  compact: boolean;
+}): Readonly<Record<TabId, TabProjection>> {
+  const { snapshot, config } = input;
+  if (snapshot === null || config === null) return {};
+  const context: ProjectionContext = {
+    workArea: input.workArea,
+    config,
+    minimums: buildWindowManagerMinimums(snapshot),
+    focusOrder: input.client?.focusOrder ?? [],
+    compact: input.compact,
+  };
+  const projections: Record<TabId, TabProjection> = {};
+  for (const desktop of snapshot.desktops) {
+    for (const tab of desktop.tabs)
+      projections[tab.id] = projectTab(projectionInputFor(tab, context));
+  }
+  return projections;
+}
+
+function leafNodeIds(node: LayoutNode, into: Map<string, string>): Map<string, string> {
+  if (node.kind === "leaf") into.set(node.windowId, node.id);
+  else for (const child of node.children) leafNodeIds(child, into);
+  return into;
+}
+
+export function buildWindowManagerWindows(input: {
+  snapshot: WindowManagerSnapshot | null;
+  activeTabIds: Readonly<Record<DesktopId, TabId>>;
+  projections: Readonly<Record<TabId, TabProjection>>;
+  routeIntents?: Readonly<Record<string, { route: OsWindowRoute; instanceKey?: string | null }>>;
+}): Readonly<Record<string, OsWindow>> {
+  if (input.snapshot === null) return {};
+  const tabs = new Map<TabId, LayoutTab>();
+  for (const desktop of input.snapshot.desktops) {
+    for (const tab of desktop.tabs) tabs.set(tab.id, tab);
+  }
+  const shown = new Map<string, boolean>();
+  for (const projection of Object.values(input.projections)) {
+    for (const projected of projection.windows) shown.set(projected.windowId, projected.shown);
+  }
+  const nodeIds = new Map<string, string>();
+  for (const tab of tabs.values()) leafNodeIds(tab.root, nodeIds);
+  const windows: Record<string, OsWindow> = {};
+  for (const authoritative of Object.values(input.snapshot.windows)) {
+    const app = osAppId(authoritative.app);
+    if (app === null) continue;
+    const tab = tabs.get(authoritative.tabId);
+    const tabActive = input.activeTabIds[authoritative.desktopId] === authoritative.tabId;
+    const routeIntent = input.routeIntents?.[authoritative.id];
+    const route = routeIntent?.route ?? authoritative.route;
+    windows[authoritative.id] = {
+      id: authoritative.id,
+      app,
+      instanceKey: routeIntent?.instanceKey ?? authoritative.instanceKey,
+      route: { pathname: route.pathname, search: { ...route.search } },
+      navStack: authoritative.navStack.map(entry => ({
+        pathname: entry.pathname,
+        search: { ...entry.search },
+      })),
+      desktopId: authoritative.desktopId,
+      tabId: authoritative.tabId,
+      nodeId: nodeIds.get(authoritative.id) ?? null,
+      pinned: tab?.pinned ?? false,
+      inSplit: tab?.root.kind === "split",
+      tabActive,
+      shown: tabActive && (shown.get(authoritative.id) ?? true),
+    };
+  }
+  return windows;
 }
 
 export interface OsDesktopRuntimeViewInput {
@@ -184,62 +311,63 @@ export interface OsDesktopRuntimeViewInput {
   reduceMotion: boolean;
 }
 
-/** Assembles the selector store the shell renders: projections → frames → windows. */
+/** Assembles the selector store the shell renders: active tabs → tab projections → windows. */
 export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsDesktopRuntimeStore {
   const { snapshot, globalConfig, client, workArea } = input;
   const config =
     snapshot && globalConfig
       ? effectiveWindowManagerConfig(globalConfig, snapshot.overrides)
       : null;
-  const projections = buildWindowManagerProjections(
-    snapshot,
+  // Dock placement changes the work area; it must not change its own breakpoint.
+  const compactViewport = (input.viewportWidth ?? workArea.w) < OS_COMPACT_BREAKPOINT;
+  const compact = compactViewport && config?.smallViewportPolicy === "stack";
+  const viewportRejected = compactViewport && config?.smallViewportPolicy === "reject";
+  const live =
+    snapshot && config
+      ? withSeamPreview(
+          snapshot,
+          {
+            workArea,
+            config,
+            minimums: buildWindowManagerMinimums(snapshot),
+            focusOrder: client?.focusOrder ?? [],
+            compact,
+          },
+          input.seamPreview
+        )
+      : null;
+  const activeTabIds = buildActiveTabIds(live, client);
+  const projections = buildWindowManagerProjections({
+    snapshot: live,
     client,
     workArea,
     config,
-    input.seamPreview
-  );
-  const frames = buildDesktopFrames({
-    snapshot: config ? snapshot : null,
-    client,
-    projections,
-    workArea,
-    gaps: config?.gaps ?? { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
-    raiseOnFocus: config?.raiseOnFocus ?? false,
+    compact,
   });
   const windows = buildWindowManagerWindows({
-    snapshot: config ? snapshot : null,
-    client,
-    workArea,
+    snapshot: live,
+    activeTabIds,
     projections,
-    frames,
     routeIntents: input.routeIntents,
   });
-  const hydration =
-    snapshot !== null && config !== null
-      ? input.loadError
-        ? "degraded"
-        : "live"
-      : input.loadError
-        ? "degraded"
-        : "pending";
-  // Dock placement changes the work area; it must not change its own breakpoint.
-  const compactViewport = (input.viewportWidth ?? workArea.w) < OS_COMPACT_BREAKPOINT;
-  const viewportRejected = compactViewport && config?.smallViewportPolicy === "reject";
+  const ready = snapshot !== null && config !== null;
+  let hydration: OsDesktopRuntimeStore["hydration"] = ready ? "live" : "pending";
+  if (input.loadError) hydration = "degraded";
   return {
     snapshot,
     windowManagerConfig: config,
     client,
     clientAttachmentToken: null,
-    desktops: snapshot?.desktops ?? [],
+    // The rendered desktops carry a live seam preview; `snapshot` stays authoritative.
+    desktops: (live ?? snapshot)?.desktops ?? [],
+    activeTabIds,
     projections,
-    frames,
     windows,
     activeDesktopId: client?.activeDesktopId ?? snapshot?.desktops[0]?.id ?? null,
     focusedId: client?.focusedWindowId ?? null,
     wallpaper: input.wallpaper,
     reduceMotion: input.reduceMotion,
-    presentation:
-      compactViewport && config?.smallViewportPolicy === "stack" ? "compact" : "floating",
+    presentation: compact ? "compact" : "split",
     viewportState: viewportRejected ? "rejected" : "ready",
     hydration,
     loadError: input.loadError,
@@ -250,62 +378,4 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
       origin: input.workAreaOrigin,
     },
   };
-}
-
-export function buildWindowManagerWindows(input: {
-  snapshot: WindowManagerSnapshot | null;
-  client: WindowManagerClientView | null;
-  workArea: PixelRect;
-  projections: Readonly<Record<string, LayoutProjection>>;
-  frames: Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>>;
-  routeIntents?: Readonly<Record<string, { route: OsWindowRoute; instanceKey?: string | null }>>;
-}): Readonly<Record<string, OsWindow>> {
-  if (input.snapshot === null) return {};
-  const windows: Record<string, OsWindow> = {};
-  const projectionMaps = new Map(
-    Object.entries(input.projections).map(([desktopId, projection]) => [
-      desktopId,
-      new Map(projection.windows.map(window => [window.windowId, window])),
-    ])
-  );
-  const frameByMember = new Map<string, OsWindowFrameModel>();
-  for (const desktopFrames of Object.values(input.frames)) {
-    for (const frame of desktopFrames) {
-      for (const member of frame.members) frameByMember.set(member, frame);
-    }
-  }
-  for (const authoritative of Object.values(input.snapshot.windows)) {
-    const resolvedApp = osAppId(authoritative.app);
-    if (resolvedApp === null) continue;
-    const projected = projectionMaps.get(authoritative.desktopId)?.get(authoritative.id);
-    const frame = frameByMember.get(authoritative.id);
-    const routeIntent = input.routeIntents?.[authoritative.id];
-    const route = routeIntent?.route ?? authoritative.route;
-    windows[authoritative.id] = {
-      id: authoritative.id,
-      app: resolvedApp,
-      instanceKey: routeIntent?.instanceKey ?? authoritative.instanceKey,
-      route: {
-        pathname: route.pathname,
-        search: { ...route.search },
-      },
-      navStack: authoritative.navStack.map(entry => ({
-        pathname: entry.pathname,
-        search: { ...entry.search },
-      })),
-      pinned: authoritative.pinned,
-      desktopId: authoritative.desktopId,
-      placement: authoritative.placement,
-      rect: frame?.rect ?? normalizedRectToPixels(authoritative.floatingRect, input.workArea),
-      layer: frame?.layer ?? 1,
-      minimized: authoritative.minimized || (frame?.minimized ?? false),
-      zoomed: authoritative.zoomed && !authoritative.minimized,
-      groupId: projected?.groupId ?? null,
-      nodeId: projected?.nodeId ?? null,
-      stackId: frame?.stackId ?? null,
-      stackActive: frame === undefined || frame.activeWindowId === authoritative.id,
-      parentAxis: projected?.parentAxis ?? null,
-    };
-  }
-  return windows;
 }

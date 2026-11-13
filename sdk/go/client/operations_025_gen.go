@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// ListTerminalsAggregateParams carries the path, query, and header parameters.
+type ListTerminalsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListTerminalsAggregate List workspace terminals
 func (c *Client) ListTerminalsAggregate(ctx context.Context, params ListTerminalsAggregateParams) (*TerminalListResponse, error) {
 	path := "/api/terminals"

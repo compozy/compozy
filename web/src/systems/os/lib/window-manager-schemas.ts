@@ -5,17 +5,18 @@ import { globalShortcutRegistrationSchema } from "./window-manager-global-shortc
 import type {
   LayoutDesktop,
   LayoutNode,
-  NormalizedRect,
+  LayoutTab,
   WindowManagerActor,
   WindowManagerAttachedClientView,
   WindowManagerChangeSet,
   WindowManagerCommandResult,
   WindowManagerConflictPayload,
+  WindowManagerDeprecation,
   WindowManagerDiagnosticPayload,
   WindowManagerErrorPayload,
   WindowManagerEvent,
+  WindowManagerMigrationStatus,
   WindowManagerRegisteredClientView,
-  WindowManagerReturnAnchor,
   WindowManagerSnapshot,
   WindowManagerWindow,
 } from "./window-manager-types";
@@ -23,15 +24,6 @@ import type {
 const safeRevisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const identifierSchema = z.string().trim().min(1);
 const timestampSchema = z.iso.datetime({ offset: true });
-
-const normalizedRectSchema = z
-  .strictObject({
-    x: z.number().finite(),
-    y: z.number().finite(),
-    width: z.number().finite().positive(),
-    height: z.number().finite().positive(),
-  })
-  .transform((rect): NormalizedRect => ({ x: rect.x, y: rect.y, w: rect.width, h: rect.height }));
 
 const actorSchema = z
   .strictObject({ kind: z.string().default(""), id: z.string().default("") })
@@ -73,24 +65,9 @@ const leafNodeSchema = z
     windowId: node.window_id,
   }));
 
-const stackNodeSchema = z
-  .strictObject({
-    id: identifierSchema,
-    kind: z.literal("stack"),
-    window_ids: z.array(identifierSchema).min(1),
-    active_id: identifierSchema,
-  })
-  .transform((node): LayoutNode => ({
-    id: node.id,
-    kind: node.kind,
-    windowIds: node.window_ids,
-    activeId: node.active_id,
-  }));
-
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
   z.union([
     leafNodeSchema,
-    stackNodeSchema,
     z
       .strictObject({
         id: identifierSchema,
@@ -112,73 +89,28 @@ const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
   ])
 );
 
-const groupSchema = z
+const tabSchema = z
   .strictObject({
     id: identifierSchema,
-    frame: normalizedRectSchema,
+    pinned: z.boolean(),
     root: layoutNodeSchema,
   })
-  .transform(group => ({ id: group.id, frame: group.frame, root: group.root }));
-
-const floatingStackSchema = z
-  .strictObject({
-    id: identifierSchema,
-    window_ids: z.array(identifierSchema).min(1),
-    active_id: identifierSchema.optional(),
-    rect: normalizedRectSchema,
-    minimized: z.boolean(),
-  })
-  .refine(stack => stack.active_id === undefined || stack.window_ids.includes(stack.active_id), {
-    message: "active_id must name one floating stack window",
-  })
-  .transform(stack => ({
-    id: stack.id,
-    windowIds: stack.window_ids,
-    activeId: stack.active_id ?? null,
-    rect: stack.rect,
-    minimized: stack.minimized,
-  }));
+  .transform((tab): LayoutTab => ({ id: tab.id, pinned: tab.pinned, root: tab.root }));
 
 const desktopSchema = z
   .strictObject({
     id: identifierSchema,
     name: z.string().trim().min(1),
     order: z.number().int().nonnegative(),
-    groups: z.array(groupSchema),
-    floating: z.array(identifierSchema),
-    floating_stacks: z.array(floatingStackSchema),
+    tabs: z.array(tabSchema).min(1),
+    active_tab_id: identifierSchema,
   })
   .transform((desktop): LayoutDesktop => ({
     id: desktop.id,
     name: desktop.name,
     order: desktop.order,
-    groups: desktop.groups,
-    floating: desktop.floating,
-    floatingStacks: desktop.floating_stacks,
-  }));
-
-const returnAnchorSchema = z
-  .strictObject({
-    desktop_id: identifierSchema,
-    group_id: identifierSchema.optional(),
-    parent_split_id: identifierSchema.optional(),
-    child_index: z.number().int().nonnegative().optional(),
-    weight: z.number().finite().positive().optional(),
-    neighbor_ids: z.array(identifierSchema).optional(),
-    source_revision: safeRevisionSchema,
-    source_group: groupSchema.optional(),
-    zoomed: z.boolean().optional(),
-  })
-  .transform((anchor): WindowManagerReturnAnchor => ({
-    desktopId: anchor.desktop_id,
-    groupId: anchor.group_id ?? null,
-    parentSplitId: anchor.parent_split_id ?? null,
-    childIndex: anchor.child_index ?? null,
-    weight: anchor.weight ?? null,
-    neighborIds: anchor.neighbor_ids ?? [],
-    sourceRevision: anchor.source_revision,
-    sourceGroup: anchor.source_group ?? null,
-    zoomed: anchor.zoomed ?? false,
+    tabs: desktop.tabs,
+    activeTabId: desktop.active_tab_id,
   }));
 
 const routeSchema = z
@@ -195,13 +127,8 @@ const windowSchema = z
     instance_key: z.string().optional(),
     route: routeSchema,
     nav_stack: z.array(routeSchema),
-    pinned: z.boolean(),
-    placement: z.enum(["tiled", "stacked", "floating"]),
     desktop_id: identifierSchema,
-    floating_rect: normalizedRectSchema,
-    minimized: z.boolean(),
-    zoomed: z.boolean(),
-    return_anchor: returnAnchorSchema.optional(),
+    tab_id: identifierSchema,
   })
   .transform((window): WindowManagerWindow => ({
     id: window.id,
@@ -209,13 +136,8 @@ const windowSchema = z
     instanceKey: window.instance_key ?? null,
     route: window.route,
     navStack: window.nav_stack,
-    pinned: window.pinned,
-    placement: window.placement,
     desktopId: window.desktop_id,
-    floatingRect: window.floating_rect,
-    minimized: window.minimized,
-    zoomed: window.zoomed,
-    returnAnchor: window.return_anchor ?? null,
+    tabId: window.tab_id,
   }));
 
 const windowsSchema = z.record(z.string(), windowSchema);
@@ -231,6 +153,7 @@ const commandIdSchema = z.enum([
   "window.close",
   "window.focus",
   "window.move",
+  "window.resize",
   "window.swap",
   "window.toggle_floating",
   "window.zoom",
@@ -239,23 +162,85 @@ const commandIdSchema = z.enum([
   "window.stack.set_active",
   "window.pin",
   "window.reopen",
+  "window.tab.reorder",
+  "window.tab.activate",
   "layout.arrange",
   "layout.resize",
+  "layout.frame_resize",
   "layout.balance",
   "layout.undo",
   "layout.redo",
   "layout.replace",
 ]);
 
+const migrationSummarySchema = z.object({
+  desktops: z.number().int().nonnegative(),
+  tabs: z.number().int().nonnegative(),
+  windows: z.number().int().nonnegative(),
+  floating_to_tabs: z.number().int().nonnegative(),
+  minimized_to_tabs: z.number().int().nonnegative(),
+  islands_merged: z.number().int().nonnegative(),
+  pins_dropped: z.number().int().nonnegative(),
+  zoom_desktops_merged: z.number().int().nonnegative(),
+});
+
+const migrationStatusSchema = z
+  .object({
+    state: z.string(),
+    from_version: z.number().int().nonnegative().optional(),
+    at: timestampSchema.optional(),
+    acknowledged: z.boolean(),
+    summary: migrationSummarySchema.nullish(),
+    error: diagnosticSchema.nullish(),
+    failure_revision: safeRevisionSchema.optional(),
+  })
+  .transform((status): WindowManagerMigrationStatus => ({
+    state: status.state,
+    fromVersion: status.from_version ?? null,
+    at: status.at ?? null,
+    acknowledged: status.acknowledged,
+    summary: status.summary
+      ? {
+          desktops: status.summary.desktops,
+          tabs: status.summary.tabs,
+          windows: status.summary.windows,
+          floatingToTabs: status.summary.floating_to_tabs,
+          minimizedToTabs: status.summary.minimized_to_tabs,
+          islandsMerged: status.summary.islands_merged,
+          pinsDropped: status.summary.pins_dropped,
+          zoomDesktopsMerged: status.summary.zoom_desktops_merged,
+        }
+      : null,
+    error: status.error ?? null,
+    failureRevision: status.failure_revision ?? null,
+  }));
+
+const deprecationSchema = z
+  .object({
+    code: z.string(),
+    surface: z.string(),
+    replacement: z.string().optional(),
+    removal_release: z.string(),
+    message: z.string(),
+  })
+  .transform((deprecation): WindowManagerDeprecation => ({
+    code: deprecation.code,
+    surface: deprecation.surface,
+    replacement: deprecation.replacement ?? null,
+    removalRelease: deprecation.removal_release,
+    message: deprecation.message,
+  }));
+
 export const windowManagerSnapshotSchema = z
   .strictObject({
-    version: z.literal(5),
+    version: z.literal(6),
     workspace_id: identifierSchema,
     revision: safeRevisionSchema,
     desktops: z.array(desktopSchema).min(1),
     windows: windowsSchema,
     closed_entry_count: z.number().int().nonnegative(),
     overrides: windowManagerWorkspaceConfigSchema,
+    migration: migrationStatusSchema.nullish(),
     updated_at: timestampSchema,
   })
   .transform((snapshot): WindowManagerSnapshot => ({
@@ -266,6 +251,7 @@ export const windowManagerSnapshotSchema = z
     windows: snapshot.windows,
     closedEntryCount: snapshot.closed_entry_count,
     overrides: snapshot.overrides,
+    migration: snapshot.migration ?? null,
     updatedAt: snapshot.updated_at,
   }));
 
@@ -279,11 +265,15 @@ export const windowManagerClientViewSchema = z
     active_desktop_id: identifierSchema,
     focused_window_id: identifierSchema.optional(),
     focus_order: z.array(identifierSchema),
-    stack_active: z.record(z.string(), identifierSchema),
+    active_tab: z.record(z.string(), identifierSchema),
+    // Retired fields the daemon still sends through v0.7.0: always `{}`, `false`, and a
+    // mirror of `window_in_split`. Accepted and ignored.
+    stack_active: z.record(z.string(), identifierSchema).optional(),
     palette_context: z.strictObject({
       window_focused: z.boolean(),
-      window_floating: z.boolean(),
-      window_stacked: z.boolean(),
+      window_in_split: z.boolean(),
+      window_floating: z.boolean().optional(),
+      window_stacked: z.boolean().optional(),
       desktop_window_count: z.number().int().nonnegative(),
       scope_global: z.boolean(),
       shell_desktop: z.boolean(),
@@ -304,11 +294,10 @@ export const windowManagerClientViewSchema = z
     activeDesktopId: client.active_desktop_id,
     focusedWindowId: client.focused_window_id ?? null,
     focusOrder: client.focus_order,
-    stackActive: client.stack_active,
+    activeTab: client.active_tab,
     paletteContext: {
       windowFocused: client.palette_context.window_focused,
-      windowFloating: client.palette_context.window_floating,
-      windowStacked: client.palette_context.window_stacked,
+      windowInSplit: client.palette_context.window_in_split,
       desktopWindowCount: client.palette_context.desktop_window_count,
       scopeGlobal: client.palette_context.scope_global,
       shellDesktop: client.palette_context.shell_desktop,
@@ -331,20 +320,24 @@ const changeSetSchema = z
   .strictObject({
     desktop_ids: z.array(identifierSchema).optional(),
     window_ids: z.array(identifierSchema).optional(),
-    group_ids: z.array(identifierSchema).optional(),
+    tab_ids: z.array(identifierSchema).optional(),
     node_ids: z.array(identifierSchema).optional(),
     client_ids: z.array(identifierSchema).optional(),
+    tab_split: z.array(identifierSchema).optional(),
+    tab_unsplit: z.array(identifierSchema).optional(),
+    // Retired through v0.7.0 and always empty: accepted and ignored.
+    group_ids: z.array(identifierSchema).optional(),
     stack_grouped: z.array(identifierSchema).optional(),
     stack_ungrouped: z.array(identifierSchema).optional(),
   })
   .transform((changes): WindowManagerChangeSet => ({
     desktopIds: changes.desktop_ids ?? [],
     windowIds: changes.window_ids ?? [],
-    groupIds: changes.group_ids ?? [],
+    tabIds: changes.tab_ids ?? [],
     nodeIds: changes.node_ids ?? [],
     clientIds: changes.client_ids ?? [],
-    stackGrouped: changes.stack_grouped ?? [],
-    stackUngrouped: changes.stack_ungrouped ?? [],
+    tabSplit: changes.tab_split ?? [],
+    tabUnsplit: changes.tab_unsplit ?? [],
   }));
 
 export const windowManagerCommandResultSchema = z
@@ -353,6 +346,7 @@ export const windowManagerCommandResultSchema = z
     applied: z.boolean(),
     changes: changeSetSchema,
     diagnostics: z.array(diagnosticSchema).optional(),
+    deprecations: z.array(deprecationSchema).optional(),
     client: windowManagerClientViewSchema.optional(),
     rebased_from: safeRevisionSchema.optional(),
   })
@@ -361,6 +355,7 @@ export const windowManagerCommandResultSchema = z
     applied: result.applied,
     changes: result.changes,
     diagnostics: result.diagnostics ?? [],
+    deprecations: result.deprecations ?? [],
     client: result.client ?? null,
     rebasedFrom: result.rebased_from ?? null,
   }));
@@ -405,6 +400,11 @@ export const windowManagerErrorSchema = z
 
 export function parseWindowManagerSnapshot(value: unknown): WindowManagerSnapshot {
   return windowManagerSnapshotSchema.parse(value);
+}
+
+/** `GET|POST …/window-manager/migration`: the upgrade notice's status. */
+export function parseWindowManagerMigrationStatus(value: unknown): WindowManagerMigrationStatus {
+  return migrationStatusSchema.parse(value);
 }
 
 export function parseWindowManagerClientView(value: unknown): WindowManagerAttachedClientView {

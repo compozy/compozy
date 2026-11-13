@@ -13,7 +13,7 @@ func newWindowResizeCommand(deps commandDeps) *cobra.Command {
 	var windowID, rectRaw string
 	cmd := &cobra.Command{
 		Use:   windowManagerResizeKey,
-		Short: "Resize a window frame; a tiled split member detaches into its own island",
+		Short: "Deprecated no-op: use layout resize; removed in v0.8.0",
 		Example: "  # Output example\n" +
 			"  # Set WINDOW_ID to an existing window ID.\n" +
 			"  compozy window resize --id \"$WINDOW_ID\" --rect 0.10,0.10,0.80,0.80",
@@ -46,11 +46,12 @@ func newWindowResizeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&windowID, "id", "", "Window ID")
-	cmd.Flags().StringVar(&rectRaw, windowManagerRectFlag, "", "Frame as x,y,width,height in normalized coordinates")
+	cmd.Flags().
+		StringVar(&rectRaw, windowManagerRectFlag, "", "Deprecated: ignored frame; use layout resize; removed in v0.8.0")
 	return cmd
 }

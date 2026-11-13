@@ -2,6 +2,9 @@ package hooks
 
 // WindowManagerChanges identifies entities changed by one committed command.
 type WindowManagerChanges struct {
+	TabIDs         []string `json:"tab_ids,omitempty"`
+	TabSplit       []string `json:"tab_split,omitempty"`
+	TabUnsplit     []string `json:"tab_unsplit,omitempty"`
 	DesktopIDs     []string `json:"desktop_ids,omitempty"`
 	WindowIDs      []string `json:"window_ids,omitempty"`
 	GroupIDs       []string `json:"group_ids,omitempty"`
@@ -57,3 +60,12 @@ type WindowManagerStackActivatedPayload = WindowManagerPayload
 
 // WindowManagerObservationPatch is the no-op patch surface for durable observations.
 type WindowManagerObservationPatch struct{}
+
+// WindowManagerTabSplitPayload observes tabs that gained split members.
+type WindowManagerTabSplitPayload = WindowManagerPayload
+
+// WindowManagerTabUnsplitPayload observes split tabs reduced to one member or dissolved.
+type WindowManagerTabUnsplitPayload = WindowManagerPayload
+
+// WindowManagerTabActivatedPayload observes explicit and coalesced tab activation.
+type WindowManagerTabActivatedPayload = WindowManagerPayload

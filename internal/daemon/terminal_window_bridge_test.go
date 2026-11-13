@@ -121,7 +121,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if after.Revision != before.Revision || len(after.Windows) != 0 {
+			if after.Revision != before.Revision || len(after.Windows) != len(before.Windows) {
 				t.Fatal("agent opens changed desktop")
 			}
 			id := "term-0000000000ab"
@@ -194,7 +194,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(after.Windows) != testCase.remaining {
+			if len(after.Windows) != testCase.remaining+1 {
 				t.Fatalf("stale windows: %+v", after.Windows)
 			}
 			if testCase.remaining != 0 {
@@ -202,7 +202,9 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 			}
 			for _, entries := range [][]windowmanager.HistoryEntry{after.History.Undo, after.History.Redo} {
 				for _, entry := range entries {
-					if len(entry.Before.Windows) != 0 || len(entry.After.Windows) != 0 {
+					if len(entry.Before.Windows) != 1 || len(entry.After.Windows) != 1 ||
+						entry.Before.Windows["win-newtab-desktop-default"].App != "new-tab" ||
+						entry.After.Windows["win-newtab-desktop-default"].App != "new-tab" {
 						t.Fatal("history can resurrect terminal")
 					}
 				}

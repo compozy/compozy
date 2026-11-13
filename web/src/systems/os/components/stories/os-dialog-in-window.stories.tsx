@@ -13,12 +13,12 @@ import {
   OverlayContainerContext,
 } from "@compozy/ui";
 
-import { OsWindowFrame } from "../os-window-frame";
+import { OsWindowSurface } from "../os-window-surface";
 import { DesktopShell } from "./_desktop";
 
-const meta: Meta<typeof OsWindowFrame> = {
-  title: "systems/os/components/OsWindowFrame/DialogInWindow",
-  component: OsWindowFrame,
+const meta: Meta<typeof OsWindowSurface> = {
+  title: "systems/os/components/OsWindowSurface/DialogInWindow",
+  component: OsWindowSurface,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -76,12 +76,12 @@ function WindowWithDialog() {
  * scrim and panel clipped to the window frame.
  */
 export const DialogInWindow: Story = {
-  args: { title: "Tasks", focused: true, onTrafficLight: fn() },
+  args: { title: "Tasks", focused: true, onClose: fn() },
   render: args => (
     <DesktopShell>
-      <OsWindowFrame {...args} className="absolute top-[118px] left-[260px] h-[420px] w-[540px]">
+      <OsWindowSurface {...args} className="absolute inset-y-0 left-0 w-1/2 border-r border-line">
         <WindowWithDialog />
-      </OsWindowFrame>
+      </OsWindowSurface>
     </DesktopShell>
   ),
 };

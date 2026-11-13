@@ -4,7 +4,7 @@ area: ET
 title: Use persistent terminals from the browser
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project, each with its ready managed worktrees owned by the acting profile (read once from `/api/worktrees?all_workspaces=true`) folded under it on the branched tree connector until the fold control, → / ←, or a search matching one of them unfolds it, plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope (a worktree row starts the shell in that worktree's checkout, bound to its project), and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
+expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Closing a tab that holds a split confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project, each with its ready managed worktrees owned by the acting profile (read once from `/api/worktrees?all_workspaces=true`) folded under it on the branched tree connector until the fold control, → / ←, or a search matching one of them unfolds it, plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope (a worktree row starts the shell in that worktree's checkout, bound to its project), and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
 qa_status: untested
 bug_ids: BUG-20260906-hidden-terminal-pane-minimum-vote
@@ -34,11 +34,11 @@ idempotent). The prior pass predates that surface.
 Walk:
 
 1. Click the Terminal dock item in a project with no terminals; a working terminal opens with no launcher or empty-state click in between.
-2. Use the head's New terminal; a second terminal joins the frame as an OS window tab; switch between both deck tabs and reload the browser.
+2. Use the head's New terminal; a second terminal opens as a new tab on the desktop tab bar; switch between both tabs and reload the browser.
 3. Close a running Terminal window. Cancel the accessible confirmation and verify its process and window remain intact through CLI and refresh.
 4. Confirm Close; verify the process exits before the managed window disappears. Reopen the browser and confirm it stays closed; inspect retained journal/recording history through the normal surfaces.
 5. Stop a running terminal from its header; verify the window remains on its exit state, then close it without another running warning.
-6. Close a group containing two terminals and an unrelated app; verify one confirmation lists only the affected running terminals. Cancel preserves the group; confirm closes the group without terminating terminals outside it.
+6. Split two terminals and an unrelated app into one tab (Split with ▸), then use Close tab; verify one confirmation lists only the affected running terminals. Cancel preserves the tab; confirm closes the tab without terminating terminals outside it.
 7. Exercise the keyboard/window menu and close-other/right gestures. Pinned tabs remain protected by their existing scope rules.
 8. Lose the connection while closing; verify visible failure feedback, a retained window, and a successful fresh retry after reconnect.
 9. Confirm the route, title, dock badge, and another attached viewer remain truthful throughout.
@@ -149,3 +149,5 @@ Existing current-head CI targets, identified here but not executed by this note:
 
 No new browser verdict is recorded. The existing `untested` status and historical receipts above
 are preserved; root owns the fresh isolated-browser/CI receipt and any broader launcher re-walk.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Window groups and per-pane tab decks are retired; a tab holds one window or a split. Expected and steps 2 and 6 rewritten: New terminal opens a new desktop tab, and the grouped close is now Close tab on a tab whose split holds two terminals and an unrelated app. Walk steps 2 and 6 (also Close other tabs with a running terminal in another tab). The deck wording inside the dated notes above is history. Status already untested.

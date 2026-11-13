@@ -4,9 +4,9 @@ area: RT
 title: Keep every visible session stream live
 persona: Théo
 journey: J-13
-expected: Two session windows visible side by side on the active desktop keep streaming when focus moves between them; minimizing, switching desktops, or hiding one behind an inactive stack suspends only that hidden window, which catches up when visible again.
-entry_points: OS shell with two side-by-side session windows; web session live tail
-qa_status: pass
+expected: Two session windows visible side by side in a split on the active desktop keep streaming when focus moves between them; activating another tab, switching desktops, or moving one window to a tab that is not active suspends only the hidden window, which catches up when visible again.
+entry_points: OS shell with two session windows in a split; web session live tail
+qa_status: untested
 bug_ids:
 fix_status: fixed
 retest_status: pass
@@ -124,3 +124,5 @@ This is the concurrent-navigation slice only. It preceded a behavior-preserving
 capability-helper extraction verified by the owning Info race/benchmark checks;
 current-head CI owns the final committed runtime/Web verdict. See the
 [main-integration browser receipt](../reports/2026-11-01-performance/browser.md#main-integration-correctness-walk).
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimize and tab stacks are retired; two windows are "side by side" when they share a split in one tab. Expected and entry points rewritten. Walk: split two live sessions in one tab (Split with ▸), move focus between them and confirm both stream; use Move to new tab on one, then switch between the two tabs (only the window in the inactive tab suspends), switch desktops, and return to confirm each catches up once without a duplicate connection. The minimized-window note dated 2026-08-11 is history. Reset for the current build.

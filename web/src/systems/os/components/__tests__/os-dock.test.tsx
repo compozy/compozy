@@ -36,7 +36,6 @@ const dockShell = vi.hoisted(() => ({
   },
   coordinator: {
     userActivateWindow: vi.fn(),
-    userMinimize: vi.fn(),
     userOpen: vi.fn(),
   },
 }));
@@ -88,38 +87,29 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 }));
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 5,
+  version: 6,
   workspaceId: "workspace:test",
   revision: 1,
   desktops: [],
   windows: {},
   closedEntryCount: 0,
   overrides: {},
+  migration: null,
   updatedAt: "2026-07-31T00:00:00Z",
 };
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,
   focusFollowsPointer: false,
-  raiseOnFocus: true,
-  dragAwayPolicy: "window",
-  groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 50,
   navStackLimit: 50,
   closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
-  snap: {
-    edgeBand: 32,
-    cornerReach: 150,
-    exitSlack: 16,
-    repeatRatios: [0.5, 0.666667, 0.333333],
-  },
-  bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
   globalShortcuts: {},
   shortcutDefaults: {},
@@ -153,18 +143,13 @@ function windowFixture(
     instanceKey: null,
     route: { pathname: `/${app}`, search: {} },
     navStack: [],
-    pinned: false,
     desktopId: "desktop:one",
-    placement: "floating",
-    rect: { x: 0, y: 0, w: 600, h: 420 },
-    layer: 1,
-    minimized: false,
-    zoomed: false,
-    groupId: null,
-    nodeId: null,
-    stackId: null,
-    stackActive: true,
-    parentAxis: null,
+    tabId: `tab:${id}`,
+    nodeId: `leaf:${id}`,
+    pinned: false,
+    inSplit: false,
+    tabActive: true,
+    shown: true,
     ...overrides,
   };
 }
@@ -185,18 +170,18 @@ function desktopState(
       activeDesktopId: "desktop:one",
       focusedWindowId: focusedId,
       focusOrder,
-      stackActive: {},
+      activeTab: {},
       connectedAt: "2026-07-31T00:00:00Z",
     },
     desktops: [],
+    activeTabIds: {},
     projections: {},
-    frames: {},
     windows,
     activeDesktopId: "desktop:one",
     focusedId,
     wallpaper: "ember",
     reduceMotion: false,
-    presentation: "floating",
+    presentation: "split",
     viewportState: "ready",
     hydration: "live",
     loadError: null,
@@ -346,13 +331,13 @@ describe("OsDock", () => {
     expect(onPreload).not.toHaveBeenCalled();
   });
 
-  it("Should expose the real closed, running, focused, and minimized state for each launcher", () => {
+  it("Should expose the real closed, running, and focused state for each launcher", () => {
     renderDock(
       <OsDock
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard", running: true },
           { id: "session", name: "Sessions", icon: "sessions", running: true, active: true },
-          { id: "tasks", name: "Tasks", icon: "tasks", minimized: true },
+          { id: "tasks", name: "Tasks", icon: "tasks", running: true },
           { id: "agents", name: "Agents", icon: "agents" },
         ]}
         onSelect={vi.fn()}
@@ -368,10 +353,7 @@ describe("OsDock", () => {
       "aria-current",
       "true"
     );
-    expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute(
-      "data-state",
-      "minimized"
-    );
+    expect(screen.getByRole("button", { name: "Tasks" })).toHaveAttribute("data-state", "running");
     expect(screen.getByRole("button", { name: "Agents" })).toHaveAttribute("data-state", "closed");
   });
 
@@ -462,9 +444,9 @@ describe("OsDock", () => {
     expect(screen.getByRole("button", { name: "Dashboard" })).toHaveFocus();
   });
 
-  it("Should focus the MRU task instance, cycle on repeat, and restore a minimized turn (UT-043)", () => {
+  it("Should focus the MRU task instance, cycle on repeat, and reach a tab behind another (UT-043)", () => {
     const first = windowFixture("window:tasks-a", "tasks");
-    const second = windowFixture("window:tasks-b", "tasks", { minimized: true });
+    const second = windowFixture("window:tasks-b", "tasks", { tabActive: false, shown: false });
     const other = windowFixture("window:dashboard", "dashboard");
     const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
 
@@ -480,7 +462,11 @@ describe("OsDock", () => {
 
     setDockState(
       desktopState(
-        { [first.id]: first, [second.id]: { ...second, minimized: false }, [other.id]: other },
+        {
+          [first.id]: first,
+          [second.id]: { ...second, tabActive: true, shown: true },
+          [other.id]: other,
+        },
         second.id,
         [second.id, first.id]
       )
@@ -490,16 +476,13 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(first.id);
   });
 
-  it("Should restore a minimized window that the client still reports as focused", () => {
-    // The topology can mark a window minimized before the client frame drops
-    // its focus; the hollow-ring launcher must still restore it, not minimize.
-    const tasks = windowFixture("window:tasks", "tasks", { minimized: true, zoomed: true });
+  it("Should activate the focused window again instead of hiding it", () => {
+    const tasks = windowFixture("window:tasks", "tasks");
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
     setDockState(desktopState({ [tasks.id]: tasks }, tasks.id, [tasks.id]));
 
     act(() => result.current.handleSelect("tasks"));
 
-    expect(dockShell.coordinator.userMinimize).not.toHaveBeenCalled();
     expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledWith(tasks.id);
   });
 
@@ -711,8 +694,6 @@ describe("OsDock", () => {
     ];
     const older = windowFixture("window:session-older", "session", {
       instanceKey: "sess-older",
-      stackId: "stack:session",
-      stackActive: true,
     });
     const onNewSession = vi.fn();
     const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession }));
@@ -732,19 +713,19 @@ describe("OsDock", () => {
 
   it.each([
     {
-      label: "minimized",
-      overrides: { minimized: true },
-      projection: { running: false, minimized: true },
-    },
-    {
       label: "on another desktop",
       overrides: { desktopId: "desktop:two" },
-      projection: { running: true, minimized: false },
+      projection: { running: true },
     },
     {
-      label: "an inactive stack tab",
-      overrides: { stackId: "stack:session", stackActive: false },
-      projection: { running: true, minimized: false },
+      label: "in an inactive tab",
+      overrides: { tabActive: false, shown: false },
+      projection: { running: true },
+    },
+    {
+      label: "behind a collapsed split's switcher",
+      overrides: { inSplit: true, shown: false },
+      projection: { running: true },
     },
   ])(
     "Should jump to the last created session when its window is $label",
@@ -816,7 +797,7 @@ describe("OsDock", () => {
 
   // The rail foot owns command availability; topology readiness cannot stand in
   // for a missing or unconfirmed palette catalog after a document reload.
-  it.each(["floating", "compact"] as const)(
+  it.each(["split", "compact"] as const)(
     "Should wait for the Settings command in the %s dock without blocking local theme changes",
     async presentation => {
       const user = userEvent.setup();
@@ -904,7 +885,7 @@ describe("OsDock", () => {
   });
 
   it("Should mark Terminal running from catalog truth rather than an open window", () => {
-    const open = { ...windowFixture("window:terminal", "terminal"), minimized: true };
+    const open = windowFixture("window:terminal", "terminal");
     const { result, rerender } = renderHook(
       (live?: boolean) => useDesktopDock({}, { onNewSession: vi.fn(), terminalLive: live }),
       { initialProps: true }
@@ -922,13 +903,11 @@ describe("OsDock", () => {
     expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
       running: false,
       active: false,
-      minimized: false,
     });
     rerender(undefined);
     expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
       running: false,
       active: false,
-      minimized: false,
     });
   });
 
@@ -962,7 +941,6 @@ describe("OsDock", () => {
     for (const [label, placement] of [
       ["Open in new tab", "tab"],
       ["Open in split", "split"],
-      ["Open in new window", "window"],
       ["Open in new desktop", "desktop"],
     ] as const) {
       fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
@@ -987,19 +965,13 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
       app: "tasks",
       forceNewInstance: true,
-      stackTargetWindowId: focused.id,
+      afterWindowId: focused.id,
     });
     act(() => result.current.handleLaunch("tasks", "split"));
     expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
       app: "tasks",
       forceNewInstance: true,
       placement: "split",
-    });
-    act(() => result.current.handleLaunch("tasks", "window"));
-    expect(dockShell.coordinator.userOpen).toHaveBeenLastCalledWith({
-      app: "tasks",
-      forceNewInstance: true,
-      placement: "floating",
     });
 
     act(() => result.current.handleLaunch("tasks", "desktop"));
@@ -1095,9 +1067,9 @@ describe("OsDock", () => {
       })
     );
 
+    // A plain click on the focused app keeps its window: the dock has no minimize (US-018.AC-1).
     act(() => result.current.handleSelect("tasks"));
-    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
-    expect(dockShell.coordinator.userMinimize).toHaveBeenCalledWith(task.id);
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledExactlyOnceWith(task.id);
   });
 
   it("Should report pointer modifiers but treat keyboard activation as a plain click", () => {
@@ -1140,6 +1112,7 @@ describe("OsDock", () => {
   });
 
   it("Should close an open destination menu and keep it unavailable while an overlay is active (UT-085)", async () => {
+    // "Open in new window" opened a floating window, which tabs retire; any destination item proves the menu.
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
     const view = renderDock(
@@ -1152,7 +1125,7 @@ describe("OsDock", () => {
     );
     const taskButton = screen.getByRole("button", { name: "Tasks" });
     fireEvent.contextMenu(taskButton);
-    await screen.findByText("Open in new window");
+    await screen.findByText("Open in new desktop");
 
     view.rerender(
       <TooltipProvider delay={0}>
@@ -1165,9 +1138,9 @@ describe("OsDock", () => {
       </TooltipProvider>
     );
 
-    await waitFor(() => expect(screen.queryByText("Open in new window")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Open in new desktop")).not.toBeInTheDocument());
     fireEvent.contextMenu(screen.getByRole("button", { name: "Tasks" }));
-    expect(screen.queryByText("Open in new window")).not.toBeInTheDocument();
+    expect(screen.queryByText("Open in new desktop")).not.toBeInTheDocument();
   });
 
   it("Should open the destination menu with the keyboard and select its focused item (UT-086)", async () => {
@@ -1202,7 +1175,8 @@ describe("OsDock", () => {
     menuTrigger.addEventListener("contextmenu", contextMenuEvents);
     trigger.focus();
     await user.keyboard("{Shift>}{F10}{/Shift}");
-    await screen.findByText("Open in new window");
+    // "Open in new window" opened a floating window, which tabs retire.
+    await screen.findByText("Open in new desktop");
     const keyboardMenuEvent = contextMenuEvents.mock.calls.at(-1)?.[0] as MouseEvent | undefined;
     expect(keyboardMenuEvent?.clientX).toBe(124);
     expect(keyboardMenuEvent?.clientY).toBe(64);

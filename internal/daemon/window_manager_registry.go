@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -239,18 +240,15 @@ func (r *windowManagerRegistry) PurgeDesktopPartitions(ctx context.Context, prof
 		return err
 	}
 	for _, partition := range partitions {
-		if _, err := r.engine.Apply(
+		if err := purgeWindowManagerPartition(
 			ctx,
+			r.engine,
 			partition.workspaceID,
-			windowManagerStateDomain,
-			[]clientstate.Op{{
-				Kind:  clientstate.OpDelete,
-				Key:   windowManagerSnapshotKey(partition.profileID),
-				IfRev: partition.revision,
-			}},
-			clientstate.ApplyOptions{Origin: "window-manager.profile.delete"},
-		); err != nil && !errors.Is(err, clientstate.ErrNotFound) &&
-			!errors.Is(err, clientstate.ErrWorkspaceNotFound) {
+			partition.profileID,
+		); err != nil &&
+			!errors.Is(err, clientstate.ErrNotFound) &&
+			!errors.Is(err, clientstate.ErrWorkspaceNotFound) &&
+			!errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
 			return fmt.Errorf(
 				"daemon: remove desktop partition for profile %q in workspace %q: %w",
 				profileID,
@@ -265,7 +263,6 @@ func (r *windowManagerRegistry) PurgeDesktopPartitions(ctx context.Context, prof
 type windowManagerDesktopPartition struct {
 	workspaceID clientstate.WorkspaceID
 	profileID   string
-	revision    uint64
 }
 
 func (r *windowManagerRegistry) desktopPartitions(
@@ -290,13 +287,18 @@ func (r *windowManagerRegistry) desktopPartitions(
 				err,
 			)
 		}
+		seen := map[string]bool{}
 		for _, entry := range entries {
 			owner, partitioned := windowManagerSnapshotProfile(entry.Key)
-			if !partitioned || (profileID != "" && owner != profileID) {
+			if !partitioned && profileID != "" {
+				owner, partitioned = statekeys.Profile(entry.Key)
+			}
+			if !partitioned || seen[owner] || (profileID != "" && owner != profileID) {
 				continue
 			}
+			seen[owner] = true
 			partitions = append(partitions, windowManagerDesktopPartition{
-				workspaceID: workspaceID, profileID: owner, revision: entry.Rev,
+				workspaceID: workspaceID, profileID: owner,
 			})
 		}
 	}

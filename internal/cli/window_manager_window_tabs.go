@@ -16,7 +16,7 @@ func newWindowGroupCommand(deps commandDeps) *cobra.Command {
 	var target, windowsRaw string
 	var insertIndex int
 	cmd := &cobra.Command{
-		Use: windowGroupKey, Short: "Group windows into one ordered stack", Args: cobra.NoArgs,
+		Use: windowGroupKey, Short: "Deprecated: place windows in adjacent tabs; removed in v0.8.0", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			target, err := requiredWindowManagerFlag(target, "target")
 			if err != nil {
@@ -47,13 +47,15 @@ func newWindowGroupCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+			return writeCommandOutput(cmd, windowManagerResultBundle(&result))
 		},
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&target, "target", "", "Target window ID")
-	cmd.Flags().StringVar(&windowsRaw, "windows", "", "Comma-separated window IDs to join")
-	cmd.Flags().IntVar(&insertIndex, "insert-index", 0, "Insertion index within the target stack")
+	cmd.Flags().
+		StringVar(&windowsRaw, "windows", "", "Deprecated: comma-separated IDs to place in adjacent tabs; "+
+			"use window move; removed in v0.8.0")
+	cmd.Flags().IntVar(&insertIndex, "insert-index", 0, "Deprecated: ignored insertion index; removed in v0.8.0")
 	return cmd
 }
 
@@ -93,13 +95,13 @@ func parseWindowManagerWindowIDs(raw string) ([]windowmanager.WindowID, error) {
 func newWindowActivateCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	cmd := &cobra.Command{
-		Use: "activate <window-id>", Short: "Activate one member of a window stack", Args: cobra.ExactArgs(1),
+		Use: "activate <window-id>", Short: "Activate the window's tab", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeWindowTabCommand(
 				cmd,
 				deps,
 				flags,
-				contract.WindowManagerCommandWindowStackSetActive,
+				contract.WindowManagerCommandWindowTabActivate,
 				contract.WindowManagerSetStackActivePayload{WindowID: windowmanager.WindowID(args[0])},
 			)
 		},
@@ -111,10 +113,10 @@ func newWindowActivateCommand(deps commandDeps) *cobra.Command {
 func newWindowPinCommand(deps commandDeps, pinned bool) *cobra.Command {
 	var flags windowManagerMutationFlags
 	verb := cliUnpinVerb
-	short := "Unpin one managed window"
+	short := "Unpin the window's tab"
 	if pinned {
 		verb = cliPinVerb
-		short = "Pin one managed window"
+		short = "Pin the window's tab"
 	}
 	cmd := &cobra.Command{
 		Use: verb + " <window-id>", Short: short, Args: cobra.ExactArgs(1),
@@ -168,5 +170,31 @@ func executeWindowTabCommand(
 	if err != nil {
 		return err
 	}
-	return writeCommandOutput(cmd, windowManagerResultBundle(result))
+	return writeCommandOutput(cmd, windowManagerResultBundle(&result))
+}
+
+func newWindowReorderCommand(deps commandDeps) *cobra.Command {
+	var flags windowManagerMutationFlags
+	var index int
+	cmd := &cobra.Command{
+		Use: "reorder <window-id>", Short: "Reorder the window's tab", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cmd.Flags().Changed("index") {
+				return errors.New("cli: --index is required")
+			}
+			return executeWindowTabCommand(
+				cmd,
+				deps,
+				flags,
+				contract.WindowManagerCommandWindowTabReorder,
+				contract.WindowManagerReorderStackPayload{
+					WindowID: windowmanager.WindowID(strings.TrimSpace(args[0])),
+					Index:    index,
+				},
+			)
+		},
+	}
+	flags.add(cmd)
+	cmd.Flags().IntVar(&index, "index", 0, "Zero-based tab index, clamped to the tab's pinned or unpinned range")
+	return cmd
 }

@@ -1,88 +1,71 @@
-import { useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import { toDraftDesktop } from "../lib/window-manager-layout-bridge";
-import { LAYOUT_CANVAS_REFERENCE } from "../lib/window-manager-layout-reference";
 import { fractionLabel, nearestDetent } from "../lib/window-manager-layout-detents";
-import type { WindowManagerLayoutDesktop } from "../lib/window-manager-layout-types";
+import { moveLayoutSeam } from "../lib/window-manager-layout-tree";
+import type {
+  WindowManagerLayoutNode,
+  WindowManagerLayoutSplit,
+} from "../lib/window-manager-layout-types";
 import { usePointerDrag } from "./use-pointer-drag";
-import { applySeamPreviewToDesktop, type ProjectedSeam, seamWeightDelta } from "@/systems/os";
 
 /** Matches the live shell's keyboard step so both surfaces nudge by the same amount. */
 const KEYBOARD_STEP = 0.02;
 
 interface SeamDragState {
-  desktop: WindowManagerLayoutDesktop;
-  origin: number;
-  scale: number;
-  /** The projection at pointer-down; parent re-projection must not compound the gesture. */
-  seam: ProjectedSeam;
+  root: WindowManagerLayoutNode;
+  /** Where the leading member starts and how long the pair is, along the split axis. */
+  start: number;
+  span: number;
 }
 
 export interface LayoutDraftSeamModel {
   dragging: boolean;
-  /** Leading share of the pair, 0–1, after clamping and detents. */
+  /** Leading share of the pair, 0–1. */
   ratio: number;
   leadingLabel: string;
   trailingLabel: string;
   snapped: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  onDoubleClick: () => void;
 }
 
 /**
- * Drags one divider on the *draft*, not the running workspace.
- *
- * The pixel-to-weight conversion and the immutable rebalance are the runtime's
- * own (`seam-preview.ts`, a mirror of `reducer_layout_resize.go`), which is why
- * a drag here cannot produce the weight vector the daemon rejects: the split
- * still sums to 1 by construction rather than by correction.
+ * Drags one seam of a split on the *draft*, not the running workspace. Only
+ * the two members beside the seam change, and `moveLayoutSeam` keeps the
+ * weights positive and summing to 1, so the drag cannot produce a weight vector
+ * the daemon rejects. The seam's neighbours in the DOM are the two members, so
+ * the pair is measured where it is drawn.
  */
 export function useLayoutDraftSeam(
-  seam: ProjectedSeam,
-  desktop: WindowManagerLayoutDesktop,
-  canvasRef: RefObject<HTMLElement | null>,
-  onChange: (next: WindowManagerLayoutDesktop) => void
+  root: WindowManagerLayoutNode,
+  split: WindowManagerLayoutSplit,
+  index: number,
+  onChange: (next: WindowManagerLayoutNode) => void
 ): LayoutDraftSeamModel {
-  const [preview, setPreview] = useState<{ ratio: number; snapped: boolean } | null>(null);
-  const pairTotal = seam.leadingWeight + seam.trailingWeight;
-  const restingRatio = pairTotal === 0 ? 0.5 : seam.leadingWeight / pairTotal;
-
-  const commit = (state: SeamDragState, deltaPixels: number) => {
-    const clampedWeightDelta = seamWeightDelta(state.seam, deltaPixels);
-    const pairTotal = state.seam.leadingWeight + state.seam.trailingWeight;
-    const proposed = state.seam.leadingWeight + clampedWeightDelta;
-    const proposedRatio = pairTotal === 0 ? 0.5 : proposed / pairTotal;
-    const detent = nearestDetent(proposedRatio);
-    const targetLeading = detent === null ? proposed : detent * pairTotal;
-    const snappedDelta = (targetLeading - state.seam.leadingWeight) * state.seam.axisSpan;
-    setPreview({
-      ratio: pairTotal === 0 ? 0.5 : targetLeading / pairTotal,
-      snapped: detent !== null,
-    });
-    onChange(toDraftDesktop(applySeamPreviewToDesktop(state.desktop, state.seam, snappedDelta)));
-  };
+  const [snapped, setSnapped] = useState(false);
+  const leading = split.weights[index] ?? 0;
+  const trailing = split.weights[index + 1] ?? 0;
+  const ratio = leading + trailing === 0 ? 0.5 : leading / (leading + trailing);
+  const row = split.axis === "horizontal";
 
   const drag = usePointerDrag<SeamDragState>({
     onStart: event => {
-      const canvas = canvasRef.current?.getBoundingClientRect();
-      if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
-      const vertical = seam.orientation === "vertical";
-      return {
-        desktop,
-        origin: vertical ? event.clientX : event.clientY,
-        seam,
-        // The canvas is a scale model of the reference screen, so one CSS pixel
-        // of travel is this many reference pixels.
-        scale: vertical
-          ? LAYOUT_CANVAS_REFERENCE.w / canvas.width
-          : LAYOUT_CANVAS_REFERENCE.h / canvas.height,
-      };
+      const before = event.currentTarget.previousElementSibling?.getBoundingClientRect();
+      const after = event.currentTarget.nextElementSibling?.getBoundingClientRect();
+      if (!before || !after) return null;
+      const span = row ? after.right - before.left : after.bottom - before.top;
+      if (span <= 0) return null;
+      return { root, start: row ? before.left : before.top, span };
     },
     onMove: (event, state) => {
-      const pointer = seam.orientation === "vertical" ? event.clientX : event.clientY;
-      commit(state, (pointer - state.origin) * state.scale);
+      const pointer = row ? event.clientX : event.clientY;
+      const share = (pointer - state.start) / state.span;
+      const detent = nearestDetent(share);
+      setSnapped(detent !== null);
+      onChange(moveLayoutSeam(state.root, split.id, index, detent ?? share));
     },
-    onEnd: () => setPreview(null),
+    onEnd: () => setSnapped(false),
   });
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -91,19 +74,17 @@ export function useLayoutDraftSeam(
     if (!forward && !backward) return;
     event.preventDefault();
     event.stopPropagation();
-    const step = (forward ? KEYBOARD_STEP : -KEYBOARD_STEP) * seam.axisSpan;
-    onChange(toDraftDesktop(applySeamPreviewToDesktop(desktop, seam, step)));
+    onChange(moveLayoutSeam(root, split.id, index, ratio + (forward ? 1 : -1) * KEYBOARD_STEP));
   };
-
-  const ratio = drag.dragging && preview ? preview.ratio : restingRatio;
 
   return {
     dragging: drag.dragging,
     ratio,
     leadingLabel: fractionLabel(ratio),
     trailingLabel: fractionLabel(1 - ratio),
-    snapped: drag.dragging && (preview?.snapped ?? false),
+    snapped: drag.dragging && snapped,
     onPointerDown: drag.onPointerDown,
     onKeyDown,
+    onDoubleClick: () => onChange(moveLayoutSeam(root, split.id, index, 0.5)),
   };
 }

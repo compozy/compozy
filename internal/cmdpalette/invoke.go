@@ -8,9 +8,14 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func (s *Service) Invoke(ctx context.Context, request InvokeRequest) (InvokeResult, error) {
+	if windowmanager.RetiredPaletteCommand(string(request.CommandID)) {
+		return s.invokeRetiredWindowManagerCommand(ctx, request)
+	}
 	execution, resolved, err := s.prepareInvocation(ctx, request)
 	if err != nil {
 		return InvokeResult{}, err

@@ -39,6 +39,7 @@ import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 import { useSessionComposerState } from "../hooks/use-session-composer-state";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import { SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
 import {
   isSessionRunning,
   SessionApiError,
@@ -4465,6 +4466,46 @@ describe("SessionThread transcript states", () => {
 
     expect(viewport.scrollTop).toBe(2_500);
     expect(pill).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant (A-1): a transcript that is not rendered changes neither its follow state nor its
+  // place. A hidden scroller reads every box as 0, so its scroll event looks like the live edge;
+  // shown again, the transcript resumes the reader's row instead of following the end.
+  it("Should resume the reader's place, not the live edge, when its hidden pane shows again", async () => {
+    const messages = toReadonlyThreadMessages(
+      Array.from({ length: 40 }, (_, index) => ({
+        id: `hidden-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
+    renderThreadState({ status: "success", messages });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+    const viewport = screen.getByTestId("chat-view");
+    const pill = screen.getByTestId("scroll-to-bottom-pill");
+    primeScrolledAwayViewport(viewport);
+    fireEvent.wheel(viewport, { deltaY: -120 });
+    fireEvent.scroll(viewport);
+    await waitFor(() => expect(pill).toHaveAttribute("data-visible", "true"));
+
+    // The pane hides: the browser drops the offset and the scroller has no box.
+    const pane = viewport.parentElement!;
+    pane.hidden = true;
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 0 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 0 });
+    viewport.scrollTop = 0;
+    fireEvent.scroll(viewport);
+
+    // Shown again: the pane host announces it before the frame paints.
+    pane.hidden = false;
+    primeScrolledAwayViewport(viewport);
+    viewport.scrollTop = 0;
+    act(() => {
+      viewport.dispatchEvent(new Event(SCROLL_RESTORE_EVENT));
+    });
+
+    expect(viewport.scrollTop).toBe(300);
+    expect(pill).toHaveAttribute("data-visible", "true");
   });
 
   function settlingTranscript(prefix: string, length = 40) {

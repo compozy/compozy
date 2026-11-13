@@ -360,7 +360,7 @@ The synthetic turn (`synthetic.kind = "session_reply"`) that brings a target ses
 
 ## OS Shell
 
-The web UI presents as a desktop environment: a menubar, persistent virtual desktops, tiled and floating windows, and a dock. These terms name that presentation model. The runtime object remains the `workspace`; switching a desktop never changes runtime scope.
+The web UI presents as a desktop environment: a menubar, persistent virtual desktops each with one tab bar, windows shown as tabs or split side by side inside a tab, and a dock. These terms name that presentation model. The runtime object remains the `workspace`; switching a desktop never changes runtime scope.
 
 ### Workspace
 
@@ -386,23 +386,27 @@ The AGENT.md field `workspace_access: unrestricted`, the only grant vocabulary i
 
 ### Desktop
 
-One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
+One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns one ordered tab bar; a window belongs to exactly one tab of exactly one desktop. The active desktop, active tab and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
 
-### Tiled group
+### Tab
 
-One non-overlapping layout tree inside a desktop. A desktop may contain multiple tiled groups and floating windows. A tiled group uses leaf, split, and stack nodes; resizing acts on a structural split boundary, not on independent window rectangles.
+One entry of a desktop's tab bar. A tab holds one window or a split tree of windows; pinned tabs form a contiguous prefix of the bar. Tabs replaced floating windows, minimize, zoom, tiled islands and per-pane stacks in v0.7.0. The active tab is per client (`active_tab`); `active_tab_id` is only the default for new clients.
+
+### Split
+
+The tree of horizontal and vertical splits inside a tab whose leaves are windows. Shares are weights, not pixels; resizing acts only on the seam between two split members (`layout.resize`). **Move to new tab** (`window.move` with placement `tab`, shortcut `window.unsplit`) takes a window out of a split; there is no maximize, minimize or zoom.
 
 ### Window
 
-A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with OS controls injected. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window may be tiled, stacked, or floating; structural placement is distinct from its internal pathname/search route.
+A frame hosting one app's durably resumed route subtree. The window head is the route's `<Topbar>` with the window's controls injected: Close window, plus Move to new tab inside a split. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render. A window is a tab of its own or a member of a split inside a tab; it only opens or closes. Its place in the tab bar or split is distinct from its internal pathname/search route.
 
 ### Desktop pager
 
-The minimal horizontal dot control in the menubar tray for switching the active client's desktop; an orange dot marks an off-screen desktop that needs you. It is navigation, not a persistent management panel. The tray's All desktops button opens Desktops Overview, which owns create, rename, reorder, transfer, and delete operations.
+The desktop indicators in the menubar tray, one dot per desktop, for switching the active client's desktop; an amber dot marks an off-screen desktop that needs you. Each dot has a menu (Rename, Move left, Move right, Close desktop, New desktop) and accepts a dragged tab; past seven desktops, overflow controls open Desktops Overview. The tray's All desktops button opens Desktops Overview, which also owns create, rename, reorder, tab moves, and delete with a destination; Rename and Close desktop from a dot finish on the overview card.
 
 ### Dock
 
-The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
+The rail of app launchers along the left edge, below the menubar (a bottom tab bar in compact presentation). It mirrors the app inventory and carries running/focused indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks). Its foot holds the profile switcher, the light/dark toggle, and Settings.
 
 **UI noun:** "dock" (`aria-label="Dock"`, "Open an app from the dock"). See [Rail](#rail) for the shape name.
 
@@ -426,7 +430,7 @@ A window arrangement (`main_stack` in `compozy layout arrange --arrangement`; **
 
 ### Window manager
 
-The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tiled groups, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, focus, and gesture previews remain client-specific where defined by the contract.
+The daemon-authoritative, workspace-scoped topology and semantic command surface for desktops, tabs, splits, and windows. Durable mutations use revision checks and atomic commits. Browser geometry projection, active desktop, active tab, focus, and gesture previews remain client-specific where defined by the contract.
 
 ### Terminal
 

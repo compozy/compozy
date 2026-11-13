@@ -91,6 +91,20 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: valid notification snapshot is required"))
 		return
 	}
+	if population == attentionBellPopulation {
+		ids, err := observer.AttentionSnapshotOccurrences(c.Request.Context(), scope, request.Snapshot, request.ID)
+		if err == nil {
+			err = h.acknowledgeMigrationNotifications(c.Request.Context(), ids)
+		}
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, attention.ErrSnapshotUnavailable) {
+				status = http.StatusConflict
+			}
+			h.respondError(c, status, err)
+			return
+		}
+	}
 	if err := observer.AcknowledgeAttentionSnapshot(
 		c.Request.Context(),
 		scope,

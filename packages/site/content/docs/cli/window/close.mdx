@@ -1,11 +1,11 @@
 ---
 title: "compozy window close"
-description: "Close or minimize a window and reflow its group"
+description: "Close a window or tabs by scope"
 ---
 
 ## compozy window close
 
-Close or minimize a window and reflow its group
+Close a window or tabs by scope
 
 ```
 compozy window close [flags]
@@ -18,10 +18,10 @@ compozy window close [flags]
       --client string      Connected presentation client ID
   -h, --help               help for close
       --id string          Window ID
-      --minimize           Keep the window available for restore
+      --minimize           Deprecated no-op: keep the window open; removed in v0.8.0
       --origin string      Command origin label (default "cli")
       --revision uint      Expected workspace revision
-      --scope string       Close scope: tab, group, others, or right (default "tab")
+      --scope string       Close scope: tab, group, others, right, left, or all (default "tab")
       --workspace string   Override workspace (ID, name, or path)
 ```
 

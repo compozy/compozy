@@ -210,12 +210,6 @@ func diffWindowManagerSettings(
 		"window_manager.focus_follows_pointer",
 		current.FocusFollowsPointer != desired.FocusFollowsPointer,
 	)
-	appendChange("window_manager.raise_on_focus", current.RaiseOnFocus != desired.RaiseOnFocus)
-	appendChange("window_manager.drag_away_policy", current.DragAwayPolicy != desired.DragAwayPolicy)
-	appendChange(
-		"window_manager.group_move_modifier",
-		current.GroupMoveModifier != desired.GroupMoveModifier,
-	)
 	appendChange("window_manager.swap_modifier", current.SwapModifier != desired.SwapModifier)
 	appendChange("window_manager.history_limit", current.HistoryLimit != desired.HistoryLimit)
 	appendChange("window_manager.nav_stack_limit", current.NavStackLimit != desired.NavStackLimit)
@@ -229,21 +223,6 @@ func diffWindowManagerSettings(
 	appendChange("window_manager.gaps.right", current.Gaps.Right != desired.Gaps.Right)
 	appendChange("window_manager.gaps.bottom", current.Gaps.Bottom != desired.Gaps.Bottom)
 	appendChange("window_manager.gaps.left", current.Gaps.Left != desired.Gaps.Left)
-	appendChange("window_manager.snap.edge_band", current.Snap.EdgeBand != desired.Snap.EdgeBand)
-	appendChange("window_manager.snap.corner_reach", current.Snap.CornerReach != desired.Snap.CornerReach)
-	appendChange("window_manager.snap.exit_slack", current.Snap.ExitSlack != desired.Snap.ExitSlack)
-	appendChange(
-		"window_manager.snap.repeat_ratios",
-		!reflect.DeepEqual(current.Snap.RepeatRatios, desired.Snap.RepeatRatios),
-	)
-	appendChange(
-		"window_manager.bindings.top_center",
-		current.Bindings.TopCenter != desired.Bindings.TopCenter,
-	)
-	appendChange(
-		"window_manager.bindings.bottom_center",
-		current.Bindings.BottomCenter != desired.Bindings.BottomCenter,
-	)
 	appendChange(
 		"window_manager.shortcuts",
 		!reflect.DeepEqual(current.Shortcuts, desired.Shortcuts),
@@ -273,9 +252,6 @@ func applyWindowManagerSettings(
 		{path: root("focus_policy"), value: settings.FocusPolicy},
 		{path: root("focus_wrap"), value: settings.FocusWrap},
 		{path: root("focus_follows_pointer"), value: settings.FocusFollowsPointer},
-		{path: root("raise_on_focus"), value: settings.RaiseOnFocus},
-		{path: root("drag_away_policy"), value: settings.DragAwayPolicy},
-		{path: root("group_move_modifier"), value: settings.GroupMoveModifier},
 		{path: root("swap_modifier"), value: settings.SwapModifier},
 		{path: root("history_limit"), value: settings.HistoryLimit},
 		{path: root("nav_stack_limit"), value: settings.NavStackLimit},
@@ -286,12 +262,6 @@ func applyWindowManagerSettings(
 		{path: root("gaps", "right"), value: settings.Gaps.Right},
 		{path: root("gaps", "bottom"), value: settings.Gaps.Bottom},
 		{path: root("gaps", "left"), value: settings.Gaps.Left},
-		{path: root("snap", "edge_band"), value: settings.Snap.EdgeBand},
-		{path: root("snap", "corner_reach"), value: settings.Snap.CornerReach},
-		{path: root("snap", "exit_slack"), value: settings.Snap.ExitSlack},
-		{path: root("snap", "repeat_ratios"), value: append([]float64(nil), settings.Snap.RepeatRatios...)},
-		{path: root("bindings", "top_center"), value: settings.Bindings.TopCenter},
-		{path: root("bindings", "bottom_center"), value: settings.Bindings.BottomCenter},
 	}
 	if err := applyValueUpdates(editor, updates); err != nil {
 		return err
@@ -333,7 +303,6 @@ func applyWindowManagerSettings(
 }
 
 func cloneWindowManagerConfig(cfg compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
-	cfg.Snap.RepeatRatios = append([]float64(nil), cfg.Snap.RepeatRatios...)
 	cfg.Shortcuts = windowmanager.CloneShortcutMap(cfg.Shortcuts)
 	cfg.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts)
 	return cfg

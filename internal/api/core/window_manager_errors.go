@@ -35,6 +35,12 @@ func windowManagerErrorPayload(
 	if topology, ok := errors.AsType[*windowmanager.TopologyError](err); ok {
 		payload.Diagnostics = append([]windowmanager.Diagnostic(nil), topology.Diagnostics...)
 	}
+	if ahead, ok := errors.AsType[*windowmanager.SnapshotVersionError](err); ok {
+		payload.Diagnostics = []windowmanager.Diagnostic{ahead.Diagnostic()}
+	}
+	if quota, ok := errors.AsType[*windowmanager.SnapshotQuotaError](err); ok {
+		payload.Diagnostics = []windowmanager.Diagnostic{quota.Diagnostic()}
+	}
 	return status, payload
 }
 
@@ -48,8 +54,6 @@ func windowManagerErrorStatus(err error) (int, contract.WindowManagerErrorCode) 
 		return http.StatusNotFound, contract.WindowManagerErrorDesktopNotFound
 	case errors.Is(err, windowmanager.ErrWindowNotFound):
 		return http.StatusNotFound, contract.WindowManagerErrorWindowNotFound
-	case errors.Is(err, windowmanager.ErrNotStacked):
-		return http.StatusUnprocessableEntity, contract.WindowManagerErrorNotStacked
 	case errors.Is(err, windowmanager.ErrWindowPinned):
 		return http.StatusUnprocessableEntity, contract.WindowManagerErrorWindowPinned
 	case errors.Is(err, windowmanager.ErrClientNotFound):

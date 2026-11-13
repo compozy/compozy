@@ -76,6 +76,7 @@ func (n *daemonNativeTools) executeWindowManagerCommand(
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
+	result.Deprecations = windowManagerToolDeprecations(req.ToolID, result.Deprecations)
 	payload := newWindowManagerCommandResult(command.CommandID(), &result)
 	return structuredResult(payload, fmt.Sprintf("%s at revision %d", command.CommandID(), payload.Revision))
 }
@@ -99,6 +100,7 @@ func (n *daemonNativeTools) previewWindowManagerCommand(
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
-	payload := newWindowManagerPreviewResult(command.CommandID(), preview)
+	preview.Deprecations = windowManagerToolDeprecations(req.ToolID, preview.Deprecations)
+	payload := newWindowManagerPreviewResult(command.CommandID(), &preview)
 	return layoutPreviewViews.result(req.View, payload)
 }

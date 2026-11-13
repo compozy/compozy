@@ -20,6 +20,8 @@ const (
 	CommandWindowStackGroup     CommandID = "window.stack.group"
 	CommandWindowStackReorder   CommandID = "window.stack.reorder"
 	CommandWindowStackSetActive CommandID = "window.stack.set_active"
+	CommandWindowTabReorder     CommandID = "window.tab.reorder"
+	CommandWindowTabActivate    CommandID = "window.tab.activate"
 	CommandWindowPin            CommandID = "window.pin"
 	CommandWindowReopen         CommandID = "window.reopen"
 	CommandLayoutArrange        CommandID = "layout.arrange"
@@ -51,6 +53,7 @@ type CommandRequest struct {
 
 // RebaseGuard proves stale source and target identities are still unambiguous.
 type RebaseGuard struct {
+	TabID         *TabID
 	WindowID      *WindowID
 	SourceNodeID  *NodeID
 	TargetNodeID  *NodeID
@@ -99,8 +102,7 @@ type WindowSpec struct {
 	DesktopID    DesktopID      `json:"desktop_id"`
 	FloatingRect NormalizedRect `json:"floating_rect"`
 	InsertTiled  bool           `json:"insert_tiled,omitzero"`
-	// Floating opens a free window at FloatingRect whatever the new-window
-	// policy; it cannot be combined with a tiled or stacked placement.
+	// Floating is retained through v0.7 and opens a tab at the compatibility boundary.
 	Floating            bool      `json:"floating,omitzero"`
 	StackTargetWindowID *WindowID `json:"stack_target_window_id,omitzero"`
 	// BesideWindowID anchors a tiled open (beside_focus, tab, or InsertTiled)
@@ -110,6 +112,7 @@ type WindowSpec struct {
 }
 
 type OpenWindowCommand struct {
+	policy          NewWindowPolicy
 	Window          WindowSpec
 	RestoreWindowID *WindowID
 }
@@ -127,7 +130,7 @@ type NavigateWindowCommand struct {
 
 func (NavigateWindowCommand) CommandID() CommandID { return CommandWindowNavigate }
 
-// CloseWindowCommand minimizes instead of deleting when Minimize is true.
+// CloseWindowCommand retains retired request fields through v0.7.0.
 type CloseWindowCommand struct {
 	WindowID WindowID   `json:"window_id"`
 	Minimize bool       `json:"minimize,omitzero"`
@@ -151,6 +154,8 @@ const (
 	CloseScopeGroup  CloseScope = "group"
 	CloseScopeOthers CloseScope = "others"
 	CloseScopeRight  CloseScope = "right"
+	CloseScopeLeft   CloseScope = "left"
+	CloseScopeAll    CloseScope = "all"
 )
 
 type GroupWindowsCommand struct {
@@ -204,6 +209,7 @@ func (FocusWindowCommand) CommandID() CommandID { return CommandWindowFocus }
 type DropPlacement string
 
 const (
+	DropTab      DropPlacement = "tab"
 	DropFloating DropPlacement = "floating"
 	DropBefore   DropPlacement = "before"
 	DropAfter    DropPlacement = "after"
@@ -218,6 +224,7 @@ type MoveWindowCommand struct {
 	WindowID             WindowID
 	DestinationDesktopID DesktopID
 	TargetWindowID       *WindowID
+	TargetTabID          *TabID
 	Placement            DropPlacement
 	FloatingRect         *NormalizedRect
 	MoveGroup            bool
@@ -225,9 +232,7 @@ type MoveWindowCommand struct {
 
 func (MoveWindowCommand) CommandID() CommandID { return CommandWindowMove }
 
-// ResizeWindowCommand assigns a normalized frame to the unit containing the
-// window: a floating rect, a floating stack rect, a solo group frame, or a
-// split member that detaches into its own island at the requested frame.
+// ResizeWindowCommand is a deprecated no-op accepted through v0.7.
 type ResizeWindowCommand struct {
 	WindowID WindowID
 	Frame    NormalizedRect
@@ -272,10 +277,7 @@ type ArrangeLayoutCommand struct {
 	Frame       NormalizedRect
 	GroupID     GroupID
 	ResourceID  string
-	// KeepFrames makes each named window stand for its whole tab frame: a deck
-	// is arranged as one participant with its members, active tab and identity
-	// kept, and later names inside an already-named frame are absorbed. Without
-	// it every named window is its own participant.
+	// KeepFrames is ignored at the compatibility boundary through v0.7.
 	KeepFrames bool
 }
 
@@ -295,8 +297,7 @@ type GroupFrameEdit struct {
 	Frame   NormalizedRect
 }
 
-// FrameResizeLayoutCommand moves shared group boundaries by rewriting every
-// affected island frame in one atomic, overlap-checked mutation.
+// FrameResizeLayoutCommand is a deprecated no-op accepted through v0.7.
 type FrameResizeLayoutCommand struct {
 	DesktopID DesktopID
 	Edits     []GroupFrameEdit
@@ -305,6 +306,7 @@ type FrameResizeLayoutCommand struct {
 func (FrameResizeLayoutCommand) CommandID() CommandID { return CommandLayoutFrameResize }
 
 type BalanceLayoutCommand struct {
+	TabID   *TabID
 	GroupID *GroupID
 	SplitID *NodeID
 }
@@ -325,32 +327,37 @@ func (ReplaceLayoutCommand) CommandID() CommandID { return CommandLayoutReplace 
 
 // ChangeSet names the entities affected by one command.
 type ChangeSet struct {
+	TabIDs         []TabID     `json:"tab_ids,omitempty"`
+	TabSplit       []TabID     `json:"tab_split,omitempty"`
+	TabUnsplit     []TabID     `json:"tab_unsplit,omitempty"`
 	DesktopIDs     []DesktopID `json:"desktop_ids,omitempty"`
 	WindowIDs      []WindowID  `json:"window_ids,omitempty"`
-	GroupIDs       []GroupID   `json:"group_ids,omitempty"`
+	GroupIDs       []GroupID   `json:"group_ids,omitempty"       deprecated:"true"`
 	NodeIDs        []NodeID    `json:"node_ids,omitempty"`
 	ClientIDs      []ClientID  `json:"client_ids,omitempty"`
-	StackGrouped   []NodeID    `json:"stack_grouped,omitempty"`
-	StackUngrouped []NodeID    `json:"stack_ungrouped,omitempty"`
+	StackGrouped   []NodeID    `json:"stack_grouped,omitempty"   deprecated:"true"`
+	StackUngrouped []NodeID    `json:"stack_ungrouped,omitempty" deprecated:"true"`
 }
 
 // Result reports one applied or no-op command.
 type Result struct {
-	Snapshot    Snapshot     `json:"snapshot"`
-	Applied     bool         `json:"applied"`
-	Changes     ChangeSet    `json:"changes"`
-	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	Client      *ClientView  `json:"client,omitzero"`
-	RebasedFrom *Revision    `json:"rebased_from,omitzero"`
+	Deprecations []Deprecation `json:"deprecations"`
+	Snapshot     Snapshot      `json:"snapshot"`
+	Applied      bool          `json:"applied"`
+	Changes      ChangeSet     `json:"changes"`
+	Diagnostics  []Diagnostic  `json:"diagnostics,omitempty"`
+	Client       *ClientView   `json:"client,omitzero"`
+	RebasedFrom  *Revision     `json:"rebased_from,omitzero"`
 }
 
 // Preview reports a validated proposal without a durable write.
 type Preview struct {
-	Snapshot    Snapshot     `json:"snapshot"`
-	Changed     bool         `json:"changed"`
-	Changes     ChangeSet    `json:"changes"`
-	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	Client      *ClientView  `json:"client,omitzero"`
+	Deprecations []Deprecation `json:"deprecations"`
+	Snapshot     Snapshot      `json:"snapshot"`
+	Changed      bool          `json:"changed"`
+	Changes      ChangeSet     `json:"changes"`
+	Diagnostics  []Diagnostic  `json:"diagnostics,omitempty"`
+	Client       *ClientView   `json:"client,omitzero"`
 }
 
 // Public app aliases are removed in v0.5.0.
@@ -361,3 +368,16 @@ func (spec WindowSpec) canonicalApp() WindowSpec {
 	}
 	return spec
 }
+
+type ReorderTabCommand struct {
+	WindowID WindowID `json:"window_id"`
+	Index    int      `json:"index"`
+}
+
+func (ReorderTabCommand) CommandID() CommandID { return CommandWindowTabReorder }
+
+type ActivateTabCommand struct {
+	WindowID WindowID `json:"window_id"`
+}
+
+func (ActivateTabCommand) CommandID() CommandID { return CommandWindowTabActivate }

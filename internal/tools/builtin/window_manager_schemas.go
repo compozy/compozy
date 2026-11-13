@@ -35,6 +35,7 @@ const windowManagerRebaseSchema = `{
 	"properties":{
 		"window_id":{"type":"string","minLength":1},
 		"source_node_id":{"type":"string","minLength":1},
+ "tab_id":{"type":"string","minLength":1},
 		"target_node_id":{"type":"string","minLength":1},
 		"split_id":{"type":"string","minLength":1},
 		"boundary_index":{"type":"integer","minimum":0}
@@ -173,7 +174,7 @@ const windowManagerWindowCloseInputSchema = `{
 		` + windowManagerRevisionSchema + `,
 		"window_id":{"type":"string","minLength":1},
 		"minimize":{"type":"boolean"},
-		"scope":{"type":"string","enum":["tab","group","others","right"]},
+		"scope":{"type":"string","enum":["tab","group","others","right","left","all"]},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
@@ -206,24 +207,14 @@ const windowManagerWindowMoveInputSchema = `{
 		"window_id":{"type":"string","minLength":1},
 		"destination_desktop_id":{"type":"string","minLength":1},
 		"target_window_id":{"type":"string","minLength":1},
-		"placement":{"type":"string","enum":["floating","before","after","left","right","top","bottom","center"]},
+ "target_tab_id":{"type":"string","minLength":1},
+		"placement":{"type":"string","enum":["","tab","floating","before","after","left","right","top","bottom","center"]},
 		"floating_rect":` + windowManagerRectSchema + `,
 		"move_group":{"type":"boolean"},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
 	"required":["expected_revision","window_id","destination_desktop_id"],
-	"if":{
-		"properties":{"move_group":{"enum":[true]}},
-		"required":["move_group"]
-	},
-	"then":{
-		"not":{"allOf":[
-			{"required":["target_window_id"]},
-			{"required":["floating_rect"]}
-		]}
-	},
-	"else":{"required":["placement"]},
 	"additionalProperties":false
 }`
 
@@ -293,7 +284,8 @@ const windowManagerLayoutPreviewInputSchema = `{
 			"desktop.create","desktop.update","desktop.reorder","desktop.switch","desktop.delete",
 			"window.open","window.navigate","window.close","window.focus","window.move","window.resize",
 			"window.swap","window.toggle_floating",
-			"window.zoom","window.stack.group","window.stack.reorder","window.stack.set_active","window.pin","window.reopen",
+			"window.zoom","window.tab.reorder","window.tab.activate","window.stack.group",` +
+	`"window.stack.reorder","window.stack.set_active","window.pin","window.reopen",
 			"layout.arrange","layout.resize","layout.frame_resize","layout.balance","layout.undo","layout.redo"
 		]},
 		"payload":{"type":"object"},
@@ -372,7 +364,8 @@ const windowManagerLayoutBalanceInputSchema = `{
 	"properties":{
 		` + windowManagerWorkspaceSchema + `,
 		` + windowManagerRevisionSchema + `,
-		"group_id":{"type":"string","minLength":1},
+		"tab_id":{"type":"string","minLength":1},
+ "group_id":{"type":"string","minLength":1},
 		"split_id":{"type":"string","minLength":1},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
@@ -395,7 +388,7 @@ const windowManagerLayoutHistoryInputSchema = `{
 const windowManagerLayoutDocumentSchema = `{
 	"type":"object",
 	"properties":{
-		"version":{"type":"integer","const":5},
+		"version":{"type":"integer","enum":[4,5,6]},
 		"workspace_id":{"type":"string","minLength":1},
 		"desktops":{"type":"array","minItems":1,"items":{"type":"object"}},
 		"windows":{"type":"object"},

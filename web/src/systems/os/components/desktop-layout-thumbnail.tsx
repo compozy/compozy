@@ -1,127 +1,90 @@
 import { cn } from "@compozy/ui";
 
 import { getOsAppDescriptor } from "../lib/app-catalog";
-import type { OsWindow } from "../lib/os-types";
-import type { LayoutProjection, PixelRect } from "../lib/window-manager-types";
+import type { OsAppId } from "../lib/os-types";
+import type { LayoutNode, TabId, WindowId } from "../lib/window-manager-types";
 
-function thumbnailStyle(rect: PixelRect, workArea: PixelRect): React.CSSProperties {
-  const width = Math.max(1, workArea.w);
-  const height = Math.max(1, workArea.h);
-  return {
-    left: `${((rect.x - workArea.x) / width) * 100}%`,
-    top: `${((rect.y - workArea.y) / height) * 100}%`,
-    width: `${(rect.w / width) * 100}%`,
-    height: `${(rect.h / height) * 100}%`,
-  };
+/** Tab marks drawn on the thumbnail's strip before it stops adding more. */
+const STRIP_TABS = 8;
+
+function ThumbnailNode({
+  node,
+  appOf,
+}: {
+  node: LayoutNode;
+  appOf: (windowId: WindowId) => OsAppId | undefined;
+}) {
+  if (node.kind === "leaf") {
+    const app = appOf(node.windowId);
+    const Icon = app ? getOsAppDescriptor(app).icon : null;
+    return (
+      <span
+        className="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden rounded-xxs bg-elevated shadow-card"
+        data-slot="desktop-thumbnail-window"
+        data-window-id={node.windowId}
+      >
+        <span className="absolute inset-x-0 top-0 h-1.75 border-b border-line-soft bg-surface-2" />
+        {Icon ? <Icon aria-hidden="true" className="mt-1.5 size-4 text-subtle" /> : null}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 gap-0.5",
+        node.axis === "horizontal" ? "flex-row" : "flex-col"
+      )}
+    >
+      {node.children.map((child, index) => (
+        <span
+          className="flex min-h-0 min-w-0"
+          key={child.id}
+          style={{ flex: `${node.weights[index] ?? 1} 1 0` }}
+        >
+          <ThumbnailNode appOf={appOf} node={child} />
+        </span>
+      ))}
+    </span>
+  );
 }
 
-interface ThumbnailTile {
-  key: string;
-  rect: PixelRect;
-  windowId: string;
-  /** Other tabs sharing this frame. */
-  others: number;
-  floating: boolean;
-}
-
-/**
- * Tiles from the authoritative projection: one per stack (its active tab, +N
- * for the rest) and one per unstacked tiled window, then floating frames on
- * top — a floating window, or a floating deck as its active tab +N. Minimized
- * windows leave no tile.
- */
-function thumbnailTiles(
-  projection: LayoutProjection | undefined,
-  windows: readonly OsWindow[]
-): ThumbnailTile[] {
-  const tiled: ThumbnailTile[] = [];
-  const floating: ThumbnailTile[] = [];
-  // A stack the projection does not tile is a floating deck.
-  const tiledStackIds = new Set(projection?.stacks.map(stack => stack.nodeId));
-  const floatingDeckId = (window: OsWindow) =>
-    window.stackId !== null && !tiledStackIds.has(window.stackId) ? window.stackId : null;
-  const deckSizes = new Map<string, number>();
-  for (const window of windows) {
-    const deckId = floatingDeckId(window);
-    if (deckId !== null) deckSizes.set(deckId, (deckSizes.get(deckId) ?? 0) + 1);
-  }
-  for (const window of windows) {
-    if (window.minimized) continue;
-    const tile = { key: window.id, rect: window.rect, windowId: window.id, others: 0 };
-    const deckId = floatingDeckId(window);
-    if (deckId !== null) {
-      if (window.stackActive) {
-        floating.push({
-          ...tile,
-          key: deckId,
-          others: (deckSizes.get(deckId) ?? 1) - 1,
-          floating: true,
-        });
-      }
-    } else if (window.placement === "floating") floating.push({ ...tile, floating: true });
-    // Without a projection there are no tiled frames: each window tiles alone.
-    else if (!projection) tiled.push({ ...tile, floating: false });
-  }
-  if (projection) {
-    for (const stack of projection.stacks) {
-      tiled.push({
-        key: stack.nodeId,
-        rect: stack.rect,
-        windowId: stack.activeWindowId,
-        others: stack.windowIds.length - 1,
-        floating: false,
-      });
-    }
-    for (const window of projection.windows) {
-      if (window.stackId !== null) continue;
-      tiled.push({
-        key: window.windowId,
-        rect: window.rect,
-        windowId: window.windowId,
-        others: 0,
-        floating: false,
-      });
-    }
-  }
-  return [...tiled, ...floating];
+export interface DesktopLayoutThumbnailProps {
+  /** The desktop's tabs in bar order, drawn as the strip's marks. */
+  tabIds: readonly TabId[];
+  activeTabId: TabId | null;
+  /** The active tab's split tree; each window takes its share by weight. */
+  root: LayoutNode | null;
+  appOf: (windowId: WindowId) => OsAppId | undefined;
 }
 
 /**
- * A miniature of one desktop (shell-rail v2 `.mw`): every visible frame as a
- * surface tile with a head strip and its window's title (+N for its other
- * tabs), laid out from the authoritative projection. Presentational only.
+ * A miniature of one desktop: its tab strip, then its active tab's windows laid out from the
+ * split tree's weights, each with its app's icon. Presentational only.
  */
 export function DesktopLayoutThumbnail({
-  projection,
-  windows,
-}: {
-  projection: LayoutProjection | undefined;
-  windows: readonly OsWindow[];
-}) {
-  const workArea = projection?.workArea ?? { x: 0, y: 0, w: 1, h: 1 };
-  const apps = new Map(windows.map(window => [window.id, window.app]));
+  tabIds,
+  activeTabId,
+  root,
+  appOf,
+}: DesktopLayoutThumbnailProps) {
   return (
-    <span className="relative block size-full">
-      {thumbnailTiles(projection, windows).map(tile => {
-        const app = apps.get(tile.windowId);
-        const title = app ? getOsAppDescriptor(app).title : "";
-        return (
+    <span
+      aria-hidden="true"
+      className="flex aspect-16/10 w-full flex-col gap-1 rounded-md bg-rail p-1.5"
+      data-slot="desktop-thumbnail"
+    >
+      <span className="flex h-2 shrink-0 items-center gap-0.5">
+        {tabIds.slice(0, STRIP_TABS).map(tabId => (
           <span
-            key={tile.key}
-            data-slot="desktop-thumbnail-window"
             className={cn(
-              "absolute min-h-px min-w-px overflow-hidden bg-card",
-              "before:absolute before:inset-x-0 before:top-0 before:h-2.25 before:border-b before:border-line-soft before:bg-surface-2",
-              tile.floating ? "rounded-xs shadow-card" : "ring-[0.5px] ring-line"
+              "h-full max-w-8 flex-1 rounded-xxs",
+              tabId === activeTabId ? "bg-fg/25" : "bg-fg/8"
             )}
-            style={thumbnailStyle(tile.rect, workArea)}
-          >
-            <span className="absolute inset-x-1.75 top-3.75 truncate text-badge font-medium text-fg-2">
-              {tile.others > 0 ? `${title} +${tile.others}` : title}
-            </span>
-          </span>
-        );
-      })}
+            key={tabId}
+          />
+        ))}
+      </span>
+      {root ? <ThumbnailNode appOf={appOf} node={root} /> : null}
     </span>
   );
 }

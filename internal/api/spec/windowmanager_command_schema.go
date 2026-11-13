@@ -82,6 +82,31 @@ var windowManagerCommandSchemaSpecs = []windowManagerCommandSchemaSpec{
 		false,
 	),
 	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowTabReorder,
+		"WindowManagerReorderTabPayload",
+		contract.WindowManagerReorderStackPayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowTabActivate,
+		"WindowManagerActivateTabPayload",
+		contract.WindowManagerSetStackActivePayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowResize,
+		"WindowManagerResizeWindowPayload",
+		contract.WindowManagerResizeWindowPayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandLayoutFrameResize,
+		"WindowManagerFrameResizeLayoutPayload",
+		contract.WindowManagerFrameResizeLayoutPayload{},
+		false,
+	),
+
+	newWindowManagerCommandSchemaSpec(
 		contract.WindowManagerCommandWindowPin,
 		"WindowManagerPinWindowPayload",
 		contract.WindowManagerPinWindowPayload{},
@@ -121,7 +146,7 @@ var windowManagerCommandSchemaSpecs = []windowManagerCommandSchemaSpec{
 		contract.WindowManagerCommandWindowZoom,
 		"WindowManagerZoomWindowPayload",
 		contract.WindowManagerZoomWindowPayload{},
-		true,
+		false,
 	),
 	newWindowManagerCommandSchemaSpec(
 		contract.WindowManagerCommandLayoutArrange,

@@ -58,7 +58,9 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useScopedWorktreeFilter: vi.fn(),
 }));
-vi.mock("../use-worktree-scope", () => ({ useFocusedWorktreeScopeId: vi.fn(() => "window:one") }));
+vi.mock("../use-worktree-scope", () => ({
+  useFocusedWorktreeReadScopeId: vi.fn(() => "window:one"),
+}));
 vi.mock("@/systems/loops", () => ({
   useLoopNodeExists: vi.fn(() => false),
   useLoopRequestAttention: vi.fn(() => ({

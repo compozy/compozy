@@ -1,9 +1,9 @@
 // Suite: Window menu curation
-// Invariant: the Window menu lists the Arrange presets in the shell-rail order
-// straight from the registry, and "Move window to" names every other desktop —
+// Invariant: the Window menu's "Move to desktop" names every other desktop —
 // the first nine dispatch their registry slot command, later ones move the
 // focused window by desktop id under the family's registry availability; with
-// no other desktop it stays in place disabled with its reason.
+// no other desktop it stays in place disabled with its reason. "Move to new tab" and the Arrange
+// presets with Balance are registry items (US-010, US-012.AC-4); no retired control is listed.
 // Boundary IN: WindowMenu, the real move-target hook over a projection atom,
 // the registry context, and the real menubar primitive.
 // Boundary OUT: the window-manager controller (a stub records the move) and command execution.
@@ -28,14 +28,15 @@ import { WindowMenu } from "../window-menu";
 
 const REGISTRY = paletteRegistryFixture(
   [
-    ["layout.arrange.grid", "Grid"],
-    ["layout.balance", "Balance sizes"],
-    ["layout.arrange.main-stack", "Main and stack"],
-    ["layout.arrange.columns", "Columns"],
     ...Array.from({ length: 9 }, (_, index) => [
       `window.move_to_desktop.${index + 1}`,
       `Move window to desktop ${index + 1}`,
     ]),
+    ["window.unsplit", "Move to new tab"],
+    ["layout.arrange.main-stack", "Main and stack"],
+    ["layout.arrange.columns", "Columns"],
+    ["layout.arrange.grid", "Grid"],
+    ["layout.balance", "Balance sizes"],
   ].map(([id, title]) =>
     resolvedPaletteCommand({
       id,
@@ -63,9 +64,14 @@ function desktop(name: string, index: number): LayoutDesktop {
     id: `desktop:${index + 1}`,
     name,
     order: index,
-    groups: [],
-    floating: [],
-    floatingStacks: [],
+    tabs: [
+      {
+        id: `tab:${index + 1}`,
+        pinned: false,
+        root: { id: `leaf:${index + 1}`, kind: "leaf", windowId: `w-${index + 1}` },
+      },
+    ],
+    activeTabId: `tab:${index + 1}`,
   };
 }
 
@@ -108,18 +114,6 @@ async function openMoveSubmenu(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("WindowMenu", () => {
-  it("Should list the Arrange presets in the shell-rail order", () => {
-    renderMenu(1);
-
-    const arrange = screen.getByTestId("os-menu-arrange");
-    expect(within(arrange).getByText("Arrange")).toBeInTheDocument();
-    expect(
-      within(arrange)
-        .getAllByRole("menuitem")
-        .map(item => item.textContent)
-    ).toEqual(["Main and stack", "Columns", "Grid", "Balance sizes"]);
-  });
-
   it("Should name each other desktop and run its move slot", async () => {
     const user = userEvent.setup();
     const { onRun } = renderMenu(3);
@@ -158,12 +152,42 @@ describe("WindowMenu", () => {
     expect(onRun).not.toHaveBeenCalled();
   });
 
-  it("Should disable Move window to with its reason when no other desktop exists", () => {
+  it("Should disable Move to desktop with its reason when no other desktop exists", () => {
     renderMenu(1);
 
     const item = screen.getByTestId("os-menu-move-to-desktop");
     expect(item).toHaveAttribute("aria-disabled", "true");
-    expect(item).toHaveTextContent("Move window to");
+    expect(item).toHaveTextContent("Move to desktop");
     expect(item).toHaveTextContent("needs another desktop");
+  });
+});
+
+describe("WindowMenu split and arrange", () => {
+  it("Should run Move to new tab and every Arrange preset through the registry", async () => {
+    const user = userEvent.setup();
+    const { onRun } = renderMenu(1);
+
+    act(() => screen.getByTestId("os-menubar-command-window.unsplit").focus());
+    await user.keyboard("{Enter}");
+    expect(onRun).toHaveBeenLastCalledWith("window.unsplit");
+
+    act(() => screen.getByTestId("os-menu-arrange").focus());
+    await user.keyboard("{ArrowRight}");
+    const grid = await screen.findByTestId("os-menubar-command-layout.arrange.grid");
+    const submenu = grid.closest("[role=menu]") as HTMLElement;
+    expect(
+      within(submenu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent)
+    ).toEqual(["Main and stack", "Columns", "Grid", "Balance sizes"]);
+    act(() => screen.getByTestId("os-menubar-command-layout.balance").focus());
+    await user.keyboard("{Enter}");
+    expect(onRun).toHaveBeenLastCalledWith("layout.balance");
+  });
+
+  it("Should list no retired window control [US-018.AC-1]", () => {
+    renderMenu(2);
+    const menu = screen.getByTestId("os-menu-window");
+    expect(menu).not.toHaveTextContent(/minimi[sz]e|zoom|float|maximi[sz]e|merge all/i);
   });
 });

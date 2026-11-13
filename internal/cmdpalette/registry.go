@@ -22,6 +22,7 @@ type Service struct {
 	policy          PersonalizationPolicy
 	logger          *slog.Logger
 	degradedOnce    sync.Once
+	retiredWarnings *sync.Map
 	viewProviders   []ViewProviderRegistration
 	dynamicViews    []DynamicViewProvider
 	viewStreamEpoch string

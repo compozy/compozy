@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// DeleteLoopInputDefaultResponse is a daemon API value.
+type DeleteLoopInputDefaultResponse struct {
+	LoopName string                 `json:"loop_name"`
+	Key      string                 `json:"key"`
+	Scope    LoopInputDefaultsScope `json:"scope"`
+	Deleted  bool                   `json:"deleted"`
+}
+
+// DeleteProfilePlan is a daemon API value.
+type DeleteProfilePlan struct {
+	Revision          string                `json:"revision"`
+	Removed           ProfileRemovalSummary `json:"removed"`
+	SelectionsToSweep int                   `json:"selections_to_sweep"`
+	ApprovalBlockers  []string              `json:"approval_blockers"`
+}
+
 // DeleteProfileResponse is a daemon API value.
 type DeleteProfileResponse struct {
 	Deleted bool                  `json:"deleted"`
@@ -20,6 +36,15 @@ type DeleteResourceRequest struct {
 
 // DependencyKind is a daemon API value.
 type DependencyKind string
+
+// Deprecation is a daemon API value.
+type Deprecation struct {
+	Code           string `json:"code"`
+	Surface        string `json:"surface"`
+	Replacement    string `json:"replacement,omitempty"`
+	RemovalRelease string `json:"removal_release"`
+	Message        string `json:"message"`
+}
 
 // DesktopID is a daemon API value.
 type DesktopID string

@@ -82,7 +82,7 @@ function reviewPanel(window: Locator) {
   return window.getByTestId("session-review-panel");
 }
 
-/** A transcript path's plain click: the project's Files window, as the frame's active tab. */
+/** A transcript path's plain click: the project's Files window, as the active tab. */
 async function openPathInFiles(window: Locator, name: string) {
   await window.getByRole("button", { name: `Open ${name} in Files` }).click();
   const files = appWindow(window.page(), "files");
@@ -90,18 +90,22 @@ async function openPathInFiles(window: Locator, name: string) {
   return files;
 }
 
-/** Brings the session's tab back to the front of its frame. */
-async function showSessionTab(window: Locator) {
-  await window
+/** The tab-bar tab whose lead window is `window`. */
+async function tabOf(window: Locator): Promise<Locator> {
+  return window
     .page()
-    .getByTestId(`os-window-tab-${await windowID(window)}`)
-    .locator('[data-slot="os-window-tab-activate"]')
-    .click();
+    .getByTestId("os-tab-bar")
+    .locator(`[role="tab"][data-lead-window-id="${await windowID(window)}"]`);
+}
+
+/** Brings the session's tab back to the front of the bar. */
+async function showSessionTab(window: Locator) {
+  await (await tabOf(window)).click();
   await expect(window).toBeVisible();
 }
 
-// Invariant: a plain click on a transcript path opens the project's Files window as a tab of the
-// session's frame, at the path and line with the tree revealing it, without opening the Review
+// Invariant: a plain click on a transcript path opens the project's Files window as its own tab
+// beside the session's, at the path and line with the tree revealing it, without opening the Review
 // panel; a second path retargets that same window. The Review panel (Changes) still replaces the
 // Inspector and keeps its width across a reload. Owner: transcript link routing + Files app;
 // canonical suite: this file.
@@ -110,15 +114,12 @@ test("E2E-001: a transcript path opens the Files app as a tab at its line", asyn
   runtime,
 }) => {
   const { window } = await openSessionWithReply(appPage, runtime);
-  const sessionTab = appPage.getByTestId(`os-window-tab-${await windowID(window)}`);
+  const sessionTab = await tabOf(window);
 
   const files = await openPathInFiles(window, "main.tsx");
-  // Same frame: the session keeps its tab beside the Files tab, and the head stays "Files".
+  // The session keeps its tab beside the active Files tab, and the head stays "Files".
   await expect(sessionTab).toBeVisible();
-  await expect(appPage.getByTestId(`os-window-tab-${await windowID(files)}`)).toHaveAttribute(
-    "data-active",
-    ""
-  );
+  await expect(await tabOf(files)).toHaveAttribute("data-active", "");
   await expect(files.getByTestId("topbar-title-text")).toHaveText("Files");
   await expect(files.getByTestId("file-viewer-header")).toContainText("web/src/main.tsx");
   await expect(files.locator("[data-slot='code-viewer']")).toHaveAttribute(

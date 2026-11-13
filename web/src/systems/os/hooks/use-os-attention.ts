@@ -36,7 +36,7 @@ import { useBellNotifications } from "./use-bell-notifications";
 
 import { useAttentionPolicy } from "./use-attention-policy";
 import { useAttentionSummary, type OsAttentionSummaryModel } from "./use-attention-summary";
-import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
+import { useFocusedWorktreeReadScopeId } from "./use-worktree-scope";
 
 const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
 
@@ -135,7 +135,8 @@ function useSessionAttentionSources({
   workspaceId: string | null;
 }) {
   const enabled = dataScope !== null;
-  const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeScopeId(), {
+  // By value, or the shell re-renders on every focus change (`useFocusedWorktreeReadScopeId`).
+  const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeReadScopeId(), {
     enabled: enabled && dataScope.kind === "project",
   });
   // The modal renders the order of the window it follows (the focused one).

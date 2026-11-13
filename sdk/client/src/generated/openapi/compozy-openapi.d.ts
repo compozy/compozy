@@ -7806,6 +7806,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/window-manager/migration": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read window layout migration status */
+    get: operations["getWindowManagerMigration"];
+    put?: never;
+    /** Acknowledge or retry window layout migration */
+    post: operations["updateWindowManagerMigration"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/window-manager/preview": {
     parameters: {
       query?: never;
@@ -9160,6 +9178,10 @@ export interface components {
       expected_worktree_id?: string | null;
       worktree: string;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     BindingsConfig: {
       bottom_center: string;
       top_center: string;
@@ -9272,10 +9294,25 @@ export interface components {
     ChangeSet: {
       client_ids?: string[];
       desktop_ids?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_ids?: string[];
       node_ids?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_grouped?: string[];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_ungrouped?: string[];
+      tab_ids?: string[];
+      tab_split?: string[];
+      tab_unsplit?: string[];
       window_ids?: string[];
     };
     ChangeSidePayload: {
@@ -9654,6 +9691,9 @@ export interface components {
     };
     ContractWindowManagerClientView: {
       active_desktop_id: string;
+      active_tab: {
+        [key: string]: string;
+      };
       attachment_token?: string;
       client_id: string;
       /** Format: date-time */
@@ -9665,6 +9705,10 @@ export interface components {
       kind: string;
       palette_context: components["schemas"]["WindowManagerPaletteContext"];
       presentation_revision: number;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_active: {
         [key: string]: string;
       };
@@ -9698,6 +9742,8 @@ export interface components {
         | "window.stack.set_active"
         | "window.pin"
         | "window.reopen"
+        | "window.tab.reorder"
+        | "window.tab.activate"
         | "layout.arrange"
         | "layout.resize"
         | "layout.frame_resize"
@@ -9712,12 +9758,11 @@ export interface components {
       workspace_id: string;
     };
     ContractWindowManagerDesktop: {
-      floating: string[];
-      floating_stacks: components["schemas"]["WindowManagerFloatingStack"][];
-      groups: components["schemas"]["ContractWindowManagerLayoutGroup"][];
+      active_tab_id: string;
       id: string;
       name: string;
       order: number;
+      tabs: components["schemas"]["ContractWindowManagerTab"][];
     };
     ContractWindowManagerErrorFrame: {
       error: components["schemas"]["ContractWindowManagerErrorPayload"];
@@ -9771,11 +9816,6 @@ export interface components {
       };
       workspace_id: string;
     };
-    ContractWindowManagerLayoutGroup: {
-      frame: components["schemas"]["NormalizedRect"];
-      id: string;
-      root: components["schemas"]["WindowManagerLayoutNode"];
-    };
     ContractWindowManagerLayoutReplaceRequest: {
       actor: components["schemas"]["WindowManagerActor"];
       client_id?: string | null;
@@ -9790,6 +9830,7 @@ export interface components {
     };
     ContractWindowManagerLayoutValidationResponse: {
       diagnostics?: components["schemas"]["Diagnostic"][];
+      document?: components["schemas"]["ContractWindowManagerLayoutDocument"] | null;
       valid: boolean;
       workspace_id: string;
     };
@@ -9797,6 +9838,7 @@ export interface components {
       changed: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
     };
@@ -9804,6 +9846,7 @@ export interface components {
       applied: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       rebased_from?: number;
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
@@ -9811,6 +9854,7 @@ export interface components {
     ContractWindowManagerSnapshot: {
       closed_entry_count: number;
       desktops: components["schemas"]["ContractWindowManagerDesktop"][];
+      migration?: components["schemas"]["MigrationStatus"] | null;
       overrides: components["schemas"]["WorkspaceConfig"];
       revision: number;
       /** Format: date-time */
@@ -9828,6 +9872,11 @@ export interface components {
       /** @enum {string} */
       type: "snapshot";
       workspace_id: string;
+    };
+    ContractWindowManagerTab: {
+      id: string;
+      pinned: boolean;
+      root: components["schemas"]["WindowManagerLayoutNode"];
     };
     CoordinatorConfigPayload: {
       agent_name: string;
@@ -10106,6 +10155,13 @@ export interface components {
     DeleteResourceRequest: {
       /** Format: int64 */
       expected_version: number;
+    };
+    Deprecation: {
+      code: string;
+      message: string;
+      removal_release: string;
+      replacement?: string;
+      surface: string;
     };
     DetailBody: {
       actions?: components["schemas"]["RowAction"][];
@@ -13493,6 +13549,34 @@ export interface components {
       /** Format: double */
       min_delta?: number | null;
     };
+    /** @description Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error. */
+    MigrationStatus: {
+      acknowledged: boolean;
+      /** Format: date-time */
+      at?: string;
+      error?: components["schemas"]["Diagnostic"] | null;
+      /**
+       * Format: uint64
+       * @description Topology revision installed on conversion failure; cleared after a successful retry.
+       */
+      failure_revision?: number;
+      from_version?: number;
+      /** @enum {string} */
+      state: "none" | "migrated" | "failed";
+      summary?: components["schemas"]["MigrationSummary"] | null;
+      /** @description Number of set-aside layout backups currently retained for this profile; omitted when zero. */
+      superseded_backups?: number;
+    };
+    MigrationSummary: {
+      desktops: number;
+      floating_to_tabs: number;
+      islands_merged: number;
+      minimized_to_tabs: number;
+      pins_dropped: number;
+      tabs: number;
+      windows: number;
+      zoom_desktops_merged: number;
+    };
     ModelCatalogCostPayload: {
       /** Format: double */
       cache_read_per_million?: number | null;
@@ -13574,6 +13658,10 @@ export interface components {
       /** Format: int64 */
       tokens: number;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+     */
     NormalizedRect: {
       /** Format: double */
       height: number;
@@ -16980,6 +17068,9 @@ export interface components {
         | "spawn.ttl_expired"
         | "spawn.reaped"
         | "session.attention.changed"
+        | "window_manager.tab.split"
+        | "window_manager.tab.unsplit"
+        | "window_manager.tab.activated"
         | "window_manager.layout.applied"
         | "window_manager.desktop.created"
         | "window_manager.desktop.deleted"
@@ -18042,6 +18133,10 @@ export interface components {
         | "failed"
         | "canceled";
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SettingsWindowManagerBindingPayload: {
       /** @enum {string} */
       bottom_center: "none" | "reserved" | "zoom";
@@ -18055,11 +18150,19 @@ export interface components {
       title: string;
     };
     SettingsWindowManagerConfigPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       bindings: components["schemas"]["SettingsWindowManagerBindingPayload"];
       closed_entry_limit: number;
       /** @enum {string} */
       desktop_transition: "slide" | "crossfade" | "instant";
-      /** @enum {string} */
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       * @enum {string}
+       */
       drag_away_policy: "window" | "group";
       focus_follows_pointer: boolean;
       /** @enum {string} */
@@ -18069,18 +18172,33 @@ export interface components {
       global_shortcuts: {
         [key: string]: string;
       };
-      /** @enum {string} */
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       * @enum {string}
+       */
       group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
       history_limit: number;
       nav_stack_limit: number;
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+       * @enum {string}
+       */
       new_window_policy: "floating" | "beside_focus" | "tab";
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       raise_on_focus: boolean;
       shortcuts: {
         [key: string]: string | string[];
       };
       /** @enum {string} */
       small_viewport_policy: "stack" | "reject";
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       snap: components["schemas"]["SettingsWindowManagerSnapPayload"];
       /** @enum {string} */
       swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
@@ -18180,6 +18298,10 @@ export interface components {
         | "marketplace";
       workspace_id?: string;
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SettingsWindowManagerSnapPayload: {
       corner_reach: number;
       edge_band: number;
@@ -18351,6 +18473,10 @@ export interface components {
     SkillsResponse: {
       skills: components["schemas"]["SkillPayload"][];
     };
+    /**
+     * @deprecated
+     * @description Deprecated: accepted and ignored; remove before v0.8.0.
+     */
     SnapConfig: {
       /** Format: double */
       corner_reach: number;
@@ -21339,23 +21465,42 @@ export interface components {
       secondary_field_multiplier: number;
       version: number;
     };
+    WindowManagerActivateTabPayload: {
+      window_id: string;
+    };
     WindowManagerActor: {
       id?: string;
       kind?: string;
     };
     WindowManagerArrangeLayoutPayload: {
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "stack": translated to adjacent tabs; removed in v0.8.0.
+       * @enum {string}
+       */
       arrangement: "horizontal" | "vertical" | "grid" | "stack" | "main_stack";
       desktop_id: string;
-      frame: components["schemas"]["NormalizedRect"];
-      group_id: string;
+      frame?: components["schemas"]["NormalizedRect"];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
+      group_id?: string;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       keep_frames?: boolean;
       resource_id?: string;
       window_ids: string[];
     };
     WindowManagerBalanceLayoutPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       group_id?: string | null;
       split_id?: string | null;
+      tab_id?: string | null;
     };
     WindowManagerClientContextInput: {
       destination_intent?: components["schemas"]["RouteIntent"] | null;
@@ -21380,6 +21525,9 @@ export interface components {
     };
     WindowManagerClientView: {
       active_desktop_id: string;
+      active_tab: {
+        [key: string]: string;
+      };
       attachment_token?: string;
       client_id: string;
       /** Format: date-time */
@@ -21391,6 +21539,10 @@ export interface components {
       kind: string;
       palette_context: components["schemas"]["WindowManagerPaletteContext"];
       presentation_revision: number;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       stack_active: {
         [key: string]: string;
       };
@@ -21401,9 +21553,13 @@ export interface components {
       workspace_id: string;
     };
     WindowManagerCloseWindowPayload: {
-      minimize: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
+      minimize?: boolean;
       /** @enum {string} */
-      scope?: "tab" | "group" | "others" | "right";
+      scope?: "tab" | "group" | "others" | "right" | "left" | "all";
       window_id: string;
     };
     /** @description Semantic window-manager command selected by command_id */
@@ -21533,6 +21689,50 @@ export interface components {
           actor: components["schemas"]["WindowManagerActor"];
           client_id?: string | null;
           /** @enum {string} */
+          command_id: "window.tab.reorder";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerReorderStackPayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.tab.activate";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerSetStackActivePayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "window.resize";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerResizeWindowPayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
+          command_id: "layout.frame_resize";
+          expected_revision: number;
+          origin: string;
+          payload: components["schemas"]["WindowManagerFrameResizeLayoutPayload"];
+          rebase?: components["schemas"]["WindowManagerRebaseGuard"] | null;
+          workspace_id: string;
+        }
+      | {
+          actor: components["schemas"]["WindowManagerActor"];
+          client_id?: string | null;
+          /** @enum {string} */
           command_id: "window.pin";
           expected_revision: number;
           origin: string;
@@ -21597,7 +21797,7 @@ export interface components {
         }
       | {
           actor: components["schemas"]["WindowManagerActor"];
-          client_id: string;
+          client_id?: string | null;
           /** @enum {string} */
           command_id: "window.zoom";
           expected_revision: number;
@@ -21682,12 +21882,11 @@ export interface components {
       destination_id?: string | null;
     };
     WindowManagerDesktop: {
-      floating: string[];
-      floating_stacks: components["schemas"]["WindowManagerFloatingStack"][];
-      groups: components["schemas"]["ContractWindowManagerLayoutGroup"][];
+      active_tab_id: string;
       id: string;
       name: string;
       order: number;
+      tabs: components["schemas"]["ContractWindowManagerTab"][];
     };
     WindowManagerErrorFrame: {
       error: components["schemas"]["ContractWindowManagerErrorPayload"];
@@ -21743,6 +21942,8 @@ export interface components {
         | "window.stack.set_active"
         | "window.pin"
         | "window.reopen"
+        | "window.tab.reorder"
+        | "window.tab.activate"
         | "layout.arrange"
         | "layout.resize"
         | "layout.frame_resize"
@@ -21763,19 +21964,28 @@ export interface components {
       type: "event";
       workspace_id: string;
     };
-    WindowManagerFloatingStack: {
-      active_id?: string | null;
-      id: string;
-      minimized: boolean;
-      rect: components["schemas"]["NormalizedRect"];
-      window_ids: string[];
-    };
     WindowManagerFocusWindowPayload: {
       /** @enum {string} */
       direction?: "left" | "right" | "up" | "down";
       window_id?: string | null;
     };
+    WindowManagerFrameResizeLayoutPayload: {
+      desktop_id: string;
+      edits: components["schemas"]["WindowManagerGroupFrameEditPayload"][];
+    };
+    WindowManagerGroupFrameEditPayload: {
+      frame?: components["schemas"]["NormalizedRect"];
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
+      group_id?: string;
+    };
     WindowManagerGroupWindowsPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       insert_index?: number | null;
       target_window_id: string;
       window_ids: string[];
@@ -21795,22 +22005,15 @@ export interface components {
       };
       workspace_id: string;
     };
-    WindowManagerLayoutGroup: {
-      frame: components["schemas"]["NormalizedRect"];
-      id: string;
-      root: components["schemas"]["WindowManagerLayoutNode"];
-    };
     WindowManagerLayoutNode: {
-      active_id?: string | null;
       /** @enum {string|null} */
       axis?: "horizontal" | "vertical" | null;
       children?: components["schemas"]["WindowManagerLayoutNode"][];
       id: string;
       /** @enum {string} */
-      kind: "leaf" | "split" | "stack";
+      kind: "leaf" | "split";
       weights?: number[];
       window_id?: string | null;
-      window_ids?: string[];
     };
     WindowManagerLayoutReplaceRequest: {
       actor: components["schemas"]["WindowManagerActor"];
@@ -21826,15 +22029,35 @@ export interface components {
     };
     WindowManagerLayoutValidationResponse: {
       diagnostics?: components["schemas"]["Diagnostic"][];
+      document?: components["schemas"]["ContractWindowManagerLayoutDocument"] | null;
       valid: boolean;
       workspace_id: string;
+    };
+    WindowManagerMigrationRequest: {
+      /** @enum {string} */
+      action: "ack" | "retry";
+      /** @description Replace the layout on retry when it changed after failure. */
+      replace?: boolean;
     };
     WindowManagerMoveWindowPayload: {
       destination_desktop_id: string;
       floating_rect?: components["schemas"]["NormalizedRect"] | null;
       move_group: boolean;
-      /** @enum {string} */
-      placement: "floating" | "before" | "after" | "left" | "right" | "top" | "bottom" | "center";
+      /**
+       * @description Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+       * @enum {string}
+       */
+      placement:
+        | "tab"
+        | "floating"
+        | "before"
+        | "after"
+        | "left"
+        | "right"
+        | "top"
+        | "bottom"
+        | "center";
+      target_tab_id?: string | null;
       target_window_id?: string | null;
       window_id: string;
     };
@@ -21855,6 +22078,10 @@ export interface components {
         }
     );
     WindowManagerOpenWindowPayload: {
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       restore_window_id?: string | null;
       window: components["schemas"]["WindowManagerWindowSpecPayload"];
     };
@@ -21864,8 +22091,17 @@ export interface components {
       focused_session_state?: string;
       scope_global: boolean;
       shell_desktop: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       window_floating: boolean;
       window_focused: boolean;
+      window_in_split: boolean;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       window_stacked: boolean;
       workspace_trusted: boolean;
     };
@@ -21877,6 +22113,7 @@ export interface components {
       changed: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
     };
@@ -21884,6 +22121,7 @@ export interface components {
       boundary_index?: number | null;
       source_node_id?: string | null;
       split_id?: string | null;
+      tab_id?: string | null;
       target_node_id?: string | null;
       window_id?: string | null;
     };
@@ -21897,6 +22135,10 @@ export interface components {
       index: number;
       window_id: string;
     };
+    WindowManagerReorderTabPayload: {
+      index: number;
+      window_id: string;
+    };
     WindowManagerReplaceLayoutPayload: {
       document: components["schemas"]["ContractWindowManagerLayoutDocument"];
     };
@@ -21906,25 +22148,18 @@ export interface components {
       delta: number;
       split_id: string;
     };
+    WindowManagerResizeWindowPayload: {
+      frame?: components["schemas"]["NormalizedRect"];
+      window_id: string;
+    };
     WindowManagerResult: {
       applied: boolean;
       changes: components["schemas"]["ChangeSet"];
       client?: components["schemas"]["ContractWindowManagerClientView"] | null;
+      deprecations: components["schemas"]["Deprecation"][];
       diagnostics?: components["schemas"]["Diagnostic"][];
       rebased_from?: number;
       snapshot: components["schemas"]["ContractWindowManagerSnapshot"];
-    };
-    WindowManagerReturnAnchor: {
-      child_index?: number | null;
-      desktop_id: string;
-      group_id?: string | null;
-      neighbor_ids?: string[];
-      parent_split_id?: string | null;
-      source_group?: components["schemas"]["ContractWindowManagerLayoutGroup"] | null;
-      source_revision: number;
-      /** Format: double */
-      weight?: number | null;
-      zoomed?: boolean;
     };
     WindowManagerSetStackActivePayload: {
       window_id: string;
@@ -21932,6 +22167,7 @@ export interface components {
     WindowManagerSnapshot: {
       closed_entry_count: number;
       desktops: components["schemas"]["ContractWindowManagerDesktop"][];
+      migration?: components["schemas"]["MigrationStatus"] | null;
       overrides: components["schemas"]["WorkspaceConfig"];
       revision: number;
       /** Format: date-time */
@@ -21957,6 +22193,11 @@ export interface components {
     WindowManagerSwitchDesktopPayload: {
       desktop_id: string;
     };
+    WindowManagerTab: {
+      id: string;
+      pinned: boolean;
+      root: components["schemas"]["WindowManagerLayoutNode"];
+    };
     WindowManagerToggleFloatingPayload: {
       floating_rect?: components["schemas"]["NormalizedRect"] | null;
       window_id: string;
@@ -21969,25 +22210,23 @@ export interface components {
     WindowManagerWindow: {
       app: string;
       desktop_id: string;
-      floating_rect: components["schemas"]["NormalizedRect"];
       id: string;
       instance_key?: string | null;
-      minimized: boolean;
       nav_stack: components["schemas"]["RouteIntent"][];
-      pinned: boolean;
-      /** @enum {string} */
-      placement: "tiled" | "stacked" | "floating";
-      return_anchor?: components["schemas"]["WindowManagerReturnAnchor"] | null;
       route: components["schemas"]["RouteIntent"];
-      zoomed: boolean;
+      tab_id: string;
     };
     WindowManagerWindowSpecPayload: {
       app: string;
       desktop_id: string;
+      /**
+       * @deprecated
+       * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+       */
       floating?: boolean;
-      floating_rect: components["schemas"]["NormalizedRect"];
+      floating_rect?: components["schemas"]["NormalizedRect"];
       id?: string;
-      insert_tiled: boolean;
+      insert_tiled?: boolean;
       instance_key?: string | null;
       route: components["schemas"]["RouteIntent"];
       stack_target_window_id?: string | null;
@@ -22061,23 +22300,44 @@ export interface components {
       workspace_id: string;
     };
     WorkspaceConfig: {
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       bindings?: components["schemas"]["BindingsConfig"] | null;
       closed_entry_limit?: number | null;
       desktop_transition?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       drag_away_policy?: string | null;
       focus_follows_pointer?: boolean | null;
       focus_policy?: string | null;
       focus_wrap?: boolean | null;
       gaps?: components["schemas"]["GapsConfig"] | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       group_move_modifier?: string | null;
       history_limit?: number | null;
       nav_stack_limit?: number | null;
+      /** @description Deprecated value "floating": translated to "tab"; removed in v0.8.0. */
       new_window_policy?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       raise_on_focus?: boolean | null;
       shortcuts?: {
         [key: string]: string | string[];
       };
       small_viewport_policy?: string | null;
+      /**
+       * @deprecated
+       * @description Deprecated: accepted and ignored; remove before v0.8.0.
+       */
       snap?: components["schemas"]["SnapConfig"] | null;
       swap_modifier?: string | null;
     };
@@ -33299,6 +33559,9 @@ export interface operations {
           | "spawn.ttl_expired"
           | "spawn.reaped"
           | "session.attention.changed"
+          | "window_manager.tab.split"
+          | "window_manager.tab.unsplit"
+          | "window_manager.tab.activated"
           | "window_manager.layout.applied"
           | "window_manager.desktop.created"
           | "window_manager.desktop.deleted"
@@ -35117,7 +35380,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Receipts committed atomically; source state unchanged */
+      /** @description Receipts committed atomically; bell layout-upgrade notices also acknowledged durably */
       204: {
         headers: {
           [name: string]: unknown;
@@ -50054,6 +50317,9 @@ export interface operations {
           | "spawn.ttl_expired"
           | "spawn.reaped"
           | "session.attention.changed"
+          | "window_manager.tab.split"
+          | "window_manager.tab.unsplit"
+          | "window_manager.tab.activated"
           | "window_manager.layout.applied"
           | "window_manager.desktop.created"
           | "window_manager.desktop.deleted"
@@ -62654,13 +62920,160 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Validation result */
+      /** @description Validation diagnostics and the canonical v6 document when valid */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ContractWindowManagerLayoutValidationResponse"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+    };
+  };
+  getWindowManagerMigration: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MigrationStatus"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Workspace or referenced entity not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Revision or state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Invalid window-manager request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+      /** @description Window manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
+    };
+  };
+  updateWindowManagerMigration: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["WindowManagerMigrationRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MigrationStatus"];
         };
       };
       /** @description Invalid window workspace binding */

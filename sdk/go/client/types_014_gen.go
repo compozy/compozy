@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// OverviewOutcomesPayload is a daemon API value.
+type OverviewOutcomesPayload struct {
+	WindowDays int                         `json:"window_days"`
+	Days       []OverviewOutcomeDayPayload `json:"days"`
+	Completed  int                         `json:"completed"`
+	Failed     int                         `json:"failed"`
+	Canceled   int                         `json:"canceled"`
+	SuccessPct float64                     `json:"success_pct"`
+}
+
+// OverviewProfileUsagePayload is a daemon API value.
+type OverviewProfileUsagePayload struct {
+	ProfileID   string `json:"profile_id"`
+	ProfileName string `json:"profile_name"`
+	Color       string `json:"profile_color"`
+	Icon        string `json:"profile_icon,omitempty"`
+	Emoji       string `json:"profile_emoji,omitempty"`
+	Archived    bool   `json:"profile_archived"`
+	Tokens      int64  `json:"tokens"`
+}
+
 // OverviewPulseBucketPayload is a daemon API value.
 type OverviewPulseBucketPayload struct {
 	Weekday int `json:"weekday"`
@@ -424,16 +445,4 @@ type ProviderModelCurationRequest struct {
 	Deprecated             *bool   `json:"deprecated,omitzero"`
 	DefaultReasoningEffort *Effort `json:"default_effort,omitzero"`
 	DefaultSpeed           *Speed  `json:"default_speed,omitzero"`
-}
-
-// ProviderModelCurationResponse is a daemon API value.
-type ProviderModelCurationResponse struct {
-	Model        ProviderModelPayload  `json:"model"`
-	Apply        SettingsApplyResponse `json:"apply"`
-	DefaultSpeed Speed                 `json:"default_speed,omitempty"`
-}
-
-// ProviderModelListResponse is a daemon API value.
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
 }

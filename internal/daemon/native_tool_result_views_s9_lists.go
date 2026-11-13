@@ -45,19 +45,21 @@ var layoutGetViews = resultViews[windowManagerSnapshotResult]{
 }
 
 type compactPreviewResult struct {
-	WorkspaceID windowmanager.WorkspaceID  `json:"workspace_id"`
-	CommandID   windowmanager.CommandID    `json:"command_id"`
-	Revision    windowmanager.Revision     `json:"revision"`
-	Changed     bool                       `json:"changed"`
-	Changes     windowmanager.ChangeSet    `json:"changes"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
-	Client      *windowmanager.ClientView  `json:"client,omitzero"`
-	Snapshot    compactSnapshot            `json:"snapshot"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	WorkspaceID  windowmanager.WorkspaceID   `json:"workspace_id"`
+	CommandID    windowmanager.CommandID     `json:"command_id"`
+	Revision     windowmanager.Revision      `json:"revision"`
+	Changed      bool                        `json:"changed"`
+	Changes      windowmanager.ChangeSet     `json:"changes"`
+	Diagnostics  []windowmanager.Diagnostic  `json:"diagnostics"`
+	Client       *windowmanager.ClientView   `json:"client,omitzero"`
+	Snapshot     compactSnapshot             `json:"snapshot"`
 }
 
 var layoutPreviewViews = resultViews[windowManagerPreviewResult]{
 	Compact: func(p windowManagerPreviewResult) any {
 		return compactPreviewResult{
+			p.Deprecations,
 			p.WorkspaceID,
 			p.CommandID,
 			p.Revision,

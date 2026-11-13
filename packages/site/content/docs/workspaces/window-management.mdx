@@ -1,11 +1,12 @@
 ---
 title: Window Management
-description: Persistent virtual desktops, semantic window placement, revision-safe layouts, connected clients, and recovery.
+description: Persistent virtual desktops with tab bars and splits, revision-safe layouts, connected clients, the v0.7 layout upgrade, and recovery.
 ---
 
-CompozyOS stores one authoritative window topology per workspace. Persistent virtual desktops own tiled
-groups and floating windows; clients project that same normalized topology into their own viewport.
-The daemon, not the browser, validates membership, layout trees, weights, history, and revisions.
+CompozyOS stores one authoritative window topology per workspace. Each persistent virtual desktop has
+one tab bar; a tab holds one window or several windows split side by side. Clients project that same
+topology into their own viewport. The daemon, not the browser, validates tabs, split trees, weights,
+history, and revisions.
 
 <OperatorNote>
   Window management is workspace state. Deleting a workspace removes its topology. A browser stores
@@ -14,15 +15,17 @@ The daemon, not the browser, validates membership, layout trees, weights, histor
 
 ## Topology and presentation
 
-Every window belongs to exactly one desktop. A tiled group is a tree of leaves, weighted splits,
-and stacks; floating windows retain normalized geometry. This lets two browsers with different
-viewport sizes render one shared arrangement without persisting pixels.
+Every window belongs to exactly one tab, and every tab to exactly one desktop. A tab's content is a
+single window or a tree of horizontal and vertical splits whose leaves are windows; split shares are
+weights, not pixels, so two browsers with different viewport sizes render one shared arrangement. A
+window only opens or closes: it has no position, size, minimized, or zoomed state, and it is always
+visible while its tab is active.
 
-Active desktop and focused window are client-local. Commands that change presentation — desktop
-switch and window focus — require an explicit connected `client_id`, so one operator cannot silently
-redirect another operator's screen. Each client view has an independent,
-monotonic presentation revision: these commands do not advance topology revision, change layout
-history, or emit extension hooks.
+Active desktop, active tab, and focused window are client-local. Two browsers on one workspace each
+keep their own active tab. Commands that change presentation — desktop switch and window focus —
+require an explicit connected `client_id`, so one operator cannot silently redirect another
+operator's screen. Each client view has an independent, monotonic presentation revision: these
+commands do not advance topology revision, change layout history, or emit extension hooks.
 
 ## Revision-safe operations
 
@@ -34,8 +37,8 @@ compozy layout get --workspace <workspace-id> -o json
 
 Every durable CLI mutation requires `--revision`. A successful command advances the workspace
 revision once and atomically records the normalized snapshot and event. Layout/topology commands add
-one history entry; route navigation does not enter or clear layout history. Preview, validation,
-rejection, and no-op paths write nothing.
+one history entry; route navigation and tab activation do not enter or clear layout history.
+Preview, validation, rejection, and no-op paths write nothing.
 
 ```bash
 compozy desktop create --workspace <workspace-id> --revision <revision> --name Build
@@ -43,90 +46,232 @@ compozy window open --workspace <workspace-id> --revision <revision> --app tasks
   --pathname /tasks --search-json '{}'
 compozy window navigate --workspace <workspace-id> --revision <revision> --id <window-id> \
   --pathname /tasks/<task-id> --search-json '{"tab":"runs"}'
-compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
-  --desktop <desktop-id> --target <window-id> --placement right
-compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
-  --desktop <desktop-id> --group
 ```
 
 The app ids `jobs` and `triggers` are deprecated: one `automations` app replaced them in v0.4.0
-(`--app automations --pathname /automations/jobs/<job-id>`). Until v0.5.0, `--app jobs|triggers`,
-window commands, and `window_layout` resources that name them open Automations on the matching path
-and warn; v0.5.0 rejects them like any unknown app id. Saved layouts that named them migrate
-permanently. See [Upgrading from v0.3](/docs/automation#upgrading-from-v03).
+(`--app automations --pathname /automations/jobs/<job-id>`). `--app jobs|triggers`, window
+commands, and `window_layout` resources that name them still open Automations on the matching path
+and warn. Any other app id that is not registered is refused with `window_manager_invalid_command`
+(HTTP 422, "unregistered window app") on HTTP, UDS, the CLI, and native tools, before anything
+changes. Saved layouts that named `jobs` or `triggers` migrate permanently. See [Upgrading from v0.3](/docs/automation#upgrading-from-v03).
 
 On `window_manager_revision_conflict`, read the topology again and recompute the semantic action.
-Do not replay stale geometry blindly.
+Do not replay stale node IDs or weights blindly.
 
-Window `placement` is structural (`tiled`, `stacked`, or `floating`). Its separate durable `route`
-contains an internal absolute pathname and canonical JSON-object search state, so detail/filter state
-resumes after reload or daemon restart and converges in peer clients. Add `--client` to
-`compozy window navigate` only when the same operation should also activate and focus that explicit client.
+A window's durable `route` contains an internal absolute pathname and canonical JSON-object search
+state, so detail/filter state resumes after reload or daemon restart and converges in peer clients.
+Add `--client` to `compozy window navigate` only when the same operation should also activate and
+focus that explicit client.
 
-## Tiling behavior
+## Tabs
 
-New windows open as a new tab in the focused window by default (`new_window_policy = "tab"`). On an
-empty desktop, or when the focused window sits on another desktop or is minimized, the first window
-fills the whole desktop instead. Set `beside_focus` to tile new windows beside the focused one, or
-`floating` to open them as floating windows. An open without a connected client (for example an
-agent's `compozy__window_open` call without `client_id`) never joins a tab you are looking at. When
-another client's open turns a window you are showing into a tab group, you keep seeing that window;
-pass `--id` (`window_id`) with the open for this to hold, because a window whose ID the daemon
-generates becomes the group's active tab for every other connected client. An explicit placement
-always wins over the policy: `--stack-target` joins that window's tabs, `--tiled` splits beside the
-client's focus, and `--floating` opens a free floating window. Structural drops
-use `before`, `after`, `left`, `right`, `top`, `bottom`, or `center`; dropping onto an occupied target
-reflows the tree instead of overlapping it. Shared-boundary resize updates all descendants on each
-side. When a viewport cannot satisfy minimum window sizes, that client projects the affected split
-as a stack without corrupting the stored topology. Group relocation moves the source window's tiled
-group and is exclusive with `--target`, `--placement`, and `--rect`.
+New windows open as a new tab right after the active tab (`new_window_policy = "tab"`). Set
+`new_window_policy = "beside_focus"` to open them split to the right of the focused window instead.
+An explicit placement wins over the policy: `--stack-target <window-id>` opens a tab right after that
+window's tab, and `--tiled` splits beside the client's focus.
 
-`compozy layout arrange --arrangement` accepts `horizontal`, `vertical`, `grid`, `stack`, or
-`main_stack`. Main and stack gives the first listed window a 60% main column and splits the rest
-vertically in the column beside it. Each `--window` is its own participant, so naming two tabs of one
-deck splits them apart. Add `--keep-frames` to arrange each named window's whole tab frame instead:
-the deck moves as one participant and keeps its tabs, active tab, and identity.
+In the app, the tab bar at the top of the work area lists every tab of the active desktop. A tab
+shows the icon and title of its lead window (the one you focused last); a split tab shows up to three
+icons and a member count. Tabs shrink to fit, down to icon-only, and then the bar scrolls and offers a
+list of the tabs that do not fit. Pinned tabs sit at the left, icon-only. The bar is one tab stop:
+Left and Right move between tabs and Home and End jump to the first and last. Middle-click closes
+a tab.
 
-In the app, **Window › Arrange** applies the same arrangements to the focused window and the other
-visible windows on its desktop, keeping every tab deck whole: **Main and stack** (the focused
-window takes the main column), **Columns** (every visible window side by side), **Grid**, and
-**Balance sizes** (equal splits).
-**Window › Move window to** sends the focused window to another desktop by name. The panes between
-tiled windows share a single hairline; drag it, or focus it and use the arrow keys (hold Shift for
-10% steps), to resize the panes on either side. Each pane keeps at least 220 px.
+Drag a tab along the bar to reorder it. Right-click a tab, or focus it and press Shift+F10, for the
+items below; an item that cannot apply is absent rather than disabled (no **Reopen closed tab** when
+nothing was closed, no **Close tabs to the right** on the last tab):
 
-In the app, clicking an icon in the left rail goes to that app's open window, or opens it as a new
-tab when it has none (Sessions goes to your latest session). Hold a modifier to open another window of
-the app instead:
+| Item                                                                                              | Does                                                                         |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Pin tab** / **Unpin tab**                                                                       | Pins the whole tab to the left of the bar                                    |
+| **Move left**, **Move right**                                                                     | Moves the tab one place within its pinned or unpinned range                  |
+| **Split with ▸**                                                                                  | Puts another tab's windows beside this tab's                                 |
+| **Arrange ▸**                                                                                     | **Main and stack**, **Columns**, **Grid**, and **Balance sizes** for a split |
+| **Move to desktop ▸**                                                                             | Moves the whole tab, splits included, to another desktop; you stay here      |
+| **Close tab**                                                                                     | Closes the tab (absent on a pinned single-window tab: unpin it first)        |
+| **Close other tabs**, **Close tabs to the right**, **Close tabs to the left**, **Close all tabs** | Close unpinned tabs only                                                     |
+| **Reopen closed tab**                                                                             | Brings back the most recently closed tab or window where it was              |
 
-| Gesture            | Opens                                               |
-| ------------------ | --------------------------------------------------- |
-| Click              | The open window, or a new tab in the focused window |
-| Option (⌥) + click | A new window split beside the focused one           |
-| Shift (⇧) + click  | A new desktop, with the new window filling it       |
+From the command line:
+
+```bash
+compozy window activate <window-id> --workspace <workspace-id> --revision <revision> --client <client-id>
+compozy window reorder <window-id> --workspace <workspace-id> --revision <revision> --index 0
+compozy window pin <window-id> --workspace <workspace-id> --revision <revision>
+compozy window close --workspace <workspace-id> --revision <revision> --id <window-id> --scope right
+compozy window reopen --workspace <workspace-id> --revision <revision>
+```
+
+`window close --scope` accepts `tab` (default: one window), `group` (every window of the tab, pinned
+or not), `others`, `right`, `left`, and `all` (unpinned tabs only). Closing the last window of a
+pinned tab is refused until you unpin it. Closing the last tab of a desktop leaves a New Tab window.
+
+## Splits
+
+Drag a tab down out of the bar into the content area: the half of the window under the pointer that
+is nearest to it highlights, and dropping puts the tab's windows there. Near the outer edge of the
+content area the highlight covers the whole edge of the tab instead, for a full-height or full-width
+window. Drag a window by its header onto another window of the same tab to move it to that side;
+hold Shift (`swap_modifier`) while dropping to swap the two windows instead. Escape cancels a drag
+and restores the bar as it was.
+
+The line between two split windows is a seam. Drag it, or focus it and use the arrow keys (2% per
+press, 10% with Shift), to resize the windows on either side; double-click it to give both sides the
+same size. Each app keeps its own minimum size: a seam stops, and a drop target is not offered, where
+a window would get smaller than that. When a split does not fit, the app shows one of its windows at
+a time with a switcher.
+
+Each window in a split keeps its header with its app, pickers, **Move to new tab**, and **Close
+window**. **Move to new tab** (also **Window › Move to new tab**, or dragging the header up onto the
+tab bar) takes the window out of the split and places it as its own tab right after the tab it came
+from. There is no maximize, minimize, or zoom.
+
+From the command line, `window move` splits, unsplits, and moves windows:
+
+```bash
+# Put window B to the right of window A, in A's tab.
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-b> \
+  --desktop <desktop-id> --target <window-a> --placement right
+# Put window B along the whole left edge of a tab.
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-b> \
+  --desktop <desktop-id> --tab <tab-id> --placement left
+# Take window B out of its split into its own tab.
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-b> \
+  --desktop <desktop-id> --placement tab
+# Move a whole tab to another desktop.
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+  --desktop <other-desktop-id> --group
+compozy layout resize --workspace <workspace-id> --revision <revision> --split <node-id> \
+  --boundary 0 --delta 0.15
+compozy layout balance --workspace <workspace-id> --revision <revision> --tab <tab-id>
+```
+
+Placements are `tab` (the default), `left`, `right`, `top`, `bottom`, `before` (same as `left`),
+`after` (same as `right`), and `center` (same as `tab` next to `--target`). `compozy window swap`
+exchanges two windows of the same tab.
+
+`compozy layout arrange --arrangement` accepts `horizontal`, `vertical`, `grid`, or `main_stack`
+and builds one split tab from the listed windows where the first one's tab was. Main and stack gives
+the first listed window the main column and splits the rest vertically beside it. **Window ›
+Arrange** (and **Arrange ▸** on a tab) gathers the focused window, the rest of its tab, and the
+front window of every other tab on the desktop into one split tab: **Main and stack** (the focused
+window takes the main column), **Columns** (all side by side), **Grid** (up to four), and
+**Balance sizes** (equal splits in the tab).
+
+## Shortcuts
+
+| Shortcut ID                                              | Default     | Does                                            |
+| -------------------------------------------------------- | ----------- | ----------------------------------------------- |
+| `window.tab.new`                                         | ⌘T          | New tab                                         |
+| `window.tab.next`, `window.tab.previous`                 | ⌃Tab, ⌃⇧Tab | Next or previous tab                            |
+| `window.tab.jump.1`–`8`, `window.tab.last`               | ⌘1–⌘8, ⌘9   | Go to a tab                                     |
+| `window.tab.reopen`                                      | ⌘⇧T         | Reopen closed tab                               |
+| `window.close`                                           | ⌘W          | Close window                                    |
+| `window.tile.left`, `right`, `top`, `bottom`             | ⌃⌥ + arrow  | Move the focused window to that edge of its tab |
+| `window.unsplit`                                         | unbound     | Move to new tab                                 |
+| `window.tab.move_left`, `window.tab.move_right`          | unbound     | Move tab left or right                          |
+| `window.focus.left`, `right`, `up`, `down`               | ⌃ + arrow   | Focus the neighboring window                    |
+| `layout.balance`                                         | ⌃⌥B         | Balance sizes                                   |
+| `layout.arrange.main-stack`, `columns`, `grid`, `two-up` | unbound     | Arrange presets                                 |
+| `layout.undo`, `layout.redo`                             | ⌘Z, ⌘⇧Z     | Undo or redo a layout change                    |
+
+Change them in Settings → Shortcuts or under `[window_manager.shortcuts]`; see
+[Shortcuts](/docs/configuration/shortcuts).
+
+## Launching apps from the dock
+
+Clicking an icon in the left dock goes to that app's open window, or opens it as a new tab when it
+has none (Sessions goes to your latest session). Hold a modifier to open another window of the app
+instead:
+
+| Gesture            | Opens                                              |
+| ------------------ | -------------------------------------------------- |
+| Click              | The open window, or a new tab                      |
+| Option (⌥) + click | A new window split beside the focused one          |
+| Shift (⇧) + click  | A new desktop, with the new window as its only tab |
 
 Right-click an icon (or focus it and press Shift+F10) for every destination: **Open in new tab**,
-**Open in split**, **Open in new window** (a floating window), **Open in new desktop**, and **Go to
-tab** when the app already has a window. For Sessions, these open the session list window, where you
-pick a session or start a new one. Enter and Space on a focused icon act like a plain click.
+**Open in split**, **Open in new desktop**, and **Go to tab** when the app already has a window. For
+Sessions, these open the session list window, where you pick a session or start a new one. Enter and
+Space on a focused icon act like a plain click.
 
-Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
-targets zoom the window: the unit holding it (the window or its whole tab frame) becomes the only
-full-size island of a desktop. When nothing else is showing on the window's desktop it zooms right
-there; when another window is visible, it moves to a new desktop placed right after the current one so
-no window gets covered. That desktop works like any other, so you can still add tabs and tiles to it.
-Unzooming brings the unit back to where it came from and removes the desktop the zoom created once it
-is empty; closing the zoomed window does the same. Grouping a window into the zoomed frame keeps the
-zoom; tiling another window to a screen edge gives the zoomed window the remaining space and ends the
-zoom, and arranging, moving, swapping, resizing, or floating ends it in place. A minimized window that
-was zoomed comes back zoomed. Bottom-center also zooms by default; set it to `reserved` or `none` to
-disable it. Both behavior and thresholds are validated under `[window_manager]` in `config.toml`.
+## Upgrading from v0.6 layouts
 
-To restore an internal maximized window, click its **Restore window** control (the zoom button
-changes its icon and label while maximized). This returns the saved size and placement. You can
-also drag any border or corner to resize it directly: resizing ends zoom and saves the new tiled
-size on its current desktop. The same internal window controls serve Web and Electron; they are
-separate from native browser or operating-system fullscreen.
+CompozyOS v0.7.0 removed floating windows, minimize, zoom, separately snapped windows, and tabs
+inside a pane. The first time it opens a workspace saved by an earlier version, it converts the
+layout once:
+
+- Tiled windows keep their splits and become tabs. Windows that shared one pane as tabs become
+  adjacent tabs, the active one in place.
+- Floating and minimized windows become tabs after the tiled ones.
+- Windows snapped side by side become one split tab when they line up; otherwise each becomes its own
+  tab.
+- A zoomed window returns to the desktop it came from, as its own tab.
+- Discarded: the positions and sizes of floating windows, island frames, the minimized and zoomed
+  state, the spot a minimized or zoomed window would have returned to, the grouping of several tabs
+  inside one pane, the pin of a window that ends up inside a split (a pinned window that becomes its
+  own tab stays pinned), the desktops that zoom created, and undo/redo history. No window, route,
+  navigation history, or desktop is lost.
+
+The notification bell then holds **Your windows are now tabs** with the number of floating and
+minimized windows that became tabs, and a toast shows it once. Marking it read in one window clears it
+everywhere. If the conversion fails, the app shows **We could not move your layout to tabs**: your previous layout is kept, the desktop starts
+with one New tab window, and **Retry** runs the conversion again; **Dismiss** hides the notice and keeps
+the saved layout. Once you have changed the layout since the failure, a plain retry is refused so
+your new work is never replaced silently: the notice says so and offers **Replace current layout**,
+which asks you to confirm before the tabs and windows you opened since the upgrade close and your
+previous layout opens in their place as tabs. `compozy layout migration retry --replace` does the
+same from the command line.
+
+The same status is available to scripts and agents:
+
+```bash
+compozy layout migration status --workspace <workspace-id> -o json
+compozy layout migration ack --workspace <workspace-id>
+compozy layout migration retry --workspace <workspace-id>            # refused if the layout changed
+compozy layout migration retry --workspace <workspace-id> --replace  # replace the current layout
+```
+
+`status` reports `state` (`none`, `migrated`, or `failed`), `from_version`, `acknowledged`, and a
+`summary` with `desktops`, `tabs`, `windows`, `floating_to_tabs`, `minimized_to_tabs`,
+`islands_merged`, `pins_dropped`, and `zoom_desktops_merged`. A failed status adds `error` (its
+`code` is the converter's diagnostic code, or `migration.conversion_failed`) and
+`failure_revision`, the layout revision written at the failure, which is shown only when it is not 0. The fallback desktop a failed upgrade writes is revision 0, so the field is normally absent, and
+a missing field means 0. `error` appears only on a failed status, and a successful retry clears
+both. `superseded_backups` counts the earlier saved copies kept for the profile (see the note
+below) and is omitted when there are none.
+`compozy layout get` and `compozy__layout_get` include it as `migration` until it is acknowledged.
+
+<OperatorNote>
+  Do not downgrade to v0.6 after upgrading. v0.6 cannot read the converted layout and replaces it
+  with a default desktop. The original v0.6 layout stays preserved inside the workspace state, but
+  v0.6 does not restore it. Upgrading again converts the layout you used on v0.6, even when the
+  first conversion failed. Nothing stored is lost: when the saved copy differs, the earlier copy is
+  set aside unchanged in the same write, and **Retry**, **Dismiss**, and `compozy layout migration
+  retry [--replace]` act on the newest saved copy. A copy set aside this way follows the conversion
+  it belonged to: a copy from a successful conversion is removed at the first start of v0.8.0, and a
+  copy from a failed conversion is kept until its workspace or profile is deleted. The same layout
+  set aside more than once is kept as one copy; it is treated as failed if any of those conversions
+  failed, and a later success does not make it expire again. If keeping the
+  extra copy would exceed the workspace's storage quota, nothing is changed: every stored layout
+  and copy stays as it was, the workspace's layout answers `window_manager_unavailable` with the
+  diagnostic `snapshot_key_quota`, and CompozyOS keeps serving the other workspaces.
+
+A layout saved by a newer CompozyOS (layout version 7 or later) is left untouched: that
+workspace's layout answers `window_manager_unavailable` until you run the newer version again,
+while CompozyOS starts, logs the skipped workspace (`window_manager.partition_reconciliation_skipped`),
+and serves every other workspace. The same holds for a layout whose upgrade was refused by the
+storage quota: it is retried on every load, changes nothing while the quota is exceeded, and
+answers `window_manager_unavailable` with the diagnostic `snapshot_key_quota`. Two cleanups that
+touch every stored layout clean every layout CompozyOS can use but cannot finish while a layout it
+cannot read or cannot write (either case) is stored: deleting a session succeeds and removes its
+windows from every usable layout, and the rest is retried in the background (logged as
+`session: retained deletion tombstone for window reconciliation retry`); removing a workspace
+deletes that workspace's own layouts first, whatever their state, then cleans every other usable
+layout and fails with an internal error (HTTP 500) naming the unusable layout of another workspace,
+and completes when repeated once that layout is usable again.
+
+</OperatorNote>
 
 ## Persistent desktops
 
@@ -139,14 +284,41 @@ compozy desktop delete --workspace <workspace-id> --revision <revision> --id <de
   --destination <desktop-id>
 ```
 
-Deleting the final desktop is rejected. A non-empty desktop requires a distinct destination so the
-window transfer and deletion happen in one transaction. The Web shell exposes the same desktops as
-a minimal dot pager in the top bar, next to an **All desktops** button that opens full management on
-demand.
+Deleting the final desktop is rejected. A desktop with tabs requires a distinct destination so the tab
+transfer and deletion happen in one transaction. A desktop whose only tabs are New tab placeholders
+counts as empty: it is deleted without `--destination`, and the placeholders are dropped, not moved.
+
+### Desktops in the Web shell
+
+The top bar shows one dot per desktop, the active desktop as a wider pill and an amber dot for a
+desktop you are not on that needs you. Click a dot to switch to that desktop; the arrow keys move
+between dots and the `desktop.switch.1`–`9`, next and previous shortcuts keep working. Past seven
+desktops the bar shows five around the active one, and an overflow control on either side opens the
+desktops overview at the hidden desktops.
+
+Right-click a dot, or focus it and press Shift+F10 or the menu key, for **Rename**, **Move left**,
+**Move right**, **Close desktop** and **New desktop**. Move left is absent on the first desktop,
+Move right on the last, and Close desktop on the last remaining one. Rename and Close desktop open
+the overview on that desktop's card, where you type the new name, or choose where its tabs go and
+confirm. A desktop that holds only blank New tab tabs closes with a plain confirm and no destination.
+
+**All desktops** in the top bar, or **Window › All desktops**, opens the overview over the work
+area. Each card shows the desktop's layout, its name and tab count, and its first four tabs with a
+count of the rest. Click the layout to switch to the desktop, or click a tab to jump to it; either
+closes the overview. A card's pencil renames it, its context menu has **Move left**, **Move right**
+and **Move a tab ▸**, and dragging a card to another position reorders the desktops. The bin on a
+card closes that desktop in place: a desktop with tabs first asks which desktop receives them, and
+only then offers the check that confirms. Escape cancels the close, then closes the overview.
+
+To move a tab to another desktop, drag it from the tab bar onto that desktop's dot. While you drag,
+the dots grow into labelled targets, and the tab moves with all its split windows. If the desktop is
+hidden behind an overflow control, rest the tab on the control: the overview opens and takes the
+drop on a card. You can also drag a tab row from one card to another inside the overview. A desktop
+whose last tab leaves shows a New Tab window.
 
 ## Declarative layouts and recovery
 
-Settings → Layouts accepts zero for the gap between tiles and for each outer inset independently.
+Settings → Layouts accepts zero for the gap between split windows and for each outer inset independently.
 A failed Save keeps your draft and offers retry or discard. The save result distinguishes applied
 settings from saved settings that still need an action, and displays application warnings. If a save
 reaches disk but application fails, retry applies the pending layout; discard keeps the configuration
@@ -169,22 +341,20 @@ compozy layout validate --workspace <workspace-id> --file layout.json -o json
 compozy layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
 ```
 
-Export omits history. Validate never writes. Apply validates the complete document, binds it to the
-requested workspace, preserves current routes for surviving window IDs, and replaces the topology
-atomically. Extensions can contribute declarative `window_layout` resources; discover them through
-`compozy__resources_list`, then arrange by
-`resource_id`. The Settings layout editor lists and saves profiles through
+A layout document is `{version: 6, workspace_id, desktops, windows, overrides}`: the snapshot without
+its revision, history, closed entries, and timestamps. Export always writes version 6 and omits
+history. Version 4 and 5 documents from earlier releases are accepted everywhere a document is read
+(`layout apply`, `layout validate`, `layout-profile put`, extension `window_layouts`, saved
+profiles) and converted with the same rules as the [layout upgrade](#upgrading-from-v06-layouts);
+saved profiles are rewritten to version 6 once at boot. Validate never writes. Apply validates the
+complete document, binds it to the requested workspace, preserves current routes for surviving
+window IDs, and replaces the topology atomically. Extensions can contribute declarative
+`window_layout` resources; discover them through `compozy__resources_list`, then arrange by
+`resource_id`. The Settings layout editor edits a profile as desktops, their tabs, and the splits
+inside each tab, and lists and saves profiles through
 `/api/workspaces/{workspace_id}/window-manager/layout-profiles`. That projection contains global
 profiles plus profiles scoped to the selected workspace, and rejects cross-workspace writes.
 Resources cannot execute code or receive pointer events.
-
-A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
-validated deep capture of its source group. Restoring a minimized window reinstalls the exact group and
-node identities, order, weights, and placement while the source residue is unchanged. If the source
-changed in the meantime, CompozyOS preserves those edits and falls back to the structural anchor, then
-the client's focused window on the same desktop, then a floating placement. A zoomed window's
-`return_anchor` is the slot unzoom takes it back to. Preserve `source_group` and `return_anchor.zoomed`
-during raw document round trips instead of constructing or editing this recovery state.
 
 ### Retired apps in saved layouts
 
@@ -200,8 +370,8 @@ windows, the undo and redo history, and the recently closed entries. The next lo
 Declarative `window_layout` resources follow the same rule. The daemon rewrites stored ones once at
 boot, drops the removed windows from their participant slots, and logs
 `window_manager.layout_reconciled` with the `resource_id`; layout listings always show the reconciled
-form. A layout document passed to `compozy layout apply` must carry the current snapshot `version`,
-which is `4`.
+form. A layout document passed to `compozy layout apply` carries `version` 6; version 4 and 5 documents are
+still accepted and converted.
 
 ## All projects and User desktops
 
@@ -224,14 +394,20 @@ windows bound to it fall back to their app's list, and nothing can bring the bin
 
 ## Agent and transport access
 
-The lazy `compozy__window_manager` toolset exposes 26 desktop, window, and layout tools with structured
+The lazy `compozy__window_manager` toolset registers 33 desktop, window, and layout tools — 28 current
+and the 5 retired ones listed below — with structured
 revisions, diagnostics, capability gates, and risk classifications. Resolve `compozy__tool_info` before
-calling a tool. CLI fallbacks are grouped under [`compozy desktop`](/docs/cli/desktop),
+calling a tool. `compozy__window_move` splits (`placement` `left`, `right`, `top`, `bottom` with
+`target_window_id` or `target_tab_id`), unsplits (`placement: "tab"`), and moves windows or whole tabs
+(`move_group`) between desktops; `compozy__window_reorder`, `compozy__window_activate`, and
+`compozy__window_pin` act on the window's tab; `compozy__layout_balance` takes `tab_id` or `split_id`.
+CLI fallbacks are grouped under [`compozy desktop`](/docs/cli/desktop),
 [`compozy window`](/docs/cli/window), and [`compozy layout`](/docs/cli/layout).
 
 HTTP and UDS expose identical routes below
-`/api/workspaces/{workspace_id}/window-manager`; see the
-[Workspaces API](/docs/api/workspaces) for request and response schemas. The WebSocket
+`/api/workspaces/{workspace_id}/window-manager`, including `GET` and `POST …/migration` for the
+layout upgrade status; see the [Workspaces API](/docs/api/workspaces) for request and response
+schemas. Command results report `changes` with `tab_ids`, `tab_split`, and `tab_unsplit`. The WebSocket
 stream accepts an optional registered `client_id`. A bound stream fences that client's view in its
 initial snapshot and then sends only strictly newer presentation frames for that ID alongside
 workspace-revision topology events; an unbound stream receives topology only. After slow-consumer
@@ -241,7 +417,45 @@ same stable client ID again before reconnecting.
 Use `compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl` for the bound
 CLI stream. Omit `--client` when only topology revisions are needed.
 
-Committed operations emit exactly `window_manager.layout.applied`,
-`window_manager.desktop.created`, `window_manager.desktop.deleted`, and
-`window_manager.window.moved` as async hooks. Pointer previews, navigation, focus changes, and
-desktop switching do not emit extension hooks.
+Committed operations emit these async hooks: `window_manager.layout.applied`,
+`window_manager.desktop.created`, `window_manager.desktop.deleted`, `window_manager.window.moved`,
+`window_manager.window.opened`, `window_manager.window.closed`, `window_manager.tab.split` (a tab went
+from one window to several), `window_manager.tab.unsplit` (a tab went back to one window, or closed),
+and `window_manager.tab.activated`. Pointer previews, navigation, focus changes, per-client tab flips,
+and desktop switching do not emit extension hooks.
+
+## Retired in v0.7.0
+
+These surfaces still work until v0.8.0 so older scripts, agents, and configs keep loading, and are
+deleted in v0.8.0. Retired commands, command IDs, and command fields answer with a `deprecations`
+entry (`code`, `surface`, `replacement`, `removal_release: "v0.8.0"`, `message`), which the CLI
+prints as one `warning:` line on stderr. Retired `config.toml` keys warn once when the configuration
+loads, retired shortcut bindings are logged as deprecated and marked **retired** in Settings, and
+`compozy hooks list` warns about hooks on retired events. Settings API fields and result fields that
+are now always empty carry no warning in the response; the OpenAPI document marks them deprecated.
+
+| Retired                                                                                                                                                                               | Until v0.8.0                                                                                     | Use instead                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `compozy window float`, `compozy__window_float`                                                                                                                                       | Does nothing                                                                                     | `window move --placement tab`                                                                              |
+| `compozy window zoom`, `compozy__window_zoom`                                                                                                                                         | Does nothing                                                                                     | `window move --placement tab`                                                                              |
+| `compozy window resize`, `compozy__window_resize`                                                                                                                                     | Does nothing                                                                                     | `layout resize`                                                                                            |
+| `compozy layout frame-resize`, `compozy__layout_frame_resize`                                                                                                                         | Does nothing                                                                                     | `layout resize`                                                                                            |
+| `compozy window group`, `compozy__window_group`                                                                                                                                       | Places each window as a tab after the target                                                     | `window move --placement tab`                                                                              |
+| Command IDs `window.stack.reorder`, `window.stack.set_active`                                                                                                                         | Aliases                                                                                          | `window.tab.reorder`, `window.tab.activate`                                                                |
+| `window open --floating`, `--rect`, `--restore`                                                                                                                                       | Opens a tab; ignored; activates the window's tab                                                 | `window open`, `window activate`                                                                           |
+| `window close --minimize`                                                                                                                                                             | Does nothing; the window stays open                                                              | `window close`                                                                                             |
+| `window move --placement floating`, `--rect`                                                                                                                                          | Treated as `--placement tab`; ignored                                                            | `--placement tab`                                                                                          |
+| `layout arrange --arrangement stack`, `--frame`, `--group`, `--keep-frames`                                                                                                           | Adjacent tabs; ignored                                                                           | `layout arrange`                                                                                           |
+| `layout balance --group`                                                                                                                                                              | Alias of `--tab`                                                                                 | `layout balance --tab`                                                                                     |
+| `window group --insert-index` (`insert_index`)                                                                                                                                        | Ignored, with no deprecation of its own: the command reports only its `window.stack.group` entry | `window move --placement tab` (the entry's replacement), then `window reorder --index` to position the tab |
+| `window.move` with an empty or missing `placement` over HTTP/UDS or `compozy__window_move`                                                                                            | Treated as `tab`, with the deprecation `window.move.placement=empty`                             | `"placement": "tab"`                                                                                       |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group` | Invocable as no-ops with a deprecation; not listed                                               | The live command for the action, or none                                                                   |
+| Settings API (`GET`/`PATCH /api/settings/window-manager`) fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`; `new_window_policy: "floating"`     | Returned with fixed values; ignored on save                                                      | Omit them                                                                                                  |
+| `compozy__window_list` `include_minimized`                                                                                                                                            | Ignored                                                                                          | —                                                                                                          |
+| Hook `window_manager.stack.activated`                                                                                                                                                 | Fires with `tab.activated`                                                                       | `window_manager.tab.activated`                                                                             |
+| Hooks `window_manager.stack.grouped`, `stack.ungrouped`                                                                                                                               | Load, never fire; `compozy hooks list` warns                                                     | `window_manager.tab.split`, `tab.unsplit`                                                                  |
+| Config `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap.*`, `bindings.*`; `new_window_policy = "floating"`                                                          | Ignored with a warning; `floating` loads as `tab`                                                | Remove the key                                                                                             |
+| Shortcut IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.tile.top-left`, `top-right`, `bottom-left`, `bottom-right`, `window.merge_all`, `window.tab.detach`  | Load and do nothing; Settings marks them **retired**                                             | Remove the binding                                                                                         |
+
+Results that contain the topology (snapshots, desktops, windows, layout documents) now have the
+version 6 shape; there is no version 5 form of them.

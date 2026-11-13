@@ -1,5 +1,12 @@
-import type { GestureCancelReason } from "./layout-gesture-session";
 import type { PixelPoint } from "./window-manager-types";
+
+/** Why a pointer gesture ended without a commit. */
+export type GestureCancelReason =
+  | "escape"
+  | "pointer-cancel"
+  | "lost-capture"
+  | "context-changed"
+  | "disposed";
 
 type CancelGesture = (reason: GestureCancelReason, point?: PixelPoint) => unknown;
 
@@ -19,7 +26,9 @@ export function bindLayoutGestureCancellation(
 ): () => void {
   const handleEscape = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
+    // The gesture owns this Escape: nothing under it closes or dismisses.
     event.preventDefault();
+    event.stopPropagation();
     cancelGesture("escape");
   };
   const handlePointerCancel = (event: PointerEvent) => {

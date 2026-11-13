@@ -73,6 +73,21 @@ func (h *Hooks) ApplyBindingState(state *BindingState, resourceRevision int64) e
 	version := h.version.Add(1)
 	h.mu.Unlock()
 
+	for event := range state.snapshot {
+		warning := RetiredWindowManagerEventWarning(event)
+		if warning == "" {
+			continue
+		}
+		if _, seen := h.deprecatedSurfaces.LoadOrStore(event, struct{}{}); seen {
+			continue
+		}
+		replacement := "window_manager.tab.split or window_manager.tab.unsplit"
+		if event == HookWindowManagerStackActivated {
+			replacement = "window_manager.tab.activated"
+		}
+		h.logger.Warn("window_manager.deprecated_surface_used", "surface", event,
+			"replacement", replacement, "actor_kind", "config", "removal_release", "v0.8.0", "message", warning)
+	}
 	reloadDuration := h.now().Sub(reloadStarted)
 	h.metrics.observeRegistryReload(reloadDuration, state.hookCount-oldHookCount)
 	h.logger.Info(

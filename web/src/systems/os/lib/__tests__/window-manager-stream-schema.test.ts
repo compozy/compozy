@@ -1,10 +1,14 @@
 // Suite: window-manager wire schemas
 // Invariant: strict event parsing recognizes window.navigate and client presentation frames only
-// when the frame revision matches the client revision.
+// when the frame revision matches the client revision; v6 frames carry tabs and the client's
+// active tab, while retired v5 fields and command IDs the daemon still sends are tolerated.
 // Owning layer: the Web window-manager wire decoder.
 import { describe, expect, it } from "vitest";
 
-import { parseWindowManagerRegisteredClientView } from "../window-manager-schemas";
+import {
+  parseWindowManagerCommandResult,
+  parseWindowManagerRegisteredClientView,
+} from "../window-manager-schemas";
 import { parseWindowManagerStreamFrame } from "../window-manager-stream-schema";
 
 function eventFrame(commandId: string) {
@@ -37,9 +41,12 @@ function clientFrame(frameRevision: number, presentationRevision: number) {
       context_revision: 1,
       active_desktop_id: "desktop:main",
       focus_order: [],
+      active_tab: { "desktop:main": "tab:main" },
+      // Retired fields the daemon still sends through v0.7.0.
       stack_active: {},
       palette_context: {
         window_focused: false,
+        window_in_split: false,
         window_floating: false,
         window_stacked: false,
         desktop_window_count: 0,
@@ -59,7 +66,7 @@ function snapshotFrame() {
     workspace_id: "workspace:test",
     revision: 4,
     snapshot: {
-      version: 5,
+      version: 6,
       workspace_id: "workspace:test",
       revision: 4,
       desktops: [
@@ -67,12 +74,26 @@ function snapshotFrame() {
           id: "desktop:main",
           name: "Main",
           order: 0,
-          groups: [],
-          floating: [],
-          floating_stacks: [],
+          tabs: [
+            {
+              id: "tab:main",
+              pinned: false,
+              root: { id: "leaf:main", kind: "leaf", window_id: "window:main" },
+            },
+          ],
+          active_tab_id: "tab:main",
         },
       ],
-      windows: {},
+      windows: {
+        "window:main": {
+          id: "window:main",
+          app: "dashboard",
+          route: { pathname: "/", search: {} },
+          nav_stack: [],
+          desktop_id: "desktop:main",
+          tab_id: "tab:main",
+        },
+      },
       closed_entry_count: 0,
       overrides: {},
       updated_at: "2026-07-22T00:00:00Z",
@@ -90,6 +111,34 @@ describe("parseWindowManagerStreamFrame", () => {
       revision: 4,
       event: { commandId: "window.navigate" },
     });
+  });
+
+  it("Should accept retired v5 command IDs on events the daemon still records", () => {
+    expect(parseWindowManagerStreamFrame(eventFrame("window.stack.group"))).toMatchObject({
+      type: "event",
+      event: { commandId: "window.stack.group" },
+    });
+  });
+
+  it("Should parse a v6 snapshot into tabs with the desktop's default tab", () => {
+    const parsed = parseWindowManagerStreamFrame(snapshotFrame());
+    if (parsed.type !== "snapshot") throw new Error("expected snapshot frame");
+
+    expect(parsed.snapshot.desktops[0]).toEqual({
+      id: "desktop:main",
+      name: "Main",
+      order: 0,
+      tabs: [
+        {
+          id: "tab:main",
+          pinned: false,
+          root: { id: "leaf:main", kind: "leaf", windowId: "window:main" },
+        },
+      ],
+      activeTabId: "tab:main",
+    });
+    expect(parsed.snapshot.windows["window:main"]?.tabId).toBe("tab:main");
+    expect(parsed.snapshot.migration).toBeNull();
   });
 
   it("Should reject command IDs outside the semantic registry", () => {
@@ -120,6 +169,18 @@ describe("parseWindowManagerStreamFrame", () => {
     expect(() => parseWindowManagerStreamFrame(eventRevisionMismatch)).toThrow(
       "Event frame revision must match event revision."
     );
+  });
+
+  it("Should read the client's active tabs and require them on every client view", () => {
+    const parsed = parseWindowManagerStreamFrame(clientFrame(3, 3));
+    expect(parsed.type === "client" ? parsed.client.activeTab : undefined).toEqual({
+      "desktop:main": "tab:main",
+    });
+
+    const legacy = clientFrame(3, 3);
+    const withoutActiveTab: Record<string, unknown> = { ...legacy.client };
+    delete withoutActiveTab.active_tab;
+    expect(() => parseWindowManagerStreamFrame({ ...legacy, client: withoutActiveTab })).toThrow();
   });
 
   it("Should accept a client frame only when both presentation revisions match", () => {
@@ -176,6 +237,19 @@ describe("parseWindowManagerStreamFrame", () => {
         unexpected: true,
       })
     ).toThrow();
+  });
+});
+
+describe("parseWindowManagerCommandResult", () => {
+  it("Should default omitted deprecations to an empty list", () => {
+    const result = parseWindowManagerCommandResult({
+      snapshot: snapshotFrame().snapshot,
+      applied: true,
+      changes: {},
+    });
+
+    expect(result.deprecations).toEqual([]);
+    expect(result.snapshot.version).toBe(6);
   });
 });
 

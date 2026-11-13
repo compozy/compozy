@@ -762,14 +762,15 @@ for mutations. Resolve descriptors, pass the workspace, and use the current revi
 - Desktops: `compozy__desktop_list`, `compozy__desktop_create`, `compozy__desktop_update`,
   `compozy__desktop_reorder`, `compozy__desktop_switch`, `compozy__desktop_delete`,
   `compozy__desktop_clients`.
-- Windows: `compozy__window_list`, `compozy__window_open`, `compozy__window_close`, `compozy__window_focus`,
-  `compozy__window_move`, `compozy__window_swap`, `compozy__window_float`, `compozy__window_zoom`,
-  `compozy__window_navigate`.
-- Tabs: `compozy__window_group`, `compozy__window_reorder`, `compozy__window_activate`,
-  `compozy__window_pin`, `compozy__window_reopen`.
+- Windows and tabs: `compozy__window_list`, `compozy__window_open`, `compozy__window_close`,
+  `compozy__window_focus`, `compozy__window_move`, `compozy__window_swap`, `compozy__window_navigate`,
+  `compozy__window_reorder`, `compozy__window_activate`, `compozy__window_pin`, `compozy__window_reopen`.
 - Layouts: `compozy__layout_get`, `compozy__layout_preview`, `compozy__layout_arrange`,
   `compozy__layout_resize`, `compozy__layout_balance`, `compozy__layout_undo`, `compozy__layout_redo`,
   `compozy__layout_export`, `compozy__layout_validate`, `compozy__layout_apply`.
+- Retired until v0.8.0 (never call; each answers `applied: false` or a translation plus
+  `deprecations[]` naming the replacement): `compozy__window_float`, `compozy__window_zoom`,
+  `compozy__window_resize`, `compozy__layout_frame_resize`, `compozy__window_group`.
 
 For operator calls, these descriptors accept `workspace: "global"` before registry normalization,
 selecting the acting profile's reserved All projects partition. Every agent identity, including
@@ -777,17 +778,28 @@ agents with the unrestricted grant, is denied on it. `workspace: "@user"` select
 profile's reserved `user` partition. Neither makes `global` a valid workspace on other tools. Read
 `references/window-management.md` (Reserved partitions) for bindings and reconciliation.
 
-Every tab tool mutates and needs `window_manager.write`. `window_group` takes `target_window_id` plus
-a `window_ids` array and an optional `insert_index`; `window_reorder` moves one member inside its own
-stack with a clamped `index`; `window_activate` sets the stack's durable active member and is the
-public name of the internal `window.stack.set_active` command; `window_pin` takes a required `pinned`
-boolean; `window_reopen` needs only the revision. Three existing tools carry tab inputs:
-`window_open` accepts `stack_target_window_id` (plus `floating` for an explicit floating window;
-it rejects `insert_tiled` or `stack_target_window_id` alongside it), `window_navigate` accepts `mode`
-(`replace`/`push`/`pop`, and `pop` forbids `route`), and `window_close` accepts `scope`
-(`tab`/`group`/`others`/`right`, rejected together with `minimize`).
+Each desktop has one tab bar; a tab holds one window or a split of windows. Every tab tool
+mutates and needs `window_manager.write`. `window_reorder` moves the window's tab to a clamped
+`index` inside its pinned or unpinned range; `window_activate` activates the window's tab for its
+desktop and the issuing client (command `window.tab.activate`); `window_pin` pins or unpins the
+window's whole tab with a required `pinned` boolean; `window_reopen` needs only the revision.
+`window_move` splits, unsplits, and moves: `placement` `left`/`right`/`top`/`bottom` with
+`target_window_id` puts the window beside that window in its tab, with `target_tab_id` at that
+root edge of the tab; `placement: "tab"` makes it its own tab; `move_group` moves the whole tab.
+`window_open` accepts `stack_target_window_id` (a new tab right after that window's tab) and
+`insert_tiled` (a split member right of the focused window); `window_navigate` accepts `mode`
+(`replace`/`push`/`pop`, and `pop` forbids `route`); `window_close` accepts `scope`
+(`tab`/`group`/`others`/`right`/`left`/`all`); `layout_balance` takes `tab_id` or `split_id`.
+Results carry `changes.tab_ids`, `tab_split`, `tab_unsplit` and, when a retired input was used,
+`deprecations[]`. `compozy__layout_get` includes `migration` while the layout-upgrade notice is
+unacknowledged. A successful conversion is a `layout-upgrade` bell notification ("Your windows are
+now tabs"); reading it or clearing its captured bell snapshot durably acknowledges the conversion
+and refreshes connected clients' snapshots. The bell includes all source profiles in registered
+workspaces and the reserved User (`user`) and All projects (`global`) desktops; its receipt profile
+does not filter layout conversions. Unregistered project workspaces stay out. Migration `ack` through
+HTTP/UDS or `compozy layout migration ack` also removes the item. Failed conversions stay inline.
 
-`desktop_switch`, `window_focus`, and `window_zoom` require a connected `client_id`.
+`desktop_switch` and `window_focus` require a connected `client_id`.
 `window_navigate` changes presentation only when given one. Preview/validate never write;
 desktop delete, window close, and layout apply carry destructive risk. Discover `window_layout`
 resources with `compozy__resources_list`; `resource_id` is exclusive with inline arrange fields. CLI

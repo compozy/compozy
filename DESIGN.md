@@ -299,7 +299,6 @@ tokens:
       chip: "7px"
       mono-badge: "4px"
       icon-well: "7px"
-      deck-tab: "9px"
     motion:
       distance:
         item-enter: "4px"
@@ -451,14 +450,8 @@ tokens:
       width-traffic-lights: "84px"
       height-window-head: "48px"
       height-window-toolbar: "44px"
-      size-seam-hit: "9px"
-      height-deck: "40px"
-      height-deck-tab: "32px"
-      min-width-deck-tab: "136px"
-      width-deck-tab-max: "208px"
       size-deck-glyph: "13px"
       min-width-deck-badge: "14px"
-      size-deck-close: "20px"
       height-setup-head: "52px"
       height-setup-steps: "44px"
       height-setup-footer: "58px"
@@ -961,16 +954,22 @@ The runtime shell is a desktop with flat chrome on `--color-rail`:
   desktop that needs you) and the All desktops button that opens the overview.
 - A left rail (`--width-rail`, 60px; items `--size-rail-item`, 40px) that is
   the dock: app launchers in dock order without dividers, a running dot per
-  open app, a hollow ring for minimized ones, and the profile switcher, theme
-  toggle and Settings in its foot. Below 960px the rail hides and the bottom
-  tab bar takes over.
-- Gutterless tiling on `--color-desk`. Tiled windows are flat panes on
-  `--color-canvas` with no radius, border or shadow; the 1px `line` seam is the
-  only divider, with a `--size-seam-hit` (9px) hit area that turns brand on
-  hover and drag. Floating windows keep a 1px hairline and `shadow-elevated`.
-- Browser-style tabs. A window with several tabs shows the deck
-  (`--height-deck`, 40px): a recessed `sunken` strip where the active tab is a
-  surface plate fused with the head, and tabs shrink from 208px to 136px.
+  open app, and the profile switcher, theme toggle and Settings in its foot.
+  Below 960px the rail hides and the bottom tab bar takes over.
+- One tab bar per desktop: a 40px strip on `bg-rail` above the work area.
+  Each tab is a 27px rounded plate (`bg-fg/7` when active, `bg-fg/4`
+  otherwise) showing its lead window's icon and title, or up to three icons
+  and a member count for a split. Tabs share the width from 224px down to a
+  40px icon-only plate, then the strip scrolls; pinned tabs sit at the left,
+  icon-only.
+- A tab holds one window or a split. Windows are flat panes on `--color-canvas`
+  with no radius, border or shadow, edge to edge by default (the configurable
+  gaps show the desk, painted by the flat wallpaper's `--color-desk`). Between
+  split members the 1px `line` seam is the only divider and the only resize
+  handle: its separator box is at least 12px wide (the gap, or 12px when the
+  gap is narrower, with negative margins so it takes only the gap), and a 3px
+  pill turns brand on hover, focus and drag, attention at the minimum size.
+  There are no floating windows.
 
 Each window hosts one app's route subtree. Page identity belongs in the window
 head (`--height-window-head`, 48px), which is the route's `<Topbar>` with the
@@ -1003,7 +1002,7 @@ widths come from `--site-*` tokens.
 | `--radius-md`        | `10px` | `--radius-lg`         | `14px`   |
 | `--radius-xl`        | `20px` | `--radius-pill`       | `9999px` |
 | `--radius-chip`      | `7px`  | `--radius-mono-badge` | `4px`    |
-| `--radius-icon-well` | `7px`  | `--radius-deck-tab`   | `9px`    |
+| `--radius-icon-well` | `7px`  |                       |          |
 
 <!-- END:tokens:radii -->
 
@@ -1049,9 +1048,7 @@ widths come from `--site-*` tokens.
 | `--height-modal-md`                  | `760px`                          | `--height-modal-tall`                   | `900px`                                                     | `--height-modal-wizard`                    | `960px`   |
 | `--height-modal-xl`                  | `840px`                          | `--width-rail`                          | `60px`                                                      | `--size-rail-item`                         | `40px`    |
 | `--height-menubar`                   | `52px`                           | `--width-traffic-lights`                | `84px`                                                      | `--height-window-head`                     | `48px`    |
-| `--height-window-toolbar`            | `44px`                           | `--size-seam-hit`                       | `9px`                                                       | `--height-deck`                            | `40px`    |
-| `--height-deck-tab`                  | `32px`                           | `--min-width-deck-tab`                  | `136px`                                                     | `--width-deck-tab-max`                     | `208px`   |
-| `--size-deck-glyph`                  | `13px`                           | `--min-width-deck-badge`                | `14px`                                                      | `--size-deck-close`                        | `20px`    |
+| `--height-window-toolbar`            | `44px`                           | `--size-deck-glyph`                     | `13px`                                                      | `--min-width-deck-badge`                   | `14px`    |
 | `--height-setup-head`                | `52px`                           | `--height-setup-steps`                  | `44px`                                                      | `--height-setup-footer`                    | `58px`    |
 | `--height-setup-split`               | `300px`                          | `--height-setup-row`                    | `30px`                                                      | `--size-setup-step-marker`                 | `18px`    |
 | `--width-setup-panel`                | `660px`                          | `--width-setup-panel-wide`              | `960px`                                                     | `--overlay-blur`                           | `3px`     |
@@ -1079,7 +1076,7 @@ darkest outside → lightest inside: rail chrome → canvas pane → `card`
 - `--shadow-card` opens with the 1px `--color-line` hairline, then a soft drop:
   every `bg-card` surface (cards, KPI tiles, section cards, the composer) pairs
   with it instead of a border.
-- `--shadow-elevated` sits under floating windows (with their 1px hairline).
+- `--shadow-elevated` lifts the Desktops Overview card while it is dragged.
 - `--shadow-pop` is the `line` hairline plus the md drop, for `bg-popover`
   menus, popovers, selects, and tooltips (tooltips are an elevated plate, not
   an inverted pill). Dialogs share the `bg-popover` fill with
@@ -1095,8 +1092,8 @@ Each theme-scoped shadow is an `@theme` adapter over a `--theme-shadow-*`
 literal (dark in `tokens.css` `:root`, light in `tokens-light.css`): Tailwind
 inlines literal `--shadow-*` values into `shadow-*` utilities, so the theme must
 switch the literal behind the adapter. There is no window shadow in the shared
-tokens: product floating windows use a `line` hairline plus `--shadow-elevated`,
-and the marketing site keeps its hero mock's window radius and shadow in its own
+tokens: product windows are flat panes with no shadow, and the marketing site
+keeps its hero mock's window radius and shadow in its own
 `packages/site/app/global.css`.
 
 <!-- BEGIN:tokens:shadows -->
@@ -1158,8 +1155,8 @@ Animate only `opacity` and `transform`: they run on the compositor, so a long
 list can move without repainting or reflowing.
 
 Shell chrome adds one tier above the base ladder for spatial transitions —
-window entry, desktop switches, and minimize travel — at chrome scale with a
-single spring ease. Window-body content keeps the base ladder.
+window entry and desktop switches — at chrome scale with a single spring
+ease. Window-body content keeps the base ladder.
 
 A content area that is still loading shows a skeleton, never a centered
 spinner. A skeleton is a content-shaped copy of the real primitive

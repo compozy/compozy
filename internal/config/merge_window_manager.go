@@ -8,9 +8,9 @@ type windowManagerOverlay struct {
 	FocusPolicy         *string                                  `toml:"focus_policy"`
 	FocusWrap           *bool                                    `toml:"focus_wrap"`
 	FocusFollowsPointer *bool                                    `toml:"focus_follows_pointer"`
-	RaiseOnFocus        *bool                                    `toml:"raise_on_focus"`
-	DragAwayPolicy      *string                                  `toml:"drag_away_policy"`
-	GroupMoveModifier   *string                                  `toml:"group_move_modifier"`
+	RaiseOnFocus        any                                      `toml:"raise_on_focus"`
+	DragAwayPolicy      any                                      `toml:"drag_away_policy"`
+	GroupMoveModifier   any                                      `toml:"group_move_modifier"`
 	SwapModifier        *string                                  `toml:"swap_modifier"`
 	HistoryLimit        *int                                     `toml:"history_limit"`
 	NavStackLimit       *int                                     `toml:"nav_stack_limit"`
@@ -32,34 +32,34 @@ type windowManagerGapsOverlay struct {
 }
 
 type windowManagerSnapOverlay struct {
-	EdgeBand     *int      `toml:"edge_band"`
-	CornerReach  *int      `toml:"corner_reach"`
-	ExitSlack    *int      `toml:"exit_slack"`
-	RepeatRatios []float64 `toml:"repeat_ratios"`
+	EdgeBand     any `toml:"edge_band"`
+	CornerReach  any `toml:"corner_reach"`
+	ExitSlack    any `toml:"exit_slack"`
+	RepeatRatios any `toml:"repeat_ratios"`
 }
 
 type windowManagerBindingOverlay struct {
-	TopCenter    *string `toml:"top_center"`
-	BottomCenter *string `toml:"bottom_center"`
+	TopCenter    any `toml:"top_center"`
+	BottomCenter any `toml:"bottom_center"`
 }
 
 func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
 	applyStringPointer(o.NewWindowPolicy, &dst.NewWindowPolicy)
+	if dst.NewWindowPolicy == WindowNewPolicyFloating {
+		dst.warnRetiredKey("new_window_policy", true)
+		dst.NewWindowPolicy = WindowNewPolicyTab
+	}
+	warnRetiredWindowManagerOverlay(o, dst)
 	applyStringPointer(o.SmallViewportPolicy, &dst.SmallViewportPolicy)
 	applyStringPointer(o.FocusPolicy, &dst.FocusPolicy)
 	applyBoolPointer(o.FocusWrap, &dst.FocusWrap)
 	applyBoolPointer(o.FocusFollowsPointer, &dst.FocusFollowsPointer)
-	applyBoolPointer(o.RaiseOnFocus, &dst.RaiseOnFocus)
-	applyStringPointer(o.DragAwayPolicy, &dst.DragAwayPolicy)
-	applyStringPointer(o.GroupMoveModifier, &dst.GroupMoveModifier)
 	applyStringPointer(o.SwapModifier, &dst.SwapModifier)
 	applyIntPointer(o.HistoryLimit, &dst.HistoryLimit)
 	applyIntPointer(o.NavStackLimit, &dst.NavStackLimit)
 	applyIntPointer(o.ClosedEntryLimit, &dst.ClosedEntryLimit)
 	applyStringPointer(o.DesktopTransition, &dst.DesktopTransition)
 	o.Gaps.Apply(&dst.Gaps)
-	o.Snap.Apply(&dst.Snap)
-	o.Bindings.Apply(&dst.Bindings)
 	if o.Shortcuts != nil {
 		dst.Shortcuts = windowmanager.CloneShortcutMap(o.Shortcuts)
 	}
@@ -74,20 +74,6 @@ func (o windowManagerGapsOverlay) Apply(dst *WindowManagerGapsConfig) {
 	applyIntPointer(o.Right, &dst.Right)
 	applyIntPointer(o.Bottom, &dst.Bottom)
 	applyIntPointer(o.Left, &dst.Left)
-}
-
-func (o windowManagerSnapOverlay) Apply(dst *WindowManagerSnapConfig) {
-	applyIntPointer(o.EdgeBand, &dst.EdgeBand)
-	applyIntPointer(o.CornerReach, &dst.CornerReach)
-	applyIntPointer(o.ExitSlack, &dst.ExitSlack)
-	if o.RepeatRatios != nil {
-		dst.RepeatRatios = append([]float64(nil), o.RepeatRatios...)
-	}
-}
-
-func (o windowManagerBindingOverlay) Apply(dst *WindowManagerBindingConfig) {
-	applyStringPointer(o.TopCenter, &dst.TopCenter)
-	applyStringPointer(o.BottomCenter, &dst.BottomCenter)
 }
 
 func applyStringPointer(src *string, dst *string) {

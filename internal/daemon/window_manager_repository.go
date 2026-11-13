@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 // desktops are per-profile working state, so one workspace holds one document
 // per profile rather than one document overall (US-026).
 func windowManagerSnapshotKey(profileID string) string {
-	return windowManagerSnapshotKeyStem + ":" + profileID
+	return statekeys.Snapshot(profileID)
 }
 
 // windowManagerSnapshotProfile reports the profile a stored aggregate key owns.
@@ -50,8 +51,6 @@ type windowManagerRepository struct {
 	writeMu sync.RWMutex
 	sealed  bool
 }
-
-var errWindowManagerSnapshotDiscardable = errors.New("daemon: discardable window-manager snapshot")
 
 // errWindowManagerProfileDeleted refuses durable writes for a profile whose
 // desktops are being removed.
@@ -116,9 +115,9 @@ func (r *windowManagerRepository) Load(
 	lock := r.lockFor(workspaceID)
 	lock.Lock()
 	defer lock.Unlock()
-	// Shared for the whole body: the discard path below writes, and a sealed
-	// profile has no arrangement left to read anyway. Reporting it as absent is
-	// what the stack-activation coalescer needs to drop its pending flush quietly
+	// Shared for the whole body: migration below writes, and a sealed profile
+	// has no arrangement left to read. Reporting it as absent lets the tab
+	// activation coalescer drop its pending flush quietly
 	// while the manager closes.
 	r.writeMu.RLock()
 	defer r.writeMu.RUnlock()
@@ -137,30 +136,26 @@ func (r *windowManagerRepository) Load(
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("load snapshot", err)
 	}
-	snapshot, err := decodeWindowManagerSnapshot(entry.Value, workspaceID)
-	if err == nil {
-		return r.reconcileLoadedSnapshot(ctx, workspaceID, snapshot, entry)
+	if storedWindowManagerSnapshotVersion(entry.Value) < windowmanager.SnapshotVersion {
+		return r.migrateSnapshot(ctx, workspaceID, entry)
 	}
-	if !errors.Is(err, errWindowManagerSnapshotDiscardable) {
+	snapshot, err := decodeWindowManagerSnapshot(entry.Value, workspaceID)
+	if err != nil {
 		return snapshot, err
 	}
-	r.logger.Warn(
-		"discarding incompatible window-manager snapshot",
-		"workspace_id", workspaceID,
-		"error", err,
-	)
-	if deleteErr := r.deleteSnapshotEntry(
-		ctx,
-		workspaceID,
-		entry.Rev,
-		"window-manager.snapshot.discard",
-	); deleteErr != nil {
-		return windowmanager.Snapshot{}, deleteErr
+	snapshot, err = r.reconcileLoadedSnapshot(ctx, workspaceID, snapshot, entry)
+	if err != nil {
+		return snapshot, err
 	}
-	return windowmanager.Snapshot{}, fmt.Errorf(
-		"discarded window-manager snapshot: %w",
-		windowmanager.ErrSnapshotNotFound,
-	)
+	status, err := r.readMigration(ctx, workspaceID)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.Migration = nil
+	if status.State != "none" && !status.Acknowledged {
+		snapshot.Migration = &status
+	}
+	return snapshot, nil
 }
 
 func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmanager.Commit) error {
@@ -193,7 +188,9 @@ func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmana
 		}
 	}
 
-	encoded, err := json.Marshal(commit.Snapshot)
+	snapshot := commit.Snapshot
+	snapshot.Migration = nil
+	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("daemon: encode window-manager snapshot: %w", err)
 	}
@@ -238,77 +235,7 @@ func (r *windowManagerRepository) DeleteWorkspace(
 		return nil
 	}
 
-	entry, err := r.service.Get(
-		ctx,
-		clientstate.WorkspaceID(workspaceID),
-		windowManagerStateDomain,
-		windowManagerSnapshotKey(r.profileID),
-	)
-	if errors.Is(err, clientstate.ErrNotFound) {
-		return nil
-	}
-	if err != nil {
-		return mapWindowManagerStoreError("load snapshot for deletion", err)
-	}
-	return r.deleteSnapshotEntry(ctx, workspaceID, entry.Rev, "window-manager.workspace.delete")
-}
-
-// persistMigratedSnapshot writes a migrated aggregate back under its new
-// revision so the migration happens once and every revision-keyed cache sees
-// the change.
-func (r *windowManagerRepository) persistMigratedSnapshot(
-	ctx context.Context,
-	workspaceID windowmanager.WorkspaceID,
-	snapshot windowmanager.Snapshot,
-	entryRevision uint64,
-	fromVersion uint32,
-	windowsRewritten int,
-) error {
-	encoded, err := json.Marshal(snapshot)
-	if err != nil {
-		return fmt.Errorf("daemon: encode migrated window-manager snapshot: %w", err)
-	}
-	_, err = r.service.Apply(
-		ctx,
-		clientstate.WorkspaceID(workspaceID),
-		windowManagerStateDomain,
-		[]clientstate.Op{{
-			Kind:  clientstate.OpPut,
-			Key:   windowManagerSnapshotKey(r.profileID),
-			Value: encoded,
-			IfRev: entryRevision,
-		}},
-		clientstate.ApplyOptions{Origin: "window-manager.snapshot.migrate"},
-	)
-	if err != nil {
-		return mapWindowManagerStoreError("persist migrated snapshot", err)
-	}
-	r.logger.Info(
-		"migrated window-manager snapshot",
-		"workspace_id", workspaceID,
-		"event", "windowmanager.snapshot_migrated",
-		"from_version", fromVersion,
-		"windows_rewritten", windowsRewritten,
-		"to_version", snapshot.Version,
-		"revision", snapshot.Revision,
-	)
-	return nil
-}
-
-func (r *windowManagerRepository) deleteSnapshotEntry(
-	ctx context.Context,
-	workspaceID windowmanager.WorkspaceID,
-	revision uint64,
-	origin string,
-) error {
-	_, err := r.service.Apply(
-		ctx,
-		clientstate.WorkspaceID(workspaceID),
-		windowManagerStateDomain,
-		[]clientstate.Op{{Kind: clientstate.OpDelete, Key: windowManagerSnapshotKey(r.profileID), IfRev: revision}},
-		clientstate.ApplyOptions{Origin: origin},
-	)
-	return mapWindowManagerStoreError("delete snapshot", err)
+	return r.purgePartition(ctx, workspaceID)
 }
 
 func (r *windowManagerRepository) loadCurrent(
@@ -394,6 +321,8 @@ func mapWindowManagerStoreError(operation string, err error) error {
 		mapped = windowmanager.ErrRevisionConflict
 	case errors.Is(err, clientstate.ErrClosed):
 		mapped = windowmanager.ErrClosed
+	case errors.Is(err, clientstate.ErrKeyQuota):
+		mapped = &windowmanager.SnapshotQuotaError{Cause: err}
 	default:
 		mapped = err
 	}

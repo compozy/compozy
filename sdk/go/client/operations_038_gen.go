@@ -9,6 +9,40 @@ import (
 	"strings"
 )
 
+// UpdateWindowManagerMigration Acknowledge or retry window layout migration
+func (c *Client) UpdateWindowManagerMigration(ctx context.Context, params UpdateWindowManagerMigrationParams, body WindowManagerMigrationRequest) (*MigrationStatus, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/migration"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MigrationStatus
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateWorkspaceParams carries the path, query, and header parameters.
+type UpdateWorkspaceParams struct {
+	ID string `url:"id"`
+}
+
+// UpdateWorkspace Update a registered workspace
+func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspaceParams, body UpdateWorkspaceRequest) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UploadSessionAttachmentParams carries the path, query, and header parameters.
 type UploadSessionAttachmentParams struct {
 	WorkspaceID string  `url:"workspace_id"`

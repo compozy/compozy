@@ -1,125 +1,156 @@
 // Suite: shared seam drag lifecycle
-// Invariant: one captured pointer owns a drag, movement publishes only the latest preview per
-// animation frame, and every terminal transition leaves no scheduled preview work.
-// Owning layer: shared seam drag interaction store. Boundary OUT: seam geometry and command I/O.
-import { afterEach, describe, expect, it, vi } from "vitest";
+// Invariant: one captured pointer owns a seam drag; it commits at most one resize, fenced to the
+// revision and split of the seam it is based on, and a cancelled drag commits nothing. A re-based
+// drag keeps the seam on screen under the pointer and commits against the new seam only. The
+// shift a frame's admission lets through is the one it commits; it reports its limit once that
+// holds the frame back by a pixel or more.
+// Owning layer: the shared seam drag interaction store. Boundary OUT: pointer transport, the seam
+// preview and command I/O (useOsSplitSeam in the OS interaction hooks suite).
+import { describe, expect, it } from "vitest";
 
-import { createSeamDragLogic } from "../seam-drag-store";
+import { clampSeamShift } from "../../lib/seam-preview";
+import type { ProjectedSeam } from "../../lib/window-manager-types";
+import { seamDragAtLimit, seamDragCommit, seamDragLogic } from "../seam-drag-store";
 
-interface TestSeam {
-  id: string;
+const SEAM: ProjectedSeam = {
+  id: "split:root:0",
+  splitId: "split:root",
+  boundaryIndex: 0,
+  orientation: "vertical",
+  rect: { x: 496, y: 0, w: 8, h: 700 },
+  value: 500,
+  minValue: 300,
+  maxValue: 700,
+  axisSpan: 1000,
+  leadingWeight: 0.5,
+  trailingWeight: 0.5,
+  leadingWindowIds: ["window:left"],
+  trailingWindowIds: ["window:right"],
+};
+
+/** Admission by the seam's bounds alone: every shift inside them lays the split out side by side. */
+function within(seam: ProjectedSeam) {
+  return (requestedPx: number) => clampSeamShift(seam, requestedPx);
 }
 
-const seam: TestSeam = { id: "root:0" };
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
-describe("createSeamDragLogic", () => {
-  it("Should ignore a foreign pointer that moves after the captured pointer", () => {
-    let frame: FrameRequestCallback | undefined;
-    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
-      frame = callback;
-      return 41;
-    });
-    vi.stubGlobal("requestAnimationFrame", requestFrame);
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    const firstPreview = vi.fn();
-    const foreignPreview = vi.fn();
-    const store = createSeamDragLogic<TestSeam>().createStore();
-
-    store.trigger.dragStarted({ coordinate: 100, pointerId: 7, seam });
-    store.trigger.pointerMoved({ coordinate: 115, pointerId: 7, preview: firstPreview });
-    store.trigger.pointerMoved({ coordinate: 180, pointerId: 8, preview: foreignPreview });
-
-    expect(requestFrame).toHaveBeenCalledOnce();
-    expect(firstPreview).not.toHaveBeenCalled();
-    frame?.(16);
-
-    expect(firstPreview).toHaveBeenCalledOnce();
-    expect(firstPreview).toHaveBeenCalledWith(seam, 15);
-    expect(foreignPreview).not.toHaveBeenCalled();
+function startedStore() {
+  const store = seamDragLogic.createStore();
+  store.trigger.dragStarted({
+    pointerId: 7,
+    coordinate: 100,
+    seam: SEAM,
+    revision: 12,
+    contextKey: "binding|desktop/tab|area",
   });
+  return store;
+}
 
-  it("Should publish the latest delta and schedule another frame after the first completes", () => {
-    const frames: FrameRequestCallback[] = [];
-    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
-      frames.push(callback);
-      return frames.length;
-    });
-    vi.stubGlobal("requestAnimationFrame", requestFrame);
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    const preview = vi.fn();
-    const store = createSeamDragLogic<TestSeam>().createStore();
+describe("seamDragLogic", () => {
+  it("Should follow only the captured pointer", () => {
+    const store = startedStore();
 
-    store.trigger.dragStarted({ coordinate: 100, pointerId: 7, seam });
-    store.trigger.pointerMoved({ coordinate: 115, pointerId: 7, preview });
-    store.trigger.pointerMoved({ coordinate: 140, pointerId: 7, preview });
-
-    expect(requestFrame).toHaveBeenCalledOnce();
-    frames[0]?.(16);
-    expect(preview).toHaveBeenLastCalledWith(seam, 40);
-
-    store.trigger.pointerMoved({ coordinate: 155, pointerId: 7, preview });
-
-    expect(requestFrame).toHaveBeenCalledTimes(2);
-    frames[1]?.(32);
-    expect(preview).toHaveBeenLastCalledWith(seam, 55);
-  });
-
-  it("Should accept only the captured pointer when ending a drag", () => {
-    let frame: FrameRequestCallback | undefined;
-    const cancelFrame = vi.fn();
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      frame = callback;
-      return 42;
-    });
-    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
-    const preview = vi.fn();
-    const store = createSeamDragLogic<TestSeam>().createStore();
-    store.trigger.dragStarted({ coordinate: 100, pointerId: 7, seam });
-    store.trigger.pointerMoved({ coordinate: 125, pointerId: 7, preview });
-
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
+    store.trigger.pointerMoved({ pointerId: 8, coordinate: 400, admit: within(SEAM) });
     store.trigger.dragEnded({ pointerId: 8 });
-    expect(store.getSnapshot().context.phase).toBe("dragging");
-    store.trigger.dragEnded({ pointerId: 7 });
 
-    expect(store.getSnapshot().context).toMatchObject({
-      pendingDeltaPx: 0,
-      phase: "idle",
-      pointerId: null,
-      seam: null,
-    });
-    expect(cancelFrame).toHaveBeenCalledWith(42);
-    frame?.(16);
-    expect(preview).not.toHaveBeenCalled();
+    expect(store.getSnapshot().context).toMatchObject({ phase: "dragging", deltaPx: 60 });
+    store.trigger.dragEnded({ pointerId: 7 });
+    expect(store.getSnapshot().context).toMatchObject({ phase: "idle", seam: null });
   });
 
-  it.each(["cancelled", "disposed"] as const)(
-    "Should end the preview and cancel pending work when %s",
-    terminalEvent => {
-      let frame: FrameRequestCallback | undefined;
-      const cancelFrame = vi.fn();
-      vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-        frame = callback;
-        return 43;
+  it("Should commit one resize fenced to the press revision and the seam's split", () => {
+    const store = startedStore();
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
+
+    expect(seamDragCommit(store.getSnapshot().context)).toEqual({
+      splitId: "split:root",
+      boundaryIndex: 0,
+      delta: expect.closeTo(0.06),
+      fence: { expectedRevision: 12, rebase: { splitId: "split:root", boundaryIndex: 0 } },
+    });
+  });
+
+  it("Should commit nothing for a drag that moved nothing", () => {
+    const store = startedStore();
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 100, admit: within(SEAM) });
+
+    expect(seamDragCommit(store.getSnapshot().context)).toBeNull();
+  });
+
+  it("Should stop at a member's minimum and report it", () => {
+    const store = startedStore();
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: -150, admit: within(SEAM) });
+
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
+    // The commit is clamped to the minimum: 200px of travel in a 1000px span.
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(-0.2);
+  });
+
+  it("Should report the limit only for a frame held back a pixel or more, and commit the admitted shift", () => {
+    const store = startedStore();
+    // Inside the seam's bounds, but the split only lays out side by side up to 40px.
+    store.trigger.pointerMoved({
+      pointerId: 7,
+      coordinate: 160.5,
+      admit: requestedPx => Math.min(requestedPx, 40),
+    });
+
+    expect(store.getSnapshot().context).toMatchObject({ deltaPx: 60.5, shownPx: 40 });
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.04);
+    // Held back by half a pixel only: no limit, and the commit is still the admitted shift.
+    store.trigger.readmitted({ admit: requestedPx => Math.trunc(requestedPx) });
+    expect(store.getSnapshot().context).toMatchObject({ deltaPx: 60.5, shownPx: 60 });
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(false);
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.06);
+    // Admitted again once the layout under it lets the whole request through.
+    store.trigger.readmitted({ admit: within(SEAM) });
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(false);
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.0605);
+  });
+
+  it("Should re-base on a moved seam: the pointer keeps its place and the new bounds clamp", () => {
+    const store = startedStore();
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
+    // The split moved to 60/40 under the drag; its trailing minimum now stops the seam at 650.
+    const moved: ProjectedSeam = {
+      ...SEAM,
+      value: 600,
+      maxValue: 650,
+      leadingWeight: 0.6,
+      trailingWeight: 0.4,
+    };
+
+    store.trigger.rebased({ seam: moved, revision: 13, admit: within(moved) });
+
+    // The seam was shown at 500 + 60 = 560: from 600 that is -40, and the pointer still owns it.
+    expect(store.getSnapshot().context).toMatchObject({ deltaPx: -40, revision: 13, seam: moved });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 400, admit: within(moved) });
+    // 500 + 300 = 800 on screen is past 650: the commit stops where the new bounds do.
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
+    expect(seamDragCommit(store.getSnapshot().context)).toEqual({
+      splitId: "split:root",
+      boundaryIndex: 0,
+      delta: expect.closeTo(0.05),
+      fence: { expectedRevision: 13, rebase: { splitId: "split:root", boundaryIndex: 0 } },
+    });
+  });
+
+  it.each(["escape", "context-changed"] as const)(
+    "Should end a drag cancelled by %s with nothing to commit",
+    reason => {
+      const store = startedStore();
+      store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
+
+      store.trigger.dragCancelled({ reason });
+
+      expect(store.getSnapshot().context).toMatchObject({
+        phase: "idle",
+        cancelReason: reason,
       });
-      vi.stubGlobal("cancelAnimationFrame", cancelFrame);
-      const preview = vi.fn();
-      const endPreview = vi.fn();
-      const store = createSeamDragLogic<TestSeam>().createStore();
-      store.trigger.dragStarted({ coordinate: 100, pointerId: 7, seam });
-      store.trigger.pointerMoved({ coordinate: 125, pointerId: 7, preview });
-
-      if (terminalEvent === "cancelled") store.trigger.dragCancelled({ endPreview });
-      else store.trigger.disposed({ endPreview });
-
+      expect(seamDragCommit(store.getSnapshot().context)).toBeNull();
+      store.trigger.dragEnded({ pointerId: 7 });
       expect(store.getSnapshot().context.phase).toBe("idle");
-      expect(cancelFrame).toHaveBeenCalledWith(43);
-      expect(endPreview).toHaveBeenCalledOnce();
-      frame?.(16);
-      expect(preview).not.toHaveBeenCalled();
     }
   );
 });

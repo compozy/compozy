@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/spf13/cobra"
 )
 
@@ -126,13 +127,28 @@ func requiredCmdPaletteID(value string, noun string) (string, error) {
 }
 
 // canonicalCmdPaletteCommandID resolves a retired palette command ID to its
-// replacement with a stderr warning. Public aliases are removed in v0.5.0.
+// replacement with a stderr warning naming the alias removal release.
 func canonicalCmdPaletteCommandID(cmd *cobra.Command, id string) string {
+	if windowmanager.RetiredPaletteCommand(id) {
+		entry := windowmanager.SurfaceDeprecation(id)
+		cmd.PrintErrf(
+			"warning: command %q is deprecated; %s Remove before %s.\n",
+			id,
+			entry.Message,
+			entry.RemovalRelease,
+		)
+		return id
+	}
 	replacement, retired := corecmds.RetiredCommandID(cmdpalette.CommandID(id))
 	if !retired {
 		return id
 	}
-	cmd.PrintErrf("warning: command %q is deprecated and will be removed in v0.5.0; use %q\n", id, replacement)
+	cmd.PrintErrf(
+		"warning: command %q is deprecated and will be removed in %s; use %q\n",
+		id,
+		corecmds.RetiredCommandRemovalRelease(cmdpalette.CommandID(id)),
+		replacement,
+	)
 	return string(replacement)
 }
 

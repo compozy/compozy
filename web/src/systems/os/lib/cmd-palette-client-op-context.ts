@@ -26,8 +26,8 @@ export interface PaletteShellHandlers {
   cycleWorkspace(direction: "previous" | "next"): void;
   cycleSession(direction: "previous" | "next"): void;
   focusAttention(): void;
-  /** Opens a fresh tab and hands the palette its destination intent. */
-  openNewTab(stackTargetWindowId: string | null): void;
+  /** Opens a fresh tab (after this window's tab when given) and hands the palette its destination. */
+  openNewTab(afterWindowId: string | null): void;
   /** Tab and window activation owns exactly one URL write (US-020). */
   activateWindow(windowId: string): void;
   /**

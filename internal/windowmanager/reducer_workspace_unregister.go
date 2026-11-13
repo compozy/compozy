@@ -85,11 +85,8 @@ func (r *reducer) retireUnregisteredWorkspaceWindows(snapshot *Snapshot, binding
 		)
 		if before != len(entry.Windows) {
 			changed = true
-			if len(entry.Windows) > 0 && entry.ActiveID != nil &&
-				!slices.ContainsFunc(entry.Windows, func(window Window) bool { return window.ID == *entry.ActiveID }) {
-				entry.ActiveID = new(entry.Windows[0].ID)
-			}
 		}
+		*entry = pruneClosedEntry(*entry)
 	}
 	snapshot.ClosedEntries = slices.DeleteFunc(
 		snapshot.ClosedEntries,
@@ -115,17 +112,12 @@ func (r *reducer) retireUnregisteredWorkspaceWindows(snapshot *Snapshot, binding
 
 func (r *reducer) removeRetiredWindow(snapshot *Snapshot, windowID WindowID) error {
 	window := snapshot.Windows[windowID]
-	stack, stacked := findStackByWindow(snapshot, windowID)
 	if !removeWindow(snapshot, windowID) {
 		return fmt.Errorf("window %q has no placement: %w", windowID, ErrInvalidTopology)
 	}
 	delete(snapshot.Windows, windowID)
 	r.changes.window(windowID)
 	r.changes.desktop(window.DesktopID)
-	if stacked {
-		if _, stillStacked := findStackByID(snapshot, stack.id()); !stillStacked {
-			r.changes.stackUngrouped(stack.id())
-		}
-	}
+
 	return nil
 }

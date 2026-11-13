@@ -2,23 +2,19 @@ import type {
   DesktopId,
   DropPlacement,
   FocusDirection,
-  GroupId,
-  LayoutAxis,
   LayoutDesktop,
   LayoutNodeId,
-  LayoutProjection,
   LayoutRevision,
-  NormalizedRect,
-  WindowPlacement,
+  TabId,
+  TabProjection,
   WindowManagerClientView,
   WindowManagerRegisteredClientView,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
+  WindowManagerRebaseGuard,
   WindowManagerSnapshot,
+  FocusWindowOptions,
 } from "./window-manager-types";
-import type { GroupFrameEditInput } from "./frame-seams";
-import type { OsWindowFrameModel } from "./group-projection";
-import type { SnapCorner, SnapSide, SnapTarget } from "./snap-targets";
 
 /** The app surfaces rendered inside daemon-managed logical windows. */
 export type OsAppId =
@@ -67,22 +63,26 @@ export interface OsWindow {
   route: OsWindowRoute;
   /** Durable navigation ancestors, oldest first; `route` stays the leaf (ADR-011). */
   navStack: readonly OsWindowRoute[];
-  pinned: boolean;
   desktopId: DesktopId;
-  placement: WindowPlacement;
-  rect: OsRect;
-  layer: number;
-  minimized: boolean;
-  zoomed: boolean;
-  groupId: GroupId | null;
+  tabId: TabId;
+  /** The leaf node that holds the window in its tab's tree. */
   nodeId: LayoutNodeId | null;
-  stackId: LayoutNodeId | null;
-  stackActive: boolean;
-  parentAxis: LayoutAxis | null;
+  /** The window's tab is pinned. */
+  pinned: boolean;
+  /** The window shares its tab with other windows. */
+  inSplit: boolean;
+  /** Its tab is this client's active tab on its desktop. */
+  tabActive: boolean;
+  /**
+   * On screen for this client once its desktop is active: its tab is active and no collapsed
+   * split keeps it behind the member switcher.
+   */
+  shown: boolean;
 }
 
 export type OsWallpaper = "flat" | "ember" | "mesh" | "carbon";
-export type OsPresentation = "floating" | "compact";
+/** `compact`: below the compact breakpoint every split shows one member at a time. */
+export type OsPresentation = "split" | "compact";
 export type OsViewportState = "ready" | "rejected";
 export type OsHydration = "pending" | "live" | "degraded";
 export type OsArrangePreset = "two-up" | "grid" | "main-stack" | "columns";
@@ -91,16 +91,15 @@ export interface OsOpenTarget {
   app: OsAppId;
   instanceKey?: string;
   route?: OsWindowRoute;
-  /** Join this window's frame as a tab instead of opening standalone (ADR-005). */
-  stackTargetWindowId?: string;
+  /** Open as a new tab right after the tab holding this window. */
+  afterWindowId?: string;
   /** Skip focus-first resolution and always create another instance (ADR-002). */
   forceNewInstance?: boolean;
   /**
-   * Explicit placement for a window this open creates. Omitted follows the
-   * daemon's new-window policy (a tab in the focused window by default):
-   * `split` tiles beside the focused window, `floating` opens a free window.
+   * Explicit placement for a window this open creates. Omitted follows the daemon's new-window
+   * policy (a tab after the active tab by default); `split` opens beside the focused window.
    */
-  placement?: "split" | "floating";
+  placement?: "split";
   /** Open onto this desktop instead of the client's active one. */
   desktopId?: string;
   /** Classified navigation intent when the target resolves to a live window (ADR-011). */
@@ -110,40 +109,41 @@ export interface OsOpenTarget {
 /** Navigation intent, classified where it is known rather than inferred (ADR-011). */
 export type OsNavigateMode = "replace" | "push" | "pop";
 
-/** `window.close` breadth; the frame's traffic light closes the whole group. */
-export type OsCloseScope = "tab" | "group" | "others" | "right";
+/**
+ * `window.close` breadth: `tab` closes the one window, `group` every window of its tab, and the
+ * rest are bar scopes over the desktop's unpinned tabs.
+ */
+export type OsCloseScope = "tab" | "group" | "others" | "right" | "left" | "all";
 
 export interface OsDesktopBounds {
   /** Full shell width, before dock tracks consume the work area. */
   viewportWidth?: number;
   width: number;
   height: number;
-  /** Viewport offset of the win-layer origin; converts client to layer coordinates. */
+  /** Viewport offset of the content area's origin. */
   origin: { x: number; y: number };
-}
-
-/** Pointer context for a floating drop, in layer coordinates. */
-export interface OsFloatingDrop {
-  pointer: { x: number; y: number };
-  grabOffset: { x: number; y: number };
-}
-
-/**
- * Proof a pointer release carries when the layout moved during the gesture: the
- * daemon applies the command only while the dragged unit still sits where the
- * gesture started (US-019).
- */
-export interface GestureRebase {
-  expectedRevision: LayoutRevision;
-  sourceNodeId: LayoutNodeId | null;
 }
 
 export interface MoveWindowInput {
   destinationDesktopId: DesktopId;
+  /** Split beside this window at the placement's edge, or the tab goes right after its tab. */
   targetWindowId?: string;
+  /** Edge placement with no target window: the window joins this tab at its root edge. */
+  targetTabId?: string;
   placement: DropPlacement;
-  floatingRect?: OsRect;
+  /** Move the window's whole tab instead of the one window. */
   moveGroup?: boolean;
+}
+
+/**
+ * Fences a gesture's command to the layout the operator saw: a stale command still applies when
+ * the guarded window, node or tab is where the gesture found it, and is refused otherwise.
+ */
+export interface WindowManagerCommandFence {
+  expectedRevision: LayoutRevision;
+  rebase: WindowManagerRebaseGuard;
+  /** When the gesture's input was made, so its deadline counts from there; never sent. */
+  inputAt?: number;
 }
 
 export interface WindowManagerCommandOutcome {
@@ -167,8 +167,10 @@ export interface OsDesktopRuntimeStore {
   /** Registration proof retained locally; never projected by daemon streams. */
   clientAttachmentToken: string | null;
   desktops: readonly LayoutDesktop[];
-  projections: Readonly<Record<DesktopId, LayoutProjection>>;
-  frames: Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>>;
+  /** This client's active tab per desktop, repaired against the snapshot. */
+  activeTabIds: Readonly<Record<DesktopId, TabId>>;
+  /** Pixel projection of every tab's split tree against the measured content area. */
+  projections: Readonly<Record<TabId, TabProjection>>;
   windows: Readonly<Record<string, OsWindow>>;
   activeDesktopId: DesktopId | null;
   focusedId: string | null;
@@ -198,27 +200,39 @@ export interface WindowManagerController extends OsDesktopRuntime {
   setLoadError(error: Error | null): void;
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   closeWindow(id: string, viewOnly?: boolean): Promise<boolean>;
-  focusWindow(id: string): WindowManagerCommandOutcome;
-  minimizeWindow(id: string): Promise<boolean>;
-  restoreWindow(id: string): WindowManagerCommandOutcome;
-  zoomWindow(id: string, rebase?: GestureRebase): WindowManagerCommandOutcome;
-  toggleFloating(id: string, floatingRect?: OsRect): WindowManagerCommandOutcome;
-  moveWindow(id: string, input: MoveWindowInput): WindowManagerCommandOutcome;
-  arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
-  commitFloatingRect(
+  focusWindow(id: string, options?: FocusWindowOptions): WindowManagerCommandOutcome;
+  moveWindow(
     id: string,
-    rect: OsRect,
-    drop?: OsFloatingDrop,
-    moveGroup?: boolean,
-    rebase?: GestureRebase
+    input: MoveWindowInput,
+    fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome;
-  resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
-  resizeWindowFrame(windowId: string, frame: NormalizedRect): WindowManagerCommandOutcome;
-  resizeGroupFrames(
-    desktopId: string,
-    edits: readonly GroupFrameEditInput[]
+  /** Swaps two windows of one tab; both keep their places' shares. */
+  swapWindows(
+    firstWindowId: string,
+    secondWindowId: string,
+    fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome;
-  balanceLayout(groupId?: string, splitId?: string): void;
+  arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
+  /** "Move to new tab": a split member becomes its own tab right after its source tab. */
+  unsplitWindow(windowId: string): void;
+  /** Moves a split member to a root edge of its own tab. */
+  tileWindow(windowId: string, edge: "left" | "right" | "top" | "bottom"): void;
+  /** Joins `chosenTabId` to `hostTabId` as a split with the chosen tab on the right. */
+  splitWithTab(hostTabId: TabId, chosenTabId: TabId): void;
+  /** Moves the window's tab one step left or right within its pinned or unpinned range. */
+  moveTab(windowId: string, direction: "left" | "right"): void;
+  /** A fenced resize (a seam drag) is refused when its split or boundary no longer exists. */
+  resizeLayout(
+    splitId: string,
+    boundaryIndex: number,
+    delta: number,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
+  /** A fenced balance (a seam double-click) is refused when its split no longer exists. */
+  balanceLayout(
+    target: { tabId?: string; splitId?: string },
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
   navigateWindow(
     id: string,
     route: OsWindowRoute,
@@ -230,13 +244,15 @@ export interface WindowManagerController extends OsDesktopRuntime {
     route: OsWindowRoute
   ): WindowManagerCommandOutcome;
   popWindowRoute(id: string, expectedRoute?: OsWindowRoute): WindowManagerCommandOutcome;
-  groupWindows(
-    targetWindowId: string,
-    windowIds: readonly string[],
-    insertIndex?: number
+  /** Moves the window's tab to `index` within its pinned or unpinned range. */
+  reorderTab(
+    windowId: string,
+    index: number,
+    fence?: WindowManagerCommandFence
   ): WindowManagerCommandOutcome;
-  reorderStackMember(windowId: string, index: number): WindowManagerCommandOutcome;
-  activateStackMember(windowId: string): WindowManagerCommandOutcome;
+  /** Makes the window's tab this client's active tab and the desktop default. */
+  activateTab(windowId: string): WindowManagerCommandOutcome;
+  /** Pins or unpins the window's tab. */
   pinWindow(windowId: string, pinned: boolean): WindowManagerCommandOutcome;
   reopenWindow(): WindowManagerCommandOutcome;
   closeWindowScoped(windowId: string, scope: OsCloseScope): Promise<boolean>;
@@ -250,14 +266,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   switchDesktop(desktopId: string): void;
   switchDesktopDirection(direction: "previous" | "next"): void;
   deleteDesktop(desktopId: string, destinationId: string | null): void;
+  /** Moves the window's whole tab, split included, to the end of another desktop's bar. */
   moveWindowToDesktop(windowId: string, destinationDesktopId: string): void;
-  tileWindow(windowId: string, edge: SnapSide | SnapCorner): void;
-  applySnapTarget(
-    windowId: string,
-    target: SnapTarget,
-    moveGroup?: boolean,
-    rebase?: GestureRebase
-  ): WindowManagerCommandOutcome;
   focusDirection(direction: FocusDirection): void;
   undoLayout(): void;
   redoLayout(): void;

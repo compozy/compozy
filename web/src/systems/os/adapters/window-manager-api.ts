@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   parseWindowManagerCommandResult,
   parseWindowManagerError,
+  parseWindowManagerMigrationStatus,
   parseWindowManagerRegisteredClientView,
   parseWindowManagerSnapshot,
 } from "../lib/window-manager-schemas";
@@ -13,6 +14,7 @@ import type {
   WindowManagerCommandInput,
   WindowManagerCommandResult,
   WindowManagerErrorPayload,
+  WindowManagerMigrationStatus,
   WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
@@ -165,6 +167,7 @@ function commandBody(
 ): Record<string, unknown> {
   const rebase = command.rebase
     ? {
+        ...(command.rebase.tabId ? { tab_id: command.rebase.tabId } : {}),
         ...(command.rebase.windowId ? { window_id: command.rebase.windowId } : {}),
         ...(command.rebase.sourceNodeId ? { source_node_id: command.rebase.sourceNodeId } : {}),
         ...(command.rebase.targetNodeId ? { target_node_id: command.rebase.targetNodeId } : {}),
@@ -203,6 +206,25 @@ export async function executeWindowManagerCommand(
     }
   );
   return parseWindowManagerCommandResult(await requireSuccess(response, workspaceId));
+}
+
+/**
+ * `ack` dismisses the upgrade notice for every client; `retry` re-runs a failed conversion from
+ * the preserved layout, refused with a revision conflict when the layout changed since unless
+ * `replace` is set, which swaps the current layout for the converted one. `ack` never replaces.
+ */
+export async function updateWindowManagerMigration(
+  workspaceId: string,
+  profile: string,
+  action: "ack" | "retry",
+  options: { replace?: boolean; signal?: AbortSignal } = {}
+): Promise<WindowManagerMigrationStatus> {
+  const replace = action === "retry" && options.replace === true;
+  const response = await daemonFetch(
+    `${apiBaseUrl}${managerUrl(workspaceId, profile, "/migration")}`,
+    { ...jsonRequest({ action, replace }, options.signal), method: "POST" }
+  );
+  return parseWindowManagerMigrationStatus(await requireSuccess(response, workspaceId));
 }
 
 export function buildWindowManagerStreamUrl(

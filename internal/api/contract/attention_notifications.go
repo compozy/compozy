@@ -2,7 +2,7 @@ package contract
 
 import "time"
 
-// AttentionNotificationPayload describes one occurrence without changing its source's attention state.
+// AttentionNotificationPayload describes one unread occurrence, including layout-upgrade notices.
 type AttentionNotificationPayload struct {
 	ID             string    `json:"id"`
 	Kind           string    `json:"kind"`

@@ -9,50 +9,60 @@ import {
   type RefObject,
   useEffect,
   useLayoutEffect,
+  useRef,
 } from "react";
-import type { Rnd } from "react-rnd";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createPortal } from "react-dom";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import type { OsWindowFrameModel } from "../../lib/group-projection";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
   OsDesktopRuntimeStore,
   OsWindow,
+  OsWindowRoute,
   WindowManagerController,
   WindowManagerCommandOutcome,
 } from "../../lib/os-types";
-import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
+import type {
+  LayoutNode,
+  LayoutTab,
+  ProjectedSeam,
+  WindowManagerConfig,
+  WindowManagerSnapshot,
+} from "../../lib/window-manager-types";
 import type { WindowManagerGlobalShortcutMap } from "../../lib/window-manager-shortcut-types";
-import {
-  OS_ZOOM_MENU_CLOSE_GRACE_MS,
-  OS_ZOOM_MENU_OPEN_DELAY_MS,
-  useOsZoomMenu,
-} from "../use-os-zoom-menu";
+import { SCROLL_OWNER_ATTRIBUTE, SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
 import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
 import { useCmdPaletteContext } from "../use-cmd-palette-context";
 import { usePaletteTabs } from "../use-os-palette-entities";
 import { useOsWindowMember } from "../use-os-window-member";
-import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
-import { useOsWindowCommands } from "../use-os-window-commands";
-import { useWindowMergeTarget } from "../use-window-merge-target";
 import {
   useCurrentWindowLiveDataEnabled,
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
-import { useOsWinLayer } from "../use-os-win-layer";
+import { useOsDeskLayer, useVisitedTabs } from "../use-os-desk-layer";
+import { WindowPaneHosts } from "../../lib/window-pane-hosts";
 import { useOsShortcuts } from "../use-os-shortcuts";
+import { WINDOW_MANAGER_COMMAND_DEADLINE_MS } from "../../runtime/window-manager-runtime-helpers";
 import { useOsPaletteExecution } from "../use-os-palette-execution";
 import type { PaletteRowSubject } from "../../lib/cmd-palette-row-actions";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
 import { adjacentShortcutItem } from "../../lib/adjacent-shortcut-item";
 import { shortcutAttentionTarget } from "../use-desktop-shell-body";
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
+import { useDesktopCardDrag } from "../use-desktop-card-drag";
 import { windowManagerStore } from "../../stores/window-manager-store";
+import { osTabDragStore } from "../../stores/os-tab-drag-store";
+import { useOsSplitSeam } from "../use-os-split-seam";
+import { useOsTabDragStart } from "../use-os-tab-drag";
+import { TAB_DRAG_EXIT_PX } from "../../lib/drop-edge";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
+import { applySeamPreviewToTab, seamWeightDelta } from "../../lib/seam-preview";
+import { admitSeamShift, projectTab } from "../../lib/tab-projection";
+import { authoritativeSeam, buildWindowManagerMinimums } from "../../lib/window-manager-view";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
 import { useDesktopPager, useDesktopShellState } from "../use-desktop-shell-state";
@@ -84,27 +94,17 @@ const TEST_KEYMAP = {
 } as const;
 
 const CONFIG: WindowManagerConfig = {
-  newWindowPolicy: "floating",
+  newWindowPolicy: "tab",
   smallViewportPolicy: "stack",
   focusPolicy: "click_directional",
   focusWrap: true,
   focusFollowsPointer: false,
-  raiseOnFocus: true,
-  dragAwayPolicy: "window",
-  groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 50,
   navStackLimit: 50,
   closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
-  snap: {
-    edgeBand: 32,
-    cornerReach: 150,
-    exitSlack: 16,
-    repeatRatios: [0.5, 0.666667, 0.333333],
-  },
-  bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
   globalShortcuts: {},
   shortcutDefaults: TEST_KEYMAP,
@@ -160,35 +160,32 @@ function shortcutRegistry(
 }
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 5,
+  version: 6,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [],
   windows: {},
   closedEntryCount: 0,
   overrides: {},
+  migration: null,
   updatedAt: "2026-07-22T00:00:00Z",
 };
 
-function windowFixture(id: string, layer: number): OsWindow {
+function windowFixture(id: string, overrides: Partial<OsWindow> = {}): OsWindow {
   return {
     id,
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
     navStack: [],
-    pinned: false,
     desktopId: "desktop:main",
-    placement: "floating",
-    rect: { x: 40 * layer, y: 40, w: 600, h: 420 },
-    layer,
-    minimized: false,
-    zoomed: false,
-    groupId: null,
-    nodeId: null,
-    stackId: null,
-    stackActive: true,
-    parentAxis: null,
+    tabId: `tab:${id}`,
+    nodeId: `leaf:${id}`,
+    pinned: false,
+    inSplit: false,
+    tabActive: true,
+    shown: true,
+    ...overrides,
   };
 }
 
@@ -197,10 +194,9 @@ function acceptedOutcome(): WindowManagerCommandOutcome {
 }
 
 function createShell({ live = true, authoritative = true, withPeer = true } = {}) {
-  const primary = windowFixture("window:primary", 2);
-  const peer = windowFixture("window:peer", 1);
-  const zoomWindow = vi.fn(() => acceptedOutcome());
-  const toggleFloating = vi.fn(() => acceptedOutcome());
+  // The two windows share one split tab, side by side.
+  const primary = windowFixture("window:primary", { tabId: "tab:main", inSplit: true });
+  const peer = windowFixture("window:peer", { tabId: "tab:main", inSplit: true });
   const arrangeLayout = vi.fn();
   const state: OsDesktopRuntimeStore = {
     snapshot: authoritative ? SNAPSHOT : null,
@@ -213,20 +209,20 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
           activeDesktopId: "desktop:main",
           focusedWindowId: primary.id,
           focusOrder: [primary.id],
-          stackActive: {},
+          activeTab: {},
           connectedAt: "2026-07-22T00:00:00Z",
           presentationRevision: 1,
         }
       : null,
     desktops: [],
+    activeTabIds: {},
     projections: {},
-    frames: {},
     windows: withPeer ? { [primary.id]: primary, [peer.id]: peer } : { [primary.id]: primary },
     activeDesktopId: "desktop:main",
     focusedId: primary.id,
     wallpaper: "ember",
     reduceMotion: false,
-    presentation: "floating",
+    presentation: "split",
     viewportState: "ready",
     hydration: authoritative ? "live" : "pending",
     loadError: null,
@@ -251,55 +247,50 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     openOrFocus: vi.fn(target => ({ windowId: `w-test-${target.app}`, ...acceptedOutcome() })),
     closeWindow: vi.fn(async () => true),
     focusWindow: vi.fn(() => acceptedOutcome()),
-    minimizeWindow: vi.fn(async () => true),
-    restoreWindow: vi.fn(() => acceptedOutcome()),
-    zoomWindow,
-    toggleFloating,
     moveWindow: vi.fn(() => acceptedOutcome()),
+    swapWindows: vi.fn(() => acceptedOutcome()),
     arrangeLayout,
-    commitFloatingRect: vi.fn(() => acceptedOutcome()),
+    unsplitWindow: vi.fn(),
+    tileWindow: vi.fn(),
+    splitWithTab: vi.fn(),
+    moveTab: vi.fn(),
     resizeLayout: vi.fn(() => acceptedOutcome()),
-    resizeWindowFrame: vi.fn(() => acceptedOutcome()),
-    resizeGroupFrames: vi.fn(() => acceptedOutcome()),
-    balanceLayout: vi.fn(),
+    balanceLayout: vi.fn(() => acceptedOutcome()),
     navigateWindow: vi.fn(() => acceptedOutcome()),
     retargetWindow: vi.fn(() => acceptedOutcome()),
     popWindowRoute: vi.fn(() => acceptedOutcome()),
-    groupWindows: vi.fn(() => acceptedOutcome()),
-    reorderStackMember: vi.fn(() => acceptedOutcome()),
-    activateStackMember: vi.fn(() => acceptedOutcome()),
+    reorderTab: vi.fn(() => acceptedOutcome()),
+    activateTab: vi.fn(() => acceptedOutcome()),
     pinWindow: vi.fn(() => acceptedOutcome()),
     reopenWindow: vi.fn(() => acceptedOutcome()),
     closeWindowScoped: vi.fn(async () => true),
     setWallpaper: vi.fn(),
     setReduceMotion: vi.fn(),
     setDesktopBounds: vi.fn(),
-    createDesktop: vi.fn(),
+    createDesktop: vi.fn(() => acceptedOutcome()),
     renameDesktop: vi.fn(),
     reorderDesktop: vi.fn(),
     switchDesktop: vi.fn(),
     switchDesktopDirection: vi.fn(),
     deleteDesktop: vi.fn(),
     moveWindowToDesktop: vi.fn(),
-    tileWindow: vi.fn(),
-    applySnapTarget: vi.fn(() => acceptedOutcome()),
     focusDirection: vi.fn(),
     undoLayout: vi.fn(),
     redoLayout: vi.fn(),
     balanceFocusedLayout: vi.fn(),
     clearConflict: vi.fn(),
-    refreshSnapshot: vi.fn(),
+    refreshSnapshot: vi.fn(async () => true),
   };
-  const coordinator = new RoutingCoordinator(controller, {
-    navigate: vi.fn(),
-    replace: vi.fn(),
-  });
+  const history = { navigate: vi.fn(), replace: vi.fn() };
+  const coordinator = new RoutingCoordinator(controller, history);
   const shell: OsShellHandle = { projection, manager: controller, coordinator };
   const wrapper = ({ children }: { children: ReactNode }) => (
     <OsShellContext.Provider value={shell}>{children}</OsShellContext.Provider>
   );
   return {
     controller,
+    coordinator,
+    history,
     get state() {
       return currentState;
     },
@@ -315,7 +306,6 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
 
 afterEach(() => {
   act(() => {
-    windowManagerStore.trigger.gestureCleared();
     windowManagerStore.trigger.workAreaMeasured({ workArea: null });
   });
   vi.useRealTimers();
@@ -417,7 +407,8 @@ describe("desktop chrome projection subscriptions", () => {
       { wrapper: shell.wrapper, initialProps: { needsYou: [row] } }
     );
     const initialRenders = renders;
-    const moved = { ...primary, rect: { ...primary.rect, x: 200 } };
+    // Moving within its tab's split changes nothing the chrome renders.
+    const moved = { ...primary, nodeId: "leaf:moved" };
     act(() => shell.setRuntimeState({ windows: { [primary.id]: moved } }));
     expect(renders).toBe(initialRenders);
     expect(result.current.chrome.windowIds).toEqual([primary.id]);
@@ -443,9 +434,14 @@ describe("desktop chrome projection subscriptions", () => {
       id: "desktop:main",
       name: "Main",
       order: 0,
-      groups: [],
-      floating: [primary.id],
-      floatingStacks: [],
+      tabs: [
+        {
+          id: primary.tabId,
+          pinned: false,
+          root: { id: "leaf:window:primary", kind: "leaf" as const, windowId: primary.id },
+        },
+      ],
+      activeTabId: primary.tabId,
     };
     shell.setRuntimeState({ desktops: [desktop], windows: { [primary.id]: primary } });
     let renders = 0;
@@ -461,7 +457,7 @@ describe("desktop chrome projection subscriptions", () => {
       act(() =>
         shell.setRuntimeState({
           desktops: [{ ...desktop, name: "Renamed while closed" }],
-          windows: { [primary.id]: { ...primary, rect: { ...primary.rect, x: 200 } } },
+          windows: { [primary.id]: { ...primary, nodeId: "leaf:moved" } },
         })
       );
       expect(renders).toBe(initialRenders);
@@ -469,9 +465,16 @@ describe("desktop chrome projection subscriptions", () => {
         windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
       );
       expect(result.current.desktops[0]?.name).toBe("Renamed while closed");
-      expect(result.current.desktops[0]?.windowRecords[0]?.rect.x).toBe(200);
+      expect(result.current.desktops[0]?.tabs[0]?.members[0]?.nodeId).toBe("leaf:moved");
       act(() => shell.setRuntimeState({ windows: {} }));
-      expect(result.current.desktops[0]?.windows).toEqual([]);
+      expect(result.current.desktops[0]?.tabs).toEqual([]);
+      // A tab whose app this web does not show leaves the card but still moves on close (R2-08).
+      expect(result.current.desktops[0]?.movableTabCount).toBe(1);
+      act(() =>
+        shell.setRuntimeState({ windows: { [primary.id]: { ...primary, app: "new-tab" } } })
+      );
+      // A lone blank New Tab has nothing to move.
+      expect(result.current.desktops[0]?.movableTabCount).toBe(0);
       act(() => windowManagerStore.trigger.overlayClosed());
       const closedRenders = renders;
       act(() => shell.setRuntimeState({ windows: { [primary.id]: primary } }));
@@ -479,7 +482,7 @@ describe("desktop chrome projection subscriptions", () => {
       act(() =>
         windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
       );
-      expect(result.current.desktops[0]?.windowRecords[0]?.rect.x).toBe(primary.rect.x);
+      expect(result.current.desktops[0]?.tabs[0]?.members[0]?.nodeId).toBe(primary.nodeId);
     } finally {
       unmount();
       act(() => windowManagerStore.trigger.overlayClosed());
@@ -513,9 +516,8 @@ describe("useCmdPaletteContext store subscriptions", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+          [primary.id]: { ...primary, nodeId: "leaf:moved" },
         },
-        frames: { ...shell.state.frames },
       })
     );
     expect(renders).toBe(initialRenders);
@@ -523,7 +525,9 @@ describe("useCmdPaletteContext store subscriptions", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, minimized: true },
+          // The daemon counts every window on the active desktop, shown or not (v6): leaving
+          // the desktop is what changes the count.
+          [primary.id]: { ...primary, desktopId: "desktop:elsewhere" },
         },
       })
     );
@@ -553,7 +557,7 @@ describe("usePaletteTabs", () => {
     act(() =>
       shell.setRuntimeState({
         windows: {
-          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 }, minimized: true },
+          [primary.id]: { ...primary, nodeId: "leaf:moved", tabActive: false, shown: false },
         },
       })
     );
@@ -561,11 +565,7 @@ describe("usePaletteTabs", () => {
     expect(result.current).toEqual([]);
     rerender({ open: true });
     expect(result.current).toEqual([
-      expect.objectContaining({
-        windowId: primary.id,
-        minimized: true,
-        label: "Changed while closed",
-      }),
+      expect.objectContaining({ windowId: primary.id, label: "Changed while closed" }),
     ]);
     act(() => slot.publishSlot(owner, { crumb: "Changed while open" }));
     expect(result.current[0]?.label).toBe("Changed while open");
@@ -579,7 +579,7 @@ describe("usePaletteTabs", () => {
     expect(renders).toBe(closedRenders);
     rerender({ open: true });
     expect(result.current).toEqual([
-      expect.objectContaining({ windowId: primary.id, minimized: false, label: "Reopened title" }),
+      expect.objectContaining({ windowId: primary.id, label: "Reopened title" }),
     ]);
   });
 });
@@ -611,7 +611,7 @@ describe("useOsWindowMember", () => {
       shell.setRuntimeState({
         windows: {
           ...shell.state.windows,
-          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+          [primary.id]: { ...primary, nodeId: "leaf:moved" },
         },
       })
     );
@@ -624,8 +624,8 @@ describe("useOsWindowMember", () => {
             ...primary,
             app: "settings",
             instanceKey: "settings:secondary",
-            minimized: true,
-            placement: "tiled",
+            inSplit: true,
+            shown: false,
           },
         },
       })
@@ -633,8 +633,8 @@ describe("useOsWindowMember", () => {
     expect(result.current.win).toMatchObject({
       app: "settings",
       instanceKey: "settings:secondary",
-      minimized: true,
-      placement: "tiled",
+      inSplit: true,
+      shown: false,
     });
     act(() => shell.setRuntimeState({ windows: {} }));
     expect(result.current.win).toBeUndefined();
@@ -733,40 +733,6 @@ describe("useGlobalShortcutReconciliation", () => {
   });
 });
 
-function beginPrimarySnapGesture(
-  moveMode: "window" | "group" = "window",
-  sourceNodeId: string | null = null
-): void {
-  const workArea = { x: 0, y: 0, w: 1280, h: 800 };
-  windowManagerStore.trigger.workAreaMeasured({
-    workArea: { rect: workArea, origin: { x: 0, y: 0 } },
-  });
-  windowManagerStore.trigger.gestureBegan({
-    pointerId: 0,
-    point: { x: 320, y: 200 },
-    workArea,
-    layoutRevision: SNAPSHOT.revision,
-    source: {
-      windowId: "window:primary",
-      nodeId: sourceNodeId,
-      groupId: null,
-      moveMode,
-    },
-  });
-}
-
-function dragData(x: number, y: number) {
-  return {
-    node: document.createElement("div"),
-    x,
-    y,
-    deltaX: 0,
-    deltaY: 0,
-    lastX: x,
-    lastY: y,
-  };
-}
-
 function installAnimationFrameQueue() {
   let nextID = 1;
   const callbacks = new Map<number, FrameRequestCallback>();
@@ -795,34 +761,6 @@ function installAnimationFrameQueue() {
         flushNow();
       });
     },
-  };
-}
-
-/** Solo floating frame for the primary fixture window (frame rect = authoritative rect). */
-function primaryFrame(): OsWindowFrameModel {
-  return {
-    id: "window:primary",
-    desktopId: "desktop:main",
-    kind: "floating",
-    rect: { x: 80, y: 40, w: 600, h: 420 },
-    members: ["window:primary"],
-    activeWindowId: "window:primary",
-    stackId: null,
-    minimized: false,
-    zoomed: false,
-    adapted: false,
-    layer: 2,
-    zone: null,
-    resizableEdges: { left: true, right: true, top: true, bottom: true },
-  };
-}
-
-function stackedFrame(): OsWindowFrameModel {
-  return {
-    ...primaryFrame(),
-    id: "stack:primary",
-    members: ["window:primary", "window:peer"],
-    stackId: "stack:primary",
   };
 }
 
@@ -982,7 +920,7 @@ describe("useWindowLiveDataEnabled", () => {
 
   it("Should lease live data to the focused and most recent visible background window", () => {
     const shell = createShell();
-    const third = windowFixture("window:third", 3);
+    const third = windowFixture("window:third");
     const { result } = renderHook(
       () => ({
         primary: useWindowLiveDataEnabled("window:primary"),
@@ -1009,15 +947,15 @@ describe("useWindowLiveDataEnabled", () => {
     expect(result.current).toEqual({ primary: false, peer: false, third: false });
   });
 
-  it("Should fill the live budget by layer and ID while excluding hidden windows", () => {
+  it("Should fill the live budget by ID while excluding windows that are not shown", () => {
     const shell = createShell();
     const candidates = [
-      { ...windowFixture("window:z", 4), layer: 100 },
-      { ...windowFixture("window:a", 5), layer: 100 },
-      { ...windowFixture("window:lower", 6), layer: 99 },
-      { ...windowFixture("window:minimized", 7), layer: 200, minimized: true },
-      { ...windowFixture("window:hidden-tab", 8), layer: 200, stackActive: false },
-      { ...windowFixture("window:other-desktop", 9), layer: 200, desktopId: "other" },
+      windowFixture("window:z", { inSplit: true }),
+      windowFixture("window:a", { inSplit: true }),
+      windowFixture("window:lower", { inSplit: true }),
+      windowFixture("window:collapsed", { inSplit: true, shown: false }),
+      windowFixture("window:hidden-tab", { tabActive: false, shown: false }),
+      windowFixture("window:other-desktop", { desktopId: "other" }),
     ];
     shell.setRuntimeState({
       windows: Object.fromEntries(candidates.map(window => [window.id, window])),
@@ -1029,7 +967,8 @@ describe("useWindowLiveDataEnabled", () => {
         a: useWindowLiveDataEnabled("window:a"),
         z: useWindowLiveDataEnabled("window:z"),
         lower: useWindowLiveDataEnabled("window:lower"),
-        minimized: useWindowLiveDataEnabled("window:minimized"),
+        // Behind a collapsed split's switcher.
+        collapsed: useWindowLiveDataEnabled("window:collapsed"),
         hidden: useWindowLiveDataEnabled("window:hidden-tab"),
         other: useWindowLiveDataEnabled("window:other-desktop"),
       }),
@@ -1037,9 +976,9 @@ describe("useWindowLiveDataEnabled", () => {
     );
     expect(result.current).toEqual({
       a: true,
-      z: true,
-      lower: false,
-      minimized: false,
+      z: false,
+      lower: true,
+      collapsed: false,
       hidden: false,
       other: false,
     });
@@ -1053,7 +992,7 @@ describe("useWindowLiveDataEnabled", () => {
       a: true,
       z: false,
       lower: true,
-      minimized: false,
+      collapsed: false,
       hidden: false,
       other: false,
     });
@@ -1077,708 +1016,6 @@ describe("useWindowLiveDataEnabled", () => {
     expect(result.current).toBe(true);
   });
 });
-
-describe("useOsWindow", () => {
-  it("Should coalesce drag previews to the latest point in each animation frame", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    beginPrimarySnapGesture();
-    const previewed = vi.spyOn(windowManagerStore.trigger, "gesturePreviewed");
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => {
-      result.current.handleDrag(
-        new MouseEvent("mousemove", { clientX: 200, clientY: 160 }),
-        dragData(200, 160)
-      );
-      result.current.handleDrag(
-        new MouseEvent("mousemove", { clientX: 360, clientY: 240 }),
-        dragData(360, 240)
-      );
-    });
-
-    expect(previewed).not.toHaveBeenCalled();
-    frames.flush();
-    expect(previewed).toHaveBeenCalledOnce();
-    expect(previewed).toHaveBeenCalledWith(expect.objectContaining({ point: { x: 360, y: 240 } }));
-  });
-
-  it("Should defer a never-visible window and retain it after first visibility", () => {
-    const shell = createShell();
-    shell.setRuntimeState({ activeDesktopId: "desktop:other" });
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    expect(result.current.keepMounted).toBe(false);
-
-    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:main" }));
-    expect(result.current.keepMounted).toBe(true);
-
-    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
-    expect(result.current.keepMounted).toBe(true);
-  });
-
-  it("Should restore the current authoritative position when a snap command is rejected", async () => {
-    const shell = createShell();
-    const completion = Promise.resolve(false);
-    vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
-        dragData(1, 300)
-      );
-      await completion;
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
-  });
-
-  it("Should retain the local preview when a snap command is applied", async () => {
-    const shell = createShell();
-    const completion = Promise.resolve(true);
-    vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
-        dragData(1, 300)
-      );
-      await completion;
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(updatePosition).not.toHaveBeenCalled();
-    expect(updateSize).not.toHaveBeenCalled();
-  });
-
-  it("Should restore the current authoritative rect when a floating commit is rejected", async () => {
-    const shell = createShell();
-    const completion = Promise.resolve(false);
-    vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await completion;
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
-  });
-
-  it("Should not start a drag gesture from a zoomed frame", () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindow({ ...primaryFrame(), zoomed: true }), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => {
-      result.current.handleDragStart(
-        new MouseEvent("mousedown", { clientX: 320, clientY: 200 }),
-        dragData(80, 40)
-      );
-    });
-
-    expect(windowManagerStore.getSnapshot().context.gesture).toBeNull();
-  });
-
-  it("Should commit a stale free drop with a rebase proof instead of discarding it", async () => {
-    const shell = createShell();
-    beginPrimarySnapGesture("window", "node:captured");
-    const currentWindow = shell.state.windows["window:primary"];
-    shell.setRuntimeState({
-      snapshot: { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 },
-      windows: {
-        ...shell.state.windows,
-        "window:primary": { ...currentWindow, nodeId: "node:current" },
-      },
-    });
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledWith(
-      "window:primary",
-      { x: 500, y: 300, w: 600, h: 420 },
-      undefined,
-      false,
-      { expectedRevision: SNAPSHOT.revision, sourceNodeId: "node:captured" }
-    );
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-  });
-
-  it("Should keep the captured source node when a stale tiled drag snaps", async () => {
-    const shell = createShell();
-    beginPrimarySnapGesture("window", "node:captured");
-    const currentWindow = shell.state.windows["window:primary"];
-    shell.setRuntimeState({
-      snapshot: { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 },
-      windows: {
-        ...shell.state.windows,
-        "window:primary": {
-          ...currentWindow,
-          placement: "tiled",
-          nodeId: "node:current",
-        },
-      },
-    });
-    const { result } = renderHook(() => useOsWindow({ ...primaryFrame(), kind: "tiled" }), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 640, clientY: 1 }),
-        dragData(300, 1)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "zoom" }),
-      false,
-      { expectedRevision: SNAPSHOT.revision, sourceNodeId: "node:captured" }
-    );
-  });
-
-  it("Should restore the authoritative rect when drag stop has no active gesture", async () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-    const updatePosition = vi.fn();
-    const updateSize = vi.fn();
-    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      expect(updatePosition).not.toHaveBeenCalled();
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
-  });
-
-  it("Should commit a group snap when a floating tab frame drops on a tile zone", async () => {
-    const shell = createShell();
-    beginPrimarySnapGesture("group");
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
-        dragData(1, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "tile", edge: "left" }),
-      true
-    );
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-  });
-
-  it("Should commit a group snap when a floating tab frame drops on a split zone", async () => {
-    const shell = createShell();
-    const board = {
-      ...windowFixture("window:board", 3),
-      nodeId: "node:board",
-      rect: { x: 660, y: 80, w: 400, h: 400 },
-    };
-    shell.setRuntimeState({ windows: { ...shell.state.windows, [board.id]: board } });
-    beginPrimarySnapGesture("group");
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 700, clientY: 280 }),
-        dragData(700, 280)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "split", targetWindowId: "window:board" }),
-      true
-    );
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-  });
-
-  it("Should commit a whole-frame swap when a group move drops on an occupied center", async () => {
-    const shell = createShell();
-    const board = {
-      ...windowFixture("window:board", 3),
-      nodeId: "node:board",
-      rect: { x: 660, y: 80, w: 400, h: 400 },
-    };
-    shell.setRuntimeState({ windows: { ...shell.state.windows, [board.id]: board } });
-    beginPrimarySnapGesture("group");
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 860, clientY: 280 }),
-        dragData(860, 280)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
-    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
-      "window:primary",
-      expect.objectContaining({ kind: "swap", targetWindowId: "window:board" }),
-      true
-    );
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-  });
-
-  it("Should drag a tiled tab frame as one unit from its deck bar", async () => {
-    const shell = createShell();
-    act(() => {
-      windowManagerStore.trigger.workAreaMeasured({
-        workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
-      });
-    });
-    const frame: OsWindowFrameModel = { ...stackedFrame(), kind: "tiled" };
-    const { result } = renderHook(() => useOsWindow(frame), { wrapper: shell.wrapper });
-
-    act(() => {
-      result.current.handleDragStart(
-        new MouseEvent("mousedown", { clientX: 320, clientY: 200 }),
-        dragData(320, 200)
-      );
-    });
-
-    const gesture = windowManagerStore.getSnapshot().context.gesture;
-    expect(gesture?.status).toBe("active");
-    expect(gesture?.status === "active" ? gesture.source.moveMode : null).toBe("group");
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
-    expect(vi.mocked(shell.controller.commitFloatingRect).mock.calls[0]?.[3]).toBe(true);
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-  });
-
-  it("Should hold the released rect while a floating commit is in flight", async () => {
-    const shell = createShell();
-    let resolveCompletion: (applied: boolean) => void = () => {};
-    const completion = new Promise<boolean>(resolve => {
-      resolveCompletion = resolve;
-    });
-    vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
-    beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-    });
-
-    expect(shell.controller.commitFloatingRect).toHaveBeenCalledWith(
-      "window:primary",
-      { x: 500, y: 300, w: 600, h: 420 },
-      undefined,
-      false
-    );
-    expect(result.current.rect).toEqual({ x: 500, y: 300, w: 600, h: 420 });
-
-    await act(async () => {
-      resolveCompletion(true);
-      await completion;
-    });
-
-    expect(result.current.rect).toEqual(primaryFrame().rect);
-  });
-
-  it("Should commit one ordered group command when the release point targets a deck [UT-095]", async () => {
-    const shell = createShell();
-    const target = windowFixture("window:target", 3);
-    shell.setRuntimeState({
-      windows: { ...shell.state.windows, [target.id]: target },
-    });
-    beginPrimarySnapGesture();
-    act(() => {
-      windowManagerStore.trigger.deckDropTargeted({
-        target: {
-          frameId: "stack:target",
-          targetWindowId: target.id,
-          insertIndex: 1,
-        },
-      });
-    });
-    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
-      wrapper: shell.wrapper,
-    });
-
-    await act(async () => {
-      result.current.handleDragStop(
-        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
-        dragData(500, 300)
-      );
-      await Promise.resolve();
-    });
-
-    expect(shell.controller.groupWindows).toHaveBeenCalledOnce();
-    expect(shell.controller.groupWindows).toHaveBeenCalledWith(
-      target.id,
-      ["window:primary", "window:peer"],
-      1
-    );
-    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
-  });
-});
-
-describe("useWindowMergeTarget", () => {
-  function targetFrame(): OsWindowFrameModel {
-    return {
-      id: "window:target",
-      desktopId: "desktop:main",
-      kind: "floating",
-      rect: { x: 100, y: 50, w: 300, h: 260 },
-      members: ["window:target"],
-      activeWindowId: "window:target",
-      stackId: null,
-      minimized: false,
-      zoomed: false,
-      adapted: false,
-      layer: 3,
-      zone: null,
-      resizableEdges: { left: true, right: true, top: true, bottom: true },
-    };
-  }
-
-  function chromeWithHead(): HTMLElement {
-    const chrome = document.createElement("section");
-    const head = document.createElement("div");
-    head.setAttribute("data-slot", "os-window-head");
-    Object.defineProperty(head, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        left: 100,
-        right: 400,
-        top: 50,
-        bottom: 94,
-        width: 300,
-        height: 44,
-        x: 100,
-        y: 50,
-        toJSON: () => ({}),
-      }),
-    });
-    chrome.appendChild(head);
-    return chrome;
-  }
-
-  function pointerMove(clientX: number, clientY: number): void {
-    const event = new Event("pointermove");
-    Object.defineProperties(event, {
-      clientX: { value: clientX },
-      clientY: { value: clientY },
-    });
-    window.dispatchEvent(event);
-  }
-
-  it("Should advertise a solo head as the group target while another frame drags over it", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    result.current.chromeRef.current = chromeWithHead();
-
-    act(() => beginPrimarySnapGesture());
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "window:target",
-      targetWindowId: "window:target",
-      insertIndex: 1,
-    });
-    expect(result.current.mergeTargeted).toBe(true);
-
-    act(() => pointerMove(600, 60));
-    frames.flush();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
-  });
-
-  it("Should not advertise a group target while the layer origin is unmeasured", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    result.current.chromeRef.current = chromeWithHead();
-
-    act(() => {
-      beginPrimarySnapGesture();
-      windowManagerStore.trigger.workAreaMeasured({ workArea: null });
-    });
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
-    expect(result.current.mergeTargeted).toBe(false);
-  });
-
-  it("Should preserve a drop target published by a deck", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-
-    act(() => beginPrimarySnapGesture());
-    act(() => {
-      windowManagerStore.trigger.deckDropTargeted({
-        target: {
-          frameId: "frame:deck",
-          targetWindowId: "window:deck-target",
-          insertIndex: 1,
-        },
-      });
-      pointerMove(600, 60);
-    });
-    frames.flush();
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "frame:deck",
-      targetWindowId: "window:deck-target",
-      insertIndex: 1,
-    });
-  });
-
-  it("Should measure only the visible top frame when heads overlap", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    const over: OsWindowFrameModel = {
-      ...targetFrame(),
-      id: "frame:over",
-      members: ["window:over"],
-      activeWindowId: "window:over",
-      layer: 9,
-      rect: { x: 0, y: 0, w: 1280, h: 800 },
-    };
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame(), over] } });
-    const { result } = renderHook(
-      () => ({
-        lower: useWindowMergeTarget(targetFrame(), true),
-        upper: useWindowMergeTarget(over, true),
-      }),
-      { wrapper: shell.wrapper }
-    );
-    const lowerChrome = chromeWithHead();
-    const upperChrome = chromeWithHead();
-    const lowerHead = lowerChrome.querySelector('[data-slot="os-window-head"]');
-    const upperHead = upperChrome.querySelector('[data-slot="os-window-head"]');
-    if (!(lowerHead instanceof HTMLElement) || !(upperHead instanceof HTMLElement)) {
-      throw new Error("window head fixtures are required");
-    }
-    const measureLower = vi.spyOn(lowerHead, "getBoundingClientRect");
-    const measureUpper = vi.spyOn(upperHead, "getBoundingClientRect");
-    result.current.lower.chromeRef.current = lowerChrome;
-    result.current.upper.chromeRef.current = upperChrome;
-
-    act(() => beginPrimarySnapGesture());
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(measureUpper).toHaveBeenCalledOnce();
-    expect(measureLower).not.toHaveBeenCalled();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "frame:over",
-      targetWindowId: "window:over",
-      insertIndex: 1,
-    });
-  });
-
-  it("Should skip tiled heads hidden under a zoomed frame on the same desktop", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    const zoomed: OsWindowFrameModel = {
-      ...targetFrame(),
-      id: "frame:zoomed",
-      kind: "tiled",
-      zoomed: true,
-      members: ["window:zoomed"],
-      activeWindowId: "window:zoomed",
-      layer: 1,
-      rect: { x: 0, y: 0, w: 1280, h: 800 },
-    };
-    const covered: OsWindowFrameModel = { ...targetFrame(), kind: "tiled", layer: 1 };
-    shell.setRuntimeState({ frames: { "desktop:main": [covered, zoomed] } });
-    const { result } = renderHook(
-      () => ({
-        covered: useWindowMergeTarget(covered, true),
-        zoomed: useWindowMergeTarget(zoomed, true),
-      }),
-      { wrapper: shell.wrapper }
-    );
-    const coveredChrome = chromeWithHead();
-    const zoomedChrome = chromeWithHead();
-    const coveredHead = coveredChrome.querySelector('[data-slot="os-window-head"]');
-    if (!(coveredHead instanceof HTMLElement)) throw new Error("window head fixture is required");
-    const measureCovered = vi.spyOn(coveredHead, "getBoundingClientRect");
-    result.current.covered.chromeRef.current = coveredChrome;
-    result.current.zoomed.chromeRef.current = zoomedChrome;
-
-    act(() => beginPrimarySnapGesture());
-    act(() => pointerMove(200, 60));
-    frames.flush();
-
-    expect(measureCovered).not.toHaveBeenCalled();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "frame:zoomed",
-      targetWindowId: "window:zoomed",
-      insertIndex: 1,
-    });
-  });
-
-  it("Should measure only the latest pointer position once per animation frame", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    const chrome = chromeWithHead();
-    const head = chrome.querySelector('[data-slot="os-window-head"]');
-    if (!(head instanceof HTMLElement)) throw new Error("window head fixture is required");
-    const measure = vi.spyOn(head, "getBoundingClientRect");
-    result.current.chromeRef.current = chrome;
-
-    act(() => beginPrimarySnapGesture());
-    act(() => {
-      pointerMove(200, 60);
-      pointerMove(600, 60);
-      pointerMove(240, 70);
-    });
-
-    expect(measure).not.toHaveBeenCalled();
-    frames.flush();
-    expect(measure).toHaveBeenCalledOnce();
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget?.frameId).toBe("window:target");
-  });
-
-  it("Should use the committed frame when the coordinator runs before passive effects", () => {
-    const frames = installAnimationFrameQueue();
-    const shell = createShell();
-    const committedFrame = {
-      ...targetFrame(),
-      members: ["window:target", "window:latest"],
-      activeWindowId: "window:latest",
-    };
-    act(() => beginPrimarySnapGesture());
-    const { result, rerender } = renderHook(
-      ({ frame, flushBeforePassive }) => {
-        const model = useWindowMergeTarget(frame, true);
-        useLayoutEffect(() => {
-          if (!flushBeforePassive) return;
-          pointerMove(200, 60);
-          frames.flushNow();
-        }, [flushBeforePassive]);
-        return model;
-      },
-      {
-        initialProps: {
-          frame: targetFrame(),
-          flushBeforePassive: false,
-        },
-        wrapper: shell.wrapper,
-      }
-    );
-    result.current.chromeRef.current = chromeWithHead();
-
-    rerender({ frame: committedFrame, flushBeforePassive: true });
-
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
-      frameId: "window:target",
-      targetWindowId: "window:latest",
-      insertIndex: 2,
-    });
-  });
-});
-
-function WinLayerHarness() {
-  const { layerRef } = useOsWinLayer();
-  return <div data-testid="win-layer" ref={layerRef} />;
-}
 
 describe("useOsShortcuts", () => {
   it("Should cycle a frozen visible-session order with wrap and calm 0/1 no-ops [UT-065]", () => {
@@ -2064,79 +1301,34 @@ describe("useOsPaletteExecution keyboard dispatch [UT-129]", () => {
   });
 });
 
-describe("useOsZoomMenu", () => {
-  it("Should apply mouse-only hover intent and preserve the close grace period", () => {
-    vi.useFakeTimers();
-    const { wrapper } = createShell();
-    const { result } = renderHook(() => useOsZoomMenu("window:primary"), { wrapper });
-    const mouseEvent = { pointerType: "mouse" } as Parameters<
-      typeof result.current.onHoverEnter
-    >[0];
-    const touchEvent = { pointerType: "touch" } as Parameters<
-      typeof result.current.onHoverEnter
-    >[0];
+function DeskLayerHarness() {
+  const { layerRef } = useOsDeskLayer();
+  return <div ref={layerRef} data-testid="desk-layer" />;
+}
 
-    act(() => result.current.onHoverEnter(touchEvent));
-    act(() => vi.advanceTimersByTime(OS_ZOOM_MENU_OPEN_DELAY_MS));
-    expect(result.current.open).toBe(false);
-
-    act(() => result.current.onHoverEnter(mouseEvent));
-    act(() => vi.advanceTimersByTime(OS_ZOOM_MENU_OPEN_DELAY_MS - 1));
-    expect(result.current.open).toBe(false);
-    act(() => vi.advanceTimersByTime(1));
-    expect(result.current.open).toBe(true);
-
-    act(() => result.current.onHoverLeave());
-    act(() => vi.advanceTimersByTime(OS_ZOOM_MENU_CLOSE_GRACE_MS - 1));
-    expect(result.current.open).toBe(true);
-    act(() => result.current.onContentEnter());
-    act(() => vi.advanceTimersByTime(1));
-    expect(result.current.open).toBe(true);
-  });
-
-  it("Should gate placement dispatch on an authoritative fence and close after an accepted action", () => {
-    const liveShell = createShell();
-    const unavailableShell = createShell({ authoritative: false });
-    const live = renderHook(() => useOsZoomMenu("window:primary"), {
-      wrapper: liveShell.wrapper,
-    });
-    const unavailable = renderHook(() => useOsZoomMenu("window:primary"), {
-      wrapper: unavailableShell.wrapper,
-    });
-
-    act(() => live.result.current.onOpenChange(true));
-    act(() =>
-      live.result.current.dispatchPlacement({
-        placement: "left",
-      })
-    );
-    expect(liveShell.controller.tileWindow).toHaveBeenCalledWith("window:primary", "left");
-    expect(live.result.current.open).toBe(false);
-
-    act(() => unavailable.result.current.dispatchFill());
-    expect(unavailableShell.controller.zoomWindow).not.toHaveBeenCalled();
-  });
-});
-
-describe("useOsWinLayer", () => {
+describe("useOsDeskLayer", () => {
   it("Should wait for layout configuration before exposing restored desktops", () => {
     const shell = createShell();
     const desktop = {
       id: "desktop:main",
       name: "Main",
       order: 0,
-      groups: [],
-      floating: ["window:primary"],
-      floatingStacks: [],
+      tabs: [
+        {
+          id: "tab:window:primary",
+          pinned: false,
+          root: { id: "leaf:window:primary", kind: "leaf" as const, windowId: "window:primary" },
+        },
+      ],
+      activeTabId: "tab:window:primary",
     };
-    const frame = primaryFrame();
     shell.setRuntimeState({
       desktops: [desktop],
       windowManagerConfig: null,
       hydration: "pending",
-      frames: {},
+      activeTabIds: {},
     });
-    const { result } = renderHook(() => useOsWinLayer(), { wrapper: shell.wrapper });
+    const { result } = renderHook(() => useOsDeskLayer(), { wrapper: shell.wrapper });
 
     expect(result.current.desktops).toEqual([]);
 
@@ -2144,12 +1336,12 @@ describe("useOsWinLayer", () => {
       shell.setRuntimeState({
         windowManagerConfig: CONFIG,
         hydration: "live",
-        frames: { [desktop.id]: [frame] },
+        activeTabIds: { [desktop.id]: "tab:window:primary" },
       });
     });
 
     expect(result.current.desktops).toEqual([
-      { desktop, frames: [frame], active: true, anyVisible: true },
+      { desktop, active: true, activeTabId: "tab:window:primary" },
     ]);
   });
 
@@ -2170,8 +1362,8 @@ describe("useOsWinLayer", () => {
     let rect = new DOMRect(0, 44, 1280, 700);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rect);
     const shell = createShell();
-    render(<WinLayerHarness />, { wrapper: shell.wrapper });
-    const layer = screen.getByTestId("win-layer");
+    render(<DeskLayerHarness />, { wrapper: shell.wrapper });
+    const layer = screen.getByTestId("desk-layer");
     const entry: ResizeObserverEntry = {
       target: layer,
       contentRect: new DOMRectReadOnly(0, 0, 1280, 700),
@@ -2194,79 +1386,2491 @@ describe("useOsWinLayer", () => {
   });
 });
 
-describe("useOsWindowCommands", () => {
-  it("Should route focused-window lifecycle through the coordinator when the client is live", async () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+// Invariant: a desktop keeps every tab it has shown mounted, in bar order, and drops closed ones.
+// Owning layer: the desk layer's tab retention; canonical suite: OS interaction hooks.
+describe("useVisitedTabs", () => {
+  it("Should keep visited tabs in bar order and forget closed tabs", () => {
+    const { result, rerender } = renderHook(
+      ({ tabIds, active }: { tabIds: string[]; active: string | null }) =>
+        useVisitedTabs(tabIds, active),
+      { initialProps: { tabIds: ["a", "b", "c"], active: "b" as string | null } }
+    );
+    expect(result.current).toEqual(["b"]);
 
-    expect(result.current.commandsAvailable).toBe(true);
-    const actions = result.current.focusedWindowActions;
-    if (actions === null) throw new Error("a focused live window must expose lifecycle actions");
-    await act(async () => actions.close());
-    // An operator close keeps the close guard (a running terminal asks before it ends).
-    expect(shell.controller.closeWindow).toHaveBeenCalledWith("window:primary", false);
-    await act(async () => actions.minimize());
-    expect(shell.controller.minimizeWindow).toHaveBeenCalledWith("window:primary");
-    expect(actions.zoom).not.toBeNull();
-    // The fixture window is already floating, so there is nothing to convert.
-    expect(actions.makeFloating).toBeNull();
+    rerender({ tabIds: ["a", "b", "c"], active: "a" });
+    expect(result.current).toEqual(["a", "b"]);
+
+    rerender({ tabIds: ["a", "c"], active: "c" });
+    expect(result.current).toEqual(["a", "c"]);
+  });
+});
+
+// Invariant: a pane keeps the scroll offsets of its scroll containers and its focused element
+// across a slot change and across being hidden and shown, unless focus was given elsewhere; DOM
+// focus returns only into the window that holds the client's authoritative focus, so a restore
+// never reads as the operator choosing a window [AS-F-20, R13-02].
+// Owning layer: the pane hosts the desk layer's slots place; canonical suite: OS interaction hooks.
+// jsdom does not lay out or reset offsets: each case removes what the browser would lose and
+// asserts what the hosts write back.
+describe("WindowPaneHosts", () => {
+  function setup() {
+    /** Every live resize observer and what it watches. */
+    const observers = new Map<
+      ResizeObserver,
+      { callback: ResizeObserverCallback; on: Set<Element> }
+    >();
+    /** What any live resize observer watches. */
+    const sized = new Set<Element>();
+    class ResizeObserverMock implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        observers.set(this, { callback, on: new Set() });
+      }
+
+      observe(target: Element) {
+        observers.get(this)?.on.add(target);
+        sized.add(target);
+      }
+      unobserve(target: Element) {
+        observers.get(this)?.on.delete(target);
+        sized.delete(target);
+      }
+      disconnect() {
+        for (const target of observers.get(this)?.on ?? []) sized.delete(target);
+        observers.get(this)?.on.clear();
+      }
+    }
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    const focus = { windowId: "w" };
+    const content = { route: { pathname: "/files", search: {} } as OsWindowRoute };
+    const hosts = new WindowPaneHosts({
+      isFocused: windowId => windowId === focus.windowId,
+      routeOf: () => content.route,
+    });
+    const host = hosts.hostOf("w");
+    const surface = document.createElement("section");
+    const scroller = document.createElement("div");
+    const field = document.createElement("textarea");
+    surface.append(scroller, field);
+    host.append(surface);
+    const [first, second] = [document.createElement("div"), document.createElement("div")];
+    document.body.append(first, second);
+    const scrollTo = (top: number) => {
+      scroller.scrollTop = top;
+      scroller.dispatchEvent(new Event("scroll"));
+    };
+    /** What the browser loses when the subtree leaves the document or stops rendering. */
+    const loseLayoutState = () => {
+      scroller.scrollTop = 0;
+      if (document.activeElement === field) field.blur();
+    };
+    /**
+     * The tab stops showing. The browser drops the offsets and, by its focus fixup, takes focus
+     * from a focused field inside with a focusout that fires once the surface no longer renders.
+     * jsdom's `blur()` is a no-op under `hidden`, so the surface is hidden from the first
+     * listener of that focusout (window, capture phase), before the hosts read it.
+     */
+    const stopRendering = () => {
+      scroller.scrollTop = 0;
+      if (document.activeElement !== field) {
+        surface.hidden = true;
+        return;
+      }
+      window.addEventListener(
+        "focusout",
+        () => {
+          surface.hidden = true;
+        },
+        { capture: true, once: true }
+      );
+      field.blur();
+    };
+    /** The browser reports `target`'s new size to the observers watching it. */
+    const resize = (target: Element, width: number, height: number) => {
+      for (const [instance, { callback, on }] of observers) {
+        if (!on.has(target)) continue;
+        const entry = {
+          target,
+          contentRect: new DOMRectReadOnly(0, 0, width, height),
+          borderBoxSize: [],
+          contentBoxSize: [],
+          devicePixelContentBoxSize: [],
+        };
+        callback([entry], instance);
+      }
+    };
+    const box = (width: number, height: number) => resize(surface, width, height);
+    const cleanup = () => {
+      hosts.dispose();
+      first.remove();
+      second.remove();
+    };
+    // Also when an assertion fails first: a host left listening, or a stray desk layer, would
+    // change what later suites in this file hit-test.
+    onTestFinished(cleanup);
+    return {
+      hosts,
+      focus,
+      content,
+      sized,
+      surface,
+      scroller,
+      field,
+      first,
+      second,
+      scrollTo,
+      loseLayoutState,
+      stopRendering,
+      resize,
+      box,
+      cleanup,
+    };
+  }
+
+  it("Should restore scroll offsets and focus when a pane moves to another slot", () => {
+    const { hosts, scroller, field, first, second, scrollTo, loseLayoutState, cleanup } = setup();
+    const leave = hosts.place("w", first);
+    scrollTo(120);
+    field.focus();
+
+    leave();
+    loseLayoutState();
+    expect(document.activeElement).toBe(document.body);
+    hosts.place("w", second);
+
+    expect(hosts.hostOf("w").parentElement).toBe(second);
+    expect(scroller.scrollTop).toBe(120);
+    expect(document.activeElement).toBe(field);
+    cleanup();
   });
 
-  it("Should keep window commands available while the event stream reconnects", () => {
-    const shell = createShell({ live: false });
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+  it("Should leave focus where the move gave it, and still restore scroll", () => {
+    const { hosts, scroller, field, first, second, scrollTo, loseLayoutState, cleanup } = setup();
+    const dragSource = document.createElement("button");
+    document.body.append(dragSource);
+    const leave = hosts.place("w", first);
+    scrollTo(64);
+    field.focus();
 
-    expect(result.current.commandsAvailable).toBe(true);
-    expect(result.current.focusedWindowActions).not.toBeNull();
-    expect(result.current.canToggleFloating).toBe(true);
-    expect(result.current.canBalanceLayout).toBe(true);
-    expect(result.current.canEditLayoutHistory).toBe(true);
-    expect(result.current.canFocusDirection).toBe(true);
-    expect(result.current.canSwitchDesktop).toBe(false);
+    leave();
+    loseLayoutState();
+    dragSource.focus();
+    hosts.place("w", second);
+
+    expect(scroller.scrollTop).toBe(64);
+    expect(document.activeElement).toBe(dragSource);
+    dragSource.remove();
+    cleanup();
   });
 
-  it("Should withhold every window command without an authoritative fence", () => {
-    const shell = createShell({ authoritative: false });
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+  it("Should restore scroll offsets and focus when a hidden pane is shown again", () => {
+    const { hosts, surface, scroller, field, first, scrollTo, stopRendering, box, cleanup } =
+      setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(80);
+    field.focus();
+    const refocus = vi.spyOn(field, "focus");
 
-    expect(result.current.commandsAvailable).toBe(false);
-    expect(result.current.focusedWindowActions).toBeNull();
-    expect(result.current.canToggleFloating).toBe(false);
-    expect(result.current.canBalanceLayout).toBe(false);
-    expect(result.current.canEditLayoutHistory).toBe(false);
-    expect(result.current.canFocusDirection).toBe(false);
-    expect(result.current.canSwitchDesktop).toBe(false);
+    stopRendering();
+    box(0, 0);
+    expect(scroller.scrollTop).toBe(0);
+    expect(document.activeElement).toBe(document.body);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(80);
+    expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+    expect(document.activeElement).toBe(field);
+    cleanup();
   });
 
-  it("Should enable desktop switching only past a second desktop", () => {
-    const shell = createShell();
-    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
-    expect(result.current.canSwitchDesktop).toBe(false);
+  it("Should not give focus back after the operator moved it away from the pane", () => {
+    const { hosts, surface, field, first, loseLayoutState, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    field.focus();
+    // A click on an empty area blurs the field while it still renders.
+    field.blur();
 
+    surface.hidden = true;
+    loseLayoutState();
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(document.activeElement).toBe(document.body);
+    cleanup();
+  });
+
+  it("Should restore scroll but not focus into a pane whose window lost focus meanwhile", () => {
+    const { hosts, focus, surface, scroller, field, first, scrollTo, stopRendering, box, cleanup } =
+      setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(90);
+    field.focus();
+    const refocus = vi.spyOn(field, "focus");
+
+    stopRendering();
+    box(0, 0);
+    expect(document.activeElement).toBe(document.body);
+    // A directional focus, an open beside it or a peer's move gave another window the focus.
+    focus.windowId = "other";
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(90);
+    expect(refocus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(document.body);
+
+    // Kept for when the window has focus again.
+    surface.hidden = true;
+    box(0, 0);
+    focus.windowId = "w";
+    surface.hidden = false;
+    box(640, 480);
+    expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+    expect(document.activeElement).toBe(field);
+    cleanup();
+  });
+
+  describe("through the pane's focus capture", () => {
+    function renderPanes() {
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        }
+      );
+      const shell = createShell();
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(workspaceKeys.list(), []);
+      queryClient.setQueryData(statusKeys.current(), { daemon: {} });
+      const hosts = new WindowPaneHosts({
+        isFocused: windowId => shell.controller.getState().focusedId === windowId,
+        routeOf: windowId => shell.controller.getState().windows[windowId]?.route ?? null,
+      });
+      const userFocus = vi.spyOn(shell.coordinator, "userFocus");
+      const ShellProvider = shell.wrapper;
+      function Pane({ windowId }: { windowId: string }) {
+        const member = useOsWindowMember(windowId);
+        return (
+          <section onFocusCapture={member.handleFocusCapture}>
+            <textarea aria-label={`${windowId} composer`} />
+            {/* An overlay the pane renders on the shell, as a hidden editor's question is. */}
+            {createPortal(<button type="button">{`${windowId} overlay`}</button>, document.body)}
+          </section>
+        );
+      }
+      function Slot({ windowId }: { windowId: string }) {
+        const slotRef = useRef<HTMLDivElement>(null);
+        useLayoutEffect(() => hosts.place(windowId, slotRef.current!), [windowId]);
+        return <div ref={slotRef} />;
+      }
+      /** `nested`: the open turned the tab into a split, so the window's slot remounts. */
+      function Desk({ nested }: { nested: boolean }) {
+        return (
+          <>
+            {nested ? (
+              <div>
+                <Slot key="nested" windowId="window:primary" />
+              </div>
+            ) : (
+              <Slot key="single" windowId="window:primary" />
+            )}
+            {createPortal(<Pane windowId="window:primary" />, hosts.hostOf("window:primary"))}
+          </>
+        );
+      }
+      const view = render(
+        <QueryClientProvider client={queryClient}>
+          <ShellProvider>
+            <Desk nested={false} />
+          </ShellProvider>
+        </QueryClientProvider>
+      );
+      const composer = screen.getByRole("textbox", { name: "window:primary composer" });
+      const remount = () =>
+        view.rerender(
+          <QueryClientProvider client={queryClient}>
+            <ShellProvider>
+              <Desk nested />
+            </ShellProvider>
+          </QueryClientProvider>
+        );
+      const cleanup = () => {
+        view.unmount();
+        hosts.dispose();
+        queryClient.clear();
+      };
+      return { shell, composer, remount, userFocus, cleanup };
+    }
+
+    it("Should leave focus on the window an open beside a focused input gave it [AS-F-20]", () => {
+      const { shell, composer, remount, userFocus, cleanup } = renderPanes();
+      composer.focus();
+      expect(userFocus).not.toHaveBeenCalled();
+      const refocus = vi.spyOn(composer, "focus");
+
+      // The open lands beside A and the authoritative focus moves to it, B.
+      act(() => shell.setRuntimeState({ focusedId: "window:peer" }));
+      act(() => remount());
+
+      expect(refocus).not.toHaveBeenCalled();
+      expect(userFocus).not.toHaveBeenCalled();
+      expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+      expect(shell.history.navigate).not.toHaveBeenCalled();
+      cleanup();
+    });
+
+    // Invariant (AS-F-21): focus landing in an overlay portaled outside the pane's DOM does not
+    // send window focus or write history, though React propagates it to the pane's handler.
+    it("Should not focus the window for focus in an overlay it portals outside the pane [AS-F-21]", () => {
+      const { shell, composer, userFocus, cleanup } = renderPanes();
+      act(() => shell.setRuntimeState({ focusedId: "window:peer" }));
+
+      act(() => screen.getByRole("button", { name: "window:primary overlay" }).focus());
+
+      expect(userFocus).not.toHaveBeenCalled();
+      expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+      expect(shell.history.navigate).not.toHaveBeenCalled();
+
+      // Focus inside the pane is still the operator choosing the window.
+      act(() => composer.focus());
+      expect(userFocus).toHaveBeenCalledOnce();
+      cleanup();
+    });
+
+    it("Should return the caret in the focused window without a focus command or history entry", () => {
+      const { shell, composer, remount, userFocus, cleanup } = renderPanes();
+      composer.focus();
+      const refocus = vi.spyOn(composer, "focus");
+
+      act(() => remount());
+
+      expect(refocus).toHaveBeenCalledOnce();
+      expect(document.activeElement).toBe(composer);
+      expect(userFocus).not.toHaveBeenCalled();
+      expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+      expect(shell.history.navigate).not.toHaveBeenCalled();
+      cleanup();
+    });
+  });
+
+  it("Should restore scroll and focus when a keyed reorder re-inserts the pane's layer [R13-01]", async () => {
+    const { hosts, scroller, field, scrollTo, cleanup } = setup();
+    const deskLayer = document.createElement("div");
+    deskLayer.dataset.slot = "os-desk-layer";
+    const [shown, other] = [document.createElement("div"), document.createElement("div")];
+    const slot = document.createElement("div");
+    shown.append(slot);
+    deskLayer.append(shown, other);
+    document.body.append(deskLayer);
+    onTestFinished(() => deskLayer.remove());
+    hosts.place("w", slot);
+    scrollTo(120);
+    field.focus();
+
+    // The shown tab is dragged right past the other: React re-inserts its layer, no slot remounts.
+    deskLayer.appendChild(shown);
+    scroller.scrollTop = 0;
+    expect(document.activeElement).toBe(document.body);
+
+    await waitFor(() => expect(scroller.scrollTop).toBe(120));
+    expect(document.activeElement).toBe(field);
+    deskLayer.remove();
+    cleanup();
+  });
+
+  it("Should restore once when a slot mounts and adopts its pane in the same commit [R14-05]", async () => {
+    const { hosts, surface, cleanup } = setup();
+    const owner = document.createElement("div");
+    owner.setAttribute(SCROLL_OWNER_ATTRIBUTE, "");
+    surface.append(owner);
+    const deskLayer = document.createElement("div");
+    deskLayer.dataset.slot = "os-desk-layer";
+    const split = document.createElement("div");
+    const [before, after] = [document.createElement("div"), document.createElement("div")];
+    split.append(before);
+    deskLayer.append(split);
+    document.body.append(deskLayer);
+    onTestFinished(() => deskLayer.remove());
+    hosts.place("w", before);
+    const told = vi.fn();
+    owner.addEventListener(SCROLL_RESTORE_EVENT, told);
+
+    // A drag into a split: the new slot mounts in the observed split, then adopts the host.
+    split.append(after);
+    hosts.place("w", after);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(told).toHaveBeenCalledOnce();
+    deskLayer.remove();
+    cleanup();
+  });
+
+  it("Should size-observe a pane root that mounts after placing, and release it by name [R13-04]", async () => {
+    const { hosts, sized, first, cleanup } = setup();
+    const late = hosts.hostOf("late");
+    hosts.place("late", first);
+    const root = document.createElement("section");
+
+    late.append(root);
+    await waitFor(() => expect(sized.has(root)).toBe(true));
+
+    // The portal's children leave in the same commit that drops the window.
+    root.remove();
+    hosts.retain(new Set(["w"]));
+    expect(sized.has(root)).toBe(false);
+    cleanup();
+  });
+
+  it("Should not write an offset onto content that replaced it while the pane was hidden [R13-05]", () => {
+    const { hosts, content, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(140);
+
+    surface.hidden = true;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    // A `window navigate` on the hidden pane: same container, new content.
+    content.route = { pathname: "/files", search: { path: "docs" } };
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  /**
+   * A 200px scroller over content that can be emptied and grown again, writes clamped to the
+   * scrollable range the way the browser clamps them.
+   */
+  function clampingContent(scroller: HTMLElement) {
+    const rows = document.createElement("div");
+    scroller.append(rows);
+    const layout = { height: 1_000, top: 0 };
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, get: () => 200 });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => Math.max(200, layout.height),
+    });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      get: () => layout.top,
+      set: (value: number) => {
+        layout.top = Math.min(Math.max(0, value), Math.max(0, layout.height - 200));
+      },
+    });
+    return { rows, layout };
+  }
+
+  it("Should leave a scroll owner's offset to it and tell it the pane shows again [A-1]", () => {
+    const { hosts, surface, first, box, cleanup } = setup();
+    const owner = document.createElement("div");
+    owner.setAttribute(SCROLL_OWNER_ATTRIBUTE, "");
+    surface.append(owner);
+    const told = vi.fn();
+    owner.addEventListener(SCROLL_RESTORE_EVENT, told);
+    hosts.place("w", first);
+    box(640, 480);
+    expect(told).toHaveBeenCalledOnce();
+    owner.scrollTop = 300;
+    owner.dispatchEvent(new Event("scroll"));
+
+    surface.hidden = true;
+    owner.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    // One writer: the owner restores itself on the event; the host never wrote its offset.
+    expect(told).toHaveBeenCalledTimes(2);
+    expect(owner.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should write an offset the content could not hold once the content grows [A-3]", () => {
+    const { hosts, surface, scroller, first, scrollTo, resize, box, cleanup } = setup();
+    const { rows, layout } = clampingContent(scroller);
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(600);
+
+    // Hidden, the virtualized list unmounts its rows: shown again, the write clamps to 0.
+    surface.hidden = true;
+    layout.height = 0;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(0);
+
+    // The rows mount again in a later frame; the offset lands as soon as they can hold it.
+    layout.height = 1_000;
+    resize(rows, 640, 1_000);
+    expect(scroller.scrollTop).toBe(600);
+    cleanup();
+  });
+
+  it("Should write a restored offset its container dropped back to 0 until the operator scrolls [A-3]", () => {
+    const { hosts, surface, scroller, first, scrollTo, box, cleanup } = setup();
+    clampingContent(scroller);
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(600);
+    surface.hidden = true;
+    scroller.scrollTop = 0;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(600);
+
+    // The container's own logic, re-reading what it saw while hidden, moves back to the top.
+    scrollTo(0);
+    expect(scroller.scrollTop).toBe(600);
+
+    // The operator's gesture ends it: their scroll to the top stays and is the new offset.
+    scroller.dispatchEvent(new Event("wheel"));
+    scrollTo(0);
+    expect(scroller.scrollTop).toBe(0);
+    surface.hidden = true;
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+    expect(scroller.scrollTop).toBe(0);
+    cleanup();
+  });
+
+  it("Should sweep scroll containers an in-window navigation removed [R13-04]", () => {
+    const { hosts, scroller, surface, first, scrollTo, cleanup } = setup();
+    hosts.place("w", first);
+    scrollTo(30);
+    // Page after page of new content, each scrolled once, while the pane stays shown.
+    const pages: HTMLElement[] = [];
+    for (let index = 0; index < 40; index += 1) {
+      const page = document.createElement("div");
+      surface.append(page);
+      page.scrollTop = 10 + index;
+      page.dispatchEvent(new Event("scroll"));
+      page.remove();
+      pages.push(page);
+    }
+    const retained = (
+      hosts as unknown as { hosts: Map<string, { offsets: Map<Element, unknown> }> }
+    ).hosts.get("w")!.offsets;
+
+    // At most twice what the pane still holds (the floor of 16), never one entry per page.
+    expect(retained.size).toBeLessThanOrEqual(17);
+    expect(retained.has(scroller)).toBe(true);
+    cleanup();
+  });
+
+  it("Should not write offsets back while a shown pane only resizes", () => {
+    const { hosts, scroller, first, scrollTo, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(50);
+    // Scroll anchoring moved the container during a seam drag; its scroll event is still queued.
+    scroller.scrollTop = 70;
+
+    box(600, 480);
+    box(560, 480);
+
+    expect(scroller.scrollTop).toBe(70);
+    cleanup();
+  });
+});
+
+describe("useDesktopCardDrag", () => {
+  /** A grid of three 100px cards in a row, a at 0, b at 100, c at 200. */
+  function cardGrid(order: readonly string[]) {
+    const grid = document.createElement("div");
+    grid.dataset.slot = "desktops-overview-grid";
+    grid.getBoundingClientRect = () => new DOMRect(0, 0, 300, 100);
+    const cards = new Map<string, HTMLElement>();
+    order.forEach((id, position) => {
+      const card = document.createElement("div");
+      card.dataset.slot = "desktop-card";
+      card.dataset.cardDesktopId = id;
+      card.getBoundingClientRect = () => new DOMRect(position * 100, 0, 100, 100);
+      grid.append(card);
+      cards.set(id, card);
+    });
+    return cards;
+  }
+
+  function pointer(type: "pointermove" | "pointerup", clientX: number) {
+    const event = new MouseEvent(type, { bubbles: true, clientX, clientY: 50 });
+    Object.defineProperty(event, "pointerId", { value: 1 });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+  }
+
+  function press(
+    start: (id: string, event: ReactPointerEvent<HTMLElement>) => void,
+    card: HTMLElement
+  ) {
     act(() =>
-      shell.setRuntimeState({
-        desktops: [
+      start(card.dataset.cardDesktopId!, {
+        button: 0,
+        pointerId: 1,
+        clientX: 50,
+        clientY: 50,
+        currentTarget: card,
+        target: card,
+      } as unknown as ReactPointerEvent<HTMLElement>)
+    );
+  }
+
+  it("Should preview the landing gap and send one reorder on release", () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useDesktopCardDrag(["a", "b", "c"], onReorder));
+    const cards = cardGrid(["a", "b", "c"]);
+
+    press(result.current.start, cards.get("a")!);
+    pointer("pointermove", 52);
+    expect(result.current.drag).toBeNull();
+    pointer("pointermove", 250);
+    expect(result.current.drag).toMatchObject({ desktopId: "a", index: 2, width: 100 });
+    expect(result.current.previewOrder).toEqual(["b", "c", "a"]);
+    pointer("pointerup", 250);
+
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith("a", 2);
+    expect(result.current.drag).toBeNull();
+    expect(result.current.previewOrder).toEqual(["a", "b", "c"]);
+  });
+
+  it.each([
+    { gesture: "drag", travelTo: 250 },
+    { gesture: "press below the drag threshold", travelTo: 52 },
+  ])(
+    "Should cancel a $gesture on Escape without sending a reorder or closing the overview",
+    ({ travelTo }) => {
+      const onReorder = vi.fn();
+      const { result } = renderHook(() => useDesktopCardDrag(["a", "b", "c"], onReorder));
+      const cards = cardGrid(["a", "b", "c"]);
+      // Where the overview's dismissal listens: past the window, Escape must not arrive.
+      const overviewEscape = vi.fn();
+      document.addEventListener("keydown", overviewEscape);
+
+      try {
+        press(result.current.start, cards.get("a")!);
+        pointer("pointermove", travelTo);
+        const escape = new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        });
+        act(() => {
+          document.body.dispatchEvent(escape);
+        });
+
+        expect(escape.defaultPrevented).toBe(true);
+        expect(overviewEscape).not.toHaveBeenCalled();
+        expect(result.current.drag).toBeNull();
+        pointer("pointermove", 250);
+        pointer("pointerup", 250);
+        expect(result.current.drag).toBeNull();
+        expect(onReorder).not.toHaveBeenCalled();
+      } finally {
+        document.removeEventListener("keydown", overviewEscape);
+      }
+    }
+  );
+
+  it("Should cancel when the desktop order changes under the drag", () => {
+    const onReorder = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ order }: { order: readonly string[] }) => useDesktopCardDrag(order, onReorder),
+      { initialProps: { order: ["a", "b", "c"] as readonly string[] } }
+    );
+    const cards = cardGrid(["a", "b", "c"]);
+
+    press(result.current.start, cards.get("a")!);
+    pointer("pointermove", 250);
+    expect(result.current.drag).not.toBeNull();
+    rerender({ order: ["b", "a", "c"] });
+
+    expect(result.current.drag).toBeNull();
+    expect(result.current.previewOrder).toEqual(["b", "a", "c"]);
+    pointer("pointermove", 250);
+    pointer("pointerup", 250);
+    expect(result.current.drag).toBeNull();
+    expect(onReorder).not.toHaveBeenCalled();
+  });
+});
+
+function leafNode(windowId: string): LayoutNode {
+  return { id: `leaf:${windowId}`, kind: "leaf", windowId };
+}
+
+function desktopWith(tabs: Array<{ id: string; root: LayoutNode }>) {
+  return {
+    id: "desktop:main",
+    name: "Main",
+    order: 0,
+    tabs: tabs.map(tab => ({ ...tab, pinned: false })),
+    activeTabId: tabs[0]!.id,
+  };
+}
+
+/** jsdom has no pointer capture: the element records it instead. */
+function stubPointerCapture(element: HTMLElement) {
+  const captured = new Set<number>();
+  element.setPointerCapture = vi.fn((pointerId: number) => void captured.add(pointerId));
+  element.hasPointerCapture = vi.fn((pointerId: number) => captured.has(pointerId));
+  element.releasePointerCapture = vi.fn((pointerId: number) => void captured.delete(pointerId));
+  return element;
+}
+
+function TabBarDragHarness({ tabIds }: { tabIds: string[] }) {
+  const { startTabDrag } = useOsTabDragStart();
+  return (
+    <div data-slot="os-tab-bar" data-testid="bar">
+      {tabIds.map(tabId => (
+        <button
+          key={tabId}
+          data-slot="os-tab"
+          data-tab-id={tabId}
+          type="button"
+          onPointerDown={event => startTabDrag(tabId, event)}
+        >
+          {tabId}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function HeadDragHarness({ windowId, onBack }: { windowId: string; onBack: () => void }) {
+  const { startHeadDrag } = useOsTabDragStart();
+  return (
+    <header data-testid="head" onPointerDown={event => startHeadDrag(windowId, event)}>
+      <button type="button" onClick={onBack}>
+        Back
+      </button>
+      {/* The window title: a full-title popover trigger, and still the head's grab surface. */}
+      <h1 data-slot="topbar-title">
+        <button type="button">Agents</button>
+      </h1>
+      {/* A published head control that is no native control, like the board's "Select all". */}
+      <span aria-checked="false" aria-label="Select all" role="checkbox" tabIndex={0} />
+      {/* A head picker's popup renders in a portal, outside the head's DOM. */}
+      {createPortal(<input aria-label="Picker filter" />, document.body)}
+    </header>
+  );
+}
+
+// Invariant: a tab or window-head drag sends its one command on release and always tears down,
+// even when that command throws; a press that stays below the drag threshold, or starts on a
+// control inside the head, is a plain click on that control.
+// Owning layer: the pointer-to-drag-store wiring in useOsTabDragStart; the gesture rules
+// themselves are owned by the drag store suite.
+describe("useOsTabDragStart pointer gestures", () => {
+  afterEach(() => {
+    act(() => {
+      osTabDragStore.trigger.cancelled();
+      osTabDragStore.trigger.settled();
+    });
+  });
+
+  it("Should dispatch the reorder a released tab drag emits, fenced to the press revision", async () => {
+    const shell = createShell();
+    const windows = Object.fromEntries(
+      ["a", "b", "c"].map(name => [
+        `window:${name}`,
+        windowFixture(`window:${name}`, { tabId: `tab:${name}`, nodeId: `leaf:window:${name}` }),
+      ])
+    );
+    shell.setRuntimeState({
+      windows,
+      desktops: [
+        desktopWith(
+          ["a", "b", "c"].map(name => ({ id: `tab:${name}`, root: leafNode(`window:${name}`) }))
+        ),
+      ],
+      activeTabIds: { "desktop:main": "tab:a" },
+    });
+    render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, { wrapper: shell.wrapper });
+    screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
+    const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
+      const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
+      tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 30);
+      return tab;
+    });
+
+    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 1, clientX: 50, clientY: 15 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 15 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("dragging");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 15 });
+
+    // Moved past the last tab: the tab lands at the end of the bar, in one command.
+    expect(shell.controller.reorderTab).toHaveBeenCalledExactlyOnceWith("window:a", 2, {
+      expectedRevision: SNAPSHOT.revision,
+      rebase: { windowId: "window:a" },
+    });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(tabs[0]!.setPointerCapture).toHaveBeenCalledOnce();
+    // The reorder settled, so the bar shows the daemon's order again.
+    await waitFor(() => expect(osTabDragStore.getSnapshot().context.settling).toBeNull());
+  });
+
+  it("Should not capture a head press that never becomes a drag", () => {
+    const shell = renderSplitHead();
+    const head = stubPointerCapture(screen.getByTestId("head"));
+
+    fireEvent.pointerDown(head, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 12, clientY: 10 });
+
+    // Capturing at press would route the click to the head instead of what is under it.
+    expect(head.setPointerCapture).not.toHaveBeenCalled();
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+  });
+
+  it("Should never arm a drag from a control inside the head, even when the press moves", () => {
+    const shell = renderSplitHead();
+    const head = stubPointerCapture(screen.getByTestId("head"));
+    const back = screen.getByRole("button", { name: "Back" });
+
+    fireEvent.pointerDown(back, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    fireEvent.pointerMove(window, { pointerId: 3, clientX: 40, clientY: 10 });
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 40, clientY: 10 });
+    fireEvent.click(back);
+
+    expect(onHeadBack).toHaveBeenCalledOnce();
+    expect(head.setPointerCapture).not.toHaveBeenCalled();
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should leave the next gesture clean when a drop's dispatch throws", () => {
+    const { shell, tabs } = renderTabBar();
+    vi.mocked(shell.controller.reorderTab).mockImplementationOnce(() => {
+      throw new Error("dispatch failed");
+    });
+    // jsdom reports a listener's exception as a window error; the test owns that report.
+    const onError = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener("error", onError);
+
+    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 1, clientX: 50, clientY: 15 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 260, clientY: 15 });
+    expect(document.documentElement.style.userSelect).toBe("none");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 260, clientY: 15 });
+    window.removeEventListener("error", onError);
+
+    expect(shell.controller.reorderTab).toHaveBeenCalledOnce();
+    expect(document.documentElement.style.userSelect).toBe("");
+    expect(tabs[0]!.hasPointerCapture(1)).toBe(false);
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({ phase: "idle", settling: null });
+
+    // The listeners of the failed gesture are gone: one more drag sends exactly one more command.
+    fireEvent.pointerDown(tabs[1]!, { button: 0, pointerId: 2, clientX: 150, clientY: 15 });
+    fireEvent.pointerMove(window, { pointerId: 2, clientX: 10, clientY: 15 });
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 10, clientY: 15 });
+
+    expect(shell.controller.reorderTab).toHaveBeenCalledTimes(2);
+    expect(shell.controller.reorderTab).toHaveBeenLastCalledWith("window:b", 0, {
+      expectedRevision: SNAPSHOT.revision,
+      rebase: { windowId: "window:b" },
+    });
+  });
+
+  it("UT-035: a tab stays a bar reorder within the exit band and leaves the bar past it", () => {
+    const { shell, tabs } = renderTabBar();
+    // The content under the bar: a pointer that leaves the band lands here.
+    const layer = document.createElement("div");
+    layer.dataset.slot = "os-desk-layer";
+    layer.getBoundingClientRect = () => new DOMRect(0, 30, 300, 500);
+    document.body.append(layer);
+    const barBottom = 30;
+
+    fireEvent.pointerDown(tabs[0]!, { button: 0, pointerId: 5, clientX: 50, clientY: 15 });
+    fireEvent.pointerMove(window, {
+      pointerId: 5,
+      clientX: 260,
+      clientY: barBottom + TAB_DRAG_EXIT_PX,
+    });
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({
+      phase: "dragging",
+      mode: "reorder",
+      insertionIndex: 3,
+      target: { kind: "reorder", index: 2 },
+      contentTabId: "tab:a",
+    });
+
+    fireEvent.pointerMove(window, {
+      pointerId: 5,
+      clientX: 260,
+      clientY: barBottom + TAB_DRAG_EXIT_PX + 1,
+    });
+    // Past the band the dragged active tab previews the neighbour it would split into.
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({
+      phase: "dragging",
+      mode: "split",
+      insertionIndex: null,
+      contentTabId: "tab:b",
+    });
+
+    fireEvent.pointerUp(window, {
+      pointerId: 5,
+      clientX: 260,
+      clientY: barBottom + TAB_DRAG_EXIT_PX + 1,
+    });
+    // No reorder leaves once the tab left the bar.
+    expect(shell.controller.reorderTab).not.toHaveBeenCalled();
+    layer.remove();
+  });
+
+  it("Should drag a window head by its title, a popover trigger, past the threshold", () => {
+    renderSplitHead();
+    const head = stubPointerCapture(screen.getByTestId("head"));
+    const title = screen.getByRole("button", { name: "Agents" });
+
+    fireEvent.pointerDown(title, { button: 0, pointerId: 6, clientX: 100, clientY: 10 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("pressed");
+    fireEvent.pointerMove(window, { pointerId: 6, clientX: 140, clientY: 10 });
+
+    expect(osTabDragStore.getSnapshot().context).toMatchObject({
+      phase: "dragging",
+      session: { source: { kind: "head", windowId: "window:primary" } },
+    });
+    expect(head.setPointerCapture).toHaveBeenCalledOnce();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+  });
+
+  it("Should never arm a drag from a press on a role=checkbox span published into the head", () => {
+    const shell = renderSplitHead();
+    const selectAll = screen.getByRole("checkbox", { name: "Select all" });
+
+    fireEvent.pointerDown(selectAll, { button: 0, pointerId: 7, clientX: 10, clientY: 300 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    fireEvent.pointerMove(window, { pointerId: 7, clientX: 80, clientY: 300 });
+    fireEvent.pointerUp(window, { pointerId: 7, clientX: 80, clientY: 300 });
+
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should never arm a drag from a press inside a popup portaled out of the head", () => {
+    const shell = renderSplitHead();
+    const filter = screen.getByRole("textbox", { name: "Picker filter" });
+
+    // React still delivers this press to the head's handler, though it is not in the head.
+    fireEvent.pointerDown(filter, { button: 0, pointerId: 7, clientX: 10, clientY: 300 });
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    fireEvent.pointerMove(window, { pointerId: 7, clientX: 80, clientY: 300 });
+    fireEvent.pointerUp(window, { pointerId: 7, clientX: 80, clientY: 300 });
+
+    expect(osTabDragStore.getSnapshot().context.phase).toBe("idle");
+    expect(shell.controller.moveWindow).not.toHaveBeenCalled();
+  });
+
+  const onHeadBack = vi.fn();
+
+  /** One split tab whose primary window's head is rendered with a Back control. */
+  function renderSplitHead() {
+    onHeadBack.mockClear();
+    const shell = createShell();
+    shell.setRuntimeState({
+      desktops: [
+        desktopWith([
           {
-            id: "desktop:main",
-            name: "Main",
-            order: 0,
-            groups: [],
-            floating: [],
-            floatingStacks: [],
+            id: "tab:main",
+            root: {
+              id: "split:main",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:primary"), leafNode("window:peer")],
+            },
           },
-          {
-            id: "desktop:second",
-            name: "Second",
-            order: 1,
-            groups: [],
-            floating: [],
-            floatingStacks: [],
-          },
-        ],
+        ]),
+      ],
+      activeTabIds: { "desktop:main": "tab:main" },
+    });
+    render(<HeadDragHarness windowId="window:primary" onBack={onHeadBack} />, {
+      wrapper: shell.wrapper,
+    });
+    return shell;
+  }
+
+  /** Three single-window tabs on a 300px bar, each 100px wide. */
+  function renderTabBar() {
+    const shell = createShell();
+    const windows = Object.fromEntries(
+      ["a", "b", "c"].map(name => [
+        `window:${name}`,
+        windowFixture(`window:${name}`, { tabId: `tab:${name}`, nodeId: `leaf:window:${name}` }),
+      ])
+    );
+    shell.setRuntimeState({
+      windows,
+      desktops: [
+        desktopWith(
+          ["a", "b", "c"].map(name => ({ id: `tab:${name}`, root: leafNode(`window:${name}`) }))
+        ),
+      ],
+      activeTabIds: { "desktop:main": "tab:a" },
+    });
+    render(<TabBarDragHarness tabIds={["tab:a", "tab:b", "tab:c"]} />, { wrapper: shell.wrapper });
+    screen.getByTestId("bar").getBoundingClientRect = () => new DOMRect(0, 0, 300, 30);
+    const tabs = ["tab:a", "tab:b", "tab:c"].map((tabId, index) => {
+      const tab = stubPointerCapture(screen.getByRole("button", { name: tabId }));
+      tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 30);
+      return tab;
+    });
+    return { shell, tabs };
+  }
+});
+
+const SEAM: ProjectedSeam = {
+  id: "split:main:0",
+  splitId: "split:main",
+  boundaryIndex: 0,
+  orientation: "vertical",
+  rect: { x: 496, y: 0, w: 8, h: 700 },
+  value: 500,
+  minValue: 300,
+  maxValue: 700,
+  axisSpan: 1000,
+  leadingWeight: 0.5,
+  trailingWeight: 0.5,
+  leadingWindowIds: ["window:primary"],
+  trailingWindowIds: ["window:peer"],
+};
+
+function SeamHarness({
+  seam,
+  testId = "seam",
+}: {
+  seam: ProjectedSeam | undefined;
+  testId?: string;
+}) {
+  const { state, onPointerDown, onKeyDown, onDoubleClick } = useOsSplitSeam(seam);
+  return (
+    <div
+      data-state={state}
+      data-testid={testId}
+      tabIndex={0}
+      onDoubleClick={onDoubleClick}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+    />
+  );
+}
+
+/**
+ * The authoritative snapshot with one split tab whose split carries these weights, one member
+ * window per weight. The windows are of no catalog app, so each keeps the conservative 220px floor.
+ */
+function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): WindowManagerSnapshot {
+  const windowIds = ["window:primary", "window:peer", "window:third"].slice(0, weights.length);
+  return snapshotWithRoot(
+    {
+      id: "split:main",
+      kind: "split",
+      axis: "horizontal",
+      weights,
+      children: windowIds.map(id => leafNode(id)),
+    },
+    windowIds,
+    revision
+  );
+}
+
+/** The authoritative snapshot with one tab over this root, its windows of no catalog app. */
+function snapshotWithRoot(
+  root: LayoutNode,
+  windowIds: readonly string[],
+  revision: number
+): WindowManagerSnapshot {
+  return {
+    ...SNAPSHOT,
+    revision,
+    windows: Object.fromEntries(
+      windowIds.map(id => [
+        id,
+        {
+          id,
+          app: "uncatalogued",
+          instanceKey: null,
+          route: { pathname: "/", search: {} },
+          navStack: [],
+          desktopId: "desktop:main",
+          tabId: "tab:main",
+        },
+      ])
+    ),
+    desktops: [desktopWith([{ id: "tab:main", root }])],
+  };
+}
+
+/** `SEAM` as a 1000px work area with no gaps lays it out over 220px floors: 1px is 0.001. */
+const EXACT_SEAM: ProjectedSeam = {
+  ...SEAM,
+  rect: { x: 500, y: 0, w: 0, h: 700 },
+  minValue: 220,
+  maxValue: 780,
+};
+
+// Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it is based
+// on; Escape, a cancelled or lost pointer, unmounting and a change of the context it was drawn in
+// — including the seam's layout (own, ancestor or minimums) changed by someone else — (US-009.EC-2) cancel it, restore the
+// shares and send nothing. While this client has a seam command in flight on any split, the drag
+// is re-based on the latest layout instead and its release waits for that command, so what it
+// sends always equals what its preview showed, clamp included (US-009.EC-1). Keyboard and
+// pair-balance resizes carry the same fence; every seam command carries its input time, from
+// which the runtime counts its deadline.
+// Owning layer: the seam gesture hook over the shared seam drag store (hooks/seam-drag-store).
+describe("useOsSplitSeam gesture lifecycle", () => {
+  let frames: FrameRequestCallback[] = [];
+
+  /** A seam command's fence: its revision and seam, and the time of the input that made it. */
+  const seamFence = (
+    splitId: string,
+    boundaryIndex: number,
+    expectedRevision: number,
+    inputAt: unknown = expect.any(Number)
+  ) => ({ expectedRevision, rebase: { splitId, boundaryIndex }, inputAt });
+  const fenceAt = (expectedRevision: number) => seamFence("split:main", 0, expectedRevision);
+
+  function flushFrames() {
+    const pending = frames;
+    frames = [];
+    act(() => {
+      for (const frame of pending) frame(16);
+    });
+  }
+
+  /** A drag on the seam the snapshot really lays out, 60px past its 500px place. */
+  function startSeamDrag(snapshot: WindowManagerSnapshot = snapshotWithSplit([0.5, 0.5])) {
+    const shell = exactShell(snapshot);
+    const { unmount } = render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    flushFrames();
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toEqual({
+      splitId: "split:main",
+      boundaryIndex: 0,
+      deltaPx: 60,
+    });
+    expect(seam).toHaveAttribute("data-state", "drag");
+    return { shell, seam, unmount };
+  }
+
+  /** The drag ended without a commit: the shares are back and a late release sends nothing. */
+  function expectCancelled(shell: ReturnType<typeof createShell>, seam: HTMLElement) {
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  }
+
+  afterEach(() => {
+    act(() => {
+      windowManagerStore.trigger.seamPreviewCleared();
+      windowManagerStore.trigger.bindingUnbound({});
+    });
+  });
+
+  it("Should cancel on Escape: the shares come back and nothing is sent", () => {
+    const { shell, seam } = startSeamDrag();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  it("Should cancel when another tab is shown mid-drag", () => {
+    const { shell, seam } = startSeamDrag();
+
+    act(() => shell.setRuntimeState({ activeTabIds: { "desktop:main": "tab:other" } }));
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  it("Should commit one resize fenced to the revision the drag started from", async () => {
+    const { shell, seam } = startSeamDrag();
+
+    // Another client changes something that leaves this seam where it was: the drag carries on,
+    // and its commit still names the press revision and the seam's split, so the daemon applies
+    // it only while that split is still there.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.5, 0.5], 9) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.06),
+      fenceAt(SNAPSHOT.revision)
+    );
+    await waitFor(() => expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull());
+  });
+  it("Should cancel when the pointer is cancelled", () => {
+    const { shell, seam } = startSeamDrag();
+
+    fireEvent.pointerCancel(seam, { pointerId: 4 });
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should cancel when the seam loses pointer capture", () => {
+    const { shell, seam } = startSeamDrag();
+
+    fireEvent(seam, new Event("lostpointercapture", { bubbles: true }));
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should cancel when the seam unmounts mid-drag", () => {
+    const { shell, seam, unmount } = startSeamDrag();
+
+    unmount();
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should cancel when someone else changes the split's weights mid-drag", () => {
+    const { shell, seam } = startSeamDrag(snapshotWithSplit([0.5, 0.5]));
+
+    // The preview showed 50/50 moving; committing its delta onto 30/70 would land elsewhere.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+
+    expectCancelled(shell, seam);
+  });
+
+  it("Should fence an arrow-key resize and a pair balance like a drag", async () => {
+    // Commands are authored from the layout: a 30/50/20 split, 1200px wide so 20% keeps its floor.
+    const shell = exactShell(snapshotWithSplit([0.3, 0.5, 0.2]), 1200);
+    const wide: ProjectedSeam = { ...EXACT_SEAM, leadingWeight: 0.3, trailingWeight: 0.5 };
+    render(<SeamHarness seam={wide} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const fence = fenceAt(SNAPSHOT.revision);
+
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    // The balance waits behind a resize in flight on the split; let the arrow's settle first.
+    await act(async () => {});
+    fireEvent.doubleClick(seam);
+
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      1,
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      fence
+    );
+    // A three-member split evens only this pair: 0.3 and 0.5 become 0.4 each.
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.1),
+      fence
+    );
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+  });
+  /** A 1000×700 work area with no gaps, so seams sit at weight × 1000 px as in `EXACT_SEAM`. */
+  function exactShell(snapshot: WindowManagerSnapshot, width = 1000, height = 700) {
+    act(() =>
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: {
+          rect: { x: 0, y: 0, w: width, h: height },
+          origin: { x: 0, y: 0 },
+          viewportWidth: width,
+        },
       })
     );
-    expect(result.current.canSwitchDesktop).toBe(true);
-    act(() => result.current.switchDesktop("next"));
-    expect(shell.controller.switchDesktopDirection).toHaveBeenCalledWith("next");
+    const shell = createShell();
+    shell.setRuntimeState({
+      snapshot,
+      windowManagerConfig: { ...CONFIG, gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 } },
+      activeTabIds: { "desktop:main": "tab:main" },
+    });
+    frames = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    return shell;
+  }
+
+  /** The next resize stays in flight until the returned function settles it. */
+  function deferResize(shell: ReturnType<typeof createShell>) {
+    let settle!: (applied: boolean) => void;
+    vi.mocked(shell.controller.resizeLayout).mockImplementationOnce(() => ({
+      accepted: true,
+      completion: new Promise<boolean>(resolve => {
+        settle = resolve;
+      }),
+    }));
+    return async () => act(async () => settle(true));
+  }
+
+  function previewDelta() {
+    return windowManagerStore.getSnapshot().context.seamPreview?.deltaPx;
+  }
+
+  it("Should keep a drag re-based when this seam's own earlier resize lands, and cancel on someone else's", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    const { rerender } = render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.06),
+      fenceAt(7)
+    );
+
+    // Grab it again where the first resize's preview shows it, before that resize is acknowledged.
+    rerender(
+      <SeamHarness
+        seam={{ ...EXACT_SEAM, value: 560, leadingWeight: 0.56, trailingWeight: 0.44 }}
+      />
+    );
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 5, clientX: 560, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 5, clientX: 600, clientY: 300 });
+    flushFrames();
+    // Based on the unpreviewed 500 the preview is clamped against, the seam shows at 600.
+    expect(previewDelta()).toBeCloseTo(100);
+
+    // The first resize's own echo moves the split: the drag carries on from 560, still at 600.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.56, 0.44], 8) }));
+    await settle();
+    expect(seam).toHaveAttribute("data-state", "drag");
+    expect(previewDelta()).toBeCloseTo(40);
+
+    // Another client's change afterwards still cancels it.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.7, 0.3], 9) }));
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    fireEvent.pointerUp(seam, { pointerId: 5, clientX: 600, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should send what the preview shows when an own resize lands mid-drag, at the moved minimum (AS-F-12)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+
+    // The +0.1 lands with the pointer down: the split is 60/40 and the seam stays under the pointer.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.6, 0.4], 8) }));
+    await settle();
+    expect(previewDelta()).toBeCloseTo(-100);
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 800, clientY: 300 });
+    flushFrames();
+    // Past 780 the trailing side would drop under its floor: the preview stops at 78/22.
+    expect(previewDelta()).toBeCloseTo(200);
+    expect(seam).toHaveAttribute("data-state", "limit");
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 800, clientY: 300 });
+
+    // +0.18 from 60/40, at the revision it lands on; the press-time seam would have allowed +0.28.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.18),
+      fenceAt(8)
+    );
+  });
+
+  it("Should re-base on another client's change while an own resize is in flight, and send after it", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    // Someone else's 30/70 lands first: the drag is re-based on it, the seam still at 560.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    expect(previewDelta()).toBeCloseTo(260);
+
+    // Released while the own +0.1 is in flight: nothing is sent against a layout about to move.
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+    expect(seam).toHaveAttribute("data-state", "drag");
+
+    // The own +0.1 lands on top (40/60) and settles: the release goes out against it.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.4, 0.6], 9) }));
+    expect(previewDelta()).toBeCloseTo(160);
+    await settle();
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.16),
+      fenceAt(9)
+    );
+    expect(seam).not.toHaveAttribute("data-state");
+  });
+
+  /** The two seams of a 30/40/30 split at 300 and 700; the second one's test id is "sibling". */
+  function renderThirds(shell: ReturnType<typeof createShell>) {
+    const first: ProjectedSeam = {
+      ...EXACT_SEAM,
+      rect: { x: 300, y: 0, w: 0, h: 700 },
+      value: 300,
+      maxValue: 480,
+      leadingWeight: 0.3,
+      trailingWeight: 0.4,
+    };
+    const sibling: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:main:1",
+      boundaryIndex: 1,
+      rect: { x: 700, y: 0, w: 0, h: 700 },
+      value: 700,
+      minValue: 520,
+      maxValue: 780,
+      leadingWeight: 0.4,
+      trailingWeight: 0.3,
+      leadingWindowIds: ["window:peer"],
+      trailingWindowIds: ["window:third"],
+    };
+    const view = render(
+      <>
+        <SeamHarness seam={first} />
+        <SeamHarness seam={sibling} testId="sibling" />
+      </>,
+      { wrapper: shell.wrapper }
+    );
+    return { ...view, first, sibling };
+  }
+
+  function dragSeam(element: HTMLElement, pointerId: number, from: number, to: number) {
+    fireEvent.pointerDown(element, { button: 0, pointerId, clientX: from, clientY: 300 });
+    fireEvent.pointerMove(element, { pointerId, clientX: to, clientY: 300 });
+  }
+
+  /** The shares the sent resizes leave, applied in order onto `start`. */
+  function sharesAfterResizes(
+    shell: ReturnType<typeof createShell>,
+    start: number[],
+    from: number
+  ) {
+    return vi
+      .mocked(shell.controller.resizeLayout)
+      .mock.calls.slice(from)
+      .reduce((weights, [, boundary, delta]) => {
+        return weights.map((weight, index) => {
+          if (index === boundary) return weight + delta;
+          return index === boundary + 1 ? weight - delta : weight;
+        });
+      }, start);
+  }
+
+  const fenceOn = (boundaryIndex: number, expectedRevision: number) =>
+    seamFence("split:main", boundaryIndex, expectedRevision);
+
+  it("Should keep a drag through a sibling seam's own resize and send it against the moved bounds", async () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    renderThirds(shell);
+    const settle = deferResize(shell);
+    fireEvent.keyDown(screen.getByTestId("sibling"), { key: "ArrowLeft" });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 300, clientY: 300 });
+
+    // The sibling's -0.02 lands (30/38/32): this drag carries on, its trailing side now 380px.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.38, 0.32], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 500, clientY: 300 });
+    flushFrames();
+    expect(seam).toHaveAttribute("data-state", "limit");
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 500, clientY: 300 });
+    await settle();
+
+    // Stopped at 460, the moved floor, not the press-time 480.
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.16),
+      fenceAt(8)
+    );
+  });
+
+  it("Should send held sibling releases one at a time, each against the layout the one before leaves (AS-F-12)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    renderThirds(shell);
+    const settleArrow = deferResize(shell);
+    const settleLeft = deferResize(shell);
+    const settleRight = deferResize(shell);
+    const left = stubPointerCapture(screen.getByTestId("seam"));
+    const right = stubPointerCapture(screen.getByTestId("sibling"));
+
+    // +0.02 in flight; both seams are dragged and released behind it.
+    fireEvent.keyDown(left, { key: "ArrowRight" });
+    dragSeam(left, 4, 300, 460);
+    fireEvent.pointerUp(left, { pointerId: 4, clientX: 460, clientY: 300 });
+    dragSeam(right, 5, 700, 550);
+    fireEvent.pointerUp(right, { pointerId: 5, clientX: 550, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+
+    // The arrow lands (32/38/30) and settles: only the first held release goes out.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.32, 0.38, 0.3], 8) }));
+    await settleArrow();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.14),
+      fenceOn(0, 8)
+    );
+    expect(right).toHaveAttribute("data-state", "drag");
+
+    // Its result (46/24/30) puts the second seam's floor at 680: the held preview stops there.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.46, 0.24, 0.3], 9) }));
+    expect(right).toHaveAttribute("data-state", "limit");
+    await settleLeft();
+
+    // Sent against that layout: -0.02, not the -0.15 computed against 32/38/30.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      3,
+      "split:main",
+      1,
+      expect.closeTo(-0.02),
+      fenceOn(1, 9)
+    );
+    expect(right).not.toHaveAttribute("data-state");
+    // 46/22/32: what the last preview showed, every member at or above its 220px floor.
+    const shares = sharesAfterResizes(shell, [0.32, 0.38, 0.3], 1);
+    expect(shares).toEqual([expect.closeTo(0.46), expect.closeTo(0.22), expect.closeTo(0.32)]);
+    for (const share of shares) expect(share).toBeGreaterThanOrEqual(0.22 - 1e-9);
+    await settleRight();
+  });
+
+  it("Should hold a sibling's release made while a resumed release is in flight, then send it against its result", async () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    renderThirds(shell);
+    const settleArrow = deferResize(shell);
+    const settleLeft = deferResize(shell);
+    const left = stubPointerCapture(screen.getByTestId("seam"));
+    const right = stubPointerCapture(screen.getByTestId("sibling"));
+    fireEvent.keyDown(left, { key: "ArrowRight" });
+    dragSeam(left, 4, 300, 460);
+    fireEvent.pointerUp(left, { pointerId: 4, clientX: 460, clientY: 300 });
+    // The second seam is still being dragged when the first release resumes.
+    dragSeam(right, 5, 700, 550);
+
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.32, 0.38, 0.3], 8) }));
+    await settleArrow();
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.14),
+      fenceOn(0, 8)
+    );
+
+    // Released before that resize lands: it waits behind it instead of using 32/38/30.
+    fireEvent.pointerUp(right, { pointerId: 5, clientX: 550, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.46, 0.24, 0.3], 9) }));
+    expect(right).toHaveAttribute("data-state", "limit");
+    await settleLeft();
+
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      3,
+      "split:main",
+      1,
+      expect.closeTo(-0.02),
+      fenceOn(1, 9)
+    );
+    const shares = sharesAfterResizes(shell, [0.32, 0.38, 0.3], 1);
+    for (const share of shares) expect(share).toBeGreaterThanOrEqual(0.22 - 1e-9);
+  });
+
+  it("Should compute an arrow press made while a resize is in flight against that resize's result", async () => {
+    const shell = exactShell(snapshotWithSplit([0.7, 0.3]));
+    const near: ProjectedSeam = {
+      ...EXACT_SEAM,
+      rect: { x: 700, y: 0, w: 0, h: 700 },
+      value: 700,
+      leadingWeight: 0.7,
+      trailingWeight: 0.3,
+    };
+    render(<SeamHarness seam={near} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+
+    // Two quick Shift+Right presses 80px from the floor: the first takes all 80px.
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.08),
+      fenceAt(7)
+    );
+
+    // The second waits for 78/22 and finds the seam at its floor: it sends nothing, so it can
+    // never push the trailing side under 220px.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.78, 0.22], 8) }));
+    await settle();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should cancel when someone else moves an ancestor of the dragged seam, and keep a drag the layout leaves in place", () => {
+    // [[a | b] | c] on one axis: the inner seam's place and bounds follow the outer weights too.
+    const nested = (outer: number[], revision: number) =>
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "horizontal",
+          weights: outer,
+          children: [
+            {
+              id: "split:inner",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:a"), leafNode("window:b")],
+            },
+            leafNode("window:c"),
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        revision
+      );
+    const shell = exactShell(nested([0.6, 0.4], SNAPSHOT.revision));
+    const inner: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:inner:0",
+      splitId: "split:inner",
+      rect: { x: 300, y: 0, w: 0, h: 700 },
+      value: 300,
+      minValue: 220,
+      maxValue: 380,
+      axisSpan: 600,
+      leadingWindowIds: ["window:a"],
+      trailingWindowIds: ["window:b"],
+    };
+    render(<SeamHarness seam={inner} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 300, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 340, clientY: 300 });
+    flushFrames();
+
+    // A new revision that lays the seam out exactly where it was is no reason to stop.
+    act(() => shell.setRuntimeState({ snapshot: nested([0.6, 0.4], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+
+    // Someone else widens the outer branch to 70/30: the inner seam now sits at 350 with room to
+    // 480, which the drag never previewed. Nothing of this client is in flight: it is cancelled.
+    act(() => shell.setRuntimeState({ snapshot: nested([0.7, 0.3], 9) }));
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 340, clientY: 300 });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  /** [a | [b | c]] on one axis over 1000px: the inner seam's place and bounds follow the outer. */
+  function renderNested(outer: number[]) {
+    const nestedAt = (weights: number[], revision: number) =>
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "horizontal",
+          weights,
+          children: [
+            leafNode("window:a"),
+            {
+              id: "split:inner",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:b"), leafNode("window:c")],
+            },
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        revision
+      );
+    const shell = exactShell(nestedAt(outer, SNAPSHOT.revision));
+    const outerSeam: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:outer:0",
+      splitId: "split:outer",
+      rect: { x: 400, y: 0, w: 0, h: 700 },
+      value: 400,
+      maxValue: 560,
+      leadingWeight: 0.4,
+      trailingWeight: 0.6,
+      leadingWindowIds: ["window:a"],
+      trailingWindowIds: ["window:b", "window:c"],
+    };
+    const innerSeam: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:inner:0",
+      splitId: "split:inner",
+      rect: { x: 700, y: 0, w: 0, h: 700 },
+      value: 700,
+      minValue: 620,
+      maxValue: 780,
+      axisSpan: 600,
+      leadingWindowIds: ["window:b"],
+      trailingWindowIds: ["window:c"],
+    };
+    render(
+      <>
+        <SeamHarness seam={outerSeam} testId="outer" />
+        <SeamHarness seam={innerSeam} />
+      </>,
+      { wrapper: shell.wrapper }
+    );
+    return { shell, nestedAt };
+  }
+
+  it("Should author a nested seam's keystroke after an ancestor resize in flight lands (R7-01)", async () => {
+    const { shell, nestedAt } = renderNested([0.4, 0.6]);
+    const settle = deferResize(shell);
+    fireEvent.keyDown(screen.getByTestId("outer"), { key: "ArrowRight", shiftKey: true });
+    // Authored now, on the inner seam's 600px, this would be -0.1 and leave c at 200px on 500px.
+    fireEvent.keyDown(screen.getByTestId("seam"), { key: "ArrowLeft", shiftKey: true });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(0.1),
+      seamFence("split:outer", 0, 7)
+    );
+
+    // The outer resize lands (50/50): the inner seam sits at 750 on 500px, its floor at 720.
+    act(() => shell.setRuntimeState({ snapshot: nestedAt([0.5, 0.5], 8) }));
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:inner",
+      0,
+      expect.closeTo(-0.06),
+      seamFence("split:inner", 0, 8)
+    );
+  });
+
+  it("Should re-base a nested drag when this client's ancestor resize lands, and hold its release behind it (R7-01)", async () => {
+    const { shell, nestedAt } = renderNested([0.4, 0.6]);
+    const settle = deferResize(shell);
+    fireEvent.keyDown(screen.getByTestId("outer"), { key: "ArrowRight", shiftKey: true });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    dragSeam(seam, 4, 700, 760);
+    flushFrames();
+
+    // The outer 50/50 lands while it is in flight: the inner seam moves to 750 and the drag is
+    // re-based on it, the seam kept under the pointer at 760.
+    act(() => shell.setRuntimeState({ snapshot: nestedAt([0.5, 0.5], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+    expect(previewDelta()).toBeCloseTo(10);
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 760, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+    await settle();
+
+    // 10px of the inner 500px.
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:inner",
+      0,
+      expect.closeTo(0.02),
+      seamFence("split:inner", 0, 8)
+    );
+  });
+
+  const BINDING_A = {
+    workspaceId: "workspace:a",
+    profileId: "profile:test",
+    clientId: "client:web",
+  };
+
+  it("Should drop a keystroke queued in one workspace once the client is bound to another with the same split (AS-F-13)", async () => {
+    act(() => windowManagerStore.trigger.bindingBound({ binding: BINDING_A }));
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    // Workspace B carries the same imported layout: same split id, same seam.
+    act(() =>
+      windowManagerStore.trigger.bindingBound({
+        binding: { ...BINDING_A, workspaceId: "workspace:b" },
+      })
+    );
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should send nothing for a keystroke or balance queued on a seam that unmounted", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    const { unmount } = render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.doubleClick(seam);
+
+    unmount();
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+  });
+
+  it("Should drop a queued keystroke older than the command deadline, counted from the key press", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    vi.setSystemTime(Date.now() + WINDOW_MANAGER_COMMAND_DEADLINE_MS + 1);
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should send a keystroke resumed near its deadline with the time of the key press (AS-F-13)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    const pressedAt = Date.now();
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    // Resumed 7.5s after the press: it goes out still carrying the press time, so the runtime
+    // gives it what is left of the same 8s, not a new deadline behind other commands.
+    vi.setSystemTime(pressedAt + 7_500);
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(0.02),
+      seamFence("split:main", 0, SNAPSHOT.revision, pressedAt)
+    );
+  });
+
+  it("Should cancel a held release older than the command deadline and restore the shares", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    expect(seam).toHaveAttribute("data-state", "drag");
+
+    vi.setSystemTime(Date.now() + WINDOW_MANAGER_COMMAND_DEADLINE_MS + 1);
+    await settle();
+
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should cancel a drag whose seam a config-only publication moved, never sending the stale delta (R5-01)", () => {
+    const { shell, seam } = startSeamDrag();
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 780, clientY: 300 });
+    flushFrames();
+
+    // A 32px inner gap with the same snapshot: the span is 968 now, and +280px from the 1000px
+    // seam would leave the trailing side under its 220px floor.
+    act(() =>
+      shell.setRuntimeState({
+        windowManagerConfig: {
+          ...CONFIG,
+          gaps: { inner: 32, top: 0, right: 0, bottom: 0, left: 0 },
+        },
+      })
+    );
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 780, clientY: 300 });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  it("Should balance only the pair when a balance queued at two members resumes at three (AS-F-14)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.doubleClick(seam);
+
+    // The resize lands with a closed member reopened into the split at 30%: 43.4/26.6/30.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.434, 0.266, 0.3], 8) }));
+    await settle();
+
+    // 35/35/30: the third member keeps its 30%.
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+    expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+      "split:main",
+      0,
+      expect.closeTo(-0.084),
+      fenceAt(8)
+    );
+  });
+
+  it("Should author an arrow pressed during a live drag from the stored layout, not the preview (R6-01)", () => {
+    const shell = exactShell(snapshotWithSplit([0.25, 0.75]));
+    const quarter: ProjectedSeam = {
+      ...EXACT_SEAM,
+      rect: { x: 250, y: 0, w: 0, h: 700 },
+      value: 250,
+      leadingWeight: 0.25,
+      trailingWeight: 0.75,
+    };
+    const { rerender } = render(<SeamHarness seam={quarter} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    dragSeam(seam, 4, 250, 650);
+    flushFrames();
+    // The rendered seam now carries the preview: 65/35.
+    rerender(
+      <SeamHarness seam={{ ...quarter, value: 650, leadingWeight: 0.65, trailingWeight: 0.35 }} />
+    );
+
+    fireEvent.keyDown(seam, { key: "ArrowLeft", shiftKey: true });
+
+    // From the stored 25/75 the step stops at the leading side's 220px floor: -0.03, not -0.1.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(-0.03),
+      fenceAt(7)
+    );
+  });
+
+  it("Should base a second pointer's drag on a sibling seam on the stored layout, not the first drag's preview (R6-01)", () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    const { rerender, first, sibling } = renderThirds(shell);
+    const left = stubPointerCapture(screen.getByTestId("seam"));
+    dragSeam(left, 4, 300, 460);
+    flushFrames();
+    // As rendered under that preview (46/24/30) the sibling's floor is at 680.
+    rerender(
+      <>
+        <SeamHarness seam={first} />
+        <SeamHarness seam={{ ...sibling, minValue: 680, leadingWeight: 0.24 }} testId="sibling" />
+      </>
+    );
+    const right = stubPointerCapture(screen.getByTestId("sibling"));
+
+    dragSeam(right, 5, 700, 550);
+    // The stored 30/40/30 puts that floor at 520: 550 is within it.
+    expect(right).toHaveAttribute("data-state", "drag");
+    fireEvent.pointerUp(right, { pointerId: 5, clientX: 550, clientY: 300 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      1,
+      expect.closeTo(-0.15),
+      fenceOn(1, 7)
+    );
+  });
+
+  it("Should keep resuming queued commands behind one that throws, and free the queue after", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+    vi.mocked(shell.controller.resizeLayout).mockImplementationOnce(() => {
+      throw new Error("The transport failed.");
+    });
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+
+    // The second throws as it is sent; the third still goes out.
+    await settle();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
+    expect(errors).toHaveBeenCalledOnce();
+
+    // Nothing is left holding the queue: the next press goes out at once.
+    await act(async () => {});
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(4);
+  });
+
+  it("Should cancel a drag whose seam turns to the other axis while this client's resize is in flight (R7-02)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settle = deferResize(shell);
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+
+    // The same pair, now stacked: a re-base cannot carry a horizontal delta onto it.
+    act(() =>
+      shell.setRuntimeState({
+        snapshot: snapshotWithRoot(
+          {
+            id: "split:main",
+            kind: "split",
+            axis: "vertical",
+            weights: [0.5, 0.5],
+            children: [leafNode("window:primary"), leafNode("window:peer")],
+          },
+          ["window:primary", "window:peer"],
+          8
+        ),
+      })
+    );
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+    await settle();
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+  });
+
+  it("Should stop a horizontal seam over a collapsed branch at its minimum and commit there (F8)", () => {
+    // 400×700: [a | b] on top cannot sit side by side over 220px floors, so it shows one member
+    // at a time under its 36px switcher; c below. Stored 60/40: the seam sits at 420.
+    const shell = exactShell(
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights: [0.6, 0.4],
+          children: [
+            {
+              id: "split:top",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:a"), leafNode("window:b")],
+            },
+            leafNode("window:c"),
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        SNAPSHOT.revision
+      ),
+      400
+    );
+    const outer: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:outer:0",
+      splitId: "split:outer",
+      orientation: "horizontal",
+      rect: { x: 0, y: 420, w: 400, h: 0 },
+      value: 420,
+      // 36px switcher + the 220px member floor; 220px for c below.
+      minValue: 256,
+      maxValue: 480,
+      axisSpan: 700,
+      leadingWeight: 0.6,
+      trailingWeight: 0.4,
+      leadingWindowIds: ["window:a", "window:b"],
+      trailingWindowIds: ["window:c"],
+    };
+    render(<SeamHarness seam={outer} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+
+    // 270px up, 106px past the minimum.
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 200, clientY: 420 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 200, clientY: 150 });
+    flushFrames();
+    expect(seam).toHaveAttribute("data-state", "limit");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({
+      splitId: "split:outer",
+      boundaryIndex: 0,
+    });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 200, clientY: 150 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(-164 / 700),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+  });
+
+  it("Should drag a seam over a collapsed pair to its limit on half-pixel shares and commit one resize there (F8)", () => {
+    // The QA geometry: a 290×907 column split evenly (453.5px per member), the collapsed pair on
+    // top under its 36px switcher, 220px floors.
+    const shell = exactShell(
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights: [0.5, 0.5],
+          children: [
+            {
+              id: "split:top",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:a"), leafNode("window:b")],
+            },
+            leafNode("window:c"),
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        SNAPSHOT.revision
+      ),
+      290,
+      907
+    );
+    const outer = authoritativeSeam(
+      shell.state,
+      { x: 0, y: 0, w: 290, h: 907 },
+      {
+        splitId: "split:outer",
+        boundaryIndex: 0,
+      }
+    );
+    if (outer === null) throw new Error("expected the outer seam");
+    render(<SeamHarness seam={outer} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+
+    // Up to the top of the column, far past the limit.
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 100, clientY: outer.value });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 100, clientY: 0 });
+    flushFrames();
+    expect(seam).toHaveAttribute("data-state", "limit");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({
+      splitId: "split:outer",
+    });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 100, clientY: 0 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo((outer.minValue - outer.value) / outer.axisSpan),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    // The pair keeps 36px of switcher and 220px of member at the limit.
+    expect(outer.minValue).toBeGreaterThanOrEqual(256);
+  });
+
+  it("Should keep a three-member split side by side at every frame and commit the shift of the last one (F8)", () => {
+    // The row of the seam preview suite: 820px, raw shares 300.3 | 300.3 | 219.4 over 220px
+    // floors, allocated 300 | 300 | 220; any half-pixel shift of the first seam hands the third
+    // member's spare pixel to the other two and leaves it 219px wide.
+    const snapshot = snapshotWithSplit([300.3 / 820, 300.3 / 820, 219.4 / 820]);
+    const shell = exactShell(snapshot, 820, 700);
+    const area = { x: 0, y: 0, w: 820, h: 700 };
+    const stored = authoritativeSeam(shell.state, area, {
+      splitId: "split:main",
+      boundaryIndex: 0,
+    });
+    const tab = snapshot.desktops[0]?.tabs[0];
+    if (stored === null || tab === undefined) throw new Error("expected the first row seam");
+    const input = (layout: LayoutTab) => ({
+      tab: layout,
+      workArea: area,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: buildWindowManagerMinimums(snapshot),
+    });
+    // The frame the published preview renders, admitted as the runtime view admits it.
+    const shownShift = () => {
+      const admitted = admitSeamShift(input(tab), stored, previewDelta() ?? 0);
+      if (admitted === null) throw new Error("expected the first row seam");
+      return admitted.shiftPx;
+    };
+    // Rendered half a pixel past where the layout has it, as a preview frame may leave it: the
+    // press re-anchors on the stored seam, so every whole-pixel pointer asks for k + 0.5px.
+    render(<SeamHarness seam={{ ...stored, value: stored.value + 0.5 }} />, {
+      wrapper: shell.wrapper,
+    });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: stored.value, clientY: 300 });
+
+    // Past both bounds (80px either way): no frame shows the row one member at a time. Inside
+    // them each frame is held half a pixel back, which is no limit; past them the bound holds it
+    // back a pixel or more, and the seam reports its limit.
+    for (let pointer = stored.value - 120; pointer <= stored.value + 120; pointer += 1) {
+      fireEvent.pointerMove(seam, { pointerId: 4, clientX: pointer, clientY: 300 });
+      flushFrames();
+      const requestedPx = pointer - stored.value + 0.5;
+      expect(previewDelta()).toBe(requestedPx);
+      const frame = projectTab(input(applySeamPreviewToTab(tab, stored, shownShift())));
+      expect(frame.collapsed).toEqual([]);
+      expect(frame.seams.map(entry => entry.id)).toEqual(["split:main:0", "split:main:1"]);
+      expect(seam).toHaveAttribute(
+        "data-state",
+        Math.abs(requestedPx) - 80 >= 1 ? "limit" : "drag"
+      );
+    }
+    // Released asking for 40.5px: the last frame shows 40px, and that is what commits.
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: stored.value + 40, clientY: 300 });
+
+    expect(previewDelta()).toBe(40.5);
+    expect(shownShift()).toBe(40);
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      seamWeightDelta(stored, 40),
+      fenceAt(SNAPSHOT.revision)
+    );
+  });
+
+  it("Should step a three-member split by arrow keys only to shifts it still lays out side by side at, up to its bound (AS-F-18)", async () => {
+    // The row of the F8 drag case: 820px, raw shares 300.3 | 300.3 | 219.4 over 220px floors,
+    // allocated 300 | 300 | 220. One ArrowRight asks for 0.02 × 820 = 16.4px: unadmitted, the
+    // shares 316.7 | 283.9 | 219.4 floor to 818 and the two spare pixels go to .9 and .7, leaving
+    // the third member 219px wide. Admitted, the step is 16px: 316.3 | 284.3 | 219.4 keeps the
+    // fractions .3 | .3 | .4, so the spare pixel stays with the third member (220px). Every step
+    // keeps them, so each moves 16px until the second member reaches 220px at +80px; the next
+    // press is at the bound and sends nothing.
+    let weights = [300.3 / 820, 300.3 / 820, 219.4 / 820];
+    let revision = SNAPSHOT.revision;
+    const shell = exactShell(snapshotWithSplit(weights, revision), 820, 700);
+    const area = { x: 0, y: 0, w: 820, h: 700 };
+    const target = { splitId: "split:main", boundaryIndex: 0 };
+    const stored = authoritativeSeam(shell.state, area, target);
+    if (stored === null) throw new Error("expected the first row seam");
+    render(<SeamHarness seam={stored} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    act(() => seam.focus());
+
+    for (let press = 1; press <= 6; press += 1) {
+      fireEvent.keyDown(seam, { key: "ArrowRight" });
+      await act(async () => {});
+      if (press === 6) break;
+      expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(press);
+      expect(shell.controller.resizeLayout).toHaveBeenLastCalledWith(
+        "split:main",
+        0,
+        expect.closeTo(16 / 820, 9),
+        fenceAt(revision)
+      );
+      const delta = vi.mocked(shell.controller.resizeLayout).mock.lastCall?.[2] ?? 0;
+      weights = [(weights[0] ?? 0) + delta, (weights[1] ?? 0) - delta, weights[2] ?? 0];
+      revision += 1;
+      act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit(weights, revision) }));
+      const tab = shell.state.snapshot?.desktops[0]?.tabs[0];
+      if (tab === undefined) throw new Error("expected the row's tab");
+      const after = projectTab({
+        tab,
+        workArea: area,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: buildWindowManagerMinimums(snapshotWithSplit(weights, revision)),
+      });
+      expect(after.collapsed).toEqual([]);
+      expect(after.seams.map(entry => entry.id)).toEqual(["split:main:0", "split:main:1"]);
+      expect(seam).toHaveFocus();
+    }
+    // At the bound: no step is sent, and the seam keeps focus.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(5);
+    expect(seam).toHaveFocus();
+  });
+
+  it("Should not arm a press on a seam the stored layout does not have (R7-02)", () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={{ ...EXACT_SEAM, id: "split:gone:0", splitId: "split:gone" }} />, {
+      wrapper: shell.wrapper,
+    });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(seam.setPointerCapture).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A 1000px-wide column: a row of five windows over one window. Five 220px floors do not fit in
+   * 1000px, so the row shows one member at a time under its 36px switcher (256px tall at least).
+   */
+  function rowOverWindow(weights: number[]): WindowManagerSnapshot {
+    const row = ["window:r1", "window:r2", "window:r3", "window:r4", "window:r5"];
+    return snapshotWithRoot(
+      {
+        id: "split:outer",
+        kind: "split",
+        axis: "vertical",
+        weights,
+        children: [
+          {
+            id: "split:row",
+            kind: "split",
+            axis: "horizontal",
+            weights: row.map(() => 0.2),
+            children: row.map(id => leafNode(id)),
+          },
+          leafNode("window:below"),
+        ],
+      },
+      [...row, "window:below"],
+      SNAPSHOT.revision
+    );
+  }
+
+  function projectColumn(weights: number[], height: number) {
+    const snapshot = rowOverWindow(weights);
+    const tab = snapshot.desktops[0]?.tabs[0];
+    if (tab === undefined) throw new Error("expected the column's tab");
+    return projectTab({
+      tab,
+      workArea: { x: 0, y: 0, w: 1000, h: height },
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: buildWindowManagerMinimums(snapshot),
+    });
+  }
+
+  function outerSeam(shell: ReturnType<typeof exactShell>, height: number) {
+    const outer = authoritativeSeam(
+      shell.state,
+      { x: 0, y: 0, w: 1000, h: height },
+      { splitId: "split:outer", boundaryIndex: 0 }
+    );
+    if (outer === null) throw new Error("expected the column seam");
+    return outer;
+  }
+
+  it("Should hold a balance back to the nearest shift its split still lays out side by side at", () => {
+    // 1000×500: 260px for the collapsed row (≥ 256) and 240px for the window (≥ 220) both fit.
+    // An even split gives each 250px, under the row's 256px, and would show the column one member
+    // at a time; the balance stops at the row's 256px instead, a -4px shift.
+    expect(projectColumn([0.5, 0.5], 500).collapsed.map(entry => entry.splitId)).toContain(
+      "split:outer"
+    );
+    const shell = exactShell(rowOverWindow([0.52, 0.48]), 1000, 500);
+    const outer = outerSeam(shell, 500);
+    render(<SeamHarness seam={outer} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(-4 / 500, 9),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    const delta = vi.mocked(shell.controller.resizeLayout).mock.lastCall?.[2] ?? 0;
+    const after = projectColumn([0.52 + delta, 0.48 - delta], 500);
+    expect(after.collapsed.map(entry => entry.splitId)).toEqual(["split:row"]);
+    expect(after.seams.map(entry => entry.id)).toEqual(["split:outer:0"]);
+  });
+
+  it("Should not balance an odd span with layout.balance when the exact tie leaves the trailing side under its minimum (R13-03)", () => {
+    // 1000×511, a window (220px floor) over the collapsed row (256px floor: 220 + its switcher).
+    // 256 is the larger half of 511, and `layout.balance` writes exactly 0.5 | 0.5: both shares
+    // are 255.5, the tie gives the spare pixel to the first member, and the row gets 255. The
+    // balance must test those exact weights, so it resizes by the admitted shift instead.
+    // From 0.45 | 0.55 (230 | 281px) the evening shift asks for 25.55px, held to 25 (255 | 256).
+    const row = ["window:r1", "window:r2", "window:r3", "window:r4", "window:r5"];
+    const windowOverRow = (weights: number[]) =>
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights,
+          children: [
+            leafNode("window:above"),
+            {
+              id: "split:row",
+              kind: "split",
+              axis: "horizontal",
+              weights: row.map(() => 0.2),
+              children: row.map(id => leafNode(id)),
+            },
+          ],
+        },
+        ["window:above", ...row],
+        SNAPSHOT.revision
+      );
+    const project = (weights: number[]) => {
+      const snapshot = windowOverRow(weights);
+      const tab = snapshot.desktops[0]?.tabs[0];
+      if (tab === undefined) throw new Error("expected the column's tab");
+      return projectTab({
+        tab,
+        workArea: { x: 0, y: 0, w: 1000, h: 511 },
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: buildWindowManagerMinimums(snapshot),
+      });
+    };
+    expect(project([0.5, 0.5]).collapsed.map(entry => entry.splitId)).toContain("split:outer");
+    const shell = exactShell(windowOverRow([0.45, 0.55]), 1000, 511);
+    render(<SeamHarness seam={outerSeam(shell, 511)} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(25 / 511, 9),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    const delta = vi.mocked(shell.controller.resizeLayout).mock.lastCall?.[2] ?? 0;
+    const after = project([0.45 + delta, 0.55 - delta]);
+    expect(after.collapsed.map(entry => entry.splitId)).toEqual(["split:row"]);
+    expect(after.seams.map(entry => entry.id)).toEqual(["split:outer:0"]);
+  });
+
+  it("Should balance a two-member split with layout.balance when the even split lays out side by side", () => {
+    // 1000×600: an even split gives the collapsed row 300px, over its 256px, and the window 300px.
+    const shell = exactShell(rowOverWindow([0.6, 0.4]), 1000, 600);
+    render(<SeamHarness seam={outerSeam(shell, 600)} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+    expect(shell.controller.balanceLayout).toHaveBeenCalledExactlyOnceWith(
+      { splitId: "split:outer" },
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    expect(projectColumn([0.5, 0.5], 600).collapsed.map(entry => entry.splitId)).toEqual([
+      "split:row",
+    ]);
+  });
+
+  it("Should fence a two-member balance like a drag", () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.balanceLayout).toHaveBeenCalledExactlyOnceWith(
+      { splitId: "split:main" },
+      fenceAt(SNAPSHOT.revision)
+    );
   });
 });

@@ -4,6 +4,7 @@ import {
   KeyRound,
   ListChecks,
   MessageCircleQuestionMark,
+  PanelsTopLeft,
   TriangleAlert,
   type LucideIcon,
 } from "@compozy/ui/icons";
@@ -68,6 +69,9 @@ function RowMark({ row }: { row: OsAttentionRow }) {
           tone={row.state === "waiting" ? NEEDS_YOU_TONE : "bg-warning-tint text-warning"}
         />
       );
+    // News, not a request: the info tone the agent notices use.
+    case "layout-upgrade":
+      return <NonSessionMark icon={PanelsTopLeft} tone="bg-info-tint text-info" />;
   }
 }
 
@@ -108,6 +112,8 @@ function rowReason(row: OsAttentionRow): ReactNode {
       );
     case "loop-node":
       return row.state;
+    case "layout-upgrade":
+      return row.reason;
   }
 }
 
@@ -116,6 +122,7 @@ function rowWorkspace(row: OsAttentionRow): string | null {
     case "session":
     case "loop-request":
     case "terminal-input":
+    case "layout-upgrade":
       return row.workspaceLabel;
     case "task":
     case "loop-node":
@@ -128,6 +135,7 @@ function rowIsStale(row: OsAttentionRow): boolean {
     case "session":
     case "loop-request":
     case "terminal-input":
+    case "layout-upgrade":
       return row.stale;
     case "task":
     case "loop-node":
@@ -186,6 +194,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
         ) : null}
         {isSession ? <Time iso={row.changedAt} /> : null}
         {isTerminalInput ? <Time iso={row.requestedAt} /> : null}
+        {row.kind === "layout-upgrade" ? <Time iso={row.occurredAt} /> : null}
         {isLoopRequest ? (
           <span className="flex flex-col items-end">
             <Time iso={row.openedAt} />

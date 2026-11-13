@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// ListResources List desired-state resources on the local operator control plane
+func (c *Client) ListResources(ctx context.Context, params ListResourcesParams) (*ResourcesResponse, error) {
+	path := "/api/resources"
+	query := url.Values{}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.ScopeKind != nil {
+		query.Set("scope_kind", *params.ScopeKind)
+	}
+	if params.ScopeID != nil {
+		query.Set("scope_id", *params.ScopeID)
+	}
+	if params.OwnerKind != nil {
+		query.Set("owner_kind", *params.OwnerKind)
+	}
+	if params.OwnerID != nil {
+		query.Set("owner_id", *params.OwnerID)
+	}
+	if params.SourceKind != nil {
+		query.Set("source_kind", *params.SourceKind)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListResourcesByKindParams carries the path, query, and header parameters.
 type ListResourcesByKindParams struct {
 	Kind       string  `url:"kind"`
@@ -401,38 +439,6 @@ func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFolde
 type ListSessionInputsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionInputs List pending session input
-func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInputListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInteractionsParams carries the path, query, and header parameters.
-type ListSessionInteractionsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Descendants *bool   `url:"descendants"`
-	Status      *string `url:"status"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

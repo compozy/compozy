@@ -166,8 +166,8 @@ window, or human-readable message alone.
 
 The desktop main window supports the standard page zoom shortcuts: `Command` + `+`, `Command` +
 `-`, and `Command` + `0` on macOS; use `Control` instead of `Command` on Windows and Linux. These
-shortcuts scale the whole product interface. The in-product Window > Zoom action has a different
-purpose: it expands one CompozyOS window inside the desktop workspace.
+shortcuts scale the whole product interface. They are unrelated to CompozyOS windows, which have no
+zoom: to give one window the whole desktop, move it to its own tab (Window > Move to new tab).
 
 ## Native editing
 

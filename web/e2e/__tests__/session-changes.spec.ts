@@ -164,7 +164,12 @@ test("E2E-004: Changes reviews the branch diff and focuses files from the tree a
   await fileHeader(reloaded, "src/b.go").getByTestId("changes-open-in-viewer").click();
   const files = appWindow(window.page(), "files");
   await expect(files.getByTestId("file-viewer-header")).toContainText("src/b.go");
-  await expect(window.page().getByTestId(`os-window-tab-${await windowID(window)}`)).toBeVisible();
+  await expect(
+    window
+      .page()
+      .getByTestId("os-tab-bar")
+      .locator(`[role="tab"][data-lead-window-id="${await windowID(window)}"]`)
+  ).toBeVisible();
 });
 
 // Invariant: scope and base drive the summary: Uncommitted drops committed files, another base

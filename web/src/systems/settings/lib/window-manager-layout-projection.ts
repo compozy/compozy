@@ -1,91 +1,42 @@
 import type {
   WindowManagerLayoutDocument,
-  WindowManagerLayoutNode,
   WindowManagerLayoutState,
 } from "./window-manager-layout-types";
 import type { WindowManagerSnapshot } from "@/systems/os";
 
-type SnapshotLayoutNode = WindowManagerSnapshot["desktops"][number]["groups"][number]["root"];
+type WorkspaceOverrides = WindowManagerSnapshot["overrides"];
 
-function projectNode(node: SnapshotLayoutNode): WindowManagerLayoutNode {
-  switch (node.kind) {
-    case "leaf":
-      return { id: node.id, kind: node.kind, windowId: node.windowId };
-    case "stack":
-      return {
-        id: node.id,
-        kind: node.kind,
-        windowIds: [...node.windowIds],
-        activeId: node.activeId,
-      };
-    case "split":
-      return {
-        id: node.id,
-        kind: node.kind,
-        axis: node.axis,
-        children: node.children.map(projectNode),
-        weights: [...node.weights],
-      };
-  }
+/**
+ * The snapshot parser hands overrides over in camelCase; a layout document
+ * carries them in wire form. Only kept keys are written back — retired ones
+ * (`_spec.md` §Config Lifecycle) are ignored by the daemon and never re-sent.
+ */
+function overridesToWire(overrides: WorkspaceOverrides): Record<string, unknown> {
+  const wire: Record<string, unknown> = {
+    new_window_policy: overrides.newWindowPolicy,
+    small_viewport_policy: overrides.smallViewportPolicy,
+    focus_policy: overrides.focusPolicy,
+    focus_wrap: overrides.focusWrap,
+    focus_follows_pointer: overrides.focusFollowsPointer,
+    swap_modifier: overrides.swapModifier,
+    history_limit: overrides.historyLimit,
+    nav_stack_limit: overrides.navStackLimit,
+    closed_entry_limit: overrides.closedEntryLimit,
+    desktop_transition: overrides.desktopTransition,
+    gaps: overrides.gaps ? { ...overrides.gaps } : undefined,
+    shortcuts: overrides.shortcuts ? structuredClone(overrides.shortcuts) : undefined,
+    global_shortcuts: overrides.globalShortcuts ? { ...overrides.globalShortcuts } : undefined,
+  };
+  return Object.fromEntries(Object.entries(wire).filter(([, value]) => value !== undefined));
 }
 
 function projectDocument(snapshot: WindowManagerSnapshot): WindowManagerLayoutDocument {
   return {
-    version: snapshot.version,
+    version: 6,
     workspaceId: snapshot.workspaceId,
-    desktops: snapshot.desktops.map(desktop => ({
-      id: desktop.id,
-      name: desktop.name,
-      order: desktop.order,
-      groups: desktop.groups.map(group => ({
-        id: group.id,
-        frame: { ...group.frame },
-        root: projectNode(group.root),
-      })),
-      floating: [...desktop.floating],
-      floatingStacks: desktop.floatingStacks.map(stack => ({
-        id: stack.id,
-        windowIds: [...stack.windowIds],
-        activeId: stack.activeId,
-        rect: { ...stack.rect },
-        minimized: stack.minimized,
-      })),
-    })),
-    windows: Object.fromEntries(
-      Object.entries(snapshot.windows).map(([id, window]) => [
-        id,
-        {
-          id: window.id,
-          app: window.app,
-          instanceKey: window.instanceKey,
-          route: {
-            pathname: window.route.pathname,
-            search: Object.fromEntries(
-              Object.entries(window.route.search).map(([key, value]) => [
-                key,
-                structuredClone(value),
-              ])
-            ),
-          },
-          navStack: window.navStack.map(route => ({
-            pathname: route.pathname,
-            search: Object.fromEntries(
-              Object.entries(route.search).map(([key, value]) => [key, structuredClone(value)])
-            ),
-          })),
-          pinned: window.pinned,
-          placement: window.placement,
-          desktopId: window.desktopId,
-          floatingRect: { ...window.floatingRect },
-          minimized: window.minimized,
-          zoomed: window.zoomed,
-          returnAnchor: window.returnAnchor === null ? null : structuredClone(window.returnAnchor),
-        },
-      ])
-    ),
-    overrides: Object.fromEntries(
-      Object.entries(snapshot.overrides).map(([key, value]) => [key, structuredClone(value)])
-    ),
+    desktops: structuredClone(snapshot.desktops),
+    windows: structuredClone(snapshot.windows),
+    overrides: overridesToWire(snapshot.overrides),
   };
 }
 
@@ -93,8 +44,5 @@ function projectDocument(snapshot: WindowManagerSnapshot): WindowManagerLayoutDo
 export function windowManagerSnapshotToLayoutState(
   snapshot: WindowManagerSnapshot
 ): WindowManagerLayoutState {
-  return {
-    revision: snapshot.revision,
-    document: projectDocument(snapshot),
-  };
+  return { revision: snapshot.revision, document: projectDocument(snapshot) };
 }

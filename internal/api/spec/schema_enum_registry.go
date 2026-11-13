@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	specFailedKey  = "failed"
 	specStoppedKey = "stopped"
 	specNoneKey    = "none"
 	specPendingKey = "pending"
@@ -43,7 +44,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SessionProcessPolicy]():      {"keep", "terminate"},
 		reflect.TypeFor[contract.SessionProcessKind]():        {"background", "tool", "terminal"},
 		reflect.TypeFor[contract.SessionProcessOutcome](): {
-			"terminated", "already_exited", "identity_mismatch", "failed", "unproven",
+			"terminated", "already_exited", "identity_mismatch", specFailedKey, "unproven",
 		},
 		reflect.TypeFor[session.Badge](): {
 			"running",
@@ -54,7 +55,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			"waiting-for-input",
 			"done",
 			specStoppedKey,
-			"failed",
+			specFailedKey,
 			specUnknownKey,
 			"needs-attention",
 			"waiting",
@@ -176,16 +177,10 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[windowmanager.NodeKind](): {
 			string(windowmanager.NodeKindLeaf),
 			string(windowmanager.NodeKindSplit),
-			string(windowmanager.NodeKindStack),
 		},
 		reflect.TypeFor[windowmanager.Axis](): {
 			string(windowmanager.AxisHorizontal),
 			string(windowmanager.AxisVertical),
-		},
-		reflect.TypeFor[windowmanager.WindowPlacement](): {
-			string(windowmanager.WindowPlacementTiled),
-			string(windowmanager.WindowPlacementStacked),
-			string(windowmanager.WindowPlacementFloating),
 		},
 		reflect.TypeFor[windowmanager.NavigateMode](): {
 			"replace",
@@ -197,6 +192,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.CloseScopeGroup),
 			string(windowmanager.CloseScopeOthers),
 			string(windowmanager.CloseScopeRight),
+			string(windowmanager.CloseScopeLeft),
+			string(windowmanager.CloseScopeAll),
 		},
 		reflect.TypeFor[windowmanager.FocusDirection](): {
 			string(windowmanager.FocusLeft),
@@ -205,6 +202,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.FocusDown),
 		},
 		reflect.TypeFor[windowmanager.DropPlacement](): {
+			string(windowmanager.DropTab),
 			string(windowmanager.DropFloating),
 			string(windowmanager.DropBefore),
 			string(windowmanager.DropAfter),

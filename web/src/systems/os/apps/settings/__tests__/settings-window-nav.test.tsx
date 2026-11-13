@@ -211,8 +211,7 @@ describe("Settings window search shortcut", () => {
 
   it("Should enable the shortcut only while its window is active", async () => {
     const user = userEvent.setup();
-    const { desktop, search, manager, client, queryClient, snapshotKey, snapshot } =
-      await renderLoadedSettingsWindow();
+    const { desktop, search, manager, client } = await renderLoadedSettingsWindow();
     desktop.focus();
     act(() =>
       manager.setClient({
@@ -231,18 +230,13 @@ describe("Settings window search shortcut", () => {
     expect(search).toHaveFocus();
 
     desktop.focus();
-    act(() => {
-      queryClient.setQueryData(snapshotKey, {
-        ...snapshot,
-        windows: {
-          ...snapshot.windows,
-          [windowManagerStoryWindowId]: {
-            ...snapshot.windows[windowManagerStoryWindowId],
-            minimized: true,
-          },
-        },
-      });
-    });
+    act(() =>
+      manager.setClient({
+        ...client,
+        activeDesktopId: "desktop:elsewhere",
+        presentationRevision: client.presentationRevision + 3,
+      })
+    );
     await user.keyboard("/");
     expect(desktop).toHaveFocus();
   });

@@ -42,6 +42,11 @@ export {
 } from "../components/avatar";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "../components/button-group";
 export { SplitButton } from "../components/custom/split-button";
+export {
+  DeleteButton,
+  type DeleteButtonPhase,
+  type DeleteButtonProps,
+} from "../components/custom/delete-button";
 export type { SplitButtonActionProps, SplitButtonProps } from "../components/custom/split-button";
 export { buttonGroupVariants } from "../components/button-group-variants";
 export {

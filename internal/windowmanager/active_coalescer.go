@@ -14,9 +14,9 @@ import (
 // systemActorKind attributes reducer commands the daemon issues on its own.
 const systemActorKind = "system"
 
-const stackActiveQuietPeriod = 2 * time.Second
+const tabActiveQuietPeriod = 2 * time.Second
 
-type stackActiveFlushResult struct {
+type tabActiveFlushResult struct {
 	From    Revision
 	To      Revision
 	Applied bool
@@ -24,7 +24,7 @@ type stackActiveFlushResult struct {
 
 type activeCoalescer struct {
 	mu      sync.Mutex
-	pending map[WorkspaceID]map[NodeID]WindowID
+	pending map[WorkspaceID]map[DesktopID]TabID
 	timers  map[WorkspaceID]*time.Timer
 	cancels map[WorkspaceID]chan struct{}
 	locks   map[WorkspaceID]*workspaceLock
@@ -36,7 +36,7 @@ type activeCoalescer struct {
 
 func newActiveCoalescer(ctx context.Context, manager *Manager) *activeCoalescer {
 	return &activeCoalescer{
-		pending: make(map[WorkspaceID]map[NodeID]WindowID),
+		pending: make(map[WorkspaceID]map[DesktopID]TabID),
 		timers:  make(map[WorkspaceID]*time.Timer),
 		cancels: make(map[WorkspaceID]chan struct{}),
 		locks:   make(map[WorkspaceID]*workspaceLock),
@@ -53,11 +53,11 @@ func (c *activeCoalescer) bindWorkspace(workspaceID WorkspaceID, lock *workspace
 	c.mu.Unlock()
 }
 
-func (m *Manager) noteStackActive(workspaceID WorkspaceID, stackID NodeID, windowID WindowID) {
-	m.coalescer.note(workspaceID, stackID, windowID)
+func (m *Manager) noteTabActive(workspaceID WorkspaceID, desktopID DesktopID, tabID TabID) {
+	m.coalescer.note(workspaceID, desktopID, tabID)
 }
 
-func (c *activeCoalescer) note(workspaceID WorkspaceID, stackID NodeID, windowID WindowID) {
+func (c *activeCoalescer) note(workspaceID WorkspaceID, desktopID DesktopID, tabID TabID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -65,16 +65,16 @@ func (c *activeCoalescer) note(workspaceID WorkspaceID, stackID NodeID, windowID
 	}
 	workspacePending := c.pending[workspaceID]
 	if workspacePending == nil {
-		workspacePending = make(map[NodeID]WindowID)
+		workspacePending = make(map[DesktopID]TabID)
 		c.pending[workspaceID] = workspacePending
 	}
-	workspacePending[stackID] = windowID
+	workspacePending[desktopID] = tabID
 	c.stopTimerLocked(workspaceID)
 	lock := c.locks[workspaceID]
 	if lock == nil {
 		return
 	}
-	timer := time.NewTimer(stackActiveQuietPeriod)
+	timer := time.NewTimer(tabActiveQuietPeriod)
 	cancel := make(chan struct{})
 	c.timers[workspaceID] = timer
 	c.cancels[workspaceID] = cancel
@@ -97,10 +97,10 @@ func (c *activeCoalescer) runTimer(
 	}
 	if triggered {
 		lock.Lock()
-		_, err := c.manager.flushStackActiveLocked(c.ctx, workspaceID)
+		_, err := c.manager.flushTabActiveLocked(c.ctx, workspaceID)
 		lock.Unlock()
 		if err != nil {
-			slog.Warn("window manager stack activation flush failed", "workspace_id", workspaceID, "error", err)
+			slog.Warn("window manager tab activation flush failed", "workspace_id", workspaceID, "error", err)
 		}
 	}
 	c.mu.Lock()
@@ -127,91 +127,93 @@ func (c *activeCoalescer) hasPending(workspaceID WorkspaceID) bool {
 	return hasPending
 }
 
-func (m *Manager) flushStackActiveLocked(
+func (m *Manager) flushTabActiveLocked(
 	ctx context.Context,
 	workspaceID WorkspaceID,
-) (stackActiveFlushResult, error) {
+) (tabActiveFlushResult, error) {
 	return m.coalescer.flushLocked(ctx, workspaceID)
 }
 
 func (c *activeCoalescer) flushLocked(
 	ctx context.Context,
 	workspaceID WorkspaceID,
-) (stackActiveFlushResult, error) {
+) (tabActiveFlushResult, error) {
 	c.mu.Lock()
-	pending := clonePendingStackActive(c.pending[workspaceID])
+	pending := clonePendingTabActive(c.pending[workspaceID])
 	c.mu.Unlock()
 	if len(pending) == 0 {
-		return stackActiveFlushResult{}, nil
+		return tabActiveFlushResult{}, nil
 	}
 	snapshot, err := c.manager.repository.Load(ctx, workspaceID)
 	if errors.Is(err, ErrSnapshotNotFound) {
 		c.clearMatching(workspaceID, pending)
-		return stackActiveFlushResult{}, nil
+		return tabActiveFlushResult{}, nil
 	}
 	if err != nil {
-		return stackActiveFlushResult{}, fmt.Errorf("load stack activation snapshot: %w", err)
+		return tabActiveFlushResult{}, fmt.Errorf("load tab activation snapshot: %w", err)
 	}
 	working := cloneSnapshot(snapshot)
 	changes := ChangeSet{}
-	for stackID, windowID := range pending {
-		location, found := findStackByID(&working, stackID)
-		if !found || !containsWindowID(location.members(), windowID) {
+	for desktopID, tabID := range pending {
+		di, ok := desktopIndexByID(&working, desktopID)
+		if !ok {
 			continue
 		}
-		if location.activeID() != nil && *location.activeID() == windowID {
+		d := &working.Desktops[di]
+		if tabHoldingID(d.Tabs, tabID) < 0 || d.ActiveTabID == tabID {
 			continue
 		}
-		location.setActive(windowID)
-		changes.NodeIDs = append(changes.NodeIDs, stackID)
-		changes.WindowIDs = append(changes.WindowIDs, windowID)
+		d.ActiveTabID = tabID
+		changes.DesktopIDs = append(changes.DesktopIDs, desktopID)
+		changes.TabIDs = append(changes.TabIDs, tabID)
 	}
-	if len(changes.NodeIDs) == 0 {
+	if len(changes.TabIDs) == 0 {
 		c.clearMatching(workspaceID, pending)
-		return stackActiveFlushResult{}, nil
+		return tabActiveFlushResult{}, nil
 	}
+
 	working = NormalizeSnapshot(working)
 	if err := ValidateSnapshot(working); err != nil {
-		return stackActiveFlushResult{}, fmt.Errorf("validate stack activation snapshot: %w", err)
+		return tabActiveFlushResult{}, fmt.Errorf("validate tab activation snapshot: %w", err)
 	}
 	nextRevision, err := NextTopologyRevision(snapshot.Revision)
 	if err != nil {
-		return stackActiveFlushResult{}, err
+		return tabActiveFlushResult{}, err
 	}
 	working.Revision = nextRevision
 	working.UpdatedAt = c.manager.now().UTC()
 	sortChangeSet(&changes)
 	request := CommandRequest{
 		WorkspaceID: workspaceID,
-		CommandID:   CommandWindowStackSetActive,
+		CommandID:   CommandWindowTabActivate,
 		Actor:       Actor{Kind: systemActorKind, ID: "active_coalescer"},
 		Origin:      "active_coalescer",
-		Payload:     SetStackActiveCommand{},
+		Payload:     ActivateTabCommand{},
 	}
-	event := newCommandEvent(working, request, CommandWindowStackSetActive, changes)
+	event := newCommandEvent(working, request, CommandWindowTabActivate, changes)
 	if err := c.manager.repository.Commit(ctx, &Commit{
 		WorkspaceID: workspaceID, ExpectedRevision: snapshot.Revision, Snapshot: working, Event: event,
 	}); err != nil {
-		return stackActiveFlushResult{}, fmt.Errorf("commit stack activation: %w", err)
+		return tabActiveFlushResult{}, fmt.Errorf("commit tab activation: %w", err)
 	}
 	c.clearMatching(workspaceID, pending)
 	c.manager.publishEvent(event)
 	c.manager.observeCommittedEvent(ctx, event)
-	return stackActiveFlushResult{From: snapshot.Revision, To: working.Revision, Applied: true}, nil
+	return tabActiveFlushResult{From: snapshot.Revision, To: working.Revision, Applied: true}, nil
 }
 
-func clonePendingStackActive(source map[NodeID]WindowID) map[NodeID]WindowID {
-	cloned := make(map[NodeID]WindowID, len(source))
+func clonePendingTabActive(source map[DesktopID]TabID) map[DesktopID]TabID {
+	cloned := make(map[DesktopID]TabID, len(source))
 	maps.Copy(cloned, source)
 	return cloned
 }
 
-func (c *activeCoalescer) clearMatching(workspaceID WorkspaceID, flushed map[NodeID]WindowID) {
+func (c *activeCoalescer) clearMatching(workspaceID WorkspaceID, flushed map[DesktopID]TabID) {
 	c.mu.Lock()
 	current := c.pending[workspaceID]
-	for stackID, windowID := range flushed {
-		if current[stackID] == windowID {
-			delete(current, stackID)
+	for desktopID, tabID := range flushed {
+		if current[desktopID] == tabID {
+			delete(current, desktopID)
 		}
 	}
 	if len(current) == 0 {

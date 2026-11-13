@@ -38,11 +38,10 @@ function client(presentationRevision = 1): WindowManagerRegisteredClientView {
     activeDesktopId: "desktop:main",
     focusedWindowId: null,
     focusOrder: [],
-    stackActive: {},
+    activeTab: {},
     paletteContext: {
       windowFocused: false,
-      windowFloating: false,
-      windowStacked: false,
+      windowInSplit: false,
       desktopWindowCount: 0,
       scopeGlobal: false,
       shellDesktop: false,

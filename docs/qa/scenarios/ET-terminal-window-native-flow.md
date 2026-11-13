@@ -4,9 +4,9 @@ area: ET
 title: Terminal windows are the only terminal tabs
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: The Terminal window shows exactly one terminal with no in-app tab strip; more terminals arrive as OS window tabs or windows; Journal and New terminal live in the window head; the first paint uses the full window width without a tab switch.
-entry_points: Web dock Terminal app; window head New terminal and Journal; dock right-click Open in new window / Open in new tab
-qa_status: skipped
+expected: The Terminal window shows exactly one terminal with no in-app tab strip; more terminals arrive as tabs on the desktop tab bar or as windows in a split; Journal and New terminal live in the window head; the first paint uses the full window width without a tab switch.
+entry_points: Web dock Terminal app; window head New terminal and Journal; dock right-click Open in new tab / Open in split
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -25,8 +25,8 @@ Walk:
 
 1. Open the Terminal app; confirm the window shows one terminal with no second tab strip under the window head, and the grid fills the settled window width on first paint.
 2. From the head, open the Journal; confirm the head shows the Journal crumb with a back affordance, and back returns to the same terminal with its scroll intact.
-3. Use the head's New terminal; confirm a second terminal joins the frame as an OS window tab and the deck is the only tab strip visible.
-4. Use the dock's right-click Open in new window; confirm another terminal opens as a floating window without touching the existing ones.
+3. Use the head's New terminal; confirm a second terminal opens as a new tab right after the current one on the desktop tab bar and that tab bar is the only tab strip visible.
+4. Use the dock's right-click Open in split; confirm another terminal opens in a split beside the focused terminal, each window with its own head, without touching the existing terminals.
 5. Use Stop and confirm the window stays on the exit bar. Close it with the window's Close control without a running warning. A running terminal instead asks for confirmation; there is no redundant Close terminal header action.
 
 2026-09-30 queued adoption acceptance: seed eight running terminals, open Terminal from the dock,
@@ -52,3 +52,5 @@ qa-impact: 2026-09-30 shell-rail polish P6 — the dock menu's Open in new windo
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Floating windows and per-pane tab decks are retired; the dock menu no longer has Open in new window. Expected, entry points and steps 3–4 rewritten: New terminal opens a new tab on the desktop tab bar, and the dock menu's Open in split places another terminal in a split beside focus. Walk steps 1–5 again; in step 4 also use the split window's Move to new tab and confirm the terminal keeps its stream. Reset for the current build.

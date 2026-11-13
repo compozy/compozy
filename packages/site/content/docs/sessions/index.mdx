@@ -189,13 +189,13 @@ is rejected instead of crossing catalog boundaries. See the generated
 In the web shell, a new session reuses a Session window you already have instead of opening another
 one. This applies to every way of starting a session: the dock, **Session > New session**, the
 command palette and its shortcut, the **+** in a sessions list or folder, a Session window's sidebar,
-an agent page, the empty-desktop composer, and a prompt sent from the command palette.
+an agent page, and a prompt sent from the command palette.
 
 1. If the focused window is a Session window, the new session replaces the conversation in that
    window and the window keeps focus.
 2. Otherwise CompozyOS picks a Session window on the current desktop: one showing the empty session
-   list first, then the one you used most recently. A minimized window is restored. The window keeps
-   its tab, split, and position.
+   list first, then the one you used most recently. Its tab becomes active and the window keeps its
+   place in the tab bar or split.
 3. If the current desktop has no Session window, a new one opens.
 
 Pinned Session windows and windows on other desktops are never reused. The conversation that was on

@@ -1,9 +1,14 @@
 import { shallowEqual } from "@xstate/store";
 
-import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
+import {
+  leadWindowId as tabLeadWindowId,
+  resolveActiveTabId,
+  tabWindowIds,
+} from "../lib/tab-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import {
+  useDesktopOverviewDesktopAction,
   useDesktopOverviewSegmentRequest,
   usePendingWindowManagerCommand,
   useWindowManagerConflict,
@@ -15,6 +20,7 @@ import {
 export function useDesktopManagerSurfaces() {
   const overlay = useWindowManagerOverlay();
   const overviewSegmentRequest = useDesktopOverviewSegmentRequest();
+  const overviewDesktopAction = useDesktopOverviewDesktopAction();
   const conflict = useWindowManagerConflict();
   const diagnostic = useWindowManagerDiagnostic();
   const pending = usePendingWindowManagerCommand();
@@ -26,37 +32,43 @@ export function useDesktopManagerSurfaces() {
   const projection = useDesktop(
     state =>
       overviewOpen
-        ? { desktops: state.desktops, projections: state.projections, windows: state.windows }
+        ? {
+            desktops: state.desktops,
+            activeTabIds: state.activeTabIds,
+            windows: state.windows,
+            focusOrder: state.client?.focusOrder,
+          }
         : null,
     shallowEqual
   );
-  const windowsByDesktop = new Map<
-    string,
-    Array<NonNullable<typeof projection>["windows"][string]>
-  >();
-  for (const windowRecord of Object.values(projection?.windows ?? {})) {
-    const records = windowsByDesktop.get(windowRecord.desktopId);
-    if (records) records.push(windowRecord);
-    else windowsByDesktop.set(windowRecord.desktopId, [windowRecord]);
-  }
+  const focusOrder = projection?.focusOrder ?? [];
   const desktops = (projection?.desktops ?? []).map(desktop => {
-    const windowRecords = windowsByDesktop.get(desktop.id) ?? [];
+    const activeTabId = projection?.activeTabIds[desktop.id] ?? resolveActiveTabId(desktop, null);
+    const tabs = desktop.tabs.flatMap(tab => {
+      const leadWindowId = tabLeadWindowId(tab, focusOrder);
+      if (leadWindowId === null) return [];
+      const ordered = [leadWindowId, ...tabWindowIds(tab).filter(id => id !== leadWindowId)];
+      const members = ordered.flatMap(id => {
+        const win = projection?.windows[id];
+        return win ? [win] : [];
+      });
+      return members.length === 0 ? [] : [{ id: tab.id, leadWindowId, members }];
+    });
+    // Read from the daemon's tabs, not the projected ones: a tab whose app this web does not know
+    // is dropped from `tabs` but still moves when the desktop closes. Only a tab holding one blank
+    // New Tab has nothing to move (R2-08, FB-F-07).
+    const movableTabCount = desktop.tabs.filter(tab => {
+      const windowIds = tabWindowIds(tab);
+      return !(windowIds.length === 1 && projection?.windows[windowIds[0]!]?.app === "new-tab");
+    }).length;
     return {
       id: desktop.id,
       name: desktop.name,
-      projection: projection?.projections[desktop.id],
-      windowRecords,
-      windows: windowRecords.flatMap(window => {
-        const app = osAppId(window.app);
-        if (app === null) return [];
-        return [
-          {
-            id: window.id,
-            title: getOsAppDescriptor(app).title,
-            detail: window.instanceKey ?? undefined,
-          },
-        ];
-      }),
+      tabs,
+      movableTabCount,
+      activeTabId,
+      // The thumbnail draws the tab this client shows on the desktop.
+      activeRoot: desktop.tabs.find(tab => tab.id === activeTabId)?.root ?? null,
     };
   });
 
@@ -69,6 +81,7 @@ export function useDesktopManagerSurfaces() {
     diagnostic,
     hydration,
     overlay,
+    overviewDesktopAction,
     overviewSegmentRequest,
     pending,
   };

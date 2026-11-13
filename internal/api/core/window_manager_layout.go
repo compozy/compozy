@@ -30,7 +30,7 @@ func (h *BaseHandlers) ExportWindowManagerLayout(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
-// ValidateWindowManagerLayout validates a raw layout without normalization or writes.
+// ValidateWindowManagerLayout validates and converts the input without reading live windows or writing state.
 func (h *BaseHandlers) ValidateWindowManagerLayout(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
 	service, ok := h.windowManagerService(c, workspaceID)
@@ -63,9 +63,18 @@ func (h *BaseHandlers) ValidateWindowManagerLayout(c *gin.Context) {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.WindowManagerLayoutValidationResponse{
+	payload := contract.WindowManagerLayoutValidationResponse{
 		WorkspaceID: workspaceID, Valid: validation.Valid, Diagnostics: validation.Diagnostics,
-	})
+	}
+	if validation.Document != nil {
+		document, err := contract.WindowManagerLayoutFromDomain(*validation.Document)
+		if err != nil {
+			h.respondWindowManagerError(c, workspaceID, fmt.Errorf("encode validated layout: %w", err))
+			return
+		}
+		payload.Document = &document
+	}
+	c.JSON(http.StatusOK, payload)
 }
 
 // ReplaceWindowManagerLayout applies a declarative document through revision CAS.

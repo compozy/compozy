@@ -35,7 +35,7 @@ function coreAction(
 /** The catalog the daemon would project; this layer only ever receives it. */
 const ACTIONS: readonly ShortcutActionDefinition[] = [
   coreAction({ id: "window.close", label: "Close window", section: "Window" }),
-  coreAction({ id: "window.tile.left", label: "Tile left half", section: "Tiling" }),
+  coreAction({ id: "window.tile.left", label: "Move window to the left edge", section: "Layout" }),
   coreAction({ id: "window.focus.up", label: "Focus up", section: "Window" }),
   coreAction({ id: "window.focus.down", label: "Focus down", section: "Window" }),
   coreAction({ id: "sidebar.toggle", label: "Toggle sidebar", section: "Shell" }),

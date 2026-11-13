@@ -4,7 +4,6 @@ import { shallowEqual } from "@xstate/store";
 import { executeWindowManagerCommand } from "../adapters/window-manager-api";
 import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
-import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
 import type { WindowManagerSettingsSection } from "../lib/window-manager-settings-section";
 import {
@@ -21,7 +20,7 @@ import type {
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 import { DEFAULT_WINDOW_MANAGER_WORK_AREA } from "../lib/window-manager-view";
-import { windowManagerStore, type DesktopTransitionIntent } from "../stores/window-manager-store";
+import { windowManagerStore } from "../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../stores/window-manager-store-commands";
 import {
   clearSwitchTransition,
@@ -29,11 +28,14 @@ import {
   reportCommandCompleted,
   reportCommandRefused,
 } from "./window-manager-command-outcome";
+import { FocusTurns, type FocusTicket } from "./window-manager-focus-turns";
 import {
+  clientViewInBinding,
+  commandTimeLeft,
+  desktopTransitionIntent,
   queryCacheEventChangesData,
   randomWindowManagerId,
   sameRuntimeBinding,
-  WINDOW_MANAGER_COMMAND_DEADLINE_MS,
   WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
 } from "./window-manager-runtime-helpers";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
@@ -62,6 +64,7 @@ export abstract class WindowManagerRuntimeCore {
   protected loadError: Error | null = null;
   private diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
   private conflictRecovery: Promise<boolean> | null = null;
+  protected readonly focusTurns = new FocusTurns<WindowManagerClientView>(v => this.adoptClient(v));
 
   constructor(queryClient: QueryClient) {
     this.queryClient = queryClient;
@@ -110,6 +113,7 @@ export abstract class WindowManagerRuntimeCore {
     this.unsubscribeQuery = null;
     this.unsubscribePresentation = null;
     this.cancelDiagnosticExpiry();
+    this.focusTurns.reset();
   }
 
   destroy(): void {
@@ -168,6 +172,7 @@ export abstract class WindowManagerRuntimeCore {
       return;
     }
     this.snapshotRefresher.reset();
+    this.focusTurns.reset();
     this.binding = { ...binding };
     this.client = null;
     this.clientAttachmentToken = null;
@@ -178,6 +183,7 @@ export abstract class WindowManagerRuntimeCore {
 
   unbind(): void {
     this.snapshotRefresher.reset();
+    this.focusTurns.reset();
     this.binding = null;
     this.client = null;
     this.clientAttachmentToken = null;
@@ -187,28 +193,29 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   setClient(client: WindowManagerClientView | WindowManagerRegisteredClientView | null): void {
+    // Neither held nor adopted outside the binding; a registration is never held, and one that
+    // ends or starts drops what was held for the last.
+    if (client !== null && !clientViewInBinding(this.binding, client)) return;
+    if (this.focusTurns.offer(client, this.clientAttachmentToken)) return;
+    this.adoptClient(client);
+  }
+
+  private adoptClient(
+    client: WindowManagerClientView | WindowManagerRegisteredClientView | null
+  ): boolean {
     if (client === null) {
-      if (this.client === null && this.clientAttachmentToken === null) return;
+      if (this.client === null && this.clientAttachmentToken === null) return false;
       this.client = null;
       this.clientAttachmentToken = null;
       this.publish();
-      return;
+      return true;
     }
-    const binding = this.binding;
-    if (
-      binding === null ||
-      client.workspaceId !== binding.workspaceId ||
-      client.clientId !== binding.clientId
-    ) {
-      return;
-    }
+    if (!clientViewInBinding(this.binding, client)) return false;
     const previousToken = this.clientAttachmentToken;
-    if ("attachmentToken" in client) {
-      this.clientAttachmentToken = client.attachmentToken;
-    }
+    if ("attachmentToken" in client) this.clientAttachmentToken = client.attachmentToken;
     if (this.client !== null && client.presentationRevision <= this.client.presentationRevision) {
       if (previousToken !== this.clientAttachmentToken) this.publish();
-      return;
+      return false;
     }
     const previous = this.client;
     this.client = client;
@@ -216,37 +223,17 @@ export abstract class WindowManagerRuntimeCore {
       activeDesktopId: client.activeDesktopId,
       reconciledIntent:
         previous !== null && previous.activeDesktopId !== client.activeDesktopId
-          ? this.desktopTransitionIntent(previous.activeDesktopId, client.activeDesktopId)
+          ? desktopTransitionIntent(
+              this.snapshot(),
+              this.config(),
+              this.reduceMotion,
+              previous.activeDesktopId,
+              client.activeDesktopId
+            )
           : null,
     });
     this.publish();
-  }
-
-  private desktopTransitionIntent(
-    fromDesktopId: string,
-    toDesktopId: string
-  ): DesktopTransitionIntent | null {
-    const snapshot = this.snapshot();
-    const globalConfig = this.config();
-    if (snapshot === null || globalConfig === null) return null;
-    const config = effectiveWindowManagerConfig(globalConfig, snapshot.overrides);
-    if (this.reduceMotion || config.desktopTransition === "instant") return null;
-    return {
-      fromDesktopId,
-      toDesktopId,
-      direction: this.desktopTransitionDirection(snapshot.desktops, fromDesktopId, toDesktopId),
-      mode: config.desktopTransition,
-    };
-  }
-
-  protected desktopTransitionDirection(
-    desktops: readonly { id: string; order: number }[],
-    fromDesktopId: string,
-    toDesktopId: string
-  ): "earlier" | "later" {
-    const fromOrder = desktops.find(desktop => desktop.id === fromDesktopId)?.order ?? 0;
-    const toOrder = desktops.find(desktop => desktop.id === toDesktopId)?.order ?? 0;
-    return toOrder >= fromOrder ? "later" : "earlier";
+    return true;
   }
 
   setConnectionStatus(status: WindowManagerConnectionStatus): void {
@@ -405,14 +392,19 @@ export abstract class WindowManagerRuntimeCore {
     }
     // Refused commands must not publish optimistic routes while recovery is pending.
     if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") return null;
-    // Rapid interactions (zoom toggle, dock activations, seam arrows) queue
-    // behind the in-flight command instead of being silently dropped; each
-    // queued command reads a fresh snapshot revision when it runs. The deadline
-    // starts at the click, so a backlog stalled behind a busy connection pool
-    // expires instead of replaying every stale click at once.
-    const deadline = AbortSignal.timeout(WINDOW_MANAGER_COMMAND_DEADLINE_MS);
-    const run = () => this.runCommand(command, { ...binding }, deadline);
+    // Rapid input queues behind the in-flight command and reads a fresh revision when it runs.
+    // One deadline spans every queue a command waits in: from its input (`inputAt`) when it has
+    // one, else from dispatch. Expired input is refused unqueued; a stalled backlog expires.
+    const timeLeft = commandTimeLeft(command.inputAt, Date.now());
+    if (timeLeft <= 0) return null;
+    const deadline = AbortSignal.timeout(timeLeft);
+    // A queued focus that a newer one replaces is not sent (window-manager-focus-turns).
+    const ticket = this.focusTurns.admit(command);
+    const run = () => this.runCommand(command, { ...binding }, deadline, ticket);
     const chained = this.commandChain.then(run, run);
+    // Settled on a side branch, ahead of the next command and the completion, off their timing.
+    const settle = () => this.focusTurns.settle(ticket);
+    void chained.then(settle, settle);
     this.commandChain = chained;
     return chained;
   }
@@ -420,7 +412,8 @@ export abstract class WindowManagerRuntimeCore {
   private runCommand(
     command: WindowManagerCommandInput,
     enqueuedBinding: WindowManagerRuntimeBinding,
-    deadline: AbortSignal
+    deadline: AbortSignal,
+    ticket: FocusTicket | null
   ): Promise<boolean> {
     const binding = this.binding;
     if (binding === null) {
@@ -436,6 +429,7 @@ export abstract class WindowManagerRuntimeCore {
 
     const requestId = randomWindowManagerId("wm-command");
     if (
+      !this.focusTurns.takeoff(ticket) ||
       deadline.aborted ||
       !beginWindowManagerCommand(windowManagerStore, {
         id: requestId,
@@ -443,7 +437,7 @@ export abstract class WindowManagerRuntimeCore {
         expectedRevision: snapshot.revision,
       })
     ) {
-      // An expired click, or a recorded revision conflict that keeps the surface
+      // A replaced focus, an expired click, or a recorded revision conflict that keeps the surface
       // read-only until the user resolves it, resolves unapplied instead of racing.
       clearSwitchTransition(command, binding);
       return Promise.resolve(false);
@@ -464,14 +458,16 @@ export abstract class WindowManagerRuntimeCore {
             windowManagerKeys.snapshot(binding.workspaceId, binding.profileId),
             current => reconcileWindowManagerSnapshot(current, result.snapshot)
           );
-          if (result.client !== null) this.setClient(result.client);
+          // A focus that a newer one replaced does not show: its view waits for the newer answer.
+          const view = result.client;
+          if (view !== null && !this.focusTurns.holdAnswer(ticket, view)) this.adoptClient(view);
         } finally {
           this.projectionDeferred = false;
           this.publish();
         }
         reportCommandCompleted(requestId, result, binding);
         this.publish();
-        return result.applied;
+        return result.applied && !this.focusTurns.replaced(ticket);
       })
       .catch(error => {
         clearSwitchTransition(command, binding);

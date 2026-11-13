@@ -41,7 +41,7 @@ CompozyOS archives them on load instead of failing; see
 | `[shell.appearance]`                 | Fonts, text size, and letter spacing every connected client paints with.               | Figtree and Geist Mono, default text size and spacing                                                 |
 | `[user_scope]`                       | Working directory for work that belongs to no project (the User scope).                | `work_dir = "~"`                                                                                      |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
-| `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
+| `[window_manager]`                   | Live virtual-desktop, tab, focus, layout, transition, and shortcut defaults.           | new windows open as tabs, flush gaps, one-at-a-time splits on small viewports, 50-entry history       |
 | `[defaults]`                         | Default agent and session runtime (provider, model, reasoning effort) resolution.      | `agent = "general"`, `provider = ""`                                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                       | enabled, inherits the invoking agent                                                                  |
@@ -265,9 +265,6 @@ small_viewport_policy = "stack"
 focus_policy = "click_directional"
 focus_wrap = false
 focus_follows_pointer = false
-raise_on_focus = true
-drag_away_policy = "window"
-group_move_modifier = "alt"
 swap_modifier = "shift"
 history_limit = 50
 # Retain at most this many prior routes per window when a new route is pushed.
@@ -282,16 +279,6 @@ top = 0
 right = 0
 bottom = 0
 left = 0
-
-[window_manager.snap]
-edge_band = 32
-corner_reach = 150
-exit_slack = 16
-repeat_ratios = [0.5, 0.666667, 0.333333]
-
-[window_manager.bindings]
-top_center = "zoom"
-bottom_center = "zoom"
 
 [defaults]
 # Agent name used when a command or API request does not specify one.
@@ -1171,47 +1158,43 @@ field writes/applies nothing and leaves the previous active generation in place.
 Settings › Layouts, while agents can use `compozy config` or the typed
 `GET/PATCH /api/settings/window-manager` surface and inspect config apply history.
 
-| Field                   | Type    | Default             | Valid values                              | Description                                               |
-| ----------------------- | ------- | ------------------- | ----------------------------------------- | --------------------------------------------------------- |
-| `new_window_policy`     | string  | `tab`               | `tab`, `beside_focus`, `floating`         | Initial structural placement.                             |
-| `small_viewport_policy` | string  | `stack`             | `stack`, `reject`                         | Projection behavior when minimum sizes cannot fit.        |
-| `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                     |
-| `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.    |
-| `focus_follows_pointer` | boolean | `false`             | `true` or `false`                         | Whether pointer entry changes client-local focus.         |
-| `raise_on_focus`        | boolean | `true`              | `true` or `false`                         | Whether focusing a floating window raises it.             |
-| `drag_away_policy`      | string  | `window`            | `window`, `group`                         | Default detach scope for a tiled drag.                    |
-| `group_move_modifier`   | string  | `alt`               | `alt`, `control`, `meta`, `shift`, `none` | Modifier that temporarily moves the complete group.       |
-| `swap_modifier`         | string  | `shift`             | `alt`, `control`, `meta`, `shift`, `none` | Modifier that turns an occupied drop into a window swap.  |
-| `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.             |
-| `nav_stack_limit`       | integer | `50`                | `1` through `200`                         | Write-time cap for each window's prior-route stack.       |
-| `closed_entry_limit`    | integer | `20`                | `1` through `100`                         | Write-time cap for retained closed-window entries.        |
-| `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative. |
+| Field                   | Type    | Default             | Valid values                              | Description                                                                                                              |
+| ----------------------- | ------- | ------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `new_window_policy`     | string  | `tab`               | `tab`, `beside_focus`                     | `tab` opens a new tab after the active one; `beside_focus` splits it right of the focused window.                        |
+| `small_viewport_policy` | string  | `stack`             | `stack`, `reject`                         | Below the compact breakpoint, `stack` switches to the compact presentation and `reject` marks the viewport as too small. |
+| `focus_policy`          | string  | `click_directional` | `click_directional`, `directional`        | Enabled focus inputs.                                                                                                    |
+| `focus_wrap`            | boolean | `false`             | `true` or `false`                         | Whether directional focus wraps at a desktop boundary.                                                                   |
+| `focus_follows_pointer` | boolean | `false`             | `true` or `false`                         | Whether pointer entry changes client-local focus.                                                                        |
+| `swap_modifier`         | string  | `shift`             | `alt`, `control`, `meta`, `shift`, `none` | Modifier held while dropping a window on another window of the same tab to swap them.                                    |
+| `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.                                                                            |
+| `nav_stack_limit`       | integer | `50`                | `1` through `200`                         | Write-time cap for each window's prior-route stack.                                                                      |
+| `closed_entry_limit`    | integer | `20`                | `1` through `100`                         | Write-time cap for retained closed-window entries.                                                                       |
+| `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative.                                                                |
 
 `nav_stack_limit` applies when `compozy window navigate --mode push` records the current route.
-`closed_entry_limit` applies when a non-minimize close records a reopen entry. Lowering either live
+`closed_entry_limit` applies when a close records a reopen entry. Lowering either live
 limit does not remove existing state; the next relevant mutation retains only the newest values.
 
 ### `[window_manager.gaps]`
 
 `inner`, `top`, `right`, `bottom`, and `left` are integer CSS pixels from `0` through `64`. All
-five default to `0`, so tiled windows meet flush at shared seams and fill the work area. Clients
+five default to `0`, so split windows meet flush at shared seams and fill the work area. Clients
 apply them to the measured work area; normalized durable geometry never stores pixels. An explicit
 `[window_manager.gaps]` table keeps its values.
 
-### `[window_manager.snap]`
+### Retired `[window_manager]` keys
 
-| Field           | Type         | Default                     | Validation                                                   |
-| --------------- | ------------ | --------------------------- | ------------------------------------------------------------ |
-| `edge_band`     | integer      | `32`                        | `4` through `128` pixels.                                    |
-| `corner_reach`  | integer      | `150`                       | `16` through `512` pixels.                                   |
-| `exit_slack`    | integer      | `16`                        | `0` through `64` pixels.                                     |
-| `repeat_ratios` | number array | `[0.5, 0.666667, 0.333333]` | One to eight unique finite ratios, each `0.1` through `0.9`. |
+CompozyOS v0.7.0 removed floating windows, minimize, zoom, and snapping. These keys still load until
+v0.8.0, are ignored, and print one warning each (for example `warning: window_manager.raise_on_focus
+is retired and ignored; remove it before v0.8.0.`): `raise_on_focus`, `drag_away_policy`,
+`group_move_modifier`, `snap.edge_band`, `snap.corner_reach`, `snap.exit_slack`,
+`snap.repeat_ratios`, `bindings.top_center`, and `bindings.bottom_center`. `new_window_policy =
+"floating"` loads as `"tab"` with a warning. The same applies to workspace overrides. Remove them
+before v0.8.0, which deletes this compatibility path.
 
-### `[window_manager.bindings]` and shortcuts
+### `[window_manager.shortcuts]`
 
-`top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`, and both default to `zoom`.
-`reserved` blocks that edge-center snap. A target-less `stack`
-action is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]`
+`[window_manager.shortcuts]`
 maps action IDs to a chord string or an array of chords. An empty string or array disables an action.
 `desktop.switch` accepts ranges through `Digit1..9`; `window.tab.jump` accepts `Digit1..8`. Range
 members expand before full-map validation, and any duplicate rejects the whole candidate. See

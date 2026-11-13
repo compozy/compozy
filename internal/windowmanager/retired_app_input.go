@@ -2,6 +2,7 @@ package windowmanager
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -55,4 +56,12 @@ func canonicalLayoutApps(
 		}
 	}
 	return document
+}
+
+func (m *Manager) validateOpenApp(payload Command) error {
+	command, opening := payload.(OpenWindowCommand)
+	if opening && m.registeredApp != nil && !m.registeredApp(strings.TrimSpace(command.Window.App)) {
+		return fmt.Errorf("unregistered window app %q: %w", command.Window.App, ErrInvalidCommand)
+	}
+	return nil
 }

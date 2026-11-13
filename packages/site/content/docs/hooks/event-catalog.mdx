@@ -507,6 +507,31 @@ Delegation also uses `spawn.pre_create` with `spawn_role: "subagent"` and a type
 `worktree_id`. Denying that hook, rebinding isolation/worktree, or rewriting a TTL for this role
 rejects delegation with `capability_denied`.
 
+## Window Manager Events
+
+| Event                            | Sync       | Payload                              | Patch                           | Fires when                                                                              |
+| -------------------------------- | ---------- | ------------------------------------ | ------------------------------- | --------------------------------------------------------------------------------------- |
+| `window_manager.layout.applied`  | async only | `WindowManagerLayoutAppliedPayload`  | `WindowManagerObservationPatch` | After `layout apply` or `layout arrange` commits.                                       |
+| `window_manager.desktop.created` | async only | `WindowManagerDesktopCreatedPayload` | `WindowManagerObservationPatch` | After `desktop create` commits.                                                         |
+| `window_manager.desktop.deleted` | async only | `WindowManagerDesktopDeletedPayload` | `WindowManagerObservationPatch` | After `desktop delete` commits.                                                         |
+| `window_manager.window.opened`   | async only | `WindowManagerWindowOpenedPayload`   | `WindowManagerObservationPatch` | After `window open` or `window reopen` commits.                                         |
+| `window_manager.window.moved`    | async only | `WindowManagerWindowMovedPayload`    | `WindowManagerObservationPatch` | After `window move` commits (a window or a whole tab moved).                            |
+| `window_manager.window.closed`   | async only | `WindowManagerWindowClosedPayload`   | `WindowManagerObservationPatch` | After `window close` commits, at any scope.                                             |
+| `window_manager.tab.split`       | async only | `WindowManagerTabSplitPayload`       | `WindowManagerObservationPatch` | After a tab goes from one window to several.                                            |
+| `window_manager.tab.unsplit`     | async only | `WindowManagerTabUnsplitPayload`     | `WindowManagerObservationPatch` | After a split tab goes back to one window, or closes.                                   |
+| `window_manager.tab.activated`   | async only | `WindowManagerTabActivatedPayload`   | `WindowManagerObservationPatch` | After a `window.tab.activate` command (or its alias `window.stack.set_active`) commits. |
+| `window_manager.stack.activated` | async only | `WindowManagerStackActivatedPayload` | `WindowManagerObservationPatch` | Deprecated: fires together with `window_manager.tab.activated`.                         |
+| `window_manager.stack.grouped`   | async only | `WindowManagerStackGroupedPayload`   | `WindowManagerObservationPatch` | Retired: loads until v0.8.0 and never fires.                                            |
+| `window_manager.stack.ungrouped` | async only | `WindowManagerStackUngroupedPayload` | `WindowManagerObservationPatch` | Retired: loads until v0.8.0 and never fires.                                            |
+
+This family is observe-only and fires after the change commits. Every payload has `workspace_id`,
+`revision`, `command_id`, `actor` (`kind`, `id`), optional `origin`, and `changes` with the ids the
+command touched: `tab_ids`, `tab_split`, `tab_unsplit`, `desktop_ids`, `window_ids`, `node_ids`, and
+`client_ids`. `group_ids`, `stack_grouped`, and `stack_ungrouped` stay empty until v0.8.0 removes
+them. Pointer previews, navigation, focus changes and desktop switching emit no window-manager
+hooks. `compozy hooks list` warns about a hook bound to a retired or deprecated event; see
+[Window management](/docs/workspaces/window-management#retired-in-v070).
+
 ## Native tool result views
 
 `tool.post_call` says which view the result holds. `result_view` is present only for tools with

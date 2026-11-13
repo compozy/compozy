@@ -3297,6 +3297,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatal("approved output_views addition: no historical tool descriptors found")
 		}
 		addSettingsMCPHeaderPresence(t, baseline)
+		deprecateRetiredWindowManagerSettings(t, baseline)
+		deprecateRetiredWindowManagerWireFields(t, baseline)
+		addWindowManagerValidationDocument(t, baseline)
+		addWindowManagerTabHookSchemas(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")
 		}
@@ -3617,7 +3621,25 @@ func addOTelStatusSchema(t *testing.T, baseline map[string]any) {
 
 func readSchemaBaseline(t *testing.T) map[string]any {
 	t.Helper()
-	compressed, err := os.ReadFile("testdata/openapi-pre-components.json.gz")
+	baseline := readSchemaBaselineFile(t, "testdata/openapi-pre-components.json.gz")
+	// window-tabs-split ADR-004 approves the v6 output break. Requests remain
+	// decodable, while this versioned fixture freezes the replacement contract.
+	v6 := readSchemaBaselineFile(t, "testdata/window-manager-v6.json.gz")
+	paths := baseline["paths"].(map[string]any)
+	maps.Copy(paths, v6["paths"].(map[string]any))
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name := range schemas {
+		if strings.HasPrefix(name, "WindowManager") {
+			delete(schemas, name)
+		}
+	}
+	maps.Copy(schemas, v6["components"].(map[string]any)["schemas"].(map[string]any))
+	return baseline
+}
+
+func readSchemaBaselineFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+	compressed, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read schema baseline: %v", err)
 	}
@@ -6798,4 +6820,41 @@ func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
 		any(map[string]any{"in": "query", "name": "wait", "schema": map[string]any{"type": "boolean"}}),
 		any(map[string]any{"in": "query", "name": "timeout", "schema": map[string]any{"type": "string"}}),
 	)
+}
+
+// window-tabs-split adds three tab events without removing the deprecated stack events.
+func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	changes := 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case map[string]any:
+			if values, ok := node["enum"].([]any); ok {
+				if index := slices.Index(values, any("window_manager.layout.applied")); index >= 0 {
+					node["enum"] = slices.Insert(
+						values,
+						index,
+						any(
+							"window_manager.tab.split",
+						),
+						any("window_manager.tab.unsplit"),
+						any("window_manager.tab.activated"),
+					)
+					changes++
+				}
+			}
+			for _, child := range node {
+				walk(child)
+			}
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		}
+	}
+	walk(baseline)
+	if changes != 5 {
+		t.Fatalf("approved window-manager tab hooks: updated %d historical enums, want 5", changes)
+	}
 }

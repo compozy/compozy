@@ -63,6 +63,9 @@ type SupportBundleOperationResponse struct {
 	Operation SupportBundleOperationPayload `json:"operation"`
 }
 
+// TabID is a daemon API value.
+type TabID string
+
 // TargetKind is a daemon API value.
 type TargetKind string
 

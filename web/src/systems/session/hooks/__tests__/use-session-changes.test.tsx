@@ -248,14 +248,12 @@ describe("useSessionChangesLiveRefresh", () => {
     const windows = {
       "w-session": {
         desktopId: "d1",
-        minimized: false,
-        stackActive: true,
+        shown: true,
         route: { pathname: `/agents/codex/sessions/${sessionId}` },
       },
       "w-files": {
         desktopId: "d1",
-        minimized: false,
-        stackActive: true,
+        shown: true,
         route: { pathname: "/files/ws_changes" },
       },
     };

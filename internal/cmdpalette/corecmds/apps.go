@@ -1,6 +1,9 @@
 package corecmds
 
-import "github.com/compozy/compozy/internal/cmdpalette"
+import (
+	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/windowmanager"
+)
 
 var appOnlyDefinitions = []domainDefinition{
 	{id: "dashboard", title: "Home", icon: "home"},
@@ -50,8 +53,11 @@ func RegisteredApp(id string) bool {
 	return false
 }
 
-// RetiredCommandID accepts public aliases until removal in v0.5.0.
+// RetiredCommandID translates public aliases during their named removal window.
 func RetiredCommandID(id cmdpalette.CommandID) (cmdpalette.CommandID, bool) {
+	if replacement, retired := windowmanager.CommandAlias(string(id)); retired {
+		return cmdpalette.CommandID(replacement), true
+	}
 	switch id {
 	case "app.open.jobs", "app.open.triggers":
 		return "app.open.automations", true
@@ -60,4 +66,11 @@ func RetiredCommandID(id cmdpalette.CommandID) (cmdpalette.CommandID, bool) {
 	default:
 		return id, false
 	}
+}
+
+func RetiredCommandRemovalRelease(id cmdpalette.CommandID) string {
+	if id == "window.stack.reorder" || id == "window.stack.set_active" {
+		return "v0.8.0"
+	}
+	return "v0.5.0"
 }

@@ -121,9 +121,9 @@ func settingsWindowManagerConfigPayload(
 		FocusPolicy:         contract.SettingsWindowFocusPolicy(cfg.FocusPolicy),
 		FocusWrap:           cfg.FocusWrap,
 		FocusFollowsPointer: cfg.FocusFollowsPointer,
-		RaiseOnFocus:        cfg.RaiseOnFocus,
-		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicy(cfg.DragAwayPolicy),
-		GroupMoveModifier:   contract.SettingsWindowDragModifier(cfg.GroupMoveModifier),
+		RaiseOnFocus:        false,
+		DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyWindow,
+		GroupMoveModifier:   contract.SettingsWindowDragModifierNone,
 		SwapModifier:        contract.SettingsWindowDragModifier(cfg.SwapModifier),
 		HistoryLimit:        cfg.HistoryLimit,
 		NavStackLimit:       cfg.NavStackLimit,
@@ -136,15 +136,10 @@ func settingsWindowManagerConfigPayload(
 			Bottom: cfg.Gaps.Bottom,
 			Left:   cfg.Gaps.Left,
 		},
-		Snap: contract.SettingsWindowManagerSnapPayload{
-			EdgeBand:     cfg.Snap.EdgeBand,
-			CornerReach:  cfg.Snap.CornerReach,
-			ExitSlack:    cfg.Snap.ExitSlack,
-			RepeatRatios: append([]float64(nil), cfg.Snap.RepeatRatios...),
-		},
+		// Neutral wire values keep v0.6 readers compatible until v0.8.0.
+		Snap: contract.SettingsWindowManagerSnapPayload{RepeatRatios: []float64{}},
 		Bindings: contract.SettingsWindowManagerBindingPayload{
-			TopCenter:    contract.SettingsWindowBindingAction(cfg.Bindings.TopCenter),
-			BottomCenter: contract.SettingsWindowBindingAction(cfg.Bindings.BottomCenter),
+			TopCenter: contract.SettingsWindowBindingActionNone, BottomCenter: contract.SettingsWindowBindingActionNone,
 		},
 		Shortcuts:       requiredWindowManagerShortcutsPayload(cfg.Shortcuts),
 		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(cfg.GlobalShortcuts),
@@ -172,9 +167,6 @@ func windowManagerConfigFromPayload(
 		FocusPolicy:         strings.TrimSpace(string(payload.FocusPolicy)),
 		FocusWrap:           payload.FocusWrap,
 		FocusFollowsPointer: payload.FocusFollowsPointer,
-		RaiseOnFocus:        payload.RaiseOnFocus,
-		DragAwayPolicy:      strings.TrimSpace(string(payload.DragAwayPolicy)),
-		GroupMoveModifier:   strings.TrimSpace(string(payload.GroupMoveModifier)),
 		SwapModifier:        strings.TrimSpace(string(payload.SwapModifier)),
 		HistoryLimit:        payload.HistoryLimit,
 		NavStackLimit:       payload.NavStackLimit,
@@ -187,18 +179,12 @@ func windowManagerConfigFromPayload(
 			Bottom: payload.Gaps.Bottom,
 			Left:   payload.Gaps.Left,
 		},
-		Snap: compozyconfig.WindowManagerSnapConfig{
-			EdgeBand:     payload.Snap.EdgeBand,
-			CornerReach:  payload.Snap.CornerReach,
-			ExitSlack:    payload.Snap.ExitSlack,
-			RepeatRatios: append([]float64(nil), payload.Snap.RepeatRatios...),
-		},
-		Bindings: compozyconfig.WindowManagerBindingConfig{
-			TopCenter:    strings.TrimSpace(string(payload.Bindings.TopCenter)),
-			BottomCenter: strings.TrimSpace(string(payload.Bindings.BottomCenter)),
-		},
 		Shortcuts:       windowmanager.CloneShortcutMap(payload.Shortcuts),
 		GlobalShortcuts: windowmanager.CloneGlobalShortcutMap(payload.GlobalShortcuts),
+	}
+	if value.NewWindowPolicy == compozyconfig.WindowNewPolicyFloating {
+		windowmanager.WarnRetiredConfigKey("new_window_policy", true)
+		value.NewWindowPolicy = compozyconfig.WindowNewPolicyTab
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.WindowManagerConfig{}, NewSettingsValidationError(err)

@@ -32,6 +32,7 @@ func windowManagerOperations() []OperationSpec {
 		operations,
 		windowManagerLayoutOperations(transports, workspaceParam, readErrors, mutationErrors)...,
 	)
+	operations = append(operations, windowManagerMigrationOperations(transports, workspaceParam, mutationErrors)...)
 	return append(operations, windowManagerStreamOperation(transports, workspaceParam, errorBody))
 }
 
@@ -148,7 +149,7 @@ func windowManagerLayoutOperations(
 				[]ResponseSpec{
 					{
 						Status:      200,
-						Description: "Validation result",
+						Description: "Validation diagnostics and the canonical v6 document when valid",
 						Body:        contract.WindowManagerLayoutValidationResponse{},
 					},
 				},

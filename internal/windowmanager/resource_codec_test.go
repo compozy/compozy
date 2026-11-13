@@ -7,6 +7,7 @@ package windowmanager
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -28,7 +29,7 @@ func TestLayoutResourceCodec(t *testing.T) {
 			t.Fatal(err)
 		}
 		resource := testLayoutResource("legacy")
-		resource.Document.Version = PreviousSnapshotVersion
+		resource.Document.Version = SnapshotVersion
 		for id, window := range resource.Document.Windows {
 			window.App = "jobs"
 			window.Route = testRoute("/jobs/morning-digest")
@@ -89,6 +90,43 @@ func TestLayoutResourceCodec(t *testing.T) {
 		}
 	})
 
+	t.Run("Should translate retired extension layout overrides before strict validation", func(t *testing.T) {
+		t.Parallel()
+		raw, err := codec.Encode(testLayoutResource("retired-overrides"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var envelope map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			t.Fatal(err)
+		}
+		var document map[string]json.RawMessage
+		if err := json.Unmarshal(envelope["document"], &document); err != nil {
+			t.Fatal(err)
+		}
+		document["overrides"] = json.RawMessage(`{"history_limit":25,"raise_on_focus":42,"snap":{"edge_band":false}}`)
+		envelope["document"], err = json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err = json.Marshal(envelope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := codec.DecodeAndValidate(
+			t.Context(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			raw,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Document.Overrides.HistoryLimit == nil || *got.Document.Overrides.HistoryLimit != 25 ||
+			got.Document.Overrides.RaiseOnFocus != nil || got.Document.Overrides.Snap != nil {
+			t.Fatalf("overrides = %+v", got.Document.Overrides)
+		}
+	})
+
 	t.Run("Should reject participant slots duplicated after canonicalization", func(t *testing.T) {
 		t.Parallel()
 		resource := testLayoutResource("two-up")
@@ -145,13 +183,6 @@ func TestLayoutResourceCodec(t *testing.T) {
 func testLayoutResource(id string) LayoutResource {
 	return LayoutResource{
 		Version: LayoutResourceVersion, ID: id, DisplayName: "Two up",
-		Document: LayoutDocument{
-			Version: SnapshotVersion,
-			Desktops: []Desktop{{
-				ID: "desktop-default", Name: "Desktop 1",
-				Groups: []LayoutGroup{}, Floating: []WindowID{},
-			}},
-			Windows: map[WindowID]Window{},
-		},
+		Document: defaultTestDocument(""),
 	}
 }

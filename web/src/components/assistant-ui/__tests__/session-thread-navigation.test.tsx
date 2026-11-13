@@ -272,7 +272,7 @@ function renderNavigationThread({
   );
   const wrap = (running: boolean) =>
     frame ? (
-      <section data-slot="os-window-frame" data-focused={frame.focused ? "" : undefined}>
+      <section data-slot="os-window-surface" data-focused={frame.focused ? "" : undefined}>
         {thread(running)}
       </section>
     ) : (

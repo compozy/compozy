@@ -37,15 +37,15 @@ type WindowManagerWindowSpecPayload struct {
 	InstanceKey         *string                      `json:"instance_key,omitzero"`
 	Route               windowmanager.RouteIntent    `json:"route"`
 	DesktopID           windowmanager.DesktopID      `json:"desktop_id"`
-	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect"`
-	InsertTiled         bool                         `json:"insert_tiled"`
-	Floating            bool                         `json:"floating,omitzero"`
+	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect,omitzero"          deprecated:"true"`
+	InsertTiled         bool                         `json:"insert_tiled,omitempty"`
+	Floating            bool                         `json:"floating,omitzero"               deprecated:"true"`
 	StackTargetWindowID *windowmanager.WindowID      `json:"stack_target_window_id,omitzero"`
 }
 
 type WindowManagerOpenWindowPayload struct {
 	Window          WindowManagerWindowSpecPayload `json:"window"`
-	RestoreWindowID *windowmanager.WindowID        `json:"restore_window_id,omitzero"`
+	RestoreWindowID *windowmanager.WindowID        `json:"restore_window_id,omitzero" deprecated:"true"`
 }
 
 type WindowManagerNavigateWindowPayload struct {
@@ -57,14 +57,14 @@ type WindowManagerNavigateWindowPayload struct {
 
 type WindowManagerCloseWindowPayload struct {
 	WindowID windowmanager.WindowID   `json:"window_id"`
-	Minimize bool                     `json:"minimize"`
+	Minimize bool                     `json:"minimize,omitzero" deprecated:"true"`
 	Scope    windowmanager.CloseScope `json:"scope,omitempty"`
 }
 
 type WindowManagerGroupWindowsPayload struct {
 	TargetWindowID windowmanager.WindowID   `json:"target_window_id"`
 	WindowIDs      []windowmanager.WindowID `json:"window_ids"`
-	InsertIndex    *int                     `json:"insert_index,omitzero"`
+	InsertIndex    *int                     `json:"insert_index,omitzero" deprecated:"true"`
 }
 
 type WindowManagerReorderStackPayload struct {
@@ -89,17 +89,18 @@ type WindowManagerFocusWindowPayload struct {
 }
 
 type WindowManagerMoveWindowPayload struct {
+	TargetTabID          *windowmanager.TabID          `json:"target_tab_id,omitzero"`
 	WindowID             windowmanager.WindowID        `json:"window_id"`
 	DestinationDesktopID windowmanager.DesktopID       `json:"destination_desktop_id"`
 	TargetWindowID       *windowmanager.WindowID       `json:"target_window_id,omitzero"`
 	Placement            windowmanager.DropPlacement   `json:"placement"`
-	FloatingRect         *windowmanager.NormalizedRect `json:"floating_rect,omitzero"`
+	FloatingRect         *windowmanager.NormalizedRect `json:"floating_rect,omitzero"    deprecated:"true"`
 	MoveGroup            bool                          `json:"move_group"`
 }
 
 type WindowManagerResizeWindowPayload struct {
 	WindowID windowmanager.WindowID       `json:"window_id"`
-	Frame    windowmanager.NormalizedRect `json:"frame"`
+	Frame    windowmanager.NormalizedRect `json:"frame,omitzero" deprecated:"true"`
 }
 
 type WindowManagerSwapWindowsPayload struct {
@@ -109,7 +110,7 @@ type WindowManagerSwapWindowsPayload struct {
 
 type WindowManagerToggleFloatingPayload struct {
 	WindowID     windowmanager.WindowID        `json:"window_id"`
-	FloatingRect *windowmanager.NormalizedRect `json:"floating_rect,omitzero"`
+	FloatingRect *windowmanager.NormalizedRect `json:"floating_rect,omitzero" deprecated:"true"`
 }
 
 type WindowManagerZoomWindowPayload struct {
@@ -120,13 +121,11 @@ type WindowManagerArrangeLayoutPayload struct {
 	DesktopID   windowmanager.DesktopID      `json:"desktop_id"`
 	WindowIDs   []windowmanager.WindowID     `json:"window_ids"`
 	Arrangement windowmanager.Arrangement    `json:"arrangement"`
-	Frame       windowmanager.NormalizedRect `json:"frame"`
-	GroupID     windowmanager.GroupID        `json:"group_id"`
+	Frame       windowmanager.NormalizedRect `json:"frame,omitzero"        deprecated:"true"`
+	GroupID     windowmanager.GroupID        `json:"group_id,omitzero"     deprecated:"true"`
 	ResourceID  string                       `json:"resource_id,omitempty"`
-	// KeepFrames arranges each named window's whole tab frame as one
-	// participant (deck members, active tab and identity kept); later names in
-	// an already-named frame are absorbed. Omitted, each window stands alone.
-	KeepFrames bool `json:"keep_frames,omitzero"`
+	// KeepFrames is accepted through v0.7 and ignored by the compatibility boundary.
+	KeepFrames bool `json:"keep_frames,omitzero" deprecated:"true"`
 }
 
 type WindowManagerResizeLayoutPayload struct {
@@ -136,8 +135,8 @@ type WindowManagerResizeLayoutPayload struct {
 }
 
 type WindowManagerGroupFrameEditPayload struct {
-	GroupID windowmanager.GroupID        `json:"group_id"`
-	Frame   windowmanager.NormalizedRect `json:"frame"`
+	GroupID windowmanager.GroupID        `json:"group_id,omitzero" deprecated:"true"`
+	Frame   windowmanager.NormalizedRect `json:"frame,omitzero"    deprecated:"true"`
 }
 
 type WindowManagerFrameResizeLayoutPayload struct {
@@ -146,7 +145,8 @@ type WindowManagerFrameResizeLayoutPayload struct {
 }
 
 type WindowManagerBalanceLayoutPayload struct {
-	GroupID *windowmanager.GroupID `json:"group_id,omitzero"`
+	TabID   *windowmanager.TabID   `json:"tab_id,omitzero"`
+	GroupID *windowmanager.GroupID `json:"group_id,omitzero" deprecated:"true"`
 	SplitID *windowmanager.NodeID  `json:"split_id,omitzero"`
 }
 
@@ -300,10 +300,10 @@ func decodeMoveWindowPayload(raw json.RawMessage) (windowmanager.Command, error)
 	return windowmanager.MoveWindowCommand{
 		WindowID:             payload.WindowID,
 		DestinationDesktopID: payload.DestinationDesktopID,
-		TargetWindowID:       payload.TargetWindowID,
-		Placement:            payload.Placement,
-		FloatingRect:         payload.FloatingRect,
-		MoveGroup:            payload.MoveGroup,
+		TargetWindowID:       payload.TargetWindowID, TargetTabID: payload.TargetTabID,
+		Placement:    payload.Placement,
+		FloatingRect: payload.FloatingRect,
+		MoveGroup:    payload.MoveGroup,
 	}, nil
 }
 
@@ -387,7 +387,11 @@ func decodeBalanceLayoutPayload(raw json.RawMessage) (windowmanager.Command, err
 	if err := decodeStrictContractJSON(raw, &payload); err != nil {
 		return nil, err
 	}
-	return windowmanager.BalanceLayoutCommand{GroupID: payload.GroupID, SplitID: payload.SplitID}, nil
+	return windowmanager.BalanceLayoutCommand{
+		TabID:   payload.TabID,
+		GroupID: payload.GroupID,
+		SplitID: payload.SplitID,
+	}, nil
 }
 
 func decodeUndoLayoutPayload(raw json.RawMessage) (windowmanager.Command, error) {

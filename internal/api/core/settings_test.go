@@ -1449,9 +1449,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					FocusPolicy:         compozyconfig.WindowFocusDirectional,
 					FocusWrap:           true,
 					FocusFollowsPointer: true,
-					RaiseOnFocus:        false,
-					DragAwayPolicy:      compozyconfig.WindowDragAwayGroup,
-					GroupMoveModifier:   "control",
 					SwapModifier:        "meta",
 					HistoryLimit:        77,
 					NavStackLimit:       66,
@@ -1459,15 +1456,6 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DesktopTransition:   compozyconfig.WindowDesktopTransitionCrossfade,
 					Gaps: compozyconfig.WindowManagerGapsConfig{
 						Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
-					},
-					Snap: compozyconfig.WindowManagerSnapConfig{
-						EdgeBand:     40,
-						CornerReach:  180,
-						ExitSlack:    20,
-						RepeatRatios: []float64{0.4, 0.7, 0.3},
-					},
-					Bindings: compozyconfig.WindowManagerBindingConfig{
-						TopCenter: "none", BottomCenter: "zoom",
 					},
 					Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 					GlobalShortcuts: map[string]string{
@@ -1707,8 +1695,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				FocusWrap:           true,
 				FocusFollowsPointer: true,
 				RaiseOnFocus:        false,
-				DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyGroup,
-				GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
+				DragAwayPolicy:      contract.SettingsWindowDragAwayPolicyWindow,
+				GroupMoveModifier:   contract.SettingsWindowDragModifierNone,
 				SwapModifier:        contract.SettingsWindowDragModifierMeta,
 				HistoryLimit:        77,
 				NavStackLimit:       66,
@@ -1717,13 +1705,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				Gaps: contract.SettingsWindowManagerGapsPayload{
 					Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
 				},
-				Snap: contract.SettingsWindowManagerSnapPayload{
-					EdgeBand: 40, CornerReach: 180, ExitSlack: 20,
-					RepeatRatios: []float64{0.4, 0.7, 0.3},
-				},
+				Snap: contract.SettingsWindowManagerSnapPayload{RepeatRatios: []float64{}},
 				Bindings: contract.SettingsWindowManagerBindingPayload{
 					TopCenter:    contract.SettingsWindowBindingActionNone,
-					BottomCenter: contract.SettingsWindowBindingActionZoom,
+					BottomCenter: contract.SettingsWindowBindingActionNone,
 				},
 				Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 				GlobalShortcuts: map[string]string{
@@ -2269,13 +2254,13 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject window-manager stack without an edge-center target", func(t *testing.T) {
+	t.Run("Should reject invalid window-manager gaps before mutation", func(t *testing.T) {
 		t.Parallel()
 
 		service := &stubSettingsService{}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 		config := validSettingsWindowManagerConfigPayload()
-		config.Bindings.TopCenter = contract.SettingsWindowBindingAction("stack")
+		config.Gaps.Inner = -1
 
 		resp := performRequest(
 			t,
@@ -2292,8 +2277,8 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 		}
 		var payload contract.ErrorPayload
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if !strings.Contains(payload.Error, "window_manager.bindings.top_center") {
-			t.Fatalf("payload.Error = %q, want binding validation path", payload.Error)
+		if !strings.Contains(payload.Error, "window_manager.gaps.inner") {
+			t.Fatalf("payload.Error = %q, want gap validation path", payload.Error)
 		}
 	})
 
@@ -2688,6 +2673,48 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 		}
 	})
 
+	t.Run("Should ignore retired zero values in a v0.6 window-manager request", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if req.WindowManager == nil || req.WindowManager.NewWindowPolicy != compozyconfig.WindowNewPolicyTab ||
+					req.WindowManager.HistoryLimit != 77 {
+					t.Fatalf("legacy request reached runtime: %#v", req.WindowManager)
+				}
+				return settingspkg.ApplyResult{Section: req.Section, Scope: req.Scope, Applied: true}, nil
+			},
+			GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section: req.Section,
+					Scope:   settingspkg.ScopeUser,
+					WindowManager: &settingspkg.WindowManagerSection{
+						Config: compozyconfig.DefaultWindowManagerConfig(),
+					},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		config := validSettingsWindowManagerConfigPayload()
+		config.NewWindowPolicy = contract.SettingsWindowNewPolicyFloating
+		config.DragAwayPolicy, config.GroupMoveModifier = "", ""
+		config.Snap = contract.SettingsWindowManagerSnapPayload{}
+		config.Bindings = contract.SettingsWindowManagerBindingPayload{TopCenter: "stack"}
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config}))
+		var result contract.SettingsWindowManagerMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &result)
+		if response.Code != http.StatusOK || service.ApplySectionCalls != 1 || service.UpdateSectionCalls != 0 ||
+			result.Config.NewWindowPolicy != contract.SettingsWindowNewPolicyTab {
+			t.Fatalf(
+				"legacy request response=%d %+v; applies=%d updates=%d",
+				response.Code,
+				result,
+				service.ApplySectionCalls,
+				service.UpdateSectionCalls,
+			)
+		}
+	})
+
 	t.Run("Should echo the window-manager section with its failed apply receipt", func(t *testing.T) {
 		t.Parallel()
 		service := &stubSettingsService{
@@ -2839,7 +2866,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					req.WindowManager.HistoryLimit != 77 ||
 					req.WindowManager.NavStackLimit != 66 ||
 					req.WindowManager.ClosedEntryLimit != 18 ||
-					!reflect.DeepEqual(req.WindowManager.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
+					req.WindowManager.Gaps.Inner != 12 ||
 					!reflect.DeepEqual(
 						req.WindowManager.Shortcuts["desktop.switch.next"],
 						windowmanager.ShortcutBinding{"Meta+ArrowRight"},
@@ -3687,12 +3714,20 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			)
 		}
 
+		// Invariant: the v0.6 public response retains retired fields until v0.8.0.
 		var wire struct {
+			Config      map[string]json.RawMessage `json:"config"`
 			Defaults    map[string]json.RawMessage `json:"defaults"`
 			Diagnostics json.RawMessage            `json:"diagnostics"`
 			Effective   map[string]json.RawMessage `json:"effective_shortcuts"`
 		}
 		decodeJSON(t, resp.Body.Bytes(), &wire)
+		for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			if _, exists := wire.Config[key]; !exists {
+				t.Errorf("config.%s is missing from the v0.6 compatibility response", key)
+			}
+		}
+
 		if got, want := string(wire.Diagnostics), "[]"; got != want {
 			t.Errorf("diagnostics = %s, want %s", got, want)
 		}

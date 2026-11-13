@@ -7,6 +7,7 @@ import type {
   CmdPaletteRankSignals,
   CmdPaletteCatalogResponse,
   CmdPaletteCommand,
+  CmdPalettePredicate,
   PaletteRegistry,
   ResolvedPaletteCommand,
 } from "../lib/cmd-palette-types";
@@ -64,8 +65,13 @@ export function paletteRegistryFixture(
   };
 }
 
-const focusedWindowPredicate = [
-  { key: "window.focused", value: true, reason: "requires a focused window" },
+const twoWindowsPredicate: CmdPalettePredicate[] = [
+  {
+    key: "desktop.windowCount",
+    operator: "greater_than_or_equal",
+    value: 2,
+    reason: "needs two windows on this desktop",
+  },
 ];
 
 export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
@@ -108,29 +114,48 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     icon: "x-square",
     bindings: ["meta+KeyW"],
     execution: { retry_safe: false, single_flight: true },
-    when: focusedWindowPredicate,
   }),
   baseCommand({
-    id: "window.minimize",
-    title: "Minimize window",
+    id: "window.unsplit",
+    title: "Move to new tab",
     section: "Window",
-    icon: "minus-square",
-    bindings: ["meta+KeyM"],
-    when: focusedWindowPredicate,
+    icon: "panel-top",
+    when: [{ key: "window.stacked", value: true, reason: "needs a window in a split" }],
   }),
   baseCommand({
-    id: "window.merge_all",
-    title: "Merge all windows",
-    section: "Window",
-    icon: "combine",
-    when: [
-      {
-        key: "desktop.windowCount",
-        operator: "greater_than_or_equal",
-        value: 2,
-        reason: "needs two windows on this desktop",
-      },
-    ],
+    id: "layout.arrange.columns",
+    title: "Columns",
+    section: "Layout",
+    icon: "columns-2",
+    when: twoWindowsPredicate,
+  }),
+  baseCommand({
+    id: "layout.arrange.grid",
+    title: "Grid",
+    section: "Layout",
+    icon: "layout-grid",
+    when: twoWindowsPredicate,
+  }),
+  baseCommand({
+    id: "layout.balance",
+    title: "Balance sizes",
+    section: "Layout",
+    icon: "columns-2",
+    when: [{ key: "window.stacked", value: true, reason: "needs a window in a split" }],
+  }),
+  baseCommand({
+    id: "window.tile.left",
+    title: "Move window to the left edge",
+    section: "Layout",
+    icon: "panel-left",
+    when: [{ key: "window.stacked", value: true, reason: "needs a window in a split" }],
+  }),
+  baseCommand({
+    id: "layout.arrange.main-stack",
+    title: "Main and stack",
+    section: "Layout",
+    icon: "columns-2",
+    when: twoWindowsPredicate,
   }),
   baseCommand({
     id: "window.tab.new",
@@ -140,11 +165,10 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     bindings: ["meta+KeyT"],
   }),
   baseCommand({
-    id: "window.tab.detach",
-    title: "Move tab to new window",
+    id: "window.tab.move_left",
+    title: "Move tab left",
     section: "Tabs",
-    icon: "panels-top-left",
-    when: [{ key: "window.stacked", value: true, reason: "needs a tab in a stack" }],
+    icon: "arrow-left",
   }),
   baseCommand({
     id: "window.move",

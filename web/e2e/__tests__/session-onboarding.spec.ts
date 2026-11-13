@@ -74,19 +74,21 @@ test("Start session preselects the registered workspace default agent", async ({
   );
   expect(persisted.workspace.default_agent).toBe(browserLifecycleAgent);
 
-  // The empty desktop starts sessions from its own composer (shell-rail P7):
-  // the project's default agent is already picked before anything is typed.
-  const desk = appPage.getByTestId("os-desk-hint");
-  await expect(desk.getByTestId("os-desk-agent-select")).toContainText(
+  // Session > New session starts with the project's default agent already
+  // picked, before the operator chooses anything.
+  await appPage.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await expect(appPage.getByTestId("os-menu-session")).toBeVisible();
+  await appPage.getByRole("menuitem", { name: /^New session/ }).click();
+  const createDialog = appPage.getByTestId("session-create-dialog");
+  await expect(createDialog).toBeVisible();
+  await expect(createDialog.getByTestId("session-create-agent-select")).toContainText(
     humanizeAgentSlug(browserLifecycleAgent)
   );
   const createResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
-  const prompt = desk.getByTestId("os-desk-composer").getByRole("textbox");
-  await prompt.fill(browserLifecyclePrompt);
-  await prompt.press("Enter");
+  await createDialog.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
   const createPayload = (await createResponse.json()) as {

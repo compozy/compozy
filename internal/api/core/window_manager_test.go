@@ -9,10 +9,13 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -21,11 +24,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func TestWindowManagerHandlers(t *testing.T) {
@@ -92,6 +97,35 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject unknown apps while translating retired app IDs on open", func(t *testing.T) {
+		t.Parallel()
+		for _, app := range []string{"unknown-window-app", "jobs"} {
+			f := newWindowManagerHandlerFixture(t)
+			payload := fmt.Sprintf(
+				`{"window":{"id":"app-window","app":%q,"route":{"pathname":"/jobs","search":{}},"desktop_id":"desktop-default"}}`,
+				app,
+			)
+			response := performWindowManagerTestRequest(t, f.router, http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", 0, "window.open", payload))
+			if app == "unknown-window-app" {
+				requireWindowManagerError(t, response, http.StatusUnprocessableEntity,
+					contract.WindowManagerErrorInvalidCommand)
+				snapshot, err := f.manager.Snapshot(t.Context(), "workspace-a")
+				if err != nil || snapshot.Revision != 0 || snapshot.Windows["app-window"].ID != "" {
+					t.Fatalf("rejected app changed topology: %+v error=%v", snapshot, err)
+				}
+				continue
+			}
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var result contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, response, &result)
+			if result.Snapshot.Windows["app-window"].App != "automations" {
+				t.Fatalf("retired app was not translated: %+v", result.Snapshot.Windows["app-window"])
+			}
+		}
+	})
+
 	t.Run("Should reject unknown, mismatched, trailing, and unsafe command input", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
@@ -143,7 +177,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		window := result.Snapshot.Windows["window-a"]
 		if window.Route.Pathname != "/tasks" ||
 			string(window.Route.Search["status"]) != `"open"` ||
-			window.Placement != windowmanager.WindowPlacementFloating {
+			window.TabID == "" {
 			t.Fatalf("opened window = %+v", window)
 		}
 
@@ -253,7 +287,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 			if !result.Applied || result.Snapshot.Version != windowmanager.SnapshotVersion {
 				t.Fatalf("%s result = %+v", command.id, result)
 			}
-			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].FloatingStacks) != 1 {
+			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].Tabs) != 3 {
 				t.Fatalf("group result = %+v, want one floating stack", result.Snapshot.Desktops[0])
 			}
 			revision = uint64(result.Snapshot.Revision)
@@ -269,7 +303,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		)
 		requireWindowManagerStatus(t, response, http.StatusOK)
 		decodeWindowManagerTestBody(t, response, &snapshot)
-		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 2 {
+		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 3 {
 			t.Fatalf("final v3 snapshot = %+v", snapshot)
 		}
 	})
@@ -335,8 +369,8 @@ func TestWindowManagerHandlers(t *testing.T) {
 				payload: `{"window_id":"window-a","mode":"pop",` +
 					`"route":{"pathname":"/not-allowed","search":{}}}`,
 			},
-			"minimize with group scope": {
-				id: "window.close", payload: `{"window_id":"window-a","minimize":true,"scope":"group"}`,
+			"unknown close scope": {
+				id: "window.close", payload: `{"window_id":"window-a","scope":"invalid"}`,
 			},
 		} {
 			t.Run("Should reject "+name, func(t *testing.T) {
@@ -403,19 +437,19 @@ func TestWindowManagerHandlers(t *testing.T) {
 			if commandID == "window.stack.reorder" {
 				payload = `{"window_id":"window-a","index":0}`
 			}
-			notStacked := performWindowManagerTestRequest(
+			aliased := performWindowManagerTestRequest(
 				t,
 				fixture.router,
 				http.MethodPost,
-				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestPath("workspace-a")+"/preview",
 				windowManagerTestCommandBody("workspace-a", 1, commandID, payload),
 			)
-			requireWindowManagerError(
-				t,
-				notStacked,
-				http.StatusUnprocessableEntity,
-				contract.WindowManagerErrorNotStacked,
-			)
+			requireWindowManagerStatus(t, aliased, http.StatusOK)
+			var preview contract.WindowManagerPreview
+			decodeWindowManagerTestBody(t, aliased, &preview)
+			if len(preview.Deprecations) != 1 {
+				t.Fatalf("alias deprecations = %+v", preview.Deprecations)
+			}
 
 			missingPayload := strings.Replace(payload, "window-a", "window-missing", 1)
 			missing := performWindowManagerTestRequest(
@@ -651,20 +685,20 @@ func TestWindowManagerHandlers(t *testing.T) {
 		requireWindowManagerStatus(t, snapshotResponse, http.StatusOK)
 		var snapshot struct {
 			Desktops []struct {
-				Floating json.RawMessage `json:"floating"`
+				Tabs json.RawMessage `json:"tabs"`
 			} `json:"desktops"`
 		}
 		decodeWindowManagerTestBody(t, snapshotResponse, &snapshot)
 		if len(snapshot.Desktops) != 1 {
 			t.Fatalf("snapshot desktops = %+v, want one", snapshot.Desktops)
 		}
-		if string(snapshot.Desktops[0].Floating) != "[]" {
-			t.Fatalf("desktop floating JSON = %s, want []", snapshot.Desktops[0].Floating)
+		if !strings.HasPrefix(string(snapshot.Desktops[0].Tabs), "[{") {
+			t.Fatalf("desktop floating JSON = %s, want []", snapshot.Desktops[0].Tabs)
 		}
 		convertedSnapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
 			WorkspaceID: "workspace-a",
 			Desktops: []windowmanager.Desktop{{
-				ID: "desktop-empty", Floating: nil,
+				ID: "desktop-empty", Tabs: nil,
 			}},
 		})
 		if err != nil {
@@ -676,7 +710,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 		var converted struct {
 			Desktops []struct {
-				Floating json.RawMessage `json:"floating"`
+				Tabs json.RawMessage `json:"tabs"`
 			} `json:"desktops"`
 		}
 		if err := json.Unmarshal(convertedJSON, &converted); err != nil {
@@ -685,8 +719,8 @@ func TestWindowManagerHandlers(t *testing.T) {
 		if len(converted.Desktops) != 1 {
 			t.Fatalf("converted snapshot desktops = %+v, want one", converted.Desktops)
 		}
-		if string(converted.Desktops[0].Floating) != "[]" {
-			t.Fatalf("converted desktop floating JSON = %s, want []", converted.Desktops[0].Floating)
+		if string(converted.Desktops[0].Tabs) != "[]" {
+			t.Fatalf("converted desktop floating JSON = %s, want []", converted.Desktops[0].Tabs)
 		}
 
 		clientResponse := performWindowManagerTestRequest(
@@ -701,8 +735,9 @@ func TestWindowManagerHandlers(t *testing.T) {
 			FocusOrder json.RawMessage `json:"focus_order"`
 		}
 		decodeWindowManagerTestBody(t, clientResponse, &client)
-		if string(client.FocusOrder) != "[]" {
-			t.Fatalf("client focus_order JSON = %s, want []", client.FocusOrder)
+		// The desktop's New tab window is focused, so the order is a non-null array that names it.
+		if !strings.HasPrefix(string(client.FocusOrder), `["`) {
+			t.Fatalf("client focus_order JSON = %s, want an array", client.FocusOrder)
 		}
 	})
 
@@ -735,6 +770,112 @@ func TestWindowManagerHandlers(t *testing.T) {
 		if !validation.Valid || validation.WorkspaceID != "workspace-a" {
 			t.Fatalf("layout validation = %+v", validation)
 		}
+	})
+
+	// Invariant: the shared validate response returns only valid canonical input, never live routes.
+	for _, version := range []uint32{5, 6} {
+		t.Run(
+			fmt.Sprintf("Should return a canonical document only for valid v%d layout input", version),
+			func(t *testing.T) {
+				t.Parallel()
+				fixture := newWindowManagerHandlerFixture(t)
+				path := windowManagerTestPath("workspace-a")
+				opened := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/commands",
+					windowManagerTestCommandBody("workspace-a", 0, "window.open",
+						`{"window":{"id":"window-a","app":"tasks","desktop_id":"desktop-default",`+
+							`"route":{"pathname":"/live","search":{}}}}`))
+				requireWindowManagerStatus(t, opened, http.StatusOK)
+				desktop := `{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["window-a"],"floating_stacks":[]}`
+				binding := `"placement":"floating"`
+				if version == 6 {
+					binding = `"tab_id":"tab-a"`
+					desktop = `{"id":"saved","name":"Saved","order":0,"active_tab_id":"tab-a",` +
+						`"tabs":[{"id":"tab-a","pinned":false,"root":{"id":"leaf-a","kind":"leaf","window_id":"window-a"}}]}`
+				}
+				document := fmt.Sprintf(`{"version":%d,"workspace_id":"workspace-a","desktops":[%s],
+				"windows":{"window-a":{"id":"window-a","app":"tasks","desktop_id":"saved",%s,
+				"route":{"pathname":"/imported","search":{"source":"file"}},
+				"nav_stack":[{"pathname":"/import-history","search":{"source":"file"}}]}},"overrides":{}}`, version, desktop, binding)
+				validated := performWindowManagerTestRequest(
+					t,
+					fixture.router,
+					http.MethodPost,
+					path+"/layout/validate",
+					`{"workspace_id":"workspace-a","document":`+document+`}`,
+				)
+				requireWindowManagerStatus(t, validated, http.StatusOK)
+				var validation contract.WindowManagerLayoutValidationResponse
+				decodeWindowManagerTestBody(t, validated, &validation)
+				if !validation.Valid || validation.Document == nil || validation.Document.Version != 6 {
+					t.Fatalf("validation=%+v", validation)
+				}
+				window := validation.Document.Windows["window-a"]
+				if window.Route.Pathname != "/imported" || string(window.Route.Search["source"]) != `"file"` ||
+					len(window.NavStack) != 1 || window.NavStack[0].Pathname != "/import-history" ||
+					string(window.NavStack[0].Search["source"]) != `"file"` {
+					t.Fatalf("converted window=%+v", window)
+				}
+				validation.Document.Version = 99
+				rejected := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
+					marshalWindowManagerTestJSON(t, contract.WindowManagerLayoutValidationRequest{
+						WorkspaceID: "workspace-a", Document: *validation.Document,
+					}))
+				requireWindowManagerStatus(t, rejected, http.StatusOK)
+				var invalid map[string]json.RawMessage
+				decodeWindowManagerTestBody(t, rejected, &invalid)
+				if string(invalid["valid"]) != "false" || invalid["document"] != nil ||
+					len(invalid["diagnostics"]) == 0 {
+					t.Fatalf("invalid response=%s", rejected.Body.String())
+				}
+			},
+		)
+	}
+	t.Run("Should accept retired override values before strict layout request decoding", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		path := windowManagerTestPath("workspace-a")
+		exported := performWindowManagerTestRequest(t, fixture.router, http.MethodGet, path+"/layout", "")
+		requireWindowManagerStatus(t, exported, http.StatusOK)
+		var document map[string]json.RawMessage
+		decodeWindowManagerTestBody(t, exported, &document)
+		document["overrides"] = json.RawMessage(`{"focus_wrap":true,"new_window_policy":"floating",` +
+			`"raise_on_focus":0,"drag_away_policy":false,"group_move_modifier":[],` +
+			`"snap":{"edge_band":"ignored","repeat_ratios":42},"bindings":{"top_center":false}}`)
+		body := marshalWindowManagerTestJSON(t, map[string]any{
+			"workspace_id": "workspace-a", "expected_revision": 0, "document": document,
+		})
+		replaced := performWindowManagerTestRequest(t, fixture.router, http.MethodPut, path+"/layout", body)
+		requireWindowManagerStatus(t, replaced, http.StatusOK)
+		var result contract.WindowManagerResult
+		decodeWindowManagerTestBody(t, replaced, &result)
+		if result.Snapshot.Overrides.FocusWrap == nil || !*result.Snapshot.Overrides.FocusWrap ||
+			result.Snapshot.Overrides.NewWindowPolicy == nil ||
+			*result.Snapshot.Overrides.NewWindowPolicy != windowmanager.NewWindowTab {
+			t.Fatalf("kept overrides were lost: %+v", result.Snapshot.Overrides)
+		}
+		encoded := marshalWindowManagerTestJSON(t, result.Snapshot.Overrides)
+		if encoded != `{"new_window_policy":"tab","focus_wrap":true}` {
+			t.Fatalf("effective overrides = %s", encoded)
+		}
+		document["overrides"] = json.RawMessage(`{"raise_on_focus":false,"drag_away_policy":"",` +
+			`"group_move_modifier":"","snap":null,"bindings":null}`)
+		validated := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
+			marshalWindowManagerTestJSON(t, map[string]any{"workspace_id": "workspace-a", "document": document}))
+		requireWindowManagerStatus(t, validated, http.StatusOK)
+		var validation contract.WindowManagerLayoutValidationResponse
+		decodeWindowManagerTestBody(t, validated, &validation)
+		if !validation.Valid {
+			t.Fatalf("v0.6 zero values rejected: %+v", validation)
+		}
+		document["overrides"] = json.RawMessage(`{"snap":{"unknown":true}}`)
+		rejected := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
+			marshalWindowManagerTestJSON(t, map[string]any{"workspace_id": "workspace-a", "document": document}))
+		requireWindowManagerError(
+			t,
+			rejected,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
 	})
 
 	t.Run("Should hand the resolved profile to the window-manager provider", func(t *testing.T) {
@@ -902,6 +1043,21 @@ func TestWindowManagerHandlers(t *testing.T) {
 			payload.Code != contract.WindowManagerErrorUnavailable {
 			t.Fatalf("presentation-revision error = status %d payload %+v", status, payload)
 		}
+		status, payload = windowManagerErrorPayload("workspace-a", &windowmanager.SnapshotVersionError{Version: 7})
+		if status != http.StatusServiceUnavailable || payload.Code != contract.WindowManagerErrorUnavailable ||
+			len(payload.Diagnostics) != 1 || payload.Diagnostics[0].Path != "version" {
+			t.Fatalf("future snapshot error = status %d payload %+v", status, payload)
+		}
+
+		status, payload = windowManagerErrorPayload("workspace-a", &windowmanager.SnapshotQuotaError{
+			Cause: errors.New("client state key quota exceeded"),
+		})
+		if status != http.StatusServiceUnavailable || payload.Code != contract.WindowManagerErrorUnavailable ||
+			len(payload.Diagnostics) != 1 || payload.Diagnostics[0].Code != "snapshot_key_quota" ||
+			!strings.Contains(payload.Diagnostics[0].Message, "key quota exceeded") {
+			t.Fatalf("quota error = status %d payload %+v", status, payload)
+		}
+
 		if !isExpectedWindowManagerSocketError(net.ErrClosed) {
 			t.Fatal("net.ErrClosed was classified as an unexpected socket failure")
 		}
@@ -917,15 +1073,23 @@ type windowManagerHandlerFixture struct {
 
 func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 	t.Helper()
+	return newWindowManagerHandlerFixtureWithRepository(t, windowmanager.NewMemoryRepository())
+}
+
+func newWindowManagerHandlerFixtureWithRepository(
+	t *testing.T,
+	repository windowmanager.Repository,
+) windowManagerHandlerFixture {
+	t.Helper()
 	var sequence atomic.Int64
-	// Wire-contract cases assert floating opens; placement-policy defaults belong to the windowmanager suite.
+	// Placement-policy defaults belong to the windowmanager suite.
 	config := windowmanager.DefaultConfig()
-	config.NewWindowPolicy = windowmanager.NewWindowFloating
 	manager, err := windowmanager.NewService(
-		windowmanager.NewMemoryRepository(),
+		repository,
 		windowmanager.NewMemoryWorkspaceResolver("workspace-a", "workspace-b"),
 		nil,
 		config,
+		windowmanager.WithRegisteredApps(corecmds.RegisteredApp),
 		windowmanager.WithClock(func() time.Time { return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC) }),
 		windowmanager.WithIDGenerator(func(kind string) (string, error) {
 			return fmt.Sprintf("%s-%03d", kind, sequence.Add(1)), nil
@@ -959,6 +1123,8 @@ func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 func registerWindowManagerTestRoutes(router gin.IRouter, handlers *BaseHandlers) {
 	manager := router.Group("/api/workspaces/:workspace_id/window-manager")
 	manager.GET("", handlers.GetWindowManagerSnapshot)
+	manager.GET("/migration", handlers.GetWindowManagerMigration)
+	manager.POST("/migration", handlers.UpdateWindowManagerMigration)
 	manager.POST("/preview", handlers.PreviewWindowManagerCommand)
 	manager.POST("/commands", handlers.ExecuteWindowManagerCommand)
 	manager.GET("/clients", handlers.ListWindowManagerClients)
@@ -1175,4 +1341,361 @@ func (windowManagerProfileServiceStub) Resolve(
 		},
 		Source: profilepkg.ResolutionSourceDefault,
 	}, nil
+}
+
+func TestWindowManagerTabsCompatibility(t *testing.T) {
+	socketDir := t.TempDir()
+	for _, network := range []string{"tcp", "unix"} {
+		t.Run("Should stream migration acknowledgements and retry failures over "+network, func(t *testing.T) {
+			t.Parallel()
+			repository := &windowManagerMigrationRepositoryStub{
+				Repository: windowmanager.NewMemoryRepository(),
+				status: windowmanager.MigrationStatus{
+					State: "failed", FromVersion: 5,
+					At:    time.Date(2026, time.November, 13, 0, 0, 0, 0, time.UTC),
+					Error: &windowmanager.Diagnostic{Code: "migration.conversion_failed", Message: "original failure"},
+				},
+			}
+			f := newWindowManagerHandlerFixtureWithRepository(t, repository)
+			server := httptest.NewUnstartedServer(f.router)
+			if network == "unix" {
+				if err := server.Listener.Close(); err != nil {
+					t.Fatal(err)
+				}
+				var listenConfig net.ListenConfig
+				listener, err := listenConfig.Listen(t.Context(), "unix", filepath.Join(socketDir, "s"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				server.Listener = listener
+			}
+			server.Start()
+			t.Cleanup(server.Close)
+			dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var dialer net.Dialer
+				return dialer.DialContext(ctx, network, server.Listener.Addr().String())
+			}
+			transport := &http.Transport{DialContext: dial}
+			t.Cleanup(transport.CloseIdleConnections)
+			client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
+			dialer := websocket.Dialer{NetDialContext: dial, HandshakeTimeout: 2 * time.Second}
+			path := windowManagerTestPath("workspace-a")
+			readSnapshot := func(connection *websocket.Conn) contract.WindowManagerSnapshotFrame {
+				t.Helper()
+				if err := connection.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+					t.Fatal(err)
+				}
+				var frame contract.WindowManagerSnapshotFrame
+				if err := connection.ReadJSON(&frame); err != nil {
+					t.Fatal(err)
+				}
+				if frame.Type != contract.WindowManagerFrameSnapshot ||
+					frame.WorkspaceID != "workspace-a" || frame.Revision != 0 {
+					t.Fatalf("migration frame = %+v", frame)
+				}
+				return frame
+			}
+			connections := []*websocket.Conn{}
+			for range 2 {
+				connection, response, err := dialer.DialContext(t.Context(), "ws://window-manager"+path+"/stream", nil)
+				if err != nil {
+					closeWindowManagerDialResponse(t, response)
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := connection.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				initial := readSnapshot(connection)
+				if initial.Snapshot.Migration == nil || initial.Snapshot.Migration.State != "failed" {
+					t.Fatalf("initial migration = %+v", initial.Snapshot.Migration)
+				}
+				connections = append(connections, connection)
+			}
+			for _, action := range []string{"ack", "retry"} {
+				request, err := http.NewRequestWithContext(
+					t.Context(), http.MethodPost, "http://window-manager"+path+"/migration",
+					strings.NewReader(fmt.Sprintf(`{"action":%q}`, action)),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("Content-Type", "application/json")
+				response, err := client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var status windowmanager.MigrationStatus
+				decodeErr := json.NewDecoder(response.Body).Decode(&status)
+				closeErr := response.Body.Close()
+				if response.StatusCode != http.StatusOK || decodeErr != nil || closeErr != nil ||
+					status.State != "failed" || status.Acknowledged != (action == "ack") {
+					t.Fatalf("%s status=%d body=%+v decode=%v close=%v",
+						action, response.StatusCode, status, decodeErr, closeErr)
+				}
+				for _, connection := range connections {
+					frame := readSnapshot(connection)
+					if action == "ack" {
+						if frame.Snapshot.Migration != nil {
+							t.Fatalf("ack snapshot migration = %+v", frame.Snapshot.Migration)
+						}
+					} else if !reflect.DeepEqual(frame.Snapshot.Migration, &status) ||
+						status.Error == nil || status.Error.Message != "retry failure" {
+						t.Fatalf("retry snapshot migration=%+v, response=%+v", frame.Snapshot.Migration, status)
+					}
+				}
+			}
+		})
+	}
+
+	t.Run("Should expose migration status and validate acknowledgement actions", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		path := windowManagerTestPath("workspace-a") + "/migration"
+		for _, request := range []struct{ method, body string }{{http.MethodGet, ""}, {http.MethodPost, `{"action":"ack"}`}} {
+			response := performWindowManagerTestRequest(t, f.router, request.method, path, request.body)
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var status windowmanager.MigrationStatus
+			decodeWindowManagerTestBody(t, response, &status)
+			if status.State != "none" {
+				t.Fatalf("migration status = %+v", status)
+			}
+		}
+		response := performWindowManagerTestRequest(t, f.router, http.MethodPost, path, `{"action":"discard"}`)
+		requireWindowManagerError(
+			t,
+			response,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
+	})
+
+	t.Run("Should split at member and root edges and unsplit over HTTP (IT-008)", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		revision := uint64(0)
+		execute := func(id, payload string) contract.WindowManagerResult {
+			t.Helper()
+			r := performWindowManagerTestRequest(
+				t,
+				f.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", revision, id, payload),
+			)
+			requireWindowManagerStatus(t, r, http.StatusOK)
+			var result contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, r, &result)
+			revision = uint64(result.Snapshot.Revision)
+			return result
+		}
+		sourceTabs := make(map[string]windowmanager.TabID)
+		for _, id := range []string{"a", "b", "c"} {
+			opened := execute(
+				"window.open",
+				fmt.Sprintf(
+					`{"window":{"id":%q,"app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default"}}`,
+					id,
+				),
+			)
+			sourceTabs[id] = opened.Snapshot.Windows[id].TabID
+		}
+		assertMoveChanges := func(result contract.WindowManagerResult, window string, from, to windowmanager.TabID) {
+			t.Helper()
+			wantTabs := []windowmanager.TabID{from, to}
+			slices.Sort(wantTabs)
+			if !slices.Equal(result.Changes.DesktopIDs, []windowmanager.DesktopID{"desktop-default"}) ||
+				!slices.Equal(result.Changes.WindowIDs, []windowmanager.WindowID{windowmanager.WindowID(window)}) ||
+				!slices.Equal(result.Changes.TabIDs, wantTabs) {
+				t.Fatalf(
+					"move %s changes=%+v, want its desktop, window and source/destination tabs %v",
+					window,
+					result.Changes,
+					wantTabs,
+				)
+			}
+		}
+		assertSplitNodeChanges := func(result contract.WindowManagerResult, target windowmanager.TabID) {
+			t.Helper()
+			tabs := result.Snapshot.Desktops[0].Tabs
+			index := slices.IndexFunc(
+				tabs,
+				func(candidate contract.WindowManagerTab) bool { return candidate.ID == target },
+			)
+			if index < 0 {
+				t.Fatalf("split target tab %s missing from snapshot", target)
+			}
+			root := tabs[index].Root
+			if root.Kind != windowmanager.NodeKindSplit ||
+				!slices.Equal(result.Changes.NodeIDs, []windowmanager.NodeID{root.ID}) {
+				t.Fatalf("split tab %s root=%+v changes=%+v", target, root, result.Changes)
+			}
+		}
+		r := execute(
+			"window.move",
+			`{"window_id":"b","destination_desktop_id":"desktop-default","target_window_id":"a","placement":"right"}`,
+		)
+		tab := r.Snapshot.Windows["a"].TabID
+		assertMoveChanges(r, "b", sourceTabs["b"], tab)
+		assertSplitNodeChanges(r, tab)
+		if len(r.Changes.TabSplit) != 1 || r.Changes.TabSplit[0] != tab || r.Snapshot.Windows["b"].TabID != tab {
+			t.Fatalf("member split=%+v", r)
+		}
+		r = execute(
+			"window.move",
+			fmt.Sprintf(
+				`{"window_id":"c","destination_desktop_id":"desktop-default","target_tab_id":%q,"placement":"top"}`,
+				tab,
+			),
+		)
+		assertMoveChanges(r, "c", sourceTabs["c"], tab)
+		assertSplitNodeChanges(r, tab)
+		if r.Snapshot.Windows["c"].TabID != tab || len(r.Changes.TabIDs) != 2 {
+			t.Fatalf("root split=%+v", r)
+		}
+		r = execute("window.move", `{"window_id":"c","destination_desktop_id":"desktop-default","placement":"tab"}`)
+		assertMoveChanges(r, "c", tab, r.Snapshot.Windows["c"].TabID)
+		if len(r.Changes.TabSplit) != 0 || len(r.Changes.TabUnsplit) != 0 {
+			t.Fatalf("partial unsplit transitions=%+v", r.Changes)
+		}
+		if r.Snapshot.Windows["c"].TabID == tab {
+			t.Fatalf("unsplit=%+v", r)
+		}
+		r = execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default","placement":"tab"}`)
+		assertMoveChanges(r, "b", tab, r.Snapshot.Windows["b"].TabID)
+		if len(r.Changes.TabSplit) != 0 {
+			t.Fatalf("unsplit transitions=%+v", r.Changes)
+		}
+		if len(r.Changes.TabUnsplit) != 1 || r.Changes.TabUnsplit[0] != tab {
+			t.Fatalf("unsplit changes=%+v", r.Changes)
+		}
+		response := performWindowManagerTestRequest(
+			t,
+			f.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a",
+				revision,
+				"window.move",
+				`{"window_id":"b","destination_desktop_id":"desktop-default","placement":"left"}`,
+			),
+		)
+		requireWindowManagerError(
+			t,
+			response,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
+	})
+	t.Run("Should decode actual v06 default and nonzero retired fields (IT-009)", func(t *testing.T) {
+		t.Parallel()
+		f := newWindowManagerHandlerFixture(t)
+		revision := uint64(0)
+		execute := func(id, payload string, want ...string) contract.WindowManagerResult {
+			t.Helper()
+			response := performWindowManagerTestRequest(
+				t,
+				f.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", revision, id, payload),
+			)
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var r contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, response, &r)
+			revision = uint64(r.Snapshot.Revision)
+			if r.Deprecations == nil || len(r.Deprecations) != len(want) {
+				t.Fatalf("deprecations=%+v want=%v", r.Deprecations, want)
+			}
+			for i, surface := range want {
+				if r.Deprecations[i].Surface != surface {
+					t.Fatalf("deprecations=%+v want=%v", r.Deprecations, want)
+				}
+			}
+			return r
+		}
+		execute(
+			"window.open",
+			`{"window":{"id":"a","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false}}`,
+		)
+		execute(
+			"window.open",
+			`{"window":{"id":"b","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating_rect":{"x":0,"y":0,"width":0,"height":0},"insert_tiled":false}}`,
+		)
+		execute(
+			"layout.arrange",
+			`{"desktop_id":"desktop-default","window_ids":["a","b"],"arrangement":"horizontal","frame":{"x":0,"y":0,"width":0,"height":0},"group_id":"","keep_frames":false}`,
+		)
+		r := execute(
+			"window.move",
+			`{"window_id":"b","destination_desktop_id":"desktop-default","placement":"floating","move_group":false}`,
+			"window.move.placement=floating",
+		)
+		if r.Snapshot.Windows["a"].TabID == r.Snapshot.Windows["b"].TabID {
+			t.Fatal("legacy move did not unsplit")
+		}
+		execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default"}`,
+			"window.move.placement=empty")
+		r = execute("window.close", `{"window_id":"a","minimize":true,"scope":"tab"}`, "window.close.minimize")
+		if r.Applied || r.Snapshot.Windows["a"].ID != "a" {
+			t.Fatal("minimize closed window")
+		}
+		execute("window.close", `{"window_id":"b","minimize":false,"scope":"tab"}`)
+		execute(
+			"window.open",
+			`{"window":{"id":"c","app":"settings","route":{"pathname":"/settings","search":{}},"desktop_id":"desktop-default","floating":true,"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5},"insert_tiled":false}}`,
+			"window.open.window.floating",
+			"window.open.window.floating_rect",
+		)
+	})
+}
+
+// Only the repository I/O is stubbed; route handling, manager publication and sockets are real.
+type windowManagerMigrationRepositoryStub struct {
+	windowmanager.Repository
+	mu     sync.Mutex
+	status windowmanager.MigrationStatus
+}
+
+var _ windowmanager.MigrationRepository = (*windowManagerMigrationRepositoryStub)(nil)
+
+func (r *windowManagerMigrationRepositoryStub) Load(
+	ctx context.Context,
+	workspace windowmanager.WorkspaceID,
+) (windowmanager.Snapshot, error) {
+	snapshot, err := r.Repository.Load(ctx, workspace)
+	if errors.Is(err, windowmanager.ErrSnapshotNotFound) {
+		snapshot, err = windowmanager.DefaultSnapshot(workspace), nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if workspace == "workspace-a" && !r.status.Acknowledged {
+		status := r.status
+		snapshot.Migration = &status
+	}
+	return snapshot, err
+}
+
+func (r *windowManagerMigrationRepositoryStub) Migration(
+	_ context.Context,
+	_ windowmanager.WorkspaceID,
+	action string,
+	_ bool,
+) (windowmanager.MigrationStatus, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch action {
+	case "ack":
+		r.status.Acknowledged = true
+	case "retry":
+		r.status.Acknowledged = false
+		r.status.At = r.status.At.Add(time.Second)
+		r.status.Error = &windowmanager.Diagnostic{Code: "migration.conversion_failed", Message: "retry failure"}
+	case "":
+	default:
+		return r.status, windowmanager.ErrInvalidCommand
+	}
+	return r.status, nil
 }

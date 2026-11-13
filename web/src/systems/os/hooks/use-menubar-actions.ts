@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from "react";
 
 import { OS_COMPACT_BREAKPOINT, type OsAppId } from "../lib/os-types";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
+import { useDesktop } from "./use-desktop";
 import { useOsAppLauncher } from "./use-os-app-launcher";
 import { useOsShell } from "./use-os-shell";
-import { useOsWindowCommands, type OsWindowCommandsModel } from "./use-os-window-commands";
 import { useAgentCreateHost } from "@/systems/agent";
 
 /** Below the compact breakpoint the app menus collapse (US-019.EC-3). */
@@ -36,7 +37,6 @@ export interface MenubarActionsModel {
   menusVisible: boolean;
   /** The window-manager fence the ⌘K palette uses for the same decisions. */
   canOpenApps: boolean;
-  windowCommands: OsWindowCommandsModel;
   openApp(app: OsAppId): void;
   /** Settings → General, where the Updates section lives (ADR-006). */
   openUpdates(): void;
@@ -53,9 +53,8 @@ export function useMenubarActions(): MenubarActionsModel {
   const { coordinator } = useOsShell();
   const agentCreate = useAgentCreateHost();
   const launcher = useOsAppLauncher();
-  const windowCommands = useOsWindowCommands();
+  const canOpenApps = useDesktop(windowManagerCommandsAvailable);
   const compact = useSyncExternalStore(subscribeCompact, getCompact, () => false);
-  const canOpenApps = windowCommands.commandsAvailable;
 
   const openApp = (app: OsAppId) => {
     if (canOpenApps) void coordinator.userOpen({ app });
@@ -64,7 +63,6 @@ export function useMenubarActions(): MenubarActionsModel {
   return {
     menusVisible: !compact,
     canOpenApps,
-    windowCommands,
     openApp,
     openUpdates: () => launcher.openSettingsSection("general"),
     newAgent: () => agentCreate.openDialog(),

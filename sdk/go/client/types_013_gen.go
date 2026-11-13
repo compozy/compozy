@@ -24,6 +24,30 @@ type MetricSpec struct {
 	MinDelta  *float64        `json:"min_delta,omitzero"`
 }
 
+// MigrationStatus is a daemon API value.
+type MigrationStatus struct {
+	State             string            `json:"state"`
+	FromVersion       uint32            `json:"from_version,omitempty"`
+	At                time.Time         `json:"at,omitzero"`
+	Acknowledged      bool              `json:"acknowledged"`
+	Summary           *MigrationSummary `json:"summary,omitzero"`
+	Error             *Diagnostic       `json:"error,omitzero"`
+	FailureRevision   Revision          `json:"failure_revision,omitempty"`
+	SupersededBackups int               `json:"superseded_backups,omitempty"`
+}
+
+// MigrationSummary is a daemon API value.
+type MigrationSummary struct {
+	Desktops           int `json:"desktops"`
+	Tabs               int `json:"tabs"`
+	Windows            int `json:"windows"`
+	FloatingToTabs     int `json:"floating_to_tabs"`
+	MinimizedToTabs    int `json:"minimized_to_tabs"`
+	IslandsMerged      int `json:"islands_merged"`
+	PinsDropped        int `json:"pins_dropped"`
+	ZoomDesktopsMerged int `json:"zoom_desktops_merged"`
+}
+
 // MissingPolicy is a daemon API value.
 type MissingPolicy string
 
@@ -186,14 +210,6 @@ type NodeState string
 // NodeUsage is a daemon API value.
 type NodeUsage struct {
 	Tokens int64 `json:"tokens"`
-}
-
-// NormalizedRect is a daemon API value.
-type NormalizedRect struct {
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	Width  float64 `json:"width"`
-	Height float64 `json:"height"`
 }
 
 // OTelSignalStatusPayload is a daemon API value.
@@ -422,25 +438,4 @@ type OverviewOutcomeDayPayload struct {
 	Completed int    `json:"completed"`
 	Failed    int    `json:"failed"`
 	Canceled  int    `json:"canceled"`
-}
-
-// OverviewOutcomesPayload is a daemon API value.
-type OverviewOutcomesPayload struct {
-	WindowDays int                         `json:"window_days"`
-	Days       []OverviewOutcomeDayPayload `json:"days"`
-	Completed  int                         `json:"completed"`
-	Failed     int                         `json:"failed"`
-	Canceled   int                         `json:"canceled"`
-	SuccessPct float64                     `json:"success_pct"`
-}
-
-// OverviewProfileUsagePayload is a daemon API value.
-type OverviewProfileUsagePayload struct {
-	ProfileID   string `json:"profile_id"`
-	ProfileName string `json:"profile_name"`
-	Color       string `json:"profile_color"`
-	Icon        string `json:"profile_icon,omitempty"`
-	Emoji       string `json:"profile_emoji,omitempty"`
-	Archived    bool   `json:"profile_archived"`
-	Tokens      int64  `json:"tokens"`
 }

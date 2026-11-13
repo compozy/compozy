@@ -87,7 +87,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.WindowManagerLayoutNode]():                customizeClosedObjectSchema,
 	reflect.TypeFor[contract.UpdateSettingsWindowManagerRequest]():     customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerResponse]():          customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsWindowManagerConfigPayload]():     customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsWindowManagerConfigPayload]():     customizeSettingsWindowManagerConfigSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerGapsPayload]():       customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerSnapPayload]():       customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerBindingPayload]():    customizeClosedObjectSchema,
@@ -103,6 +103,9 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 			{Value: openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())},
 		}}
 	},
+	reflect.TypeFor[windowmanager.WorkspaceConfig]():           customizeWindowManagerConfigSchema,
+	reflect.TypeFor[contract.WindowManagerMigrationRequest]():  customizeWindowManagerMigrationRequestSchema,
+	reflect.TypeFor[windowmanager.MigrationStatus]():           customizeWindowManagerMigrationStatusSchema,
 	reflect.TypeFor[contract.UpdateSettingsAttentionRequest](): customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionResponse]():      customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionPayload]():       customizeClosedObjectSchema,

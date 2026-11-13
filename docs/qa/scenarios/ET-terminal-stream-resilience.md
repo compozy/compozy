@@ -6,7 +6,7 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: One stuck viewer never freezes or shrinks the terminal for anyone else; a dropped viewer resumes without duplicated or invented output, states any gap plainly, and a stale replay cursor restarts from a full snapshot instead of a silent partial history.
 entry_points: Web dock Terminal app in several tabs; terminal attach-ticket then stream upgrade; catalog stream with Last-Event-ID; compozy terminal attach; compozy terminal get
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260826-terminal-cli-raw-mode
 fix_status: fixed
 retest_status:
@@ -75,7 +75,7 @@ Walk:
 9. Start a long-running command that continuously writes output in workspace A. Switch to workspace B
    for at least 30 seconds and observe increasing output sequence through `terminal get` or native
    `terminal_read`/`terminal_wait` in A. Return to A and confirm current output renders through the
-   existing replay/GAP/snapshot path. Repeat with the terminal minimized and the browser backgrounded.
+   existing replay/GAP/snapshot path. Repeat with the terminal in a background tab and with the browser backgrounded.
    Repeat switches while attachment is opening; canceled requests must not become HTTP 500, and the
    final active view must reconnect. No slow-consumer timeout may hold the PTY on any reattach.
 
@@ -131,3 +131,5 @@ Existing current-head CI targets, identified here but not executed by this note:
 
 No browser re-walk is claimed for this audit. The prior scenario verdict remains historical;
 the owning root/CI run must attach its fresh receipt before claiming the changed journey passed.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimize is retired; step 9's hidden-terminal leg now puts the terminal in a background tab (activate another tab on the tab bar) instead of minimizing it. Walk step 9 with the background tab and the backgrounded browser; the "minimized" wording in the dated 2026-10-17 note is history. Reset for the current build.

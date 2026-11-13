@@ -1,6 +1,6 @@
 // Suite: desktop shell palette handoff
 // Invariant: a successful new-tab open forwards the focused window as
-// stackTargetWindowId, closes the command palette, and publishes the returned
+// afterWindowId, closes the command palette, and publishes the returned
 // window as destination intent; invoke identity is the registered client.
 // Owning layer: use-desktop-shell-body.ts. Canonical suite: this file.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,14 +19,14 @@ describe("desktop shell palette new-tab handoff", () => {
 
     await completePaletteNewTabOpen({
       closePalette,
-      stackTargetWindowId: "w-focused",
+      afterWindowId: "w-focused",
       userOpen,
     });
 
     expect(closePalette).toHaveBeenCalledOnce();
     expect(userOpen).toHaveBeenCalledExactlyOnceWith({
       app: "new-tab",
-      stackTargetWindowId: "w-focused",
+      afterWindowId: "w-focused",
     });
     expect(windowManagerStore.getSnapshot().context.paletteIntent).toEqual({
       kind: "destination",
@@ -34,13 +34,13 @@ describe("desktop shell palette new-tab handoff", () => {
     });
   });
 
-  it("Should omit stackTargetWindowId and skip destination when open returns null [RA0288]", async () => {
+  it("Should omit afterWindowId and skip destination when open returns null [RA0288]", async () => {
     const closePalette = vi.fn();
     const userOpen = vi.fn(async () => null);
 
     await completePaletteNewTabOpen({
       closePalette,
-      stackTargetWindowId: null,
+      afterWindowId: null,
       userOpen,
     });
 

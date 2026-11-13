@@ -35,6 +35,7 @@ import {
 import {
   settingsWindowManagerDesktopIds,
   settingsWindowManagerSnapshotFixture,
+  windowManagerEarlierLayoutResourceFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
@@ -248,6 +249,7 @@ export const handlers: HttpHandler[] = [
       applied: true,
       changes: {},
       diagnostics: [],
+      deprecations: [],
     })
   ),
   compozyApiMock.post(
@@ -257,6 +259,11 @@ export const handlers: HttpHandler[] = [
         workspace_id: String(params.workspace_id),
         valid: true,
         diagnostics: [],
+        // The canonical version 6 form of the input; the mock answers with the exported layout.
+        document: {
+          ...windowManagerLayoutDocumentFixture,
+          workspace_id: String(params.workspace_id),
+        },
       })
   ),
   compozyApiMock.post("/api/workspaces/{workspace_id}/window-manager/preview", ({ params }) =>
@@ -268,11 +275,12 @@ export const handlers: HttpHandler[] = [
       changed: true,
       changes: {
         desktop_ids: [settingsWindowManagerDesktopIds.build],
-        group_ids: ["group-main"],
+        tab_ids: ["tab-main"],
         node_ids: ["split-main"],
         window_ids: [],
       },
       diagnostics: [],
+      deprecations: [],
     })
   ),
   compozyApiMock.get(
@@ -280,7 +288,10 @@ export const handlers: HttpHandler[] = [
     ({ params }) => {
       const workspaceId = String(params.workspace_id);
       return HttpResponse.json({
-        records: [layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id)],
+        records: [
+          windowManagerEarlierLayoutResourceFixture,
+          layoutResourceFor(workspaceId, windowManagerLayoutResourceFixture.id),
+        ],
       });
     }
   ),

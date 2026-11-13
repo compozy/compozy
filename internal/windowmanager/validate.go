@@ -28,7 +28,7 @@ func newSnapshotValidator(snapshot Snapshot) snapshotValidator {
 		snapshot:  snapshot,
 		windowIDs: sortedWindowIDs(snapshot.Windows),
 		desktops:  make(map[DesktopID]struct{}, len(snapshot.Desktops)),
-		groups:    make(map[GroupID]struct{}), nodes: make(map[NodeID]struct{}),
+		tabs:      make(map[TabID]struct{}), nodes: make(map[NodeID]struct{}),
 		memberships: make(map[WindowID]int, len(snapshot.Windows)),
 	}
 }
@@ -37,7 +37,8 @@ type snapshotValidator struct {
 	snapshot    Snapshot
 	windowIDs   []WindowID
 	desktops    map[DesktopID]struct{}
-	groups      map[GroupID]struct{}
+	tabs        map[TabID]struct{}
+	tabID       TabID
 	nodes       map[NodeID]struct{}
 	memberships map[WindowID]int
 	diagnostics []Diagnostic
@@ -105,32 +106,13 @@ func (v *snapshotValidator) validateWindowRecords() {
 		if _, exists := v.desktops[window.DesktopID]; !exists {
 			v.add("topology.window_desktop_unknown", path+".desktop_id", "window desktop does not exist")
 		}
-		if !validRect(window.FloatingRect) {
-			v.add("topology.floating_rect", path+".floating_rect", "floating rectangle must be normalized")
-		}
-		v.validateReturnAnchor(windowID, window.ReturnAnchor, path+".return_anchor")
 	}
 }
 
 func (v *snapshotValidator) validateMembershipCompleteness() {
 	for _, windowID := range v.windowIDs {
-		window := v.snapshot.Windows[windowID]
 		if v.memberships[windowID] != 1 {
 			v.add("topology.window_membership", fmt.Sprintf("windows[%q]", windowID), "window must appear exactly once")
-		}
-		if window.Minimized && window.Placement != WindowPlacementFloating {
-			v.add(
-				"topology.minimized_placement",
-				fmt.Sprintf("windows[%q].placement", windowID),
-				"minimized windows must be floating",
-			)
-		}
-		if window.Minimized && window.Zoomed {
-			v.add(
-				"topology.zoomed_minimized",
-				fmt.Sprintf("windows[%q].zoomed", windowID),
-				"minimized windows cannot stay zoomed",
-			)
 		}
 	}
 }
@@ -138,102 +120,30 @@ func (v *snapshotValidator) validateMembershipCompleteness() {
 func (v *snapshotValidator) validateDesktop(index int) {
 	desktop := v.snapshot.Desktops[index]
 	path := fmt.Sprintf("desktops[%d]", index)
-	v.validateDesktopGroups(desktop, path)
-	v.validateDesktopFloatingStacks(desktop, path)
-	v.validateDesktopFloatingWindows(desktop, path)
-	v.validateDesktopZoom(desktop, path)
-}
-
-func (v *snapshotValidator) validateDesktopGroups(desktop Desktop, path string) {
-	for left := range desktop.Groups {
-		group := desktop.Groups[left]
-		groupPath := fmt.Sprintf("%s.groups[%d]", path, left)
-		if strings.TrimSpace(string(group.ID)) == "" {
-			v.add("topology.group_id_required", groupPath+".id", "group ID is required")
-		} else if _, duplicate := v.groups[group.ID]; duplicate {
-			v.add("topology.group_duplicate", groupPath+".id", "group ID must be unique")
-		}
-		v.groups[group.ID] = struct{}{}
-		if !validRect(group.Frame) {
-			v.add("topology.group_frame", groupPath+".frame", "group frame must be normalized")
-		}
-		for right := left + 1; right < len(desktop.Groups); right++ {
-			if rectsOverlap(group.Frame, desktop.Groups[right].Frame) {
-				v.add("topology.group_overlap", groupPath+".frame", "group frames must not overlap")
-			}
-		}
-		v.validateNode(group.Root, desktop.ID, groupPath+".root")
+	if len(desktop.Tabs) == 0 {
+		v.add("topology.tab_required", path+".tabs", "desktop requires at least one tab")
 	}
-}
-
-func (v *snapshotValidator) validateDesktopFloatingStacks(desktop Desktop, path string) {
-	for stackIndex, stack := range desktop.FloatingStacks {
-		stackPath := fmt.Sprintf("%s.floating_stacks[%d]", path, stackIndex)
-		v.validateNodeIdentity(LayoutNode{ID: stack.ID}, stackPath)
-		if !validRect(stack.Rect) {
-			v.add("topology.floating_stack_rect", stackPath+".rect", "floating stack rectangle must be normalized")
+	active := false
+	regular := false
+	for i, tab := range desktop.Tabs {
+		tp := fmt.Sprintf("%s.tabs[%d]", path, i)
+		if tab.ID == "" {
+			v.add("topology.tab_id_required", tp+".id", "tab ID is required")
 		}
-		if len(stack.WindowIDs) < 2 {
-			v.add("topology.stack_size", stackPath+".window_ids", "stack requires at least two windows")
+		if _, duplicate := v.tabs[tab.ID]; duplicate {
+			v.add("topology.tab_duplicate", tp+".id", "tab ID must be unique")
 		}
-		for memberIndex, windowID := range stack.WindowIDs {
-			v.validateNodeWindow(
-				windowID,
-				desktop.ID,
-				WindowPlacementStacked,
-				fmt.Sprintf("%s.window_ids[%d]", stackPath, memberIndex),
-			)
+		v.tabs[tab.ID] = struct{}{}
+		active = active || desktop.ActiveTabID == tab.ID
+		if tab.Pinned && regular {
+			v.add("topology.tab_pinned_prefix", tp, "pinned tabs must form a contiguous prefix")
 		}
-		if stack.ActiveID == nil || !containsWindowID(stack.WindowIDs, valueOrZero(stack.ActiveID)) {
-			v.add("topology.stack_active", stackPath+".active_id", "stack active window must be a member")
-		}
-		v.validatePinnedPrefix(stack.WindowIDs, stackPath+".window_ids")
+		regular = regular || !tab.Pinned
+		v.tabID = tab.ID
+		v.validateNode(tab.Root, desktop.ID, tp+".root")
 	}
-}
-
-func (v *snapshotValidator) validateDesktopFloatingWindows(desktop Desktop, path string) {
-	for floatingIndex, windowID := range desktop.Floating {
-		memberPath := fmt.Sprintf("%s.floating[%d]", path, floatingIndex)
-		window, exists := v.snapshot.Windows[windowID]
-		if !exists {
-			v.add("topology.window_unknown", memberPath, "floating window does not exist")
-			continue
-		}
-		v.memberships[windowID]++
-		if window.DesktopID != desktop.ID {
-			v.add("topology.window_cross_desktop", memberPath, "window belongs to another desktop")
-		}
-		if window.Placement != WindowPlacementFloating {
-			v.add("topology.window_placement", memberPath, "floating membership and placement disagree")
-		}
-	}
-}
-
-// validateDesktopZoom rejects every visible peer of a zoomed unit: a zoom fills
-// the whole work area, so no second unit has anywhere to show.
-func (v *snapshotValidator) validateDesktopZoom(desktop Desktop, path string) {
-	visibleUnits := 0
-	zoomedUnits := 0
-	forEachDesktopUnit(&desktop, func(members []WindowID) {
-		visible := false
-		zoomed := false
-		for _, windowID := range members {
-			window, exists := v.snapshot.Windows[windowID]
-			if !exists || window.Minimized {
-				continue
-			}
-			visible = true
-			zoomed = zoomed || window.Zoomed
-		}
-		if visible {
-			visibleUnits++
-		}
-		if zoomed {
-			zoomedUnits++
-		}
-	})
-	if zoomedUnits > 1 || (zoomedUnits == 1 && visibleUnits > 1) {
-		v.add("topology.zoom_conflict", path, "a zoomed unit must be the desktop's only visible unit")
+	if !active {
+		v.add("topology.active_tab", path+".active_tab_id", "active tab must belong to desktop")
 	}
 }
 
@@ -251,8 +161,6 @@ func (v *snapshotValidator) validateNode(node LayoutNode, desktopID DesktopID, p
 	switch node.Kind {
 	case NodeKindLeaf:
 		v.validateLeafNode(node, desktopID, path)
-	case NodeKindStack:
-		v.validateStackNode(node, desktopID, path)
 	case NodeKindSplit:
 		v.validateSplitNode(node, desktopID, path)
 	default:
@@ -270,50 +178,14 @@ func (v *snapshotValidator) validateNodeIdentity(node LayoutNode, path string) {
 }
 
 func (v *snapshotValidator) validateLeafNode(node LayoutNode, desktopID DesktopID, path string) {
+	if node.Axis != nil || len(node.Children) != 0 || len(node.Weights) != 0 {
+		v.add("topology.leaf_shape", path, "leaf cannot contain split fields")
+	}
 	if node.WindowID == nil {
 		v.add("topology.leaf_window_required", path+".window_id", "leaf window is required")
 		return
 	}
-	v.validateNodeWindow(*node.WindowID, desktopID, WindowPlacementTiled, path+".window_id")
-}
-
-func (v *snapshotValidator) validateStackNode(node LayoutNode, desktopID DesktopID, path string) {
-	if len(node.WindowIDs) < 2 {
-		v.add("topology.stack_size", path+".window_ids", "stack requires at least two windows")
-	}
-	for index, windowID := range node.WindowIDs {
-		v.validateNodeWindow(
-			windowID,
-			desktopID,
-			WindowPlacementStacked,
-			fmt.Sprintf("%s.window_ids[%d]", path, index),
-		)
-	}
-	if node.ActiveID == nil || !containsWindowID(node.WindowIDs, valueOrZero(node.ActiveID)) {
-		v.add("topology.stack_active", path+".active_id", "stack active window must be a member")
-	}
-	v.validatePinnedPrefix(node.WindowIDs, path+".window_ids")
-}
-
-func (v *snapshotValidator) validatePinnedPrefix(windowIDs []WindowID, path string) {
-	seenUnpinned := false
-	for index, windowID := range windowIDs {
-		window, exists := v.snapshot.Windows[windowID]
-		if !exists {
-			continue
-		}
-		if !window.Pinned {
-			seenUnpinned = true
-			continue
-		}
-		if seenUnpinned {
-			v.add(
-				"topology.stack_pinned_prefix",
-				fmt.Sprintf("%s[%d]", path, index),
-				"pinned windows must form a contiguous prefix",
-			)
-		}
-	}
+	v.validateNodeWindow(*node.WindowID, desktopID, path+".window_id")
 }
 
 func (v *snapshotValidator) validateNavStack(routes []RouteIntent, path string) {
@@ -340,9 +212,6 @@ func (v *snapshotValidator) validateClosedEntries() {
 		if len(entry.Windows) == 0 {
 			v.add("topology.closed_entry_empty", path+".windows", "closed entry requires at least one window")
 		}
-		if !validRect(entry.Rect) {
-			v.add("topology.closed_entry_rect", path+".rect", "closed entry rectangle must be normalized")
-		}
 		for windowIndex, window := range entry.Windows {
 			windowPath := fmt.Sprintf("%s.windows[%d]", path, windowIndex)
 			if strings.TrimSpace(string(window.ID)) == "" || strings.TrimSpace(window.App) == "" {
@@ -356,10 +225,14 @@ func (v *snapshotValidator) validateClosedEntries() {
 			}
 			v.validateNavStack(window.NavStack, windowPath+".nav_stack")
 		}
+		v.validateClosedTopology(entry, path)
 	}
 }
 
 func (v *snapshotValidator) validateSplitNode(node LayoutNode, desktopID DesktopID, path string) {
+	if node.WindowID != nil {
+		v.add("topology.split_shape", path, "split cannot reference a window directly")
+	}
 	if node.Axis == nil || (*node.Axis != AxisHorizontal && *node.Axis != AxisVertical) {
 		v.add("topology.split_axis", path+".axis", "split axis is invalid")
 	}
@@ -405,7 +278,6 @@ func (v *snapshotValidator) validateSplitChild(
 func (v *snapshotValidator) validateNodeWindow(
 	windowID WindowID,
 	desktopID DesktopID,
-	placement WindowPlacement,
 	path string,
 ) {
 	window, exists := v.snapshot.Windows[windowID]
@@ -417,27 +289,13 @@ func (v *snapshotValidator) validateNodeWindow(
 	if window.DesktopID != desktopID {
 		v.add("topology.window_cross_desktop", path, "window belongs to another desktop")
 	}
-	if window.Placement != placement {
-		v.add("topology.window_placement", path, "node membership and placement disagree")
+	if window.TabID != v.tabID {
+		v.add("topology.window_tab", path, "node membership and tab disagree")
 	}
 }
 
 func (v *snapshotValidator) add(code, path, message string) {
 	v.diagnostics = append(v.diagnostics, Diagnostic{Code: code, Path: path, Message: message})
-}
-
-func validRect(rect NormalizedRect) bool {
-	return finite(rect.X) && finite(rect.Y) && finite(rect.Width) && finite(rect.Height) &&
-		rect.X >= 0 && rect.Y >= 0 && rect.Width > 0 && rect.Height > 0 &&
-		rect.X+rect.Width <= 1+weightTolerance && rect.Y+rect.Height <= 1+weightTolerance
-}
-
-func rectsOverlap(left, right NormalizedRect) bool {
-	if !validRect(left) || !validRect(right) {
-		return false
-	}
-	return left.X < right.X+right.Width-weightTolerance && right.X < left.X+left.Width-weightTolerance &&
-		left.Y < right.Y+right.Height-weightTolerance && right.Y < left.Y+left.Height-weightTolerance
 }
 
 func valueOrZero[T comparable](value *T) T {

@@ -221,14 +221,20 @@ test("Automations E2E-007: retired Jobs and Triggers windows reopen as Automatio
     await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "os-desktop" });
 
     const after = await windowManagerSnapshot(runtime, workspaceId);
-    expect(after.version).toBe(5);
+    expect(after.version).toBe(6);
     for (const id of [jobsWindowId, triggersWindowId]) {
       expect(after.windows[id]).toEqual(before.windows[id]);
     }
-    await expect(shell.window(jobsWindowId)).toBeAttached();
+    // Each open added its own tab (`new_window_policy = "tab"`), and only the active tab's
+    // windows mount. A fresh client shows the desktop's durable active tab, the last one
+    // opened, so visit each tab the way an operator would.
+    await expect(shell.tabOfWindow(jobsWindowId)).toHaveCount(1);
+    await expect(shell.tabOfWindow(triggersWindowId)).toHaveAttribute("aria-selected", "true");
     await expect(shell.window(triggersWindowId)).toBeAttached();
-    await expect(shell.window(jobsWindowId).getByTestId("automation-detail-panel")).toBeAttached();
     await expect(shell.window(triggersWindowId).getByTestId("automations-shell")).toBeAttached();
+    await shell.tabOfWindow(jobsWindowId).click();
+    await expect(shell.window(jobsWindowId)).toBeAttached();
+    await expect(shell.window(jobsWindowId).getByTestId("automation-detail-panel")).toBeAttached();
   });
 
   await deleteAutomationIfExists(runtime, "jobs", job.id);
@@ -276,8 +282,6 @@ async function openRetiredAppWindow(
           app,
           route,
           desktop_id: "desktop-default",
-          floating_rect: { x: 0.08, y: 0.08, width: 0.5, height: 0.6 },
-          insert_tiled: false,
         },
       },
     }),

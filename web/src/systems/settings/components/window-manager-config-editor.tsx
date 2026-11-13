@@ -6,7 +6,7 @@ import type { AliasEditorModel } from "../hooks/use-window-manager-alias-editor"
 import type { GlobalShortcutRecorderModel } from "../hooks/use-global-shortcut-recorder";
 import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
 import type { ShortcutRecorderModel } from "../hooks/use-window-manager-shortcut-recorder";
-import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
+import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-config-ranges";
 import { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
 import { SettingsGroup } from "./settings-group";
 import { SettingsLiveChip } from "./settings-live-chip";
@@ -15,10 +15,8 @@ import { SettingRow } from "./setting-row";
 import { WindowManagerBehaviorPicks } from "./layouts/window-manager-behavior-picks";
 import { WindowManagerGapEditor } from "./layouts/window-manager-gap-editor";
 import { WindowManagerGlobalHotkeys } from "./layouts/window-manager-global-hotkeys";
-import { WindowManagerRatioTrack } from "./layouts/window-manager-ratio-track";
 import { WindowManagerShortcutTable } from "./layouts/window-manager-shortcut-table";
 import { ShortcutPresetCard } from "./layouts/shortcut-preset-card";
-import { WindowManagerSnapMap } from "./layouts/window-manager-snap-map";
 
 interface WindowManagerConfigEditorProps {
   editor: WindowManagerConfigEditorModel;
@@ -81,31 +79,14 @@ export function WindowManagerConfigEditor({
         <SettingsGroup
           bare
           help="Drag the guides. Every value is measured in screen pixels."
-          title="Spacing and snapping"
+          title="Spacing"
         >
-          <div className="grid gap-3 @min-settings-takeover:grid-cols-2">
-            <WindowManagerConfigCard
-              help="Drag the four outer guides for screen insets, and the cross in the middle for the space between tiles."
-              problem={editor.problems.find(problem => problem.field === "gaps")?.message}
-              title="Gaps"
-            >
-              <WindowManagerGapEditor draft={editor.draft} setDraft={editor.setDraft} />
-            </WindowManagerConfigCard>
-            <WindowManagerConfigCard
-              help="Where a dragged window is caught. Drag a band to resize it; pick what a centre zone claims."
-              problem={editor.problems.find(problem => problem.field === "snap")?.message}
-              title="Snap zones"
-            >
-              <WindowManagerSnapMap draft={editor.draft} setDraft={editor.setDraft} />
-            </WindowManagerConfigCard>
-          </div>
           <WindowManagerConfigCard
-            className="mt-3"
-            help="Snapping a window to the same edge again cycles it through these widths. Drag a stop to move it, click the track to add one, or press Backspace on a selected stop to remove it."
-            problem={editor.problems.find(problem => problem.field === "repeatRatios")?.message}
-            title="Repeat widths"
+            help="Drag the four outer guides for screen insets, and the cross in the middle for the space between windows in a split."
+            problem={editor.problems.find(problem => problem.field === "gaps")?.message}
+            title="Gaps"
           >
-            <WindowManagerRatioTrack draft={editor.draft} setDraft={editor.setDraft} />
+            <WindowManagerGapEditor draft={editor.draft} setDraft={editor.setDraft} />
           </WindowManagerConfigCard>
         </SettingsGroup>
         <SettingsGroup title="History">

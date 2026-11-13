@@ -1,13 +1,18 @@
 import { parseSettingsWindowManagerSection } from "@/systems/os";
 // Suite: window-manager Settings adapter
-// Invariant: the editor reads document + CAS revision from one authoritative snapshot, and
-// resource discovery returns the complete unbounded collection exposed by the daemon.
+// Invariant: the editor reads document + CAS revision from one authoritative snapshot,
+// resource discovery returns the complete unbounded collection exposed by the daemon, a
+// document of any accepted version becomes version 6 only through the daemon's preview,
+// a refusal keeps the daemon's status and code for the caller to word, and Settings
+// never writes a retired window-manager option back.
 // Owning layer: Settings HTTP adapter. Boundary OUT: React Query cache and editor presentation.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { windowManagerSnapshotFixture } from "@/systems/os/mocks";
 import {
   settingsWindowManagerSectionFixture,
+  settingsWindowManagerSnapshotFixture,
+  windowManagerEarlierLayoutResourceFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "../../mocks/window-manager-fixtures";
@@ -15,10 +20,12 @@ import {
   parseWindowManagerLayoutDocument,
   parseWindowManagerLayoutResource,
 } from "../../lib/window-manager-layout-schema";
+import type { WindowManagerLayoutProfile } from "../../lib/window-manager-layout-types";
 
 import {
   updateWindowManagerSettings,
   applyWindowManagerLayout,
+  convertWindowManagerLayoutDocument,
   deleteWindowManagerLayoutProfile,
   exportWindowManagerLayout,
   getWindowManagerLayoutState,
@@ -46,7 +53,9 @@ function jsonResponse(body: unknown): Response {
 }
 
 afterEach(() => {
-  vi.clearAllMocks();
+  // Reset, not clear: a test that stops early must not leave queued responses
+  // for the next one.
+  vi.resetAllMocks();
 });
 
 describe("window-manager layouts API", () => {
@@ -73,6 +82,28 @@ describe("window-manager layouts API", () => {
       config: { gaps: config.gaps, global_shortcuts: config.globalShortcuts },
     });
     expect(result.apply).toEqual(receipt);
+  });
+
+  it("Should leave every retired option out of a window-manager save", async () => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({ ...settingsWindowManagerSectionFixture, apply: receipt })
+    );
+
+    await updateWindowManagerSettings(config);
+
+    const sent = JSON.parse(apiMocks.fetch.mock.calls[0]?.[1].body).config;
+    for (const retired of [
+      "raise_on_focus",
+      "drag_away_policy",
+      "group_move_modifier",
+      "snap",
+      "bindings",
+    ]) {
+      expect(sent).not.toHaveProperty(retired);
+    }
+    expect(sent).toHaveProperty("focus_policy");
+    expect(sent).toHaveProperty("shortcuts");
   });
 
   it.each([
@@ -175,7 +206,7 @@ describe("window-manager layouts API", () => {
     expect(state).toMatchObject({
       revision: windowManagerSnapshotFixture.revision,
       document: {
-        version: windowManagerSnapshotFixture.version,
+        version: 6,
         workspaceId: windowManagerSnapshotFixture.workspace_id,
       },
     });
@@ -202,16 +233,23 @@ describe("window-manager layouts API", () => {
 
   it("Should carry the profile through every layout read and mutation", async () => {
     const document = parseWindowManagerLayoutDocument(windowManagerLayoutDocumentFixture);
-    const profile = parseWindowManagerLayoutResource({
+    // What Settings writes is always a version 6 document; a listed spec only
+    // says where its stored document came from, so the save carries the draft.
+    const { source: _source, ...listed } = parseWindowManagerLayoutResource({
       record: windowManagerLayoutResourceFixture,
     }).spec;
+    const profile: WindowManagerLayoutProfile = { ...listed, document };
     apiMocks.fetch
       .mockResolvedValueOnce(jsonResponse(windowManagerLayoutDocumentFixture))
       .mockResolvedValueOnce(
         jsonResponse({ workspace_id: "workspace-a", valid: true, diagnostics: [] })
       )
       .mockResolvedValueOnce(
-        jsonResponse({ snapshot: { revision: 8 }, changed: false, changes: {} })
+        jsonResponse({
+          snapshot: { ...settingsWindowManagerSnapshotFixture, revision: 8 },
+          changed: false,
+          changes: {},
+        })
       )
       .mockResolvedValueOnce(jsonResponse({ snapshot: { revision: 8 }, applied: true }))
       .mockResolvedValueOnce(jsonResponse({ record: windowManagerLayoutResourceFixture }))
@@ -264,5 +302,107 @@ describe("window-manager layouts API", () => {
         status: 502,
       }
     );
+  });
+
+  // Invariant: an imported document's routes reach the editor draft unchanged, even when a window
+  // with the same id is open on another route: conversion reads the validate route's canonical
+  // form of the file, never a preview of the live layout.
+  it("Should convert a document of any version through the validate route, with its own routes", async () => {
+    const earlier = windowManagerEarlierLayoutResourceFixture.spec.document;
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        workspace_id: "workspace-a",
+        valid: true,
+        diagnostics: [],
+        document: windowManagerLayoutDocumentFixture,
+      })
+    );
+
+    const document = await convertWindowManagerLayoutDocument("workspace-a", "marketing", earlier);
+
+    expect(apiMocks.fetch).toHaveBeenCalledOnce();
+    expect(apiMocks.fetch).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/window-manager/layout/validate?profile=marketing",
+      expect.objectContaining({ method: "POST" })
+    );
+    const request = JSON.parse(apiMocks.fetch.mock.calls[0]?.[1].body);
+    expect(request).toEqual({
+      workspace_id: "workspace-a",
+      document: { ...earlier, workspace_id: "workspace-a" },
+    });
+    expect(document).toEqual(parseWindowManagerLayoutDocument(windowManagerLayoutDocumentFixture));
+  });
+
+  it("Should refuse a document the daemon finds invalid, with its first diagnostic", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        workspace_id: "workspace-a",
+        valid: false,
+        diagnostics: [{ code: "layout_invalid", path: "desktops", message: "no desktops" }],
+      })
+    );
+
+    await expect(
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", { version: 6 })
+    ).rejects.toMatchObject({
+      name: "WindowManagerLayoutsApiError",
+      status: 422,
+      message: "no desktops",
+    });
+  });
+
+  it("Should surface the daemon's refusal when a document cannot be converted", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "unsupported layout version 3" }), { status: 422 })
+    );
+
+    await expect(
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", { version: 3 })
+    ).rejects.toThrow("unsupported layout version 3");
+  });
+
+  it.each([
+    {
+      name: "a window-manager refusal",
+      body: { error: "window_manager_revision_conflict", code: "window_manager_revision_conflict" },
+      status: 409,
+      code: "window_manager_revision_conflict",
+    },
+    {
+      name: "a profile refusal",
+      body: { error: { code: "profile_not_found", message: "profile was not found" } },
+      status: 404,
+      code: "profile_not_found",
+    },
+    {
+      name: "a refusal without a code",
+      body: { error: "request body too large" },
+      status: 413,
+      code: null,
+    },
+  ])("Should carry the status and daemon code of $name", async ({ body, status, code }) => {
+    apiMocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(body), { status }));
+
+    await expect(
+      convertWindowManagerLayoutDocument("workspace-a", "marketing", { version: 5 })
+    ).rejects.toMatchObject({ name: "WindowManagerLayoutsApiError", status, code });
+  });
+
+  it("Should list a profile saved before tabs and splits as an earlier source, untouched", async () => {
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        records: [windowManagerEarlierLayoutResourceFixture, windowManagerLayoutResourceFixture],
+      })
+    );
+
+    const [earlier, current] = await listWindowManagerLayoutProfiles("workspace-a", "marketing");
+
+    expect(earlier?.scope.kind).toBe("user");
+    expect(earlier?.spec.source).toEqual({
+      kind: "earlier",
+      version: 5,
+      wire: windowManagerEarlierLayoutResourceFixture.spec.document,
+    });
+    expect(current?.spec.source.kind).toBe("current");
   });
 });

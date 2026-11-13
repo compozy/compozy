@@ -1,42 +1,36 @@
 import { z } from "zod";
 
+import { parseWindowManagerSnapshot } from "@/systems/os";
+
+import { windowManagerSnapshotToLayoutState } from "./window-manager-layout-projection";
 import type {
   WindowManagerLayoutApplyResult,
   WindowManagerLayoutChanges,
+  WindowManagerLayoutDesktop,
   WindowManagerLayoutDiagnostic,
   WindowManagerLayoutDocument,
   WindowManagerLayoutNode,
   WindowManagerLayoutPreview,
   WindowManagerLayoutProfile,
+  WindowManagerLayoutProfileSource,
   WindowManagerLayoutResourceRecord,
+  WindowManagerLayoutTab,
   WindowManagerLayoutValidation,
   WindowManagerLayoutWindow,
-  WindowManagerNormalizedRect,
 } from "./window-manager-layout-types";
 
-import type { WindowManagerConfig } from "@/systems/os";
+/** Versions the daemon converts on every read (`internal/windowmanager/layout_decode.go`). */
+const EARLIER_LAYOUT_VERSIONS: ReadonlySet<number> = new Set([4, 5]);
 
 const identifierSchema = z.string().trim().min(1);
 const safeRevisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
-const normalizedRectSchema = z
+const routeSchema = z
   .strictObject({
-    x: z.number().finite(),
-    y: z.number().finite(),
-    width: z.number().finite().positive(),
-    height: z.number().finite().positive(),
+    pathname: z.string().trim().startsWith("/"),
+    search: z.record(z.string(), z.unknown()),
   })
-  .transform((rect): WindowManagerNormalizedRect => ({
-    x: rect.x,
-    y: rect.y,
-    w: rect.width,
-    h: rect.height,
-  }));
-
-const routeSchema = z.strictObject({
-  pathname: z.string().trim().startsWith("/"),
-  search: z.record(z.string(), z.unknown()),
-});
+  .transform(route => ({ pathname: route.pathname, search: route.search }));
 
 const layoutNodeSchema: z.ZodType<WindowManagerLayoutNode> = z.lazy(() =>
   z.union([
@@ -46,22 +40,10 @@ const layoutNodeSchema: z.ZodType<WindowManagerLayoutNode> = z.lazy(() =>
         kind: z.literal("leaf"),
         window_id: identifierSchema,
       })
-      .transform(node => ({ id: node.id, kind: node.kind, windowId: node.window_id })),
-    z
-      .strictObject({
-        id: identifierSchema,
-        kind: z.literal("stack"),
-        window_ids: z.array(identifierSchema).min(1),
-        active_id: identifierSchema,
-      })
-      .refine(node => node.window_ids.includes(node.active_id), {
-        message: "active_id must name one stack window",
-      })
-      .transform(node => ({
+      .transform((node): WindowManagerLayoutNode => ({
         id: node.id,
         kind: node.kind,
-        windowIds: node.window_ids,
-        activeId: node.active_id,
+        windowId: node.window_id,
       })),
     z
       .strictObject({
@@ -74,7 +56,7 @@ const layoutNodeSchema: z.ZodType<WindowManagerLayoutNode> = z.lazy(() =>
       .refine(node => node.children.length === node.weights.length, {
         message: "split children and weights must have equal lengths",
       })
-      .transform(node => ({
+      .transform((node): WindowManagerLayoutNode => ({
         id: node.id,
         kind: node.kind,
         axis: node.axis,
@@ -84,65 +66,35 @@ const layoutNodeSchema: z.ZodType<WindowManagerLayoutNode> = z.lazy(() =>
   ])
 );
 
-const floatingStackSchema = z
-  .strictObject({
-    id: identifierSchema,
-    window_ids: z.array(identifierSchema).min(1),
-    active_id: identifierSchema.optional(),
-    rect: normalizedRectSchema,
-    minimized: z.boolean(),
-  })
-  .refine(stack => stack.active_id === undefined || stack.window_ids.includes(stack.active_id), {
-    message: "active_id must name one floating stack window",
-  })
-  .transform(stack => ({
-    id: stack.id,
-    windowIds: stack.window_ids,
-    activeId: stack.active_id ?? null,
-    rect: stack.rect,
-    minimized: stack.minimized,
-  }));
+const tabSchema = z
+  .strictObject({ id: identifierSchema, pinned: z.boolean(), root: layoutNodeSchema })
+  .transform((tab): WindowManagerLayoutTab => ({ id: tab.id, pinned: tab.pinned, root: tab.root }));
 
 const desktopSchema = z
   .strictObject({
     id: identifierSchema,
     name: z.string().trim().min(1),
     order: z.number().int().nonnegative(),
-    groups: z.array(
-      z
-        .strictObject({
-          id: identifierSchema,
-          frame: normalizedRectSchema,
-          root: layoutNodeSchema,
-        })
-        .transform(group => ({ id: group.id, frame: group.frame, root: group.root }))
-    ),
-    floating: z.array(identifierSchema),
-    floating_stacks: z.array(floatingStackSchema),
+    active_tab_id: identifierSchema,
+    tabs: z.array(tabSchema).min(1),
   })
-  .transform(desktop => ({
+  .transform((desktop): WindowManagerLayoutDesktop => ({
     id: desktop.id,
     name: desktop.name,
     order: desktop.order,
-    groups: desktop.groups,
-    floating: desktop.floating,
-    floatingStacks: desktop.floating_stacks,
+    activeTabId: desktop.active_tab_id,
+    tabs: desktop.tabs,
   }));
 
 const layoutWindowSchema = z
   .strictObject({
     id: identifierSchema,
     app: identifierSchema,
-    instance_key: z.string().optional(),
+    instance_key: z.string().nullish(),
     route: routeSchema,
-    nav_stack: z.array(routeSchema),
-    pinned: z.boolean(),
-    placement: z.enum(["tiled", "stacked", "floating"]),
+    nav_stack: z.array(routeSchema).max(200),
     desktop_id: identifierSchema,
-    floating_rect: normalizedRectSchema,
-    minimized: z.boolean(),
-    zoomed: z.boolean(),
-    return_anchor: z.unknown().optional(),
+    tab_id: identifierSchema,
   })
   .transform((window): WindowManagerLayoutWindow => ({
     id: window.id,
@@ -150,30 +102,37 @@ const layoutWindowSchema = z
     instanceKey: window.instance_key ?? null,
     route: window.route,
     navStack: window.nav_stack,
-    pinned: window.pinned,
-    placement: window.placement,
     desktopId: window.desktop_id,
-    floatingRect: window.floating_rect,
-    minimized: window.minimized,
-    zoomed: window.zoomed,
-    returnAnchor: window.return_anchor ?? null,
+    tabId: window.tab_id,
   }));
 
-export const windowManagerLayoutDocumentSchema = z
-  .strictObject({
-    version: z.literal(5),
-    workspace_id: z.string(),
-    desktops: z.array(desktopSchema).min(1),
-    windows: z.record(z.string(), layoutWindowSchema),
-    overrides: z.record(z.string(), z.unknown()),
-  })
-  .transform((document): WindowManagerLayoutDocument => ({
+const documentFields = {
+  version: z.literal(6),
+  workspace_id: z.string(),
+  desktops: z.array(desktopSchema).min(1),
+  windows: z.record(z.string(), layoutWindowSchema),
+  overrides: z.record(z.string(), z.unknown()),
+};
+
+function toDocument(document: {
+  version: 6;
+  workspace_id: string;
+  desktops: WindowManagerLayoutDesktop[];
+  windows: Record<string, WindowManagerLayoutWindow>;
+  overrides: Record<string, unknown>;
+}): WindowManagerLayoutDocument {
+  return {
     version: document.version,
     workspaceId: document.workspace_id,
     desktops: document.desktops,
     windows: document.windows,
     overrides: document.overrides,
-  }));
+  };
+}
+
+export const windowManagerLayoutDocumentSchema = z
+  .strictObject(documentFields)
+  .transform(toDocument);
 
 const diagnosticSchema = z
   .strictObject({
@@ -189,23 +148,48 @@ const diagnosticSchema = z
 
 const changesSchema = z
   .object({
-    desktop_ids: z.array(identifierSchema).optional(),
-    window_ids: z.array(identifierSchema).optional(),
-    group_ids: z.array(identifierSchema).optional(),
-    node_ids: z.array(identifierSchema).optional(),
-    client_ids: z.array(identifierSchema).optional(),
-    stack_grouped: z.array(identifierSchema).optional(),
-    stack_ungrouped: z.array(identifierSchema).optional(),
+    desktop_ids: z.array(identifierSchema).nullish(),
+    window_ids: z.array(identifierSchema).nullish(),
+    tab_ids: z.array(identifierSchema).nullish(),
+    node_ids: z.array(identifierSchema).nullish(),
+    client_ids: z.array(identifierSchema).nullish(),
+    tab_split: z.array(identifierSchema).nullish(),
+    tab_unsplit: z.array(identifierSchema).nullish(),
   })
   .transform((changes): WindowManagerLayoutChanges => ({
     desktopIds: changes.desktop_ids ?? [],
     windowIds: changes.window_ids ?? [],
-    groupIds: changes.group_ids ?? [],
+    tabIds: changes.tab_ids ?? [],
     nodeIds: changes.node_ids ?? [],
     clientIds: changes.client_ids ?? [],
-    stackGrouped: changes.stack_grouped ?? [],
-    stackUngrouped: changes.stack_ungrouped ?? [],
+    tabSplit: changes.tab_split ?? [],
+    tabUnsplit: changes.tab_unsplit ?? [],
   }));
+
+/**
+ * A stored profile document is read in the version it was saved in. Version 6
+ * parses into the editor's model; versions 4 and 5 stay in wire form, so no
+ * second converter lives here — the daemon converts them when the editor opens
+ * one (`convertWindowManagerLayoutDocument`).
+ */
+const profileSourceSchema = z
+  .record(z.string(), z.unknown())
+  .transform((wire, context): WindowManagerLayoutProfileSource => {
+    const version = wire.version;
+    if (version === 6) {
+      const parsed = windowManagerLayoutDocumentSchema.safeParse(wire);
+      if (parsed.success) return { kind: "current", document: parsed.data };
+      for (const issue of parsed.error.issues) {
+        context.addIssue({ code: "custom", message: issue.message, path: issue.path });
+      }
+      return z.NEVER;
+    }
+    if (typeof version === "number" && EARLIER_LAYOUT_VERSIONS.has(version)) {
+      return { kind: "earlier", version, wire };
+    }
+    context.addIssue({ code: "custom", message: `unsupported layout version ${String(version)}` });
+    return z.NEVER;
+  });
 
 const profileSchema = z
   .strictObject({
@@ -213,18 +197,18 @@ const profileSchema = z
     id: identifierSchema,
     display_name: z.string().trim().min(1),
     aspect_variant: z.enum(["any", "portrait", "landscape"]),
-    participant_slots: z.array(identifierSchema).optional(),
+    participant_slots: z.array(identifierSchema).nullish(),
     overflow_policy: z.enum(["stack", "reject"]),
-    document: windowManagerLayoutDocumentSchema,
+    document: profileSourceSchema,
   })
-  .transform((profile): WindowManagerLayoutProfile => ({
+  .transform(profile => ({
     version: profile.version,
     id: profile.id,
     displayName: profile.display_name,
     aspectVariant: profile.aspect_variant,
     participantSlots: profile.participant_slots ?? [],
     overflowPolicy: profile.overflow_policy,
-    document: profile.document,
+    source: profile.document,
   }));
 
 const resourceRecordSchema = z
@@ -233,7 +217,7 @@ const resourceRecordSchema = z
     id: identifierSchema,
     version: z.number().int().positive(),
     scope: z.strictObject({
-      kind: z.enum(["global", "workspace"]),
+      kind: z.enum(["user", "workspace"]),
       id: z.string().optional(),
     }),
     owner: z.unknown(),
@@ -262,29 +246,42 @@ export function parseWindowManagerLayoutValidation(value: unknown): WindowManage
       workspace_id: identifierSchema,
       valid: z.boolean(),
       diagnostics: z.array(diagnosticSchema).optional(),
+      document: windowManagerLayoutDocumentSchema.nullish(),
     })
-    .transform(validation => ({
+    .transform((validation): WindowManagerLayoutValidation => ({
       workspaceId: validation.workspace_id,
       valid: validation.valid,
       diagnostics: validation.diagnostics ?? [],
+      ...(validation.document ? { document: validation.document } : {}),
     }))
     .parse(value);
 }
 
+/**
+ * The snapshot a preview returns is the full workspace snapshot, so it goes
+ * through the shell's own parser and is projected exactly as a fetched
+ * snapshot is.
+ */
 export function parseWindowManagerLayoutPreview(value: unknown): WindowManagerLayoutPreview {
   return z
     .object({
-      snapshot: z.object({ revision: safeRevisionSchema }),
+      snapshot: z.unknown(),
       changed: z.boolean(),
       changes: changesSchema,
-      diagnostics: z.array(diagnosticSchema).optional(),
+      diagnostics: z.array(diagnosticSchema).nullish(),
     })
-    .transform(preview => ({
-      revision: preview.snapshot.revision,
-      changed: preview.changed,
-      changes: preview.changes,
-      diagnostics: preview.diagnostics ?? [],
-    }))
+    .transform((preview): WindowManagerLayoutPreview => {
+      const state = windowManagerSnapshotToLayoutState(
+        parseWindowManagerSnapshot(preview.snapshot)
+      );
+      return {
+        revision: state.revision,
+        changed: preview.changed,
+        changes: preview.changes,
+        diagnostics: preview.diagnostics ?? [],
+        document: state.document,
+      };
+    })
     .parse(value);
 }
 
@@ -293,7 +290,7 @@ export function parseWindowManagerLayoutApply(value: unknown): WindowManagerLayo
     .object({
       snapshot: z.object({ revision: safeRevisionSchema }),
       applied: z.boolean(),
-      diagnostics: z.array(diagnosticSchema).optional(),
+      diagnostics: z.array(diagnosticSchema).nullish(),
     })
     .transform(result => ({
       revision: result.snapshot.revision,
@@ -315,28 +312,14 @@ export function parseWindowManagerLayoutResource(
   return z.strictObject({ record: resourceRecordSchema }).parse(value).record;
 }
 
-function rectToWire(rect: WindowManagerNormalizedRect) {
-  return { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
-}
-
 function nodeToWire(node: WindowManagerLayoutNode): Record<string, unknown> {
-  if (node.kind === "leaf") {
-    return { id: node.id, kind: node.kind, window_id: node.windowId };
-  }
-  if (node.kind === "stack") {
-    return {
-      id: node.id,
-      kind: node.kind,
-      window_ids: node.windowIds,
-      active_id: node.activeId,
-    };
-  }
+  if (node.kind === "leaf") return { id: node.id, kind: node.kind, window_id: node.windowId };
   return {
     id: node.id,
     kind: node.kind,
     axis: node.axis,
     children: node.children.map(nodeToWire),
-    weights: node.weights,
+    weights: [...node.weights],
   };
 }
 
@@ -350,18 +333,11 @@ export function windowManagerLayoutDocumentToWire(
       id: desktop.id,
       name: desktop.name,
       order: desktop.order,
-      groups: desktop.groups.map(group => ({
-        id: group.id,
-        frame: rectToWire(group.frame),
-        root: nodeToWire(group.root),
-      })),
-      floating: desktop.floating,
-      floating_stacks: desktop.floatingStacks.map(stack => ({
-        id: stack.id,
-        window_ids: stack.windowIds,
-        ...(stack.activeId ? { active_id: stack.activeId } : {}),
-        rect: rectToWire(stack.rect),
-        minimized: stack.minimized,
+      active_tab_id: desktop.activeTabId,
+      tabs: desktop.tabs.map(tab => ({
+        id: tab.id,
+        pinned: tab.pinned,
+        root: nodeToWire(tab.root),
       })),
     })),
     windows: Object.fromEntries(
@@ -373,13 +349,8 @@ export function windowManagerLayoutDocumentToWire(
           ...(window.instanceKey ? { instance_key: window.instanceKey } : {}),
           route: window.route,
           nav_stack: window.navStack,
-          pinned: window.pinned,
-          placement: window.placement,
           desktop_id: window.desktopId,
-          floating_rect: rectToWire(window.floatingRect),
-          minimized: window.minimized,
-          zoomed: window.zoomed,
-          ...(window.returnAnchor ? { return_anchor: window.returnAnchor } : {}),
+          tab_id: window.tabId,
         },
       ])
     ),
@@ -396,37 +367,5 @@ export function windowManagerProfileToWire(profile: WindowManagerLayoutProfile) 
     participant_slots: profile.participantSlots,
     overflow_policy: profile.overflowPolicy,
     document: windowManagerLayoutDocumentToWire(profile.document),
-  };
-}
-
-/** Serialize the complete behavior configuration, including zero gaps and global shortcuts. */
-export function windowManagerSettingsConfigToWire(config: WindowManagerConfig) {
-  return {
-    new_window_policy: config.newWindowPolicy,
-    small_viewport_policy: config.smallViewportPolicy,
-    focus_policy: config.focusPolicy,
-    focus_wrap: config.focusWrap,
-    focus_follows_pointer: config.focusFollowsPointer,
-    raise_on_focus: config.raiseOnFocus,
-    drag_away_policy: config.dragAwayPolicy,
-    group_move_modifier: config.groupMoveModifier,
-    swap_modifier: config.swapModifier,
-    history_limit: config.historyLimit,
-    nav_stack_limit: config.navStackLimit,
-    closed_entry_limit: config.closedEntryLimit,
-    desktop_transition: config.desktopTransition,
-    gaps: config.gaps,
-    snap: {
-      edge_band: config.snap.edgeBand,
-      corner_reach: config.snap.cornerReach,
-      exit_slack: config.snap.exitSlack,
-      repeat_ratios: config.snap.repeatRatios,
-    },
-    bindings: {
-      top_center: config.bindings.topCenter,
-      bottom_center: config.bindings.bottomCenter,
-    },
-    shortcuts: config.shortcuts,
-    global_shortcuts: config.globalShortcuts,
   };
 }

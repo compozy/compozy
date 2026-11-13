@@ -125,12 +125,11 @@ platforms; an explicit `control` remains Control everywhere.
 | `window.move_to_desktop.1` … `.9`                   | Unbound      |
 | `sidebar.toggle`                                    | ⌘B           |
 | `window.focus.last`                                 | ⌃⌥O          |
-| `window.close` / `.minimize`                        | ⌘W / ⌘M      |
-| `window.zoom` / `.toggle_floating`                  | ⌃⌥Z / ⌃⌥F    |
+| `window.close`                                      | ⌘W           |
 | `window.tile.left` / `.right`                       | ⌃⌥← / ⌃⌥→    |
 | `window.tile.top` / `.bottom`                       | ⌃⌥↑ / ⌃⌥↓    |
-| `window.tile.top-left` / `.top-right`               | ⌃⌥U / ⌃⌥I    |
-| `window.tile.bottom-left` / `.bottom-right`         | ⌃⌥J / ⌃⌥K    |
+| `window.unsplit`                                    | Unbound      |
+| `window.tab.move_left` / `.move_right`              | Unbound      |
 | `window.tab.new`                                    | ⌘T           |
 | `window.tab.next` / `.previous`                     | ⌃Tab / ⌃⇧Tab |
 | `window.tab.last`                                   | ⌘9           |
@@ -143,6 +142,14 @@ platforms; an explicit `control` remains Control everywhere.
 | `layout.balance`                                    | ⌃⌥B          |
 | `layout.undo` / `.redo`                             | ⌘Z / ⌘⇧Z     |
 | `shortcuts.cheatsheet`                              | ?, ⌘/        |
+
+`window.tile.left`, `.right`, `.top`, and `.bottom` move the focused window to that edge of its tab.
+`window.unsplit` is **Move to new tab**: it takes the focused window out of its split into its own tab.
+
+Retired in v0.7.0: `window.minimize`, `window.zoom`, `window.toggle_floating`,
+`window.tile.top-left`, `.top-right`, `.bottom-left`, `.bottom-right`, `window.merge_all`, and
+`window.tab.detach`. A binding to one of them still loads until v0.8.0 and does nothing; Settings →
+Layouts → Shortcuts marks the row **retired**, and resetting it removes the binding.
 
 Press `?` outside an editable field, or press ⌘/ anywhere, to open the live keyboard reference.
 Escape remains a fixed close/focus-return key and is not part of the configurable map.
@@ -161,7 +168,6 @@ the values that those preset keys had immediately before apply. The same block c
 "window.focus.right" = ["control+ArrowRight", "alt+KeyL"]
 "window.focus.last" = ["control+alt+KeyO", "alt+KeyO"]
 "window.close" = ["meta+KeyW", "alt+KeyW"]
-"window.zoom" = ["control+alt+KeyZ", "alt+KeyY"]
 "window.tab.new" = ["meta+KeyT", "alt+KeyT"]
 "window.tab.next" = ["control+Tab", "control+alt+KeyL"]
 "window.tab.previous" = ["control+shift+Tab", "control+alt+KeyH"]
@@ -169,8 +175,6 @@ the values that those preset keys had immediately before apply. The same block c
 "window.tab.last" = "control+alt+Digit9"
 "session.cycle.next" = ["control+shift+ArrowDown", "control+alt+KeyJ"]
 "session.cycle.previous" = ["control+shift+ArrowUp", "control+alt+KeyK"]
-"window.tile.bottom-left" = "control+alt+shift+KeyJ"
-"window.tile.bottom-right" = "control+alt+shift+KeyK"
 "session.focus.attention" = ["control+alt+KeyA", "alt+KeyI"]
 "workspace.picker" = ["meta+shift+KeyO", "meta+control+KeyP"]
 "workspace.cycle.next" = ["meta+shift+BracketRight", "meta+control+KeyJ"]
@@ -179,9 +183,8 @@ the values that those preset keys had immediately before apply. The same block c
 "desktop.switch" = ["control+Digit1..9", "meta+Digit1..9"]
 ```
 
-The preset moves tab jumps to the Control+Option digit layer and moves the two bottom-corner tiles
-to Control+Option+Shift. That frees Command digits for desktops and Control+Option J/K for session
-cycling.
+The preset moves tab jumps to the Control+Option digit layer. That frees Command digits for desktops
+and Control+Option J/K for session cycling.
 
 ## Platform notes
 

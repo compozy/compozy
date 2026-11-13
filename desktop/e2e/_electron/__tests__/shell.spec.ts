@@ -31,6 +31,7 @@ import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
 import { executableSha256File } from "../../../src/bootstrap/executable-digest";
 import { appWindow, sessionWindow, windowID } from "../../../../web/e2e/fixtures/os-navigation";
+import { osShellSelectors } from "../../../../web/e2e/fixtures/selectors";
 import { TERMINAL_SUBPROTOCOL } from "../../../../web/src/generated/terminal-wire";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -1123,11 +1124,11 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
   const link = sessionWindow(product, id)
     .getByRole("button", { name: "Open fixture.txt in Files" })
     .first();
-  const sessionTabID = await windowID(sessionWindow(product, id));
+  const sessionWindowID = await windowID(sessionWindow(product, id));
   await link.click();
   const files = appWindow(product, "files");
   await expect(files).toBeVisible();
-  const filesTabID = await windowID(files);
+  const filesWindowID = await windowID(files);
   await files.getByRole("button", { name: "Choose application" }).click();
   await expect(
     product.getByRole("menuitem", {
@@ -1144,20 +1145,18 @@ test("E2E-008: Open in remembers Cursor for transcript modifier clicks", async (
     .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
   await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
   await writeFile(recorded, "");
-  await product
-    .getByTestId(`os-window-tab-${sessionTabID}`)
-    .locator('[data-slot="os-window-tab-activate"]')
-    .click();
+  // Each window is its own tab in the desktop's tab bar; choosing the tab shows the window.
+  const shell = osShellSelectors(product);
+  await shell.tabOfWindow(sessionWindowID).click();
+  await expect(shell.tabOfWindow(sessionWindowID)).toHaveAttribute("aria-selected", "true");
   await expect(link).toBeVisible();
   await link.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
   await expect
     .poll(async () => readFile(recorded, "utf8").catch(() => ""))
     .toBe(`-g\n${join(project, "fixture.txt")}:7:1\n`);
   await expect(files).not.toBeVisible();
-  await product
-    .getByTestId(`os-window-tab-${filesTabID}`)
-    .locator('[data-slot="os-window-tab-activate"]')
-    .click();
+  await shell.tabOfWindow(filesWindowID).click();
+  await expect(shell.tabOfWindow(filesWindowID)).toHaveAttribute("aria-selected", "true");
   await expect(files.getByRole("button", { name: "Open in Cursor", exact: true })).toBeVisible();
 });
 
@@ -1462,8 +1461,8 @@ test("native context menu copies text and preserves spelling preferences after r
   await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
   await tasksDockItem.click({ button: "right" });
   await reopenedProduct.getByTestId("os-dock-app-menu-tasks-tab").click();
-  await reopenedProduct
-    .locator('[data-testid^="os-window-tab-menu-"]')
+  await osShellSelectors(reopenedProduct)
+    .tabBar.locator('[data-testid^="os-tab-menu-"]')
     .first()
     .click({ button: "right" });
   await expect(reopenedProduct.getByRole("menuitem", { name: "Close other tabs" })).toBeVisible();
@@ -1593,6 +1592,9 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
 }) => {
   const desktop = await launchDesktop();
   let product = await desktop.product();
+  // A fresh desktop focuses its New tab, and the shell trues the launch URL up to that window once
+  // hydration completes. Recovery reloads the crash-time URL, so the baseline is the settled one.
+  await expect(product).toHaveURL(/\/new-tab$/u);
   const originalURL = product.url();
   await desktop.app.evaluate(() => {
     Reflect.set(globalThis, "__compozyCrashDialogs", 0);
@@ -1633,7 +1635,7 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
             .catch(() => false);
         })
         .toBe(true);
-      expect(product.url()).toBe(originalURL);
+      await expect(product).toHaveURL(originalURL);
     }
   }
   expect(

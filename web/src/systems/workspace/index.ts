@@ -209,6 +209,7 @@ export {
   setActiveWorkspaceId,
   setActiveWorktreeId,
   SHELL_WORKTREE_SCOPE,
+  effectiveWorktreeScopeId,
   toggleAllProjects,
 } from "./stores/active-workspace-store";
 export {
@@ -225,6 +226,7 @@ export {
   useActiveWorktree,
   useScopedWorktreeFilter,
   useSelectedWorktreeId,
+  useWorktreeSelectionsByScope,
 } from "./hooks/use-active-worktree";
 export type {
   ActiveWorktreeSelection,

@@ -63,8 +63,6 @@ export interface OsDockItemData {
   running?: boolean;
   /** The focused window belongs to this app (selected plate in the rail). */
   active?: boolean;
-  /** Window is minimized into its icon (hollow indicator, dimmed glyph). */
-  minimized?: boolean;
   /** Attention count from a runtime projection; 0/undefined renders nothing. */
   badge?: number;
 }

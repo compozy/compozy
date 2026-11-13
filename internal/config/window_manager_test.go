@@ -37,13 +37,6 @@ func TestWindowManagerConfig(t *testing.T) {
 		if got.Gaps != (WindowManagerGapsConfig{}) {
 			t.Fatalf("WindowManager.Gaps = %#v, want flush zero gaps", got.Gaps)
 		}
-		if got.Bindings.TopCenter != WindowBindingZoom || got.Bindings.BottomCenter != WindowBindingZoom {
-			t.Fatalf("WindowManager.Bindings = %#v, want zoom/zoom", got.Bindings)
-		}
-		wantRatios := []float64{0.5, 0.666667, 0.333333}
-		if !slices.Equal(got.Snap.RepeatRatios, wantRatios) {
-			t.Fatalf("RepeatRatios = %v, want %v", got.Snap.RepeatRatios, wantRatios)
-		}
 		if got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=
 			windowmanager.DefaultGlobalSummonChord {
 			t.Fatalf("GlobalShortcuts = %#v, want summon default", got.GlobalShortcuts)
@@ -89,7 +82,7 @@ top_center = "none"
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		windowManager := got.WindowManager
-		if windowManager.NewWindowPolicy != WindowNewPolicyFloating ||
+		if windowManager.NewWindowPolicy != WindowNewPolicyTab ||
 			windowManager.HistoryLimit != 25 ||
 			windowManager.NavStackLimit != 75 || windowManager.ClosedEntryLimit != 15 ||
 			windowManager.DesktopTransition != WindowDesktopTransitionCrossfade {
@@ -98,9 +91,6 @@ top_center = "none"
 		if windowManager.Gaps.Inner != 12 || windowManager.Gaps.Right != 14 ||
 			windowManager.Gaps.Left != 0 {
 			t.Fatalf("WindowManager.Gaps = %#v, want merged 12/14 with default left 0", windowManager.Gaps)
-		}
-		if windowManager.Bindings.TopCenter != "none" || windowManager.Bindings.BottomCenter != WindowBindingZoom {
-			t.Fatalf("WindowManager.Bindings = %#v, want none/zoom", windowManager.Bindings)
 		}
 	})
 
@@ -112,7 +102,6 @@ top_center = "none"
 		base.HistoryLimit = 80
 		base.NavStackLimit = 90
 		base.ClosedEntryLimit = 30
-		base.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
 		base.Shortcuts = map[string]windowmanager.ShortcutBinding{"window.focus.left": {"alt+KeyH"}}
 		base.GlobalShortcuts = map[string]string{
 			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
@@ -139,7 +128,7 @@ right = 14
 		if err != nil {
 			t.Fatalf("ApplyWindowManagerOverlayFile() error = %v", err)
 		}
-		if got.NewWindowPolicy != WindowNewPolicyFloating || got.HistoryLimit != 25 ||
+		if got.NewWindowPolicy != WindowNewPolicyTab || got.HistoryLimit != 25 ||
 			got.NavStackLimit != 70 || got.ClosedEntryLimit != 10 {
 			t.Fatalf("window manager overlay = %#v, want active policy and workspace history", got)
 		}
@@ -158,10 +147,9 @@ right = 14
 			t.Fatalf("window manager global shortcuts = %#v", got.GlobalShortcuts)
 		}
 
-		got.Snap.RepeatRatios[0] = 0.4
 		got.Shortcuts["desktop.switch.next"][0] = "meta+ArrowRight"
 		got.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] = "meta+KeyK"
-		if base.Snap.RepeatRatios[0] != 0.5 || base.Shortcuts["window.focus.left"][0] != "alt+KeyH" {
+		if base.Shortcuts["window.focus.left"][0] != "alt+KeyH" {
 			t.Fatalf("ApplyWindowManagerOverlayFile() aliased active defaults: %#v", base)
 		}
 		if base.GlobalShortcuts[windowmanager.DefaultGlobalSummonCommandID] !=
@@ -240,24 +228,6 @@ right = 14
 		assertWindowManagerValidationPath(t, cfg.Validate(), "window_manager.global_shortcuts")
 	})
 
-	t.Run("Should reject a non-finite or duplicate repeat ratio", func(t *testing.T) {
-		t.Parallel()
-		cfg := DefaultWindowManagerConfig()
-		cfg.Snap.RepeatRatios = []float64{0.5, 0.5}
-
-		err := cfg.Validate()
-		assertWindowManagerValidationPath(t, err, "window_manager.snap.repeat_ratios")
-	})
-
-	t.Run("Should reject stack without an edge-center target", func(t *testing.T) {
-		t.Parallel()
-		cfg := DefaultWindowManagerConfig()
-		cfg.Bindings.BottomCenter = "stack"
-
-		err := cfg.Validate()
-		assertWindowManagerValidationPath(t, err, "window_manager.bindings.bottom_center")
-	})
-
 	t.Run("Should reject the removed desktop-state configuration surface", func(t *testing.T) {
 		t.Parallel()
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -289,4 +259,53 @@ func assertWindowManagerValidationPath(t *testing.T, err error, want string) {
 	if validationError.Path != want || !strings.Contains(err.Error(), want) {
 		t.Fatalf("Validate() error = %v path=%q, want %q", err, validationError.Path, want)
 	}
+}
+
+// UT-056: the config loader owns warn-and-accept and strict unknown-key rejection.
+func TestWindowManagerRetiredConfigKeys(t *testing.T) {
+	t.Run("Should warn and accept every retired config key", func(t *testing.T) {
+		t.Parallel()
+		home, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, home.ConfigFile, `
+[window_manager]
+new_window_policy = "floating"
+raise_on_focus = "invalid formerly boolean"
+drag_away_policy = 42
+group_move_modifier = false
+[window_manager.snap]
+edge_band = "invalid formerly integer"
+corner_reach = -1
+exit_slack = ["invalid"]
+repeat_ratios = "invalid formerly array"
+[window_manager.bindings]
+top_center = false
+bottom_center = [42]
+`)
+		warnings := map[string]int{}
+		cfg, err := LoadForHome(home, WithWindowManagerWarning(func(key string, _ bool) { warnings[key]++ }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"new_window_policy", "raise_on_focus", "drag_away_policy", "group_move_modifier", "snap.edge_band", "snap.corner_reach", "snap.exit_slack", "snap.repeat_ratios", "bindings.top_center", "bindings.bottom_center"} {
+			if warnings[key] != 1 {
+				t.Fatalf("warnings[%s]=%d, want one", key, warnings[key])
+			}
+		}
+		effective := RedactedConfigMap(&cfg)["window_manager"].(map[string]any)
+		if effective["new_window_policy"] != "tab" {
+			t.Fatalf("policy=%v", effective["new_window_policy"])
+		}
+		for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "snap", "bindings"} {
+			if _, present := effective[key]; present {
+				t.Fatalf("retired key %s in effective config: %v", key, effective)
+			}
+		}
+		writeFile(t, home.ConfigFile, "[window_manager.snap]\nunknown_threshold = 12\n")
+		if _, err := LoadForHome(home); err == nil {
+			t.Fatal("unknown retired-table key accepted")
+		}
+	})
 }

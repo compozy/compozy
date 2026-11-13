@@ -6,7 +6,7 @@ import {
 } from "../window-manager-layout-profile-key";
 import type { WindowManagerLayoutResourceRecord } from "../window-manager-layout-types";
 
-function record(scope: "global" | "workspace"): WindowManagerLayoutResourceRecord {
+function record(scope: "user" | "workspace"): WindowManagerLayoutResourceRecord {
   return {
     kind: "window_layout",
     id: "two-up-review",
@@ -19,12 +19,15 @@ function record(scope: "global" | "workspace"): WindowManagerLayoutResourceRecor
       aspectVariant: "any",
       participantSlots: [],
       overflowPolicy: "stack",
-      document: {
-        version: 5,
-        workspaceId: "workspace-a",
-        desktops: [],
-        windows: {},
-        overrides: {},
+      source: {
+        kind: "current",
+        document: {
+          version: 6,
+          workspaceId: "workspace-a",
+          desktops: [],
+          windows: {},
+          overrides: {},
+        },
       },
     },
     createdAt: "2026-07-25T00:00:00Z",
@@ -33,8 +36,8 @@ function record(scope: "global" | "workspace"): WindowManagerLayoutResourceRecor
 }
 
 describe("layoutProfileResourceKey", () => {
-  it("Should keep workspace overrides distinct from a global layout with the same id", () => {
-    const global = record("global");
+  it("Should keep workspace overrides distinct from a user-wide layout with the same id", () => {
+    const global = record("user");
     const workspace = record("workspace");
 
     expect(layoutProfileResourceKey(global)).not.toBe(layoutProfileResourceKey(workspace));

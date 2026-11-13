@@ -37,7 +37,7 @@ export class WindowManagerSemanticOpenCoordinator {
   }
 
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome {
-    if (target.forceNewInstance || target.stackTargetWindowId) return this.delegate.open(target);
+    if (target.forceNewInstance || target.afterWindowId) return this.delegate.open(target);
     const bindingKey = this.delegate.bindingKey();
     const key = this.key(bindingKey, target);
     const pending = this.pending.get(key);

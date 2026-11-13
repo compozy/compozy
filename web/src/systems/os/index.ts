@@ -5,7 +5,7 @@ export {
   type ShortcutBindingKeysProps,
 } from "./components/shortcut-binding-keys";
 export { createOsRouteSync } from "./components/os-route-sync";
-export { OsWindowSurface, type OsWindowSurfaceProps } from "./components/os-window-frame";
+export { OsWindowSurface, type OsWindowSurfaceProps } from "./components/os-window-surface";
 export { OsRouteNotFound } from "./components/os-route-not-found";
 export { OsShellContext, type OsShellHandle } from "./contexts/os-shell-context";
 export { useOsShell } from "./hooks/use-os-shell";
@@ -94,12 +94,23 @@ export {
   type WindowManagerController,
 } from "./lib/os-types";
 export type {
+  LayoutAxis,
+  LayoutNode,
+  LayoutTab,
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerDragModifier,
   WindowManagerRegisteredClientView,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
+export { parseWindowManagerSnapshot } from "./lib/window-manager-schemas";
+export {
+  OsSplitSeam,
+  OsSplitView,
+  type OsSplitSeamProps,
+  type OsSplitViewProps,
+} from "./components/os-split-view";
+export type { OsSplitSeamSlot } from "./hooks/use-split-view";
 export type {
   WindowManagerGlobalShortcutMap,
   WindowManagerGlobalShortcutRegistration,
@@ -107,32 +118,8 @@ export type {
   WindowManagerShortcutMap,
 } from "./lib/window-manager-shortcut-types";
 
-// Window geometry. The projector, the seam math and the floating clamp are the
-// runtime's own — Settings renders the same rects the shell renders instead of
-// computing a second, divergent model.
-export { clampFloatingRect, projectLayout, type FloatingRectCommit } from "./lib/layout-projection";
-export { applySeamPreviewToDesktop, seamWeightDelta } from "./lib/seam-preview";
+// Per-window pixel floors, shared with the Settings layout editor so both read the same minimums.
 export { buildWindowManagerMinimums } from "./lib/window-manager-view";
-export type {
-  LayoutAxis,
-  LayoutDesktop,
-  LayoutGroup,
-  LayoutLeafNode,
-  LayoutNode,
-  LayoutProjection,
-  LayoutProjectionDiagnostic,
-  LayoutProjectionInput,
-  LayoutSplitNode,
-  LayoutStackNode,
-  NormalizedRect,
-  PixelRect,
-  PixelSize,
-  ProjectedSeam,
-  ProjectedStack,
-  ProjectedWindow,
-  ProjectionGaps,
-  WindowMinimums,
-} from "./lib/window-manager-types";
 
 // The one command-palette registry projection. Every surface that renders a
 // command — palette, menubar, cheatsheet, settings shortcut table — reads it,
@@ -147,19 +134,6 @@ export type {
   PaletteRegistry,
   ResolvedPaletteCommand,
 } from "./lib/cmd-palette-types";
-
-// Window geometry presets for direct manipulation (the zoom menu, the tiling
-// diagrams in Settings). Not a command catalog — invocation goes through the
-// registry projection above.
-export {
-  WINDOW_ARRANGE_PRESETS,
-  WINDOW_PLACEMENT_PRESETS,
-  windowArrangeCommandId,
-  windowPlacementCommandId,
-  type WindowArrangePreset,
-  type WindowPlacementId,
-  type WindowPlacementPreset,
-} from "./lib/window-placement-presets";
 
 // Keyboard grammar. Chord parsing and conflict detection live here; which
 // commands exist comes from the registry above.

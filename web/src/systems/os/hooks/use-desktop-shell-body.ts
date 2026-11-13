@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useRef, type RefObject } from "react";
 import { shallowEqual } from "@xstate/store";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -7,17 +7,14 @@ import { notifyUser } from "@/lib/user-feedback";
 import { adjacentShortcutItem } from "../lib/adjacent-shortcut-item";
 import { cycleSessionBoardDrawer } from "../lib/session-board-drawer-cycle";
 import {
-  useSessionSidebarState,
   sessionListVisibleOrder,
   sessionThreadFolds,
   useWorkspaceWorkingSessions,
-  type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
 import { useSwitchProfile } from "@/systems/profiles";
 import { useWorktreeListings } from "@/systems/workspace";
 
-import { frameSeamEdits } from "../lib/frame-seams";
 import { filesRouteProject } from "../lib/files-open-target";
 import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
@@ -25,13 +22,10 @@ import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore, OsOpenTarget } from "../lib/os-types";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
-import type {
-  ProjectedFrameSeam,
-  ProjectedSeam,
-  WindowManagerRegisteredClientView,
-} from "../lib/window-manager-types";
+import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
+import type { FocusedSessionControls } from "../components/focused-session-controls";
 import { useDesktop } from "./use-desktop";
 import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
@@ -64,7 +58,11 @@ export interface DesktopShellBodyOptions {
   /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
   firstRun?: boolean;
   onNewSession: () => void;
-  sessionListView: SessionListViewModel;
+  /**
+   * The focused window's sessions list and rail (`FocusedSessionControlsHost`), read when a
+   * gesture runs: kept per window, they are never the body's to render.
+   */
+  sessionControls: RefObject<FocusedSessionControls | null>;
   /** The daemon's client-command channel reads the current shell seam through this port. */
   clientCommandChannel: ClientCommandChannel;
   /** The attached shell identity the palette invoke header must prove. */
@@ -84,45 +82,24 @@ export function paletteInvokeIdentity(
 }
 
 /**
- * Palette `window.tab.new`: dismiss the command surface, open the tab against
- * the focused frame, then publish the returned window as the destination picker.
+ * Palette `window.tab.new`: dismiss the command surface, open the tab right after
+ * the focused window's tab, then publish the returned window as the destination picker.
  */
 export async function completePaletteNewTabOpen(options: {
   closePalette: () => void;
-  stackTargetWindowId: string | null;
+  afterWindowId: string | null;
   userOpen: (target: OsOpenTarget) => Promise<string | null>;
 }): Promise<void> {
   options.closePalette();
   const windowId = await options.userOpen({
     app: "new-tab",
-    ...(options.stackTargetWindowId ? { stackTargetWindowId: options.stackTargetWindowId } : {}),
+    ...(options.afterWindowId ? { afterWindowId: options.afterWindowId } : {}),
   });
   if (windowId !== null) {
     windowManagerStore.trigger.paletteIntentRequested({
       intent: { kind: "destination", windowId },
     });
   }
-}
-
-function setSeamPreview(seam: ProjectedSeam, deltaPx: number): void {
-  windowManagerStore.trigger.seamPreviewSet({
-    preview: {
-      kind: "split",
-      splitId: seam.splitId,
-      boundaryIndex: seam.boundaryIndex,
-      deltaPx,
-    },
-  });
-}
-
-function setFrameSeamPreview(seam: ProjectedFrameSeam, deltaPx: number): void {
-  windowManagerStore.trigger.seamPreviewSet({
-    preview: { kind: "frame", seamId: seam.id, deltaPx },
-  });
-}
-
-function clearSeamPreview(): void {
-  windowManagerStore.trigger.seamPreviewCleared();
 }
 
 function completeDesktopTransition(): void {
@@ -171,7 +148,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const attention = useOsAttention(
     model.runtimeWorkspace,
     model.sessionCatalogStreamStatus,
-    options.sessionListView.shelf === "archive",
+    // The archive shelf narrows only the modal query, which the shell's attention does not run.
+    false,
     false
   );
   const jumpToSession = useAttentionJump();
@@ -190,14 +168,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const openFiles = useOpenFilesApp();
   const paletteRegistry = usePaletteRegistry();
   const switchProfile = useSwitchProfile();
-  // Shell chrome renders under the focused window's scope: ⌘B, the palette
-  // toggle, and session cycling act on the rail the operator is looking at.
-  const sessionSidebar = useSessionSidebarState();
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
     return {
-      palette: shortcutActionLabel(effective, "palette.open", platform),
       workspacePicker: shortcutActionLabel(effective, "workspace.picker", platform),
       globalScope: shortcutActionLabel(effective, "scope.global.toggle", platform),
     };
@@ -229,7 +203,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     openWorkspaces: () => overlays.toggleOverlay("workspaces"),
     openNewSession: options.onNewSession,
     toggleSessions: () => overlays.toggleOverlay("sessions"),
-    toggleSidebar: sessionSidebar.toggle,
+    // ⌘B and the palette toggle act on the rail the operator is looking at: the focused window's.
+    toggleSidebar: () => options.sessionControls.current?.sidebar.toggle(),
     toggleAllProjects: model.toggleAllProjects,
     useProfile: (profile, beforeSwitch) => {
       if (profile === "") return;
@@ -251,14 +226,17 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       const state = manager.getState();
       // A board showing a session in its drawer steps through its own cards.
       if (cycleSessionBoardDrawer(state.focusedId, direction)) return;
-      const visibleSessions = sessionListVisibleOrder(options.sessionListView, {
+      const controls = options.sessionControls.current;
+      if (controls === null) return;
+      const { listView, sidebar } = controls;
+      const visibleSessions = sessionListVisibleOrder(listView, {
         queryClient,
-        sessions: options.sessionListView.catalog?.sessions ?? attention.sessions,
+        sessions: listView.catalog?.sessions ?? attention.sessions,
         collapsedThreadIds: sessionThreadFolds({
-          ...sessionSidebar,
-          filtering: (options.sessionListView.search ?? "").trim() !== "",
+          ...sidebar,
+          filtering: (listView.search ?? "").trim() !== "",
         }).collapsedThreads,
-        collapsedFolderIds: sessionSidebar.folderFolds,
+        collapsedFolderIds: sidebar.folderFolds,
       });
       const target = adjacentShortcutItem<SessionPayload>(
         visibleSessions,
@@ -287,10 +265,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         notifyUser({ message: "No session needs attention.", tone: "info" });
       }
     },
-    openNewTab: stackTargetWindowId => {
+    openNewTab: afterWindowId => {
       void completePaletteNewTabOpen({
         closePalette: () => overlays.setOverlayOpen("palette", false),
-        stackTargetWindowId,
+        afterWindowId,
         userOpen: target => coordinator.userOpen(target),
       });
     },
@@ -346,35 +324,15 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     },
   });
 
-  const onResize = (splitId: string, boundaryIndex: number, delta: number) => {
-    // Clear the live seam preview only after the resize reconciles, so panes go
-    // straight from previewed to committed sizes.
-    void manager.resizeLayout(splitId, boundaryIndex, delta).completion.finally(clearSeamPreview);
-  };
-  const onFrameResize = (seam: ProjectedFrameSeam, deltaPx: number) => {
-    const snapshot = manager.getState().snapshot;
-    const groups = snapshot?.desktops.find(entry => entry.id === seam.desktopId)?.groups;
-    const edits = groups === undefined ? [] : frameSeamEdits(groups, seam, deltaPx);
-    if (edits.length === 0) {
-      clearSeamPreview();
-      return;
-    }
-    void manager.resizeGroupFrames(seam.desktopId, edits).completion.finally(clearSeamPreview);
-  };
   return {
     attention,
     desktop,
     desktopRef,
     manager,
     managerSurfaces,
-    onResize,
-    onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
     desktopSwitchShortcuts,
     onOpenDesktopOverview: openDesktopOverview,
-    onSeamPreview: setSeamPreview,
-    onFrameSeamPreview: setFrameSeamPreview,
-    onSeamPreviewEnd: clearSeamPreview,
     onTransitionComplete: completeDesktopTransition,
     overlays,
     pager,

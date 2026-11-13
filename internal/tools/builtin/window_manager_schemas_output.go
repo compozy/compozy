@@ -6,6 +6,9 @@ const windowManagerChangesSchema = `{
 		"desktop_ids":{"type":"array","items":{"type":"string"}},
 		"window_ids":{"type":"array","items":{"type":"string"}},
 		"group_ids":{"type":"array","items":{"type":"string"}},
+ "tab_ids":{"type":"array","items":{"type":"string"}},
+ "tab_split":{"type":"array","items":{"type":"string"}},
+ "tab_unsplit":{"type":"array","items":{"type":"string"}},
 		"node_ids":{"type":"array","items":{"type":"string"}},
 		"client_ids":{"type":"array","items":{"type":"string"}},
 		"stack_grouped":{"type":"array","items":{"type":"string"}},
@@ -39,6 +42,7 @@ const windowManagerReadOutputSchema = `{
 		"snapshot":{"type":"object"},
 		"document":{"type":"object"},
 		"valid":{"type":"boolean"},
+		"deprecations":` + windowManagerDeprecationsSchema + `,
 		"diagnostics":` + windowManagerDiagnosticsSchema + `
 	},
 	"required":["workspace_id","revision"],
@@ -54,10 +58,11 @@ const windowManagerCommandOutputSchema = `{
 		"applied":{"type":"boolean"},
 		"changes":` + windowManagerChangesSchema + `,
 		"diagnostics":` + windowManagerDiagnosticsSchema + `,
+ "deprecations":` + windowManagerDeprecationsSchema + `,
 		"client":{"type":"object"},
 		"rebased_from":{"type":"integer","minimum":0}
 	},
-	"required":["workspace_id","command_id","revision","applied","changes","diagnostics"],
+	"required":["workspace_id","command_id","revision","applied","changes","diagnostics","deprecations"],
 	"additionalProperties":false
 }`
 
@@ -70,9 +75,17 @@ const windowManagerPreviewOutputSchema = `{
 		"changed":{"type":"boolean"},
 		"changes":` + windowManagerChangesSchema + `,
 		"diagnostics":` + windowManagerDiagnosticsSchema + `,
+ "deprecations":` + windowManagerDeprecationsSchema + `,
 		"client":{"type":"object"},
 		"snapshot":{"type":"object"}
 	},
-	"required":["workspace_id","command_id","revision","changed","changes","diagnostics","snapshot"],
+	"required":["workspace_id","command_id","revision","changed","changes","diagnostics","deprecations","snapshot"],
 	"additionalProperties":false
+}`
+
+const windowManagerDeprecationsSchema = `{
+ "type":"array","items":{"type":"object","properties":{
+ "code":{"type":"string"},"surface":{"type":"string"},"replacement":{"type":"string"},` +
+	`"removal_release":{"type":"string"},"message":{"type":"string"}},
+ "required":["code","surface","removal_release","message"],"additionalProperties":false}
 }`

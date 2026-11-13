@@ -1,16 +1,20 @@
-import type { OsWindow } from "./os-types";
-import type { FocusDirection } from "./window-manager-types";
+import type { OsArrangePreset } from "./os-types";
+import { leadWindowId, tabWindowIds } from "./tab-model";
+import type { FocusDirection, LayoutDesktop, PixelRect, WindowId } from "./window-manager-types";
 
 interface Point {
   x: number;
   y: number;
 }
 
-function center(window: OsWindow): Point {
-  return {
-    x: window.rect.x + window.rect.w / 2,
-    y: window.rect.y + window.rect.h / 2,
-  };
+/** A window on screen and where its projection puts it. */
+export interface FocusCandidate {
+  id: WindowId;
+  rect: PixelRect;
+}
+
+function center(rect: PixelRect): Point {
+  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }
 
 function directionalDistance(
@@ -41,37 +45,52 @@ function wrappedDistance(candidate: Point, direction: FocusDirection): number {
   return candidate.y;
 }
 
-/** Visible peers eligible for an arrange command, ordered by current layer. */
-export function arrangePeerWindows(
-  windows: Readonly<Record<string, OsWindow>>,
-  anchorId: string
-): OsWindow[] {
-  const anchor = windows[anchorId];
-  if (!anchor) return [];
-  return Object.values(windows)
-    .filter(
-      window => window.id !== anchorId && window.desktopId === anchor.desktopId && !window.minimized
-    )
-    .sort((left, right) => right.layer - left.layer || left.id.localeCompare(right.id));
+/**
+ * Windows one arrange gathers, anchor first: the rest of the anchor's tab, then the lead window of
+ * every other tab on its desktop in bar order. Two-up takes one more window, grid caps at four.
+ */
+export function arrangeParticipants(
+  desktop: LayoutDesktop,
+  anchorId: WindowId,
+  focusOrder: readonly WindowId[],
+  preset: OsArrangePreset
+): WindowId[] {
+  const anchorTab = desktop.tabs.find(tab => new Set(tabWindowIds(tab)).has(anchorId));
+  if (anchorTab === undefined) return [];
+  const others = desktop.tabs.flatMap(tab => {
+    if (tab.id === anchorTab.id) return [];
+    const lead = leadWindowId(tab, focusOrder);
+    return lead === null ? [] : [lead];
+  });
+  const peers = [...tabWindowIds(anchorTab).filter(id => id !== anchorId), ...others];
+  switch (preset) {
+    case "two-up":
+      return [anchorId, ...peers.slice(0, 1)];
+    case "grid":
+      return [anchorId, ...peers.slice(0, 3)];
+    case "main-stack":
+    case "columns":
+      return [anchorId, ...peers];
+  }
 }
 
-/** Selects one deterministic visible focus target from projected geometry. */
+/** Selects one deterministic on-screen focus target from projected geometry. */
 export function directionalFocusTarget(input: {
-  windows: readonly OsWindow[];
+  candidates: readonly FocusCandidate[];
   focusedId: string | null;
   direction: FocusDirection;
   wrap: boolean;
 }): string | null {
-  const visible = input.windows.filter(window => !window.minimized && window.stackActive);
+  const visible = input.candidates;
   if (visible.length === 0) return null;
-  const source = visible.find(window => window.id === input.focusedId);
+  const source = visible.find(candidate => candidate.id === input.focusedId);
   if (!source) return visible[0]?.id ?? null;
-  const sourceCenter = center(source);
+  const sourceCenter = center(source.rect);
   const directional: Array<{ id: string; distance: number }> = [];
-  for (const window of visible) {
-    if (window.id === source.id) continue;
-    const distance = directionalDistance(sourceCenter, center(window), input.direction);
-    if (distance !== null) directional.push({ id: window.id, distance });
+  for (const candidate of visible) {
+    if (candidate.id === source.id) continue;
+    const distance = directionalDistance(sourceCenter, center(candidate.rect), input.direction);
+    if (distance !== null) directional.push({ id: candidate.id, distance });
   }
   directional.sort(
     (left, right) => left.distance - right.distance || left.id.localeCompare(right.id)
@@ -81,11 +100,11 @@ export function directionalFocusTarget(input: {
   if (!input.wrap) return null;
   return (
     visible
-      .filter(window => window.id !== source.id)
+      .filter(candidate => candidate.id !== source.id)
       .sort((left, right) => {
         const distance =
-          wrappedDistance(center(left), input.direction) -
-          wrappedDistance(center(right), input.direction);
+          wrappedDistance(center(left.rect), input.direction) -
+          wrappedDistance(center(right.rect), input.direction);
         return distance || left.id.localeCompare(right.id);
       })[0]?.id ?? null
   );

@@ -5,14 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -22,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 func TestWindowManagerHookBridge(t *testing.T) {
@@ -39,7 +46,7 @@ func TestWindowManagerHookBridge(t *testing.T) {
 			{command: windowmanager.CommandWindowMove, hook: hookspkg.HookWindowManagerWindowMoved},
 			{command: windowmanager.CommandWindowOpen, hook: hookspkg.HookWindowManagerWindowOpened},
 			{command: windowmanager.CommandWindowClose, hook: hookspkg.HookWindowManagerWindowClosed},
-			{command: windowmanager.CommandWindowStackSetActive, hook: hookspkg.HookWindowManagerStackActivated},
+			{command: windowmanager.CommandWindowTabActivate, hook: hookspkg.HookWindowManagerStackActivated},
 		}
 		seen := make(chan hookspkg.WindowManagerPayload, len(events))
 		declarations := make([]hookspkg.HookDecl, 0, len(events))
@@ -154,33 +161,33 @@ func TestWindowManagerHookBridge(t *testing.T) {
 				event: windowmanager.Event{
 					CommandID: windowmanager.CommandWindowClose,
 					Changes: windowmanager.ChangeSet{
-						WindowIDs:      []windowmanager.WindowID{"window-a", "window-b"},
-						StackUngrouped: []windowmanager.NodeID{"stack-a"},
+						WindowIDs:  []windowmanager.WindowID{"window-a", "window-b"},
+						TabUnsplit: []windowmanager.TabID{"tab-a"},
 					},
 				},
 				want: []hookspkg.HookEvent{
 					hookspkg.HookWindowManagerWindowClosed,
-					hookspkg.HookWindowManagerStackUngrouped,
+					hookspkg.HookWindowManagerTabUnsplit,
 				},
 			},
 			{
-				name: "merge all",
+				name: "retired group outcomes never emit",
 				event: windowmanager.Event{
 					CommandID: windowmanager.CommandWindowStackGroup,
 					Changes: windowmanager.ChangeSet{
-						StackGrouped:   []windowmanager.NodeID{"stack-target"},
-						StackUngrouped: []windowmanager.NodeID{"stack-source"},
+						StackGrouped:   []windowmanager.NodeID{"legacy"},
+						StackUngrouped: []windowmanager.NodeID{"legacy"},
 					},
 				},
-				want: []hookspkg.HookEvent{
-					hookspkg.HookWindowManagerStackGrouped,
-					hookspkg.HookWindowManagerStackUngrouped,
-				},
+				want: nil,
 			},
 			{
 				name:  "durable activation",
-				event: windowmanager.Event{CommandID: windowmanager.CommandWindowStackSetActive},
-				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerStackActivated},
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowTabActivate},
+				want: []hookspkg.HookEvent{
+					hookspkg.HookWindowManagerTabActivated,
+					hookspkg.HookWindowManagerStackActivated,
+				},
 			},
 			{
 				name:  "presentation focus",
@@ -466,7 +473,8 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Snapshot(recreated) error = %v", err)
 		}
-		if snapshot.Revision != 0 || len(snapshot.Windows) != 0 {
+		if snapshot.Revision != 0 || len(snapshot.Windows) != 1 ||
+			snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatalf("Snapshot(recreated) = %#v, want fresh revision zero", snapshot)
 		}
 		clients, err := fixture.manager.Clients(ctx, workspaceID)
@@ -599,6 +607,192 @@ func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
 func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: retired input surfaces share one daemon-lifetime warning across TOML and layout routes.
+	for _, item := range []struct {
+		name    string
+		forward bool
+		first   string
+		toml    string
+	}{
+		{"Should log direct validation overrides once per surface", false, http.MethodPost, ""},
+		{"Should log direct apply overrides once per surface", false, http.MethodPut, ""},
+		{"Should log forwarded CLI validation overrides once per surface", true, http.MethodPost, ""},
+		{"Should log forwarded CLI apply overrides once per surface", true, http.MethodPut, ""},
+		{"Should deduplicate TOML input before layout routes", false, http.MethodPost, "before"},
+		{"Should deduplicate TOML input after a layout route", false, http.MethodPut, "after"},
+	} {
+		t.Run(item.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newDaemonWindowManagerFixture(t)
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+			surfaceWarnings := &sync.Map{}
+			registry, err := newWindowManagerRegistry(
+				fixture.engine, windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver}, nil,
+				fixture.resolver, windowmanager.DefaultConfig(), logger,
+				windowmanager.WithDeprecationObserver(windowManagerSurfaceDeprecationLogger(logger, surfaceWarnings)),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := registry.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				WindowManager: registry, Profiles: newDaemonTestProfileManager(t, &fixture),
+			})
+			router := gin.New()
+			base := "/api/workspaces/" + fixture.workspace.ID + "/window-manager/layout"
+			router.GET("/api/workspaces/:workspace_id/window-manager/layout", handlers.ExportWindowManagerLayout)
+			router.POST(
+				"/api/workspaces/:workspace_id/window-manager/layout/validate",
+				handlers.ValidateWindowManagerLayout,
+			)
+			router.PUT("/api/workspaces/:workspace_id/window-manager/layout", handlers.ReplaceWindowManagerLayout)
+			request := func(method, path string, body []byte) *httptest.ResponseRecorder {
+				t.Helper()
+				response := httptest.NewRecorder()
+				router.ServeHTTP(
+					response,
+					httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewReader(body)),
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("%s %s status = %d, body = %s", method, path, response.Code, response.Body.String())
+				}
+				return response
+			}
+			exported := request(http.MethodGet, base, nil)
+			var document map[string]json.RawMessage
+			if err := json.Unmarshal(exported.Body.Bytes(), &document); err != nil {
+				t.Fatal(err)
+			}
+			document["overrides"] = json.RawMessage(
+				`{"raise_on_focus":"ignored","snap":{"edge_band":false},"new_window_policy":"floating"}`,
+			)
+			raw, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if item.forward {
+				var clientDocument contract.WindowManagerLayoutDocument
+				if err := json.Unmarshal(raw, &clientDocument); err != nil {
+					t.Fatal(err)
+				}
+				raw, err = json.Marshal(clientDocument)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			var revision windowmanager.Revision
+			second := http.MethodPost
+			if item.first == http.MethodPost {
+				second = http.MethodPut
+			}
+			loadRetiredConfig := func() {
+				t.Helper()
+				home := testHomePaths(t)
+				writeDaemonWindowManagerConfig(t, home.ConfigFile, `[window_manager]
+raise_on_focus = "ignored"
+new_window_policy = "floating"
+[window_manager.snap]
+edge_band = false
+`)
+				_, err := compozyconfig.LoadForHome(
+					home,
+					compozyconfig.WithWindowManagerWarning(func(key string, translated bool) {
+						windowmanager.WarnSurfaceDeprecation(
+							t.Context(),
+							logger,
+							windowmanager.RetiredConfigDeprecation(key, translated),
+							"config",
+							surfaceWarnings,
+						)
+					}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if item.toml == "before" {
+				loadRetiredConfig()
+			}
+			for index, method := range []string{item.first, second, item.first} {
+				body, err := json.Marshal(map[string]any{
+					"workspace_id": fixture.workspace.ID, "document": json.RawMessage(raw),
+					"expected_revision": revision, "actor": map[string]string{"kind": "cli"},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := base
+				if method == http.MethodPost {
+					path += "/validate"
+					body, err = json.Marshal(map[string]any{
+						"workspace_id": fixture.workspace.ID, "document": json.RawMessage(raw),
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				response := request(method, path, body)
+				if method == http.MethodPost {
+					var validation contract.WindowManagerLayoutValidationResponse
+					if err := json.Unmarshal(response.Body.Bytes(), &validation); err != nil || !validation.Valid {
+						t.Fatalf("validation = %+v, error = %v", validation, err)
+					}
+				} else {
+					var result contract.WindowManagerResult
+					if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+						t.Fatal(err)
+					}
+					revision = windowmanager.Revision(result.Snapshot.Revision)
+				}
+				if item.toml == "after" && index == 0 {
+					loadRetiredConfig()
+				}
+				lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+				if len(lines) != 3 {
+					t.Fatalf("daemon logs = %s, want exactly three surface warnings", logs.String())
+				}
+				seen := make(map[string]bool)
+				for _, line := range lines {
+					var entry map[string]any
+					if err := json.Unmarshal([]byte(line), &entry); err != nil {
+						t.Fatal(err)
+					}
+					surface, ok := entry["surface"].(string)
+					replacement, _ := entry["replacement"].(string)
+					actorKind, _ := entry["actor_kind"].(string)
+					if !ok || seen[surface] || entry["msg"] != "window_manager.deprecated_surface_used" ||
+						entry["level"] != "WARN" || replacement == "" || actorKind == "" {
+						t.Fatalf("deprecation log = %#v", entry)
+					}
+					seen[surface] = true
+				}
+				for _, key := range []string{"raise_on_focus", "snap.edge_band", "new_window_policy"} {
+					if !seen["window_manager."+key] {
+						t.Fatalf("missing %s warning: %s", key, logs.String())
+					}
+				}
+			}
+			var effective contract.WindowManagerLayoutDocument
+			warnings := logs.String()
+			if err := json.Unmarshal(request(http.MethodGet, base, nil).Body.Bytes(), &effective); err != nil {
+				t.Fatal(err)
+			}
+			if effective.Overrides.RaiseOnFocus != nil || effective.Overrides.Snap != nil ||
+				effective.Overrides.NewWindowPolicy == nil || *effective.Overrides.NewWindowPolicy != windowmanager.NewWindowTab ||
+				len(effective.InputDeprecations) != 0 {
+				t.Fatalf("effective overrides = %+v", effective.Overrides)
+			}
+			if logs.String() != warnings {
+				t.Fatalf("stored layout read emitted a deprecation: %s", logs.String())
+			}
+		})
+	}
+
 	t.Run("Should isolate workspace behavior and follow active hot apply", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
@@ -627,13 +821,9 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 		)
 		fixture.resolver.Invalidate(fixture.workspace.ID)
 		fixture.resolver.Invalidate(workspaceB.ID)
-		// The active global policy starts as floating so workspace A's own
-		// beside_focus is observably isolated from it; the shipped default is
-		// tab, so the premise has to be explicit.
-		floating := windowmanager.DefaultConfig()
-		floating.NewWindowPolicy = windowmanager.NewWindowFloating
-		if err := fixture.manager.UpdateDefaults(floating); err != nil {
-			t.Fatalf("UpdateDefaults(floating) error = %v", err)
+		// The active tab policy differs from workspace A's beside_focus override.
+		if err := fixture.manager.UpdateDefaults(windowmanager.DefaultConfig()); err != nil {
+			t.Fatalf("UpdateDefaults(tab) error = %v", err)
 		}
 
 		open := func(workspaceID string, windowID windowmanager.WindowID) windowmanager.Result {
@@ -658,12 +848,12 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 		}
 
 		workspaceAResult := open(fixture.workspace.ID, "window-a")
-		if got := workspaceAResult.Snapshot.Windows["window-a"].Placement; got != windowmanager.WindowPlacementTiled {
+		if got := workspaceAResult.Snapshot.Desktops[0].Tabs[0].Root.Kind; got != windowmanager.NodeKindSplit {
 			t.Fatalf("workspace A placement = %q, want workspace-configured tiled", got)
 		}
 		workspaceBResult := open(workspaceB.ID, "window-b")
-		if got := workspaceBResult.Snapshot.Windows["window-b"].Placement; got != windowmanager.WindowPlacementFloating {
-			t.Fatalf("workspace B placement = %q, want active-global floating", got)
+		if got := len(workspaceBResult.Snapshot.Desktops[0].Tabs); got != 2 {
+			t.Fatalf("workspace B placement = %v, want active-global floating", got)
 		}
 
 		active := windowmanager.DefaultConfig()
@@ -672,7 +862,7 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 			t.Fatalf("UpdateDefaults() error = %v", err)
 		}
 		workspaceBResult = open(workspaceB.ID, "window-b-hot-applied")
-		if got := workspaceBResult.Snapshot.Windows["window-b-hot-applied"].Placement; got != windowmanager.WindowPlacementTiled {
+		if got := workspaceBResult.Snapshot.Desktops[0].Tabs[1].Root.Kind; got != windowmanager.NodeKindSplit {
 			t.Fatalf("workspace B hot-applied placement = %q, want tiled", got)
 		}
 	})
@@ -808,6 +998,49 @@ func TestWindowManagerUserSessionDeletion(t *testing.T) {
 }
 
 func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
+	t.Run("Should reconcile readable partitions before reporting every unavailable layout", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		for _, partition := range []windowmanager.WorkspaceID{
+			windowmanager.WorkspaceID(f.workspace.ID), windowmanager.GlobalDesktopWorkspaceID,
+			windowmanager.UserDesktopWorkspaceID,
+		} {
+			raw := []byte(`{"version":7}`)
+			if partition == windowmanager.UserDesktopWorkspaceID {
+				var err error
+				raw, err = json.Marshal(windowmanager.DefaultSnapshot(partition))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := f.engine.Apply(
+				ctx,
+				clientstate.WorkspaceID(partition),
+				windowManagerStateDomain,
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: raw},
+				},
+				clientstate.ApplyOptions{},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		visited := make(map[windowmanager.WorkspaceID]bool)
+		err := f.registry.reconcilePartitions(
+			ctx,
+			false,
+			func(m *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+				_, err := m.Snapshot(ctx, partition)
+				visited[partition] = err == nil
+				return err
+			},
+		)
+		if !errors.Is(err, windowmanager.ErrUnavailable) || len(visited) != 3 ||
+			!visited[windowmanager.UserDesktopWorkspaceID] || strings.Count(err.Error(), "reconcile profile") != 2 {
+			t.Fatalf("strict sweep visited=%v error=%v", visited, err)
+		}
+	})
 	for _, retirement := range []string{"session", "workspace"} {
 		t.Run("Should reconcile every persisted profile partition after "+retirement+" retirement", func(t *testing.T) {
 			t.Parallel()
@@ -895,10 +1128,17 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if snapshot.Windows["bound"].InstanceKey != nil ||
-						snapshot.Windows["bound"].Route.Pathname != "/sessions" ||
-						len(snapshot.History.Undo) != 0 ||
-						len(snapshot.Windows["bound"].Route.Search) != 0 {
+					bound, exists := snapshot.Windows["bound"]
+					if len(snapshot.History.Undo) != 0 ||
+						snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
+						t.Fatalf("retirement state %s/%s: %#v", profile, partition, snapshot)
+					}
+					if retirement == "session" {
+						if exists || len(snapshot.Windows) != 1 {
+							t.Fatalf("deleted session remains in %s/%s: %#v", profile, partition, snapshot)
+						}
+					} else if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
+						len(bound.Route.Search) != 0 || len(snapshot.Windows) != 2 {
 						t.Fatalf("unretired %s/%s: %#v", profile, partition, snapshot)
 					}
 				}
@@ -1114,6 +1354,159 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 // Invariant: startup cleanup durably removes stale terminal bindings across desktop partitions.
 func TestWindowManagerBootTerminals(t *testing.T) {
 	t.Parallel()
+	t.Run("Should boot and serve a healthy partition beside an unavailable future layout", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		d := newTestDaemon(t, homePaths, &cfg)
+		logs, err := os.CreateTemp(t.TempDir(), "boot.log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := logs.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		d.logger = slog.New(slog.NewJSONHandler(logs, nil))
+		resolver := &windowManagerStoreWorkspaceResolver{
+			records: make(map[clientstate.WorkspaceID]windowManagerWorkspaceRecord),
+		}
+		engine, err := clientstate.Open(
+			ctx,
+			clientstate.DatabasePath(homePaths.HomeDir),
+			resolver,
+			clientstate.DefaultLimits(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if engine != nil {
+				if err := engine.Close(); err != nil {
+					t.Error(err)
+				}
+			}
+		})
+		raw := []byte(`{"version":7,"unknown":"future"}`)
+		healthy, err := json.Marshal(daemonWindowManagerSnapshot(windowmanager.UserDesktopWorkspaceID, 0, "Healthy"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for partition, value := range map[windowmanager.WorkspaceID][]byte{
+			windowmanager.GlobalDesktopWorkspaceID: raw,
+			windowmanager.UserDesktopWorkspaceID:   healthy,
+		} {
+			if _, err := engine.Apply(
+				ctx,
+				clientstate.WorkspaceID(partition),
+				windowManagerStateDomain,
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(store.DefaultProfileID), Value: value},
+				},
+				clientstate.ApplyOptions{},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+		engine = nil
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		var runtime RuntimeDeps
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			runtime = deps
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+		if err := d.boot(ctx); err != nil {
+			t.Fatalf("boot with a future partition: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if !d.serving.Load() || runtime.WindowManagers == nil {
+			t.Fatal("daemon did not enter serving phase")
+		}
+		handlers := core.NewBaseHandlers(
+			&core.BaseHandlerConfig{WindowManager: runtime.WindowManagers, Profiles: runtime.Profiles},
+		)
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/window-manager", handlers.GetWindowManagerSnapshot)
+		for partition, want := range map[windowmanager.WorkspaceID]int{
+			windowmanager.GlobalDesktopWorkspaceID: http.StatusServiceUnavailable,
+			windowmanager.UserDesktopWorkspaceID:   http.StatusOK,
+		} {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(ctx, http.MethodGet,
+				"/api/workspaces/"+string(partition)+"/window-manager", nil))
+			if response.Code != want {
+				t.Fatalf("partition %s: HTTP %d body=%s", partition, response.Code, response.Body)
+			}
+			if want == http.StatusOK {
+				var snapshot contract.WindowManagerSnapshot
+				if err := json.Unmarshal(
+					response.Body.Bytes(),
+					&snapshot,
+				); err != nil || len(snapshot.Desktops) != 1 ||
+					snapshot.Desktops[0].Name != "Healthy" {
+					t.Fatalf("healthy response=%s error=%v", response.Body, err)
+				}
+			}
+		}
+		logBytes, err := os.ReadFile(logs.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored, err := runtime.WindowManagers.engine.Get(
+			ctx,
+			clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+			windowManagerStateDomain,
+			windowManagerSnapshotKey(store.DefaultProfileID),
+		)
+		if err != nil || !bytes.Equal(stored.Value, raw) ||
+			!strings.Contains(string(logBytes), "window_manager.partition_reconciliation_skipped") ||
+			!strings.Contains(string(logBytes), store.DefaultProfileID) ||
+			!strings.Contains(string(logBytes), string(windowmanager.GlobalDesktopWorkspaceID)) {
+			t.Fatalf("future bytes=%s error=%v logs=%s", stored.Value, err, string(logBytes))
+		}
+	})
+
+	t.Run("Should keep destructive reconciliation strict for unavailable partitions", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), []byte(`{"version":7}`))
+		reconciler := &windowManagerSessionReconciler{registry: f.registry}
+		reconciler.SetReady()
+		if err := reconciler.ReconcileDeletedSession(
+			t.Context(),
+			testWindowManagerProfileID,
+			"",
+			"deleted",
+		); !errors.Is(
+			err,
+			windowmanager.ErrUnavailable,
+		) {
+			t.Fatalf("session deletion error=%v, want unavailable", err)
+		}
+		if err := f.registry.ReconcileUnregisteredWorkspace(
+			t.Context(),
+			f.workspace.ID,
+		); !errors.Is(
+			err,
+			windowmanager.ErrUnavailable,
+		) {
+			t.Fatalf("workspace unregistration error=%v, want unavailable", err)
+		}
+	})
+
 	t.Run("Should retire persisted terminals once while preserving other apps", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
@@ -1158,11 +1551,11 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(snapshot.Windows) != 2 {
+			if len(snapshot.Windows) != 3 {
 				t.Fatalf("persisted windows: %+v", snapshot.Windows)
 			}
 			for _, window := range snapshot.Windows {
-				kept := window.App == "settings" ||
+				kept := window.App == "new-tab" || window.App == "settings" ||
 					(window.App == "terminal" && window.InstanceKey == nil && window.Route.Pathname == "/terminal")
 				if !kept {
 					t.Fatal("stale terminal persisted")
@@ -1238,7 +1631,7 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(snapshot.Windows) != 0 {
+		if len(snapshot.Windows) != 1 || snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatal("agent PTY opened a desktop window")
 		}
 		id := string(handle.Info().ID)
@@ -1293,8 +1686,182 @@ func TestWindowManagerAgentTerminalLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(persisted.Windows) != 0 {
+		if len(persisted.Windows) != 1 || persisted.Windows["win-newtab-desktop-default"].App != "new-tab" {
 			t.Fatal("exited agent PTY left a persisted window")
+		}
+	})
+}
+
+// IT-014: real manager commits feed the daemon bridge and async hook dispatch.
+func TestWindowManagerTabHookTransitions(t *testing.T) {
+	t.Run("Should preserve split hooks across whole-tab desktop moves and dual activation", func(t *testing.T) {
+		t.Parallel()
+		observed := make(chan hookspkg.WindowManagerPayload, 8)
+		declarations := []hookspkg.HookDecl{}
+		for _, event := range []hookspkg.HookEvent{hookspkg.HookWindowManagerLayoutApplied, hookspkg.HookWindowManagerTabSplit, hookspkg.HookWindowManagerTabUnsplit, hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated, hookspkg.HookWindowManagerStackGrouped, hookspkg.HookWindowManagerStackUngrouped} {
+			declarations = append(
+				declarations,
+				hookspkg.HookDecl{
+					Name:         event.String(),
+					Event:        event,
+					Mode:         hookspkg.HookModeAsync,
+					ExecutorKind: hookspkg.HookExecutorNative,
+				},
+			)
+		}
+		dispatcher := hookspkg.NewHooks(
+			hookspkg.WithLogger(discardLogger()),
+			hookspkg.WithNativeDeclarations(declarations),
+			hookspkg.WithAsyncWorkerCount(1),
+			hookspkg.WithAsyncQueueCapacity(8),
+			hookspkg.WithExecutorResolver(func(hookspkg.HookDecl) (hookspkg.Executor, error) {
+				return hookspkg.NewTypedNativeExecutor(
+					func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.WindowManagerPayload) (hookspkg.WindowManagerObservationPatch, error) {
+						observed <- payload
+						return hookspkg.WindowManagerObservationPatch{}, nil
+					},
+				), nil
+			}),
+		)
+		t.Cleanup(dispatcher.Close)
+		if err := dispatcher.Rebuild(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+			windowmanager.WithEventObserver(
+				newWindowManagerHookObserver(&bootState{hookDispatcher: dispatcher, logger: discardLogger()}),
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		execute := func(command windowmanager.Command, client *windowmanager.ClientID) windowmanager.Result {
+			t.Helper()
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := manager.Execute(
+				t.Context(),
+				windowmanager.CommandRequest{
+					WorkspaceID:      "workspace-a",
+					CommandID:        command.CommandID(),
+					ExpectedRevision: snapshot.Revision,
+					ClientID:         client,
+					Payload:          command,
+					Actor:            windowmanager.Actor{Kind: "cli", ID: "operator"},
+					Origin:           "hook-integration",
+				},
+			)
+			if err != nil {
+				t.Fatalf("%s: %v", command.CommandID(), err)
+			}
+			return result
+		}
+		for _, id := range []windowmanager.WindowID{"window-a", "window-b"} {
+			execute(
+				windowmanager.OpenWindowCommand{
+					Window: windowmanager.WindowSpec{
+						ID:  id,
+						App: "terminal",
+						Route: windowmanager.RouteIntent{
+							Pathname: "/terminal/test",
+							Search:   windowmanager.RouteSearch{},
+						},
+					},
+				},
+				nil,
+			)
+		}
+		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		desktop := snapshot.Windows["window-a"].DesktopID
+		arranged := execute(windowmanager.ArrangeLayoutCommand{
+			DesktopID: desktop, WindowIDs: []windowmanager.WindowID{"window-b", "window-a"},
+			Arrangement: windowmanager.ArrangementStack,
+		}, nil)
+		history := arranged.Snapshot.History.Undo
+		if !arranged.Applied || len(history) == 0 ||
+			history[len(history)-1].CommandID != windowmanager.CommandLayoutArrange {
+			t.Fatalf("stack arrangement lost its originating command: %+v", arranged)
+		}
+		execute(
+			windowmanager.MoveWindowCommand{
+				WindowID:             "window-b",
+				DestinationDesktopID: desktop,
+				TargetWindowID:       new(windowmanager.WindowID("window-a")),
+				Placement:            windowmanager.DropRight,
+			},
+			nil,
+		)
+		execute(windowmanager.CreateDesktopCommand{DesktopID: "destination", Name: "Destination"}, nil)
+		execute(windowmanager.MoveWindowCommand{
+			WindowID: "window-a", DestinationDesktopID: "destination", MoveGroup: true,
+			Placement: windowmanager.DropTab,
+		}, nil)
+		desktop = "destination"
+		execute(
+			windowmanager.MoveWindowCommand{
+				WindowID:             "window-b",
+				DestinationDesktopID: desktop,
+				Placement:            windowmanager.DropTab,
+			},
+			nil,
+		)
+		client := windowmanager.ClientID("client-a")
+		if _, err := manager.RegisterClient(
+			t.Context(),
+			windowmanager.ClientRegistration{WorkspaceID: "workspace-a", ClientID: client, ActiveDesktopID: desktop},
+		); err != nil {
+			t.Fatal(err)
+		}
+		execute(windowmanager.ActivateTabCommand{WindowID: "window-a"}, &client)
+		execute(windowmanager.FocusWindowCommand{WindowID: new(windowmanager.WindowID("window-b"))}, &client)
+		// Unregister flushes the pending focus through the production coalescer.
+		if err := manager.UnregisterClient(t.Context(), "workspace-a", client); err != nil {
+			t.Fatal(err)
+		}
+		dispatcher.Close()
+		close(observed)
+		counts := map[hookspkg.HookEvent]int{}
+		coalesced := 0
+		for payload := range observed {
+			counts[payload.Event]++
+			if payload.WorkspaceID != "workspace-a" || payload.Revision == 0 || payload.Timestamp.IsZero() ||
+				payload.Origin == "" ||
+				payload.Actor.Kind == "" ||
+				len(payload.Changes.TabIDs) == 0 {
+				t.Fatalf("incomplete envelope: %+v", payload)
+			}
+			if payload.Event == hookspkg.HookWindowManagerLayoutApplied &&
+				payload.CommandID != string(windowmanager.CommandLayoutArrange) {
+				t.Fatalf("stack arrangement hook=%+v", payload)
+			}
+			if payload.Actor.ID == "active_coalescer" {
+				coalesced++
+				if payload.CommandID != string(windowmanager.CommandWindowTabActivate) {
+					t.Fatalf("coalesced command: %+v", payload)
+				}
+			}
+		}
+		if counts[hookspkg.HookWindowManagerTabSplit] != 1 || counts[hookspkg.HookWindowManagerTabUnsplit] != 1 ||
+			counts[hookspkg.HookWindowManagerTabActivated] != 2 ||
+			counts[hookspkg.HookWindowManagerStackActivated] != 2 ||
+			counts[hookspkg.HookWindowManagerLayoutApplied] != 1 ||
+			len(counts) != 5 ||
+			coalesced != 2 {
+			t.Fatalf("events=%v coalesced=%d", counts, coalesced)
 		}
 	})
 }

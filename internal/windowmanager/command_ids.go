@@ -18,7 +18,7 @@ var commandIDs = [...]CommandID{
 	CommandWindowStackGroup,
 	CommandWindowStackReorder,
 	CommandWindowStackSetActive,
-	CommandWindowPin,
+	CommandWindowTabReorder, CommandWindowTabActivate, CommandWindowPin,
 	CommandWindowReopen,
 	CommandLayoutArrange,
 	CommandLayoutResize,

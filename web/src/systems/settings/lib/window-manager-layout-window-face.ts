@@ -30,7 +30,7 @@ export function layoutWindowFace(
   const app = appId === null ? null : getOsAppDescriptor(appId);
   return {
     title: app?.title ?? window.app,
-    detail: window.minimized ? "Minimized" : window.route.pathname,
+    detail: window.route.pathname,
     icon: app?.icon ?? AppWindow,
   };
 }

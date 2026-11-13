@@ -92,159 +92,95 @@ func TestCmdPalettePayloadJSONShape(t *testing.T) {
 	})
 }
 
-func TestWindowManagerReturnAnchorContract(t *testing.T) {
-	t.Run("Should preserve an exact source group through the public layout round trip", func(t *testing.T) {
+func TestWindowManagerTabLayoutContract(t *testing.T) {
+	t.Parallel()
+	// Invariant: editing a decoded document takes precedence over its compatibility input bytes.
+	t.Run("Should encode edited effective overrides after decoding retired input", func(t *testing.T) {
 		t.Parallel()
-
-		axis := windowmanager.AxisHorizontal
-		zoomedWindowID := windowmanager.WindowID("window:zoomed")
-		peerWindowID := windowmanager.WindowID("window:peer")
-		activeWindowID := windowmanager.WindowID("window:active")
-		sourceGroup := windowmanager.LayoutGroup{
-			ID:    "group:source",
-			Frame: windowmanager.NormalizedRect{X: 0.1, Y: 0.2, Width: 0.8, Height: 0.6},
-			Root: windowmanager.LayoutNode{
-				ID: "split:source", Kind: windowmanager.NodeKindSplit, Axis: &axis,
-				Children: []windowmanager.LayoutNode{
-					{
-						ID: "leaf:zoomed", Kind: windowmanager.NodeKindLeaf,
-						WindowID: &zoomedWindowID, Children: []windowmanager.LayoutNode{},
-					},
-					{
-						ID: "stack:peers", Kind: windowmanager.NodeKindStack,
-						WindowIDs: []windowmanager.WindowID{peerWindowID, activeWindowID},
-						ActiveID:  &activeWindowID,
-						Children:  []windowmanager.LayoutNode{},
-					},
-				},
-				Weights: []float64{0.37, 0.63},
-			},
+		var document contract.WindowManagerLayoutDocument
+		if err := json.Unmarshal([]byte(`{"version":6,"workspace_id":"workspace:test","desktops":[],"windows":{},
+			"overrides":{"raise_on_focus":"ignored","focus_wrap":true,"new_window_policy":"floating"}}`), &document); err != nil {
+			t.Fatal(err)
 		}
-		document := windowmanager.LayoutDocument{
-			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
-			Desktops: []windowmanager.Desktop{{
-				ID: "desktop:main", Name: "Main",
-				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{zoomedWindowID},
-			}},
-			Windows: map[windowmanager.WindowID]windowmanager.Window{
-				zoomedWindowID: {
-					ID: zoomedWindowID, App: "tasks",
-					Route:        windowmanager.RouteIntent{Pathname: "/tasks", Search: windowmanager.RouteSearch{}},
-					Placement:    windowmanager.WindowPlacementFloating,
-					DesktopID:    "desktop:main",
-					FloatingRect: windowmanager.NormalizedRect{X: 0.2, Y: 0.2, Width: 0.6, Height: 0.6},
-					ReturnAnchor: &windowmanager.ReturnAnchor{
-						DesktopID: "desktop:main", SourceRevision: 17, SourceGroup: &sourceGroup,
-					},
-				},
-			},
-		}
-
-		wireDocument, err := contract.WindowManagerLayoutFromDomain(document)
+		document.Overrides.FocusWrap = nil
+		document.Overrides.NewWindowPolicy = new(windowmanager.NewWindowInsert)
+		encoded, err := json.Marshal(document)
 		if err != nil {
-			t.Fatalf("WindowManagerLayoutFromDomain() error = %v", err)
+			t.Fatal(err)
 		}
-		data, err := json.Marshal(wireDocument)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
+		var received windowmanager.LayoutDocument
+		if err := json.Unmarshal(encoded, &received); err != nil {
+			t.Fatal(err)
 		}
-		var decoded contract.WindowManagerLayoutDocument
-		if err := json.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		anchor := decoded.Domain().Windows[zoomedWindowID].ReturnAnchor
-		if anchor == nil || anchor.SourceGroup == nil {
-			t.Fatalf("round-trip return anchor = %#v, want exact source group", anchor)
-		}
-		if !reflect.DeepEqual(*anchor.SourceGroup, sourceGroup) {
-			t.Fatalf("round-trip source group = %#v, want %#v", *anchor.SourceGroup, sourceGroup)
+		if received.Overrides.FocusWrap != nil || received.Overrides.NewWindowPolicy == nil ||
+			*received.Overrides.NewWindowPolicy != windowmanager.NewWindowInsert {
+			t.Fatalf("edited overrides = %+v", received.Overrides)
 		}
 	})
 
-	t.Run("Should omit a source group when the return anchor has no exact capture", func(t *testing.T) {
-		t.Parallel()
-
-		anchor := contract.WindowManagerReturnAnchor{
-			DesktopID: "desktop:main", SourceRevision: 9,
-		}
-		data, err := json.Marshal(anchor)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
-		}
-		if strings.Contains(string(data), `"source_group"`) {
-			t.Fatalf("return anchor JSON includes omitted source_group: %s", data)
-		}
-		var decoded contract.WindowManagerReturnAnchor
-		if err := json.Unmarshal(data, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if decoded.SourceGroup != nil {
-			t.Fatalf("decoded source group = %#v, want nil", decoded.SourceGroup)
-		}
-	})
-
-	t.Run("Should isolate mutable layout values in both conversion directions", func(t *testing.T) {
+	t.Run("Should preserve tabs and split weights through the public layout round trip", func(t *testing.T) {
 		t.Parallel()
 		axis := windowmanager.AxisHorizontal
-		windowID := windowmanager.WindowID("window:a")
-		historyLimit := 20
+		a, b := windowmanager.WindowID("window:a"), windowmanager.WindowID("window:b")
 		document := windowmanager.LayoutDocument{
 			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
-			Desktops: []windowmanager.Desktop{{
-				ID: "desktop:main", Name: "Main",
-				Groups: []windowmanager.LayoutGroup{{
-					ID: "group:main", Frame: windowmanager.NormalizedRect{Width: 1, Height: 1},
-					Root: windowmanager.LayoutNode{
-						ID: "split:main", Kind: windowmanager.NodeKindSplit, Axis: &axis,
-						Weights: []float64{0.4, 0.6},
-						Children: []windowmanager.LayoutNode{
-							{ID: "leaf:a", Kind: windowmanager.NodeKindLeaf, WindowID: &windowID},
-							{ID: "stack:b", Kind: windowmanager.NodeKindStack,
-								WindowIDs: []windowmanager.WindowID{"window:b", "window:c"}},
-						},
+			Desktops: []windowmanager.Desktop{{ID: "desktop:main", Name: "Main", ActiveTabID: "tab:main",
+				Tabs: []windowmanager.Tab{{ID: "tab:main", Pinned: true, Root: windowmanager.LayoutNode{
+					ID: "split:main", Kind: windowmanager.NodeKindSplit, Axis: &axis, Weights: []float64{0.37, 0.63},
+					Children: []windowmanager.LayoutNode{
+						{ID: "leaf:a", Kind: windowmanager.NodeKindLeaf, WindowID: &a},
+						{ID: "leaf:b", Kind: windowmanager.NodeKindLeaf, WindowID: &b},
 					},
-				}},
-				Floating: []windowmanager.WindowID{"window:floating"},
+				}}},
 			}},
 			Windows: map[windowmanager.WindowID]windowmanager.Window{},
-			Overrides: windowmanager.WorkspaceConfig{
-				HistoryLimit: &historyLimit,
-				Snap:         &windowmanager.SnapConfig{RepeatRatios: []float64{0.5, 0.75}},
-				Shortcuts:    map[string]windowmanager.ShortcutBinding{"layout.balance": {"Meta+Shift+KeyB"}},
-			},
+			Overrides: windowmanager.WorkspaceConfig{HistoryLimit: new(20),
+				Gaps:      &windowmanager.GapsConfig{Inner: 4},
+				Shortcuts: map[string]windowmanager.ShortcutBinding{"layout.balance": {"Meta+Shift+KeyB"}}},
 		}
-
 		wire, err := contract.WindowManagerLayoutFromDomain(document)
 		if err != nil {
-			t.Fatalf("WindowManagerLayoutFromDomain() error = %v", err)
+			t.Fatal(err)
 		}
-		wire.Desktops[0].Floating[0] = "wire-mutated"
-		wire.Desktops[0].Groups[0].Root.Weights[0] = 0.9
-		wire.Desktops[0].Groups[0].Root.Children[0].WindowID = new(windowmanager.WindowID)
+		var decoded contract.WindowManagerLayoutDocument
+		marshalJSON(t, wire, &decoded)
+		roundTrip, err := json.Marshal(decoded.Domain())
+		if err != nil {
+			t.Fatal(err)
+		}
+		original, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(roundTrip, original) {
+			t.Fatalf("layout round trip = %#v, want %#v", decoded.Domain(), document)
+		}
+		// Conversion owns every mutable tree, pointer and config collection.
+		wire.Desktops[0].Tabs[0].ID = "wire-mutated"
+		wire.Desktops[0].Tabs[0].Root.Weights[0] = 0.9
+		*wire.Desktops[0].Tabs[0].Root.Children[0].WindowID = "wire-window"
 		*wire.Overrides.HistoryLimit = 99
-		wire.Overrides.Snap.RepeatRatios[0] = 0.25
+		wire.Overrides.Gaps.Inner = 8
 		wire.Overrides.Shortcuts["layout.balance"][0] = "Alt+KeyB"
-		if document.Desktops[0].Floating[0] != "window:floating" ||
-			document.Desktops[0].Groups[0].Root.Weights[0] != 0.4 ||
-			*document.Desktops[0].Groups[0].Root.Children[0].WindowID != windowID ||
-			*document.Overrides.HistoryLimit != 20 ||
-			document.Overrides.Snap.RepeatRatios[0] != 0.5 ||
+		if document.Desktops[0].Tabs[0].ID != "tab:main" ||
+			document.Desktops[0].Tabs[0].Root.Weights[0] != 0.37 ||
+			*document.Desktops[0].Tabs[0].Root.Children[0].WindowID != a ||
+			*document.Overrides.HistoryLimit != 20 || document.Overrides.Gaps.Inner != 4 ||
 			document.Overrides.Shortcuts["layout.balance"][0] != "Meta+Shift+KeyB" {
-			t.Fatalf("wire conversion aliases domain layout: %#v", document.Desktops[0])
+			t.Fatal("wire conversion aliases domain layout")
 		}
-
 		domain := wire.Domain()
-		domain.Desktops[0].Floating[0] = "domain-mutated"
-		domain.Desktops[0].Groups[0].Root.Weights[0] = 0.2
+		domain.Desktops[0].Tabs[0].ID = "domain-mutated"
+		domain.Desktops[0].Tabs[0].Root.Weights[0] = 0.2
+		*domain.Desktops[0].Tabs[0].Root.Children[0].WindowID = "domain-window"
 		*domain.Overrides.HistoryLimit = 8
-		domain.Overrides.Snap.RepeatRatios[0] = 0.1
+		domain.Overrides.Gaps.Inner = 12
 		domain.Overrides.Shortcuts["layout.balance"][0] = "Control+KeyB"
-		if wire.Desktops[0].Floating[0] != "wire-mutated" ||
-			wire.Desktops[0].Groups[0].Root.Weights[0] != 0.9 ||
-			*wire.Overrides.HistoryLimit != 99 ||
-			wire.Overrides.Snap.RepeatRatios[0] != 0.25 ||
+		if wire.Desktops[0].Tabs[0].ID != "wire-mutated" || wire.Desktops[0].Tabs[0].Root.Weights[0] != 0.9 ||
+			*wire.Desktops[0].Tabs[0].Root.Children[0].WindowID != "wire-window" ||
+			*wire.Overrides.HistoryLimit != 99 || wire.Overrides.Gaps.Inner != 8 ||
 			wire.Overrides.Shortcuts["layout.balance"][0] != "Alt+KeyB" {
-			t.Fatalf("domain conversion aliases wire layout: %#v", wire.Desktops[0])
+			t.Fatal("domain conversion aliases wire layout")
 		}
 	})
 }
@@ -352,21 +288,24 @@ func TestLoopRuntimeRulesShouldPreserveConjunctionAndLegacyJSON(t *testing.T) {
 	})
 }
 
-func TestWindowManagerV3WireContract(t *testing.T) {
+func TestWindowManagerV6WireContract(t *testing.T) {
 	t.Run("Should expose tab topology and omit internal history from snapshots", func(t *testing.T) {
 		t.Parallel()
 
 		activeID := windowmanager.WindowID("window:a")
+		peerID := windowmanager.WindowID("window:b")
 		snapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
 			Version:     windowmanager.SnapshotVersion,
 			WorkspaceID: "workspace:test",
 			Desktops: []windowmanager.Desktop{{
 				ID: "desktop:main", Name: "Main",
-				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-				FloatingStacks: []windowmanager.FloatingStack{{
-					ID: "stack:main", WindowIDs: []windowmanager.WindowID{"window:a", "window:b"},
-					ActiveID: &activeID,
-					Rect:     windowmanager.NormalizedRect{X: 0.1, Y: 0.2, Width: 0.7, Height: 0.6},
+				ActiveTabID: "tab:main", Tabs: []windowmanager.Tab{{ID: "tab:main", Pinned: true,
+					Root: windowmanager.LayoutNode{ID: "split:main", Kind: windowmanager.NodeKindSplit,
+						Axis: new(windowmanager.AxisHorizontal), Weights: []float64{0.5, 0.5},
+						Children: []windowmanager.LayoutNode{
+							{ID: "leaf:a", Kind: windowmanager.NodeKindLeaf, WindowID: &activeID},
+							{ID: "leaf:b", Kind: windowmanager.NodeKindLeaf, WindowID: &peerID},
+						}},
 				}},
 			}},
 			Windows: map[windowmanager.WindowID]windowmanager.Window{
@@ -376,12 +315,12 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 					NavStack: []windowmanager.RouteIntent{{
 						Pathname: "/tasks", Search: windowmanager.RouteSearch{},
 					}},
-					Pinned: true, Placement: windowmanager.WindowPlacementStacked,
+					TabID: "tab:main",
 				},
 				"window:b": {
 					ID: "window:b", App: "tasks", DesktopID: "desktop:main",
 					Route:    windowmanager.RouteIntent{Pathname: "/tasks/second", Search: windowmanager.RouteSearch{}},
-					NavStack: []windowmanager.RouteIntent{}, Placement: windowmanager.WindowPlacementStacked,
+					NavStack: []windowmanager.RouteIntent{}, TabID: "tab:main",
 				},
 			},
 			ClosedEntries: []windowmanager.ClosedEntry{{Windows: []windowmanager.Window{{ID: "window:closed"}}}},
@@ -406,11 +345,12 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 		if string(wire["closed_entry_count"]) != "1" {
 			t.Fatalf("closed_entry_count JSON = %s, want 1", wire["closed_entry_count"])
 		}
-		if len(snapshot.Desktops) != 1 || len(snapshot.Desktops[0].FloatingStacks) != 1 {
-			t.Fatalf("snapshot floating stacks = %+v, want one", snapshot.Desktops)
+		if len(snapshot.Desktops) != 1 || len(snapshot.Desktops[0].Tabs) != 1 {
+			t.Fatalf("snapshot tabs = %+v, want one", snapshot.Desktops)
 		}
 		window := snapshot.Windows["window:a"]
-		if !window.Pinned || len(window.NavStack) != 1 || window.NavStack[0].Pathname != "/tasks" {
+		if !snapshot.Desktops[0].Tabs[0].Pinned || window.TabID != "tab:main" || len(window.NavStack) != 1 ||
+			window.NavStack[0].Pathname != "/tasks" {
 			t.Fatalf("window tab fields = %+v", window)
 		}
 	})
@@ -421,7 +361,7 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 		snapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
 			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:empty",
 			Desktops: []windowmanager.Desktop{{
-				ID: "desktop:main", Groups: nil, Floating: nil, FloatingStacks: nil,
+				ID: "desktop:main", Tabs: nil,
 			}},
 			Windows: map[windowmanager.WindowID]windowmanager.Window{},
 		})
@@ -435,39 +375,39 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 		var wire struct {
 			ClosedEntryCount json.RawMessage `json:"closed_entry_count"`
 			Desktops         []struct {
-				FloatingStacks json.RawMessage `json:"floating_stacks"`
+				Tabs json.RawMessage `json:"tabs"`
 			} `json:"desktops"`
 		}
 		if err := json.Unmarshal(data, &wire); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if len(wire.Desktops) != 1 || string(wire.Desktops[0].FloatingStacks) != "[]" {
-			t.Fatalf("floating_stacks JSON = %s, want []", wire.Desktops[0].FloatingStacks)
+		if len(wire.Desktops) != 1 || string(wire.Desktops[0].Tabs) != "[]" {
+			t.Fatalf("tabs JSON = %s, want []", wire.Desktops[0].Tabs)
 		}
 		if string(wire.ClosedEntryCount) != "0" {
 			t.Fatalf("closed_entry_count JSON = %s, want 0", wire.ClosedEntryCount)
 		}
 	})
 
-	t.Run("Should carry only the converted client's active stack map", func(t *testing.T) {
+	t.Run("Should carry only the converted client's active tab map", func(t *testing.T) {
 		t.Parallel()
 
-		domainStackActive := map[windowmanager.NodeID]windowmanager.WindowID{
-			"stack:main": "window:b",
+		domainTabActive := map[windowmanager.DesktopID]windowmanager.TabID{
+			"desktop:main": "tab:b",
 		}
 		client, err := contract.WindowManagerClientFromDomain(windowmanager.ClientView{
 			WorkspaceID: "workspace:test", ClientID: "client:a",
-			StackActive: domainStackActive,
+			ActiveTab: domainTabActive,
 		})
 		if err != nil {
 			t.Fatalf("WindowManagerClientFromDomain() error = %v", err)
 		}
-		if !reflect.DeepEqual(client.StackActive, map[string]string{"stack:main": "window:b"}) {
-			t.Fatalf("stack_active = %+v", client.StackActive)
+		if !reflect.DeepEqual(client.ActiveTab, map[string]string{"desktop:main": "tab:b"}) {
+			t.Fatalf("active_tab = %+v", client.ActiveTab)
 		}
-		client.StackActive["stack:main"] = "window:a"
-		if got := domainStackActive["stack:main"]; got != "window:b" {
-			t.Fatalf("domain stack_active unexpectedly changed: %q", got)
+		client.ActiveTab["desktop:main"] = "tab:a"
+		if got := domainTabActive["desktop:main"]; got != "tab:b" {
+			t.Fatalf("domain active_tab unexpectedly changed: %q", got)
 		}
 	})
 

@@ -1,12 +1,12 @@
 ---
 id: RT-desktop-pager-overview
 area: RT
-title: Navigate persistent desktops through the minimal pager
+title: Navigate and manage persistent desktops from the top-bar indicators and the overview
 persona: Théo
 journey: J-administer-window-manager
-expected: The desktop pager sits in the topbar tray before All desktops: one 6px dot per persistent desktop in order, the active desktop drawn as an 18px foreground pill, and an amber (`attn`) dot on an off-screen desktop that needs you, each named "Desktop N of T: {name}" ("— needs you" appended when it does); click and Left/Right/Home/End switch only the active client; 1, 2, and 7 desktops stay direct and 8+ window ±2 behind "Show N earlier/later desktops" controls; All desktops opens the Desktops overview over the desk — the title "Desktops", one live layout thumbnail per desktop with its name, window count and position key, the active desktop ringed, a New desktop card, and Done/Esc to close — which creates, renames, reorders, transfers, and deletes desktops with honest pending, conflict, empty, and disconnected states.
-entry_points: web topbar tray pager; All desktops button; Desktops overview; keyboard navigation
-qa_status: skipped
+expected: The desktop indicators sit in the topbar tray before All desktops: one 6px dot per persistent desktop in order, the active desktop drawn as an 18px foreground pill, and an amber (`attn`) dot on an off-screen desktop that needs you, each named "Desktop N of T: {name}" ("— needs you" appended when it does); click and Left/Right/Home/End switch only the active client and `desktop.switch.1–9`, next and previous keep working; 1, 2, and 7 desktops stay direct and 8+ window ±2 behind "Show N earlier/later desktops" controls that open the overview at the hidden desktops; right-click or Shift+F10/the menu key on a dot opens Rename, Move left, Move right, Close desktop, New desktop, with Move left absent on the first desktop, Move right on the last and Close desktop on the last remaining one; Rename and Close desktop open the overview on that card (rename field focused, or the close confirm open with "Move N tabs to" and the check disabled until a destination is chosen; a desktop holding only blank New tab tabs gets the plain confirm with no destination picker); while a tab is dragged every dot grows into a dashed target "Move tab to {name}" ("Move window to {name}" when a window is dragged by its head) (the source desktop dimmed, the one under the pointer solid volt) and releasing moves the whole tab, split included, to the end of that desktop's bar; resting the dragged tab on an overflow control (shown as "+N") opens the overview as a drop surface whose cards take the drop; All desktops opens the Desktops overview over the desk — the title "Desktops", one card per desktop with its layout thumbnail, name, tab count, switch chord and first four tabs with "+N more", the active desktop ringed, New desktop and Done/Esc — where a tab row jumps to its tab, a card drags to reorder, a tab row dragged onto another card moves it, the card menu offers Move left, Move right and Move a tab ▸, and the bin closes a desktop in place after choosing a destination for its tabs (a desktop holding only blank New tab tabs closes with the plain confirm); a desktop whose last tab leaves shows a New Tab window; pending, conflict, empty and disconnected states stay honest.
+entry_points: web topbar desktop indicators (click, keyboard, context menu); tab drag onto an indicator or overflow control; All desktops button; Window › All desktops; Desktops overview
+qa_status: untested
 bug_ids: BUG-20260724-stale-return-anchor-on-desktop-transfer
 fix_status: pending
 retest_status: pass
@@ -41,3 +41,17 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 qa-impact: 2026-11-08 brand identity v1.2 (spec `.compozy/tasks/brand-site/`). The needs-you dot moved from the retired orange brand hue to its own amber `--color-attn` (`StatusDot tone="attn"`, `#f5b14c` dark / `#9a5b00` light). Expectation updated; status unchanged.
+
+qa-impact: 2026-11-13 window-tabs-split S8/S9. The pager became the desktop indicators (context
+menu, drop targets, overflow drop surface) and the overview lists tabs per card with card drag
+reorder, tab drops, "Move a tab ▸" and in-place close with a destination. Walk: with four
+desktops, right-click each end and a middle dot and confirm the item set; Shift+F10 on a focused dot
+opens the same menu; Move right reorders; Rename and Close desktop open the overview on that card;
+New desktop adds a dot. Drag a split tab onto another dot and confirm both bars and that the split
+stays whole; drag the last tab of a desktop away and confirm a New Tab window remains. With nine
+desktops, drag a tab, rest it on "+N", confirm the overview opens without the drag ending, drop on a
+hidden desktop's card, and confirm the tab moved and the overview is still usable from the
+keyboard afterwards (focus, Tab order, Escape). Also release over the overview off every card and
+press Escape mid-drag: neither moves the tab nor closes the overview. Reset for the current build.
+
+qa-impact: 2026-11-13 window-tabs-split S10 (review fixes). Walk: drag a window by its head over the dots and confirm the targets read "Move window to {name}"; close a desktop that holds only a New tab tab from its dot menu and from the overview bin: a plain confirm, no destination picker, and nothing moves to another desktop.

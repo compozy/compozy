@@ -7,7 +7,9 @@
 package spec
 
 import (
+	"maps"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -18,12 +20,87 @@ import (
 )
 
 func TestWindowManagerOpenAPIContract(t *testing.T) {
+	t.Run("Should describe optional compatibility inputs and migration actions precisely", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for component, fields := range map[string][]string{
+			"WindowManagerWindowSpecPayload":     {"floating_rect", "insert_tiled"},
+			"WindowManagerCloseWindowPayload":    {"minimize"},
+			"WindowManagerResizeWindowPayload":   {"frame"},
+			"WindowManagerArrangeLayoutPayload":  {"frame", "group_id"},
+			"WindowManagerGroupFrameEditPayload": {"frame", "group_id"},
+			"WindowManagerMigrationRequest":      {"replace"},
+		} {
+			for _, field := range fields {
+				schema := componentSchema(t, document, component)
+				if propertySchema(t, schema, field) == nil || slices.Contains(schema.Required, field) {
+					t.Fatalf("%s.%s must be accepted but optional", component, field)
+				}
+			}
+		}
+		request := componentSchema(t, document, "WindowManagerMigrationRequest")
+		assertEnumValues(t, propertySchema(t, request, "action"), "ack", "retry")
+		status := componentSchema(t, document, "MigrationStatus")
+		assertEnumValues(t, propertySchema(t, status, "state"), "none", "migrated", "failed")
+		backups := propertySchema(t, status, windowManagerSupersededBackupsKey)
+		if !backups.Type.Is("integer") || backups.Min == nil || *backups.Min != 0 ||
+			slices.Contains(status.Required, windowManagerSupersededBackupsKey) {
+			t.Fatalf("retained backup count must be an optional nonnegative integer: %+v", backups)
+		}
+		assertResponseStatus(t, operationFor(t, document, windowManagerPath+"/migration", http.MethodPost), 422)
+	})
+	t.Run("Should mark retired command and projection fields without changing live fields", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for component, fields := range map[string][]string{
+			"WindowManagerWindowSpecPayload":     {"floating", "floating_rect"},
+			"WindowManagerOpenWindowPayload":     {"restore_window_id"},
+			"WindowManagerCloseWindowPayload":    {"minimize"},
+			"WindowManagerGroupWindowsPayload":   {"insert_index"},
+			"WindowManagerMoveWindowPayload":     {"floating_rect"},
+			"WindowManagerResizeWindowPayload":   {"frame"},
+			"WindowManagerToggleFloatingPayload": {"floating_rect"},
+			"WindowManagerArrangeLayoutPayload":  {"frame", "group_id", "keep_frames"},
+			"WindowManagerGroupFrameEditPayload": {"group_id", "frame"},
+			"WindowManagerBalanceLayoutPayload":  {"group_id"},
+			"ChangeSet":                          {"group_ids", "stack_grouped", "stack_ungrouped"},
+			"WindowManagerClientView":            {"stack_active"},
+			"WindowManagerPaletteContext":        {"window_floating", "window_stacked"},
+		} {
+			for _, field := range fields {
+				property := propertySchema(t, componentSchema(t, document, component), field)
+				if !property.Deprecated || !strings.Contains(property.Description, "v0.8.0") {
+					t.Fatalf("%s.%s lacks its removal metadata: %#v", component, field, property)
+				}
+			}
+		}
+		for component, fields := range map[string][]string{
+			"WindowManagerWindowSpecPayload":    {"insert_tiled", "stack_target_window_id"},
+			"WindowManagerMoveWindowPayload":    {"placement", "move_group", "target_tab_id"},
+			"WindowManagerArrangeLayoutPayload": {"arrangement"},
+		} {
+			for _, field := range fields {
+				if propertySchema(t, componentSchema(t, document, component), field).Deprecated {
+					t.Fatalf("live field %s.%s deprecated", component, field)
+				}
+			}
+		}
+	})
+
 	t.Run("Should expose only the exact window-manager routes on HTTP and UDS", func(t *testing.T) {
 		t.Parallel()
 		expected := map[string]string{
 			http.MethodGet + " " + windowManagerPath:                                      "getWindowManagerSnapshot",
 			http.MethodPost + " " + windowManagerPath + "/preview":                        "previewWindowManagerCommand",
 			http.MethodPost + " " + windowManagerPath + "/commands":                       "executeWindowManagerCommand",
+			http.MethodGet + " " + windowManagerPath + "/migration":                       "getWindowManagerMigration",
+			http.MethodPost + " " + windowManagerPath + "/migration":                      "updateWindowManagerMigration",
 			http.MethodGet + " " + windowManagerPath + "/clients":                         "listWindowManagerClients",
 			http.MethodPost + " " + windowManagerPath + "/clients":                        "registerWindowManagerClient",
 			http.MethodDelete + " " + windowManagerPath + "/clients/{client_id}":          "unregisterWindowManagerClient",
@@ -89,6 +166,10 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 				false,
 			},
 			{contract.WindowManagerCommandWindowPin, "WindowManagerPinWindowPayload", false},
+			{contract.WindowManagerCommandWindowTabActivate, "WindowManagerSetStackActivePayload", false},
+			{contract.WindowManagerCommandWindowTabReorder, "WindowManagerReorderStackPayload", false},
+			{contract.WindowManagerCommandWindowResize, "WindowManagerResizeWindowPayload", false},
+			{contract.WindowManagerCommandLayoutFrameResize, "WindowManagerFrameResizeLayoutPayload", false},
 			{contract.WindowManagerCommandWindowReopen, "WindowManagerReopenWindowPayload", false},
 			{contract.WindowManagerCommandWindowFocus, "WindowManagerFocusWindowPayload", true},
 			{contract.WindowManagerCommandWindowMove, "WindowManagerMoveWindowPayload", false},
@@ -98,7 +179,7 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 				"WindowManagerToggleFloatingPayload",
 				false,
 			},
-			{contract.WindowManagerCommandWindowZoom, "WindowManagerZoomWindowPayload", true},
+			{contract.WindowManagerCommandWindowZoom, "WindowManagerZoomWindowPayload", false},
 			{contract.WindowManagerCommandLayoutArrange, "WindowManagerArrangeLayoutPayload", false},
 			{contract.WindowManagerCommandLayoutResize, "WindowManagerResizeLayoutPayload", false},
 			{contract.WindowManagerCommandLayoutBalance, "WindowManagerBalanceLayoutPayload", false},
@@ -257,6 +338,8 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			string(windowmanager.CloseScopeGroup),
 			string(windowmanager.CloseScopeOthers),
 			string(windowmanager.CloseScopeRight),
+			string(windowmanager.CloseScopeLeft),
+			string(windowmanager.CloseScopeAll),
 		)
 		openPayload := componentSchema(t, document, "WindowManagerOpenWindowPayload")
 		windowSpec := propertySchema(t, openPayload, "window")
@@ -300,11 +383,11 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		if desktops.Items == nil || desktops.Items.Value == nil {
 			t.Fatalf("replace-layout desktops items are unresolved: %#v", desktops.Items)
 		}
-		groups := propertySchema(t, desktops.Items.Value, "groups")
-		if groups.Items == nil || groups.Items.Value == nil {
-			t.Fatalf("replace-layout groups items are unresolved: %#v", groups.Items)
+		tabs := propertySchema(t, desktops.Items.Value, "tabs")
+		if tabs.Items == nil || tabs.Items.Value == nil {
+			t.Fatalf("replace-layout tabs items are unresolved: %#v", tabs.Items)
 		}
-		assertSchemaHasAdditionalProperties(t, propertySchema(t, groups.Items.Value, "root"), false)
+		assertSchemaHasAdditionalProperties(t, propertySchema(t, tabs.Items.Value, "root"), false)
 
 		for name, frameType := range map[string]string{
 			"WindowManagerSnapshotFrame":  contract.WindowManagerFrameSnapshot,
@@ -380,7 +463,56 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should describe optional exact source groups on return anchors", func(t *testing.T) {
+	t.Run("Should retain typed deprecated workspace override fields for current clients", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		overrides := componentSchema(t, document, "WorkspaceConfig")
+		for _, name := range []string{
+			"new_window_policy", "small_viewport_policy", "focus_policy", "focus_wrap", "focus_follows_pointer",
+			"swap_modifier", "history_limit", "nav_stack_limit", "closed_entry_limit", "desktop_transition", "gaps", "shortcuts",
+		} {
+			if propertySchema(t, overrides, name) == nil {
+				t.Fatalf("kept override %s has no schema", name)
+			}
+		}
+		for _, name := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier"} {
+			if !propertySchema(t, overrides, name).Deprecated {
+				t.Fatalf("retired override %s is missing its deprecated schema", name)
+			}
+		}
+		assertSchemaIncludesType(t, propertySchema(t, overrides, "raise_on_focus"), openapi3.TypeBoolean)
+		marked := 0
+		for _, entry := range []struct{ parent, property, component string }{
+			{"WorkspaceConfig", "snap", "SnapConfig"},
+			{"WorkspaceConfig", "bindings", "BindingsConfig"},
+			{"SettingsWindowManagerConfigPayload", "snap", "SettingsWindowManagerSnapPayload"},
+			{"SettingsWindowManagerConfigPayload", "bindings", "SettingsWindowManagerBindingPayload"},
+		} {
+			parent := componentSchema(t, document, entry.parent)
+			propertySchema(t, parent, entry.property)
+			property := parent.Properties[entry.property].Value
+			component := componentSchema(t, document, entry.component)
+			if !property.Deprecated || !strings.Contains(property.Description, "v0.8.0") || !component.Deprecated {
+				t.Fatalf("retired %s.%s has no deprecated serialized component", entry.parent, entry.property)
+			}
+			marked++
+		}
+		if marked != 4 {
+			t.Fatalf("deprecated snap/bindings references = %d, want 4", marked)
+		}
+		for _, parent := range []string{"WorkspaceConfig", "SettingsWindowManagerConfigPayload"} {
+			policy := propertySchema(t, componentSchema(t, document, parent), "new_window_policy")
+			if policy.Deprecated ||
+				policy.Description != `Deprecated value "floating": translated to "tab"; removed in v0.8.0.` {
+				t.Fatalf("%s.new_window_policy = %+v, want a retired-value notice with an active field", parent, policy)
+			}
+		}
+	})
+
+	t.Run("Should describe tabs and window membership without retired topology", func(t *testing.T) {
 		t.Parallel()
 		document, err := Document()
 		if err != nil {
@@ -395,28 +527,28 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		if desktops.Items == nil || desktops.Items.Value == nil {
 			t.Fatalf("WindowManagerSnapshot desktops are unresolved: %#v", desktops.Items)
 		}
-		assertRequired(t, desktops.Items.Value, "floating_stacks")
+		assertRequired(t, desktops.Items.Value, "tabs", "active_tab_id")
 		clientView := componentSchema(t, document, "WindowManagerClientView")
-		assertRequired(t, clientView, "stack_active")
+		assertRequired(t, clientView, "active_tab", "stack_active")
 		windows := propertySchema(t, snapshot, "windows")
 		windowRef := windows.AdditionalProperties.Schema
 		if windowRef == nil || windowRef.Value == nil {
 			t.Fatalf("window map value schema is unresolved: %#v", windows.AdditionalProperties)
 		}
-		returnAnchor := propertySchema(t, windowRef.Value, "return_anchor")
-		assertRequired(t, windowRef.Value, "nav_stack", "pinned")
-		assertNotRequired(t, returnAnchor, "source_group")
-		sourceGroup := propertySchema(t, returnAnchor, "source_group")
-		assertSchemaIncludesType(t, sourceGroup, openapi3.TypeObject)
-		assertRequired(t, sourceGroup, "id", "frame", "root")
-		root := propertySchema(t, sourceGroup, "root")
-		children := propertySchema(t, root, "children")
-		if children.Items == nil ||
-			children.Items.Ref != "#/components/schemas/WindowManagerLayoutNode" ||
-			children.Items.Value == nil {
-			t.Fatalf("source-group root children do not resolve recursively: %#v", children.Items)
+		assertRequired(t, windowRef.Value, "nav_stack", "tab_id", "desktop_id")
+		for _, retired := range []string{"return_anchor", "pinned", "zoomed", "placement", "floating_rect"} {
+			if _, exists := windowRef.Value.Properties[retired]; exists {
+				t.Fatalf("retired window property %s remains in v6", retired)
+			}
 		}
-		assertRequired(t, children.Items.Value, "id", "kind")
+		tabs := propertySchema(t, desktops.Items.Value, "tabs")
+		assertRequired(t, tabs.Items.Value, "id", "pinned", "root")
+		assertEnumValues(
+			t,
+			propertySchema(t, componentSchema(t, document, "WindowManagerLayoutNode"), "kind"),
+			"leaf",
+			"split",
+		)
 	})
 }
 
@@ -430,4 +562,162 @@ func componentSchema(t *testing.T, document *openapi3.T, name string) *openapi3.
 		t.Fatalf("component schema %q is missing or unresolved", name)
 	}
 	return schemaRef.Value
+}
+
+// Validation adds an optional canonical document while preserving the frozen response fields and required set.
+func addWindowManagerValidationDocument(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	document := maps.Clone(schemas["WindowManagerLayoutDocument"].(map[string]any))
+	// Embedded response documents retain the layout fields without standalone request strictness.
+	delete(document, "additionalProperties")
+	document["nullable"] = true
+	response := baseline
+	for _, key := range []string{
+		"paths", windowManagerPath + "/layout/validate", "post", "responses", "200", "content",
+		"application/json", "schema",
+	} {
+		next, ok := response[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved layout validation document addition: missing object %q", key)
+		}
+		response = next
+	}
+	for _, schema := range []map[string]any{
+		response, schemas["WindowManagerLayoutValidationResponse"].(map[string]any),
+	} {
+		properties := schema["properties"].(map[string]any)
+		if _, exists := properties["document"]; exists {
+			t.Fatal("document already exists in the historical layout validation baseline")
+		}
+		properties["document"] = document
+	}
+}
+
+// Deprecations annotate the frozen v6 contract; the strict schema comparison still owns every field and type.
+func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	counts := map[string]int{}
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				visit(child)
+			}
+			properties, _ := node["properties"].(map[string]any)
+			if required, ok := node["required"].([]any); ok {
+				node["required"] = slices.DeleteFunc(required, func(field any) bool {
+					switch field {
+					case "frame", "group_id", "minimize", "floating_rect", "insert_tiled":
+						return true
+					default:
+						return false
+					}
+				})
+				if len(node["required"].([]any)) == 0 {
+					delete(node, "required")
+				}
+			}
+			if property, ok := properties["new_window_policy"].(map[string]any); ok {
+				property["description"] = `Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+				counts["floating_policy"]++
+			}
+			if property, ok := properties["placement"].(map[string]any); ok {
+				property["description"] = `Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+				counts["floating_placement"]++
+			}
+			if property, ok := properties["arrangement"].(map[string]any); ok {
+				property["description"] = `Deprecated value "stack": translated to adjacent tabs; removed in v0.8.0.`
+				counts["stack_arrangement"]++
+			}
+			if _, status := properties["acknowledged"]; status {
+				node["description"] = "Layout migration status. A conversion diagnostic is present in error only " +
+					"when state is failed; a successful retry clears error."
+				properties["state"].(map[string]any)["enum"] = []any{"none", "migrated", "failed"}
+				properties["failure_revision"].(map[string]any)["description"] =
+					"Topology revision installed on conversion failure; cleared after a successful retry."
+				properties[windowManagerSupersededBackupsKey] = map[string]any{
+					"type":        "integer",
+					"minimum":     float64(0),
+					"description": "Number of set-aside layout backups currently retained for this profile; omitted when zero.",
+				}
+				counts["migration_status"]++
+			}
+			if _, action := properties["action"]; action {
+				properties["action"].(map[string]any)["enum"] = []any{"ack", "retry"}
+				properties["replace"].(map[string]any)["description"] =
+					"Replace the layout on retry when it changed after failure."
+				node["required"] = []any{"action"}
+				node["additionalProperties"] = false
+				counts["migration_request"]++
+			}
+			for _, name := range []string{"floating", "floating_rect", "restore_window_id", "minimize", "insert_index", "frame", "group_id", "keep_frames", "group_ids", "stack_grouped", "stack_ungrouped", "stack_active", "window_floating", "window_stacked"} {
+				if property, ok := properties[name].(map[string]any); ok {
+					if alternatives, ok := property["oneOf"].([]any); ok {
+						if len(alternatives) != 2 {
+							t.Fatalf("retired %s has unexpected alternatives: %v", name, alternatives)
+						}
+						nullable, ok := alternatives[1].(map[string]any)
+						if !ok || !reflect.DeepEqual(nullable["enum"], []any{nil}) {
+							t.Fatalf("retired %s has no nullable alternative: %v", name, alternatives[1])
+						}
+						property = alternatives[0].(map[string]any)
+					}
+					property["deprecated"] = true
+					property["description"] = "Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement."
+					// Reflection also carries field metadata onto collection elements.
+					for _, key := range []string{"items", "additionalProperties"} {
+						if child, ok := property[key].(map[string]any); ok {
+							child["deprecated"] = true
+							child["description"] = property["description"]
+						}
+					}
+					counts[name]++
+				}
+			}
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	for path, value := range paths {
+		if strings.HasPrefix(path, windowManagerPath) {
+			visit(value)
+		}
+	}
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name, value := range components {
+		if strings.HasPrefix(name, "WindowManager") {
+			visit(value)
+		}
+	}
+	// Change-set fields occur in Event/Result/Preview components and commands/layout/preview responses (3+3).
+	// stack_active occurs in six component views and seven inline client/command/layout/preview/stream views.
+	want := map[string]int{
+		"floating_policy":    16, // Eight component overrides and eight inline route overrides.
+		"migration_request":  1,
+		"floating_placement": 1,
+		"stack_arrangement":  1,
+		"migration_status":   11, // Seven inline route statuses and four component statuses.
+		"floating":           1,
+		"floating_rect":      3,
+		"restore_window_id":  1,
+		"minimize":           1,
+		"insert_index":       1,
+		"frame":              3,
+		"group_id":           3,
+		"keep_frames":        1,
+		"group_ids":          6,
+		"stack_grouped":      6,
+		"stack_ungrouped":    6,
+		"stack_active":       13,
+		"window_floating":    1,
+		"window_stacked":     1,
+	}
+	if !maps.Equal(counts, want) {
+		t.Fatalf("approved retired wire annotations = %v, want %v", counts, want)
+	}
 }

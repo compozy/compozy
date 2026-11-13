@@ -14,8 +14,8 @@ interface LayoutProfileCardProps {
 }
 
 /**
- * One saved layout. The thumbnail is the record's own geometry, so cards are
- * told apart by shape rather than by reading four names in a row.
+ * One saved layout. The thumbnail is the default tab of its first desktop, so
+ * cards are told apart by shape rather than by reading four names in a row.
  */
 export function LayoutProfileCard({
   record,
@@ -25,6 +25,10 @@ export function LayoutProfileCard({
   onDelete,
 }: LayoutProfileCardProps) {
   const slots = record.spec.participantSlots.length;
+  const tabs =
+    record.spec.source.kind === "current"
+      ? layoutThumbnail(record.spec.source.document).tabCount
+      : null;
 
   return (
     <div
@@ -53,12 +57,17 @@ export function LayoutProfileCard({
             {record.id}
           </span>
           <span className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Pill size="xs" tone={record.scope.kind === "global" ? "info" : "neutral"}>
-              {record.scope.kind === "global" ? "Every project" : "This project"}
+            <Pill size="xs" tone={record.scope.kind === "user" ? "info" : "neutral"}>
+              {record.scope.kind === "user" ? "Every project" : "This project"}
             </Pill>
             {record.spec.aspectVariant === "any" ? null : (
               <Pill size="xs" tone="neutral">
                 {record.spec.aspectVariant === "landscape" ? "Landscape" : "Portrait"}
+              </Pill>
+            )}
+            {tabs === null ? null : (
+              <Pill size="xs" tone="neutral">
+                {tabs} tab{tabs === 1 ? "" : "s"}
               </Pill>
             )}
             <Pill size="xs" tone="neutral">
@@ -94,7 +103,21 @@ export function LayoutProfileCard({
 }
 
 function LayoutProfileThumbnail({ record }: { record: WindowManagerLayoutResourceRecord }) {
-  const thumbnail = layoutThumbnail(record.spec.document);
+  const source = record.spec.source;
+  if (source.kind === "earlier") {
+    // Saved before tabs and splits: the daemon converts it when it is loaded,
+    // and the card does not guess at the result.
+    return (
+      <span
+        className="flex h-full flex-col items-center justify-center gap-0.5 text-center text-form-hint text-faint"
+        data-testid={`layout-profile-earlier-${record.id}`}
+      >
+        <span>Saved before tabs</span>
+        <span>Opens as tabs when loaded</span>
+      </span>
+    );
+  }
+  const thumbnail = layoutThumbnail(source.document);
 
   if (thumbnail.tiles.length === 0) {
     return (
@@ -112,28 +135,16 @@ function LayoutProfileThumbnail({ record }: { record: WindowManagerLayoutResourc
       viewBox={thumbnail.viewBox}
     >
       {thumbnail.tiles.map(tile => (
-        <g key={`${tile.x}:${tile.y}:${tile.w}:${tile.h}`}>
-          {tile.stacked ? (
-            <rect
-              className="fill-surface-2 stroke-line-strong"
-              height={tile.h}
-              rx="1.6"
-              strokeWidth="0.8"
-              width={Math.max(0, tile.w - 2.4)}
-              x={tile.x + 2.4}
-              y={Math.max(0, tile.y - 1.6)}
-            />
-          ) : null}
-          <rect
-            className="fill-bar-fill stroke-line-focus"
-            height={tile.h}
-            rx="1.6"
-            strokeWidth="0.8"
-            width={tile.w}
-            x={tile.x}
-            y={tile.y}
-          />
-        </g>
+        <rect
+          className="fill-bar-fill stroke-line-focus"
+          height={tile.h}
+          key={`${tile.x}:${tile.y}:${tile.w}:${tile.h}`}
+          rx="1.6"
+          strokeWidth="0.8"
+          width={tile.w}
+          x={tile.x}
+          y={tile.y}
+        />
       ))}
     </svg>
   );

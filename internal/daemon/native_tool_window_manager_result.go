@@ -23,9 +23,10 @@ type windowManagerDesktopsResult struct {
 }
 
 type windowManagerWindowsResult struct {
-	WorkspaceID windowmanager.WorkspaceID `json:"workspace_id"`
-	Revision    windowmanager.Revision    `json:"revision"`
-	Windows     []windowmanager.Window    `json:"windows"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	WorkspaceID  windowmanager.WorkspaceID   `json:"workspace_id"`
+	Revision     windowmanager.Revision      `json:"revision"`
+	Windows      []windowmanager.Window      `json:"windows"`
 }
 
 type windowManagerClientsResult struct {
@@ -47,32 +48,35 @@ type windowManagerExportResult struct {
 }
 
 type windowManagerValidationResult struct {
-	WorkspaceID windowmanager.WorkspaceID  `json:"workspace_id"`
-	Revision    windowmanager.Revision     `json:"revision"`
-	Valid       bool                       `json:"valid"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
+	Document    *windowmanager.LayoutDocument `json:"document,omitzero"`
+	WorkspaceID windowmanager.WorkspaceID     `json:"workspace_id"`
+	Revision    windowmanager.Revision        `json:"revision"`
+	Valid       bool                          `json:"valid"`
+	Diagnostics []windowmanager.Diagnostic    `json:"diagnostics"`
 }
 
 type windowManagerCommandResult struct {
-	WorkspaceID windowmanager.WorkspaceID  `json:"workspace_id"`
-	CommandID   windowmanager.CommandID    `json:"command_id"`
-	Revision    windowmanager.Revision     `json:"revision"`
-	Applied     bool                       `json:"applied"`
-	Changes     windowmanager.ChangeSet    `json:"changes"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
-	Client      *windowmanager.ClientView  `json:"client,omitzero"`
-	RebasedFrom *windowmanager.Revision    `json:"rebased_from,omitzero"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	WorkspaceID  windowmanager.WorkspaceID   `json:"workspace_id"`
+	CommandID    windowmanager.CommandID     `json:"command_id"`
+	Revision     windowmanager.Revision      `json:"revision"`
+	Applied      bool                        `json:"applied"`
+	Changes      windowmanager.ChangeSet     `json:"changes"`
+	Diagnostics  []windowmanager.Diagnostic  `json:"diagnostics"`
+	Client       *windowmanager.ClientView   `json:"client,omitzero"`
+	RebasedFrom  *windowmanager.Revision     `json:"rebased_from,omitzero"`
 }
 
 type windowManagerPreviewResult struct {
-	WorkspaceID windowmanager.WorkspaceID  `json:"workspace_id"`
-	CommandID   windowmanager.CommandID    `json:"command_id"`
-	Revision    windowmanager.Revision     `json:"revision"`
-	Changed     bool                       `json:"changed"`
-	Changes     windowmanager.ChangeSet    `json:"changes"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
-	Client      *windowmanager.ClientView  `json:"client,omitzero"`
-	Snapshot    windowmanager.Snapshot     `json:"snapshot"`
+	Deprecations []windowmanager.Deprecation `json:"deprecations"`
+	WorkspaceID  windowmanager.WorkspaceID   `json:"workspace_id"`
+	CommandID    windowmanager.CommandID     `json:"command_id"`
+	Revision     windowmanager.Revision      `json:"revision"`
+	Changed      bool                        `json:"changed"`
+	Changes      windowmanager.ChangeSet     `json:"changes"`
+	Diagnostics  []windowmanager.Diagnostic  `json:"diagnostics"`
+	Client       *windowmanager.ClientView   `json:"client,omitzero"`
+	Snapshot     windowmanager.Snapshot      `json:"snapshot"`
 }
 
 func newWindowManagerCommandResult(
@@ -80,44 +84,43 @@ func newWindowManagerCommandResult(
 	result *windowmanager.Result,
 ) windowManagerCommandResult {
 	return windowManagerCommandResult{
-		WorkspaceID: result.Snapshot.WorkspaceID,
-		CommandID:   commandID,
-		Revision:    result.Snapshot.Revision,
-		Applied:     result.Applied,
-		Changes:     result.Changes,
-		Diagnostics: append([]windowmanager.Diagnostic{}, result.Diagnostics...),
-		Client:      result.Client,
-		RebasedFrom: result.RebasedFrom,
+		Deprecations: append([]windowmanager.Deprecation{}, result.Deprecations...),
+		WorkspaceID:  result.Snapshot.WorkspaceID,
+		CommandID:    commandID,
+		Revision:     result.Snapshot.Revision,
+		Applied:      result.Applied,
+		Changes:      result.Changes,
+		Diagnostics:  append([]windowmanager.Diagnostic{}, result.Diagnostics...),
+		Client:       result.Client,
+		RebasedFrom:  result.RebasedFrom,
 	}
 }
 
 func newWindowManagerPreviewResult(
 	commandID windowmanager.CommandID,
-	preview windowmanager.Preview,
+	preview *windowmanager.Preview,
 ) windowManagerPreviewResult {
 	return windowManagerPreviewResult{
-		WorkspaceID: preview.Snapshot.WorkspaceID,
-		CommandID:   commandID,
-		Revision:    preview.Snapshot.Revision,
-		Changed:     preview.Changed,
-		Changes:     preview.Changes,
-		Diagnostics: append([]windowmanager.Diagnostic{}, preview.Diagnostics...),
-		Client:      preview.Client,
-		Snapshot:    preview.Snapshot,
+		Deprecations: append([]windowmanager.Deprecation{}, preview.Deprecations...),
+		WorkspaceID:  preview.Snapshot.WorkspaceID,
+		CommandID:    commandID,
+		Revision:     preview.Snapshot.Revision,
+		Changed:      preview.Changed,
+		Changes:      preview.Changes,
+		Diagnostics:  append([]windowmanager.Diagnostic{}, preview.Diagnostics...),
+		Client:       preview.Client,
+		Snapshot:     preview.Snapshot,
 	}
 }
 
 func windowManagerSortedWindows(
 	snapshot windowmanager.Snapshot,
 	desktopID windowmanager.DesktopID,
-	includeMinimized bool,
+	_ bool,
 ) []windowmanager.Window {
 	windows := make([]windowmanager.Window, 0, len(snapshot.Windows))
 	for _, window := range snapshot.Windows {
 		if desktopID != "" && window.DesktopID != desktopID {
-			continue
-		}
-		if !includeMinimized && window.Minimized {
 			continue
 		}
 		windows = append(windows, window)
@@ -208,7 +211,6 @@ func windowManagerToolError(id toolspkg.ToolID, err error) error {
 	case errors.Is(err, windowmanager.ErrWindowBindingInvalid), errors.Is(err, windowmanager.ErrInvalidCommand),
 		errors.Is(err, windowmanager.ErrInvalidTopology),
 		errors.Is(err, windowmanager.ErrDestinationRequired),
-		errors.Is(err, windowmanager.ErrNotStacked),
 		errors.Is(err, windowmanager.ErrWindowPinned):
 		code, cause, reason = toolspkg.ErrorCodeInvalidInput, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid
 	case errors.Is(err, windowmanager.ErrClosed):

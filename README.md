@@ -190,7 +190,7 @@ setup.
 | **Sessions**   | Agent work that outlives the terminal. Fork a session, continue it with another agent, rewind to a checkpoint, or steer it mid-turn. |
 | **Files**      | Browse and search the project, and review a session's diff against its base.                                                         |
 | **Terminal**   | Runtime-owned shells you can open, watch, and hand to an agent.                                                                      |
-| **Desktops**   | Persistent desktops, tiled and floating windows, a command palette, and a global hotkey.                                             |
+| **Desktops**   | Persistent desktops with browser-style tabs and side-by-side splits, a command palette, and a global hotkey.                         |
 | **Workspaces** | See all projects at once, work without a project, and give parallel agents their own worktree.                                       |
 | **Tasks**      | Durable work a session claims, heartbeats, and closes with evidence.                                                                 |
 | **Profiles**   | Separate work on one install. Profiles organize work; they are not a security boundary.                                              |

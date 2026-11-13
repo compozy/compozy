@@ -1,9 +1,9 @@
 /**
  * The draft app shell: the production `DesktopShell` grid (topbar across the top, rail, inset desk)
  * from the real shell pieces that render from props, around one zoomed window. The wired pieces
- * reach the daemon, so the frame around the real parts is local: `DraftDeck` lays out real
- * `OsWindowTabView` plates the way `OsWindowDeck` does, `DraftRailFoot` stands in for `OsRailFoot`,
- * and the plain menu row stands in for `DesktopMenubar`'s owned menus.
+ * reach the daemon, so the frame around the real parts is local: `DraftTabBar` lays out plates the
+ * way `OsTabBar` does, `DraftRailFoot` stands in for `OsRailFoot`, and the plain menu row stands
+ * in for `DesktopMenubar`'s owned menus.
  */
 import { Settings } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
@@ -11,16 +11,10 @@ import type { ReactNode } from "react";
 import { Icon, Kbd, Pill, ThemeToggle, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
-import { DesktopPager } from "@/systems/os/components/desktop-pager";
+import { DesktopIndicators } from "@/systems/os/components/desktop-indicators";
 import { OsDock, OsRailButton } from "@/systems/os/components/os-dock";
 import { OsMenuBar, type OsMenuBarProps } from "@/systems/os/components/os-menubar";
-import { OsTrafficLights } from "@/systems/os/components/os-traffic-lights";
-import { OsWindowChrome, OsWindowSurface } from "@/systems/os/components/os-window-frame";
-import {
-  OS_WINDOW_DECK_SLOT_CLASS,
-  OS_WINDOW_DECK_STRIP_CLASS,
-} from "@/systems/os/components/os-window-deck-classes";
-import { OsWindowTabView } from "@/systems/os/components/os-window-tab-view";
+import { OsWindowSurface } from "@/systems/os/components/os-window-surface";
 import type { OsDockItemData } from "@/systems/os/lib/os-dock-model";
 import { applyTheme } from "@/systems/theme/lib/apply-theme";
 
@@ -53,7 +47,6 @@ function dockItems(app: DraftApp, sessionBadge: number): OsDockItemData[] {
     ...item,
     running: item.id === app || item.id === "terminal",
     active: item.id === app,
-    minimized: false,
     badge: item.id === "sessions" && sessionBadge > 0 ? sessionBadge : undefined,
   }));
 }
@@ -81,35 +74,29 @@ export interface DraftTab {
   pending?: number;
 }
 
-/** `OsWindowDeck` without the window manager: real tabs in the deck's own strip and slots. */
-function DraftDeck({ tabs, activeId }: { tabs: readonly DraftTab[]; activeId: string }) {
+/** `OsTabBar` without the window manager: one plate per tab on the bar's own surface. */
+function DraftTabBar({ tabs, activeId }: { tabs: readonly DraftTab[]; activeId: string }) {
   return (
-    <div className={OS_WINDOW_DECK_STRIP_CLASS} data-slot="os-window-deck">
-      <div
-        aria-label="Open tabs"
-        className="no-scrollbar flex h-full min-w-0 flex-1 items-end overflow-x-auto px-2.5"
-        role="tablist"
-      >
+    <div
+      className="flex h-10 min-w-0 items-center gap-1 bg-rail pr-2 pl-1.5"
+      data-slot="os-tab-bar"
+    >
+      <div aria-label="Tabs" className="flex min-w-0 flex-1 items-center gap-1" role="tablist">
         {tabs.map(tab => (
           <div
-            className={cn(OS_WINDOW_DECK_SLOT_CLASS, "w-deck-tab-max min-w-deck-tab")}
-            data-active={tab.id === activeId ? "" : undefined}
-            data-deck-slot=""
+            aria-selected={tab.id === activeId}
+            className={cn(
+              "flex h-6.75 max-w-56 min-w-10 flex-[1_1_14rem] items-center gap-2 rounded-sm px-2 text-body font-medium",
+              tab.id === activeId ? "bg-fg/7 text-fg" : "bg-fg/4 text-fg-2"
+            )}
             key={tab.id}
+            role="tab"
           >
-            <OsWindowTabView
-              active={tab.id === activeId}
-              glyph={tab.glyph}
-              label={tab.title}
-              pendingCount={tab.pending}
-              title={tab.title}
-              windowId={tab.id}
-            />
+            {tab.glyph}
+            <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+            <Pill.Count count={tab.pending ?? 0} />
           </div>
         ))}
-      </div>
-      <div className="flex h-full shrink-0 items-center pl-2">
-        <OsTrafficLights />
       </div>
     </div>
   );
@@ -160,9 +147,8 @@ export function DraftShell({
   overlay,
   wrapBellTrigger,
 }: DraftShellProps) {
-  const deck = tabs && tabs.length > 1;
   return (
-    <div className="relative grid h-dvh w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-rail text-fg">
+    <div className="relative grid h-dvh w-full grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-rail text-fg">
       <OsMenuBar
         className="col-span-full"
         commandShortcutLabel="⌘K"
@@ -176,10 +162,14 @@ export function DraftShell({
         ))}
         notifications={notifications}
         pager={
-          <DesktopPager
+          <DesktopIndicators
             activeDesktopId="build"
             desktops={DESKTOPS}
             onOpenOverview={() => undefined}
+            onCloseDesktop={() => undefined}
+            onCreateDesktop={() => undefined}
+            onRenameDesktop={() => undefined}
+            onReorderDesktop={() => undefined}
             onSelectDesktop={() => undefined}
           />
         }
@@ -187,28 +177,32 @@ export function DraftShell({
         wrapBellTrigger={wrapBellTrigger}
       />
       <OsDock
-        className="col-start-1 row-start-2"
+        className="col-start-1 row-span-2 row-start-2"
         foot={<DraftRailFoot />}
         items={dockItems(app, sessionBadge)}
         onSelect={() => undefined}
       />
+      <div className="col-start-2 row-start-2 min-w-0">
+        {tabs && tabs.length > 0 ? (
+          <DraftTabBar activeId={activeTabId ?? tabs[0]!.id} tabs={tabs} />
+        ) : (
+          <div className="h-10 bg-rail" />
+        )}
+      </div>
       <div
-        className="relative col-start-2 row-start-2 min-h-0 overflow-hidden rounded-tl-lg border-t border-l border-line"
+        className="relative col-start-2 row-start-3 min-h-0 overflow-hidden rounded-tl-lg border-t border-l border-line"
         data-slot="os-desk"
       >
-        <OsWindowChrome className="absolute inset-0" kind="tiled">
-          {deck ? <DraftDeck activeId={activeTabId ?? tabs[0]!.id} tabs={tabs} /> : null}
-          <OsWindowSurface
-            controls={deck ? "deck" : "head"}
-            glyph={glyph}
-            leading={leading}
-            onTrafficLight={() => undefined}
-            title={title}
-          >
-            {topbar ? <PublishTopbar value={topbar} /> : null}
-            {children}
-          </OsWindowSurface>
-        </OsWindowChrome>
+        <OsWindowSurface
+          className="absolute inset-0"
+          glyph={glyph}
+          leading={leading}
+          onClose={() => undefined}
+          title={title}
+        >
+          {topbar ? <PublishTopbar value={topbar} /> : null}
+          {children}
+        </OsWindowSurface>
       </div>
       {overlay}
     </div>

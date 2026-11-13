@@ -53,14 +53,18 @@ const (
 	OpPut OpKind = iota + 1
 	// OpDelete writes a tombstone for an existing live value.
 	OpDelete
+	// OpCopy preserves the exact bytes of an existing value within the same atomic batch.
+	OpCopy
 )
 
 // Op is one mutation in an Apply batch.
 type Op struct {
-	Kind  OpKind
-	Key   string
-	Value []byte
-	IfRev uint64
+	Kind      OpKind
+	Key       string
+	Value     []byte
+	IfRev     uint64
+	SourceKey string
+	SourceRev uint64
 }
 
 // ApplyOptions carries mutation metadata that is not persisted in the value.

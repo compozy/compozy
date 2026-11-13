@@ -1,17 +1,56 @@
 package cmdpalette
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // Suite: daemon command-palette invocation.
 // Invariant: exact IDs, declared schemas, targeted availability, policy concurrency, and approval fences gate every side effect.
 func TestRegistryInvoke(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should resolve retired core window commands as no-ops without an attached shell", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range windowmanager.RetiredPaletteCommandIDs() {
+			var logs bytes.Buffer
+			executor := &testExecutor{}
+			service := testRegistryWithOptions(staticTestProvider{commands: []Descriptor{testDescriptor("unrelated")}},
+				nil, nil, executor, WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
+			service.retiredWarnings = &sync.Map{}
+			for range 2 {
+				result, err := service.Invoke(t.Context(), InvokeRequest{
+					ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: CommandID(id),
+				})
+				var payload struct {
+					Applied      bool                        `json:"applied"`
+					Deprecations []windowmanager.Deprecation `json:"deprecations"`
+				}
+				if err != nil || result.Status != InvokeStatusOK || executor.callCount() != 0 {
+					t.Fatalf("Invoke(%s) result=%+v error=%v calls=%d", id, result, err, executor.callCount())
+				}
+				if err := json.Unmarshal(result.Result, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Applied || len(payload.Deprecations) != 1 || payload.Deprecations[0].Surface != id ||
+					payload.Deprecations[0].RemovalRelease != "v0.8.0" || payload.Deprecations[0].Replacement == "" {
+					t.Fatalf("Invoke(%s) payload=%+v", id, payload)
+				}
+			}
+			if strings.Count(logs.String(), "window_manager.deprecated_surface_used") != 1 {
+				t.Fatalf("deprecation must warn once: %s", logs.String())
+			}
+		}
+	})
 
 	t.Run("Should fail closed without a lens and keep profile management local [UT-097][UT-098]", func(t *testing.T) {
 		t.Parallel()

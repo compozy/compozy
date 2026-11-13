@@ -653,14 +653,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		ext := inventoryTestExtension(true)
 		ext.Layouts = []windowmanager.LayoutResource{{
 			Version: windowmanager.LayoutResourceVersion, ID: "two-up", DisplayName: "Two up",
-			Document: windowmanager.LayoutDocument{
-				Version: windowmanager.SnapshotVersion,
-				Desktops: []windowmanager.Desktop{{
-					ID: "desktop-default", Name: "Desktop 1",
-					Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-				}},
-				Windows: map[windowmanager.WindowID]windowmanager.Window{},
-			},
+			Document: daemonTestLayoutDocument("Main"),
 		}}
 		desired, err := projectExtensionKitItems(t.Context(), ext, codecs, nil, extensionpkg.InputState{})
 		if err != nil {

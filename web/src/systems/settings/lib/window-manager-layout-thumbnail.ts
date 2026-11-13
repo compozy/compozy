@@ -8,12 +8,13 @@ export interface LayoutThumbnailTile {
   y: number;
   w: number;
   h: number;
-  stacked: boolean;
 }
 
 export interface LayoutThumbnail {
   viewBox: string;
   tiles: LayoutThumbnailTile[];
+  /** Tabs on the pictured desktop; the picture shows the one it opens on. */
+  tabCount: number;
 }
 
 const VIEW_WIDTH = 100;
@@ -22,30 +23,28 @@ const SEAM = 1.6;
 const INSET = 1;
 
 /**
- * A card's picture of a saved layout. Deliberately not a projection: no gaps, no
- * window minimums, no viewport — a stored document has no screen to be measured
- * against, and pretending otherwise would show fit warnings for a size nobody
- * chose. This is a diagram of the shape.
+ * A card's picture of a saved layout: the first desktop's default tab, its
+ * split drawn from the weights. Deliberately not a projection — no gaps, no
+ * window minimums, no viewport — a stored document has no screen to be
+ * measured against. This is a diagram of the shape.
  */
 export function layoutThumbnail(document: WindowManagerLayoutDocument): LayoutThumbnail {
   const desktop = document.desktops[0];
   const tiles: LayoutThumbnailTile[] = [];
-  if (desktop) {
-    for (const group of desktop.groups) {
-      collect(
-        group.root,
-        {
-          x: INSET + group.frame.x * (VIEW_WIDTH - INSET * 2),
-          y: INSET + group.frame.y * (VIEW_HEIGHT - INSET * 2),
-          w: group.frame.w * (VIEW_WIDTH - INSET * 2),
-          h: group.frame.h * (VIEW_HEIGHT - INSET * 2),
-          stacked: false,
-        },
-        tiles
-      );
-    }
+  const tab =
+    desktop?.tabs.find(candidate => candidate.id === desktop.activeTabId) ?? desktop?.tabs[0];
+  if (tab) {
+    collect(
+      tab.root,
+      { x: INSET, y: INSET, w: VIEW_WIDTH - INSET * 2, h: VIEW_HEIGHT - INSET * 2 },
+      tiles
+    );
   }
-  return { viewBox: `0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`, tiles };
+  return {
+    viewBox: `0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`,
+    tiles,
+    tabCount: desktop?.tabs.length ?? 0,
+  };
 }
 
 function collect(
@@ -53,8 +52,8 @@ function collect(
   rect: LayoutThumbnailTile,
   tiles: LayoutThumbnailTile[]
 ): void {
-  if (node.kind !== "split") {
-    tiles.push({ ...rect, stacked: node.kind === "stack" });
+  if (node.kind === "leaf") {
+    tiles.push(rect);
     return;
   }
   const horizontal = node.axis === "horizontal";
@@ -66,8 +65,8 @@ function collect(
     collect(
       child,
       horizontal
-        ? { x: offset, y: rect.y, w: length, h: rect.h, stacked: false }
-        : { x: rect.x, y: offset, w: rect.w, h: length, stacked: false },
+        ? { x: offset, y: rect.y, w: length, h: rect.h }
+        : { x: rect.x, y: offset, w: rect.w, h: length },
       tiles
     );
     offset += length + SEAM;

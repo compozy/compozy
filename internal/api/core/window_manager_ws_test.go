@@ -172,6 +172,16 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 			t.Fatalf("event after client-b mutation = %+v", eventFrame)
 		}
 
+		var repairedFrame contract.WindowManagerClientFrame
+		if readErr := connection.ReadJSON(&repairedFrame); readErr != nil {
+			t.Fatalf("ReadJSON(repaired client) error = %v", readErr)
+		}
+		if repairedFrame.Type != contract.WindowManagerFrameClient ||
+			repairedFrame.Client.ClientID != clientA ||
+			len(repairedFrame.Client.ActiveTab) != 3 {
+			t.Fatalf("topology repair frame = %+v", repairedFrame)
+		}
+
 		if err := fixture.manager.UnregisterClient(t.Context(), "workspace-a", clientA); err != nil {
 			t.Fatalf("UnregisterClient() error = %v", err)
 		}
@@ -251,7 +261,7 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 			!context.WorkspaceTrusted ||
 			context.DestinationIntent == nil ||
 			context.DestinationIntent.Pathname != "/sessions/session-a" ||
-			context.WindowFocused || context.DesktopWindowCount != 0 {
+			!context.WindowFocused || context.DesktopWindowCount != 1 {
 			t.Fatalf("client context frame = %+v", clientFrame)
 		}
 	})

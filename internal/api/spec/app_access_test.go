@@ -430,6 +430,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"getToolset",
 			"getVaultSecretMetadata",
 			"getWindowManagerSnapshot",
+			"getWindowManagerMigration",
+			"updateWindowManagerMigration",
 			"getWorktreeExitPlan",
 			"getWorktreeStatus",
 			"heartbeatAgentTaskRun",

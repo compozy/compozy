@@ -50,20 +50,20 @@ func (h *Hooks) DispatchWindowManagerWindowClosed(
 	return executeWindowManagerDispatch(ctx, h, HookWindowManagerWindowClosed, payload)
 }
 
-// DispatchWindowManagerStackGrouped dispatches window_manager.stack.grouped.
+// DispatchWindowManagerStackGrouped is a load-only compatibility no-op until v0.8.0.
 func (h *Hooks) DispatchWindowManagerStackGrouped(
-	ctx context.Context,
+	_ context.Context,
 	payload WindowManagerStackGroupedPayload,
 ) (WindowManagerStackGroupedPayload, error) {
-	return executeWindowManagerDispatch(ctx, h, HookWindowManagerStackGrouped, payload)
+	return payload, nil
 }
 
-// DispatchWindowManagerStackUngrouped dispatches window_manager.stack.ungrouped.
+// DispatchWindowManagerStackUngrouped is a load-only compatibility no-op until v0.8.0.
 func (h *Hooks) DispatchWindowManagerStackUngrouped(
-	ctx context.Context,
+	_ context.Context,
 	payload WindowManagerStackUngroupedPayload,
 ) (WindowManagerStackUngroupedPayload, error) {
-	return executeWindowManagerDispatch(ctx, h, HookWindowManagerStackUngrouped, payload)
+	return payload, nil
 }
 
 // DispatchWindowManagerStackActivated dispatches window_manager.stack.activated.
@@ -87,4 +87,25 @@ func executeWindowManagerDispatch(
 			apply: applyNoop[WindowManagerPayload, WindowManagerObservationPatch],
 		},
 	)
+}
+
+func (h *Hooks) DispatchWindowManagerTabSplit(
+	ctx context.Context,
+	payload WindowManagerTabSplitPayload,
+) (WindowManagerTabSplitPayload, error) {
+	return executeWindowManagerDispatch(ctx, h, HookWindowManagerTabSplit, payload)
+}
+
+func (h *Hooks) DispatchWindowManagerTabUnsplit(
+	ctx context.Context,
+	payload WindowManagerTabUnsplitPayload,
+) (WindowManagerTabUnsplitPayload, error) {
+	return executeWindowManagerDispatch(ctx, h, HookWindowManagerTabUnsplit, payload)
+}
+
+func (h *Hooks) DispatchWindowManagerTabActivated(
+	ctx context.Context,
+	payload WindowManagerTabActivatedPayload,
+) (WindowManagerTabActivatedPayload, error) {
+	return executeWindowManagerDispatch(ctx, h, HookWindowManagerTabActivated, payload)
 }

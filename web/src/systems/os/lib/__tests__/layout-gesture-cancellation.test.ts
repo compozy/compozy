@@ -51,4 +51,18 @@ describe("bindLayoutGestureCancellation", () => {
     window.dispatchEvent(event());
     expect(cancel).toHaveBeenCalledOnce();
   });
+
+  it("Should keep the Escape that cancels a gesture from reaching anything under it", () => {
+    const unbind = bindLayoutGestureCancellation(window, vi.fn());
+    const onKeyDown = vi.fn();
+    document.body.addEventListener("keydown", onKeyDown);
+    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+
+    document.body.dispatchEvent(escape);
+
+    expect(escape.defaultPrevented).toBe(true);
+    expect(onKeyDown).not.toHaveBeenCalled();
+    unbind();
+    document.body.removeEventListener("keydown", onKeyDown);
+  });
 });

@@ -156,7 +156,11 @@ func executeWindowManagerCommand(
 	if err != nil {
 		return contract.WindowManagerResult{}, err
 	}
-	return client.ExecuteWindowManagerCommand(cmd.Context(), string(request.WorkspaceID), request)
+	result, err := client.ExecuteWindowManagerCommand(cmd.Context(), string(request.WorkspaceID), request)
+	if err == nil {
+		warnWindowManagerDeprecations(cmd, result.Deprecations)
+	}
+	return result, err
 }
 
 func windowManagerClientFromDeps(deps commandDeps) (WindowManagerClient, error) {
@@ -277,6 +281,9 @@ func readWindowManagerDocument(cmd *cobra.Command, file string) (contract.Window
 	var document contract.WindowManagerLayoutDocument
 	if err := decodeStrictWindowManagerJSON(data, &document); err != nil {
 		return contract.WindowManagerLayoutDocument{}, fmt.Errorf("cli: decode layout document: %w", err)
+	}
+	for _, entry := range document.InputDeprecations {
+		cmd.PrintErrln(entry.Message)
 	}
 	return document, nil
 }

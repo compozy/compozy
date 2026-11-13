@@ -86,7 +86,7 @@ Use the sanitized `SessionsStability/Working/LongSummaries` story, then repeat t
 relevant transcript flow against the isolated browser runtime. At 360, 860, and
 1600 px, summaries stay on one line: tool/reasoning/live/activity/Goal text uses a
 maximum 24 rem readable measure; headings use at most 20 rem. Smaller containers
-shrink these bounds. Session sidebar and deck tabs retain their existing tighter
+shrink these bounds. Session sidebar and desktop tab bar tabs retain their existing tighter
 constraints. Full message bodies and intentionally expanded content remain readable.
 
 - Inspect a multiline heredoc, an unbroken path, Unicode graphemes, a provider title
@@ -218,3 +218,5 @@ gone (Storybook replay); painted-frame traces show a single clean transition.
 In the lab (~400 entries, a loaded machine) frame timing stayed noisy.
 The reported visual jump was not reproduced in either environment before the
 fix; see the PR for the measurements.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Per-pane deck tabs are retired; the bounded-summary note now names the desktop tab bar's tabs, whose titles still truncate inside their own tighter bound. Wording only; the summary bounds this scenario verifies are unchanged. Status unchanged.

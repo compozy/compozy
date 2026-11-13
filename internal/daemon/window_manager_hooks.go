@@ -62,6 +62,9 @@ func windowManagerHookPayloads(event windowmanager.Event) []windowManagerHookDis
 				CommandID:   string(event.CommandID),
 				Changes: hookspkg.WindowManagerChanges{
 					DesktopIDs:     windowManagerHookIDs(event.Changes.DesktopIDs),
+					TabIDs:         windowManagerHookIDs(event.Changes.TabIDs),
+					TabSplit:       windowManagerHookIDs(event.Changes.TabSplit),
+					TabUnsplit:     windowManagerHookIDs(event.Changes.TabUnsplit),
 					WindowIDs:      windowManagerHookIDs(event.Changes.WindowIDs),
 					GroupIDs:       windowManagerHookIDs(event.Changes.GroupIDs),
 					NodeIDs:        windowManagerHookIDs(event.Changes.NodeIDs),
@@ -95,14 +98,18 @@ func windowManagerHookEventsForCommit(event windowmanager.Event) []hookspkg.Hook
 		hookEvents = append(hookEvents, hookspkg.HookWindowManagerWindowOpened)
 	case windowmanager.CommandWindowClose:
 		hookEvents = append(hookEvents, hookspkg.HookWindowManagerWindowClosed)
-	case windowmanager.CommandWindowStackSetActive:
-		hookEvents = append(hookEvents, hookspkg.HookWindowManagerStackActivated)
+	case windowmanager.CommandWindowTabActivate:
+		hookEvents = append(
+			hookEvents,
+			hookspkg.HookWindowManagerTabActivated,
+			hookspkg.HookWindowManagerStackActivated,
+		)
 	}
-	if len(event.Changes.StackGrouped) > 0 {
-		hookEvents = append(hookEvents, hookspkg.HookWindowManagerStackGrouped)
+	if len(event.Changes.TabSplit) > 0 {
+		hookEvents = append(hookEvents, hookspkg.HookWindowManagerTabSplit)
 	}
-	if len(event.Changes.StackUngrouped) > 0 {
-		hookEvents = append(hookEvents, hookspkg.HookWindowManagerStackUngrouped)
+	if len(event.Changes.TabUnsplit) > 0 {
+		hookEvents = append(hookEvents, hookspkg.HookWindowManagerTabUnsplit)
 	}
 	return hookEvents
 }
@@ -132,11 +139,14 @@ func dispatchWindowManagerHook(
 	case hookspkg.HookWindowManagerWindowClosed:
 		_, err := dispatcher.DispatchWindowManagerWindowClosed(ctx, payload)
 		return err
-	case hookspkg.HookWindowManagerStackGrouped:
-		_, err := dispatcher.DispatchWindowManagerStackGrouped(ctx, payload)
+	case hookspkg.HookWindowManagerTabSplit:
+		_, err := dispatcher.DispatchWindowManagerTabSplit(ctx, payload)
 		return err
-	case hookspkg.HookWindowManagerStackUngrouped:
-		_, err := dispatcher.DispatchWindowManagerStackUngrouped(ctx, payload)
+	case hookspkg.HookWindowManagerTabUnsplit:
+		_, err := dispatcher.DispatchWindowManagerTabUnsplit(ctx, payload)
+		return err
+	case hookspkg.HookWindowManagerTabActivated:
+		_, err := dispatcher.DispatchWindowManagerTabActivated(ctx, payload)
 		return err
 	case hookspkg.HookWindowManagerStackActivated:
 		_, err := dispatcher.DispatchWindowManagerStackActivated(ctx, payload)

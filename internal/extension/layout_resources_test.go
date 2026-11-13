@@ -89,16 +89,15 @@ func testLayoutResource(id string) windowmanager.LayoutResource {
 		ID:               id,
 		DisplayName:      "Two up",
 		ParticipantSlots: []windowmanager.WindowID{"primary", "secondary"},
-		Document: windowmanager.LayoutDocument{
-			Version: windowmanager.SnapshotVersion,
-			Desktops: []windowmanager.Desktop{{
-				ID:       "desktop-default",
-				Name:     "Desktop 1",
-				Groups:   []windowmanager.LayoutGroup{},
-				Floating: []windowmanager.WindowID{},
-			}},
-			Windows: map[windowmanager.WindowID]windowmanager.Window{},
-		},
+		Document: func() windowmanager.LayoutDocument {
+			s := windowmanager.DefaultSnapshot("")
+			return windowmanager.LayoutDocument{
+				Version:   s.Version,
+				Desktops:  s.Desktops,
+				Windows:   s.Windows,
+				Overrides: s.Overrides,
+			}
+		}(),
 	}
 }
 

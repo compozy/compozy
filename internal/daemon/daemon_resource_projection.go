@@ -95,8 +95,20 @@ func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
 			return nil, err
 		}
 
+		projectionStore := deps.ResourceStore
+		if deps.WindowLayoutCatalog != nil {
+			codec, err := resources.ResolveCodec[windowmanager.LayoutResource](
+				deps.CodecRegistry, windowmanager.WindowLayoutResourceKind,
+			)
+			if err != nil {
+				return nil, err
+			}
+			projectionStore = windowLayoutProjectionStore{
+				RawStore: projectionStore, codec: codec, logger: deps.Logger,
+			}
+		}
 		return resources.NewReconcileDriver(
-			deps.ResourceStore,
+			projectionStore,
 			resourceReconcileActor(),
 			registrations,
 			resources.WithReconcileLogger(deps.Logger),

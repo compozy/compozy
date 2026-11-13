@@ -1153,6 +1153,11 @@ export type BindSessionWorktreeRequest = {
   worktree: string;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type BindingsConfig = {
   bottom_center: string;
   top_center: string;
@@ -1273,10 +1278,28 @@ export type ChangePatchPayload = {
 export type ChangeSet = {
   client_ids?: Array<string>;
   desktop_ids?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   group_ids?: Array<string>;
   node_ids?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_grouped?: Array<string>;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_ungrouped?: Array<string>;
+  tab_ids?: Array<string>;
+  tab_split?: Array<string>;
+  tab_unsplit?: Array<string>;
   window_ids?: Array<string>;
 };
 
@@ -1635,6 +1658,9 @@ export type ContractWindowManagerClientRegistration = {
 
 export type ContractWindowManagerClientView = {
   active_desktop_id: string;
+  active_tab: {
+    [key: string]: string;
+  };
   attachment_token?: string;
   client_id: string;
   connected_at: string;
@@ -1645,6 +1671,11 @@ export type ContractWindowManagerClientView = {
   kind: string;
   palette_context: WindowManagerPaletteContext;
   presentation_revision: number;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   stack_active: {
     [key: string]: string;
   };
@@ -1679,6 +1710,8 @@ export type ContractWindowManagerCommandRequest = {
     | "window.stack.set_active"
     | "window.pin"
     | "window.reopen"
+    | "window.tab.reorder"
+    | "window.tab.activate"
     | "layout.arrange"
     | "layout.resize"
     | "layout.frame_resize"
@@ -1694,12 +1727,11 @@ export type ContractWindowManagerCommandRequest = {
 };
 
 export type ContractWindowManagerDesktop = {
-  floating: Array<string>;
-  floating_stacks: Array<WindowManagerFloatingStack>;
-  groups: Array<ContractWindowManagerLayoutGroup>;
+  active_tab_id: string;
   id: string;
   name: string;
   order: number;
+  tabs: Array<ContractWindowManagerTab>;
 };
 
 export type ContractWindowManagerErrorPayload = {
@@ -1737,12 +1769,6 @@ export type ContractWindowManagerLayoutDocument = {
   workspace_id: string;
 };
 
-export type ContractWindowManagerLayoutGroup = {
-  frame: NormalizedRect;
-  id: string;
-  root: WindowManagerLayoutNode;
-};
-
 export type ContractWindowManagerLayoutReplaceRequest = {
   actor: WindowManagerActor;
   client_id?: string | null;
@@ -1759,6 +1785,7 @@ export type ContractWindowManagerLayoutValidationRequest = {
 
 export type ContractWindowManagerLayoutValidationResponse = {
   diagnostics?: Array<Diagnostic>;
+  document?: ContractWindowManagerLayoutDocument | null;
   valid: boolean;
   workspace_id: string;
 };
@@ -1767,6 +1794,7 @@ export type ContractWindowManagerPreview = {
   changed: boolean;
   changes: ChangeSet;
   client?: ContractWindowManagerClientView | null;
+  deprecations: Array<Deprecation>;
   diagnostics?: Array<Diagnostic>;
   snapshot: ContractWindowManagerSnapshot;
 };
@@ -1775,6 +1803,7 @@ export type ContractWindowManagerResult = {
   applied: boolean;
   changes: ChangeSet;
   client?: ContractWindowManagerClientView | null;
+  deprecations: Array<Deprecation>;
   diagnostics?: Array<Diagnostic>;
   rebased_from?: number;
   snapshot: ContractWindowManagerSnapshot;
@@ -1783,6 +1812,7 @@ export type ContractWindowManagerResult = {
 export type ContractWindowManagerSnapshot = {
   closed_entry_count: number;
   desktops: Array<ContractWindowManagerDesktop>;
+  migration?: MigrationStatus | null;
   overrides: WorkspaceConfig;
   revision: number;
   updated_at: string;
@@ -1791,6 +1821,12 @@ export type ContractWindowManagerSnapshot = {
     [key: string]: WindowManagerWindow;
   };
   workspace_id: string;
+};
+
+export type ContractWindowManagerTab = {
+  id: string;
+  pinned: boolean;
+  root: WindowManagerLayoutNode;
 };
 
 export type CoordinatorConfigPayload = {
@@ -2076,6 +2112,14 @@ export type DeleteProfileResponse = {
 
 export type DeleteResourceRequest = {
   expected_version: number;
+};
+
+export type Deprecation = {
+  code: string;
+  message: string;
+  removal_release: string;
+  replacement?: string;
+  surface: string;
 };
 
 export type DetailBody = {
@@ -5389,6 +5433,37 @@ export type MetricSpec = {
   min_delta?: number | null;
 };
 
+/**
+ * Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error.
+ */
+export type MigrationStatus = {
+  acknowledged: boolean;
+  at?: string;
+  error?: Diagnostic | null;
+  /**
+   * Topology revision installed on conversion failure; cleared after a successful retry.
+   */
+  failure_revision?: number;
+  from_version?: number;
+  state: "none" | "migrated" | "failed";
+  summary?: MigrationSummary | null;
+  /**
+   * Number of set-aside layout backups currently retained for this profile; omitted when zero.
+   */
+  superseded_backups?: number;
+};
+
+export type MigrationSummary = {
+  desktops: number;
+  floating_to_tabs: number;
+  islands_merged: number;
+  minimized_to_tabs: number;
+  pins_dropped: number;
+  tabs: number;
+  windows: number;
+  zoom_desktops_merged: number;
+};
+
 export type ModelCatalogCostPayload = {
   cache_read_per_million?: number | null;
   cache_write_per_million?: number | null;
@@ -5472,13 +5547,6 @@ export type NodeCancellation = {
 
 export type NodeUsage = {
   tokens: number;
-};
-
-export type NormalizedRect = {
-  height: number;
-  width: number;
-  x: number;
-  y: number;
 };
 
 export type OTelSignalStatusPayload = {
@@ -8767,6 +8835,9 @@ export type SettingsHookDeclarationPayload = {
     | "spawn.ttl_expired"
     | "spawn.reaped"
     | "session.attention.changed"
+    | "window_manager.tab.split"
+    | "window_manager.tab.unsplit"
+    | "window_manager.tab.activated"
     | "window_manager.layout.applied"
     | "window_manager.desktop.created"
     | "window_manager.desktop.deleted"
@@ -9812,6 +9883,11 @@ export type SettingsUpdateRuntimePayload = {
     | "canceled";
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SettingsWindowManagerBindingPayload = {
   bottom_center: "none" | "reserved" | "zoom";
   top_center: "none" | "reserved" | "zoom";
@@ -9825,9 +9901,19 @@ export type SettingsWindowManagerCommandPayload = {
 };
 
 export type SettingsWindowManagerConfigPayload = {
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   bindings: SettingsWindowManagerBindingPayload;
   closed_entry_limit: number;
   desktop_transition: "slide" | "crossfade" | "instant";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   drag_away_policy: "window" | "group";
   focus_follows_pointer: boolean;
   focus_policy: "click_directional" | "directional";
@@ -9836,15 +9922,33 @@ export type SettingsWindowManagerConfigPayload = {
   global_shortcuts: {
     [key: string]: string;
   };
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
   history_limit: number;
   nav_stack_limit: number;
+  /**
+   * Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+   */
   new_window_policy: "floating" | "beside_focus" | "tab";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   raise_on_focus: boolean;
   shortcuts: {
     [key: string]: string | Array<string>;
   };
   small_viewport_policy: "stack" | "reject";
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   snap: SettingsWindowManagerSnapPayload;
   swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
 };
@@ -9946,6 +10050,11 @@ export type SettingsWindowManagerResponse = {
   workspace_id?: string;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SettingsWindowManagerSnapPayload = {
   corner_reach: number;
   edge_band: number;
@@ -10136,6 +10245,11 @@ export type SkillsResponse = {
   skills: Array<SkillPayload>;
 };
 
+/**
+ * Deprecated: accepted and ignored; remove before v0.8.0.
+ *
+ * @deprecated
+ */
 export type SnapConfig = {
   corner_reach: number;
   edge_band: number;
@@ -13027,23 +13141,21 @@ export type WindowManagerClientContextInput = {
   workspace_trusted: boolean;
 };
 
-export type WindowManagerFloatingStack = {
-  active_id?: string | null;
-  id: string;
-  minimized: boolean;
-  rect: NormalizedRect;
-  window_ids: Array<string>;
-};
-
 export type WindowManagerLayoutNode = {
-  active_id?: string | null;
   axis?: "horizontal" | "vertical";
   children?: Array<WindowManagerLayoutNode>;
   id: string;
-  kind: "leaf" | "split" | "stack";
+  kind: "leaf" | "split";
   weights?: Array<number>;
   window_id?: string | null;
-  window_ids?: Array<string>;
+};
+
+export type WindowManagerMigrationRequest = {
+  action: "ack" | "retry";
+  /**
+   * Replace the layout on retry when it changed after failure.
+   */
+  replace?: boolean;
 };
 
 export type WindowManagerPaletteContext = {
@@ -13052,8 +13164,19 @@ export type WindowManagerPaletteContext = {
   focused_session_state?: string;
   scope_global: boolean;
   shell_desktop: boolean;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   window_floating: boolean;
   window_focused: boolean;
+  window_in_split: boolean;
+  /**
+   * Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
+   *
+   * @deprecated
+   */
   window_stacked: boolean;
   workspace_trusted: boolean;
 };
@@ -13062,35 +13185,19 @@ export type WindowManagerRebaseGuard = {
   boundary_index?: number | null;
   source_node_id?: string | null;
   split_id?: string | null;
+  tab_id?: string | null;
   target_node_id?: string | null;
   window_id?: string | null;
-};
-
-export type WindowManagerReturnAnchor = {
-  child_index?: number | null;
-  desktop_id: string;
-  group_id?: string | null;
-  neighbor_ids?: Array<string>;
-  parent_split_id?: string | null;
-  source_group?: ContractWindowManagerLayoutGroup | null;
-  source_revision: number;
-  weight?: number | null;
-  zoomed?: boolean;
 };
 
 export type WindowManagerWindow = {
   app: string;
   desktop_id: string;
-  floating_rect: NormalizedRect;
   id: string;
   instance_key?: string | null;
-  minimized: boolean;
   nav_stack: Array<RouteIntent>;
-  pinned: boolean;
-  placement: "tiled" | "stacked" | "floating";
-  return_anchor?: WindowManagerReturnAnchor | null;
   route: RouteIntent;
-  zoomed: boolean;
+  tab_id: string;
 };
 
 export type WorkCandidate = {
@@ -13155,23 +13262,51 @@ export type WorkspaceAttentionSummaryPayload = {
 };
 
 export type WorkspaceConfig = {
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   bindings?: BindingsConfig | null;
   closed_entry_limit?: number | null;
   desktop_transition?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   drag_away_policy?: string | null;
   focus_follows_pointer?: boolean | null;
   focus_policy?: string | null;
   focus_wrap?: boolean | null;
   gaps?: GapsConfig | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   group_move_modifier?: string | null;
   history_limit?: number | null;
   nav_stack_limit?: number | null;
+  /**
+   * Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+   */
   new_window_policy?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   raise_on_focus?: boolean | null;
   shortcuts?: {
     [key: string]: string | Array<string>;
   };
   small_viewport_policy?: string | null;
+  /**
+   * Deprecated: accepted and ignored; remove before v0.8.0.
+   *
+   * @deprecated
+   */
   snap?: SnapConfig | null;
   swap_modifier?: string | null;
 };
@@ -21819,6 +21954,9 @@ export type GetHookCatalogData = {
       | "spawn.ttl_expired"
       | "spawn.reaped"
       | "session.attention.changed"
+      | "window_manager.tab.split"
+      | "window_manager.tab.unsplit"
+      | "window_manager.tab.activated"
       | "window_manager.layout.applied"
       | "window_manager.desktop.created"
       | "window_manager.desktop.deleted"
@@ -23300,7 +23438,7 @@ export type AcknowledgeAttentionNotificationsError =
 
 export type AcknowledgeAttentionNotificationsResponses = {
   /**
-   * Receipts committed atomically; source state unchanged
+   * Receipts committed atomically; bell layout-upgrade notices also acknowledged durably
    */
   204: void;
 };
@@ -34568,6 +34706,9 @@ export type GetHookRunsData = {
       | "spawn.ttl_expired"
       | "spawn.reaped"
       | "session.attention.changed"
+      | "window_manager.tab.split"
+      | "window_manager.tab.unsplit"
+      | "window_manager.tab.activated"
       | "window_manager.layout.applied"
       | "window_manager.desktop.created"
       | "window_manager.desktop.deleted"
@@ -44378,13 +44519,122 @@ export type ValidateWindowManagerLayoutError =
 
 export type ValidateWindowManagerLayoutResponses = {
   /**
-   * Validation result
+   * Validation diagnostics and the canonical v6 document when valid
    */
   200: ContractWindowManagerLayoutValidationResponse;
 };
 
 export type ValidateWindowManagerLayoutResponse =
   ValidateWindowManagerLayoutResponses[keyof ValidateWindowManagerLayoutResponses];
+
+export type GetWindowManagerMigrationData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/window-manager/migration";
+};
+
+export type GetWindowManagerMigrationErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
+   * Workspace or referenced entity not found
+   */
+  404: ContractWindowManagerErrorPayload;
+  /**
+   * Revision or state conflict
+   */
+  409: ContractWindowManagerErrorPayload;
+  /**
+   * Invalid window-manager request
+   */
+  422: ContractWindowManagerErrorPayload;
+  /**
+   * Window manager unavailable
+   */
+  503: ContractWindowManagerErrorPayload;
+};
+
+export type GetWindowManagerMigrationError =
+  GetWindowManagerMigrationErrors[keyof GetWindowManagerMigrationErrors];
+
+export type GetWindowManagerMigrationResponses = {
+  /**
+   * OK
+   */
+  200: MigrationStatus;
+};
+
+export type GetWindowManagerMigrationResponse =
+  GetWindowManagerMigrationResponses[keyof GetWindowManagerMigrationResponses];
+
+export type UpdateWindowManagerMigrationData = {
+  /**
+   * JSON request body
+   */
+  body: WindowManagerMigrationRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/window-manager/migration";
+};
+
+export type UpdateWindowManagerMigrationErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
+   * Workspace or referenced entity not found
+   */
+  404: ContractWindowManagerErrorPayload;
+  /**
+   * Revision or state conflict
+   */
+  409: ContractWindowManagerErrorPayload;
+  /**
+   * Invalid window-manager request
+   */
+  422: ContractWindowManagerErrorPayload;
+  /**
+   * Window manager unavailable
+   */
+  503: ContractWindowManagerErrorPayload;
+};
+
+export type UpdateWindowManagerMigrationError =
+  UpdateWindowManagerMigrationErrors[keyof UpdateWindowManagerMigrationErrors];
+
+export type UpdateWindowManagerMigrationResponses = {
+  /**
+   * OK
+   */
+  200: MigrationStatus;
+};
+
+export type UpdateWindowManagerMigrationResponse =
+  UpdateWindowManagerMigrationResponses[keyof UpdateWindowManagerMigrationResponses];
 
 export type PreviewWindowManagerCommandData = {
   /**

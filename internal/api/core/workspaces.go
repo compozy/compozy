@@ -17,6 +17,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const userScopeLabel = "User"
+
 // CreateWorkspace registers a workspace.
 func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
 	var req contract.CreateWorkspaceRequest

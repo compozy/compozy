@@ -1,174 +1,110 @@
 import { Button, Eyebrow, Progress, cn } from "@compozy/ui";
 
+import { fractionLabel } from "../../lib/window-manager-layout-detents";
 import {
   evenWeights,
-  layoutNodeIds,
-  createLayoutNodeIdFactory,
-  layoutOrientationOf,
-  toSplit,
-  toStack,
-  type LayoutOrientation,
-} from "../../lib/window-manager-layout-mutations";
-import { fractionLabel } from "../../lib/window-manager-layout-detents";
-import { layoutNodeWindowIds, replaceLayoutNode } from "../../lib/window-manager-layout-tree";
+  setLayoutSplitAxis,
+  setLayoutSplitWeights,
+} from "../../lib/window-manager-layout-tree";
 import type {
-  WindowManagerLayoutDesktop,
+  WindowManagerLayoutAxis,
   WindowManagerLayoutNode,
+  WindowManagerLayoutSplit,
 } from "../../lib/window-manager-layout-types";
-import {
-  LayoutColumnsDiagram,
-  LayoutRowsDiagram,
-  LayoutStackDiagram,
-} from "./layout-node-diagrams";
+import { LayoutColumnsDiagram, LayoutRowsDiagram } from "./layout-node-diagrams";
 
-interface LayoutInspectorNodeProps {
-  node: WindowManagerLayoutNode;
-  desktop: WindowManagerLayoutDesktop;
-  onDesktopChange: (next: WindowManagerLayoutDesktop) => void;
+/**
+ * What the person chooses. The daemon's `horizontal` axis lays members out side
+ * by side, so "columns" is `horizontal` and "rows" is `vertical` — the inverse
+ * of what the words suggest. The mapping lives here, once; the UI never says
+ * "axis".
+ */
+const ORIENTATIONS: ReadonlyArray<{
+  axis: WindowManagerLayoutAxis;
+  label: "Rows" | "Columns";
+  unit: string;
+  Diagram: typeof LayoutRowsDiagram;
+}> = [
+  { axis: "vertical", label: "Rows", unit: "Row", Diagram: LayoutRowsDiagram },
+  { axis: "horizontal", label: "Columns", unit: "Column", Diagram: LayoutColumnsDiagram },
+];
+
+interface LayoutInspectorSplitProps {
+  root: WindowManagerLayoutNode;
+  split: WindowManagerLayoutSplit;
+  onRootChange: (next: WindowManagerLayoutNode) => void;
 }
 
 /**
- * How this branch arranges the windows under it. Three pictures, not an axis
- * enum and a weight column — and the "Arrange as" actions are the only writer of
- * split weights besides the seam drag, so both go through the same normalizer.
+ * The split the selected window sits in: which way it runs and how its members
+ * share the space. Changing the direction to match an enclosing split merges
+ * the two, as the daemon requires; seams on the canvas and "Distribute evenly"
+ * go through the same weight normalizer.
  */
-export function LayoutInspectorNode({ node, desktop, onDesktopChange }: LayoutInspectorNodeProps) {
-  const windowIds = layoutNodeWindowIds(node);
-  const canRestructure = windowIds.length >= 2;
-  const orientation = node.kind === "split" ? layoutOrientationOf(node.axis) : null;
-
-  const mintId = () =>
-    createLayoutNodeIdFactory(desktop.groups.flatMap(group => layoutNodeIds(group.root)));
-
-  const replace = (next: WindowManagerLayoutNode) => {
-    onDesktopChange(replaceLayoutNode(desktop, node.id, next));
-  };
+export function LayoutInspectorSplit({ root, split, onRootChange }: LayoutInspectorSplitProps) {
+  const current = ORIENTATIONS.find(orientation => orientation.axis === split.axis);
 
   return (
     <>
       <section className="flex flex-col gap-2">
-        <Eyebrow className="text-faint">Arrange as</Eyebrow>
+        <Eyebrow className="text-faint">Split as</Eyebrow>
         <div className="flex flex-wrap gap-1.5">
-          <ArrangeAction
-            active={orientation === "rows"}
-            disabled={!canRestructure}
-            label="Rows"
-            onSelect={() => replace(toSplit(node, "rows", mintId()))}
-          >
-            <LayoutRowsDiagram className="h-4 w-6.5" />
-          </ArrangeAction>
-          <ArrangeAction
-            active={orientation === "columns"}
-            disabled={!canRestructure}
-            label="Columns"
-            onSelect={() => replace(toSplit(node, "columns", mintId()))}
-          >
-            <LayoutColumnsDiagram className="h-4 w-6.5" />
-          </ArrangeAction>
-          <ArrangeAction
-            active={node.kind === "stack"}
-            disabled={!canRestructure}
-            label="Stack"
-            onSelect={() => replace(toStack(node, mintId()))}
-          >
-            <LayoutStackDiagram className="h-4 w-6.5" />
-          </ArrangeAction>
+          {ORIENTATIONS.map(orientation => (
+            <button
+              aria-pressed={orientation.axis === split.axis}
+              className={cn(
+                "flex w-16 flex-col items-center gap-1.5 rounded-lg px-1 py-2",
+                "text-form-hint font-medium text-muted-foreground",
+                "transition-colors duration-base ease-out",
+                "focus-visible:outline-none focus-visible:shadow-focus-ring",
+                orientation.axis === split.axis
+                  ? "bg-selected text-fg"
+                  : "bg-card shadow-card hover:bg-surface-2 hover:text-fg"
+              )}
+              data-testid={`layout-inspector-arrange-${orientation.label.toLowerCase()}`}
+              key={orientation.axis}
+              type="button"
+              onClick={() => onRootChange(setLayoutSplitAxis(root, split.id, orientation.axis))}
+            >
+              <orientation.Diagram className="h-4 w-6.5" />
+              <span>{orientation.label}</span>
+            </button>
+          ))}
         </div>
-        {canRestructure ? null : (
-          <p className="text-form-hint text-subtle">
-            A single window has nothing to split. Add a second window to this branch first.
-          </p>
-        )}
       </section>
 
-      {node.kind === "split" ? (
-        <LayoutSplitBalance
-          node={node}
-          orientation={orientation ?? "columns"}
-          onDistribute={() => replace({ ...node, weights: evenWeights(node.children.length) })}
-        />
-      ) : null}
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Balance</Eyebrow>
+        <div className="flex flex-col gap-1.5">
+          {split.children.map((child, index) => (
+            <Progress
+              className="items-center gap-2"
+              key={child.id}
+              max={1}
+              value={split.weights[index] ?? 0}
+            >
+              <span className="w-16 shrink-0 text-form-hint text-subtle">
+                {current?.unit ?? "Member"} {index + 1}
+              </span>
+              <span className="order-last w-9 shrink-0 text-right font-mono text-form-hint tabular-nums text-fg">
+                {fractionLabel(split.weights[index] ?? 0)}
+              </span>
+            </Progress>
+          ))}
+        </div>
+        <Button
+          className="self-start"
+          data-testid="layout-inspector-distribute"
+          size="xs"
+          type="button"
+          variant="secondary"
+          onClick={() =>
+            onRootChange(setLayoutSplitWeights(root, split.id, evenWeights(split.children.length)))
+          }
+        >
+          Distribute evenly
+        </Button>
+      </section>
     </>
-  );
-}
-
-function ArrangeAction({
-  active,
-  disabled,
-  label,
-  children,
-  onSelect,
-}: {
-  active: boolean;
-  disabled: boolean;
-  label: string;
-  children: React.ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      aria-pressed={active}
-      className={cn(
-        "flex w-16 flex-col items-center gap-1.5 rounded-lg px-1 py-2",
-        "text-form-hint font-medium text-muted-foreground",
-        "transition-colors duration-base ease-out",
-        "focus-visible:outline-none focus-visible:shadow-focus-ring",
-        "disabled:cursor-not-allowed disabled:opacity-35",
-        active
-          ? "bg-selected text-fg"
-          : "bg-card shadow-card hover:not-disabled:bg-surface-2 hover:not-disabled:text-fg"
-      )}
-      data-testid={`layout-inspector-arrange-${label.toLowerCase()}`}
-      disabled={disabled}
-      type="button"
-      onClick={onSelect}
-    >
-      {children}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function LayoutSplitBalance({
-  node,
-  orientation,
-  onDistribute,
-}: {
-  node: Extract<WindowManagerLayoutNode, { kind: "split" }>;
-  orientation: LayoutOrientation;
-  onDistribute: () => void;
-}) {
-  const unit = orientation === "rows" ? "Row" : "Column";
-
-  return (
-    <section className="flex flex-col gap-2">
-      <Eyebrow className="text-faint">Balance</Eyebrow>
-      <div className="flex flex-col gap-1.5">
-        {node.children.map((child, index) => (
-          <Progress
-            className="items-center gap-2"
-            key={child.id}
-            max={1}
-            value={node.weights[index] ?? 0}
-          >
-            <span className="w-16 shrink-0 text-form-hint text-subtle">
-              {unit} {index + 1}
-            </span>
-            <span className="order-last w-9 shrink-0 text-right font-mono text-form-hint tabular-nums text-fg">
-              {fractionLabel(node.weights[index] ?? 0)}
-            </span>
-          </Progress>
-        ))}
-      </div>
-      <Button
-        className="self-start"
-        size="xs"
-        type="button"
-        variant="secondary"
-        onClick={onDistribute}
-      >
-        Distribute evenly
-      </Button>
-    </section>
   );
 }

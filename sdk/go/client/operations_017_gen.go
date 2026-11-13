@@ -11,6 +11,31 @@ import (
 	"strings"
 )
 
+// InspectSession Inspect session health, wake audit, and policy correlation metadata
+func (c *Client) InspectSession(ctx context.Context, params InspectSessionParams) (*SessionInspectResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.IncludeRecentWakeEvents != nil {
+		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // InspectTaskParams carries the path, query, and header parameters.
 type InspectTaskParams struct {
 	ID          string  `url:"id"`
@@ -418,14 +443,4 @@ func (c *Client) ListAgentMemoryHistory(ctx context.Context, params ListAgentMem
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAgentSkillReviewsParams carries the path, query, and header parameters.
-type ListAgentSkillReviewsParams struct {
-	InstanceID *string `url:"instance_id"`
-	Workspace  *string `url:"workspace"`
-	State      *string `url:"state"`
-	Cursor     *string `url:"cursor"`
-	Limit      *int    `url:"limit"`
-	Profile    *string `url:"profile"`
 }

@@ -1,12 +1,12 @@
 ---
 id: ET-window-move-to-desktop
 area: ET
-title: Send the focused window to another desktop by name
+title: Send a tab to another desktop by name
 persona: Théo
 journey: J-organize-tabbed-work
-expected: Window › Move window to lists every other desktop by name (and nothing when there is only one desktop, with the item disabled and a reason); choosing one moves the focused window — or its whole tab deck — to that desktop in one layout change, the source desktop reflows, the active client stays on the source desktop, the destination's pager dot and overview thumbnail gain the window, and undo brings it back; the palette commands `window.move_to_desktop.1` … `.9` (unbound by default) move to the desktop in that position; the move survives reload.
-entry_points: menubar Window › Move window to; command palette Move window to desktop N; compozy window move --desktop
-qa_status: skipped
+expected: Window › Move to desktop ▸ and a tab's Move to desktop ▸ list every other desktop by name (with one desktop the Window menu item is disabled with the reason "needs another desktop"); choosing one moves the whole tab, splits included, to the end of that desktop's tab bar in one layout change; the client stays on the source desktop, whose bar loses the tab (a desktop left with no tabs shows a New Tab window); `window.move_to_desktop.1–9` shortcuts and `compozy window move --desktop <id> --group` do the same.
+entry_points: Window › Move to desktop; tab context menu › Move to desktop; window.move_to_desktop.1–9; compozy window move --group; compozy__window_move move_group
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -18,8 +18,10 @@ overlaps: RT-desktop-pager-overview; ET-window-manager-public-parity; ET-window-
 
 Added 2026-09-30 for the shell rail (VC-11 move window to desktop).
 
-Walk: with three desktops, move a tiled window and then a two-tab deck from desktop 1 to desktop 3 via the Window menu; confirm desktop 1 reflows, the client stays on desktop 1, the overview shows the window on desktop 3; undo; bind `window.move_to_desktop.2` in Settings › Layouts › Shortcuts and use it; reload and confirm placement; with a single desktop confirm the item is disabled with a reason.
+Superseded walk (before tabs and splits; history only — walk the 2026-11-13 qa-impact note below): with three desktops, move a tiled window and then a two-tab deck from desktop 1 to desktop 3 via the Window menu; confirm desktop 1 reflows, the client stays on desktop 1, the overview shows the window on desktop 3; undo; bind `window.move_to_desktop.2` in Settings › Layouts › Shortcuts and use it; reload and confirm placement; with a single desktop confirm the item is disabled with a reason.
 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. The destination is now the target desktop's tab bar; decks no longer exist. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. With one desktop, open Window: Move to desktop is disabled with "needs another desktop". Create desktops "Build" and "Review". On desktop 1 split two windows in one tab, then Window › Move to desktop › Review: the tab leaves desktop 1, the client stays there, and switching to Review shows the tab at the end of its bar with both windows still split. Move the last tab of a desktop away: that desktop shows a New Tab window. ⌘Z undoes the move. CLI: `compozy window move --id <w> --desktop <build-id> --group --revision <r>` moves the whole tab.

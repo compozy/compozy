@@ -141,14 +141,14 @@ func (payload windowManagerWindowGroupPayload) command() windowmanager.Command {
 }
 
 func (payload windowManagerWindowReorderPayload) command() windowmanager.Command {
-	return windowmanager.ReorderStackCommand{
+	return windowmanager.ReorderTabCommand{
 		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
 		Index:    payload.Index,
 	}
 }
 
 func (payload windowManagerWindowActivatePayload) command() windowmanager.Command {
-	return windowmanager.SetStackActiveCommand{
+	return windowmanager.ActivateTabCommand{
 		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
 	}
 }
@@ -176,6 +176,7 @@ func (payload windowManagerWindowMovePayload) command() windowmanager.Command {
 		WindowID:             windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
 		DestinationDesktopID: windowmanager.DesktopID(strings.TrimSpace(payload.DestinationDesktopID)),
 		TargetWindowID:       windowManagerOptionalString[windowmanager.WindowID](payload.TargetWindowID),
+		TargetTabID:          windowManagerOptionalString[windowmanager.TabID](payload.TargetTabID),
 		Placement:            windowmanager.DropPlacement(strings.TrimSpace(payload.Placement)),
 		FloatingRect:         payload.FloatingRect,
 		MoveGroup:            payload.MoveGroup,
@@ -247,6 +248,7 @@ func (payload windowManagerLayoutFrameResizePayload) command() windowmanager.Com
 
 func (payload windowManagerLayoutBalancePayload) command() windowmanager.Command {
 	return windowmanager.BalanceLayoutCommand{
+		TabID:   windowManagerOptionalString[windowmanager.TabID](payload.TabID),
 		GroupID: windowManagerOptionalString[windowmanager.GroupID](payload.GroupID),
 		SplitID: windowManagerOptionalString[windowmanager.NodeID](payload.SplitID),
 	}
@@ -264,7 +266,7 @@ func decodeWindowManagerPreviewCommand(
 		windowmanager.CommandDesktopSwitch,
 		windowmanager.CommandDesktopDelete:
 		return decodeWindowManagerDesktopPreviewCommand(id, commandID, raw)
-	case windowmanager.CommandWindowOpen,
+	case windowmanager.CommandWindowTabActivate, windowmanager.CommandWindowTabReorder, windowmanager.CommandWindowOpen,
 		windowmanager.CommandWindowNavigate,
 		windowmanager.CommandWindowClose,
 		windowmanager.CommandWindowFocus,
@@ -339,8 +341,29 @@ func decodeWindowManagerWindowPreviewCommand(
 	case windowmanager.CommandWindowStackGroup:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowGroupPayload.command)
 	case windowmanager.CommandWindowStackReorder:
+		return decodeWindowManagerPreviewPayload(
+			id,
+			raw,
+			func(p windowManagerWindowReorderPayload) windowmanager.Command {
+				return windowmanager.ReorderStackCommand{
+					WindowID: windowmanager.WindowID(strings.TrimSpace(p.WindowID)),
+					Index:    p.Index,
+				}
+			},
+		)
+	case windowmanager.CommandWindowTabReorder:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowReorderPayload.command)
 	case windowmanager.CommandWindowStackSetActive:
+		return decodeWindowManagerPreviewPayload(
+			id,
+			raw,
+			func(p windowManagerWindowActivatePayload) windowmanager.Command {
+				return windowmanager.SetStackActiveCommand{
+					WindowID: windowmanager.WindowID(strings.TrimSpace(p.WindowID)),
+				}
+			},
+		)
+	case windowmanager.CommandWindowTabActivate:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowActivatePayload.command)
 	case windowmanager.CommandWindowPin:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowPinPayload.command)

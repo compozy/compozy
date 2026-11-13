@@ -4,7 +4,7 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk whose empty-desktop card names the desktop and offers ⌘K and New session; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
+expected: A fresh workspace renders one persistent desktop with the full-width topbar, the dock as a left rail, and a flat desk with one tab holding a New tab window ("This tab is empty", **Choose a destination**, "or press ⌘K"); local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision; a saved layout naming an app that is no longer registered (the retired `knowledge` window) drops that window, keeps the session window rendered with no console error, and stays stable across reload.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
 qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
@@ -204,3 +204,10 @@ recovers on the next catalog observation even when the rows are unchanged. With 
 CPU throttled 6x, a 20 s idle window on both peers recorded 6 and 4 long tasks of
 71–130 ms before the change and none after. The workspace hook suites cover both
 behaviors; repeated unmodified E2E-023 runs passed with 0 ms peer-convergence tasks.
+
+QA impact 2026-11-13 (window-tabs-split S9): the topbar pager was replaced by the desktop
+indicators. On boot and during stream loss confirm the dots render, switching is
+`aria-disabled` and the dot menu does not open until a registered client is live, and that
+reconnect re-enables both without a remount of the desk.
+
+qa-impact: 2026-11-13 window-tabs-split S10. The empty-desktop card and composer were removed: a fresh workspace's desktop shows one tab with a New tab window. Earlier walks above that mention the card or the composer are history. Walk the boot step on a fresh home and confirm the New tab window instead of a card; the rest of the expectation is unchanged.

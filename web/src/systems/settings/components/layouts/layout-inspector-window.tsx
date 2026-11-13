@@ -1,123 +1,185 @@
-import { Check } from "@compozy/ui/icons";
+import { useState } from "react";
 
-import { Eyebrow, Item, ItemContent, ItemMedia, ItemTitle, cn } from "@compozy/ui";
+import { Button, Eyebrow, Item, ItemContent, ItemMedia, ItemTitle, PillGroup } from "@compozy/ui";
 
 import {
-  desktopWindowIds,
-  layoutWindowOwners,
-  replaceLayoutNode,
-} from "../../lib/window-manager-layout-tree";
+  closeLayoutWindow,
+  createLayoutIdFactory,
+  locateLayoutWindow,
+  moveLayoutWindowBeside,
+  moveLayoutWindowToNewTab,
+  swapLayoutWindowPlaces,
+} from "../../lib/window-manager-layout-mutations";
 import { layoutWindowFace } from "../../lib/window-manager-layout-window-face";
 import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
-  WindowManagerLayoutNode,
+  WindowManagerLayoutEdge,
+  WindowManagerLayoutTab,
 } from "../../lib/window-manager-layout-types";
 
 interface LayoutInspectorWindowProps {
-  node: WindowManagerLayoutNode;
-  desktop: WindowManagerLayoutDesktop;
   document: WindowManagerLayoutDocument;
-  onDesktopChange: (next: WindowManagerLayoutDesktop) => void;
+  desktop: WindowManagerLayoutDesktop;
+  tab: WindowManagerLayoutTab;
+  windowId: string;
+  /** Receives the edited document; a refused edit returns the same document and is ignored. */
+  onChange: (next: WindowManagerLayoutDocument) => void;
+  onReveal: (tabId: string, windowId: string | null) => void;
 }
 
+const EDGES: ReadonlyArray<{ value: WindowManagerLayoutEdge; label: string }> = [
+  { value: "left", label: "Left" },
+  { value: "right", label: "Right" },
+  { value: "top", label: "Above" },
+  { value: "bottom", label: "Below" },
+];
+
 /**
- * What this tile shows. A leaf picks from the desktop's windows, with the ones
- * another node already holds ruled out — the daemon rejects a document that
- * places the same window twice, so the picker refuses it rather than reporting
- * it afterwards. A stack picks which of its members is on top.
+ * What the selected window can do in the layout. Every window appears exactly
+ * once, so assigning a window swaps two places instead of copying one, and
+ * splitting moves a window from wherever it is; each action is a pure edit
+ * that leaves the document valid or changes nothing.
  */
 export function LayoutInspectorWindow({
-  node,
-  desktop,
   document,
-  onDesktopChange,
+  desktop,
+  tab,
+  windowId,
+  onChange,
+  onReveal,
 }: LayoutInspectorWindowProps) {
-  if (node.kind === "leaf") {
-    const owners = layoutWindowOwners(desktop);
-    return (
+  const [edge, setEdge] = useState<WindowManagerLayoutEdge>("right");
+  const others = desktop.tabs
+    .flatMap(candidate => (candidate.id === tab.id ? [] : collectWindows(candidate)))
+    .concat(collectWindows(tab).filter(id => id !== windowId));
+  const inSplit = tab.root.kind === "split";
+  const lastWindow = !inSplit && desktop.tabs.length < 2;
+
+  /** Commits an edit and keeps the selected window on screen wherever it moved. */
+  const commit = (next: WindowManagerLayoutDocument) => {
+    if (next === document) return;
+    onChange(next);
+    const location = locateLayoutWindow(next, windowId);
+    onReveal(location?.tab.id ?? tab.id, location ? windowId : null);
+  };
+
+  return (
+    <>
       <section className="flex flex-col gap-2">
-        <Eyebrow className="text-faint">Shows</Eyebrow>
+        <Eyebrow className="text-faint">Swap with</Eyebrow>
         <WindowChoiceList
           document={document}
-          selectedId={node.windowId}
-          unavailable={windowId => {
-            const owner = owners.get(windowId);
-            return owner !== undefined && owner !== node.id;
-          }}
-          windowIds={desktopWindowIds(document, desktop.id)}
-          onChoose={windowId =>
-            onDesktopChange(replaceLayoutNode(desktop, node.id, { ...node, windowId }))
+          emptyLabel="No other window on this desktop."
+          testIdPrefix="layout-inspector-swap"
+          windowIds={others}
+          onChoose={otherId => commit(swapLayoutWindowPlaces(document, windowId, otherId))}
+        />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <Eyebrow className="text-faint">Bring a window beside it</Eyebrow>
+        <PillGroup
+          aria-label="Side"
+          items={EDGES.map(entry => ({ value: entry.value, label: entry.label }))}
+          size="sm"
+          value={edge}
+          onChange={setEdge}
+        />
+        <WindowChoiceList
+          document={document}
+          emptyLabel="No other window on this desktop."
+          testIdPrefix="layout-inspector-beside"
+          windowIds={others}
+          onChoose={otherId =>
+            commit(
+              moveLayoutWindowBeside(
+                document,
+                otherId,
+                windowId,
+                edge,
+                createLayoutIdFactory(document)
+              )
+            )
           }
         />
       </section>
-    );
-  }
 
-  if (node.kind !== "stack") return null;
-
-  return (
-    <section className="flex flex-col gap-2">
-      <Eyebrow className="text-faint">On top</Eyebrow>
-      <WindowChoiceList
-        document={document}
-        selectedId={node.activeId}
-        unavailable={() => false}
-        windowIds={node.windowIds}
-        onChoose={activeId =>
-          onDesktopChange(replaceLayoutNode(desktop, node.id, { ...node, activeId }))
-        }
-      />
-      {node.windowIds.length < 2 ? (
-        <p className="text-form-hint text-warning">
-          A stack needs at least two windows. CompozyOS refuses one that holds a single window.
+      <section className="flex flex-wrap gap-1.5">
+        {inSplit ? (
+          <Button
+            data-testid="layout-inspector-new-tab"
+            size="xs"
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              commit(moveLayoutWindowToNewTab(document, windowId, createLayoutIdFactory(document)))
+            }
+          >
+            Move to new tab
+          </Button>
+        ) : null}
+        <Button
+          data-testid="layout-inspector-remove-window"
+          disabled={lastWindow}
+          size="xs"
+          type="button"
+          variant="ghost"
+          onClick={() => commit(closeLayoutWindow(document, windowId))}
+        >
+          Remove from layout
+        </Button>
+      </section>
+      {lastWindow ? (
+        <p className="text-form-hint text-subtle">
+          A desktop keeps at least one tab, so its last window stays.
         </p>
       ) : null}
-    </section>
+    </>
   );
+}
+
+function collectWindows(tab: WindowManagerLayoutTab): string[] {
+  const ids: string[] = [];
+  const pending = [tab.root];
+  for (let node = pending.shift(); node !== undefined; node = pending.shift()) {
+    if (node.kind === "leaf") ids.push(node.windowId);
+    else pending.push(...node.children);
+  }
+  return ids;
 }
 
 function WindowChoiceList({
   document,
   windowIds,
-  selectedId,
-  unavailable,
+  emptyLabel,
+  testIdPrefix,
   onChoose,
 }: {
   document: WindowManagerLayoutDocument;
   windowIds: readonly string[];
-  selectedId: string;
-  unavailable: (windowId: string) => boolean;
+  emptyLabel: string;
+  testIdPrefix: string;
   onChoose: (windowId: string) => void;
 }) {
-  if (windowIds.length === 0) {
-    return <p className="text-form-hint text-subtle">This desktop has no windows to show.</p>;
-  }
+  if (windowIds.length === 0) return <p className="text-form-hint text-subtle">{emptyLabel}</p>;
 
   return (
-    <div className="flex flex-col gap-0.5" role="radiogroup">
+    <div className="flex flex-col gap-0.5">
       {windowIds.map(windowId => {
         const face = layoutWindowFace(document.windows[windowId], windowId);
         const Icon = face.icon;
-        const taken = unavailable(windowId);
-        const selected = windowId === selectedId;
         return (
           <Item
-            aria-checked={selected}
             as="button"
-            className={cn("py-1.5", taken && "cursor-not-allowed opacity-45")}
-            data-testid={`layout-inspector-window-${windowId}`}
-            disabled={taken}
+            className="py-1.5"
+            data-testid={`${testIdPrefix}-${windowId}`}
             indicator="none"
             key={windowId}
-            role="radio"
             selectable
-            selected={selected}
             size="xs"
             type="button"
-            onClick={() => {
-              if (!taken) onChoose(windowId);
-            }}
+            onClick={() => onChoose(windowId)}
           >
             <ItemMedia>
               <Icon aria-hidden="true" className="size-3.5 text-subtle" />
@@ -125,13 +187,7 @@ function WindowChoiceList({
             <ItemContent className="min-w-0 gap-0">
               <ItemTitle className="truncate">{face.title}</ItemTitle>
             </ItemContent>
-            {selected ? (
-              <Check aria-hidden="true" className="size-3 shrink-0 text-fg" />
-            ) : (
-              <span className="shrink-0 font-mono text-badge text-faint">
-                {taken ? "in use" : face.detail}
-              </span>
-            )}
+            <span className="shrink-0 truncate font-mono text-badge text-faint">{face.detail}</span>
           </Item>
         );
       })}

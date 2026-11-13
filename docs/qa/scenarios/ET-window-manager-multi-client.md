@@ -4,9 +4,9 @@ area: ET
 title: Keep topology shared while desktop and focus stay client-local
 persona: Bruno
 journey: J-administer-window-manager
-expected: Two registered clients using the same profile in one workspace observe the same persistent desktops, groups, windows, revisions, routes, and durable events while independently switching desktops and focusing or zooming windows; clients using different profiles observe separate desktops and windows, and switching one never changes the other's active view; a remote presentation command reaches exactly the selected client's fenced stream without advancing topology revision/history/hooks or leaking that ClientView to its peer; missing, foreign, and disconnected client IDs reject.
-entry_points: two Web browser contexts in one profile; two Web browser contexts in different profiles; compozy desktop clients; compozy desktop switch; compozy window focus; compozy window zoom; profile-scoped window-manager reads and commands
-qa_status: skipped
+expected: Two registered clients using the same profile in one workspace observe the same persistent desktops, tabs, splits, windows, revisions, routes, and durable events while each keeps its own active desktop, active tab and focus; activating or opening a tab in one client never changes the other's active tab, and a client whose active tab is closed falls back to the desktop default, then the first tab; clients using different profiles observe separate desktops and windows; a remote presentation command reaches exactly the selected client's fenced stream without advancing topology revision/history/hooks or leaking that ClientView to its peer; dismissing the upgrade notice in one client hides it in the other at the same revision; missing, foreign, and disconnected client IDs reject.
+entry_points: two Web browser contexts in one profile; two Web browser contexts in different profiles; compozy desktop clients; compozy desktop switch; compozy window focus; compozy window activate --client; compozy layout migration ack|retry; profile-scoped window-manager reads and commands
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -54,3 +54,14 @@ qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless til
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 migration notice updates use the existing `snapshot` WebSocket frame.
+With two clients in one workspace/profile, acknowledge a migration in one and verify
+`snapshot.migration` disappears in both without changing topology revision, undo history,
+or firing layout/window hooks. Retry a preserved layout that still fails and verify both
+clients receive the updated error with `acknowledged: false` at the same revision. A successful
+retry publishes the converted layout and its migration status at the next topology revision.
+Clients in another workspace or profile must receive no notice update. TCP/Unix transport
+coverage is written; live QA and test execution remain deferred to the integration owner.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Zoom is gone; the per-client state is now the active tab (`active_tab` replaces `stack_active`). The migration-notice paragraph above (2026-11-13) stays valid; in the UI a successful upgrade is the bell item "Your windows are now tabs", and reading it acknowledges for every client; only a failed one shows an inline notice, whose Dismiss acknowledges for every client. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. Open the same workspace in two browsers A and B (same profile) with three tabs. In A activate tab 2, in B tab 3: each keeps its own. In A open a new tab: B's active tab does not change, B's bar gains the tab. In B close the tab A is showing: A falls back to the desktop default tab. Drag a split in A: B sees the same split at the same revision. `compozy window activate <id> --client <A-id>` changes only A. With a migrated workspace (see `ET-window-layout-upgrade-v06`), click the bell item in A: it leaves B's bell without reload and `compozy layout get` shows the same revision with no `migration`.

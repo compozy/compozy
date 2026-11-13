@@ -27,7 +27,7 @@ func (d commandDeps) withDefaults() commandDeps {
 func (d commandDeps) withRegistryDefaults() commandDeps {
 	if d.loadConfig == nil {
 		d.loadConfig = func() (compozyconfig.Config, error) {
-			return compozyconfig.Load()
+			return compozyconfig.Load(d.windowManagerWarning)
 		}
 	}
 	if d.resolveHome == nil {

@@ -5,8 +5,8 @@ title: Open agent terminals on demand without stale desktop windows
 persona: Marina
 journey: J-operate-integrated-terminal
 expected: Agent terminals stay in the catalog until explicitly opened; exit or pruning removes their windows and restore history; startup retires stale terminal bindings; the Terminal rail only marks live terminals.
-entry_points: Session composer; compozy__terminal_open; compozy__terminal_exec with visible true; Web desktop window deck; Web dock Terminal app
-qa_status: partial
+entry_points: Session composer; compozy__terminal_open; compozy__terminal_exec with visible true; Web desktop tab bar; Web dock Terminal app
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: partial
@@ -27,7 +27,7 @@ Walk in an isolated home, never against the operator's existing windows:
 3. Prune a retained terminal and confirm no desktop references remain.
 4. Persist a terminal window, restart only the isolated daemon, and confirm stale terminal windows
    disappear across project, All projects and User desktops while other apps remain.
-5. Confirm the rail is idle for an exited/missing terminal even if a stale minimized window exists;
+5. Confirm the rail is idle for an exited/missing terminal even if a stale window for it sits in a background tab;
    a running terminal lights the rail even with no window open.
 
 Targeted validation: daemon bridge event tests; real SQLite partition cleanup and real PTY lifecycle
@@ -52,3 +52,5 @@ E2E-005 restores the owning session before its approval when Terminal is the act
 tab; E2E-008 closes only the conversation tab, keeping the terminal available for the
 no-conversation selection fallback after selecting output on the remounted terminal. Existing approval, redaction and quote assertions
 remain in the canonical suite. CI owns the real daemon/browser walk; no local run is claimed.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimized windows and per-pane decks are retired. Entry points now name the desktop tab bar, and step 5 checks the rail against a stale terminal window left in a background tab instead of a minimized one. Walk step 5 again; steps 1–4 are unchanged. Reset for the current build.

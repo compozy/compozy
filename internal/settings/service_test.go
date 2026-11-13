@@ -230,9 +230,6 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if got, want := envelope.WindowManager.Config.HistoryLimit, 50; got != want {
 					t.Fatalf("WindowManager history limit = %d, want %d", got, want)
 				}
-				if got, want := envelope.WindowManager.Config.Bindings.TopCenter, "zoom"; got != want {
-					t.Fatalf("WindowManager top-center binding = %q, want %q", got, want)
-				}
 			},
 		},
 		{
@@ -900,6 +897,77 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 // TestUpdateSectionWindowManager verifies scoped persistence, shortcut preservation, and runtime application.
 func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: settings persistence changes only kept options and preserves authored legacy state.
+	for _, tc := range []struct {
+		name   string
+		legacy string
+	}{
+		{name: "Should save a kept option without adding retired keys"},
+		{name: "Should preserve authored retired keys during a kept option save", legacy: `
+[window_manager]
+raise_on_focus = "authored" # preserved
+drag_away_policy = 0
+group_move_modifier = false
+[window_manager.snap]
+edge_band = 0
+corner_reach = "ignored"
+exit_slack = false
+repeat_ratios = ["authored"]
+[window_manager.bindings]
+top_center = "stack"
+bottom_center = 42
+`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+tc.legacy)
+			service := testService(t, homePaths, Dependencies{})
+			current, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := cloneWindowManagerConfig(current.WindowManager)
+			want.HistoryLimit++
+			desired := cloneWindowManagerConfig(want)
+			changed := diffWindowManagerSettings(
+				current.WindowManager,
+				current.CmdPalette.Aliases,
+				desired,
+				current.CmdPalette.Aliases,
+			)
+			if !slices.Equal(changed, []string{"window_manager.history_limit"}) {
+				t.Fatalf("changed fields = %v, want only the kept option", changed)
+			}
+			if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+				Section: SectionWindowManager, WindowManager: &desired,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded.WindowManager, want) {
+				t.Fatalf("stored config = %#v, want %#v", loaded.WindowManager, want)
+			}
+			contents := readFile(t, homePaths.ConfigFile)
+			if tc.legacy == "" {
+				for _, key := range []string{"raise_on_focus", "drag_away_policy", "group_move_modifier", "[window_manager.snap]", "[window_manager.bindings]"} {
+					if strings.Contains(contents, key) {
+						t.Fatalf("save added retired %s:\n%s", key, contents)
+					}
+				}
+			} else {
+				for line := range strings.SplitSeq(strings.TrimSpace(tc.legacy), "\n") {
+					if !strings.Contains(contents, line) {
+						t.Fatalf("save changed authored line %q:\n%s", line, contents)
+					}
+				}
+			}
+		})
+	}
 
 	t.Run("Should preserve current shortcuts when saving stale behavior with zero gaps", func(t *testing.T) {
 		t.Parallel()
@@ -5042,14 +5110,11 @@ func readFile(t *testing.T, path string) string {
 
 func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 	return compozyconfig.WindowManagerConfig{
-		NewWindowPolicy:     compozyconfig.WindowNewPolicyFloating,
+		NewWindowPolicy:     compozyconfig.WindowNewPolicyTab,
 		SmallViewportPolicy: compozyconfig.WindowSmallViewportReject,
 		FocusPolicy:         compozyconfig.WindowFocusDirectional,
 		FocusWrap:           true,
 		FocusFollowsPointer: true,
-		RaiseOnFocus:        false,
-		DragAwayPolicy:      compozyconfig.WindowDragAwayGroup,
-		GroupMoveModifier:   "control",
 		SwapModifier:        "meta",
 		HistoryLimit:        77,
 		NavStackLimit:       66,
@@ -5061,16 +5126,6 @@ func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 			Right:  14,
 			Bottom: 16,
 			Left:   20,
-		},
-		Snap: compozyconfig.WindowManagerSnapConfig{
-			EdgeBand:     40,
-			CornerReach:  180,
-			ExitSlack:    20,
-			RepeatRatios: []float64{0.4, 0.7, 0.3},
-		},
-		Bindings: compozyconfig.WindowManagerBindingConfig{
-			TopCenter:    "none",
-			BottomCenter: "zoom",
 		},
 		Shortcuts: map[string]windowmanager.ShortcutBinding{
 			"desktop.switch.next": {"Meta+ArrowRight"},

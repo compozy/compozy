@@ -6,9 +6,11 @@ package windowmanager
 // Boundary OUT: HTTP/UDS serialization and durable bbolt encoding.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,6 +19,153 @@ import (
 )
 
 func TestLayoutDocumentContract(t *testing.T) {
+	// Invariant: legacy document overrides retain the converter's canonical fields and input warnings.
+	for _, version := range []uint32{4, 5} {
+		for _, item := range []struct {
+			name         string
+			overrides    string
+			deprecations int
+		}{
+			{name: "absent overrides"},
+			{name: "empty overrides", overrides: `,"overrides":{}`},
+			{name: "empty shortcuts", overrides: `,"overrides":{"shortcuts":{}}`},
+			{
+				name: "retired overrides",
+				overrides: `,"overrides":{"new_window_policy":"floating","focus_wrap":true,` +
+					`"raise_on_focus":42,"snap":{"repeat_ratios":false},"shortcuts":{}}`,
+				deprecations: 3,
+			},
+		} {
+			t.Run(fmt.Sprintf("Should keep v%d %s canonical", version, item.name), func(t *testing.T) {
+				t.Parallel()
+				raw := []byte(fmt.Sprintf(`{
+					"version":%d,"workspace_id":"workspace-a",
+					"desktops":[{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["w1"],"floating_stacks":[]}],
+					"windows":{"w1":{"id":"w1","app":"terminal","desktop_id":"saved","placement":"floating",
+						"route":{"pathname":"/terminal/test","search":{}},"nav_stack":[]}}%s
+				}`, version, item.overrides))
+				var document LayoutDocument
+				if err := json.Unmarshal(raw, &document); err != nil {
+					t.Fatal(err)
+				}
+				snapshot, _, err := DecodeSnapshot(raw)
+				if err != nil {
+					t.Fatal(err)
+				}
+				warnings := document.InputDeprecations
+				if len(warnings) != item.deprecations {
+					t.Fatalf("override deprecations = %+v, want %d", warnings, item.deprecations)
+				}
+				want := snapshot.Overrides
+				if !reflect.DeepEqual(document.Overrides, want) {
+					t.Fatalf("document overrides = %+v, want converted overrides %+v", document.Overrides, want)
+				}
+			})
+		}
+	}
+
+	t.Run("Should round trip two v6 tabs and reject a one-child split atomically (UT-059)", func(t *testing.T) {
+		t.Parallel()
+		source := threeTabs(t)
+		splitTestWindows(t, source, "a", "b")
+		document, err := source.manager.ExportLayout(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		document.Overrides.FocusWrap = new(true)
+		if document.Version != 6 || len(document.Desktops[0].Tabs) != 2 || len(document.Windows) != 3 {
+			t.Fatalf("exported document = %+v", document)
+		}
+		raw, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var imported LayoutDocument
+		if err := json.Unmarshal(raw, &imported); err != nil {
+			t.Fatal(err)
+		}
+		target := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		initial := mustSnapshot(t, target.manager, "workspace-a")
+		result, err := target.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: initial.Revision, Document: imported,
+		})
+		if err != nil || !result.Applied {
+			t.Fatalf("apply = %+v, error = %v", result, err)
+		}
+		exported, err := target.manager.ExportLayout(t.Context(), "workspace-a")
+		if err != nil || !reflect.DeepEqual(exported, document) {
+			t.Fatalf("round trip = %+v, error = %v; want %+v", exported, err, document)
+		}
+		invalid := cloneLayoutDocument(document)
+		root := &invalid.Desktops[0].Tabs[0].Root
+		root.Children = root.Children[:1]
+		root.Weights = []float64{1}
+		delete(invalid.Windows, "b")
+		validation, err := target.manager.ValidateLayout(t.Context(), "workspace-a", invalid)
+		if err != nil || validation.Valid {
+			t.Fatalf("invalid validation = %+v, error = %v", validation, err)
+		}
+		found := false
+		for _, diagnostic := range validation.Diagnostics {
+			found = found || diagnostic.Code == "topology.split_size"
+		}
+		if !found {
+			t.Fatalf("missing split size diagnostic: %+v", validation)
+		}
+		_, err = target.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: result.Snapshot.Revision, Document: invalid,
+		})
+		if !errors.Is(err, ErrInvalidTopology) {
+			t.Fatalf("invalid apply error = %v", err)
+		}
+		if after := mustSnapshot(t, target.manager, "workspace-a"); !reflect.DeepEqual(after, result.Snapshot) {
+			t.Fatalf("invalid apply changed snapshot: %+v", after)
+		}
+	})
+
+	// Invariant: document decoding preserves the snapshot migration's retired-app and route upgrade.
+	t.Run("Should decode v4 retired apps with the snapshot migration rules", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte(`{
+			"version":4,"workspace_id":"workspace-a",
+			"desktops":[{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["job","trigger"],"floating_stacks":[]}],
+			"windows":{
+				"job":{"id":"job","app":"jobs","instance_key":"morning-digest","desktop_id":"saved","placement":"floating","route":{"pathname":"/jobs/morning-digest","search":{}},"nav_stack":[{"pathname":"/jobs","search":{}}]},
+				"trigger":{"id":"trigger","app":"triggers","desktop_id":"saved","placement":"floating","route":{"pathname":"/triggers","search":{"event":"session.stopped"}},"nav_stack":[{"pathname":"/triggers/notify","search":{}}]}
+			},"overrides":{}
+		}`)
+		var document LayoutDocument
+		if err := json.Unmarshal(raw, &document); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, _, err := DecodeSnapshot(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := LayoutDocument{
+			Version: snapshot.Version, WorkspaceID: snapshot.WorkspaceID,
+			Desktops: snapshot.Desktops, Windows: snapshot.Windows, Overrides: snapshot.Overrides,
+		}
+		if !reflect.DeepEqual(document, want) {
+			t.Fatalf("decoded document = %+v; want snapshot migration %+v", document, want)
+		}
+		job, trigger := document.Windows["job"], document.Windows["trigger"]
+		if document.Version != 6 || len(document.Windows) != 2 ||
+			job.App != "automations" || job.Route.Pathname != "/automations/jobs/morning-digest" ||
+			job.InstanceKey == nil || *job.InstanceKey != "morning-digest" ||
+			trigger.App != "automations" || trigger.Route.Pathname != "/automations" ||
+			string(trigger.Route.Search["q"]) != `"session.stopped"` ||
+			string(trigger.Route.Search["start"]) != `"event"` || trigger.Route.Search["event"] != nil ||
+			len(job.NavStack) != 1 || len(trigger.NavStack) != 1 {
+			t.Fatalf("upgraded document = %+v", document)
+		}
+		if job.NavStack[0].Pathname != "/automations" ||
+			string(job.NavStack[0].Search["start"]) != `"schedule"` ||
+			trigger.NavStack[0].Pathname != "/automations/triggers/notify" {
+			t.Fatalf("upgraded navigation stacks = %+v / %+v", job.NavStack, trigger.NavStack)
+		}
+	})
+
 	// Invariant: exported v4 layouts remain importable without mutating input; this contract suite owns it.
 	t.Run("Should validate and replace an exported v4 layout with canonical apps", func(t *testing.T) {
 		t.Parallel()
@@ -59,6 +208,54 @@ func TestLayoutDocumentContract(t *testing.T) {
 			t.Fatal("input version mutated")
 		}
 	})
+	// Invariant: validation returns the file's v6 routes and history independently of live windows.
+	for _, version := range []uint32{5, 6} {
+		t.Run(
+			fmt.Sprintf("Should return canonical v%d input without substituting live routes", version),
+			func(t *testing.T) {
+				t.Parallel()
+				environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+				openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+				executeTestCommand(t, environment.manager, "workspace-a", nil, NavigateWindowCommand{
+					WindowID: "w1", Route: testRoute("/live"),
+				})
+				before := mustSnapshot(t, environment.manager, "workspace-a")
+				desktop := `{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["w1"],"floating_stacks":[]}`
+				binding := `"placement":"floating"`
+				if version == 6 {
+					binding = `"tab_id":"tab-w1"`
+					desktop = `{"id":"saved","name":"Saved","order":0,"active_tab_id":"tab-w1",` +
+						`"tabs":[{"id":"tab-w1","pinned":false,"root":{"id":"leaf-w1","kind":"leaf","window_id":"w1"}}]}`
+				}
+				raw := fmt.Sprintf(`{"version":%d,"workspace_id":"workspace-a","desktops":[%s],
+				"windows":{"w1":{"id":"w1","app":"tasks","desktop_id":"saved",%s,
+				"route":{"pathname":"/imported","search":{"source":"file"}},
+				"nav_stack":[{"pathname":"/import-history","search":{"source":"file"}}]}},"overrides":{}}`, version, desktop, binding)
+				var document LayoutDocument
+				if err := json.Unmarshal([]byte(raw), &document); err != nil {
+					t.Fatal(err)
+				}
+				validation, err := environment.manager.ValidateLayout(t.Context(), "workspace-a", document)
+				if err != nil || !validation.Valid || validation.Document == nil {
+					t.Fatalf("validation=%+v error=%v", validation, err)
+				}
+				canonical, err := json.Marshal(validation.Document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want, err := json.Marshal(document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if validation.Document.Version != SnapshotVersion || !bytes.Equal(canonical, want) {
+					t.Fatalf("canonical document=%s want=%s", canonical, want)
+				}
+				if after := mustSnapshot(t, environment.manager, "workspace-a"); !reflect.DeepEqual(after, before) {
+					t.Fatal("validation changed live layout state")
+				}
+			},
+		)
+	}
 	t.Run(
 		"Should export immutable documents, validate diagnostics, and replace through normal revision CAS",
 		func(t *testing.T) {
@@ -164,9 +361,12 @@ func TestLayoutDocumentContract(t *testing.T) {
 			document.Windows["w1"] = existing
 			document.Windows["w2"] = Window{
 				ID: "w2", App: "New", Route: testRoute("/document-new"),
-				Placement: WindowPlacementFloating, DesktopID: "desktop-default", FloatingRect: fullRect(),
+				DesktopID: "desktop-default", TabID: "tab-w2",
 			}
-			document.Desktops[0].Floating = append(document.Desktops[0].Floating, "w2")
+			document.Desktops[0].Tabs = append(
+				document.Desktops[0].Tabs,
+				Tab{ID: "tab-w2", Root: LayoutNode{ID: "leaf-w2", Kind: NodeKindLeaf, WindowID: new(WindowID("w2"))}},
+			)
 			document.Desktops[0].Name = "Applied"
 			replaced, err := environment.manager.ReplaceLayout(
 				t.Context(),
@@ -227,19 +427,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 
 	t.Run("Should clone layout resources and surface registry failures", func(t *testing.T) {
 		t.Parallel()
-		document := LayoutDocument{
-			Version:     SnapshotVersion,
-			WorkspaceID: "workspace-a",
-			Desktops: []Desktop{
-				{
-					ID:       "desktop-default",
-					Name:     defaultDesktopName,
-					Groups:   []LayoutGroup{},
-					Floating: []WindowID{},
-				},
-			},
-			Windows: map[WindowID]Window{},
-		}
+		document := defaultTestDocument("workspace-a")
 		registry := &testLayoutRegistry{
 			resources: []LayoutResource{
 				{ID: "focus", DisplayName: "Focus", ParticipantSlots: []WindowID{"slot-1"}, Document: document},
@@ -254,7 +442,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 		resources[0].Document.Windows["injected"] = Window{ID: "injected"}
 		resources[0].ParticipantSlots[0] = "tampered"
 		if registry.resources[0].Document.Desktops[0].Name == "Tampered" ||
-			len(registry.resources[0].Document.Windows) != 0 ||
+			len(registry.resources[0].Document.Windows) != 1 ||
 			registry.resources[0].ParticipantSlots[0] != "slot-1" {
 			t.Fatal("layout resources alias registry-owned data")
 		}
@@ -268,14 +456,8 @@ func TestLayoutDocumentContract(t *testing.T) {
 
 	t.Run("Should apply valid resources and reject invalid or mixed resources without writes", func(t *testing.T) {
 		t.Parallel()
-		valid := LayoutDocument{
-			Version: SnapshotVersion, WorkspaceID: "workspace-a",
-			Desktops: []Desktop{{
-				ID: "desktop-default", Name: "Resource Desktop",
-				Groups: []LayoutGroup{}, Floating: []WindowID{},
-			}},
-			Windows: map[WindowID]Window{},
-		}
+		valid := defaultTestDocument("workspace-a")
+		valid.Desktops[0].Name = "Resource Desktop"
 		invalid := cloneLayoutDocument(valid)
 		invalid.Desktops = nil
 		registry := &testLayoutRegistry{resources: []LayoutResource{
@@ -322,14 +504,6 @@ func TestLayoutDocumentContract(t *testing.T) {
 				},
 				wantSentinel: ErrInvalidCommand,
 			},
-			{
-				// keep_frames only shapes an inline arrangement; a resource
-				// replaces the topology, so the pair is a caller error on every
-				// transport instead of a silently dropped flag.
-				name:         "keep frames with a resource",
-				payload:      ArrangeLayoutCommand{ResourceID: "focus", KeepFrames: true},
-				wantSentinel: ErrInvalidCommand,
-			},
 		}
 		for _, test := range invalidCommands {
 			t.Run(test.name, func(t *testing.T) {
@@ -354,145 +528,39 @@ func TestLayoutDocumentContract(t *testing.T) {
 	})
 }
 
-func TestWindowTabLayoutDocumentV3(t *testing.T) {
-	t.Run("Should export v3 tab state without closed entries or history [UT-037]", func(t *testing.T) {
-		t.Parallel()
-		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
-		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
-		executeTestCommand(
-			t,
-			environment.manager,
-			"workspace-a",
-			nil,
-			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/child"), Mode: NavigatePush},
-		)
-		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "w1", Pinned: true})
-		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w3"})
-		document, err := environment.manager.ExportLayout(t.Context(), "workspace-a")
-		if err != nil {
-			t.Fatalf("ExportLayout() error = %v", err)
-		}
-		if document.Version != SnapshotVersion || len(document.Desktops[0].FloatingStacks) != 1 ||
-			!document.Windows["w1"].Pinned ||
-			len(document.Windows["w1"].NavStack) != 1 {
-			t.Fatalf("exported document = %+v", document)
-		}
-		encoded, err := json.Marshal(document)
-		if err != nil {
-			t.Fatalf("json.Marshal(document) error = %v", err)
-		}
-		if strings.Contains(string(encoded), "closed_entries") || strings.Contains(string(encoded), "history") {
-			t.Fatalf("exported JSON leaked runtime-only state: %s", encoded)
-		}
-		if !strings.Contains(string(encoded), `"pinned":false`) ||
-			!strings.Contains(string(encoded), `"minimized":false`) {
-			t.Fatalf("exported JSON omitted required false booleans: %s", encoded)
-		}
-	})
-
-	t.Run("Should replace a v3 document with floating stacks and live navigation [UT-038]", func(t *testing.T) {
-		t.Parallel()
-		environment := newTestEnvironment(t, floatingConfig(), "workspace-a")
-		created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
-		executeTestCommand(
-			t,
-			environment.manager,
-			"workspace-a",
-			nil,
-			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/child"), Mode: NavigatePush},
-		)
-		document, err := environment.manager.ExportLayout(t.Context(), "workspace-a")
-		if err != nil {
-			t.Fatalf("ExportLayout() error = %v", err)
-		}
-		document.Desktops[0].Name = "Replaced"
-		result, err := environment.manager.ReplaceLayout(
-			t.Context(),
-			ReplaceLayoutRequest{
-				WorkspaceID:      "workspace-a",
-				ExpectedRevision: created.Snapshot.Revision + 1,
-				Document:         document,
-			},
-		)
-		if err != nil {
-			t.Fatalf("ReplaceLayout() error = %v", err)
-		}
-		if result.Snapshot.Desktops[0].Name != "Replaced" || len(result.Snapshot.Desktops[0].FloatingStacks) != 1 ||
-			len(result.Snapshot.Windows["w1"].NavStack) != 1 {
-			t.Fatalf("replaced snapshot = %+v", result.Snapshot)
-		}
-		requireValidSnapshot(t, result.Snapshot)
-	})
-
-	t.Run("Should reject v2 replace and profile documents with a version diagnostic [UT-039]", func(t *testing.T) {
-		t.Parallel()
-		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
-		document, err := environment.manager.ExportLayout(t.Context(), "workspace-a")
-		if err != nil {
-			t.Fatalf("ExportLayout() error = %v", err)
-		}
-		document.Version = 2
-		validation, err := environment.manager.ValidateLayout(t.Context(), "workspace-a", document)
-		if err != nil || validation.Valid || len(validation.Diagnostics) == 0 ||
-			validation.Diagnostics[0].Code != "topology.unsupported_version" {
-			t.Fatalf("ValidateLayout(v2) = %+v, error = %v", validation, err)
-		}
-		_, err = environment.manager.ReplaceLayout(
-			t.Context(),
-			ReplaceLayoutRequest{WorkspaceID: "workspace-a", Document: document},
-		)
-		if !errors.Is(err, ErrInvalidTopology) {
-			t.Fatalf("ReplaceLayout(v2) error = %v", err)
-		}
-		topologyErr, topologyErrMatched := errors.AsType[*TopologyError](err)
-		if !topologyErrMatched || len(topologyErr.Diagnostics) == 0 ||
-			topologyErr.Diagnostics[0].Code != "topology.unsupported_version" {
-			t.Fatalf("ReplaceLayout(v2) diagnostics = %#v, want unsupported-version topology error", topologyErr)
-		}
-		registry := &testLayoutRegistry{resources: []LayoutResource{{ID: "v2", Document: document}}}
-		manager := newTestManagerWithRegistry(t, registry)
-		_, err = manager.Execute(
-			t.Context(),
-			CommandRequest{WorkspaceID: "workspace-a", Payload: ArrangeLayoutCommand{ResourceID: "v2"}},
-		)
-		if !errors.Is(err, ErrInvalidTopology) {
-			t.Fatalf("Execute(v2 profile) error = %v", err)
-		}
-	})
-}
-
 func TestClientLifecycle(t *testing.T) {
-	t.Run("Should keep stack activation previews isolated from the live client view", func(t *testing.T) {
+	t.Run("Should keep tab activation previews isolated from the live client view", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
-		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
 		clientID := ClientID("client-a")
 		before := registerTestClient(t, environment.manager, "workspace-a", clientID)
 		preview, err := environment.manager.Preview(t.Context(), CommandRequest{
 			WorkspaceID:      "workspace-a",
-			ExpectedRevision: 3,
+			ExpectedRevision: 2,
 			ClientID:         &clientID,
 			Payload:          FocusWindowCommand{WindowID: new(WindowID("w2"))},
 		})
 		if err != nil {
 			t.Fatalf("Preview(focus stack tab) error = %v", err)
 		}
-		location, found := findStackByWindow(&preview.Snapshot, "w2")
-		if !found || preview.Client == nil || preview.Client.StackActive[location.id()] != "w2" {
+		if preview.Client == nil ||
+			preview.Client.ActiveTab["desktop-default"] != preview.Snapshot.Windows["w2"].TabID {
 			t.Fatalf("Preview(focus stack tab) = %+v", preview)
 		}
 		clients, err := environment.manager.Clients(t.Context(), "workspace-a")
 		if err != nil || len(clients) != 1 {
 			t.Fatalf("Clients(after preview) = %+v, error = %v", clients, err)
 		}
-		if !reflect.DeepEqual(clients[0].StackActive, before.StackActive) {
-			t.Fatalf("live stack activation = %+v, want %+v", clients[0].StackActive, before.StackActive)
+		if !reflect.DeepEqual(clients[0].ActiveTab, before.ActiveTab) {
+			t.Fatalf("live stack activation = %+v, want %+v", clients[0].ActiveTab, before.ActiveTab)
 		}
 		encoded, err := json.Marshal(clients[0])
 		if err != nil {
 			t.Fatalf("json.Marshal(client) error = %v", err)
 		}
-		if !strings.Contains(string(encoded), `"stack_active":`) {
+		if !strings.Contains(string(encoded), `"active_tab":`) {
 			t.Fatalf("client JSON omitted required stack activation map: %s", encoded)
 		}
 	})
@@ -1107,7 +1175,7 @@ func TestClientLifecycle(t *testing.T) {
 		}
 		if _, err := environment.manager.Execute(t.Context(), CommandRequest{
 			WorkspaceID: "workspace-a", ExpectedRevision: created.Snapshot.Revision,
-			Payload: DeleteDesktopCommand{DesktopID: "d2"},
+			Payload: DeleteDesktopCommand{DesktopID: "d2", DestinationID: new(DesktopID("desktop-default"))},
 		}); !errors.Is(err, ErrPresentationRevisionExhausted) {
 			t.Fatalf("Execute(desktop.delete exhausted) error = %v", err)
 		}
@@ -1351,7 +1419,7 @@ func TestWindowBindingValidation(t *testing.T) {
 	for _, binding := range []string{"ws-missing", workspaceaccess.UserSelector, "workspace-a"} {
 		t.Run("Should validate global command binding "+binding, func(t *testing.T) {
 			t.Parallel()
-			env := newTestEnvironment(t, floatingConfig(), GlobalDesktopWorkspaceID, "workspace-a")
+			env := newTestEnvironment(t, DefaultConfig(), GlobalDesktopWorkspaceID, "workspace-a")
 			raw, err := json.Marshal(binding)
 			if err != nil {
 				t.Fatal(err)
@@ -1383,7 +1451,7 @@ func TestWindowBindingValidation(t *testing.T) {
 func TestWindowBindingLifecycleValidation(t *testing.T) {
 	t.Run("Should load stale bindings but reject restoring navigating or importing them in global", func(t *testing.T) {
 		t.Parallel()
-		env := newTestEnvironment(t, floatingConfig(), GlobalDesktopWorkspaceID, "workspace-a")
+		env := newTestEnvironment(t, DefaultConfig(), GlobalDesktopWorkspaceID, "workspace-a")
 		route := RouteIntent{
 			Pathname: "/loops/run-one",
 			Search:   RouteSearch{"workspace": json.RawMessage(`"workspace-a"`)},
@@ -1442,7 +1510,7 @@ func TestWindowBindingLifecycleValidation(t *testing.T) {
 	})
 	t.Run("Should accept foreign bindings in a project partition", func(t *testing.T) {
 		t.Parallel()
-		env := newTestEnvironment(t, floatingConfig(), "workspace-a")
+		env := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		executeTestCommand(
 			t,
 			env.manager,

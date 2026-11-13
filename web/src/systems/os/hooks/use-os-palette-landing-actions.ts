@@ -49,11 +49,9 @@ export function useOsPaletteLandingActions({
   }) => {
     if (destinationWindowId === null) return;
     windowManagerStore.trigger.paletteIntentCleared();
-    void coordinator
-      .userOpen({ ...target, stackTargetWindowId: destinationWindowId })
-      .then(openedId => {
-        if (openedId !== null) void manager.closeWindow(destinationWindowId);
-      });
+    void coordinator.userOpen({ ...target, afterWindowId: destinationWindowId }).then(openedId => {
+      if (openedId !== null) void manager.closeWindow(destinationWindowId);
+    });
   };
   const landSession = (session: OsPaletteSessionResult) => {
     if (session.busy) return;

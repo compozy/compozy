@@ -116,6 +116,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 			"GET /api/workspaces/:workspace_id/window-manager",
 			"GET /api/workspaces/:workspace_id/window-manager/clients",
+			"GET /api/workspaces/:workspace_id/window-manager/migration",
+			"POST /api/workspaces/:workspace_id/window-manager/migration",
 			"GET /api/workspaces/:workspace_id/window-manager/layout",
 			"GET /api/workspaces/:workspace_id/window-manager/layout-profiles",
 			"GET /api/workspaces/:workspace_id/window-manager/stream",

@@ -19,8 +19,8 @@ import {
   parseWindowManagerLayoutValidation,
   windowManagerLayoutDocumentToWire,
   windowManagerProfileToWire,
-  windowManagerSettingsConfigToWire,
 } from "../lib/window-manager-layout-schema";
+import { windowManagerSettingsConfigToWire } from "../lib/window-manager-settings-wire";
 import type {
   WindowManagerLayoutApplyResult,
   WindowManagerLayoutDocument,
@@ -36,7 +36,9 @@ import { windowManagerSnapshotToLayoutState } from "../lib/window-manager-layout
 export class WindowManagerLayoutsApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    /** The daemon's error code (`window_manager_revision_conflict`, `profile_not_found`), when it sent one. */
+    public readonly code: string | null = null
   ) {
     super(message);
     this.name = "WindowManagerLayoutsApiError";
@@ -80,12 +82,24 @@ function errorMessage(value: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Window-manager answers carry `code` at the top; profile answers nest it under `error`. */
+function errorCode(value: unknown): string | null {
+  if (value === null || typeof value !== "object") return null;
+  const top: unknown = Reflect.get(value, "code");
+  if (typeof top === "string" && top.trim() !== "") return top;
+  const nested: unknown = Reflect.get(value, "error");
+  if (nested === null || typeof nested !== "object") return null;
+  const code: unknown = Reflect.get(nested, "code");
+  return typeof code === "string" && code.trim() !== "" ? code : null;
+}
+
 async function requireJson(response: Response, fallback: string): Promise<unknown> {
   const body = await responseJson(response);
   if (response.ok) return body;
   throw new WindowManagerLayoutsApiError(
     errorMessage(body, `${fallback} (${response.status})`),
-    response.status
+    response.status,
+    errorCode(body)
   );
 }
 
@@ -212,6 +226,37 @@ export async function validateWindowManagerLayout(
   );
 }
 
+function previewRequest(
+  workspaceId: string,
+  revision: number,
+  document: Record<string, unknown>,
+  clientId?: string
+) {
+  return {
+    workspace_id: workspaceId,
+    command_id: "layout.replace",
+    expected_revision: revision,
+    ...(clientId ? { client_id: clientId } : {}),
+    actor: { kind: "web", id: clientId ?? "settings" },
+    origin: "web-settings",
+    payload: { document: { ...document, workspace_id: workspaceId } },
+  };
+}
+
+async function postLayoutPreview(
+  workspaceId: string,
+  profile: string,
+  body: unknown,
+  fallback: string,
+  signal?: AbortSignal
+): Promise<WindowManagerLayoutPreview> {
+  const response = await daemonFetch(
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/preview")}`,
+    { ...jsonRequest(body, signal), method: "POST" }
+  );
+  return parseWindowManagerLayoutPreview(await requireJson(response, fallback));
+}
+
 export async function previewWindowManagerLayout(
   workspaceId: string,
   profile: string,
@@ -220,31 +265,47 @@ export async function previewWindowManagerLayout(
   clientId?: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutPreview> {
+  return postLayoutPreview(
+    workspaceId,
+    profile,
+    previewRequest(workspaceId, revision, windowManagerLayoutDocumentToWire(document), clientId),
+    "Unable to preview the layout",
+    signal
+  );
+}
+
+/**
+ * Turns a layout document of any accepted version (4, 5 or 6) into the
+ * version 6 document the daemon would hold, without applying it: the validate
+ * route returns the input in canonical form, with the file's own routes and
+ * navigation history, so the web never converts a document itself and the
+ * live layout (a window with the same id open on another route) never leaks
+ * in. An invalid document fails as a refusal of the document (422), carrying
+ * the daemon's first diagnostic, and changes nothing.
+ */
+export async function convertWindowManagerLayoutDocument(
+  workspaceId: string,
+  profile: string,
+  wire: Readonly<Record<string, unknown>>,
+  signal?: AbortSignal
+): Promise<WindowManagerLayoutDocument> {
   const response = await daemonFetch(
-    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/preview")}`,
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/layout/validate")}`,
     {
       ...jsonRequest(
-        {
-          workspace_id: workspaceId,
-          command_id: "layout.replace",
-          expected_revision: revision,
-          ...(clientId ? { client_id: clientId } : {}),
-          actor: { kind: "web", id: clientId ?? "settings" },
-          origin: "web-settings",
-          payload: {
-            document: windowManagerLayoutDocumentToWire({
-              ...document,
-              workspaceId,
-            }),
-          },
-        },
+        { workspace_id: workspaceId, document: { ...wire, workspace_id: workspaceId } },
         signal
       ),
       method: "POST",
     }
   );
-  return parseWindowManagerLayoutPreview(
-    await requireJson(response, "Unable to preview the layout")
+  const validation = parseWindowManagerLayoutValidation(
+    await requireJson(response, "Unable to read the layout file")
+  );
+  if (validation.valid && validation.document) return validation.document;
+  throw new WindowManagerLayoutsApiError(
+    validation.diagnostics[0]?.message ?? "The layout file is not a valid layout.",
+    422
   );
 }
 

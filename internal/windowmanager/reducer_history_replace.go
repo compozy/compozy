@@ -32,6 +32,9 @@ func (r *reducer) replace(snapshot *Snapshot, command ReplaceLayoutCommand) (boo
 		Overrides:   cloneWorkspaceConfig(document.Overrides),
 		UpdatedAt:   snapshot.UpdatedAt,
 	}
+	if err := ValidateSnapshot(candidate); err != nil {
+		return false, err
+	}
 	for windowID, current := range snapshot.Windows {
 		window, exists := candidate.Windows[windowID]
 		if !exists {

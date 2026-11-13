@@ -52,9 +52,19 @@ type WindowManagerStorySnapshot = CompozyApiOkJsonResponseFor<
   "/api/workspaces/{workspace_id}/window-manager"
 >;
 
+export const windowManagerStoryTabId = "tab-story-settings";
+
+type WindowManagerStoryTab = WindowManagerStorySnapshot["desktops"][number]["tabs"][number];
+
+const settingsStoryTab: WindowManagerStoryTab = {
+  id: windowManagerStoryTabId,
+  pinned: false,
+  root: { id: "leaf-settings", kind: "leaf", window_id: windowManagerStoryWindowId },
+};
+
 export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
   // SnapshotVersion (internal/windowmanager/types.go).
-  version: 5,
+  version: 6,
   workspace_id: storyDefaultWorkspaceId,
   revision: 12,
   desktops: [
@@ -62,19 +72,8 @@ export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
       id: windowManagerStoryDesktopId,
       name: "Launch",
       order: 0,
-      groups: [
-        {
-          id: "group-settings",
-          frame: { x: 0, y: 0, width: 1, height: 1 },
-          root: {
-            id: "leaf-settings",
-            kind: "leaf",
-            window_id: windowManagerStoryWindowId,
-          },
-        },
-      ],
-      floating: [],
-      floating_stacks: [],
+      active_tab_id: windowManagerStoryTabId,
+      tabs: [settingsStoryTab],
     },
   ],
   windows: {
@@ -83,17 +82,92 @@ export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
       app: "settings",
       route: { pathname: "/settings/layouts", search: {} },
       nav_stack: [],
-      pinned: false,
-      placement: "tiled",
       desktop_id: windowManagerStoryDesktopId,
-      floating_rect: { x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
-      minimized: false,
-      zoomed: false,
+      tab_id: windowManagerStoryTabId,
     },
   },
   closed_entry_count: 0,
   overrides: {},
   updated_at: "2026-07-23T01:00:00Z",
+};
+
+function storyTabWindow(
+  id: string,
+  app: string,
+  pathname: string,
+  tabId: string,
+  instanceKey?: string
+): WindowManagerStorySnapshot["windows"][string] {
+  return {
+    id,
+    app,
+    ...(instanceKey === undefined ? {} : { instance_key: instanceKey }),
+    route: { pathname, search: {} },
+    nav_stack: [],
+    desktop_id: windowManagerStoryDesktopId,
+    tab_id: tabId,
+  };
+}
+
+/**
+ * A busy bar: a pinned Dashboard tab, a Tasks tab, a split tab holding a session beside Files,
+ * and an active Settings tab. Stories and tests that exercise the tab bar start from it.
+ */
+export const windowManagerTabsSnapshotFixture: WindowManagerStorySnapshot = {
+  ...windowManagerSnapshotFixture,
+  desktops: [
+    {
+      id: windowManagerStoryDesktopId,
+      name: "Launch",
+      order: 0,
+      active_tab_id: windowManagerStoryTabId,
+      tabs: [
+        {
+          id: "tab-story-dashboard",
+          pinned: true,
+          root: { id: "leaf-dashboard", kind: "leaf", window_id: "w-story-dashboard" },
+        },
+        {
+          id: "tab-story-tasks",
+          pinned: false,
+          root: { id: "leaf-tasks", kind: "leaf", window_id: "w-story-tasks" },
+        },
+        {
+          id: "tab-story-split",
+          pinned: false,
+          root: {
+            id: "split-story",
+            kind: "split",
+            axis: "horizontal",
+            weights: [0.6, 0.4],
+            children: [
+              { id: "leaf-session", kind: "leaf", window_id: "w-story-session" },
+              { id: "leaf-files", kind: "leaf", window_id: "w-story-files" },
+            ],
+          },
+        },
+        settingsStoryTab,
+      ],
+    },
+  ],
+  windows: {
+    "w-story-dashboard": storyTabWindow(
+      "w-story-dashboard",
+      "dashboard",
+      "/",
+      "tab-story-dashboard"
+    ),
+    "w-story-tasks": storyTabWindow("w-story-tasks", "tasks", "/tasks", "tab-story-tasks"),
+    "w-story-session": storyTabWindow(
+      "w-story-session",
+      "session",
+      `/sessions/${storySessionIds.cto}`,
+      "tab-story-split",
+      storySessionIds.cto
+    ),
+    "w-story-files": storyTabWindow("w-story-files", "files", "/files", "tab-story-split"),
+    ...windowManagerSnapshotFixture.windows,
+  },
 };
 
 function storyRoute(initialEntry: string): {
@@ -121,10 +195,8 @@ export function windowManagerStorySnapshot(
   if (resolved === null) return snapshot;
 
   const windowId = storyWindowId(resolved.app.id, resolved.instanceKey);
-  const desktop = snapshot.desktops[0];
-  if (desktop?.groups[0]?.root.kind === "leaf") {
-    desktop.groups[0].root.window_id = windowId;
-  }
+  const root = snapshot.desktops[0]?.tabs[0]?.root;
+  if (root?.kind === "leaf") root.window_id = windowId;
   const baseWindow = snapshot.windows[windowManagerStoryWindowId];
   if (baseWindow === undefined) return snapshot;
   snapshot.windows = {
@@ -153,10 +225,14 @@ export function windowManagerClientFixture(
     active_desktop_id: windowManagerStoryDesktopId,
     focused_window_id: focusedWindowId,
     focus_order: [focusedWindowId],
+    active_tab: { [windowManagerStoryDesktopId]: windowManagerStoryTabId },
+    // Retired through v0.7; the daemon still sends it empty.
     stack_active: {},
     global_shortcuts: [],
     palette_context: {
       window_focused: true,
+      window_in_split: false,
+      // Retired through v0.7; the daemon still sends them false.
       window_floating: false,
       window_stacked: false,
       desktop_window_count: 1,

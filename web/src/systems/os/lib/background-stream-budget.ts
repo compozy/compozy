@@ -3,19 +3,20 @@ import type { OsDesktopRuntimeStore, OsWindow } from "./os-types";
 export interface BackgroundStreamBudgetState {
   activeDesktopId: OsDesktopRuntimeStore["activeDesktopId"];
   connectionStatus: OsDesktopRuntimeStore["connectionStatus"];
-  windows: Readonly<
-    Record<string, Pick<OsWindow, "app" | "desktopId" | "minimized" | "stackActive">>
-  >;
+  windows: Readonly<Record<string, Pick<OsWindow, "app" | "desktopId" | "shown">>>;
 }
 
-/** Leaves browser connection capacity to authoritative and visible-window streams. */
+/**
+ * Leaves browser connection capacity to authoritative and visible-window streams. A New tab
+ * window holds no stream: it is what an empty desktop shows, so it reserves nothing.
+ */
 export function backgroundStreamsWithinConnectionBudget(
   state: BackgroundStreamBudgetState
 ): boolean {
   return (
     state.connectionStatus === "connected" &&
     !Object.values(state.windows).some(
-      win => win.desktopId === state.activeDesktopId && !win.minimized && win.stackActive
+      win => win.desktopId === state.activeDesktopId && win.shown && win.app !== "new-tab"
     )
   );
 }

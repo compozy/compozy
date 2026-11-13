@@ -1,0 +1,276 @@
+import { descendantWindowIds } from "./layout-minimums";
+import { projectTab } from "./tab-projection";
+import type { ProjectionGaps, TabProjection, WindowMinimums } from "./tab-projection-types";
+import type {
+  LayoutAxis,
+  LayoutNode,
+  LayoutNodeId,
+  LayoutSplitNode,
+  LayoutTab,
+  PixelPoint,
+  PixelRect,
+  WindowId,
+} from "./window-manager-types";
+
+/** Constants from the spec's assumptions: not configuration. */
+export const ROOT_EDGE_BAND_PX = 24;
+export const TAB_DRAG_EXIT_PX = 24;
+export const HEAD_DWELL_MS = 400;
+
+export type DropEdge = "left" | "right" | "top" | "bottom";
+
+/** Where a dragged tab or window head would land over a tab's content. */
+export type ContentDrop =
+  | { kind: "window"; windowId: WindowId; nodeId: LayoutNodeId; edge: DropEdge }
+  | { kind: "root"; edge: DropEdge };
+
+const EDGE_ORDER: readonly DropEdge[] = ["left", "right", "top", "bottom"];
+
+function closest(distances: Record<DropEdge, number>): DropEdge {
+  // Ties resolve in a fixed order (left, right, top, bottom), so the center and the diagonals
+  // always map to the same edge.
+  return EDGE_ORDER.reduce((best, edge) => (distances[edge] < distances[best] ? edge : best));
+}
+
+function contains(rect: PixelRect, point: PixelPoint): boolean {
+  return (
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.w &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.h
+  );
+}
+
+/**
+ * The edge of a window nearest a point, measured as a share of the window's width or height:
+ * every position over a window resolves to exactly one edge, and there is no center zone.
+ */
+export function nearestEdge(rect: PixelRect, point: PixelPoint): DropEdge {
+  const x = rect.w > 0 ? (point.x - rect.x) / rect.w : 0.5;
+  const y = rect.h > 0 ? (point.y - rect.y) / rect.h : 0.5;
+  return closest({ left: x, right: 1 - x, top: y, bottom: 1 - y });
+}
+
+/** The content area's outer edge within the band of a point, else null. */
+export function rootEdge(
+  area: PixelRect,
+  point: PixelPoint,
+  band: number = ROOT_EDGE_BAND_PX
+): DropEdge | null {
+  const distances = {
+    left: point.x - area.x,
+    right: area.x + area.w - point.x,
+    top: point.y - area.y,
+    bottom: area.y + area.h - point.y,
+  };
+  const edge = closest(distances);
+  return distances[edge] <= band ? edge : null;
+}
+
+/**
+ * The drop a point means over a projected tab: the tab's root edge inside the outer band, else
+ * the nearest edge of the window on screen under the point. Outside the content, or in a gap
+ * between windows, there is none.
+ */
+export function contentDropAt(projection: TabProjection, point: PixelPoint): ContentDrop | null {
+  if (!contains(projection.workArea, point)) return null;
+  const edge = rootEdge(projection.workArea, point);
+  if (edge !== null) return { kind: "root", edge };
+  const pane = projection.windows.find(entry => entry.shown && contains(entry.rect, point));
+  if (pane === undefined) return null;
+  return {
+    kind: "window",
+    windowId: pane.windowId,
+    nodeId: pane.nodeId,
+    edge: nearestEdge(pane.rect, point),
+  };
+}
+
+const EDGE_AXIS: Record<DropEdge, { axis: LayoutAxis; before: boolean }> = {
+  left: { axis: "horizontal", before: true },
+  right: { axis: "horizontal", before: false },
+  top: { axis: "vertical", before: true },
+  bottom: { axis: "vertical", before: false },
+};
+
+const PREVIEW_SPLIT_ID = "drop-preview-split";
+
+function equalWeights(count: number): number[] {
+  return Array.from({ length: count }, () => 1 / count);
+}
+
+/** Removes a window; a split left with one child is replaced by that child. */
+export function withoutWindow(node: LayoutNode, windowId: WindowId): LayoutNode | null {
+  if (node.kind === "leaf") return node.windowId === windowId ? null : node;
+  const children: LayoutNode[] = [];
+  const weights: number[] = [];
+  node.children.forEach((child, index) => {
+    const next = withoutWindow(child, windowId);
+    if (next === null) return;
+    children.push(next);
+    weights.push(node.weights[index] ?? 1);
+  });
+  if (children.length === 0) return null;
+  if (children.length === 1) return children[0]!;
+  return { ...node, children, weights };
+}
+
+function pair(incoming: LayoutNode, node: LayoutNode, edge: DropEdge): LayoutNode {
+  const { axis, before } = EDGE_AXIS[edge];
+  return {
+    id: PREVIEW_SPLIT_ID,
+    kind: "split",
+    axis,
+    children: before ? [incoming, node] : [node, incoming],
+    weights: [0.5, 0.5],
+  };
+}
+
+/**
+ * Mirrors the daemon's `window.move` edge rule: beside a window inside a split on the same axis
+ * the split is extended with equal shares; otherwise the window and the incoming node nest in a
+ * new half-and-half split.
+ */
+export function insertBesideWindow(
+  node: LayoutNode,
+  targetWindowId: WindowId,
+  incoming: LayoutNode,
+  edge: DropEdge
+): LayoutNode {
+  if (node.kind === "leaf") {
+    return node.windowId === targetWindowId ? pair(incoming, node, edge) : node;
+  }
+  const { axis, before } = EDGE_AXIS[edge];
+  const index = node.children.findIndex(
+    child => child.kind === "leaf" && child.windowId === targetWindowId
+  );
+  if (index >= 0 && node.axis === axis) {
+    const at = before ? index : index + 1;
+    const children = [...node.children.slice(0, at), incoming, ...node.children.slice(at)];
+    return { ...node, children, weights: equalWeights(children.length) };
+  }
+  return {
+    ...node,
+    children: node.children.map(child => insertBesideWindow(child, targetWindowId, incoming, edge)),
+  };
+}
+
+/** A full-height or full-width member at the tab's outer edge (the daemon's root placement). */
+export function insertAtRootEdge(
+  root: LayoutNode,
+  incoming: LayoutNode,
+  edge: DropEdge
+): LayoutNode {
+  const { axis, before } = EDGE_AXIS[edge];
+  if (root.kind === "split" && root.axis === axis) {
+    const children = before ? [incoming, ...root.children] : [...root.children, incoming];
+    return { ...root, children, weights: equalWeights(children.length) };
+  }
+  return pair(incoming, root, edge);
+}
+
+export interface DropFitInput {
+  /** The tab whose content receives the drop, as it is now. */
+  tab: LayoutTab;
+  /** What lands: a whole tab's tree, or one window's leaf. */
+  incoming: LayoutNode;
+  /** A window that leaves this same tab for the drop (a head moved inside its split). */
+  leavingWindowId?: WindowId;
+  drop: ContentDrop;
+  workArea: PixelRect;
+  gaps: ProjectionGaps;
+  minimums: WindowMinimums;
+}
+
+/** Whether this split shows one member at a time in the tab as it is now. */
+function collapsedNow(input: DropFitInput, splitId: LayoutNodeId): boolean {
+  const projection = projectTab({
+    tab: input.tab,
+    workArea: input.workArea,
+    gaps: input.gaps,
+    minimums: input.minimums,
+  });
+  return projection.collapsed.some(split => split.splitId === splitId);
+}
+
+/** Where a projected tab falls short: the nodes it reports and the windows those hold. */
+interface Shortfalls {
+  nodeIds: Set<LayoutNodeId>;
+  windowIds: Set<WindowId>;
+}
+
+function shortfallsOf(tab: LayoutTab, input: DropFitInput): Shortfalls {
+  const projection = projectTab({
+    tab,
+    workArea: input.workArea,
+    gaps: input.gaps,
+    minimums: input.minimums,
+  });
+  const windowIds = new Set<WindowId>();
+  for (const split of projection.collapsed) {
+    for (const windowId of split.windowIds) windowIds.add(windowId);
+  }
+  for (const diagnostic of projection.diagnostics) {
+    if (diagnostic.code === "minimum-unmet") windowIds.add(diagnostic.windowId);
+  }
+  return { nodeIds: new Set(projection.diagnostics.map(entry => entry.nodeId)), windowIds };
+}
+
+/** The split whose direct child is this window's leaf, or null at the root. */
+function parentSplitOf(node: LayoutNode, windowId: WindowId): LayoutSplitNode | null {
+  if (node.kind === "leaf") return null;
+  if (node.children.some(child => child.kind === "leaf" && child.windowId === windowId)) {
+    return node;
+  }
+  for (const child of node.children) {
+    const parent = parentSplitOf(child, windowId);
+    if (parent !== null) return parent;
+  }
+  return null;
+}
+
+/**
+ * The split a drop only reorders: the moved window leaves it and lands beside a sibling of the
+ * same split (or at the tab's root edge when that split is the root), along the split's own axis.
+ * Members and axis stay the same; only their order changes.
+ */
+function reorderedSplit(input: DropFitInput): LayoutSplitNode | null {
+  if (input.leavingWindowId === undefined) return null;
+  const parent = parentSplitOf(input.tab.root, input.leavingWindowId);
+  if (parent === null || EDGE_AXIS[input.drop.edge].axis !== parent.axis) return null;
+  if (input.drop.kind === "root") return parent.id === input.tab.root.id ? parent : null;
+  const target = input.drop.windowId;
+  const sibling = parent.children.some(
+    child => child.kind === "leaf" && child.windowId === target && target !== input.leavingWindowId
+  );
+  return sibling ? parent : null;
+}
+
+/**
+ * A drop is offered only when its result keeps every member it adds at its pixel minimum: no
+ * incoming window may land in a split that shows one member at a time or below its minimum, and
+ * the drop may not make any other node fall short. A shortfall the tab already had is kept only
+ * by identity — the same node, holding none of the incoming windows. A head that only reorders
+ * the members of its own already-collapsed split is always offered.
+ */
+export function dropFits(input: DropFitInput): boolean {
+  // A reorder inside a split that already shows one member at a time cannot fit worse: the split
+  // keeps its members and axis, so it collapses exactly as it already does.
+  const reordered = reorderedSplit(input);
+  if (reordered !== null && collapsedNow(input, reordered.id)) return true;
+  const base =
+    input.leavingWindowId === undefined
+      ? input.tab.root
+      : withoutWindow(input.tab.root, input.leavingWindowId);
+  if (base === null) return false;
+  const root =
+    input.drop.kind === "root"
+      ? insertAtRootEdge(base, input.incoming, input.drop.edge)
+      : insertBesideWindow(base, input.drop.windowId, input.incoming, input.drop.edge);
+  const before = shortfallsOf({ ...input.tab, root: base }, input);
+  const after = shortfallsOf({ ...input.tab, root }, input);
+  if (descendantWindowIds(input.incoming).some(windowId => after.windowIds.has(windowId))) {
+    return false;
+  }
+  return Array.from(after.nodeIds).every(nodeId => before.nodeIds.has(nodeId));
+}

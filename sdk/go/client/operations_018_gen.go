@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// ListAgentSkillReviewsParams carries the path, query, and header parameters.
+type ListAgentSkillReviewsParams struct {
+	InstanceID *string `url:"instance_id"`
+	Workspace  *string `url:"workspace"`
+	State      *string `url:"state"`
+	Cursor     *string `url:"cursor"`
+	Limit      *int    `url:"limit"`
+	Profile    *string `url:"profile"`
+}
+
 // ListAgentSkillReviews List agent skill reviews (experimental)
 func (c *Client) ListAgentSkillReviews(ctx context.Context, params ListAgentSkillReviewsParams) (*AgentSkillReviewsResponse, error) {
 	path := "/api/agent-skill-reviews"
@@ -433,11 +443,4 @@ func (c *Client) ListAutomationSuggestions(ctx context.Context, params ListAutom
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAutomationSuggestionsAggregateParams carries the path, query, and header parameters.
-type ListAutomationSuggestionsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Status        *string   `url:"status"`
 }

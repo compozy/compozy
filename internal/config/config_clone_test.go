@@ -33,7 +33,6 @@ func TestCloneConfig(t *testing.T) {
 		cloned := CloneConfig(&source)
 
 		cloned.ProviderUsage.Providers["claude"] = ProviderUsageProviderConfig{Enabled: false}
-		cloned.WindowManager.Snap.RepeatRatios[0] = 0.75
 		cloned.WindowManager.Shortcuts["focus"][0] = "mutated"
 		cloned.MCPServers[0].Args[0] = "mutated"
 		cloned.MCPServers[0].Env["TOKEN"] = "mutated"
@@ -100,7 +99,6 @@ func configCloneFixture() Config {
 			env:     otelEnvironment{headers: map[string]string{"x-tenant": "acme"}},
 		}},
 		WindowManager: WindowManagerConfig{
-			Snap:      WindowManagerSnapConfig{RepeatRatios: []float64{0.5}},
 			Shortcuts: map[string]windowmanager.ShortcutBinding{"focus": {"cmd+j"}},
 		},
 		MCPServers: []MCPServer{{

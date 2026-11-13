@@ -23,11 +23,12 @@ import { useWindowManagerLayoutProfiles } from "../use-window-manager-layout-pro
 import { settingsKeys } from "../../lib/query-keys";
 import type {
   WindowManagerLayoutDocument,
+  WindowManagerLayoutProfileSource,
   WindowManagerLayoutResourceRecord,
 } from "../../lib/window-manager-layout-types";
 
 const DOCUMENT: WindowManagerLayoutDocument = {
-  version: 5,
+  version: 6,
   workspaceId: "workspace-a",
   desktops: [],
   windows: {},
@@ -38,7 +39,7 @@ const RECORD: WindowManagerLayoutResourceRecord = {
   kind: "window_layout",
   id: "two-up-review",
   version: 4,
-  scope: { kind: "global", id: "" },
+  scope: { kind: "user", id: "" },
   spec: {
     version: 1,
     id: "two-up-review",
@@ -46,7 +47,7 @@ const RECORD: WindowManagerLayoutResourceRecord = {
     aspectVariant: "landscape",
     participantSlots: [],
     overflowPolicy: "reject",
-    document: { ...DOCUMENT, workspaceId: "" },
+    source: { kind: "current", document: { ...DOCUMENT, workspaceId: "" } },
   },
   createdAt: "2026-07-22T00:00:00Z",
   updatedAt: "2026-07-22T00:00:00Z",
@@ -63,7 +64,7 @@ function deferred<T>() {
 }
 
 function renderProfiles(draftDirty: boolean) {
-  const loaded: WindowManagerLayoutDocument[] = [];
+  const loaded: WindowManagerLayoutProfileSource[] = [];
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
@@ -152,7 +153,8 @@ describe("useWindowManagerLayoutProfiles", () => {
 
     expect(result.current.pendingLoad).toBe(null);
     expect(loaded).toHaveLength(1);
-    expect(loaded[0]?.workspaceId).toBe("workspace-a");
+    // The stored form goes to the editor as is; it converts and re-homes it.
+    expect(loaded[0]).toEqual(RECORD.spec.source);
   });
 
   it("Should ask before replacing a dirty draft", () => {
@@ -246,7 +248,7 @@ describe("useWindowManagerLayoutProfiles", () => {
     act(() => {
       result.current.selectProfile(RECORD);
     });
-    expect(result.current.scope).toBe("global");
+    expect(result.current.scope).toBe("user");
     expect(result.current.aspect).toBe("landscape");
     expect(result.current.overflow).toBe("reject");
 

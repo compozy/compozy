@@ -118,19 +118,38 @@ export interface OsTerminalInputAttentionRow {
   stale: boolean;
 }
 
+/**
+ * A workspace's layout moved to tabs: told once, in the bell. It has nowhere to open; reading it
+ * acknowledges the move for every client.
+ */
+export interface OsLayoutUpgradeAttentionRow {
+  kind: "layout-upgrade";
+  id: string;
+  /** The bell item's occurrence id: what reading it acknowledges and what its toast is once for. */
+  notificationId?: string;
+  title: string;
+  workspaceId: string;
+  workspaceLabel: string;
+  /** What the upgrade did, in the counts it reported. */
+  reason: string;
+  occurredAt: string;
+  stale: boolean;
+}
+
 export type OsAttentionRow = (
   | OsSessionAttentionRow
   | OsTaskAttentionRow
   | OsLoopNodeAttentionRow
   | OsLoopRequestAttentionRow
   | OsTerminalInputAttentionRow
+  | OsLayoutUpgradeAttentionRow
 ) & { notificationId?: string };
 
 export interface OsAttentionSections {
   /** Questions, permissions, failures, task approvals, loop nodes. */
   needsYou: OsAttentionRow[];
-  /** Finished-unseen sessions — visible, never counted. */
-  finished: OsSessionAttentionRow[];
+  /** Finished-unseen sessions and news that asks nothing (a layout upgrade) — visible, never counted. */
+  finished: (OsSessionAttentionRow | OsLayoutUpgradeAttentionRow)[];
 }
 
 export interface OsAttentionSummary {

@@ -25,13 +25,9 @@ func (h *BaseHandlers) bellNotificationItems(
 		return nil, errors.New("api: notification sources are unavailable")
 	}
 	ctx := c.Request.Context()
-	workspaces, err := h.Workspaces.List(ctx)
+	labels, err := h.bellWorkspaceLabels(ctx)
 	if err != nil {
 		return nil, err
-	}
-	labels := make(map[string]string, len(workspaces))
-	for _, workspace := range workspaces {
-		labels[workspace.ID] = workspace.Name
 	}
 	items, err := h.sessionNotificationItems(ctx)
 	if err != nil {
@@ -73,17 +69,28 @@ func (h *BaseHandlers) bellNotificationItems(
 			items = append(items, item)
 		}
 	}
+	upgrades, err := h.migrationNotificationItems(ctx, labels)
+	if err != nil {
+		return nil, err
+	}
+	items = append(items, upgrades...)
+	applyBellWorkspaceLabels(items, labels)
+	return items, nil
+}
 
+func applyBellWorkspaceLabels(items []contract.AttentionNotificationPayload, labels map[string]string) {
 	for index := range items {
+		if items[index].WorkspaceLabel != "" {
+			continue
+		}
 		items[index].WorkspaceLabel = labels[items[index].WorkspaceID]
 		if items[index].WorkspaceLabel == "" {
 			items[index].WorkspaceLabel = items[index].WorkspaceID
 			if items[index].WorkspaceID == "" {
-				items[index].WorkspaceLabel = "User"
+				items[index].WorkspaceLabel = userScopeLabel
 			}
 		}
 	}
-	return items, nil
 }
 
 func (h *BaseHandlers) sessionNotificationItems(ctx context.Context) ([]contract.AttentionNotificationPayload, error) {

@@ -4,9 +4,10 @@ import "time"
 
 // State is the revision-independent content restored by history.
 type State struct {
-	Desktops  []Desktop
-	Windows   map[WindowID]Window
-	Overrides WorkspaceConfig
+	Desktops      []Desktop
+	Windows       map[WindowID]Window
+	Overrides     WorkspaceConfig
+	ClosedEntries []ClosedEntry
 }
 
 // HistoryEntry stores an exact operation boundary.
@@ -27,9 +28,10 @@ type History struct {
 
 func snapshotState(snapshot Snapshot) State {
 	return State{
-		Desktops:  cloneDesktops(snapshot.Desktops),
-		Windows:   cloneWindows(snapshot.Windows),
-		Overrides: cloneWorkspaceConfig(snapshot.Overrides),
+		Desktops:      cloneDesktops(snapshot.Desktops),
+		Windows:       cloneWindows(snapshot.Windows),
+		Overrides:     cloneWorkspaceConfig(snapshot.Overrides),
+		ClosedEntries: cloneClosedEntries(snapshot.ClosedEntries),
 	}
 }
 
@@ -37,6 +39,7 @@ func restoreState(snapshot *Snapshot, state State) {
 	snapshot.Desktops = cloneDesktops(state.Desktops)
 	snapshot.Windows = cloneWindows(state.Windows)
 	snapshot.Overrides = cloneWorkspaceConfig(state.Overrides)
+	snapshot.ClosedEntries = cloneClosedEntries(state.ClosedEntries)
 }
 
 func restoreStatePreservingRoutes(snapshot *Snapshot, state State) {

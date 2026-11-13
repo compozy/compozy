@@ -42,6 +42,13 @@ type WindowManagerLayoutResourceFixture = Omit<WindowManagerResourceRecord, "spe
   spec: WindowManagerLayoutProfileWire;
 };
 
+/** A profile stored before tabs and splits: its document is whatever version it was saved as. */
+type WindowManagerEarlierLayoutResourceFixture = Omit<WindowManagerResourceRecord, "spec"> & {
+  spec: Omit<WindowManagerLayoutProfileWire, "document"> & {
+    document: Record<string, unknown> & { version: 4 | 5 };
+  };
+};
+
 type WindowManagerLayoutDocumentWire = CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager/layout"
@@ -87,22 +94,20 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     focus_policy: "click_directional",
     focus_wrap: true,
     focus_follows_pointer: false,
-    raise_on_focus: true,
+    // Retired keys, at the fixed values the daemon serves until v0.8.0: the
+    // generated payload still requires them; the client parser drops them and
+    // no domain config or save holds them.
+    raise_on_focus: false,
     drag_away_policy: "window",
-    group_move_modifier: "alt",
+    group_move_modifier: "none",
     swap_modifier: "shift",
     history_limit: 100,
     nav_stack_limit: 50,
     closed_entry_limit: 20,
     desktop_transition: "slide",
     gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
-    snap: {
-      edge_band: 32,
-      corner_reach: 150,
-      exit_slack: 16,
-      repeat_ratios: [0.5, 0.666667, 0.333333],
-    },
-    bindings: { top_center: "zoom", bottom_center: "zoom" },
+    snap: { edge_band: 0, corner_reach: 0, exit_slack: 0, repeat_ratios: [] },
+    bindings: { top_center: "none", bottom_center: "none" },
     shortcuts: { "window.tab.new": ["meta+Digit3"] },
     global_shortcuts: { "palette.summon.global": "meta+shift+Space" },
   },
@@ -126,13 +131,11 @@ export const settingsWindowManagerDesktopIds = {
 } as const;
 
 /**
- * A workspace dense enough to exercise the layout stage: three desktops, four
- * groups, a nested split, a stack, a floating window and a minimized one. The
- * previous single-leaf fixture is why the density problem never showed up in a
- * review capture.
+ * A workspace dense enough to exercise the layout stage: three desktops, a
+ * pinned tab, a nested split, and single-window tabs beside them.
  */
 export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
-  version: 5,
+  version: 6,
   workspace_id: storyDefaultWorkspaceId,
   revision: 41,
   desktops: [
@@ -140,174 +143,153 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       id: settingsWindowManagerDesktopIds.build,
       name: "Build",
       order: 0,
-      groups: [
+      active_tab_id: "tab-main",
+      tabs: [
         {
-          id: "group-main",
-          frame: { x: 0, y: 0, width: 0.63, height: 1 },
+          id: "tab-dashboard",
+          pinned: true,
+          root: { id: "leaf-dashboard", kind: "leaf", window_id: "app:dashboard" },
+        },
+        {
+          id: "tab-main",
+          pinned: false,
           root: {
             id: "split-main",
             kind: "split",
-            axis: "vertical",
+            axis: "horizontal",
             weights: [0.62, 0.38],
             children: [
               { id: "leaf-tasks", kind: "leaf", window_id: "app:tasks" },
               {
-                id: "split-main-lower",
+                id: "split-main-side",
                 kind: "split",
-                axis: "horizontal",
+                axis: "vertical",
                 weights: [0.5, 0.5],
                 children: [
-                  {
-                    id: "stack-sessions",
-                    kind: "stack",
-                    window_ids: ["session:ses_8f2a", "session:ses_51c7"],
-                    active_id: "session:ses_8f2a",
-                  },
-                  { id: "leaf-dashboard", kind: "leaf", window_id: "app:dashboard" },
+                  { id: "leaf-session-a", kind: "leaf", window_id: "session:ses_8f2a" },
+                  { id: "leaf-skills", kind: "leaf", window_id: "app:skills" },
                 ],
               },
             ],
           },
         },
         {
-          id: "group-side",
-          frame: { x: 0.63, y: 0, width: 0.37, height: 1 },
-          root: { id: "leaf-skills", kind: "leaf", window_id: "app:skills" },
+          id: "tab-session-b",
+          pinned: false,
+          root: { id: "leaf-session-b", kind: "leaf", window_id: "session:ses_51c7" },
+        },
+        {
+          id: "tab-vault",
+          pinned: false,
+          root: { id: "leaf-vault", kind: "leaf", window_id: "app:vault" },
         },
       ],
-      floating: ["app:vault"],
-      floating_stacks: [],
     },
     {
       id: settingsWindowManagerDesktopIds.review,
       name: "Review",
       order: 1,
-      groups: [
+      active_tab_id: "tab-review",
+      tabs: [
         {
-          id: "group-top",
-          frame: { x: 0, y: 0, width: 1, height: 0.56 },
+          id: "tab-review",
+          pinned: false,
           root: {
             id: "split-review",
             kind: "split",
-            axis: "horizontal",
-            weights: [0.5, 0.5],
+            axis: "vertical",
+            weights: [0.56, 0.44],
             children: [
-              { id: "leaf-loops", kind: "leaf", window_id: "app:loops" },
-              { id: "leaf-marketplace", kind: "leaf", window_id: "app:marketplace" },
+              {
+                id: "split-review-top",
+                kind: "split",
+                axis: "horizontal",
+                weights: [0.5, 0.5],
+                children: [
+                  { id: "leaf-loops", kind: "leaf", window_id: "app:loops" },
+                  { id: "leaf-marketplace", kind: "leaf", window_id: "app:marketplace" },
+                ],
+              },
+              { id: "leaf-automations", kind: "leaf", window_id: "app:automations" },
             ],
           },
         },
         {
-          id: "group-bottom",
-          frame: { x: 0, y: 0.56, width: 1, height: 0.44 },
-          root: { id: "leaf-automations", kind: "leaf", window_id: "app:automations" },
+          id: "tab-agents",
+          pinned: false,
+          root: { id: "leaf-agents", kind: "leaf", window_id: "app:agents" },
         },
       ],
-      floating: ["app:agents"],
-      floating_stacks: [],
     },
     {
       id: settingsWindowManagerDesktopIds.focus,
       name: "Deep work",
       order: 2,
-      groups: [
+      active_tab_id: "tab-terminal",
+      tabs: [
         {
-          id: "group-focus",
-          frame: { x: 0, y: 0, width: 1, height: 1 },
+          id: "tab-terminal",
+          pinned: false,
           root: { id: "leaf-terminal", kind: "leaf", window_id: "app:terminal" },
         },
       ],
-      floating: [],
-      floating_stacks: [],
     },
   ],
   windows: {
-    "app:tasks": tiled("app:tasks", "tasks", "/tasks", settingsWindowManagerDesktopIds.build),
+    "app:dashboard": shown("app:dashboard", "dashboard", "/", "build", "tab-dashboard"),
+    "app:tasks": shown("app:tasks", "tasks", "/tasks", "build", "tab-main"),
     "session:ses_8f2a": {
-      ...tiled(
-        "session:ses_8f2a",
-        "session",
-        "/sessions/ses_8f2a",
-        settingsWindowManagerDesktopIds.build
-      ),
+      ...shown("session:ses_8f2a", "session", "/sessions/ses_8f2a", "build", "tab-main"),
       instance_key: "ses_8f2a",
-      placement: "stacked",
     },
+    "app:skills": shown("app:skills", "skills", "/skills", "build", "tab-main"),
     "session:ses_51c7": {
-      ...tiled(
-        "session:ses_51c7",
-        "session",
-        "/sessions/ses_51c7",
-        settingsWindowManagerDesktopIds.build
-      ),
+      ...shown("session:ses_51c7", "session", "/sessions/ses_51c7", "build", "tab-session-b"),
       instance_key: "ses_51c7",
-      placement: "stacked",
     },
-    "app:dashboard": tiled(
-      "app:dashboard",
-      "dashboard",
-      "/",
-      settingsWindowManagerDesktopIds.build
-    ),
-    "app:skills": tiled("app:skills", "skills", "/skills", settingsWindowManagerDesktopIds.build),
-    "app:vault": {
-      ...tiled("app:vault", "vault", "/vault", settingsWindowManagerDesktopIds.build),
-      placement: "floating",
-      floating_rect: { x: 0.52, y: 0.55, width: 0.3, height: 0.34 },
-    },
-    "app:loops": tiled("app:loops", "loops", "/loops", settingsWindowManagerDesktopIds.review),
-    "app:marketplace": tiled(
+    "app:vault": shown("app:vault", "vault", "/vault", "build", "tab-vault"),
+    "app:loops": shown("app:loops", "loops", "/loops", "review", "tab-review"),
+    "app:marketplace": shown(
       "app:marketplace",
       "marketplace",
       "/marketplace",
-      settingsWindowManagerDesktopIds.review
+      "review",
+      "tab-review"
     ),
-    "app:automations": tiled(
+    "app:automations": shown(
       "app:automations",
       "automations",
       "/automations",
-      settingsWindowManagerDesktopIds.review
+      "review",
+      "tab-review"
     ),
-    "app:agents": {
-      ...tiled("app:agents", "agents", "/agents", settingsWindowManagerDesktopIds.review),
-      placement: "floating",
-      minimized: true,
-      floating_rect: { x: 0.58, y: 0.62, width: 0.28, height: 0.3 },
-    },
-    "app:terminal": tiled(
-      "app:terminal",
-      "terminal",
-      "/terminal",
-      settingsWindowManagerDesktopIds.focus
-    ),
+    "app:agents": shown("app:agents", "agents", "/agents", "review", "tab-agents"),
+    "app:terminal": shown("app:terminal", "terminal", "/terminal", "focus", "tab-terminal"),
   },
   closed_entry_count: 0,
   overrides: {},
   updated_at: "2026-07-23T01:00:00Z",
 };
 
-function tiled(
+function shown(
   id: string,
   app: string,
   pathname: string,
-  desktopId: string
+  desktop: keyof typeof settingsWindowManagerDesktopIds,
+  tabId: string
 ): WindowManagerSnapshotWire["windows"][string] {
   return {
     id,
     app,
     route: { pathname, search: {} },
     nav_stack: [],
-    pinned: false,
-    placement: "tiled",
-    desktop_id: desktopId,
-    floating_rect: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
-    minimized: false,
-    zoomed: false,
+    desktop_id: settingsWindowManagerDesktopIds[desktop],
+    tab_id: tabId,
   };
 }
 
 export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire = {
-  version: 5,
+  version: 6,
   workspace_id: storyDefaultWorkspaceId,
   desktops: settingsWindowManagerSnapshotFixture.desktops,
   windows: settingsWindowManagerSnapshotFixture.windows,
@@ -333,3 +315,58 @@ export const windowManagerLayoutResourceFixture: WindowManagerLayoutResourceFixt
   created_at: "2026-07-22T22:00:00Z",
   updated_at: "2026-07-23T01:00:00Z",
 };
+
+/**
+ * A profile saved before tabs and splits: the record keeps the version 5
+ * document it was stored with, and the daemon converts it when it is opened.
+ */
+export const windowManagerEarlierLayoutResourceFixture: WindowManagerEarlierLayoutResourceFixture =
+  {
+    kind: "window_layout",
+    id: "classic-grid",
+    version: 2,
+    scope: { kind: "user" },
+    owner: { kind: "daemon", id: "storybook" },
+    source: { kind: "operator", id: "storybook" },
+    spec: {
+      version: 1,
+      id: "classic-grid",
+      display_name: "Classic grid",
+      aspect_variant: "any",
+      participant_slots: ["app:tasks", "app:terminal"],
+      overflow_policy: "stack",
+      document: {
+        version: 5,
+        workspace_id: "",
+        desktops: [
+          {
+            id: "desktop-main",
+            name: "Main",
+            order: 0,
+            groups: [
+              {
+                id: "group-main",
+                frame: { x: 0, y: 0, width: 1, height: 1 },
+                root: {
+                  id: "split-main",
+                  kind: "split",
+                  axis: "horizontal",
+                  weights: [0.5, 0.5],
+                  children: [
+                    { id: "leaf-tasks", kind: "leaf", window_id: "app:tasks" },
+                    { id: "leaf-terminal", kind: "leaf", window_id: "app:terminal" },
+                  ],
+                },
+              },
+            ],
+            floating: [],
+            floating_stacks: [],
+          },
+        ],
+        windows: {},
+        overrides: {},
+      },
+    },
+    created_at: "2026-06-01T10:00:00Z",
+    updated_at: "2026-06-01T10:00:00Z",
+  };

@@ -8,6 +8,7 @@ import (
 )
 
 type loadOptions struct {
+	windowManagerWarning      func(string, bool)
 	workspaceRoot             string
 	profileName               string
 	skipDotEnv                bool
@@ -108,6 +109,7 @@ func Load(opts ...LoadOption) (Config, error) {
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
+		options.windowManagerWarning,
 	)
 }
 
@@ -142,6 +144,7 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
+		options.windowManagerWarning,
 	)
 }
 
@@ -152,8 +155,10 @@ func loadWithHome(
 	skipWorkspaceOverlayFiles bool,
 	skipValidate bool,
 	lookup envLookup,
+	warning func(string, bool),
 ) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
+	cfg.WindowManager.retiredKeyWarning = windowManagerWarningOnce(warning)
 	// The daemon applies the same layer at boot, so config inspection reports what it exports with. Process
 	// environment only: OTel export is operator policy, never set from a workspace .env file.
 	ApplyOTelEnvironment(&cfg, func(key string) string {
@@ -220,4 +225,18 @@ func loadWithHome(
 	}
 
 	return cfg, nil
+}
+
+func windowManagerWarningOnce(warning func(string, bool)) func(string, bool) {
+	if warning == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	return func(key string, translated bool) {
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		warning(key, translated)
+	}
 }

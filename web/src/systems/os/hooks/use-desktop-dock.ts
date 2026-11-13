@@ -51,10 +51,9 @@ export interface UseDesktopDockOptions {
 }
 
 /**
- * Dock view-model: registry order with running/active/minimized/badge state
- * and the open-or-minimize activation semantics (tab-bar taps never minimize —
- * os-v2.js:462). A plain launch that has to open follows the daemon's
- * new-window policy (a tab in the focused window by default).
+ * Dock view-model: registry order with running/active/badge state and
+ * focus-first activation. A plain launch that has to open follows the daemon's
+ * new-window policy (a tab after the active tab by default).
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
@@ -108,7 +107,6 @@ export function useDesktopDock(
       running:
         app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
       active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
-      minimized: state === "minimized" && (app.id !== "terminal" || terminalLive === true),
       badge: dockBadgeFor(app, badges),
     };
   });
@@ -156,8 +154,7 @@ export function useDesktopDock(
       openFiles();
       return;
     }
-    // Repeat activation cycles the app's instances (ADR-002); minimizing the
-    // focused one only makes sense when it is the app's sole instance.
+    // Repeat activation cycles the app's instances (ADR-002).
     const target = activationTarget(
       state.windows,
       state.client?.focusOrder ?? [],
@@ -172,13 +169,6 @@ export function useDesktopDock(
         return;
       }
       void coordinator.userOpen({ app: appId });
-      return;
-    }
-    // Tab-bar semantics (compact): tap = switch to, never minimize. A minimized
-    // target is always restored, even while the client frame still names it
-    // as focused (the topology can report the minimize first).
-    if (target.id === state.focusedId && !target.minimized && presentation === "floating") {
-      void coordinator.userMinimize(target.id);
       return;
     }
     void coordinator.userActivateWindow(target.id);

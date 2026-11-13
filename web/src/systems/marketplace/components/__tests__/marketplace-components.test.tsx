@@ -1087,18 +1087,13 @@ describe("Marketplace page and cards", () => {
         instanceKey: null,
         route: { pathname, search: { q: "saved" } },
         navStack: [],
-        pinned: false,
         desktopId: "saved-desktop",
-        placement: "floating" as const,
-        rect: { x: 80, y: 90, w: 900, h: 600 },
-        layer: 2,
-        minimized: false,
-        zoomed: false,
-        groupId: null,
+        tabId: "saved-tab",
         nodeId: null,
-        stackId: null,
-        stackActive: true,
-        parentAxis: null,
+        pinned: false,
+        inSplit: false,
+        tabActive: true,
+        shown: true,
       };
       manager.projectionAtom.set({ ...initial, windows: { [window.id]: window } });
       const shell = {

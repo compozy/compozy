@@ -26,6 +26,153 @@ other scenarios touched by the PR.
   go through the existing `@user` selector. Official skill `skills/compozy/`: no change (menus are not an
   agent surface). Docs: `packages/site/content/docs/files/open-in.mdx` and `sessions/board.mdx`.
 
+## Window tabs and splits: one tab bar per desktop, snapshot v6 — 2026-11-13
+
+Owner: `.compozy/tasks/window-tabs-split/`, single PR from `feat/window-tabs-split`. QA: the
+"Product retirement — floating windows, minimize, zoom (2026-11-13)" section of `docs/qa/README.md`; every
+affected file under `docs/qa/scenarios/` and `docs/qa/journeys/` carries a `qa-impact: 2026-11-13` note.
+New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure-retry`,
+`ET-window-unsplit-four-ways`, `ET-window-retired-surfaces-deprecations`,
+`MS-window-manager-retired-config-keys`, `MS-window-shortcut-retired-binding`,
+`ET-layout-editor-import-legacy-document`. Removed: `ET-window-zoom-in-place`,
+`ET-layout-editor-board-summary`, `ET-layout-editor-group-overlap-refused`.
+
+- **User state** (user-state regime; ADR-001 records the sign-off). Stored snapshots v3/v4/v5 convert to
+  v6 on load (`DecodeSnapshot` → `ConvertSnapshotV5`, frozen types in `snapshot_v5_types.go`); the
+  converter and the v4/v5 document decoder (`layout_decode.go`) are permanent. One client-state batch
+  writes `snapshot:<profileID>` (v6), `legacy:<profileID>` (original bytes, new `clientstate.OpCopy`)
+  and `migration:<profileID>` (status). A failed conversion keeps the bytes and writes a default
+  snapshot with `state: "failed"`; a newer value (version 7+) is never modified: its partition answers
+  `ErrUnavailable` (HTTP 503), and boot reconciliation logs `window_manager.partition_reconciliation_skipped`
+  and serves the other partitions instead of stopping the daemon. Only boot skips it: session-delete
+  window reconciliation and workspace unregistration call `reconcilePartitions` strictly, which
+  processes every readable partition and then returns the unavailable ones joined (any other error
+  still returns at once). While a partition the daemon cannot read or cannot write exists (version
+  7+, or a re-upgrade refused by the key quota) the session delete still succeeds but its window
+  cleanup is retried in the background (tombstone kept), and unregistration answers HTTP 500 with
+  the intent staged until a repeat succeeds (a 503 needs a contract change; follow-up). Both causes
+  are traced: a quota-refused v5 value is re-migrated on every `Load` and its single `Apply` fails
+  again (`SnapshotQuotaError`, `ErrUnavailable`), and `ReconcileDeletedSession` /
+  `ReconcileUnregisteredWorkspace` call `Snapshot` first. Unregistration purges the removed
+  workspace's own partitions before the cross-partition reconciliation (`window_manager_boot.go`),
+  so only an unusable partition of another workspace or profile blocks it; that purge is the one
+  place a v5 value is deleted without conversion, at the user's request. A
+  re-upgrade after a downgrade
+  converts the layout v0.6 wrote whatever the earlier status (no status-based refusal; the only
+  refusal is the key quota below): when its bytes
+  differ from `legacy:<profileID>`, the same atomic batch copies the earlier backup to
+  `superseded:<profileID>:<sha256 hex>` with a sibling disposition record
+  `superseded:<profileID>:<sha256 hex>:disposition` (`{"state":"migrated"}` when the status the copy
+  belonged to was `migrated` without an error, otherwise `{"state":"failed"}`; a copy already marked
+  failed stays failed) and writes the new bytes to `legacy:`; `migration:` holds the latest status,
+  and retry, ack and `retry --replace` act on the latest `legacy:`. The status reports the number of
+  kept copies in `superseded_backups` (recomputed on read); `error` is present only on `failed`.
+  Retention from v0.8.0 deletes a superseded copy and its record when the record says `migrated`
+  (the same rule as a migrated `legacy:`); copies of `failed` or unrecorded conversions are kept
+  until the workspace or profile is purged. A re-upgrade whose extra keys would exceed the
+  client-state key quota per workspace (`MaxKeysPerWorkspace`, 512 by default) writes nothing (one atomic batch): the partition answers `ErrUnavailable`
+  (HTTP 503 `window_manager_unavailable`, diagnostic `snapshot_key_quota`) and boot skips it like a
+  version 7 partition. Stored `window_layout` profiles are
+  rewritten to document v6 at boot (`reconcileStoredWindowLayouts`). Lossy: undo/redo history, floating
+  rects, group frames, minimized and zoomed flags, return anchors, stack grouping (members become
+  adjacent tabs), pins on windows that land in a split tab. The user is told by `snapshot.migration`
+  (`state`, `summary`, `error`), the web upgrade notice (Dismiss acks for every client, Retry on
+  failure) and `layout migration status|ack|retry`. `config.toml`: retired keys load with any value, are
+  ignored and never written back by Settings; existing lines stay.
+- **Native tools** (public regime). No tool ID added, renamed or removed. `compozy__window_move`:
+  `placement` gains `tab`, new `target_tab_id`; `compozy__window_close`: `scope` gains `left`, `all`;
+  `compozy__layout_balance`: new `tab_id`, `group_id` is its deprecated alias; layout document inputs
+  accept `version` 4, 5, 6. Deprecated no-ops: `compozy__window_float`, `compozy__window_zoom`,
+  `compozy__window_resize`, `compozy__layout_frame_resize`; `compozy__window_group` places adjacent
+  tabs. Command IDs `window.tab.reorder` and `window.tab.activate` replace `window.stack.reorder` and
+  `window.stack.set_active` (kept as aliases). Results and previews gain the additive `deprecations[]`
+  (`code`, `surface`, `replacement`, `removal_release` `v0.8.0`, `message`); `changes` gains `tab_ids`,
+  `tab_split`, `tab_unsplit`. Topology results have no v5 projection (accepted break, ADR-004).
+- **CLI/HTTP/UDS** (public regime). New: `window reorder <window-id> --index`, `layout migration
+  status|ack|retry [--replace]`, `window move --tab` and `--placement tab` (now the default), `window
+  close --scope left|all`, `layout balance --tab`. Deprecated with a stderr warning, exit 0: `window
+  float|zoom|resize|group`, `layout frame-resize`, and the flags `--floating`, `--rect`, `--restore`,
+  `--minimize`, `--placement floating`, `--arrangement stack`, `--frame`, `--keep-frames`, and `--group`
+  on `layout arrange|balance`. `window.move` with an empty or missing `placement` (HTTP/UDS,
+  `compozy__window_move`) maps to `tab` and reports the deprecation `window.move.placement=empty`. New routes `GET` and `POST
+  /api/workspaces/{workspace_id}/window-manager/migration` (`WindowManagerMigrationRequest` →
+  `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
+  stream frame. The Web failure notice sends `replace: true` only after the operator confirms
+  "Replace current layout", offered when the snapshot revision differs from `failure_revision` (the
+  daemon's own rule) or a plain retry answers 409; `ack` never sends it. A failed status carries `failure_revision` (`omitempty`; the fallback snapshot is revision 0, so
+  a fresh failure omits it; cleared by a successful retry) and `error`,
+  whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`;
+  `error` is absent on every other state. New additive `superseded_backups` (integer, `minimum: 0`,
+  omitted at 0) on `MigrationStatus`, in OpenAPI, `sdk/go`, `sdk/client` and the `layout migration`
+  JSON output.
+  `window open` and its preview refuse an unregistered app id with `window_manager_invalid_command`
+  (HTTP 422, "unregistered window app") on HTTP, UDS, CLI and native tools, after the retired
+  `jobs`/`triggers` ids are translated to `automations`.
+  `desktop delete` needs no `--destination` when every tab of the desktop is a New tab placeholder;
+  the placeholders are dropped, not moved. Client view: `active_tab`
+  replaces `stack_active` (still sent, `{}`); `window_in_split` is new, `window_stacked` mirrors it,
+  `window_floating` is `false`. `PATCH /api/settings/window-manager` ignores `raise_on_focus`,
+  `drag_away_policy`, `group_move_modifier`, `snap`, `bindings` (deprecated in OpenAPI); `GET` returns
+  fixed `false`, `"window"`, `"none"`, zero `snap` with `repeat_ratios: []`, and `"none"` bindings.
+  Regenerated: OpenAPI, `sdk/go`, `sdk/client`, `sdk/typescript`, CLI docs, native-tool catalog.
+- **Extensibility and hooks** (public regime). New events `window_manager.tab.split`,
+  `window_manager.tab.unsplit`, `window_manager.tab.activated`, with payload types in the extension SDK
+  contract. `window_manager.stack.activated` fires together with `tab.activated`;
+  `window_manager.stack.grouped` and `window_manager.stack.ungrouped` stay valid, never fire, and warn
+  at load and in `compozy hooks list`. Extension `window_layouts` keep the v1 envelope; v4/v5 documents
+  convert at load. The example in `packages/site/content/docs/extensions/develop.mdx` is a v6 document.
+- **Config** (public regime). Retired `[window_manager]` keys, each warning once: `raise_on_focus`,
+  `drag_away_policy`, `group_move_modifier`, `snap.edge_band`, `snap.corner_reach`, `snap.exit_slack`,
+  `snap.repeat_ratios`, `bindings.top_center`, `bindings.bottom_center`; `new_window_policy =
+  "floating"` loads as `"tab"`; workspace and layout-document `overrides` take the same translation.
+  Retired shortcut IDs (bindings load, do nothing; defaults removed): `window.minimize`, `window.zoom`,
+  `window.toggle_floating`, `window.merge_all`, `window.tab.detach`,
+  `window.tile.top-left|top-right|bottom-left|bottom-right`. `window.tile.left|right|top|bottom` now
+  move the window to that edge of its tab. New unbound IDs: `window.unsplit`, `window.tab.move_left`,
+  `window.tab.move_right`.
+- **Command palette** (public regime). Retired palette command IDs keep resolving until v0.8.0 as
+  deprecated no-ops (`applied: false` with a `deprecations` entry; `compozy cmd-palette invoke`
+  reaches the daemon for them and also prints a `warning:` line) and are no longer listed: `window.minimize`, `window.zoom`,
+  `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`,
+  `layout.frame_resize`, `window.stack.group`.
+- **Workspace data isolation.** `snapshot:`, `legacy:`, `migration:` and the new
+  `superseded:<profileID>:<sha256 hex>` keys and their `:disposition` records are keyed per
+  workspace and profile, and
+  `purgeWindowManagerPartition` deletes all of them (workspace or profile removal). The active tab is per
+  client (`active_tab`), with `active_tab_id` as the shared default. The boot rewrite keeps each layout
+  profile's scope, owner and source.
+- **Web** (internal regime). `web/src/systems/os` renders v6: `os-tab-bar`, `os-tab`, `os-split-view`,
+  `os-window-pane`, drag and drop (`os-tab-drag-store`, `os-drop-zone`), seam resize, unsplit,
+  `os-upgrade-notice`, desktops overview cards with tab rows and in-place close, top-bar
+  `desktop-indicators` in place of `desktop-pager`. Window frames, decks, snap overlays, traffic lights,
+  the zoom menu and `react-rnd` are removed. The Settings layout editor edits desktops, tabs and splits
+  and drops the controls for retired keys. New `@compozy/ui` primitive `DeleteButton`
+  (`packages/ui/src/components/custom/delete-button.tsx`, story and test).
+- **Official skill.** `skills/compozy/references/window-management.md` is rewritten for tabs and splits
+  (model, CLI, tools, HTTP and stream, upgrade, recovery, config, hooks, retired surfaces);
+  `native-tools.md`, `configuration.md` and `desktop.md` follow the new model.
+- **Docs.** `packages/site/content/docs/workspaces/window-management.mdx` (rewritten, with the v0.6
+  upgrade and a "Retired in v0.7.0" table), `configuration/config-toml.mdx`, `configuration/shortcuts.mdx`,
+  `sessions/index.mdx`, `sessions/mentions.mdx`, `resources/index.mdx`, `hooks/event-catalog.mdx`
+  (new Window Manager Events family), `extensions/develop.mdx`, generated `cli/window/` (new `reorder.mdx`) and
+  `cli/layout/` (new `migration/`) pages; `COPY.md` §OS Shell Terms and `docs/_memory/glossary.md`
+  (Tab and Split replace Tiled group); release note `.release-notes/window-tabs-and-splits.md`
+  (`breaking`, with the migration block).
+- **Delete targets (v0.8.0, one shim generation).** `command_compatibility.go`,
+  `deprecated_surfaces.go`, `retired_shortcuts.go`, `config_compatibility.go` in
+  `internal/windowmanager`; retired fields in `internal/api/contract/windowmanager_command_payloads.go`;
+  the two alias command IDs; `group_ids`, `stack_grouped`, `stack_ungrouped`, `stack_active`,
+  `window_floating`, `window_stacked`; deprecated Settings fields in
+  `internal/api/core/settings_window_manager_payload.go`; the five deprecated tools with
+  `internal/daemon/native_tool_window_manager_deprecation.go`; deprecated verbs and flags with
+  `internal/cli/window_manager_deprecation.go`; `internal/config/retired_window_manager.go`; the
+  `stack.*` events in `internal/hooks/events_window_manager.go`;
+  `web/src/systems/settings/lib/window-manager-retired-shortcuts.ts`; `retiredConfigKeys` in
+  `web/src/systems/os/lib/window-manager-config-schema.ts`. `expireMigrationBackups`
+  (`internal/daemon/window_manager_migration_retention.go`) deletes `legacy:` of `migrated` workspaces
+  at the first v0.8.0 boot. Permanent: `snapshot_v3.go`, `snapshot_v4.go`, `snapshot_v5*.go`,
+  `layout_decode.go`.
+
 ## Always-on context: operator rules, peer roster, provider MCP isolation — 2026-11-12
 
 Owner: small-work PR `feat/always-on-binding-context`. QA: `docs/qa/scenarios/RT-always-on-standing-context.md`

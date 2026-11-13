@@ -8,10 +8,13 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -555,14 +558,7 @@ func extensionKitIntegrationLayout(id string) windowmanager.LayoutResource {
 	return windowmanager.LayoutResource{
 		Version: windowmanager.LayoutResourceVersion, ID: id, DisplayName: "Focus",
 		AspectVariant: windowmanager.LayoutAspectAny, OverflowPolicy: windowmanager.LayoutOverflowStack,
-		Document: windowmanager.LayoutDocument{
-			Version: windowmanager.SnapshotVersion,
-			Desktops: []windowmanager.Desktop{{
-				ID: "desktop-main", Name: "Main",
-				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
-			}},
-			Windows: map[windowmanager.WindowID]windowmanager.Window{},
-		},
+		Document: daemonTestLayoutDocument("Main"),
 	}
 }
 
@@ -644,3 +640,222 @@ func assertExtensionKitIntegrationOwners(
 		}
 	}
 }
+
+// Invariant: boot upgrades saved layouts once, retains failures, and admits legacy extension files.
+func TestLegacyWindowLayoutResources(t *testing.T) {
+	t.Run(
+		"Should rewrite stored v5 profiles and boot with an unconvertible profile intact (IT-013)",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openDaemonTestGlobalDB(t)
+			kernel, err := resources.NewKernel(db.DB())
+			if err != nil {
+				t.Fatal(err)
+			}
+			codecs := resources.NewCodecRegistry()
+			if err := registerDaemonResourceCodecs(codecs); err != nil {
+				t.Fatal(err)
+			}
+			state := &bootState{resourceKernel: kernel, resourceCodecs: codecs, logger: discardLogger()}
+			actor := resources.MutationActor{
+				Kind: resources.MutationActorKindOperator, ID: "operator",
+				Source:   resources.ResourceSource{Kind: "dynamic", ID: "operator"},
+				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			}
+			original, err := kernel.PutRaw(ctx, actor, resources.RawDraft{
+				Kind: windowmanager.WindowLayoutResourceKind, ID: "legacy", Scope: actor.MaxScope,
+				SpecJSON: []byte(legacyWindowLayoutResourceJSON),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			brokenJSON := bytes.ReplaceAll(
+				[]byte(legacyWindowLayoutResourceJSON),
+				[]byte(`"id":"legacy"`),
+				[]byte(`"id":"broken"`),
+			)
+			brokenJSON = bytes.ReplaceAll(brokenJSON, []byte(`"floating":["one","two"]`), []byte(`"floating":["one"]`))
+			broken, err := kernel.PutRaw(ctx, actor, resources.RawDraft{
+				Kind: windowmanager.WindowLayoutResourceKind, ID: "broken", Scope: actor.MaxScope, SpecJSON: brokenJSON,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := reconcileStoredWindowLayouts(ctx, state); err != nil {
+				t.Fatal(err)
+			}
+			stored, err := kernel.GetRaw(ctx, actor, windowmanager.WindowLayoutResourceKind, "legacy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var header struct {
+				Version  uint32 `json:"version"`
+				Document struct {
+					Version uint32 `json:"version"`
+				} `json:"document"`
+			}
+			if err := json.Unmarshal(stored.SpecJSON, &header); err != nil {
+				t.Fatal(err)
+			}
+			if header.Version != 1 || header.Document.Version != 6 || stored.Version != original.Version+1 ||
+				stored.Source != original.Source || stored.Owner != original.Owner || stored.Scope != original.Scope {
+				t.Fatalf("rewritten record = %+v; header = %+v", stored, header)
+			}
+			if err := reconcileStoredWindowLayouts(ctx, state); err != nil {
+				t.Fatal(err)
+			}
+			again, err := kernel.GetRaw(ctx, actor, windowmanager.WindowLayoutResourceKind, "legacy")
+			if err != nil || !reflect.DeepEqual(again, stored) {
+				t.Fatalf("second rewrite = %+v, error = %v; want %+v", again, err, stored)
+			}
+			retained, err := kernel.GetRaw(ctx, actor, windowmanager.WindowLayoutResourceKind, "broken")
+			if err != nil || !reflect.DeepEqual(retained, broken) {
+				t.Fatalf("unconvertible record = %+v, error = %v; want original %+v", retained, err, broken)
+			}
+
+			catalog := newResourceCatalog(windowmanager.CloneLayoutResource)
+			daemon := &Daemon{}
+			daemon.applyResourceReconcileDriverFactoryDefault()
+			driver, err := daemon.newResourceReconcile(ctx, resourceReconcileDriverDeps{
+				ResourceStore: kernel, CodecRegistry: codecs, WindowLayoutCatalog: catalog, Logger: discardLogger(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := driver.Close(context.Background()); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+			if err := driver.RunBoot(ctx); err != nil {
+				t.Fatalf("RunBoot() with an unconvertible profile: %v", err)
+			}
+			registry := newWindowManagerLayoutRegistry(catalog)
+			visible, err := registry.List(ctx, "workspace-a")
+			if err != nil || len(visible) != 1 || visible[0].ID != "legacy" ||
+				!reflect.DeepEqual(visible[0].ParticipantSlots, []windowmanager.WindowID{"one", "two", "virtual"}) ||
+				visible[0].AspectVariant != windowmanager.LayoutAspectLandscape ||
+				visible[0].OverflowPolicy != windowmanager.LayoutOverflowReject {
+				t.Fatalf("List() after boot = %+v, error = %v", visible, err)
+			}
+			service, err := windowmanager.NewService(windowmanager.NewMemoryRepository(),
+				windowmanager.NewMemoryWorkspaceResolver("workspace-a"), registry, windowmanager.DefaultConfig())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+			applied, err := service.Execute(ctx, windowmanager.CommandRequest{
+				WorkspaceID: "workspace-a", Payload: windowmanager.ArrangeLayoutCommand{ResourceID: "legacy"},
+			})
+			if err != nil || !applied.Applied || applied.Snapshot.Version != 6 ||
+				len(applied.Snapshot.Desktops[0].Tabs) != 2 || len(applied.Snapshot.Windows) != 2 ||
+				applied.Snapshot.Windows["one"].Route.Pathname != "/sessions/one" ||
+				len(applied.Snapshot.Windows["one"].NavStack) != 1 ||
+				applied.Snapshot.Windows["two"].Route.Pathname != "/terminal/two" ||
+				applied.Snapshot.Overrides.FocusWrap == nil || !*applied.Snapshot.Overrides.FocusWrap {
+				t.Fatalf("apply saved profile = %+v, error = %v", applied, err)
+			}
+		},
+	)
+
+	// Invariant: boot persists v4 app upgrades before registered-app reconciliation can prune windows.
+	t.Run("Should rewrite retired apps in a stored v4 profile without losing windows (IT-013)", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatal(err)
+		}
+		codecs := resources.NewCodecRegistry()
+		if err := registerDaemonResourceCodecs(codecs); err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{resourceKernel: kernel, resourceCodecs: codecs, logger: discardLogger()}
+		actor := resources.MutationActor{
+			Kind: resources.MutationActorKindOperator, ID: "operator",
+			Source:   resources.ResourceSource{Kind: "dynamic", ID: "operator"},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}
+		raw := []byte(legacyWindowLayoutResourceJSON)
+		for _, replacement := range [][2]string{
+			{`"version":5`, `"version":4`},
+			{`"app":"session"`, `"app":"jobs"`},
+			{`"app":"terminal"`, `"app":"triggers"`},
+			{`/sessions/one`, `/jobs/one`},
+			{`/sessions`, `/jobs`},
+			{`/terminal/two`, `/triggers/two`},
+		} {
+			raw = bytes.ReplaceAll(raw, []byte(replacement[0]), []byte(replacement[1]))
+		}
+		if _, err := kernel.PutRaw(ctx, actor, resources.RawDraft{
+			Kind: windowmanager.WindowLayoutResourceKind, ID: "legacy", Scope: actor.MaxScope, SpecJSON: raw,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := reconcileStoredWindowLayouts(ctx, state); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := kernel.GetRaw(ctx, actor, windowmanager.WindowLayoutResourceKind, "legacy")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Inspect stored window fields directly so a second document decode cannot mask a missed rewrite.
+		var persisted struct {
+			Document struct {
+				Version uint32                          `json:"version"`
+				Windows map[string]windowmanager.Window `json:"windows"`
+			} `json:"document"`
+			ParticipantSlots []windowmanager.WindowID `json:"participant_slots"`
+		}
+		if err := json.Unmarshal(stored.SpecJSON, &persisted); err != nil {
+			t.Fatal(err)
+		}
+		job, trigger := persisted.Document.Windows["one"], persisted.Document.Windows["two"]
+		if persisted.Document.Version != 6 || len(persisted.Document.Windows) != 2 ||
+			job.App != "automations" || job.Route.Pathname != "/automations/jobs/one" ||
+			trigger.App != "automations" || trigger.Route.Pathname != "/automations/triggers/two" ||
+			len(job.NavStack) != 1 ||
+			!reflect.DeepEqual(persisted.ParticipantSlots, []windowmanager.WindowID{"one", "two", "virtual"}) {
+			t.Fatalf("persisted v4 upgrade = %+v", persisted)
+		}
+		if job.NavStack[0].Pathname != "/automations" || string(job.NavStack[0].Search["start"]) != `"schedule"` {
+			t.Fatalf("persisted navigation stack = %+v", job.NavStack)
+		}
+	})
+
+	t.Run("Should load a static v5 extension layout as v6 tabs (IT-013)", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(root, "legacy.json"),
+			[]byte(legacyWindowLayoutResourceJSON),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		layouts, err := extensionpkg.LoadLayoutResources(t.Context(), root, []string{"legacy.json"})
+		if err != nil || len(layouts) != 1 || layouts[0].Version != 1 || layouts[0].Document.Version != 6 ||
+			len(layouts[0].Document.Desktops[0].Tabs) != 2 || len(layouts[0].Document.Windows) != 2 {
+			t.Fatalf("LoadLayoutResources() = %+v, error = %v", layouts, err)
+		}
+	})
+}
+
+const legacyWindowLayoutResourceJSON = `{
+	"version":1,"id":"legacy","display_name":"Saved","aspect_variant":"landscape",
+	"participant_slots":["one","two","virtual"],"overflow_policy":"reject",
+	"document":{
+		"version":5,"workspace_id":"",
+		"desktops":[{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["one","two"],"floating_stacks":[]}],
+		"windows":{
+			"one":{"id":"one","app":"session","desktop_id":"saved","placement":"floating","route":{"pathname":"/sessions/one","search":{}},"nav_stack":[{"pathname":"/sessions","search":{}}],"pinned":true,"floating_rect":{"x":0.1,"y":0.1,"width":0.4,"height":0.6}},
+			"two":{"id":"two","app":"terminal","desktop_id":"saved","placement":"floating","route":{"pathname":"/terminal/two","search":{}},"nav_stack":[],"minimized":true,"floating_rect":{"x":0.5,"y":0.1,"width":0.4,"height":0.6}}
+		},"overrides":{"focus_wrap":true}
+	}
+}`

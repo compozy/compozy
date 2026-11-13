@@ -124,19 +124,22 @@ func globalShortcutRegistrationChanged(
 func derivePaletteContext(view ClientView, snapshot Snapshot) PaletteContext {
 	context := view.PaletteContext
 	context.WindowFocused = view.FocusedWindowID != nil
+	context.WindowInSplit = false
 	context.WindowFloating = false
 	context.WindowStacked = false
 	context.DesktopWindowCount = 0
 	context.ShellDesktop = view.Kind == ClientKindShell
 	for _, window := range snapshot.Windows {
-		if window.DesktopID == view.ActiveDesktopID && !window.Minimized {
+		if window.DesktopID == view.ActiveDesktopID {
 			context.DesktopWindowCount++
 		}
 	}
 	if view.FocusedWindowID != nil {
 		if window, exists := snapshot.Windows[*view.FocusedWindowID]; exists {
-			context.WindowFloating = window.Placement == WindowPlacementFloating
-			_, context.WindowStacked = findStackByWindow(&snapshot, *view.FocusedWindowID)
+			if d, ti, ok := findTab(&snapshot, window.TabID); ok {
+				context.WindowInSplit = len(nodeWindowIDs(d.Tabs[ti].Root)) > 1
+				context.WindowStacked = context.WindowInSplit
+			}
 		}
 	}
 	return context

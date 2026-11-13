@@ -169,6 +169,9 @@ export type HookEvent =
   | "spawn.ttl_expired"
   | "spawn.reaped"
   | "session.attention.changed"
+  | "window_manager.tab.split"
+  | "window_manager.tab.unsplit"
+  | "window_manager.tab.activated"
   | "window_manager.layout.applied"
   | "window_manager.desktop.created"
   | "window_manager.desktop.deleted"
@@ -6591,6 +6594,9 @@ export interface ViewOpenRequest {
 }
 
 export interface WindowManagerChanges {
+  tab_ids?: string[];
+  tab_split?: string[];
+  tab_unsplit?: string[];
   desktop_ids?: string[];
   window_ids?: string[];
   group_ids?: string[];
@@ -6663,6 +6669,39 @@ export interface WindowManagerStackGroupedPayload {
 }
 
 export interface WindowManagerStackUngroupedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerTabActivatedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerTabSplitPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerTabUnsplitPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   workspace_id: string;
@@ -6855,6 +6894,9 @@ export interface HookPayloadByEvent {
   "spawn.ttl_expired": SpawnTTLExpiredPayload;
   "spawn.reaped": SpawnReapedPayload;
   "session.attention.changed": SessionAttentionChangedPayload;
+  "window_manager.tab.split": WindowManagerTabSplitPayload;
+  "window_manager.tab.unsplit": WindowManagerTabUnsplitPayload;
+  "window_manager.tab.activated": WindowManagerTabActivatedPayload;
   "window_manager.layout.applied": WindowManagerLayoutAppliedPayload;
   "window_manager.desktop.created": WindowManagerDesktopCreatedPayload;
   "window_manager.desktop.deleted": WindowManagerDesktopDeletedPayload;
@@ -6964,6 +7006,9 @@ export interface HookPatchByEvent {
   "spawn.ttl_expired": SpawnObservationPatch;
   "spawn.reaped": SpawnObservationPatch;
   "session.attention.changed": SessionAttentionObservationPatch;
+  "window_manager.tab.split": WindowManagerObservationPatch;
+  "window_manager.tab.unsplit": WindowManagerObservationPatch;
+  "window_manager.tab.activated": WindowManagerObservationPatch;
   "window_manager.layout.applied": WindowManagerObservationPatch;
   "window_manager.desktop.created": WindowManagerObservationPatch;
   "window_manager.desktop.deleted": WindowManagerObservationPatch;

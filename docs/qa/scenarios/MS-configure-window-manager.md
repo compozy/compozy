@@ -1,12 +1,12 @@
 ---
 id: MS-configure-window-manager
 area: MS
-title: Configure window behavior and declarative layouts safely
+title: Configure window behavior and the project layout safely
 persona: Bruno
 journey: J-administer-window-manager
-expected: Settings › Layouts exposes every supported `[window_manager]` value through direct manipulation — a desktop canvas, a 1:1 gap box, a snap-zone map, a repeat-width track, and a chord recorder — with no number field bound to a geometry value; out-of-range gaps, snap thresholds, history limit, duplicate repeat widths, and duplicate shortcut chords each name the exact value at fault and block the save while preserving the active known-good configuration; one floating save bar covers the global config and the workspace layout reviews inside its own card; a valid save hot-applies to the next command without restarting; workspace layout overrides remain isolated.
-entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; GET/PATCH /api/settings/window-manager over HTTP and UDS; compozy layout-profile list|get|put|delete
-qa_status: pass
+expected: Settings › Layouts shows, in order, Project layout (desktops → tabs → splits editor that reviews and applies inside its own card), Saved layouts, Window behavior (New windows: New tab or Split beside focus; Not enough room: One window at a time or Refuse the layout; Taking focus: Click and keys or Keys only; Switching desktops: Slide, Crossfade or Instant; Swap two windows modifier; Wrap directional focus; Focus follows the pointer), Shortcuts (Terminal preset, the shortcut table and global hotkeys, applied live) and an Advanced fold with Spacing (the Gaps card) and History (Layout history steps); there is no snap, corner, exit-slack, repeat-width, centre-binding, raise-on-focus, drag-away or group-move control and no floating option; out-of-range gaps or history limit and duplicate shortcut chords name the exact value at fault and block the save while the active known-good configuration stays; one save bar (Save changes / Discard) covers the global behavior while the layout applies from Apply layout and shortcuts apply at once; a valid save hot-applies to the next command without restarting; workspace layout overrides stay isolated; a config.toml carrying retired `[window_manager]` keys still loads (see MS-window-manager-retired-config-keys).
+entry_points: Settings › Layouts; global config.toml; compozy config get|set|show|reload; GET/PATCH /api/settings/window-manager over HTTP and UDS; compozy layout-profile list|get|put|delete; compozy layout export|validate|apply
+qa_status: untested
 bug_ids: BUG-20260801-window-manager-live-config-drift
 fix_status: fixed
 retest_status: pass
@@ -72,3 +72,20 @@ without changing the existing configuration.
 Impact: saves validate the catalog selected by the existing `client_profile` selector.
 HTTP/UDS and Web schemas, user/workspace config ownership, native tools, hooks, migrations,
 workspace isolation, and official skill contracts are unchanged.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Floating windows, minimize, zoom, islands and
+stacks were replaced by one tab bar per desktop whose tabs hold a window or a split. Settings lost
+the snap map, the repeat-width track, centre bindings and the raise-on-focus, drag-away and
+group-move controls; New windows offers only New tab and Split beside focus; the layout editor
+edits desktops → tabs → splits and imports v4/v5/v6 files. Retired keys load with a warning and
+have no control. Walk: preconditions — a project with two desktops and a split tab, and a second
+project. 1) Open Settings › Layouts and read the sections listed in `expected`; open each
+behavior group and the Advanced fold and confirm none of the retired controls appears. 2) Pick
+Split beside focus under New windows, press Save changes, open a session from the shell and
+confirm it joins the active tab as a split to the right of the focused window; switch back to New
+tab, save, and confirm the next window opens as a new tab after the active one. 3) Run
+`compozy config set window_manager.history_limit 0` and confirm it is refused with the field named
+and `compozy config get window_manager.history_limit` is unchanged. 4) Record the same chord for two
+actions in the shortcut table and confirm the second is blocked with the owner named. 5) Edit the
+Project layout (move a seam), Review changes, Apply layout, and confirm the other project's layout
+and `compozy config show` are unchanged. Reset for the current build.

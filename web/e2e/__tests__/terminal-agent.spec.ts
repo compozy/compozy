@@ -20,7 +20,7 @@ import {
   ensureAppWindow,
   focusWindowThroughPalette,
   sessionWindow,
-  windowFrame,
+  windowPane,
 } from "../fixtures/os-navigation";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { profilesOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
@@ -283,7 +283,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     // Agent execution stays outside the desktop until the operator opens it.
     const materialized = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
     await expect(materialized).toHaveCount(0);
-    await expect(windowFrame(harness.sessionWin)).toHaveAttribute("data-focused", "");
+    await expect(windowPane(harness.sessionWin)).toHaveAttribute("data-focused", "");
 
     await ensureProjectWorkspace(appPage, runtime);
     // Explicit opening must restore this exact catalog entry.
@@ -357,7 +357,7 @@ test("E2E-004: two browser contexts write to one agent terminal concurrently", a
       waitUntil: "domcontentloaded",
     });
     const firstWindow = appPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+      '[data-slot="os-window-surface"][data-app="terminal"][data-shown]'
     );
     const firstGrid = firstWindow.getByRole("log", { name: "agent-watch-control" });
     await expect(firstGrid).toHaveAttribute("data-readonly", "false");
@@ -372,7 +372,7 @@ test("E2E-004: two browser contexts write to one agent terminal concurrently", a
       waitUntil: "domcontentloaded",
     });
     const secondWindow = secondPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+      '[data-slot="os-window-surface"][data-app="terminal"][data-shown]'
     );
     await expect(firstWindow.getByTestId("terminal-viewers")).toContainText("2");
     const secondGrid = secondWindow.getByRole("log", { name: "agent-watch-control" });
@@ -422,7 +422,7 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
       waitUntil: "domcontentloaded",
     });
     let terminalWindow = appPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+      '[data-slot="os-window-surface"][data-app="terminal"][data-shown]'
     );
     await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
       timeout: 20_000,
@@ -547,7 +547,7 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
     // The deep link focuses the reconciled window itself; ensure would dock-
     // click a focused window and minimize it.
     const terminalWindow = appPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+      '[data-slot="os-window-surface"][data-app="terminal"][data-shown]'
     );
     await expect(terminalWindow).toBeVisible({ timeout: 20_000 });
     await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
@@ -736,8 +736,8 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcherOption("default").click();
     expect((await rememberedDefault).ok()).toBe(true);
     await expect(profiles.switcher).toHaveAccessibleName("Profile: default");
-    // The deep link is the way to a specific terminal; a dock activation then
-    // restores the window in case an earlier gesture left it minimized.
+    // The deep link is the way to a specific terminal: it activates the
+    // terminal window's tab whatever tab an earlier gesture left active.
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(inputTerminalId)}`), {
       waitUntil: "domcontentloaded",
     });

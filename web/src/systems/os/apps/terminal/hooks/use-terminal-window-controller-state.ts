@@ -41,6 +41,7 @@ import {
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
+import { matchTerminalInstance } from "../../../lib/app-catalog";
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
 import { useTerminalWindowCreation } from "./use-terminal-window-creation";
 
@@ -116,9 +117,14 @@ export function useTerminalWindowControllerState(windowId: string) {
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
   const journalScope = catalogScope;
+  // The id-less route resolves only from a catalog read after this window
+  // mounted (`isFetchedAfterMount`). A list another window just fetched is still
+  // fresh, so without a forced read the resolver would wait forever.
+  const resolvesOnMount = matchTerminalInstance(pathname) === null;
   const catalog = useQuery({
     ...terminalCatalogQuery(catalogScope),
     enabled: workspaceId !== "",
+    refetchOnMount: resolvesOnMount ? "always" : true,
   });
   const inputRequestProjection = useQuery({
     ...terminalInputRequestsQuery(catalogScope),

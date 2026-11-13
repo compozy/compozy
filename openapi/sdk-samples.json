@@ -1800,6 +1800,13 @@
             "resource": "vault",
             "app_access": "denied"
         },
+        "getWindowManagerMigration": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.getWindowManagerMigration({ path: { \"workspace_id\": \"workspace_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetWindowManagerMigration(ctx, client.GetWindowManagerMigrationParams{WorkspaceID: \"workspace_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
         "getWindowManagerSnapshot": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.getWindowManagerSnapshot({ path: { \"workspace_id\": \"workspace_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetWindowManagerSnapshot(ctx, client.GetWindowManagerSnapshotParams{WorkspaceID: \"workspace_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -3927,6 +3934,13 @@
             "kind": "json",
             "resource": "tasks",
             "app_access": "allowed"
+        },
+        "updateWindowManagerMigration": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.updateWindowManagerMigration({ path: { \"workspace_id\": \"workspace_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateWindowManagerMigration(ctx, client.UpdateWindowManagerMigrationParams{WorkspaceID: \"workspace_id\"}, client.WindowManagerMigrationRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
         },
         "updateWorkspace": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.updateWorkspace({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",

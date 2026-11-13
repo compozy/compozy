@@ -2582,6 +2582,209 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	// IT-010: the real native gateway preserves deprecated tools with structured guidance.
+	t.Run("Should accept every retired window tool with actionable deprecations [IT-010]", func(t *testing.T) {
+		t.Parallel()
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:       nativeTestSessionManager("workspace-a"),
+				WindowManagers: staticWindowManagers{manager: manager},
+				Workspaces:     nativeTestWorkspaceService(t),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		scope := toolspkg.Scope{WorkspaceID: "workspace-a", SessionID: "session-a", AgentName: "agent-a"}
+		call := func(id toolspkg.ToolID, input string) windowManagerCommandResult {
+			t.Helper()
+			result, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)},
+			)
+			if err != nil {
+				t.Fatalf("%s: %v", id, err)
+			}
+			var payload windowManagerCommandResult
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			return payload
+		}
+		for _, id := range []string{"window-a", "window-b"} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			call(
+				toolspkg.ToolIDWindowOpen,
+				fmt.Sprintf(
+					`{"expected_revision":%d,"window_id":%q,"app":"terminal","route":{"pathname":"/terminal/test","search":{}}}`,
+					snapshot.Revision,
+					id,
+				),
+			)
+		}
+		for _, item := range []struct {
+			id         toolspkg.ToolID
+			fields     string
+			translated bool
+		}{
+			{toolspkg.ToolIDWindowFloat, `"window_id":"window-a"`, false},
+			{toolspkg.ToolIDWindowZoom, `"window_id":"window-a"`, false},
+			{toolspkg.ToolIDWindowResize, `"window_id":"window-a","frame":{"x":0,"y":0,"width":1,"height":1}`, false},
+			{toolspkg.ToolIDLayoutFrameResize, `"desktop_id":"desktop-default","edits":[{"group_id":"unused","frame":{"x":0,"y":0,"width":1,"height":1}}]`, false},
+			{toolspkg.ToolIDWindowGroup, `"target_window_id":"window-a","window_ids":["window-b"]`, true},
+		} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := call(item.id, fmt.Sprintf(`{"expected_revision":%d,%s}`, snapshot.Revision, item.fields))
+			if result.Applied != item.translated || len(result.Deprecations) != 1 {
+				t.Fatalf("%s result=%+v", item.id, result)
+			}
+			warning := result.Deprecations[0]
+			if warning.Surface != item.id.String() || warning.Replacement == "" || warning.Message == "" ||
+				warning.RemovalRelease != "v0.8.0" {
+				t.Fatalf("%s deprecation=%+v", item.id, warning)
+			}
+			if !item.translated && result.Revision != snapshot.Revision {
+				t.Fatalf("retired %s changed revision", item.id)
+			}
+		}
+		for _, placement := range []string{"", `,"placement":""`} {
+			before, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			split := call(toolspkg.ToolIDWindowMove, fmt.Sprintf(
+				`{"expected_revision":%d,"window_id":"window-a","destination_desktop_id":"desktop-default",`+
+					`"target_window_id":"window-b","placement":"right"}`, before.Revision,
+			))
+			if !split.Applied || split.Revision != before.Revision+1 {
+				t.Fatalf("split before empty placement %q result = %+v", placement, split)
+			}
+			result := call(toolspkg.ToolIDWindowMove, fmt.Sprintf(
+				`{"expected_revision":%d,"window_id":"window-a","destination_desktop_id":"desktop-default"%s}`,
+				split.Revision, placement,
+			))
+			after, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.Applied || result.Revision != split.Revision+1 || len(result.Deprecations) != 1 ||
+				after.Windows["window-a"].TabID == after.Windows["window-b"].TabID {
+				t.Fatalf("empty placement %q result = %+v", placement, result)
+			}
+			entry := result.Deprecations[0]
+			if entry.Code != "window_manager_surface_deprecated" ||
+				entry.Surface != "compozy__window_move.placement=empty" || entry.Replacement == "" ||
+				entry.RemovalRelease != "v0.8.0" || entry.Message == "" {
+				t.Fatalf("empty placement %q deprecation = %+v", placement, entry)
+			}
+		}
+		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantWindowIDs := make([]windowmanager.WindowID, 0, len(snapshot.Windows))
+		for id := range snapshot.Windows {
+			wantWindowIDs = append(wantWindowIDs, id)
+		}
+		slices.Sort(wantWindowIDs)
+		for _, include := range []bool{false, true} {
+			listed, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDWindowList,
+					Input:  json.RawMessage(fmt.Sprintf(`{"include_minimized":%v}`, include)),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload windowManagerWindowsResult
+			if err := json.Unmarshal(listed.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if include {
+				want = 1
+			}
+			if len(payload.Windows) != len(snapshot.Windows) || len(payload.Deprecations) != want {
+				t.Fatalf("listed=%+v", payload)
+			}
+			windowIDs := make([]windowmanager.WindowID, 0, len(payload.Windows))
+			for _, window := range payload.Windows {
+				windowIDs = append(windowIDs, window.ID)
+			}
+			slices.Sort(windowIDs)
+			if !slices.Equal(windowIDs, wantWindowIDs) {
+				t.Fatalf("listed windows = %v, want every open window %v", windowIDs, wantWindowIDs)
+			}
+			if include &&
+				(payload.Deprecations[0].Surface != "compozy__window_list.include_minimized" || payload.Deprecations[0].Replacement == "") {
+				t.Fatalf("deprecation=%+v", payload.Deprecations)
+			}
+		}
+		for _, id := range []string{"window.stack.reorder", "window.stack.set_active"} {
+			snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := `"window_id":"window-a"`
+			if id == "window.stack.reorder" {
+				fields += `,"index":0`
+			}
+			preview, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDLayoutPreview,
+					Input: json.RawMessage(
+						fmt.Sprintf(
+							`{"expected_revision":%d,"command_id":%q,"payload":{%s}}`,
+							snapshot.Revision,
+							id,
+							fields,
+						),
+					),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload compactPreviewResult
+			if err := json.Unmarshal(preview.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Deprecations) != 1 || payload.Deprecations[0].Surface != id ||
+				payload.Deprecations[0].Replacement == "" {
+				t.Fatalf("preview=%+v", payload)
+			}
+			after, err := manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil || after.Revision != snapshot.Revision {
+				t.Fatalf("preview mutated revision: %+v err=%v", after, err)
+			}
+		}
+	})
+
 	t.Run("Should execute window manager tools through scoped revisioned state", func(t *testing.T) {
 		t.Parallel()
 
@@ -2682,6 +2885,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("persisted snapshot = %#v, want unmodified revision 1", persisted)
 		}
 
+		_, unknownErr := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWindowOpen,
+				Input: json.RawMessage(
+					`{"expected_revision":1,"app":"not-a-registered-app","desktop_id":"desktop-build","route":{"pathname":"/unknown","search":{}}}`,
+				),
+			},
+		)
+		if unknownErr == nil || !strings.Contains(unknownErr.Error(), "unregistered window app") {
+			t.Fatalf("native unknown app rejection=%v", unknownErr)
+		}
+		afterRejectedOpen, err := manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil || !reflect.DeepEqual(afterRejectedOpen, persisted) {
+			t.Fatalf("rejected native open changed snapshot: %+v error=%v", afterRejectedOpen, err)
+		}
+
 		openResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDWindowOpen,
 			Input: json.RawMessage(
@@ -2760,7 +2981,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(groupedResult.Structured, &grouped); err != nil {
 			t.Fatalf("json.Unmarshal(window_group) error = %v", err)
 		}
-		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.StackGrouped) != 1 {
+		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.TabIDs) != 2 ||
+			len(grouped.Changes.StackGrouped) != 0 {
 			t.Fatalf("window_group result = %#v", grouped)
 		}
 
@@ -2770,11 +2992,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			command windowmanager.CommandID
 		}{
 			{
-				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowStackSetActive,
+				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowTabActivate,
 				input: `{"expected_revision":5,"window_id":"window-tasks"}`,
 			},
 			{
-				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowStackReorder,
+				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowTabReorder,
 				input: `{"expected_revision":6,"window_id":"window-second","index":0}`,
 			},
 			{
@@ -2813,7 +3035,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Manager.Snapshot() after tab tools error = %v", err)
 		}
-		if persisted.Revision != 10 || len(persisted.Windows) != 2 || !persisted.Windows["window-tasks"].Pinned {
+		if persisted.Revision != 10 || len(persisted.Windows) != 4 || !persisted.Desktops[1].Tabs[0].Pinned {
 			t.Fatalf("snapshot after tab tools = %#v", persisted)
 		}
 
@@ -2954,45 +3176,43 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
-	t.Run("Should reject conflicting native window group move fields", func(t *testing.T) {
+	t.Run("Should decode compatible native moves and reject conflicting targets", func(t *testing.T) {
 		t.Parallel()
-		native := &daemonNativeTools{}
 		cases := []struct {
-			name    string
-			input   string
-			message string
+			name, raw string
+			invalid   bool
 		}{
 			{
-				name: "Should require placement outside group mode",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b"}`,
-				message: "placement is required unless move_group is true",
+				name: "Should accept omitted placement",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b"}`,
 			},
 			{
-				name: "Should reject structural group placement without a target",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
-				message: "move_group without target_window_id supports only floating placement",
+				name: "Should decode structural moves for reducer target validation",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
 			},
 			{
-				name: "Should reject a floating rectangle on a structural group move",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,` +
-					`"target_window_id":"window-b",` +
-					`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
-				message: "structural move_group cannot be combined with floating_rect",
+				name: "Should accept retired rectangles",
+				raw:  `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","move_group":true,"target_window_id":"window-b","floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+			},
+			{
+				name:    "Should reject two target selectors",
+				raw:     `{"expected_revision":0,"window_id":"window-a","destination_desktop_id":"desktop-b","target_window_id":"window-b","target_tab_id":"tab-b"}`,
+				invalid: true,
 			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				_, err := native.windowMove(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDWindowMove,
-					Input:  json.RawMessage(tc.input),
-				})
-				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-				if !strings.Contains(err.Error(), tc.message) {
-					t.Fatalf("windowMove() error = %v, want message containing %q", err, tc.message)
+				var input windowManagerWindowMoveInput
+				if err := decodeWindowManagerJSON(
+					toolspkg.ToolIDWindowMove,
+					json.RawMessage(tc.raw),
+					&input,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if err := input.validate(); (err != nil) != tc.invalid {
+					t.Fatalf("validate() = %v, invalid=%t", err, tc.invalid)
 				}
 			})
 		}

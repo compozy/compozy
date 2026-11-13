@@ -15,7 +15,13 @@ import {
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
-import { decideRouteReconciliation } from "./routing-route-decision";
+import {
+  CanonicalCandidate,
+  decideRouteReconciliation,
+  focusedRouteOrDesktop,
+} from "./routing-route-decision";
+import { RoutingEntryLedger } from "./routing-entry-ledger";
+import { WindowActivations } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -55,21 +61,36 @@ export class RoutingCoordinator {
    * late push would drag the operator back to a destination they left (rule 3 coalescing).
    */
   private nextUserIntentToken = 0;
+  private readonly activations = new WindowActivations();
   private pendingNavigateMode: "push" | "pop" | null = null;
   private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
+  private readonly entries: RoutingEntryLedger;
+  private readonly canonical: CanonicalCandidate;
 
-  constructor(manager: RoutingManager, router: OsRouterPort) {
+  /** `entries` is fed by the router bridge with every history change (`RouterEntryBridge`). */
+  constructor(manager: RoutingManager, router: OsRouterPort, entries = new RoutingEntryLedger()) {
     this.manager = manager;
     this.router = router;
+    this.entries = entries;
+    this.canonical = new CanonicalCandidate(entries);
   }
 
   /**
    * Sync-controllers report every matched location here (cause: route-pop).
    * During hydration the location is held as the final focus intent — on a
    * workspace switch this is exactly the cross-workspace deep link that must
-   * win over the target workspace's restored focus (US-016.EC-2).
+   * win over the target workspace's restored focus (US-016.EC-2). `entryKey` is the reported
+   * history entry's own key (`__TSR_key`).
    */
-  reportRouteMatch(route: OsWindowRoute): void {
+  reportRouteMatch(route: OsWindowRoute, entryKey: string | null = null): void {
+    // The router echoing the coordinator's own navigation is never intent: authoritative focus
+    // may have moved on since, and the URL follows it instead; its canonical form waits for
+    // settled focus (`CanonicalCandidate`). During hydration every location stays the held intent.
+    if (this.phase === "ready" && this.entries.isEcho(entryKey)) {
+      this.canonical.note(route, entryKey);
+      this.reportAuthoritativeState();
+      return;
+    }
     if (isDesktopDefaultViewIntent(route)) this.desktopDefaultViewIntentPending = true;
     // The coordinator sets `currentRoute` before its own pushes and replaces, so
     // a report that differs is external intent: a link, back/forward, a deep link.
@@ -113,7 +134,7 @@ export class RoutingCoordinator {
         this.queueRouteReconciliation(intent);
         return;
       }
-      this.navigateToFocusedOrDesktop();
+      this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
       return;
     }
     if (intent && intent.pathname !== "/") {
@@ -145,6 +166,9 @@ export class RoutingCoordinator {
       if (!this.routeReconciliation.inFlight) this.reconcilePendingRoute();
       return;
     }
+    // A window activation in flight writes the URL once it settles (`activate`).
+    if (this.activations.settling) return;
+    this.currentRoute = this.canonical.settle(this.manager, this.currentRoute);
     const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
@@ -204,7 +228,7 @@ export class RoutingCoordinator {
    */
   userNavigate(route: OsWindowRoute): void {
     this.nextUserIntentToken += 1;
-    this.pushRoute(route);
+    this.pushRoute(route, "operator");
     if (this.phase === "ready") this.queueRouteReconciliation(route);
   }
 
@@ -254,36 +278,45 @@ export class RoutingCoordinator {
   async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
-    const alreadyActive =
-      state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
+    const alreadyActive = state.focusedId === windowId && win?.shown === true;
     if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
     if (alreadyActive) return false;
-    const outcome = this.manager.focusWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    const focused = this.manager.getState().windows[windowId];
-    if (focused) this.pushRoute(focused.route);
-    return focused !== undefined;
+    return this.activate(windowId);
   }
 
   /**
    * Dock cycling, palette "Go to tab", session rows: land on a specific window
-   * in one action (US-017/US-021). Restore carries focus and the desktop
-   * switch for the acting client; `window.focus` alone rejects minimized
-   * targets, so the two paths are a single decision here.
+   * in one action (US-017/US-021). `window.focus` carries the tab activation
+   * and the desktop switch for the acting client.
    */
   async userActivateWindow(windowId: string): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
     this.nextUserIntentToken += 1;
-    const outcome = win.minimized
-      ? this.manager.restoreWindow(windowId)
-      : this.manager.focusWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    const focused = this.manager.getState().windows[windowId];
-    if (focused) this.pushRoute(focused.route);
-    return focused !== undefined;
+    return this.activate(windowId);
+  }
+
+  /**
+   * Focuses the window, then writes the activation's one entry (`windowActivationEntry`). Reports
+   * meanwhile defer to it, so the entry before a burst stays a Back target.
+   */
+  private async activate(windowId: string): Promise<boolean> {
+    const start = this.activations.begin(
+      this.manager.getState(),
+      windowId,
+      this.nextUserIntentToken
+    );
+    // A rejected completion still ends the activation: the count must never leak.
+    await this.manager.focusWindow(windowId, { replaceable: true }).completion.catch(() => false);
+    const state = this.manager.getState();
+    const newest = this.nextUserIntentToken;
+    const entry = this.activations.end(start, state, this.currentRoute, newest);
+    if (entry !== null) this.pushRoute(entry);
+    // Reports deferred to activations catch up once none is left in flight.
+    else if (!this.activations.settling) this.reportAuthoritativeState();
+    return start.intent === newest && state.focusedId === windowId;
   }
 
   /**
@@ -344,36 +377,7 @@ export class RoutingCoordinator {
     this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.closeWindow(windowId, viewOnly))) return false;
-    if (wasFocused) this.navigateToFocusedOrDesktop();
-    return true;
-  }
-
-  /** Minimize: when focus moves to a successor, the URL follows it. */
-  async userMinimize(windowId: string): Promise<boolean> {
-    const state = this.manager.getState();
-    const win = state.windows[windowId];
-    if (!win || win.minimized) return false;
-    this.nextUserIntentToken += 1;
-    const wasFocused = state.focusedId === windowId;
-    if (!(await this.manager.minimizeWindow(windowId))) return false;
-    if (wasFocused) this.navigateToFocusedOrDesktop();
-    return true;
-  }
-
-  /**
-   * Zoom already focuses its target in the daemon client projection. For an
-   * inactive window, reflect that activation with one history write without
-   * preceding the durable command with a competing presentation command.
-   */
-  async userZoom(windowId: string): Promise<boolean> {
-    const state = this.manager.getState();
-    const win = state.windows[windowId];
-    if (!win || win.minimized) return false;
-    this.nextUserIntentToken += 1;
-    const wasFocused = state.focusedId === windowId;
-    const outcome = this.manager.zoomWindow(windowId);
-    if (!(await outcome.completion)) return false;
-    if (!wasFocused) this.pushRoute(win.route);
+    if (wasFocused) this.pushRoute(focusedRouteOrDesktop(this.manager.getState()));
     return true;
   }
 
@@ -387,20 +391,15 @@ export class RoutingCoordinator {
   beginWorkspaceSwitch(): void {
     if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
     this.invalidateRouteReconciliation();
+    this.activations.abandon();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
   }
 
-  private navigateToFocusedOrDesktop(): void {
-    const state = this.manager.getState();
-    const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
-    this.pushRoute(focused ? focused.route : { pathname: "/", search: {} });
-  }
-
-  private pushRoute(route: OsWindowRoute): void {
+  private pushRoute(route: OsWindowRoute, ...origin: [origin?: "operator"]): void {
     this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
-    this.router.navigate(route);
+    this.router.navigate(route, ...origin);
   }
 
   private replaceRoute(route: OsWindowRoute): void {

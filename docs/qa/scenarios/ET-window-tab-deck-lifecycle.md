@@ -1,12 +1,12 @@
 ---
 id: ET-window-tab-deck-lifecycle
 area: ET
-title: Group related work into one persistent tab deck
+title: Open, activate, reorder and close windows as tabs in the desktop tab bar
 persona: Bruno
 journey: J-organize-tabbed-work
-expected: Drag, context-menu, and Command-T grouping each create one ordered frame; dragging a window over a solo window's head shows the accent "Group as tabs" affordance and release folds both into one deck; the deck mounts only at two or more members as a 40px recessed strip of browser-style tabs (208px shrinking to 136px, the active tab a surface plate with concave feet fused with the head, hairlines between inactive tabs, a 28px New tab button, 20px close buttons) with the quiet window controls on the right, keeps hidden bodies mounted, supports reorder and tear-out, and survives reload with the same active member and placement.
-entry_points: web desktop window drag; tab and dock context menus; Command-T; web /new-tab
-qa_status: skipped
+expected: Each desktop shows one tab bar (a tablist named "Tabs") listing every tab; opening an app or pressing ⌘T adds a tab right after the active tab and activates it; a tab shows its lead window's icon and title, a split tab up to three icon tiles and a member count; clicking a tab activates it, middle-click closes it, the bar is one keyboard stop where Left/Right move between tabs and Home/End jump to the first and last, ⌃Tab/⌃⇧Tab cycle, ⌘1–⌘8 jump and ⌘9 goes to the last tab; dragging a tab along the bar or using Move left/Move right reorders it within its pinned or unpinned range; the pending-count pill and tooltip trail stay on the tab; a desktop always keeps at least one tab.
+entry_points: desktop tab bar (pointer, keyboard, middle-click); ⌘T; ⌃Tab; ⌘1–9; tab context menu Move left/Move right; window.tab.move_left|move_right; compozy window open|activate|reorder
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -15,6 +15,8 @@ evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/window-merge
 last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-layout-gestures; ET-web-desktop-shell-lifecycle
 ---
+
+> The notes and walks below up to the 2026-11-13 qa-impact note describe decks, floating windows, snapping or zoom and are history only; walk the 2026-11-13 note.
 
 Derived from J-organize-tabbed-work steps 1-2. Covers functional grouping, interruption recovery,
 pointer/keyboard consistency, reduced-motion presentation, and reload continuity. Safety hot spots:
@@ -81,3 +83,7 @@ qa-impact: 2026-09-30 shell-rail polish P6 — with the new default `new_window_
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Decks, "Group as tabs" and per-pane tab strips are gone; this scenario now owns tab bar basics. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. Open Sessions, Tasks and Terminal from the dock: each appears as a tab right after the active one and becomes active. ⌘T opens a New Tab. Click each tab; Tab into the bar and use ←/→ to move focus, Enter to activate. ⌃Tab and ⌃⇧Tab cycle; ⌘2 jumps to the second tab; ⌘9 to the last. Middle-click a tab: it closes. Drag the last tab to first place; then right-click › Move right. Split two tabs (drag one into the content): the remaining tab shows two icon tiles and the member count "2". Start a session that waits for input: the tab shows its waiting count. `compozy window list` shows TAB, TAB INDEX and MEMBERS matching the bar.
+
+qa-impact: 2026-11-13 window-tabs-split S10 (review fixes). The tab bar now uses roving focus. Walk: Tab into the bar lands on the active tab; Left, Right, Home and End move focus; Tab again leaves the bar.

@@ -20,8 +20,8 @@ func isSessionDeletionCommand(command Command) bool {
 	return ok
 }
 
-// ReconcileDeletedSession retires every durable window for one deleted
-// session onto the empty session route and publishes the workspace event.
+// ReconcileDeletedSession removes windows for a deleted session, repairs client
+// views and publishes the workspace event without retaining reopenable entries.
 func (m *Manager) ReconcileDeletedSession(
 	ctx context.Context,
 	workspaceID WorkspaceID,

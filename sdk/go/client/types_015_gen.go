@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// ProviderModelCurationResponse is a daemon API value.
+type ProviderModelCurationResponse struct {
+	Model        ProviderModelPayload  `json:"model"`
+	Apply        SettingsApplyResponse `json:"apply"`
+	DefaultSpeed Speed                 `json:"default_speed,omitempty"`
+}
+
+// ProviderModelListResponse is a daemon API value.
+type ProviderModelListResponse struct {
+	Models []ProviderModelPayload `json:"models"`
+}
+
 // ProviderModelPayload is a daemon API value.
 type ProviderModelPayload struct {
 	ProviderID             string                              `json:"provider_id"`
@@ -432,19 +444,4 @@ type ReplaceSessionInputRequest struct {
 	Text           string `json:"text"`
 	MessageID      string `json:"message_id"`
 	IdempotencyKey string `json:"idempotency_key"`
-}
-
-// ReplyWatchPayload is a daemon API value.
-type ReplyWatchPayload struct {
-	ID              string    `json:"id"`
-	TargetSessionID string    `json:"target_session_id"`
-	MessageID       string    `json:"message_id"`
-	State           string    `json:"state"`
-	CreatedAt       time.Time `json:"created_at"`
-}
-
-// ReplyWatchRefPayload is a daemon API value.
-type ReplyWatchRefPayload struct {
-	ID    string `json:"id"`
-	State string `json:"state"`
 }

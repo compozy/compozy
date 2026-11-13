@@ -1,10 +1,12 @@
 import { orderedDesktops } from "../lib/desktop-order";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
+import { moveWindowCommand } from "../lib/window-manager-command-builders";
 import { windowManagerStore } from "../stores/window-manager-store";
-import { WindowManagerSnapRuntime } from "./window-manager-snap-commands";
+import { WindowManagerLayoutRuntime } from "./window-manager-layout-commands";
+import { desktopTransitionDirection } from "./window-manager-runtime-helpers";
 
-/** Desktop lifecycle commands shared by the geometry runtime. */
-export abstract class WindowManagerDesktopRuntime extends WindowManagerSnapRuntime {
+/** Desktop lifecycle commands shared by the window-manager runtime. */
+export abstract class WindowManagerDesktopRuntime extends WindowManagerLayoutRuntime {
   createDesktop(desktopId = ""): WindowManagerCommandOutcome {
     return this.dispatch({
       commandId: "desktop.create",
@@ -32,7 +34,7 @@ export abstract class WindowManagerDesktopRuntime extends WindowManagerSnapRunti
         intent: {
           fromDesktopId: current,
           toDesktopId: desktopId,
-          direction: this.desktopTransitionDirection(this.view.desktops, current, desktopId),
+          direction: desktopTransitionDirection(this.view.desktops, current, desktopId),
           mode: this.reduceMotion ? "instant" : config.desktopTransition,
         },
       });
@@ -58,15 +60,10 @@ export abstract class WindowManagerDesktopRuntime extends WindowManagerSnapRunti
     });
   }
 
+  /** The window's whole tab, split included, joins the end of the destination desktop's bar. */
   moveWindowToDesktop(windowId: string, destinationDesktopId: string): void {
-    this.dispatch({
-      commandId: "window.move",
-      payload: {
-        window_id: windowId,
-        destination_desktop_id: destinationDesktopId,
-        placement: "floating",
-        move_group: false,
-      },
-    });
+    this.dispatch(
+      moveWindowCommand(windowId, { destinationDesktopId, placement: "tab", moveGroup: true })
+    );
   }
 }
