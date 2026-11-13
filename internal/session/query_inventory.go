@@ -57,9 +57,7 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
 	info, err := os.Stat(path)
 	if err != nil {
-		m.metadataCacheMu.Lock()
-		delete(m.metadataCache, target)
-		m.metadataCacheMu.Unlock()
+		m.forgetInventoryMetadata(target)
 		if errors.Is(err, os.ErrNotExist) {
 			return store.SessionMeta{}, fmt.Errorf("%w: %s", ErrSessionNotFound, target)
 		}
@@ -73,6 +71,7 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 		return cached.meta, nil
 	}
 	delete(m.metadataCache, target)
+	generation := m.metadataCacheGeneration
 	m.metadataCacheMu.Unlock()
 	reader := m.readSessionMeta
 	if reader == nil {
@@ -95,10 +94,13 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 	}
 	if os.SameFile(info, after) && info.Size() == after.Size() && info.ModTime().Equal(after.ModTime()) {
 		m.metadataCacheMu.Lock()
-		if m.metadataCache == nil {
-			m.metadataCache = make(map[string]cachedSessionMetadata)
+		// An invalidation must also fence readers that already checked the file.
+		if m.metadataCacheGeneration == generation {
+			if m.metadataCache == nil {
+				m.metadataCache = make(map[string]cachedSessionMetadata)
+			}
+			m.metadataCache[target] = cachedSessionMetadata{file: info, meta: meta}
 		}
-		m.metadataCache[target] = cachedSessionMetadata{file: info, meta: meta}
 		m.metadataCacheMu.Unlock()
 	}
 	return meta, nil
@@ -187,6 +189,44 @@ func (m *Manager) ListLive(ctx context.Context) ([]*Info, error) {
 		}
 	}
 	return m.mergePersistedSessionInfos(ctx, ids, activeByID, rows)
+}
+
+// listTriageInventory is ListAll narrowed to triage sessions: only catalog rows of the triage
+// type and their metadata are read, so periodic sweeps do not hydrate the whole catalog.
+func (m *Manager) listTriageInventory(ctx context.Context) ([]*Info, error) {
+	if m.sessionCatalog == nil {
+		return m.ListAll(ctx)
+	}
+	activeByID := make(map[string]*Info)
+	for _, info := range m.List() {
+		if info != nil && info.Type == SessionTypeTriage {
+			activeByID[info.ID] = info
+		}
+	}
+	stored, err := m.sessionCatalog.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, SessionType: string(SessionTypeTriage),
+		Archive: store.SessionArchiveInclude,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("session: read triage catalog: %w", err)
+	}
+	ids := make([]string, 0, len(stored))
+	rows := make(sessionInventory, len(stored))
+	for index := range stored {
+		row := stored[index]
+		ids = append(ids, row.ID)
+		rows[row.ID] = &row
+	}
+	return m.mergePersistedSessionInfos(ctx, ids, activeByID, rows)
+}
+
+// forgetInventoryMetadata drops a removed session from the metadata cache. Narrowed inventory
+// reads never prune the whole cache, so removal must not wait for the next full ListAll.
+func (m *Manager) forgetInventoryMetadata(id string) {
+	m.metadataCacheMu.Lock()
+	m.metadataCacheGeneration++
+	delete(m.metadataCache, id)
+	m.metadataCacheMu.Unlock()
 }
 
 func (m *Manager) pruneMetadataCache(ids []string) {

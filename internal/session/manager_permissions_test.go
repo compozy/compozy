@@ -1681,6 +1681,80 @@ func TestTriageDispatcher(t *testing.T) {
 		}
 	})
 
+	t.Run("Should sweep only triage sessions through a type-filtered catalog read", func(t *testing.T) {
+		t.Parallel()
+		var catalog *triageSweepCatalog
+		h := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+			catalog = &triageSweepCatalog{GlobalDB: db}
+			return WithSessionCatalog(catalog)
+		}).harness
+		stoppedUser := createSession(t, h)
+		archivedUser := createSession(t, h)
+		createTriage := func() *Session {
+			t.Helper()
+			created, err := h.manager.Create(t.Context(), new(CreateOpts{
+				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeTriage,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return created
+		}
+		stoppedTriage := createTriage()
+		expiredTriage := createTriage()
+		for _, id := range []string{stoppedUser.ID, archivedUser.ID, stoppedTriage.ID} {
+			if err := h.manager.Stop(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, archivedUser.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := (&TriageDispatcher{Manager: h.manager}).Stop(t.Context(), expiredTriage.ID); err != nil {
+			t.Fatal(err)
+		}
+		expired, err := h.manager.Status(t.Context(), expiredTriage.ID)
+		if err != nil || expired.ArchivedAt == nil {
+			t.Fatalf("expired triage=%+v error=%v", expired, err)
+		}
+
+		sweepCtx := context.WithValue(t.Context(), triageSweepReadKey{}, true)
+		if err := h.manager.SweepTriageSessions(sweepCtx, expired.ArchivedAt.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+
+		if info, err := h.manager.Status(t.Context(), stoppedTriage.ID); err != nil || info.ArchivedAt == nil {
+			t.Fatalf("stopped triage=%+v error=%v, want archived by the sweep", info, err)
+		}
+		if _, err := h.manager.Status(t.Context(), expiredTriage.ID); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("expired triage error=%v, want deleted by the sweep", err)
+		}
+		if info, err := h.manager.Status(t.Context(), stoppedUser.ID); err != nil || info.ArchivedAt != nil {
+			t.Fatalf("stopped user session=%+v error=%v, want untouched", info, err)
+		}
+		if info, err := h.manager.Status(t.Context(), archivedUser.ID); err != nil || info.ArchivedAt == nil {
+			t.Fatalf("archived user session=%+v error=%v, want retained", info, err)
+		}
+		queries := catalog.sweepQueries()
+		if !slices.ContainsFunc(queries, func(query store.SessionListQuery) bool {
+			return query.SessionType == string(SessionTypeTriage)
+		}) {
+			t.Fatalf("sweep catalog queries=%+v, want a triage-typed read", queries)
+		}
+		for _, query := range queries {
+			if query.ID == "" && query.SessionType == "" && query.State == "" && query.WorkspaceID == "" &&
+				query.ParentSessionID == "" && query.RootSessionID == "" {
+				t.Fatalf("sweep issued an unfiltered catalog read: %+v", query)
+			}
+		}
+		h.manager.metadataCacheMu.Lock()
+		_, retained := h.manager.metadataCache[expiredTriage.ID]
+		h.manager.metadataCacheMu.Unlock()
+		if retained {
+			t.Fatal("deleted triage metadata stayed cached")
+		}
+	})
+
 	t.Run("Should select the configured triage model from a TOML overlay", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t).harness
@@ -2380,4 +2454,31 @@ func TestCheckInPromptScope(t *testing.T) {
 			t.Fatal("obsolete policy in prompt")
 		}
 	})
+}
+
+type triageSweepReadKey struct{}
+
+// triageSweepCatalog records the catalog list filters issued under a sweep-marked context.
+type triageSweepCatalog struct {
+	*globaldb.GlobalDB
+	mu      sync.Mutex
+	queries []store.SessionListQuery
+}
+
+func (c *triageSweepCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	if ctx.Value(triageSweepReadKey{}) != nil {
+		c.mu.Lock()
+		c.queries = append(c.queries, query)
+		c.mu.Unlock()
+	}
+	return c.GlobalDB.ListSessions(ctx, query)
+}
+
+func (c *triageSweepCatalog) sweepQueries() []store.SessionListQuery {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.queries)
 }
