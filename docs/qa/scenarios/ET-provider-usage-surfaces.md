@@ -236,18 +236,19 @@ real profile overlay and full daemon boot with collection disabled for credentia
 isolation, using temporary homes and dedicated sockets/ports. This is automated runtime
 evidence, not a completed UI walk.
 
-## macOS credential-store precedence (#1642)
+## macOS leftover credential file (#1642)
 
 In an isolated macOS fixture with synthetic credentials, place an expired
 `.credentials.json` beside a valid routed Keychain login. With consent enabled,
-background collection and explicit Refresh must show the Keychain account's usage.
-Repeat with a valid older file: it must not replace the Keychain login or invalidate
-its cached identity. Removing the Keychain entry must allow a valid file fallback;
-removing both stores must retain the existing signed-out reason. With an expired
-file and missing consent or denied/timed-out Keychain access, show the existing
-access-recovery state instead of directing the operator to log in again. Verify
-Linux and Windows still use only the file. Never read or modify real credentials.
+background collection must show the Keychain account's usage with one silent
+Keychain read, then reuse the cached login on later polls without another read or
+any prompt. Explicit Refresh may read the Keychain as it does without a file. A
+valid file must still win without any Keychain read. With an expired file and
+consent off, show `Needs Keychain access`; with denied or timed-out background
+access, show the existing access-recovery state; with no Keychain login, keep the
+file's `Run claude /login` diagnosis. Linux and Windows still use only the file.
+Never read or modify real credentials.
 
-Owning automated coverage: `TestClaudeKeychain` and `TestClaudeIsolation` in
+Owning automated coverage: `TestClaudeKeychain` and `TestClaudeCollector` in
 `internal/providerusage/claude_test.go`. Not walked locally for this change: the
 operator requires CI-only verification and forbids QA daemons and real credentials.

@@ -152,11 +152,11 @@ What happens next:
 - To withdraw consent, turn off **Claude Keychain access** in Settings → Provider usage. CompozyOS
   forgets the login right away.
 
-On macOS, CompozyOS prefers the Keychain login once consent is enabled, even if an old
-`.credentials.json` remains in Claude Code's config directory. It falls back to a usable file
-when the Keychain is missing or cannot be read, or when consent is off. An expired or malformed
-file does not hide a Keychain access request. Linux and Windows continue to read the file only.
-CompozyOS never rewrites either credential store.
+When Claude Code keeps a usable `.credentials.json` file in its config directory, CompozyOS reads
+that file and never touches the Keychain. On macOS, an expired or unreadable leftover file does not
+hide the Keychain login: with **Claude Keychain access** on, CompozyOS reads the Keychain the same
+silent way it does without a file. With access off, the row asks for Keychain access rather than a
+new login. Linux and Windows read the file only. CompozyOS never rewrites either credential store.
 
 If you reach CompozyOS from another device through the
 [Gateway](/docs/gateway), the row says

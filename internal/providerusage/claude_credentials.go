@@ -47,46 +47,50 @@ type claudeOAuthFile struct {
 	} `json:"claudeAiOauth"`
 }
 
+// resolve keeps a usable credential file authoritative. On macOS an unusable leftover file
+// falls through to the unchanged consented Keychain path, so it cannot hide the live login.
 func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Intent) (*claudeCredential, error) {
-	if claudeCredentialPath(target) == "" || c.platform != "darwin" {
-		return c.resolveFileLocked(target, NewUsageError(ErrorCodeAuthMissing, "Claude"))
+	record, err := loadClaudeFile(target, c.now())
+	fileAbsent := isClaudeFileAbsent(err)
+	keychain := claudeCredentialPath(target) != "" && c.platform == "darwin"
+	if !fileAbsent && (err == nil || !keychain) {
+		c.clearLocked(claudeKeyOf(target))
+		if record != nil {
+			c.records[claudeKeyOf(target)] = record
+		}
+		return record, err
 	}
-	// Claude Code prefers macOS secure storage over its plaintext fallback.
+	if !keychain {
+		c.clearLocked(claudeKeyOf(target))
+		return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
+	}
 	if !target.Route.KeychainAccess {
-		return c.resolveFileLocked(target, NewUsageError(ErrorCodeKeychainConsentRequired, "Claude"))
+		c.clearLocked(claudeKeyOf(target))
+		return nil, NewUsageError(ErrorCodeKeychainConsentRequired, "Claude")
+	}
+	missing := NewUsageError(ErrorCodeAuthMissing, "Claude")
+	if !fileAbsent {
+		// Without a Keychain login, the unusable file remains the accurate diagnosis.
+		missing = AsUsageError(err, "Claude")
 	}
 	if intent != IntentExplicit {
-		record := c.records[claudeKeyOf(target)]
-		if record != nil && record.keychain && c.validateLocked(target, record.identity) == nil {
+		record = c.records[claudeKeyOf(target)]
+		if record != nil && c.validateLocked(target, record.identity) == nil {
 			if !record.singleUse && !record.expired && c.now().Before(record.expires) {
 				return record, nil
 			}
 		}
 	}
-	return c.readKeychainLocked(ctx, target, intent)
-}
-
-func (c *ClaudeCollector) resolveFileLocked(target Target, fallback *UsageError) (*claudeCredential, error) {
-	record, err := loadClaudeFile(target, c.now())
-	c.clearLocked(claudeKeyOf(target))
-	// An unusable fallback must not hide the Keychain access needed to read the live login.
-	if isClaudeFileAbsent(err) || (err != nil && fallback.Code != ErrorCodeAuthMissing) {
-		if record != nil {
-			clear(record.token)
-		}
-		return nil, fallback
-	}
-	if record != nil {
-		c.records[claudeKeyOf(target)] = record
-	}
-	return record, err
+	return c.readKeychainLocked(ctx, target, intent, missing)
 }
 
 // readKeychainLocked releases the collector lock during OS access; the reader enforces refresh intent.
+// missing is returned when the routed Keychain item does not exist.
 func (c *ClaudeCollector) readKeychainLocked(
 	ctx context.Context,
 	target Target,
 	intent Intent,
+	missing *UsageError,
 ) (*claudeCredential, error) {
 	c.clearLocked(claudeKeyOf(target))
 	path, account := claudeAccountEvidence(target)
@@ -104,19 +108,14 @@ func (c *ClaudeCollector) readKeychainLocked(
 	}
 	delete(c.pending, claudeKeyOf(target))
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, AsUsageError(ctx.Err(), "Claude")
-		}
-		var fallback *UsageError
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			fallback = NewUsageError(ErrorCodeAuthMissing, "Claude")
+			return nil, missing
 		case errors.Is(err, os.ErrPermission):
-			fallback = NewUsageError(ErrorCodeKeychainDenied, "Claude")
+			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
 		default:
-			fallback = AsUsageError(err, "Claude")
+			return nil, AsUsageError(err, "Claude")
 		}
-		return c.resolveFileLocked(target, fallback)
 	}
 	record, err := parseClaudeCredential(data, c.now())
 	if record == nil {
