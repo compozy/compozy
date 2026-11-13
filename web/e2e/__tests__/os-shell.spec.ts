@@ -245,6 +245,9 @@ test("E2E-001 / E2E-014: fresh boot shows one New Tab window and a CLI move spli
     const agents = await openDockApp(appPage, "Agents", "agents");
     const agentsID = await windowID(agents);
     await expect(tasks).toBeHidden();
+    // A window that joins another tab's split keeps its pane: the same element, never a remount
+    // of its app (a peer converging on a split would otherwise pay a full app startup).
+    await tasks.evaluate(element => Reflect.set(element, "__mountProbe", true));
 
     await moveWindowFromCLI(runtime, workspace.id, tasksID, agentsID, "right");
 
@@ -259,6 +262,7 @@ test("E2E-001 / E2E-014: fresh boot shows one New Tab window and a CLI move spli
     const [agentsBox, tasksBox] = await Promise.all([agents.boundingBox(), tasks.boundingBox()]);
     if (!agentsBox || !tasksBox) throw new Error("split members must have visible bounds");
     expect(agentsBox.x + agentsBox.width).toBeLessThanOrEqual(tasksBox.x + 1);
+    expect(await tasks.evaluate(element => Reflect.get(element, "__mountProbe"))).toBe(true);
   });
 });
 

@@ -1,5 +1,6 @@
 import { MonitorX } from "@compozy/ui/icons";
-import type { CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 
 import { Empty } from "@compozy/ui";
 import type { SessionPayload } from "@/systems/session";
@@ -15,7 +16,9 @@ import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useOsSplitSeam } from "../hooks/use-os-split-seam";
 import { useOsTabDrag } from "../hooks/use-os-tab-drag";
+import { descendantWindowIds } from "../lib/layout-minimums";
 import type { OsWindow } from "../lib/os-types";
+import { WindowPaneHosts } from "../lib/window-pane-hosts";
 import type { TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
 import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
@@ -89,7 +92,22 @@ function desktopLayerView(input: {
   return { incoming, interactive, style };
 }
 
-const renderWindow = (windowId: string) => <OsWindowPane key={windowId} windowId={windowId} />;
+/**
+ * Where a window sits in its tab's split: the slot adopts the window's host node, which the pane
+ * renders into. Slot and host are `display: contents`, so the pane lays out as the split member.
+ */
+function OsWindowSlot({ host }: { host: HTMLElement }) {
+  const slotRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const slot = slotRef.current;
+    if (slot === null) return;
+    slot.appendChild(host);
+    return () => {
+      if (host.parentNode === slot) slot.removeChild(host);
+    };
+  }, [host]);
+  return <div ref={slotRef} className="contents" data-slot="os-window-slot" />;
+}
 
 /** A laid-out seam: drag to resize, double-click to balance, arrow keys when focused. */
 function LiveOsSplitSeam({ slot }: { slot: OsSplitSeamSlot }) {
@@ -177,6 +195,19 @@ function DeskLayer({
     tabs.map(tab => tab.id),
     shownTabId
   );
+  const [hosts] = useState(() => new WindowPaneHosts());
+  // Every window of a visited tab keeps one pane, keyed by window, never by tab or split position.
+  const paneWindowIds = visited.flatMap(tabId => {
+    const tab = tabs.find(entry => entry.id === tabId);
+    return tab === undefined ? [] : descendantWindowIds(tab.root);
+  });
+  const paneKey = paneWindowIds.join("\n");
+  useEffect(() => {
+    hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
+  }, [hosts, paneKey]);
+  const renderWindow = (windowId: string) => (
+    <OsWindowSlot key={windowId} host={hosts.hostOf(windowId)} />
+  );
 
   return (
     <section
@@ -223,6 +254,10 @@ function DeskLayer({
           </div>
         );
       })}
+      {/* After the tab layers: each slot has adopted its host before the pane's layout effects. */}
+      {paneWindowIds.map(windowId =>
+        createPortal(<OsWindowPane windowId={windowId} />, hosts.hostOf(windowId), windowId)
+      )}
     </section>
   );
 }
