@@ -215,13 +215,11 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		callCount := 0
 		boundary := time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
 		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) { return 40, nil },
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 				callCount++
-				if callCount == 1 {
-					return []store.EventSummary{{ID: "sum-retained", Sequence: 40, Timestamp: boundary}}, nil
-				}
 				if query.Limit <= 0 || query.Limit > 500 || query.AfterSequence != 40 || !query.Forward {
-					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable cursor", query)
+					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable head", query)
 				}
 				close(done)
 				return []store.EventSummary{{
@@ -247,8 +245,8 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		)
 		engine.ServeHTTP(recorder, req)
 
-		if got, want := callCount, 2; got != want {
-			t.Fatalf("QueryEvents() calls = %d, want %d head/read calls", got, want)
+		if got, want := callCount, 1; got != want {
+			t.Fatalf("QueryEvents() calls = %d, want %d live read without a retained-history scan", got, want)
 		}
 		if records := parseSSE(
 			t,

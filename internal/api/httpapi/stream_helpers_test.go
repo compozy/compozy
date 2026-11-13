@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -267,13 +268,11 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		callCount := 0
 		boundary := time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
 		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) { return 40, nil },
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 				callCount++
-				if callCount == 1 {
-					return []store.EventSummary{{ID: "sum-retained", Sequence: 40, Timestamp: boundary}}, nil
-				}
 				if query.Limit <= 0 || query.Limit > 500 || query.AfterSequence != 40 || !query.Forward {
-					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable cursor", query)
+					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable head", query)
 				}
 				close(done)
 				return []store.EventSummary{{
@@ -299,8 +298,8 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		)
 		engine.ServeHTTP(recorder, req)
 
-		if got, want := callCount, 2; got != want {
-			t.Fatalf("QueryEvents() calls = %d, want %d head/read calls", got, want)
+		if got, want := callCount, 1; got != want {
+			t.Fatalf("QueryEvents() calls = %d, want %d live read without a retained-history scan", got, want)
 		}
 		if records := parseSSE(
 			t,
@@ -308,6 +307,54 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		); len(records) != 1 ||
 			records[0].ID != core.LogEventID(store.EventSummary{Sequence: 41, Timestamp: boundary.Add(time.Second)}) {
 			t.Fatalf("live-only records = %#v, want one event", records)
+		}
+	})
+
+	t.Run("Should advance past unmatched events when the filter matches nothing", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		done := make(chan struct{})
+		heads := []int64{40, 55}
+		headCalls := 0
+		var afterSequences []int64
+		observer := stubObserver{
+			EventSequenceHeadFn: func(context.Context) (int64, error) {
+				head := heads[min(headCalls, len(heads)-1)]
+				headCalls++
+				return head, nil
+			},
+			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+				if !query.Forward {
+					t.Fatalf("poll query = %#v, want forward read", query)
+				}
+				afterSequences = append(afterSequences, query.AfterSequence)
+				if len(afterSequences) == 2 {
+					close(done)
+				}
+				return nil, nil
+			},
+		}
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
+		handlers.setStreamDone(done)
+		engine := newTestRouter(t, handlers)
+
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/logs/stream?component=profile&replay=false",
+			http.NoBody,
+		)
+		engine.ServeHTTP(recorder, req)
+
+		// Other components appended 15 rows before the first poll. The second poll
+		// must start after them instead of rereading from sequence 40.
+		if want := []int64{40, 55}; !slices.Equal(afterSequences, want) {
+			t.Fatalf("poll AfterSequence = %v, want %v", afterSequences, want)
+		}
+		if records := parseSSE(t, recorder.Body.String()); len(records) != 0 {
+			t.Fatalf("records = %#v, want none for an unmatched filter", records)
 		}
 	})
 

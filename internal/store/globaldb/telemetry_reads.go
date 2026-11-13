@@ -54,3 +54,18 @@ func (g *GlobalDB) CountProfileEventSummaries(ctx context.Context, profileID str
 		Scan(&count)
 	return count, err
 }
+
+// EventSummaryHeadSequence returns the highest sequence assigned to a retained
+// event summary, or zero for an empty ledger. Streams use it as a scan boundary,
+// so it is deliberately unscoped: it exposes a position, never a row.
+func (g *GlobalDB) EventSummaryHeadSequence(ctx context.Context) (int64, error) {
+	if err := g.ObserveRepo.checkReady(ctx, "read event summary head sequence"); err != nil {
+		return 0, err
+	}
+	var head int64
+	if err := g.readDB.QueryRowContext(ctx, "SELECT COALESCE(MAX(seq), 0) FROM event_summaries").
+		Scan(&head); err != nil {
+		return 0, fmt.Errorf("store: read event summary head sequence: %w", err)
+	}
+	return head, nil
+}

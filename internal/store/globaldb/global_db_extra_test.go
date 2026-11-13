@@ -550,8 +550,14 @@ func TestGlobalDBEventSummarySequenceMigration(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Sequence != 101 || rows[0].Summary != "retained last" {
 		t.Fatalf("resumed migration rows = %+v, %v", rows, err)
 	}
+	if head, err := db.EventSummaryHeadSequence(ctx); err != nil || head != 101 {
+		t.Fatalf("event summary head sequence = %d, %v, want 101", head, err)
+	}
 	if _, err := db.telemetry.DB().ExecContext(ctx, `DELETE FROM event_summaries`); err != nil {
 		t.Fatal(err)
+	}
+	if head, err := db.EventSummaryHeadSequence(ctx); err != nil || head != 0 {
+		t.Fatalf("empty ledger head sequence = %d, %v, want 0", head, err)
 	}
 	if _, err := db.telemetry.DB().ExecContext(ctx, `VACUUM`); err != nil {
 		t.Fatal(err)

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -58,6 +57,13 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 		return
 	}
 
+	// The head is read before the first query so every row at or below it is
+	// already visible to that query and to each later poll.
+	scan, err := h.Observer.EventSequenceHead(c.Request.Context())
+	if err != nil {
+		h.writeSSEBestEffort(writer, SSEMessage{Name: handlersErrorKey, Data: ErrorPayloadForError(err)})
+		return
+	}
 	query.SequenceOrder = cursor.ID == ""
 	if resume && cursor.Sequence > 0 {
 		query.AfterSequence = cursor.Sequence
@@ -76,28 +82,25 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 			return
 		}
 		cursor = EmitLogs(writer, initial, cursor)
-	} else {
-		cursor, err = h.currentLogsCursor(c.Request.Context(), query)
-		if err != nil {
-			h.writeSSEBestEffort(writer, SSEMessage{Name: handlersErrorKey, Data: ErrorPayloadForError(err)})
-			return
-		}
+		scan = nextLogsScanSequence(cursor.Sequence, scan, initial, query.Limit, query.Forward)
 	}
-	// An empty durable head starts at sequence zero, independently of event timestamps.
-	h.pollLogs(c, writer, query, cursor)
+	// A live-only stream starts at the ledger head without reading a row; an empty
+	// ledger starts at sequence zero, independently of event timestamps.
+	h.pollLogs(c, writer, query, cursor, scan)
 }
 
-func (h *BaseHandlers) currentLogsCursor(ctx context.Context, query store.EventSummaryQuery) (LogsCursor, error) {
-	query.Limit = 1
-	head, err := h.Observer.QueryEvents(ctx, query)
-	if err != nil {
-		return LogsCursor{}, err
+// nextLogsScanSequence returns the sequence the next read starts after. A filter
+// that rarely matches must not pin the scan to its last matching event, so a
+// read that drained its range advances to the head observed before it ran. A
+// full forward page may have left matching rows behind and stops at its last row.
+func nextLogsScanSequence(scan int64, head int64, events []store.EventSummary, limit int, forward bool) int64 {
+	for _, event := range events {
+		scan = max(scan, event.Sequence)
 	}
-	if len(head) == 0 {
-		return LogsCursor{}, nil
+	if forward && limit > 0 && len(events) >= limit {
+		return scan
 	}
-	latest := head[len(head)-1]
-	return LogsCursor{Timestamp: latest.Timestamp, Sequence: latest.Sequence, ID: latest.ID}, nil
+	return max(scan, head)
 }
 
 func (h *BaseHandlers) pollLogs(
@@ -105,6 +108,7 @@ func (h *BaseHandlers) pollLogs(
 	writer FlushWriter,
 	query store.EventSummaryQuery,
 	cursor LogsCursor,
+	scan int64,
 ) {
 	pollQuery := query
 	pollQuery.Limit = logsStreamReplayDefaultLimit
@@ -118,8 +122,13 @@ func (h *BaseHandlers) pollLogs(
 		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
-			pollQuery.AfterSequence = cursor.Sequence
-			pollQuery.Forward = cursor.Sequence > 0 || cursor.ID == ""
+			head, headErr := h.Observer.EventSequenceHead(c.Request.Context())
+			if headErr != nil {
+				h.writeSSEBestEffort(writer, SSEMessage{Name: handlersErrorKey, Data: ErrorPayloadForError(headErr)})
+				return
+			}
+			pollQuery.AfterSequence = scan
+			pollQuery.Forward = scan > 0 || cursor.ID == ""
 			if pollQuery.Forward {
 				pollQuery.Since = query.Since
 			} else {
@@ -134,6 +143,7 @@ func (h *BaseHandlers) pollLogs(
 				return
 			}
 			cursor = EmitLogs(writer, events, cursor)
+			scan = nextLogsScanSequence(scan, head, events, pollQuery.Limit, pollQuery.Forward)
 		}
 	}
 }
