@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,6 +75,73 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 				if got := resolve(); got != baseline {
 					t.Fatalf("agent after deletion = %q, want %q", got, baseline)
 				}
+			})
+		}
+	})
+
+	t.Run("Should reload skills config only after a file the loader reads changes", func(t *testing.T) {
+		t.Parallel()
+		for _, layer := range []string{"user", "workspace", "profile", "workspace-profile", "dotenv"} {
+			t.Run("Should reload after a "+layer+" edit", func(t *testing.T) {
+				t.Parallel()
+				home := newTestHomePaths(t)
+				ws := Workspace{ID: "ws_skills_config", Name: "repo", RootDir: t.TempDir()}
+				workspaceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
+				paths := map[string]string{
+					"user":      home.ConfigFile,
+					"workspace": filepath.Join(workspaceDir, compozyconfig.ConfigName),
+					"profile":   filepath.Join(home.ProfilesDir, "design", compozyconfig.ConfigName),
+					"workspace-profile": filepath.Join(
+						workspaceDir, compozyconfig.ProfilesDirName, "design", compozyconfig.ConfigName,
+					),
+					"dotenv": compozyconfig.WorkspaceDotEnvFile(ws.RootDir),
+				}
+				var loads atomic.Int32
+				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
+					WithProfileConfigLoader(func(rootDir, profileName string) (compozyconfig.Config, error) {
+						loads.Add(1)
+						return compozyconfig.LoadForHome(home,
+							compozyconfig.WithWorkspaceRoot(rootDir), compozyconfig.WithProfile(profileName))
+					}))
+				customSources := func() []string {
+					t.Helper()
+					got, err := r.SkillsConfig(ws, "design")
+					if err != nil {
+						t.Fatalf("SkillsConfig() error = %v", err)
+					}
+					return got.CustomSources
+				}
+				assertLoads := func(want int32) {
+					t.Helper()
+					if got := loads.Load(); got != want {
+						t.Fatalf("config loads = %d, want %d", got, want)
+					}
+				}
+				for range 3 {
+					customSources()
+				}
+				assertLoads(1)
+
+				content, want := "[skills]\ncustom_sources = [\"/opt/team-skills\"]\n", []string{"/opt/team-skills"}
+				if layer == "dotenv" {
+					content, want = "COMPOZY_SKILLS_WATCHER_TEST=1\n", nil
+				}
+				writeFile(t, paths[layer], content)
+				got := customSources()
+				if !slices.Equal(got, want) {
+					t.Fatalf("custom sources after %s edit = %v, want %v", layer, got, want)
+				}
+				for i := range got {
+					got[i] = "mutated"
+				}
+				if again := customSources(); !slices.Equal(again, want) {
+					t.Fatalf("custom sources after caller mutation = %v, want isolated %v", again, want)
+				}
+				assertLoads(2)
+
+				r.InvalidateAll()
+				customSources()
+				assertLoads(3)
 			})
 		}
 	})

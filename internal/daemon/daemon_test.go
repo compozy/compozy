@@ -6153,14 +6153,58 @@ func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 		registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
 			"ws_containment": {ID: "ws_containment", Name: "repo", RootDir: root},
 		}}
+		resolver, err := workspacepkg.NewResolver(registry, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
 		for _, provider := range []func(context.Context) ([]string, error){
-			workspaceSkillWatcherRoots(home, registry, nil),
+			workspaceSkillWatcherRoots(home, registry, nil, resolver),
 			workspaceAgentWatcherRoots(home, registry, nil),
 		} {
 			roots, err := provider(t.Context())
 			if err == nil || !strings.Contains(err.Error(), "cannot be inside registered workspace") {
 				t.Fatalf("roots = %v, error = %v; want personal profile containment refusal", roots, err)
 			}
+		}
+	})
+
+	t.Run("Should watch a custom skill source on the first poll after its config edit", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		root := t.TempDir()
+		customDir := filepath.Join(t.TempDir(), "team-skills")
+		if err := os.MkdirAll(customDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		canonicalCustomDir, err := filepath.EvalSymlinks(customDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+			"ws_custom": {ID: "ws_custom", Name: "repo", RootDir: root},
+		}}
+		resolver, err := workspacepkg.NewResolver(registry, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := workspaceSkillWatcherRoots(home, registry, nil, resolver)
+		watchesCustomDir := func() bool {
+			t.Helper()
+			roots, err := provider(t.Context())
+			if err != nil {
+				t.Fatalf("skill watcher roots error = %v", err)
+			}
+			return slices.Contains(roots, canonicalCustomDir)
+		}
+		for range 2 {
+			if watchesCustomDir() {
+				t.Fatalf("skill watcher roots include %q before it is configured", canonicalCustomDir)
+			}
+		}
+		writeDaemonFile(t, filepath.Join(root, ".compozy", "config.toml"),
+			fmt.Sprintf("[skills]\ncustom_sources = [%q]\n", customDir))
+		if !watchesCustomDir() {
+			t.Fatalf("skill watcher roots omit %q after the workspace config edit", canonicalCustomDir)
 		}
 	})
 
