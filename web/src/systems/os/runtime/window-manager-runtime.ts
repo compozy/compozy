@@ -106,7 +106,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
    * first window no longer stands where it did already shows (its answer or a stream update came)
    * or was overtaken, and adds nothing.
    */
-  private directionalCandidates(): FocusCandidate[] {
+  directionalCandidates(): FocusCandidate[] {
     let candidates = activeTabCandidates(this.view);
     for (const swap of this.pendingSwaps) {
       const first = candidates.find(candidate => candidate.id === swap.first);

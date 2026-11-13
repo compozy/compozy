@@ -277,6 +277,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     focusDirection: vi.fn(),
     swapDirection: vi.fn(),
     directionalFocusId: vi.fn(() => null),
+    directionalCandidates: vi.fn(() => []),
     undoLayout: vi.fn(),
     redoLayout: vi.fn(),
     balanceFocusedLayout: vi.fn(),

@@ -19,7 +19,7 @@ import {
   type WindowMoveTarget,
 } from "../../hooks/use-window-move-targets";
 import { moveFocusedWindowToDesktopId, SWAP_DIRECTIONS } from "../../lib/cmd-palette-window-ops";
-import { activeTabCandidates, directionalSwapTarget } from "../../lib/window-manager-navigation";
+import { directionalSwapTarget } from "../../lib/window-manager-navigation";
 import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
 
@@ -131,16 +131,18 @@ function SwapDirectionItem({
  * Window › Swap: the directions in which the focused window has an on-screen
  * neighbour in its tab. Outside a split the entry disables in place with the
  * registry's reason, as "Move to new tab" does; a side with no neighbour is absent.
- * Sides are read from the window the command will start from (a focus still
- * waiting for its answer included), when the menu opens and whenever the
- * projection changes; an unanswered swap shows once its answer lands.
+ * Sides are read from the window and layout the command will start from (a focus
+ * or swap still waiting for its answer included), when the menu opens and
+ * whenever the projection changes.
  */
 function SwapMenu({ onRun }: { onRun: (commandId: string) => void }) {
   const { manager } = useOsShell();
   const family = usePaletteCommand(SWAP_FAMILY_COMMAND);
-  const directions = useDesktop(state => {
+  // The projection is read for its change signal; the sides come from the same overlay the
+  // command reads, so an unanswered swap already counts.
+  const directions = useDesktop(() => {
     const from = manager.directionalFocusId();
-    const candidates = activeTabCandidates(state);
+    const candidates = manager.directionalCandidates();
     return SWAP_DIRECTIONS.filter(
       direction => directionalSwapTarget(candidates, from, direction) !== null
     );

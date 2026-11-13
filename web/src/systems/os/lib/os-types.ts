@@ -15,6 +15,7 @@ import type {
   WindowManagerSnapshot,
   FocusWindowOptions,
 } from "./window-manager-types";
+import type { FocusCandidate } from "./window-manager-navigation";
 
 /** The app surfaces rendered inside daemon-managed logical windows. */
 export type OsAppId =
@@ -273,6 +274,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   swapDirection(direction: FocusDirection): void;
   /** The window directional focus and swaps start from: the newest focus this client asked for. */
   directionalFocusId(): string | null;
+  /** The active tab's on-screen windows with this client's unanswered swaps applied. */
+  directionalCandidates(): FocusCandidate[];
   undoLayout(): void;
   redoLayout(): void;
   balanceFocusedLayout(): void;

@@ -21,6 +21,7 @@ import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-c
 import type { OsDesktopRuntimeStore, WindowManagerController } from "../../../lib/os-types";
 import { RoutingCoordinator } from "../../../lib/routing-coordinator";
 import { createWindowManagerProjectionAtom } from "../../../lib/window-manager-projection";
+import { activeTabCandidates } from "../../../lib/window-manager-navigation";
 import type { LayoutDesktop } from "../../../lib/window-manager-types";
 import {
   paletteRegistryFixture,
@@ -101,8 +102,10 @@ function sideBySide(...windowIds: string[]) {
     "tab:1": {
       windows: windowIds.map((windowId, index) => ({
         windowId,
+        nodeId: `leaf:${windowId}`,
         rect: { x: index * 400, y: 0, w: 400, h: 600 },
         shown: true,
+        parentAxis: "horizontal" as const,
       })),
     },
   };
@@ -111,7 +114,16 @@ function sideBySide(...windowIds: string[]) {
 function renderMenu(
   desktopCount: number,
   onRun = vi.fn(),
-  { projections = sideBySide("w-focused"), swapReason = "" } = {}
+  {
+    projections = sideBySide("w-focused"),
+    swapReason = "",
+    pending,
+  }: {
+    projections?: ReturnType<typeof sideBySide>;
+    swapReason?: string;
+    /** Where the windows stand with this client's unanswered swaps applied. */
+    pending?: ReturnType<typeof sideBySide>;
+  } = {}
 ) {
   const state = {
     desktops: DESKTOP_NAMES.slice(0, desktopCount).map(desktop),
@@ -125,6 +137,8 @@ function renderMenu(
   const manager = {
     getState: () => state,
     directionalFocusId: () => "w-focused",
+    directionalCandidates: () =>
+      activeTabCandidates({ ...state, projections: pending ?? projections }),
     moveWindowToDesktop,
   } as unknown as WindowManagerController;
   const shell: OsShellHandle = {
@@ -267,6 +281,25 @@ describe("WindowMenu swap", () => {
         .getAllByRole("menuitem")
         .map(item => item.textContent)
     ).toEqual(["Left", "Right⌃⌥⇧→"]);
+  });
+
+  it("Should list sides from the layout an unanswered swap leaves [#1658]", async () => {
+    const user = userEvent.setup();
+    // Committed A | B with A focused; a Swap right still waits, so A already counts as on the right.
+    renderMenu(1, vi.fn(), {
+      projections: sideBySide("w-focused", "w-peer"),
+      pending: sideBySide("w-peer", "w-focused"),
+    });
+
+    act(() => screen.getByTestId("os-menu-swap").focus());
+    await user.keyboard("{ArrowRight}");
+    const left = await screen.findByTestId("os-menubar-command-window.swap.left");
+    const submenu = left.closest("[role=menu]") as HTMLElement;
+    expect(
+      within(submenu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent)
+    ).toEqual(["Left"]);
   });
 
   it("Should disable Swap in place with the registry reason outside a split", () => {
