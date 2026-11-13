@@ -417,7 +417,13 @@ meaningful for `retry`.
 - `state` is `none`, `migrated`, or `failed`. A failed status carries `error` (`code`, `message`)
   and `failure_revision`, the layout revision written at the failure. `error.code` is the
   converter's own topology diagnostic code when it reports one, otherwise
-  `migration.conversion_failed`. A successful retry clears `error` and `failure_revision`.
+  `migration.conversion_failed`. A successful retry clears `error` and `failure_revision`, except
+  for the superseded-backup note below.
+- When an upgrade set earlier backups aside, the status says so: a failure's `error.message` ends
+  with "<n> earlier layout backup(s) were set aside and preserved; retry uses the current legacy
+  backup.", and a status with no conversion error carries that sentence as `error` with `code`
+  `migration.backup_superseded` and `path` naming one set-aside key. This is informational, not a
+  failure; branch on `state`.
 - `ack` dismisses the notice for every client and deletes nothing.
 - `retry` re-runs the conversion from the preserved original. It is valid only for `failed`;
   otherwise `window_manager_invalid_command`. When the current layout changed after the failure,
@@ -425,14 +431,19 @@ meaningful for `retry`.
   given, which replaces the current layout. A retry that fails again keeps the original, updates
   `error`, and resets `acknowledged` to `false`.
 - The same object appears as `migration` on the snapshot and in `compozy__layout_get` until
-  acknowledged. Never delete or edit the backup yourself: a failed workspace keeps it until a retry
-  succeeds; a migrated workspace's backup is removed at the first boot of v0.8.0.
+  acknowledged. Never delete or edit a backup yourself: a failed workspace keeps it until a retry
+  succeeds; a migrated workspace's backup is removed at the first boot of v0.8.0; set-aside
+  backups are never removed automatically and go only with their workspace or profile.
 - Downgrading to v0.6 after the upgrade is not supported: v0.6 cannot read a version 6 snapshot and
-  replaces it with a default layout. The backup key is untouched by v0.6. On the next upgrade the
-  backup is replaced by the layout v0.6 wrote, unless the earlier status was `failed` and the two
-  differ: then loading the workspace fails with `window_manager_unavailable` (HTTP 503, "resolve
-  the failed layout migration before replacing newer legacy bytes") and neither value is written.
-  Do not edit the backup to get past it; report it to the operator.
+  replaces it with a default layout. The backup key is untouched by v0.6. The next upgrade
+  converts the layout v0.6 wrote, whatever the earlier status was. When that value differs from the
+  backup, the earlier backup is set aside unchanged under a content-addressed key in the same write,
+  the new value becomes the backup, and `status`, `ack`, and `retry [--replace]` act on the newest
+  backup. Nothing is refused and nothing is lost.
+- A stored snapshot newer than version 6 (written by a later CompozyOS) is never converted or
+  rewritten: that workspace answers `window_manager_unavailable` (HTTP 503) while the daemon starts,
+  logs `window_manager.partition_reconciliation_skipped`, and serves every other workspace. Report it
+  to the operator; do not try to repair it.
 
 ## Raw Layout Recovery
 
@@ -525,7 +536,8 @@ structured diagnostics and entity conflicts when reporting failures.
 
 Floating windows, minimize, zoom, island frames, and per-pane stacks were removed in v0.7.0. Their
 surfaces still decode through v0.7.x so older callers do not break, and are deleted in v0.8.0. Never
-emit them. When one is used, the result's `deprecations[]` names it:
+emit them. When a retired command, command ID, or command field is used, the result's
+`deprecations[]` names it:
 
 ```json
 {
@@ -538,7 +550,10 @@ emit them. When one is used, the result's `deprecations[]` names it:
 ```
 
 A retired field reports only when it carries a non-zero value. CLI verbs print one `warning:` line
-per surface to stderr and exit 0.
+per surface to stderr and exit 0. Retired `config.toml` keys warn once when the configuration loads,
+retired shortcut bindings are logged as deprecated, and `compozy hooks list` warns about hooks on
+retired events. Settings API fields and always-empty result fields carry no warning in the response;
+the OpenAPI document marks them deprecated.
 
 | Retired                                                                                                                                                                                                                  | Behavior until v0.8.0                                                                       | Use instead                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -552,7 +567,7 @@ per surface to stderr and exit 0.
 | `window open --rect` (`floating_rect`), `window move --rect`                                                                                                                                                             | ignored                                                                                     | —                                                                      |
 | `window open --restore` (`restore_window_id`)                                                                                                                                                                            | activates that window's tab; nothing opens                                                  | `window activate`                                                      |
 | `window close --minimize` (`minimize`)                                                                                                                                                                                   | the window is **not** closed; `applied: false`                                              | `window close`                                                         |
-| `window move --placement floating` (or empty placement over HTTP/UDS)                                                                                                                                                    | treated as `tab`                                                                            | `--placement tab`                                                      |
+| `window move --placement floating`; an empty or missing `placement` over HTTP/UDS or `compozy__window_move`                                                                                                              | treated as `tab`; the empty one reports `window.move.placement=empty`                       | `--placement tab`                                                      |
 | `layout arrange --arrangement stack`                                                                                                                                                                                     | listed windows become adjacent tabs                                                         | `window move --placement tab`                                          |
 | `layout arrange --frame`, `--group`, `--keep-frames`                                                                                                                                                                     | ignored                                                                                     | `layout arrange`                                                       |
 | `layout balance --group` (`group_id`)                                                                                                                                                                                    | alias of `--tab`                                                                            | `layout balance --tab`                                                 |

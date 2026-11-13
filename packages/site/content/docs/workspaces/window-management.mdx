@@ -234,16 +234,26 @@ compozy layout migration retry --workspace <workspace-id> --replace  # replace t
 `summary` with `desktops`, `tabs`, `windows`, `floating_to_tabs`, `minimized_to_tabs`,
 `islands_merged`, `pins_dropped`, and `zoom_desktops_merged`. A failed status adds `error` (its
 `code` is the converter's diagnostic code, or `migration.conversion_failed`) and
-`failure_revision`; a successful retry clears both.
+`failure_revision`; a successful retry clears both. When an upgrade has set earlier saved copies
+aside (see the note below), `error.message` also says "<n> earlier layout backup(s) were set aside
+and preserved; retry uses the current legacy backup." On a status with no conversion error, that
+note is the `error` itself, with `code` `migration.backup_superseded`.
 `compozy layout get` and `compozy__layout_get` include it as `migration` until it is acknowledged.
 
 <OperatorNote>
   Do not downgrade to v0.6 after upgrading. v0.6 cannot read the converted layout and replaces it
   with a default desktop. The original v0.6 layout stays preserved inside the workspace state, but
-  v0.6 does not restore it. Upgrading again converts the layout you used on v0.6, except when the
-  first conversion failed: then CompozyOS will not overwrite the saved copy, and the workspace's
-  layout answers `window_manager_unavailable` ("resolve the failed layout migration before replacing
-  newer legacy bytes") with both layouts kept.
+  v0.6 does not restore it. Upgrading again converts the layout you used on v0.6, even when the
+  first conversion failed. Nothing stored is lost: when the saved copy differs, the earlier copy is
+  set aside unchanged in the same write, and **Retry**, **Dismiss**, and `compozy layout migration
+  retry [--replace]` act on the newest saved copy. Copies set aside this way are never removed
+  automatically; they are deleted only with their workspace or profile.
+
+A layout saved by a newer CompozyOS (layout version 7 or later) is left untouched: that
+workspace's layout answers `window_manager_unavailable` until you run the newer version again,
+while CompozyOS starts, logs the skipped workspace (`window_manager.partition_reconciliation_skipped`),
+and serves every other workspace.
+
 </OperatorNote>
 
 ## Persistent desktops
@@ -399,32 +409,36 @@ and desktop switching do not emit extension hooks.
 
 ## Retired in v0.7.0
 
-These surfaces still work until v0.8.0 so older scripts, agents, and configs keep loading. Each one
-answers with a `deprecations` entry (`code`, `surface`, `replacement`, `removal_release: "v0.8.0"`,
-`message`) or a `warning:` line on stderr, and is deleted in v0.8.0.
+These surfaces still work until v0.8.0 so older scripts, agents, and configs keep loading, and are
+deleted in v0.8.0. Retired commands, command IDs, and command fields answer with a `deprecations`
+entry (`code`, `surface`, `replacement`, `removal_release: "v0.8.0"`, `message`), which the CLI
+prints as one `warning:` line on stderr. Retired `config.toml` keys warn once when the configuration
+loads, retired shortcut bindings are logged as deprecated and marked **retired** in Settings, and
+`compozy hooks list` warns about hooks on retired events. Settings API fields and result fields that
+are now always empty carry no warning in the response; the OpenAPI document marks them deprecated.
 
-| Retired                                                                                                                                                                               | Until v0.8.0                                         | Use instead                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
-| `compozy window float`, `compozy__window_float`                                                                                                                                       | Does nothing                                         | `window move --placement tab`               |
-| `compozy window zoom`, `compozy__window_zoom`                                                                                                                                         | Does nothing                                         | `window move --placement tab`               |
-| `compozy window resize`, `compozy__window_resize`                                                                                                                                     | Does nothing                                         | `layout resize`                             |
-| `compozy layout frame-resize`, `compozy__layout_frame_resize`                                                                                                                         | Does nothing                                         | `layout resize`                             |
-| `compozy window group`, `compozy__window_group`                                                                                                                                       | Places each window as a tab after the target         | `window move --placement tab`               |
-| Command IDs `window.stack.reorder`, `window.stack.set_active`                                                                                                                         | Aliases                                              | `window.tab.reorder`, `window.tab.activate` |
-| `window open --floating`, `--rect`, `--restore`                                                                                                                                       | Opens a tab; ignored; activates the window's tab     | `window open`, `window activate`            |
-| `window close --minimize`                                                                                                                                                             | Does nothing; the window stays open                  | `window close`                              |
-| `window move --placement floating`, `--rect`                                                                                                                                          | Treated as `--placement tab`; ignored                | `--placement tab`                           |
-| `layout arrange --arrangement stack`, `--frame`, `--group`, `--keep-frames`                                                                                                           | Adjacent tabs; ignored                               | `layout arrange`                            |
-| `layout balance --group`                                                                                                                                                              | Alias of `--tab`                                     | `layout balance --tab`                      |
-| `window group --insert-index` (`insert_index`)                                                                                                                                        | Ignored                                              | `window reorder --index`                    |
-| `window.move` with an empty `placement` over HTTP/UDS                                                                                                                                 | Treated as `tab`                                     | `"placement": "tab"`                        |
-| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group` | Invocable as no-ops with a deprecation; not listed   | The live command for the action, or none    |
-| Settings API (`GET`/`PATCH /api/settings/window-manager`) fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`; `new_window_policy: "floating"`     | Returned with fixed values; ignored on save          | Omit them                                   |
-| `compozy__window_list` `include_minimized`                                                                                                                                            | Ignored                                              | —                                           |
-| Hook `window_manager.stack.activated`                                                                                                                                                 | Fires with `tab.activated`                           | `window_manager.tab.activated`              |
-| Hooks `window_manager.stack.grouped`, `stack.ungrouped`                                                                                                                               | Load, never fire; `compozy hooks list` warns         | `window_manager.tab.split`, `tab.unsplit`   |
-| Config `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap.*`, `bindings.*`; `new_window_policy = "floating"`                                                          | Ignored with a warning; `floating` loads as `tab`    | Remove the key                              |
-| Shortcut IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.tile.top-left`, `top-right`, `bottom-left`, `bottom-right`, `window.merge_all`, `window.tab.detach`  | Load and do nothing; Settings marks them **retired** | Remove the binding                          |
+| Retired                                                                                                                                                                               | Until v0.8.0                                                         | Use instead                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------- |
+| `compozy window float`, `compozy__window_float`                                                                                                                                       | Does nothing                                                         | `window move --placement tab`               |
+| `compozy window zoom`, `compozy__window_zoom`                                                                                                                                         | Does nothing                                                         | `window move --placement tab`               |
+| `compozy window resize`, `compozy__window_resize`                                                                                                                                     | Does nothing                                                         | `layout resize`                             |
+| `compozy layout frame-resize`, `compozy__layout_frame_resize`                                                                                                                         | Does nothing                                                         | `layout resize`                             |
+| `compozy window group`, `compozy__window_group`                                                                                                                                       | Places each window as a tab after the target                         | `window move --placement tab`               |
+| Command IDs `window.stack.reorder`, `window.stack.set_active`                                                                                                                         | Aliases                                                              | `window.tab.reorder`, `window.tab.activate` |
+| `window open --floating`, `--rect`, `--restore`                                                                                                                                       | Opens a tab; ignored; activates the window's tab                     | `window open`, `window activate`            |
+| `window close --minimize`                                                                                                                                                             | Does nothing; the window stays open                                  | `window close`                              |
+| `window move --placement floating`, `--rect`                                                                                                                                          | Treated as `--placement tab`; ignored                                | `--placement tab`                           |
+| `layout arrange --arrangement stack`, `--frame`, `--group`, `--keep-frames`                                                                                                           | Adjacent tabs; ignored                                               | `layout arrange`                            |
+| `layout balance --group`                                                                                                                                                              | Alias of `--tab`                                                     | `layout balance --tab`                      |
+| `window group --insert-index` (`insert_index`)                                                                                                                                        | Ignored                                                              | `window reorder --index`                    |
+| `window.move` with an empty or missing `placement` over HTTP/UDS or `compozy__window_move`                                                                                            | Treated as `tab`, with the deprecation `window.move.placement=empty` | `"placement": "tab"`                        |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group` | Invocable as no-ops with a deprecation; not listed                   | The live command for the action, or none    |
+| Settings API (`GET`/`PATCH /api/settings/window-manager`) fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`; `new_window_policy: "floating"`     | Returned with fixed values; ignored on save                          | Omit them                                   |
+| `compozy__window_list` `include_minimized`                                                                                                                                            | Ignored                                                              | —                                           |
+| Hook `window_manager.stack.activated`                                                                                                                                                 | Fires with `tab.activated`                                           | `window_manager.tab.activated`              |
+| Hooks `window_manager.stack.grouped`, `stack.ungrouped`                                                                                                                               | Load, never fire; `compozy hooks list` warns                         | `window_manager.tab.split`, `tab.unsplit`   |
+| Config `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap.*`, `bindings.*`; `new_window_policy = "floating"`                                                          | Ignored with a warning; `floating` loads as `tab`                    | Remove the key                              |
+| Shortcut IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.tile.top-left`, `top-right`, `bottom-left`, `bottom-right`, `window.merge_all`, `window.tab.detach`  | Load and do nothing; Settings marks them **retired**                 | Remove the binding                          |
 
 Results that contain the topology (snapshots, desktops, windows, layout documents) now have the
 version 6 shape; there is no version 5 form of them.

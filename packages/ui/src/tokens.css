@@ -651,8 +651,8 @@
   --height-modal-wizard: 960px;
   --height-modal-xl: 840px;
 
-  /* Shell motion tier — chrome-scale spatial transitions (window entry,
-     desktop switches, minimize travel) above the base ladder; one spring. */
+  /* Shell motion tier — chrome-scale spatial transitions (window entry and
+     desktop switches) above the base ladder; one spring. */
   --duration-shell-fast: 120ms;
   --duration-shell-base: 240ms;
   --duration-shell-slow: 320ms;

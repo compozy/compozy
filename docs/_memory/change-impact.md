@@ -16,10 +16,17 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   converter and the v4/v5 document decoder (`layout_decode.go`) are permanent. One client-state batch
   writes `snapshot:<profileID>` (v6), `legacy:<profileID>` (original bytes, new `clientstate.OpCopy`)
   and `migration:<profileID>` (status). A failed conversion keeps the bytes and writes a default
-  snapshot with `state: "failed"`; a newer value is never modified. A re-upgrade after a downgrade
-  replaces the backup with the layout v0.6 wrote, except when the earlier status is `failed` and the
-  bytes differ: then the load refuses with `ErrUnavailable` (`window_manager_unavailable`, HTTP 503,
-  "resolve the failed layout migration before replacing newer legacy bytes") and writes nothing. Stored `window_layout` profiles are
+  snapshot with `state: "failed"`; a newer value (version 7+) is never modified: its partition answers
+  `ErrUnavailable` (HTTP 503), and boot reconciliation logs `window_manager.partition_reconciliation_skipped`
+  and serves the other partitions instead of stopping the daemon. A re-upgrade after a downgrade
+  converts the layout v0.6 wrote whatever the earlier status (no refusal, no 503): when its bytes
+  differ from `legacy:<profileID>`, the same atomic batch copies the earlier backup to
+  `superseded:<profileID>:<sha256 hex>` and writes the new bytes to `legacy:`; `migration:` holds the
+  latest status, and retry, ack and `retry --replace` act on the latest `legacy:`. No wire field is
+  added: the status `error` reports the set-aside backups ("<n> earlier layout backup(s) were set
+  aside and preserved; retry uses the current legacy backup."), appended to a failure's message or,
+  with no conversion error, as `code` `migration.backup_superseded` with `path` set to a superseded
+  key. Superseded keys never expire (the v0.8.0 retention skips them). Stored `window_layout` profiles are
   rewritten to document v6 at boot (`reconcileStoredWindowLayouts`). Lossy: undo/redo history, floating
   rects, group frames, minimized and zoomed flags, return anchors, stack grouping (members become
   adjacent tabs), pins on windows that land in a split tab. The user is told by `snapshot.migration`
@@ -40,7 +47,8 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   close --scope left|all`, `layout balance --tab`. Deprecated with a stderr warning, exit 0: `window
   float|zoom|resize|group`, `layout frame-resize`, and the flags `--floating`, `--rect`, `--restore`,
   `--minimize`, `--placement floating`, `--arrangement stack`, `--frame`, `--keep-frames`, and `--group`
-  on `layout arrange|balance`. New routes `GET` and `POST
+  on `layout arrange|balance`. `window.move` with an empty or missing `placement` (HTTP/UDS,
+  `compozy__window_move`) maps to `tab` and reports the deprecation `window.move.placement=empty`. New routes `GET` and `POST
   /api/workspaces/{workspace_id}/window-manager/migration` (`WindowManagerMigrationRequest` →
   `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
   stream frame. A failed status carries `failure_revision` (cleared by a successful retry) and `error`,
@@ -71,12 +79,13 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   move the window to that edge of its tab. New unbound IDs: `window.unsplit`, `window.tab.move_left`,
   `window.tab.move_right`.
 - **Command palette** (public regime). Retired palette command IDs keep resolving until v0.8.0 as
-  deprecated no-ops (`applied: false` with a `deprecations` entry; the CLI also prints a `warning:`
-  line) and are no longer listed: `window.minimize`, `window.zoom`,
+  deprecated no-ops (`applied: false` with a `deprecations` entry; `compozy cmd-palette invoke`
+  reaches the daemon for them and also prints a `warning:` line) and are no longer listed: `window.minimize`, `window.zoom`,
   `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`,
   `layout.frame_resize`, `window.stack.group`.
-- **Workspace data isolation.** Unchanged: `snapshot:`, `legacy:` and `migration:` are keyed per
-  workspace and profile, and `purgeWindowManagerPartition` deletes all three. The active tab is per
+- **Workspace data isolation.** `snapshot:`, `legacy:`, `migration:` and the new
+  `superseded:<profileID>:<sha256 hex>` keys are keyed per workspace and profile, and
+  `purgeWindowManagerPartition` deletes all of them (workspace or profile removal). The active tab is per
   client (`active_tab`), with `active_tab_id` as the shared default. The boot rewrite keeps each layout
   profile's scope, owner and source.
 - **Web** (internal regime). `web/src/systems/os` renders v6: `os-tab-bar`, `os-tab`, `os-split-view`,

@@ -1155,8 +1155,8 @@ Animate only `opacity` and `transform`: they run on the compositor, so a long
 list can move without repainting or reflowing.
 
 Shell chrome adds one tier above the base ladder for spatial transitions —
-window entry, desktop switches, and minimize travel — at chrome scale with a
-single spring ease. Window-body content keeps the base ladder.
+window entry and desktop switches — at chrome scale with a single spring
+ease. Window-body content keeps the base ladder.
 
 A content area that is still loading shows a skeleton, never a centered
 spinner. A skeleton is a content-shaped copy of the real primitive
