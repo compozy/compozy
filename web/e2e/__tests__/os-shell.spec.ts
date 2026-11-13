@@ -2619,8 +2619,8 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the upgrade notice is di
 
     await notice.getByRole("button", { name: "Dismiss" }).click();
     await expect(notice).toHaveCount(0);
-    // The peer rereads the migration status on its refresh interval.
-    await expect(peerNotice).toHaveCount(0, { timeout: 30_000 });
+    // The acknowledgement reaches the peer as a snapshot frame on its stream.
+    await expect(peerNotice).toHaveCount(0);
   } finally {
     await peer.context().close();
   }

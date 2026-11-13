@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { use } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
@@ -8,10 +8,11 @@ import {
   WindowManagerApiError,
 } from "../adapters/window-manager-api";
 import { DeskProfileContext } from "../contexts/desk-profile-context";
-import { windowManagerKeys, windowManagerMigrationOptions } from "../lib/window-manager-query";
+import { windowManagerKeys } from "../lib/window-manager-query";
 import type {
   WindowManagerMigrationStatus,
   WindowManagerMigrationSummary,
+  WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 import { useDesktop } from "./use-desktop";
 
@@ -34,19 +35,24 @@ export function upgradeNoticeState(
 }
 
 /**
- * The one-time notice after the layout moved to tabs (US-017.AC-6, EC-6). The snapshot names an
- * unacknowledged migration; the migration status route is the truth the notice shows, so a
- * dismissal in another client hides it here on the next read, and a reload keeps it until then.
+ * The one-time notice after the layout moved to tabs (US-017.AC-6, EC-6), read from the
+ * snapshot's `migration`. Acknowledging or retrying reaches every client of the workspace and
+ * profile as a `snapshot` frame (same revision for an ack or a failed retry), so a dismissal
+ * elsewhere hides it here and a reload keeps it until then.
  */
 export function useOsUpgradeNotice(): UpgradeNoticeModel | null {
   const queryClient = useQueryClient();
   const profile = use(DeskProfileContext) ?? "";
   const workspaceId = useDesktop(state => state.snapshot?.workspaceId ?? "");
-  const pending = useDesktop(state => upgradeNoticeState(state.snapshot?.migration) !== null);
-  const options = windowManagerMigrationOptions(workspaceId, profile);
-  const status = useQuery({ ...options, enabled: options.enabled !== false && pending });
+  const migration = useDesktop(state => state.snapshot?.migration ?? null);
+  // The route's answer settles the cached snapshot now, so the notice neither waits for the
+  // frame nor comes back before it: an ack clears `migration`, a retry shows its outcome.
   const settle = (next: WindowManagerMigrationStatus) =>
-    queryClient.setQueryData(windowManagerKeys.migration(workspaceId, profile), next);
+    queryClient.setQueryData<WindowManagerSnapshot>(
+      windowManagerKeys.snapshot(workspaceId, profile),
+      current =>
+        current && { ...current, migration: upgradeNoticeState(next) === null ? null : next }
+    );
   const acknowledge = useMutation({
     mutationFn: () => updateWindowManagerMigration(workspaceId, profile, "ack"),
     onSuccess: settle,
@@ -65,12 +71,12 @@ export function useOsUpgradeNotice(): UpgradeNoticeModel | null {
         tone: "error",
       }),
   });
-  const state = upgradeNoticeState(status.data);
+  const state = upgradeNoticeState(migration);
   // Hidden as soon as it is dismissed here; a failed dismissal shows it again.
-  if (!pending || state === null || acknowledge.isPending) return null;
+  if (state === null || acknowledge.isPending) return null;
   return {
     state: retry.isPending ? "retrying" : state,
-    summary: status.data?.summary ?? null,
+    summary: migration?.summary ?? null,
     dismiss: () => acknowledge.mutate(),
     retry: () => retry.mutate(),
   };

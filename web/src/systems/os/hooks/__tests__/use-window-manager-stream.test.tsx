@@ -1,7 +1,8 @@
 // Suite: window-manager stream hook
 // Invariant: one client-bound socket survives topology advances, reconnects with the latest fence,
 // serializes burst refreshes to the highest announced revision, accepts only newer bound-client
-// presentation frames, and reconnects for a fresh fence after a client-side frame failure (#1543).
+// presentation frames, reconnects for a fresh fence after a client-side frame failure (#1543), and
+// applies a same-revision snapshot frame that only changes the migration status (US-017).
 // Owning layer: the WebSocket → TanStack Query/client-presentation bridge.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -195,7 +196,7 @@ function rawEventFrame(revision: number) {
   };
 }
 
-function rawSnapshotFrame(revision: number) {
+function rawSnapshotFrame(revision: number, migration?: Record<string, unknown>) {
   return {
     type: "snapshot",
     workspace_id: "workspace:test",
@@ -231,6 +232,7 @@ function rawSnapshotFrame(revision: number) {
       },
       closed_entry_count: 0,
       overrides: {},
+      ...(migration ? { migration } : {}),
       updated_at: "2026-07-22T00:00:00Z",
     },
   };
@@ -1015,6 +1017,63 @@ describe("useWindowManagerStream", () => {
     expect(cached?.revision).toBe(7);
     expect(cached?.desktops.map(desktop => desktop.id)).toEqual(["desktop:main"]);
     expect(onSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 7 }));
+  });
+
+  it("Should apply same-revision snapshot frames that only change the migration status [US-017]", () => {
+    // Acknowledging or a failed retry republishes the snapshot without advancing the revision.
+    const queryClient = new QueryClient();
+    const key = windowManagerKeys.snapshot("workspace:test", "marketing");
+    queryClient.setQueryData(key, {
+      ...snapshot(7),
+      migration: {
+        state: "migrated",
+        fromVersion: 5,
+        at: null,
+        acknowledged: false,
+        summary: null,
+        error: null,
+        failureRevision: null,
+      },
+    });
+    const { factory, sockets } = createSocketFactory();
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 7,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+
+    act(() => sockets[0]?.message(rawSnapshotFrame(7)));
+    expect(queryClient.getQueryData<WindowManagerSnapshot>(key)?.migration).toBeNull();
+
+    act(() =>
+      sockets[0]?.message(
+        rawSnapshotFrame(7, {
+          state: "failed",
+          acknowledged: false,
+          error: { code: "window_manager_invalid_snapshot", message: "bad tree" },
+          failure_revision: 4,
+        })
+      )
+    );
+    expect(queryClient.getQueryData<WindowManagerSnapshot>(key)).toMatchObject({
+      revision: 7,
+      migration: { state: "failed", acknowledged: false, failureRevision: 4 },
+    });
   });
 
   it("Should re-read and accept the daemon's truth when a heartbeat falls behind the cache", async () => {
