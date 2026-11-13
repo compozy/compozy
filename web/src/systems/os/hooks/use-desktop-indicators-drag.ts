@@ -10,7 +10,7 @@ import { useOsTabDragDesktopTarget, useOsTabDragSourceDesktop } from "./use-os-t
 export function useDesktopIndicatorsDrag() {
   const dragSourceDesktopId = useOsTabDragSourceDesktop();
   const dropTargetDesktopId = useOsTabDragDesktopTarget();
-  const dragKind = useSelector(osTabDragStore, snapshot =>
+  const dragKind = useSelector(osTabDragStore, (snapshot): "tab" | "window" =>
     snapshot.context.session?.source.kind === "head" ? "window" : "tab"
   );
   return { dragSourceDesktopId, dropTargetDesktopId, dragKind };
