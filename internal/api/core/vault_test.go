@@ -254,7 +254,7 @@ func TestVaultHandlersRejectInvalidRequests(t *testing.T) {
 			method:    http.MethodPut,
 			path:      "/api/vault/secrets",
 			body:      []byte(`{"ref":"vault:editorial/notes-token","secret_value":"local-editorial-notes-only"}`),
-			wantError: "providers, profiles, automation, mcp, hooks, extensions, or sessions",
+			wantError: "providers, profiles, automation, mcp, hooks, extensions, sessions, or observability",
 		},
 		{
 			name:      "Should reject blank daemon vault secret values",

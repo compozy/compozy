@@ -75,7 +75,7 @@ func NewService(
 		cancellationLimit: 64,
 		now:               func() time.Time { return time.Now().UTC() },
 		newRunID: func() (RunID, error) {
-			id, err := storepkg.NewID("looprun")
+			id, err := storepkg.NewID(runIDPrefix)
 			return RunID(id), err
 		},
 	}

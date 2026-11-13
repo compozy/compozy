@@ -2475,6 +2475,8 @@ export type {
   OpenURLEffect,
   OptionalStringList,
   Origin,
+  OTelSignalStatusPayload,
+  OTelStatusPayload,
   OutlineEntry,
   OutlineResult,
   OverviewAgentSharePayload,

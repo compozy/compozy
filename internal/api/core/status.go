@@ -126,6 +126,7 @@ func (h *BaseHandlers) statusPayloadWithAggregate(
 		Skills:           skillStatus,
 		Config:           configStatus,
 		LogTail:          h.logTailStatusPayload(ctx),
+		OTel:             h.otelStatusPayload(),
 	}, nil
 }
 

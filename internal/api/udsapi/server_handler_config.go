@@ -85,5 +85,6 @@ func (s *Server) handlerConfig() *handlerConfig {
 
 func (s *Server) withChangesConfig(cfg *handlerConfig) *handlerConfig {
 	cfg.sessionChanges = s.sessionChanges
+	cfg.telemetryStatus = s.telemetryStatus
 	return cfg
 }

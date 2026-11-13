@@ -481,6 +481,39 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			denial: ConfigPathTrustForbidden,
 		},
 		{
+			// Telemetry settings decide what leaves the machine and where, so every OTLP key stays operator-only.
+			name:   "Should reject OTLP export switch trust root",
+			path:   "observability.otel.enabled",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP sample ratio trust root",
+			path:   "observability.otel.sample_ratio",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			// The collector endpoint decides where the resolved export headers are sent, so an agent that
+			// could rewrite it would redirect operator credentials to a host it controls.
+			name:   "Should reject OTLP export endpoint trust root",
+			path:   "observability.otel.endpoint",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP provider forwarding trust root",
+			path:   "observability.otel.forward_to_providers",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP header ref table trust root",
+			path:   "observability.otel.headers",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject OTLP header ref entry trust root",
+			path:   "observability.otel.headers.api-key",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
 			name:   "Should reject hook declarations through config tools",
 			path:   "hooks.declarations",
 			denial: ConfigPathTrustForbidden,

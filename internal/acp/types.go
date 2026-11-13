@@ -129,6 +129,9 @@ type StartOpts struct {
 	// compozy__monitor_create, so a provider hook may refuse a foreground shell
 	// wait and redirect it. It stays false when policy withholds either tool.
 	ShellWaitGuard bool
+	// ForwardTraceParent hands the provider the acp.process.spawn span's TRACEPARENT; the caller sets it when
+	// observability.otel.forward_to_providers forwards OTLP export variables to this provider.
+	ForwardTraceParent bool
 
 	launchIdentity *preparedLaunchIdentity
 }
@@ -237,6 +240,7 @@ type PromptRequest struct {
 	TurnID                    string
 	RunID                     string
 	Generation                int64
+	Model                     string // session model; labels compozy.session.ttft only
 	Message                   string
 	Maintenance               bool
 	AgentCommand              bool

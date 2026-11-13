@@ -44,6 +44,7 @@ import (
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/telemetry"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -6928,6 +6929,156 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 			t.Fatalf("doctor subprocess item = %#v, want redacted degradation", doctorPayload.Items[0])
 		}
 	})
+}
+
+// UT-025
+func TestDaemonStatusProjectsOTelExport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status telemetry.Status
+		want   string
+	}{
+		{
+			name: "Should match the healthy export example",
+			status: telemetry.Status{
+				State:        telemetry.StateOK,
+				Protocol:     "grpc",
+				EndpointHost: "collector.local:4317",
+				SampleRatio:  0.25,
+				Traces: telemetry.SignalStatus{
+					Enabled:      true,
+					LastExportAt: time.Date(2026, 11, 7, 14, 2, 11, 0, time.UTC),
+				},
+				Metrics: telemetry.SignalStatus{
+					Enabled:      true,
+					LastExportAt: time.Date(2026, 11, 7, 14, 2, 0, 0, time.UTC),
+				},
+			},
+			want: `{
+				"state": "ok",
+				"protocol": "grpc",
+				"endpoint_host": "collector.local:4317",
+				"sample_ratio": 0.25,
+				"forward_to_providers": false,
+				"traces": { "enabled": true, "last_export_at": "2026-11-07T14:02:11Z", "failed_exports": 0 },
+				"metrics": { "enabled": true, "last_export_at": "2026-11-07T14:02:00Z", "failed_exports": 0 },
+				"dropped_spans": 0
+			}`,
+		},
+		{
+			name: "Should match the degraded export example",
+			status: telemetry.Status{
+				State:        telemetry.StateDegraded,
+				Protocol:     "http/protobuf",
+				EndpointHost: "otlp.nr-data.net:4318",
+				SampleRatio:  1,
+				Traces: telemetry.SignalStatus{
+					Enabled:      true,
+					LastExportAt: time.Date(2026, 11, 7, 13, 40, 2, 0, time.UTC),
+				},
+				Metrics: telemetry.SignalStatus{
+					Enabled: true, LastExportAt: time.Date(2026, 11, 7, 13, 20, 0, 0, time.UTC),
+					LastErrorClass: "http_401", FailedExports: 12,
+				},
+			},
+			want: `{
+				"state": "degraded",
+				"protocol": "http/protobuf",
+				"endpoint_host": "otlp.nr-data.net:4318",
+				"sample_ratio": 1,
+				"forward_to_providers": false,
+				"traces": { "enabled": true, "last_export_at": "2026-11-07T13:40:02Z", "failed_exports": 0 },
+				"metrics": { "enabled": true, "last_export_at": "2026-11-07T13:20:00Z", "last_error_class": "http_401", "failed_exports": 12 },
+				"dropped_spans": 0
+			}`,
+		},
+		{
+			// The _dx.md examples keep both fields at their zero value, so they cannot show the mapping.
+			name: "Should project provider forwarding and dropped spans",
+			status: telemetry.Status{
+				State:              telemetry.StateOK,
+				Protocol:           "http/protobuf",
+				EndpointHost:       "localhost:4318",
+				SampleRatio:        1,
+				ForwardToProviders: true,
+				Traces:             telemetry.SignalStatus{Enabled: true},
+				Metrics:            telemetry.SignalStatus{},
+				DroppedSpans:       7,
+			},
+			want: `{
+				"state": "ok",
+				"protocol": "http/protobuf",
+				"endpoint_host": "localhost:4318",
+				"sample_ratio": 1,
+				"forward_to_providers": true,
+				"traces": { "enabled": true, "failed_exports": 0 },
+				"metrics": { "enabled": false, "failed_exports": 0 },
+				"dropped_spans": 7
+			}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newHandlerFixture(
+				t,
+				&testutil.StubSessionManager{},
+				okStatusObserver(),
+				testutil.StubWorkspaceService{},
+			)
+			fixture.Handlers.TelemetryStatus = func() (telemetry.Status, bool) { return tt.status, true }
+
+			otel := statusSection(t, fixture, "otel")
+			var got, want bytes.Buffer
+			if err := json.Compact(&got, otel); err != nil {
+				t.Fatalf("json.Compact(otel) error = %v", err)
+			}
+			if err := json.Compact(&want, []byte(tt.want)); err != nil {
+				t.Fatalf("json.Compact(want) error = %v", err)
+			}
+			if got.String() != want.String() {
+				t.Fatalf("status otel = %s, want %s", got.String(), want.String())
+			}
+		})
+	}
+
+	t.Run("Should omit otel until telemetry has started", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			okStatusObserver(),
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.TelemetryStatus = func() (telemetry.Status, bool) { return telemetry.Status{}, false }
+
+		if otel := statusSection(t, fixture, "otel"); otel != nil {
+			t.Fatalf("status otel = %s, want absent", otel)
+		}
+	})
+}
+
+func okStatusObserver() testutil.StubObserver {
+	return testutil.StubObserver{
+		HealthFn: func(context.Context) (observe.Health, error) {
+			return observe.Health{Status: "ok", Version: "dev"}, nil
+		},
+	}
+}
+
+func statusSection(t *testing.T, fixture handlerFixture, section string) json.RawMessage {
+	t.Helper()
+	response := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var shape map[string]json.RawMessage
+	decodeJSON(t, response.Body.Bytes(), &shape)
+	return shape[section]
 }
 
 func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {

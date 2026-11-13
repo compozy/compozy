@@ -44,6 +44,58 @@ func TestNewWorkspaceID(t *testing.T) {
 	})
 }
 
+func TestIsWorkspaceIdentifier(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept durable, registration, and legacy workspace ids", func(t *testing.T) {
+		t.Parallel()
+
+		durableID, err := NewWorkspaceID()
+		if err != nil {
+			t.Fatalf("NewWorkspaceID() error = %v", err)
+		}
+		registrationID, err := generateID("ws")
+		if err != nil {
+			t.Fatalf("generateID(ws) error = %v", err)
+		}
+		for _, id := range []string{durableID, testWorkspaceULID, registrationID, "ws-0123456789abcdef"} {
+			if !IsWorkspaceIdentifier(id) {
+				t.Fatalf("IsWorkspaceIdentifier(%q) = false, want true", id)
+			}
+		}
+	})
+
+	t.Run("Should reject untrimmed values, names, and paths", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{
+			"", " ws_0123456789abcdef", "ws_0123456789ABCDEF", "ws-workspace", "compozy", "/home/ana/project",
+		} {
+			if IsWorkspaceIdentifier(value) {
+				t.Fatalf("IsWorkspaceIdentifier(%q) = true, want false", value)
+			}
+		}
+	})
+
+	t.Run("Should reject a workspace identifier embedded in other text", func(t *testing.T) {
+		t.Parallel()
+
+		for _, id := range []string{testWorkspaceULID, "ws_0123456789abcdef", "ws-0123456789abcdef"} {
+			if !IsWorkspaceIdentifier(id) {
+				t.Fatalf("IsWorkspaceIdentifier(%q) = false, want the canonical shape accepted", id)
+			}
+			for _, embedded := range []string{"/home/ana/" + id, id + "/home/ana", id + "0", "x" + id} {
+				if IsWorkspaceIdentifier(embedded) {
+					t.Fatalf(
+						"IsWorkspaceIdentifier(%q) = true, want false for an identifier inside other text",
+						embedded,
+					)
+				}
+			}
+		}
+	})
+}
+
 func TestEnsureIdentityCreatesLoadsAndValidatesWorkspaceToml(t *testing.T) {
 	t.Parallel()
 

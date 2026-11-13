@@ -168,6 +168,25 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should report registered secret material until cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "registered-predicate-secret-7d1e"
+		cleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+
+		if !ContainsRegisteredSecret("org/model-" + secret) {
+			t.Fatal("ContainsRegisteredSecret(value with secret) = false, want true")
+		}
+		if ContainsRegisteredSecret("org/model") {
+			t.Fatal("ContainsRegisteredSecret(value without secret) = true, want false")
+		}
+		cleanup()
+		if ContainsRegisteredSecret("org/model-" + secret) {
+			t.Fatal("ContainsRegisteredSecret(after cleanup) = true, want false")
+		}
+	})
+
 	t.Run("Should redact registered dynamic secrets until cleanup", func(t *testing.T) {
 		secret := "runtime-secret-material-123456"
 		cleanup := RegisterDynamicSecret(secret)

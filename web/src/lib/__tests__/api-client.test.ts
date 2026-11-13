@@ -5,10 +5,12 @@ import {
   apiClient,
   apiErrorMessage,
   apiRequestFailed,
+  daemonFetch,
   defaultApiErrorMessage,
   requireResponseData,
-  runtimeFetch,
 } from "@/lib/api-client";
+
+const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/;
 
 function requestUrl(input: RequestInfo | URL): string {
   if (input instanceof Request) {
@@ -68,29 +70,6 @@ describe("api client", () => {
     expect(result.data?.daemon.pid).toBe(42);
   });
 
-  it("delegates runtimeFetch to the latest global fetch implementation", async () => {
-    const response = new Response("ok", { status: 200 });
-    const fetchMock = vi.fn().mockResolvedValue(response);
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await runtimeFetch("http://example.test/api", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ok: true }),
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith("http://example.test/api", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ok: true }),
-    });
-    expect(result).toBe(response);
-  });
-
   it("loads and sends a stable client identifier when randomUUID is unavailable", async () => {
     const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
     vi.stubGlobal("crypto", { getRandomValues });
@@ -117,6 +96,77 @@ describe("api client", () => {
     );
     expect(first).toMatch(/^web-[a-zA-Z0-9_-]{1,76}$/);
     expect(second).toBe(first);
+  });
+});
+
+// Invariant: each daemon-bound request starts its own unsampled W3C trace; other origins
+// never receive trace context.
+describe("api client trace propagation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch() {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } })
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    return (call: number) =>
+      (fetchMock.mock.calls[call]?.[0] as Request | undefined)?.headers.get("traceparent");
+  }
+
+  const traceId = (traceparent: string | null | undefined) => traceparent?.split("-")[1];
+
+  it("Should send an unsampled traceparent to the daemon base URL", async () => {
+    const traceparent = stubFetch();
+
+    await apiClient.GET("/api/status");
+    await apiClient.GET("/api/status");
+
+    expect(traceparent(0)).toMatch(TRACEPARENT);
+    expect(traceparent(1)).toMatch(TRACEPARENT);
+    expect(traceId(traceparent(1))).not.toBe(traceId(traceparent(0)));
+  });
+
+  it("Should not send a traceparent to another origin", async () => {
+    const traceparent = stubFetch();
+
+    await apiClient.GET("/api/status", { baseUrl: "https://other.example" });
+    await apiClient.GET("/api/status", {
+      baseUrl: "https://other.example",
+      headers: { traceparent: "kept-out" },
+    });
+
+    expect(traceparent(0)).toBeNull();
+    expect(traceparent(1)).toBeNull();
+  });
+
+  it("Should send an unsampled traceparent with daemon requests outside the typed client", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await daemonFetch(`${apiBaseUrl}/api/sessions/s/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    await daemonFetch(new Request(`${apiBaseUrl}/api/sessions/s/stop`, { method: "POST" }));
+    await daemonFetch("https://other.example/api/status", { headers: { traceparent: "kept-out" } });
+
+    const [prompt, stop, other] = fetchMock.mock.calls as [
+      [string, RequestInit],
+      [Request],
+      [string, RequestInit],
+    ];
+    const promptHeaders = new Headers(prompt[1].headers);
+    expect(promptHeaders.get("traceparent")).toMatch(TRACEPARENT);
+    expect(promptHeaders.get("Content-Type")).toBe("application/json");
+    expect(stop[0].headers.get("traceparent")).toMatch(TRACEPARENT);
+    expect(new Headers(other[1].headers).get("traceparent")).toBeNull();
   });
 });
 

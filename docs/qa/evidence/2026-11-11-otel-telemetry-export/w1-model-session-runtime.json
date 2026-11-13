@@ -1,0 +1,18 @@
+{
+ "effective": {
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+ },
+ "requested": {
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+ },
+ "last_known": {
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+ },
+ "acp_caps": {
+  "provider": null,
+  "model": null
+ }
+}

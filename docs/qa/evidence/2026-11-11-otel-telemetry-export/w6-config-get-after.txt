@@ -1,0 +1,7 @@
+observability.otel.headers.api-key: vault:observability/qa-otlp
+observability.otel: {"enabled":true,"endpoint":"http://localhost:4318","forward_to_providers":false,"headers":{"api-key":"vault:observability/qa-otlp"},"metric_interval":"5s","metrics":true,"protocol":"http/protobuf","sample_ratio":1,"service_name":"compozy-daemon","slow_db_write_ms":50,"traces":true}
+{
+  "path": "observability.otel.headers.api-key",
+  "value": "vault:observability/qa-otlp",
+  "redacted": false
+}

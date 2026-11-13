@@ -60,6 +60,7 @@ func (r *RuntimeRegistry) dispatch(
 	target.audit = audit
 	if target.descriptor.ID != "" {
 		audit.descriptor = target.descriptor
+		setCallSpanRisk(ctx, target.descriptor.Risk)
 	}
 	if contextError := contextErr(ctx, req.ToolID); contextError != nil {
 		err = contextError

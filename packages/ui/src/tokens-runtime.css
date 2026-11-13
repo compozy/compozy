@@ -124,6 +124,97 @@
   }
 }
 
+/* Star border (`StarBorder`): a control rimmed in the brand gradient, with two
+   soft glows travelling the rim — the top edge left to right, the bottom edge
+   right to left, half a lap apart. The rim is a 1px ring cut out with a
+   content-box mask, so the wrapped control keeps its own fill, size and hit
+   area, and the glows only ever light the ring. While the glows run, the static
+   rim steps back so they read as light moving along the edge. Motion is
+   compositor-only (transform and opacity). Reduced motion — the system
+   preference or the host's `data-reduce-motion` — hides the glows and restores
+   the full static rim: an endless loop at the collapse duration would flicker. */
+@keyframes star-border-travel {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  25%,
+  75% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@utility star-border {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+
+  & > [data-slot="star-border-rim"] {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+    mask-clip: content-box, border-box;
+    mask-composite: exclude;
+  }
+
+  & > [data-slot="star-border-rim"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: var(--gradient-brand);
+  }
+
+  &[data-animated="true"] > [data-slot="star-border-rim"]::before {
+    opacity: 0.4;
+  }
+
+  & [data-slot="star-border-glow"] {
+    position: absolute;
+    inset-inline: 0;
+    height: 100%;
+    background: var(--gradient-brand) center / 60% 100% no-repeat;
+    mask: radial-gradient(closest-side, #000 35%, transparent) center / 60% 100% no-repeat;
+    opacity: 0;
+    animation: star-border-travel 6s linear infinite;
+  }
+
+  & [data-slot="star-border-glow"][data-edge="top"] {
+    top: -50%;
+  }
+
+  & [data-slot="star-border-glow"][data-edge="bottom"] {
+    bottom: -50%;
+    animation-direction: reverse;
+    animation-delay: -3s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & [data-slot="star-border-glow"] {
+      display: none;
+    }
+
+    &[data-animated="true"] > [data-slot="star-border-rim"]::before {
+      opacity: 1;
+    }
+  }
+
+  html[data-reduce-motion="true"] & [data-slot="star-border-glow"] {
+    display: none;
+  }
+
+  html[data-reduce-motion="true"] &[data-animated="true"] > [data-slot="star-border-rim"]::before {
+    opacity: 1;
+  }
+}
+
 /* Eyebrow contract / DESIGN.md §3, lesson L-022. One primitive, two fixed
    renditions: sentence case by default; the uppercase kicker is opt-in via
    <Eyebrow variant="caps"> and steps down a size with positive tracking

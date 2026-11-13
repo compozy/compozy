@@ -6266,6 +6266,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{path: "daemon.socket", reason: toolspkg.ReasonConfigTrustRootForbidden},
 			{path: "http.port", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "observability.otel.enabled", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "observability.otel.endpoint", reason: toolspkg.ReasonConfigTrustRootForbidden},
 			{path: "providers.claude.credential_slots[0].secret_ref", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "mcp_servers[0].env.TOKEN", reason: toolspkg.ReasonConfigSecretPathForbidden},
 
@@ -12908,6 +12910,10 @@ type nativeObserverStub struct {
 	health                observe.Health
 	eventQueryCalls       int
 	lastEventQuery        store.EventSummaryQuery
+}
+
+func (o *nativeObserverStub) EventSequenceHead(context.Context) (int64, error) {
+	return 0, nil
 }
 
 func (o *nativeObserverStub) QueryEvents(

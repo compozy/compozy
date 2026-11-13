@@ -11,6 +11,25 @@ const DEFAULT_MAXIMUM_WAIT_MS = 10 * 60_000;
 
 type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
 
+function randomHex(bytes: number): string {
+  const values = globalThis.crypto.getRandomValues(new Uint8Array(bytes));
+  return Array.from(values, value => value.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Fetches with an unsampled W3C `traceparent` (`-00`) on requests to the daemon origin, so the
+ * daemon's sample ratio stays authoritative; every other origin passes through untouched.
+ */
+export function daemonFetcher(origin: string): Fetcher {
+  const daemonOrigin = new URL(origin).origin;
+  return (input, init) => {
+    if (new URL(input).origin !== daemonOrigin) return fetch(input, init);
+    const headers = new Headers(init.headers);
+    headers.set("traceparent", `00-${randomHex(16)}-${randomHex(8)}-00`);
+    return fetch(input, { ...init, headers });
+  };
+}
+
 /** The runtime process that answered a probe; null when the answer carried no usable identity. */
 export interface RuntimeIdentity {
   readonly pid: number;
@@ -70,7 +89,7 @@ export class RuntimeHealthMonitor {
     onError?: (error: unknown) => void;
   }) {
     this.#identityURL = new URL("/api/status/identity", options.origin).toString();
-    this.#fetcher = options.fetcher ?? fetch;
+    this.#fetcher = options.fetcher ?? daemonFetcher(options.origin);
     this.#intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#failureThreshold = options.failureThreshold ?? DEFAULT_FAILURE_THRESHOLD;

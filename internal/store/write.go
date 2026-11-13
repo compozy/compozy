@@ -36,6 +36,9 @@ type writeContextOwner struct {
 	db     *sql.DB
 	parent *writeContextOwner
 	active atomic.Bool
+	// began records that a write transaction started, so an admitted write that never reached SQLite is not
+	// counted against its turn.
+	began atomic.Bool
 }
 
 // WriteTx is the single-connection transaction handle passed to ExecuteWrite callbacks.
@@ -102,7 +105,7 @@ func executeWrite(
 	db *sql.DB,
 	cfg executeWriteConfig,
 	fn func(context.Context, *WriteTx) error,
-) error {
+) (err error) {
 	if ctx == nil {
 		return errors.New("store: execute write context is required")
 	}
@@ -126,12 +129,16 @@ func executeWrite(
 	admission, unregister := registerWriteAdmission(db)
 	defer unregister()
 	started := time.Now()
+	var admitted time.Time
+	owner := &writeContextOwner{db: db, parent: parent}
+	observeCtx := ctx
+	defer func() { observeWrite(observeCtx, cfg.operation, started, admitted, owner.began.Load(), err) }()
 	releaseAdmission, err := admission.acquire(ctx, cfg.background)
 	if err != nil {
 		return writeContentionError(db, cfg.operation, 0, started, err)
 	}
 	defer releaseAdmission()
-	owner := &writeContextOwner{db: db, parent: parent}
+	admitted = time.Now()
 	owner.active.Store(true)
 	defer owner.active.Store(false)
 	ctx = context.WithValue(ctx, writeContextKey{}, owner)
@@ -197,6 +204,9 @@ func executeWriteAttempt(
 
 	if err := beginSQLiteImmediate(ctx, conn); err != nil {
 		return fmt.Errorf("store: begin immediate sqlite write: %w", err)
+	}
+	if owner, ok := ctx.Value(writeContextKey{}).(*writeContextOwner); ok {
+		owner.began.Store(true)
 	}
 	releaseOwner := trackWriteOwner(db, operation)
 	var callbackElapsed, commitElapsed time.Duration
