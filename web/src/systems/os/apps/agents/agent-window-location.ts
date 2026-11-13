@@ -1,4 +1,5 @@
 import type { OsWindowRoute } from "../../lib/os-types";
+import { sameJsonValue } from "../../lib/window-manager-route";
 import {
   AGENT_EDITOR_PAGES,
   agentSettingsDestination,
@@ -85,4 +86,12 @@ export function parseAgentWindowLocation(location: OsWindowRoute): AgentWindowLo
   }
 
   return { kind: "catalog", search: validateAgentsFleetSearch(location.search) };
+}
+
+/**
+ * Whether two routes show the same content in an Agents window: legacy paths and search values
+ * the window does not read resolve to the location it renders.
+ */
+export function sameAgentWindowContent(left: OsWindowRoute, right: OsWindowRoute): boolean {
+  return sameJsonValue(parseAgentWindowLocation(left), parseAgentWindowLocation(right));
 }

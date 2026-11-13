@@ -1,15 +1,20 @@
 import { useSelector } from "@xstate/store-react";
+import { useCallback } from "react";
 
 import { toast } from "@compozy/ui";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
+import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
 import {
+  countEditorDocumentChanges,
   createEditorDocumentStore,
   shouldAdoptSnapshot,
+  type EditorDocumentContext,
   type EditorSnapshot,
 } from "../stores/agent-editor-document-store";
+import { useRetainedEditorDraft } from "./use-retained-editor-draft";
 
 export interface UseEditorDocumentArgs<TForm> {
   /** Identity of the file; a new key is a new editor. */
@@ -43,7 +48,13 @@ export function useEditorDocument<TForm>({
   reread,
   savedCopy,
 }: UseEditorDocumentArgs<TForm>) {
-  const create = () => createEditorDocumentStore(snapshot);
+  const draftKey = retainedDraftKey("document", resourceKey);
+  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653).
+  const create = () =>
+    createEditorDocumentStore(
+      snapshot,
+      retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
+    );
   const { store } = useStoreBinding(
     resourceKey,
     create,
@@ -52,6 +63,12 @@ export function useEditorDocument<TForm>({
       current.key !== key ||
       shouldAdoptSnapshot(current.store.getSnapshot().context, snapshot, countChanges)
   );
+  const isDirty = useCallback(
+    (context: EditorDocumentContext<TForm>) =>
+      countEditorDocumentChanges(context, countChanges) > 0,
+    [countChanges]
+  );
+  useRetainedEditorDraft(draftKey, store, isDirty);
   const document = useSelector(store, state => state.context);
   const { baseline, form, raw, conflict, phase, problem } = document;
 
@@ -85,8 +102,6 @@ export function useEditorDocument<TForm>({
   };
 
   const shownSource = raw ?? (baseline.block ? baseline.source : compose(form));
-  const rawChanges = raw !== null && raw !== baseline.source ? 1 : 0;
-  const formChanges = baseline.block ? 0 : countChanges(form, baseline.form);
 
   return {
     baseline,
@@ -97,7 +112,7 @@ export function useEditorDocument<TForm>({
     problem,
     source: shownSource,
     block: baseline.block,
-    changes: formChanges + rawChanges,
+    changes: countEditorDocumentChanges(document, countChanges),
     setForm: (next: TForm) => store.trigger.formChanged({ form: next }),
     setRaw: (next: string) =>
       store.trigger.rawChanged({ raw: next === compose(form) ? null : next }),

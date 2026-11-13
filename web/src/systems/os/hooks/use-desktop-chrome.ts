@@ -10,6 +10,7 @@ import { isReservedDesktopPartition, useBreadthMode } from "@/systems/workspace"
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
 import { TerminalWindowClose } from "../lib/terminal-window-close";
+import { composeCloseGuards, UnsavedWindowClose } from "../lib/unsaved-window-close";
 import {
   resolveLivePaletteClientContext,
   selectPaletteDestinationRoute,
@@ -39,6 +40,8 @@ import { useWindowPaletteIntent } from "./use-window-manager-store";
 
 export interface DesktopChromeModel {
   terminalClose: TerminalWindowClose;
+  /** Holds operator closes of windows whose editors have unsaved edits (#1653). */
+  unsavedClose: UnsavedWindowClose;
   shell: OsShellHandle;
   query: UseQueryResult<WindowManagerSnapshot, Error>;
   /** The attachment this shell speaks for; the palette projection needs its context. */
@@ -92,13 +95,18 @@ export function useDesktopChrome(
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   const [terminalClose] = useState(() => new TerminalWindowClose());
+  const [unsavedClose] = useState(() => new UnsavedWindowClose());
   useEffect(() => {
-    manager.setCloseGuard(terminalClose.guard(terminalWorkspaceId, queryClient));
+    // Unsaved edits ask first: keeping them must not leave a terminal already terminated.
+    manager.setCloseGuard(
+      composeCloseGuards(unsavedClose.guard, terminalClose.guard(terminalWorkspaceId, queryClient))
+    );
     return () => {
+      unsavedClose.cancel();
       terminalClose.cancel();
       manager.setCloseGuard(null);
     };
-  }, [manager, terminalClose, terminalWorkspaceId, profileId, queryClient]);
+  }, [manager, terminalClose, unsavedClose, terminalWorkspaceId, profileId, queryClient]);
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.
   const [clientCommandChannel] = useState(() => new ClientCommandChannel());
@@ -210,6 +218,7 @@ export function useDesktopChrome(
 
   return {
     terminalClose,
+    unsavedClose,
     shell,
     query,
     client: client.client,

@@ -109,6 +109,37 @@ describe("AgentAuthoredFileEditor", () => {
     expect(onRestore).toHaveBeenCalledWith("rev-1", "soul-digest-saved");
   });
 
+  // Invariant (#1653): an editor that goes away holding edits without Save or Discard leaves
+  //   them to the next editor of that file, which writes them against the digest they were read
+  //   from, so a newer version is met as a conflict rather than overwritten.
+  it("Should bring back edits kept from an editor that went away unsaved", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(soulPayload({ digest: "d-after-save" }));
+    const editor = (payload: AgentSoulPayload) => (
+      <AgentAuthoredFileEditor
+        resourceKey={resourceKeyA}
+        kind="soul"
+        payload={payload}
+        isLoading={false}
+        isError={false}
+        history={history}
+        onValidate={vi.fn()}
+        onSave={onSave}
+        onRestore={vi.fn()}
+        onRetry={vi.fn()}
+      />
+    );
+    const first = render(editor(soulPayload({ digest: "d1" })));
+    await user.type(screen.getByTestId("agent-soul-textarea"), "\nKept line.");
+    first.unmount();
+
+    render(editor(soulPayload({ digest: "d2" })));
+    const textarea = screen.getByTestId("agent-soul-textarea") as HTMLTextAreaElement;
+    expect(textarea.value).toContain("Kept line.");
+    await user.click(screen.getByTestId("agent-soul-save"));
+    expect(onSave).toHaveBeenCalledWith(expect.stringContaining("Kept line."), "d1");
+  });
+
   it("Should keep CAS digest d1 when a dirty draft sees a remote digest d2 rerender", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(soulPayload({ digest: "d-after-save" }));

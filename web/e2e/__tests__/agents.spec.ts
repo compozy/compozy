@@ -379,6 +379,48 @@ test.describe("always-on agent vocabulary", () => {
     await expect(appPage.getByRole("heading", { level: 1, name: "Instructions" })).toBeVisible();
     await expect(content.getByRole("heading", { level: 2, name: "Instructions" })).toBeVisible();
   });
+
+  // #1653: an operator action that would take a dirty editor away asks first. Back held by the
+  // question stays on the editor's route after Keep editing; Cmd+W asks, keeps the window on Keep
+  // editing and closes it on Discard.
+  test("E2E-003: a dirty Instructions page asks before Back or Cmd+W takes it away", async ({
+    appPage,
+    runtime,
+  }) => {
+    await createAlwaysOnAgent(appPage, runtime, "watch-unsaved");
+    await appPage.getByTestId("agent-setup-behavior").click();
+    const editorPath = "/agents/watch-unsaved/what-it-does";
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe(editorPath);
+    const agentsWindow = appWindow(appPage, "agents");
+    const never = "Never deploy on Fridays";
+    await agentsWindow.getByRole("textbox", { name: "Add something it must never do" }).fill(never);
+    await appPage.keyboard.press("Enter");
+    const edit = agentsWindow.getByText(never, { exact: true });
+    await expect(edit).toBeVisible();
+    const dialog = appPage.getByTestId("unsaved-guard-dialog");
+    const keepEditing = appPage.getByTestId("unsaved-guard-keep-editing");
+
+    await appPage.goBack({ waitUntil: "commit" });
+    await expect(dialog).toBeVisible();
+    await keepEditing.click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe(editorPath);
+    await expect(edit).toBeVisible();
+
+    await appPage.getByRole("heading", { level: 1, name: "Instructions" }).click();
+    await appPage.keyboard.press("ControlOrMeta+W");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Your edits to Instructions will be lost.");
+    await keepEditing.click();
+    await expect(dialog).toBeHidden();
+    await expect(edit).toBeVisible();
+
+    await appPage.keyboard.press("ControlOrMeta+W");
+    await expect(dialog).toBeVisible();
+    await appPage.getByTestId("unsaved-guard-discard").click();
+    await expect(dialog).toBeHidden();
+    await expect(agentsWindow).toHaveCount(0);
+  });
 });
 
 test.describe("fleet scan journey", () => {

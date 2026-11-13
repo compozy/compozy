@@ -17,7 +17,11 @@ function LoadedEditor({
     props.readOnly,
     props.onOpenScript
   );
-  const guard = useUnsavedGuard({ dirty: model.document.changes > 0, entityName: "Heartbeat" });
+  const guard = useUnsavedGuard({
+    dirty: model.document.changes > 0,
+    entityName: "Heartbeat",
+    onDiscard: model.document.discard,
+  });
   return (
     <>
       <AgentCheckInsView

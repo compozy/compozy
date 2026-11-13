@@ -92,6 +92,7 @@ export type AuthoredFileEditorInput<K extends AuthoredFileKind = AuthoredFileKin
 
 type AuthoredFileEditorEventPayloadMap = {
   draftChanged: { draft: string };
+  discarded: {};
   historyVisibilityChanged: { visible: boolean };
   validationRequested: { validate: AuthoredFileValidate };
   saveRequested: { save: AuthoredFileSave };
@@ -143,19 +144,27 @@ interface AuthoredFileEditorTrigger {
   }) => void;
 }
 
-export function createAuthoredFileEditorLogic() {
+/**
+ * A `retained` draft (#1653), kept from an editor of this file that went away unsaved, seeds the
+ * store instead of the payload; a write or validation it was running resumes ready.
+ */
+export function createAuthoredFileEditorLogic(retained?: AuthoredFileEditorState) {
   return createStoreLogic<
     AuthoredFileEditorState,
     AuthoredFileEditorEventPayloadMap,
     Record<never, never>,
     AuthoredFileEditorInput
   >({
-    context: input => seedState(input, 0),
+    context: input => (retained ? resumeState(retained) : seedState(input, 0)),
     on: {
       draftChanged: (context, event) => {
         if (context.phase === "saving") return;
         if (context.phase === "conflict") return { ...context, draft: event.draft };
         return { ...toReady(context), draft: event.draft };
+      },
+      discarded: context => {
+        if (context.phase === "saving") return;
+        return { ...toReady(context), draft: context.baseline.body };
       },
       historyVisibilityChanged: (context, event) => ({ ...context, showHistory: event.visible }),
       validationRequested: (context, event, enqueue) => {
@@ -384,6 +393,17 @@ function toAuthoredFileEditorInput(
 
 function isAgentHeartbeatPayload(payload: AuthoredFilePayload): payload is AgentHeartbeatPayload {
   return "preferences" in payload;
+}
+
+function resumeState(retained: AuthoredFileEditorState): AuthoredFileEditorState {
+  return retained.phase === "saving" || retained.phase === "validating"
+    ? toReady(retained)
+    : retained;
+}
+
+/** Whether the draft differs from the file it was read from. */
+export function isAuthoredFileEditorDirty(context: AuthoredFileEditorState): boolean {
+  return context.draft !== context.baseline.body;
 }
 
 export function shouldAdoptAuthoredFileSource(

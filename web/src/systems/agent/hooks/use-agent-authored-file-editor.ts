@@ -5,9 +5,11 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   createAuthoredFileEditorLogic,
+  isAuthoredFileEditorDirty,
   isAuthoredFileMissing,
   shouldAdoptAuthoredFileSource,
   type AuthoredFileEditorInput,
+  type AuthoredFileEditorState,
   type AuthoredFileKind,
   type AuthoredFilePayload,
   type AuthoredFileRestore,
@@ -15,6 +17,8 @@ import {
   type AuthoredFileValidate,
 } from "../stores/agent-authored-file-editor-store";
 import type { AgentHeartbeatHistoryResponse, AgentSoulHistoryResponse } from "../types";
+import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
+import { useRetainedEditorDraft } from "./use-retained-editor-draft";
 import { useUnsavedGuard } from "./use-unsaved-guard";
 
 export type { AuthoredFileKind, AuthoredFilePayload };
@@ -64,18 +68,29 @@ export function useAgentAuthoredFileEditor({
     kind === "soul"
       ? { resourceKey, kind: "soul", payload }
       : { resourceKey, kind: "heartbeat", payload };
+  const draftKey = retainedDraftKey("authored-file", resourceKey);
+  // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653).
+  const create = () =>
+    createAuthoredFileEditorLogic(
+      retainedEditorDraft<AuthoredFileEditorState>(draftKey)
+    ).createStore(input);
   const { replace, store } = useStoreBinding(
     resourceKey,
-    () => createAuthoredFileEditorLogic().createStore(input),
-    () => createAuthoredFileEditorLogic().createStore(input),
+    create,
+    create,
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAuthoredFileSource(current.store.getSnapshot().context, input)
   );
+  useRetainedEditorDraft(draftKey, store, isAuthoredFileEditorDirty);
   const editor = useSelector(store, snapshot => snapshot.context);
 
-  const dirty = editor.draft !== editor.baseline.body;
-  const guard = useUnsavedGuard({ dirty, entityName: fileLabel });
+  const dirty = isAuthoredFileEditorDirty(editor);
+  const guard = useUnsavedGuard({
+    dirty,
+    entityName: fileLabel,
+    onDiscard: () => store.trigger.discarded(),
+  });
   const editorError = "error" in editor ? editor.error : null;
   const revisions = history && "revisions" in history ? (history.revisions ?? []) : [];
 

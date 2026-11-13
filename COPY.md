@@ -453,6 +453,8 @@ Use those words only when discussing external systems or historical migration co
 - Agent kind: "Always-on" (`always_on`) and "On-demand" (`on_demand`), hyphenated as labels and before nouns ("an always-on agent"), in sentence case. The v0.5.0 word "Stays on" (`stays_on`) is retired; the input alias is removed in the release after v0.5.2. The glossary entry **Always-on agent / On-demand agent** is authoritative.
 - The skill-source "always on" flag (Settings → Skill sources) is a different concept, "always loaded", and keeps its wording. No agent copy reuses it.
 
+- Unsaved agent edits: title "Discard unsaved changes?"; description "Your edits to {page or agent} will be lost."; one operator close covering several edited windows asks once with "Your edits in {N} windows will be lost."; buttons "Keep editing" · "Discard changes". Edits a command from outside the client or a project switch takes away come back unsaved when that page opens again, with no extra copy.
+
 ### Check-in Tools and Picks Terms
 
 - MCP authority overrides: "Treated as read-only"; "These tools can run in check-ins without being listed under What it can change." List each server and raw tool name in the approval notice and save confirmation. With overrides and no listed writes: "No tools listed; read-only overrides apply below". Never say "Nothing, reads only" when overrides exist.

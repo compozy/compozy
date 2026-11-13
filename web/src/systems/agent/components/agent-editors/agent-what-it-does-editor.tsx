@@ -21,7 +21,11 @@ export interface AgentEditorProps {
 
 function LoadedEditor({ payload, ...props }: AgentEditorProps & { payload: AgentSoulPayload }) {
   const document = useWhatItDoesEditor(props.agent, props.workspace, payload);
-  const guard = useUnsavedGuard({ dirty: document.changes > 0, entityName: "Instructions" });
+  const guard = useUnsavedGuard({
+    dirty: document.changes > 0,
+    entityName: "Instructions",
+    onDiscard: document.discard,
+  });
   return (
     <>
       <AgentWhatItDoesView

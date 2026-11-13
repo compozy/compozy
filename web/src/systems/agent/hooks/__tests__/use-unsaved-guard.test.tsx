@@ -1,4 +1,5 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
+import { createAtom } from "@xstate/store";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OverlayContainerContext } from "@compozy/ui";
 import {
   WindowNavigationGuardContext,
+  type UnsavedCloseQuestion,
+  type UnsavedWindowEdits,
   type WindowNavigationGuardPort,
 } from "@/hooks/use-window-navigation-guard";
 import { WindowScopeContext } from "@/hooks/use-window-scope";
@@ -19,7 +22,7 @@ const { mockUseBlocker, mockProceed, mockReset } = vi.hoisted(() => {
     mockUseBlocker: vi.fn(
       (_options: {
         shouldBlockFn: (args?: {
-          next: { pathname: string; search: Record<string, unknown> };
+          next: { pathname: string; search: Record<string, unknown>; routeId?: string };
         }) => boolean;
         disabled?: boolean;
         enableBeforeUnload?: boolean;
@@ -116,13 +119,16 @@ describe("useUnsavedGuard", () => {
 
   it("Should mount the confirmation dialog and wire confirm/cancel to proceed/reset", async () => {
     const user = userEvent.setup();
+    const onDiscard = vi.fn();
     mockUseBlocker.mockReturnValue({
       status: "blocked",
       proceed: mockProceed,
       reset: mockReset,
     });
 
-    const { result } = renderHook(() => useUnsavedGuard({ dirty: true, entityName: "coder" }));
+    const { result } = renderHook(() =>
+      useUnsavedGuard({ dirty: true, entityName: "coder", onDiscard })
+    );
     render(<>{result.current.confirmDialog}</>);
 
     expect(screen.getByTestId("unsaved-guard-dialog")).toBeInTheDocument();
@@ -132,6 +138,8 @@ describe("useUnsavedGuard", () => {
 
     await user.click(screen.getByTestId("unsaved-guard-discard"));
     expect(mockProceed).toHaveBeenCalledTimes(1);
+    // Discard drops the edits, so the editor that goes keeps no draft of them (#1653).
+    expect(onDiscard).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByTestId("unsaved-guard-keep-editing"));
     expect(mockReset).toHaveBeenCalledTimes(1);
@@ -139,9 +147,19 @@ describe("useUnsavedGuard", () => {
 
   describe("inside a window of the desktop shell [B-1]", () => {
     function shell(port: Partial<WindowNavigationGuardPort>) {
+      const held: Array<{ windowId: string; edits: UnsavedWindowEdits }> = [];
+      const question = createAtom<UnsavedCloseQuestion | null>(null);
       const windows: WindowNavigationGuardPort = {
         replacesWindowContent: vi.fn(() => false),
         isWindowShown: vi.fn(() => true),
+        unsavedEdits: {
+          question,
+          hold: (windowId, edits) => {
+            const entry = { windowId, edits };
+            held.push(entry);
+            return () => void held.splice(held.indexOf(entry), 1);
+          },
+        },
         ...port,
       };
       const pane = document.createElement("div");
@@ -153,7 +171,7 @@ describe("useUnsavedGuard", () => {
           </WindowScopeContext>
         </WindowNavigationGuardContext>
       );
-      return { windows, pane, wrapper };
+      return { windows, pane, wrapper, held, question };
     }
 
     it("Should ask only when the shell lands the navigation over the editor in its own window", () => {
@@ -172,6 +190,87 @@ describe("useUnsavedGuard", () => {
         pathname: "/agents",
         search: { tab: "list" },
       });
+      // The shell answers for routes outside it, so it is told which route matched.
+      shouldBlock?.({
+        next: { pathname: "/design-system", search: {}, routeId: "/design-system" },
+      });
+      expect(replaces).toHaveBeenLastCalledWith("w-editor", {
+        pathname: "/design-system",
+        search: {},
+        routeId: "/design-system",
+      });
+      pane.remove();
+    });
+
+    // Invariant (#1653): a dirty editor holds its window, so an operator close of it asks the
+    //   guard's question; Keep editing cancels the close, Discard drops the edits with it.
+    it("Should hold its window only while dirty", () => {
+      const { wrapper, pane, held } = shell({});
+      const { rerender } = renderHook(
+        ({ dirty }) => useUnsavedGuard({ dirty, entityName: "Memory" }),
+        { wrapper, initialProps: { dirty: false } }
+      );
+      expect(held).toEqual([]);
+      rerender({ dirty: true });
+      expect(held.map(entry => [entry.windowId, entry.edits.entityName])).toEqual([
+        ["w-editor", "Memory"],
+      ]);
+      rerender({ dirty: false });
+      expect(held).toEqual([]);
+      pane.remove();
+    });
+
+    it.each([
+      [1, "Your edits to Memory will be lost."],
+      [2, "Your edits in 2 windows will be lost."],
+    ])(
+      "Should ask an operator close covering %i window(s) and answer it",
+      async (windowCount, description) => {
+        const user = userEvent.setup();
+        const onDiscard = vi.fn();
+        const { wrapper, pane, held, question } = shell({});
+        function Editor() {
+          return (
+            <>{useUnsavedGuard({ dirty: true, entityName: "Memory", onDiscard }).confirmDialog}</>
+          );
+        }
+        render(<Editor />, { wrapper });
+        const answer = vi.fn((_discard: boolean) => question.set(null));
+        const ask = () =>
+          act(() => question.set({ presenter: held[0]!.edits, windowCount, answer }));
+
+        ask();
+        expect(screen.getByText(description)).toBeInTheDocument();
+        expect(pane.contains(screen.getByTestId("unsaved-guard-dialog"))).toBe(true);
+        await user.click(screen.getByTestId("unsaved-guard-keep-editing"));
+        expect(answer).toHaveBeenLastCalledWith(false);
+        expect(screen.queryByTestId("unsaved-guard-dialog")).not.toBeInTheDocument();
+
+        ask();
+        await user.click(screen.getByTestId("unsaved-guard-discard"));
+        expect(answer).toHaveBeenLastCalledWith(true);
+        // The shell discards the edits it closes with the window.
+        held[0]!.edits.discard();
+        expect(onDiscard).toHaveBeenCalledTimes(1);
+        expect(mockProceed).not.toHaveBeenCalled();
+        pane.remove();
+      }
+    );
+
+    it("Should leave a close question another editor presents to it", () => {
+      const { wrapper, pane, question } = shell({});
+      function Editor() {
+        return <>{useUnsavedGuard({ dirty: true, entityName: "Memory" }).confirmDialog}</>;
+      }
+      render(<Editor />, { wrapper });
+      act(() =>
+        question.set({
+          presenter: { entityName: "Heartbeat", discard: vi.fn() },
+          windowCount: 2,
+          answer: vi.fn(),
+        })
+      );
+      expect(screen.queryByTestId("unsaved-guard-dialog")).not.toBeInTheDocument();
       pane.remove();
     });
 

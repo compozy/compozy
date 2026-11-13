@@ -43,10 +43,16 @@ function seed<TForm>(snapshot: EditorSnapshot<TForm>): EditorDocumentContext<TFo
   };
 }
 
-/** Form, raw file and conflict for one authored file; reads and writes stay in the owning hook. */
-export function createEditorDocumentStore<TForm>(snapshot: EditorSnapshot<TForm>) {
+/**
+ * Form, raw file and conflict for one authored file; reads and writes stay in the owning hook.
+ * A `retained` draft (#1653) resumes idle: a save it was running finished, or not, elsewhere.
+ */
+export function createEditorDocumentStore<TForm>(
+  snapshot: EditorSnapshot<TForm>,
+  retained?: EditorDocumentContext<TForm>
+) {
   return createStore({
-    context: seed(snapshot),
+    context: retained ? { ...retained, phase: "idle" as EditorPhase } : seed(snapshot),
     on: {
       formChanged: (context, event: { form: TForm }) => ({ ...context, form: event.form }),
       rawChanged: (context, event: { raw: string | null }) => ({
@@ -80,6 +86,16 @@ export function createEditorDocumentStore<TForm>(snapshot: EditorSnapshot<TForm>
 }
 
 export type EditorDocumentStore<TForm> = ReturnType<typeof createEditorDocumentStore<TForm>>;
+
+/** How many edits the document holds over its baseline. */
+export function countEditorDocumentChanges<TForm>(
+  context: EditorDocumentContext<TForm>,
+  countChanges: (a: TForm, b: TForm) => number
+): number {
+  const { baseline, form, raw } = context;
+  const rawChanges = raw !== null && raw !== baseline.source ? 1 : 0;
+  return (baseline.block ? 0 : countChanges(form, baseline.form)) + rawChanges;
+}
 
 /** A clean editor follows the server; one holding edits waits for Save to meet the conflict. */
 export function shouldAdoptSnapshot<TForm>(

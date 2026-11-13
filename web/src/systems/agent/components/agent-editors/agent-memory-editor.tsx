@@ -11,7 +11,11 @@ import { AgentMemoryView } from "./memory-view";
 
 function LoadedEditor({ payload, ...props }: AgentEditorProps & { payload: AgentMemoryDocument }) {
   const model = useMemoryEditor(props.agent, props.workspace, payload);
-  const guard = useUnsavedGuard({ dirty: model.document.changes > 0, entityName: "Memory" });
+  const guard = useUnsavedGuard({
+    dirty: model.document.changes > 0,
+    entityName: "Memory",
+    onDiscard: model.document.discard,
+  });
   const { workspaces } = useActiveWorkspace();
   const scopeLabel = (scope: string) =>
     workspaces.find(item => item.id === scope)?.name ?? agentScopeLabel(scope);
