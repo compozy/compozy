@@ -101,6 +101,7 @@ export function opContext(bar: TabBarFixture | null, focusedId: string | null) {
     closeWindow: vi.fn(() => Promise.resolve(true)),
     arrangeLayout: vi.fn(),
     focusDirection: vi.fn(),
+    swapDirection: vi.fn(),
     unsplitWindow: vi.fn(),
     tileWindow: vi.fn(),
     moveTab: vi.fn(),

@@ -193,7 +193,7 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require a split member for unsplit and root-edge moves", func(t *testing.T) {
+	t.Run("Should require a split member for unsplit, root-edge moves and swaps", func(t *testing.T) {
 		t.Parallel()
 		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor)
 		for _, command := range mustCommands(t) {
@@ -204,6 +204,7 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 		for _, id := range []cmdpalette.CommandID{
 			"window.unsplit", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom",
+			"window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down",
 		} {
 			command, ok := byID[id]
 			if !ok || !reflect.DeepEqual(command.When, want) {
@@ -446,7 +447,7 @@ func TestWindowTabCommandAliases(t *testing.T) {
 			}
 		}
 		commands := mustCommands(t)
-		for _, id := range []cmdpalette.CommandID{"window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom"} {
+		for _, id := range []cmdpalette.CommandID{"window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom", "window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down"} {
 			index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id })
 			if index < 0 || commands[index].Action.Kind != cmdpalette.ActionKindClientOp ||
 				commands[index].Action.Op != string(id) {

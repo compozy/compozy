@@ -20,6 +20,8 @@ const DESKTOP_SWITCH_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 const ARRANGE_PRESETS: readonly OsArrangePreset[] = ["two-up", "grid", "main-stack", "columns"];
 /** `window.tile.*` keeps its ids and now moves the focused window to that root edge of its tab. */
 const TILE_EDGES = ["left", "right", "top", "bottom"] as const;
+/** `window.swap.*` trades the focused window's place with its on-screen neighbour on that side. */
+export const SWAP_DIRECTIONS = ["left", "right", "up", "down"] as const;
 
 function focusedWindowId(context: PaletteClientOpContext): string | null {
   return currentState(context).focusedId;
@@ -107,6 +109,13 @@ export const CMD_PALETTE_WINDOW_OPS: ReadonlyMap<string, PaletteClientOpHandler>
   ["window.focus.up", context => context.manager.focusDirection("up")],
   ["window.focus.down", context => context.manager.focusDirection("down")],
   ["window.focus.last", focusLastWindow],
+  ...SWAP_DIRECTIONS.map(
+    direction =>
+      [
+        `window.swap.${direction}`,
+        (context: PaletteClientOpContext) => context.manager.swapDirection(direction),
+      ] as const
+  ),
   ["window.unsplit", withFocusedWindow((context, id) => context.manager.unsplitWindow(id))],
   ["window.tab.move_left", withFocusedWindow((context, id) => context.manager.moveTab(id, "left"))],
   [

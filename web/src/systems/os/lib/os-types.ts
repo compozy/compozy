@@ -15,6 +15,7 @@ import type {
   WindowManagerSnapshot,
   FocusWindowOptions,
 } from "./window-manager-types";
+import type { FocusCandidate } from "./window-manager-navigation";
 
 /** The app surfaces rendered inside daemon-managed logical windows. */
 export type OsAppId =
@@ -269,6 +270,12 @@ export interface WindowManagerController extends OsDesktopRuntime {
   /** Moves the window's whole tab, split included, to the end of another desktop's bar. */
   moveWindowToDesktop(windowId: string, destinationDesktopId: string): void;
   focusDirection(direction: FocusDirection): void;
+  /** Swaps the focused window with its on-screen neighbour on that side of the active tab. */
+  swapDirection(direction: FocusDirection): void;
+  /** The window directional focus and swaps start from: the newest focus this client asked for. */
+  directionalFocusId(): string | null;
+  /** The active tab's on-screen windows with this client's unanswered swaps applied. */
+  directionalCandidates(): FocusCandidate[];
   undoLayout(): void;
   redoLayout(): void;
   balanceFocusedLayout(): void;

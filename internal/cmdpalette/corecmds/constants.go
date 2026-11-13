@@ -2,6 +2,9 @@ package corecmds
 
 const (
 	coreIconArrowLeft     = "arrow-left"
+	coreIconArrowRight    = "arrow-right"
+	coreIconArrowUp       = "arrow-up"
+	coreIconArrowDown     = "arrow-down"
 	coreAppAgents         = "agents"
 	coreAppExtensions     = "extensions"
 	coreAppFiles          = "files"

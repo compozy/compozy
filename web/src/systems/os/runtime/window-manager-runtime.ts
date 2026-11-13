@@ -2,7 +2,12 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { focusWindowCommand, openWindowCommand } from "../lib/window-manager-command-builders";
 import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
-import { directionalFocusTarget } from "../lib/window-manager-navigation";
+import {
+  activeTabCandidates,
+  directionalFocusTarget,
+  directionalSwapTarget,
+  type ShownWindow,
+} from "../lib/window-manager-navigation";
 import type {
   OsDesktopBounds,
   OsDesktopRuntime,
@@ -12,13 +17,31 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import type { FocusDirection, FocusWindowOptions } from "../lib/window-manager-types";
+import type {
+  FocusDirection,
+  FocusWindowOptions,
+  WindowManagerCommandId,
+  WindowManagerCommandInput,
+} from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { buildOsDesktopRuntimeView } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
 import { WindowManagerDesktopRuntime } from "./window-manager-desktop-commands";
+import { PendingSwaps } from "./window-manager-pending-swaps";
 import { WindowManagerSemanticOpenCoordinator } from "./window-manager-semantic-open";
+
+/** Commands that never move a window within the shown tab: the pending-swap overlay survives. */
+const LAYOUT_PRESERVING_COMMANDS: ReadonlySet<WindowManagerCommandId> = new Set([
+  "window.swap",
+  "window.focus",
+  "window.navigate",
+  "window.pin",
+  "window.tab.reorder",
+  "desktop.create",
+  "desktop.update",
+  "desktop.reorder",
+]);
 
 export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements OsDesktopRuntime {
   private readonly semanticOpens: WindowManagerSemanticOpenCoordinator;
@@ -50,26 +73,15 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   }
 
   /**
-   * Moves focus between the windows on screen in the active tab, by projected geometry, from the
-   * newest focus this client asked for.
+   * Moves focus between the windows on screen in the active tab, by projected geometry with this
+   * client's unanswered swaps applied, from the newest focus this client asked for.
    */
   focusDirection(direction: FocusDirection): void {
     const config = this.view.windowManagerConfig;
-    const activeDesktopId = this.view.activeDesktopId;
-    if (config === null || activeDesktopId === null) return;
-    const tabId = this.view.activeTabIds[activeDesktopId];
-    const projection = tabId === undefined ? undefined : this.view.projections[tabId];
-    if (projection === undefined) return;
-    const candidates = projection.windows.flatMap(projected =>
-      projected.shown ? [{ id: projected.windowId, rect: projected.rect }] : []
-    );
-    // A focus still waiting for its answer is where the operator already is: the view names the
-    // focus before it until that answer shows, and a press meanwhile must not start from there.
-    const pending = this.focusTurns.pendingFocus();
-    const from =
-      pending !== null && candidates.some(candidate => candidate.id === pending)
-        ? pending
-        : this.view.focusedId;
+    if (config === null) return;
+    const candidates = this.directionalCandidates();
+    if (candidates.length === 0) return;
+    const from = this.directionalFocusId();
     const target = directionalFocusTarget({
       candidates,
       focusedId: from,
@@ -78,6 +90,73 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     });
     if (target === null || target === from) return;
     this.dispatch(focusWindowCommand(target, { replaceable: true }));
+  }
+
+  /**
+   * Trades the focused window's place with its on-screen neighbour on that side of the active tab,
+   * from the newest focus this client asked for. Never wraps; nothing on that side is a no-op. The
+   * moved window keeps focus: `window.swap` exchanges places and leaves focus alone. The swap is
+   * sent at once, in order with every other command; the neighbour is read from the layout with
+   * this client's unanswered swaps applied, so two quick presses move the window two places.
+   */
+  swapDirection(direction: FocusDirection): void {
+    const from = this.directionalFocusId();
+    const target = directionalSwapTarget(this.directionalCandidates(), from, direction);
+    if (from === null || target === null) return;
+    this.swapWindows(from, target);
+  }
+
+  private readonly pendingSwaps = new PendingSwaps();
+
+  /**
+   * Every accepted swap, a directional one or a Shift-drop, joins the pending-swap overlay until it
+   * settles, and the view republishes so menus re-read their sides. A command that can change the
+   * shown layout (an undo, a move, a tile, an arrange, a close, a tab or desktop change) runs after
+   * the unanswered swaps in ways this client cannot predict, so it drops the overlay and
+   * directional input reads the shown layout again. Commands that leave window places alone keep
+   * it.
+   */
+  protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
+    if (command.commandId !== "window.swap") {
+      if (!LAYOUT_PRESERVING_COMMANDS.has(command.commandId)) this.pendingSwaps.clear();
+      return super.dispatch(command);
+    }
+    const shown = this.directionalCandidates();
+    const outcome = super.dispatch(command);
+    const { first_window_id: first, second_window_id: second } = command.payload;
+    if (!outcome.accepted || typeof first !== "string" || typeof second !== "string") {
+      return outcome;
+    }
+    const release = this.pendingSwaps.record(first, second, shown);
+    if (release === null) return outcome;
+    this.publish();
+    // A refused swap publishes before it settles; republish so menus drop the predicted places.
+    const settle = () => {
+      release();
+      this.publish();
+    };
+    void outcome.completion.then(settle, settle);
+    return outcome;
+  }
+
+  /**
+   * The active tab's on-screen windows with this client's unanswered swaps applied, so directional
+   * focus, swaps and the Window menu read where the windows are going.
+   */
+  directionalCandidates(): ShownWindow[] {
+    return this.pendingSwaps.apply(activeTabCandidates(this.view));
+  }
+
+  /**
+   * The window directional focus and swaps start from. A focus still waiting for its answer is
+   * where the operator already is: the view names the focus before it until that answer shows,
+   * and a press meanwhile must not start from there.
+   */
+  directionalFocusId(): string | null {
+    const pending = this.focusTurns.pendingFocus();
+    if (pending === null) return this.view.focusedId;
+    const onScreen = activeTabCandidates(this.view).some(candidate => candidate.id === pending);
+    return onScreen ? pending : this.view.focusedId;
   }
 
   undoLayout(): void {

@@ -881,6 +881,105 @@ describe("WindowManagerRuntime", () => {
       expect(sentCommands()).toEqual(["focus app:agents", "focus app:tasks", "focus app:agents"]);
     });
 
+    it("Should swap the focused window with its neighbour on that side and never wrap [#1658]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+
+      // Focus wrap is on, yet nothing lies left of Tasks: a swap that way sends nothing.
+      runtime.swapDirection("left");
+      runtime.swapDirection("right");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!(splitAnswer(splitView("app:tasks", 2)));
+
+      expect(sentCommands()).toEqual(["window.swap"]);
+      expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]![4].payload).toEqual({
+        first_window_id: "app:tasks",
+        second_window_id: "app:agents",
+      });
+      // `window.swap` leaves focus alone: the moved window keeps it.
+      await vi.waitFor(() => expect(runtime.getState().focusedId).toBe("app:tasks"));
+    });
+
+    it("Should resolve a swap pressed behind another against the layout that one leaves [#1658]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      // The first swap's answer: the daemon keeps both leaves and exchanges their windows, so
+      // Agents | Tasks and nothing lies right of Tasks any more.
+      const swapped: WindowManagerSnapshot = {
+        ...splitSnapshot,
+        revision: splitSnapshot.revision + 1,
+        desktops: splitSnapshot.desktops.map(desktop => ({
+          ...desktop,
+          tabs: desktop.tabs.map(tab =>
+            tab.root.kind === "split"
+              ? {
+                  ...tab,
+                  root: {
+                    ...tab.root,
+                    children: [
+                      { id: "leaf:tasks", kind: "leaf" as const, windowId: "app:agents" },
+                      { id: "leaf:agents", kind: "leaf" as const, windowId: "app:tasks" },
+                    ],
+                  },
+                }
+              : tab
+          ),
+        })),
+      };
+
+      runtime.swapDirection("right");
+      runtime.swapDirection("right");
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!({ ...splitAnswer(splitView("app:tasks", 2)), snapshot: swapped });
+
+      // The second press reads the swapped layout and has no neighbour: it does not swap back.
+      const left = () => {
+        const windows = runtime.getState().projections["tab:split"]?.windows ?? [];
+        return [...windows].sort((a, b) => a.rect.x - b.rect.x)[0]?.windowId;
+      };
+      await vi.waitFor(() => expect(left()).toBe("app:agents"));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(sentCommands()).toEqual(["window.swap"]);
+    });
+
+    it("Should drop the pending-swap overlay once a layout-changing command follows it [#1658]", async () => {
+      deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      const leftmost = () =>
+        [...runtime.directionalCandidates()].sort((a, b) => a.rect.x - b.rect.x)[0]?.id;
+      expect(leftmost()).toBe("app:tasks");
+
+      // An unanswered Swap right already counts for the next directional press, and a command
+      // that leaves window places alone keeps it...
+      runtime.swapDirection("right");
+      expect(leftmost()).toBe("app:agents");
+      runtime.pinWindow("app:tasks", true);
+      expect(leftmost()).toBe("app:agents");
+      // A work-area resize moves every pixel but not the leaves: the swap still counts.
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 960, h: 700 }, origin: { x: 0, y: 0 } },
+      });
+      expect(leftmost()).toBe("app:agents");
+      // ...until an Undo queued behind it makes the outcome unknowable here.
+      runtime.undoLayout();
+      expect(leftmost()).toBe("app:tasks");
+    });
+
+    it("Should count an unanswered Shift-drop swap for the next directional press [#1658]", async () => {
+      deferCommandAnswers();
+      const runtime = startSplitRuntime();
+      const leftmost = () =>
+        [...runtime.directionalCandidates()].sort((a, b) => a.rect.x - b.rect.x)[0]?.id;
+
+      runtime.swapWindows("app:tasks", "app:agents");
+      expect(leftmost()).toBe("app:agents");
+      // Tasks now stands on the right: a Swap right from it has nothing to trade with.
+      runtime.swapDirection("right");
+      await vi.waitFor(() => expect(sentCommands()).toHaveLength(1));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(sentCommands()).toEqual(["window.swap"]);
+    });
+
     it("Should tell the coordinator about a directional focus whose stream view arrived before its answer [R10-01]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startSplitRuntime();

@@ -257,6 +257,9 @@ compozy window swap --workspace <workspace-id> --revision <revision> \
   `window_manager_invalid_command`.
 - `swap` exchanges two windows of the same tab; windows in different tabs are rejected with
   `window_manager_invalid_command`.
+- The attached shell also offers directional swaps as palette client ops `window.swap.left|right|up|down`
+  (Window › Swap ▸); they need a window in a split and send `window.swap` for the focused window
+  and its on-screen neighbour. Run them through `compozy__cmd_palette_invoke` like other client ops.
 - With a bound client, `window navigate --client`, `window focus --id`, and `window activate
   --client` also activate the window's desktop for that client.
 
@@ -523,8 +526,9 @@ overrides as one map. `GET /api/settings/window-manager` returns `defaults` and 
 `compozy config get window_manager -o json` for the same discovery through the CLI. Writes through
 `config set` accept a scalar or JSON string array and reject the complete mutation on any collision.
 Window shortcuts: `window.tile.left|right|top|bottom` move the focused window to that root edge of
-its tab; `window.unsplit` (Move to new tab), `window.tab.move_left`, and `window.tab.move_right` are
-unbound by default; `window.tab.new|next|previous|last|reopen|jump.1–8`, `window.focus.*`,
+its tab; `window.unsplit` (Move to new tab), `window.tab.move_left`, `window.tab.move_right`, and
+`window.swap.left|right|up|down` (swap the focused split window with its nearest on-screen neighbour
+on that side, no wrap; a side with none is a no-op) are unbound by default; `window.tab.new|next|previous|last|reopen|jump.1–8`, `window.focus.*`,
 `layout.arrange.*`, `layout.balance`, `layout.undo|redo`, `desktop.*`, and
 `window.move_to_desktop.1–9` keep their meaning.
 

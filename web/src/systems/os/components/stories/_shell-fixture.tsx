@@ -10,6 +10,7 @@ import type {
   WindowManagerSnapshot,
   WindowManagerWindow,
 } from "../../lib/window-manager-types";
+import { activeTabCandidates } from "../../lib/window-manager-navigation";
 import { buildOsDesktopRuntimeView } from "../../lib/window-manager-view";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
@@ -185,6 +186,9 @@ export function createLiveStoryShell({
     deleteDesktop: fn(),
     moveWindowToDesktop: fn(),
     focusDirection: fn(),
+    swapDirection: fn(),
+    directionalFocusId: () => state.focusedId,
+    directionalCandidates: () => activeTabCandidates(state),
     undoLayout: fn(),
     redoLayout: fn(),
     balanceFocusedLayout: fn(),

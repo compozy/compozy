@@ -193,6 +193,32 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		}
 	})
 
+	t.Run("Should ship swap directions unbound so stored arrow overrides resolve", func(t *testing.T) {
+		t.Parallel()
+		swaps := []string{"window.swap.left", "window.swap.right", "window.swap.up", "window.swap.down"}
+		defaults := DefaultKeymap()
+		bindable := DefaultBindableIDs()
+		for _, id := range swaps {
+			binding, listed := defaults[id]
+			if _, ok := bindable[id]; !ok || !listed || len(binding) != 0 {
+				t.Fatalf("%s bindable=%v default=%v listed=%v", id, ok, binding, listed)
+			}
+		}
+		// A keymap stored before the swap ids shipped, with another action on an arrow chord.
+		stored := map[string]ShortcutBinding{"window.close": {"control+alt+shift+ArrowRight"}}
+		effective, err := EffectiveKeymap(stored, bindable)
+		if err != nil || !slices.Equal(effective["window.close"], stored["window.close"]) {
+			t.Fatalf("stored arrow override effective=%v err=%v", effective["window.close"], err)
+		}
+		bound, err := EffectiveKeymap(
+			map[string]ShortcutBinding{"window.swap.right": {"alt+shift+ArrowRight"}},
+			bindable,
+		)
+		if err != nil || !slices.Equal(bound["window.swap.right"], ShortcutBinding{"alt+shift+ArrowRight"}) {
+			t.Fatalf("bound swap effective=%v err=%v", bound["window.swap.right"], err)
+		}
+	})
+
 	t.Run("Should own every supported action in immutable daemon defaults", func(t *testing.T) {
 		t.Parallel()
 		defaults := DefaultKeymap()

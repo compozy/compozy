@@ -90,9 +90,9 @@ var fixedShellCommands = []shellCommandDefinition{
 	},
 	{id: "window.close", title: "Close window", section: coreSectionWindow, icon: "x-square"},
 	{id: "window.focus.left", title: "Focus left", section: coreSectionWindow, icon: coreIconArrowLeft},
-	{id: "window.focus.right", title: "Focus right", section: coreSectionWindow, icon: "arrow-right"},
-	{id: "window.focus.up", title: "Focus up", section: coreSectionWindow, icon: "arrow-up"},
-	{id: "window.focus.down", title: "Focus down", section: coreSectionWindow, icon: "arrow-down"},
+	{id: "window.focus.right", title: "Focus right", section: coreSectionWindow, icon: coreIconArrowRight},
+	{id: "window.focus.up", title: "Focus up", section: coreSectionWindow, icon: coreIconArrowUp},
+	{id: "window.focus.down", title: "Focus down", section: coreSectionWindow, icon: coreIconArrowDown},
 	{id: "window.focus.last", title: "Focus last window", section: coreSectionWindow, icon: "history"},
 	{id: "window.tab.new", title: "New tab", section: coreSectionTabs, icon: coreIconPlus},
 	{id: "window.tab.next", title: "Next tab", section: coreSectionTabs, icon: coreIconChevronRight},
@@ -173,7 +173,7 @@ func shellCommands() []cmdpalette.Descriptor {
 			id:      "window.tab.move_right",
 			title:   "Move tab right",
 			section: coreSectionTabs,
-			icon:    "arrow-right",
+			icon:    coreIconArrowRight,
 		},
 	)
 	placements := []struct{ id, title string }{
@@ -184,6 +184,17 @@ func shellCommands() []cmdpalette.Descriptor {
 		definitions = append(definitions, shellCommandDefinition{
 			id: cmdpalette.CommandID("window.tile." + placement.id), title: placement.title,
 			section: coreSectionTiling, icon: coreIconPanelTop, when: splitWindowWhen,
+		})
+	}
+	// Swap trades the focused window's place with its on-screen neighbor on that side of its tab.
+	swaps := []struct{ id, title, icon string }{
+		{"left", "Swap left", coreIconArrowLeft}, {"right", "Swap right", coreIconArrowRight},
+		{"up", "Swap up", coreIconArrowUp}, {"down", "Swap down", coreIconArrowDown},
+	}
+	for _, swap := range swaps {
+		definitions = append(definitions, shellCommandDefinition{
+			id: cmdpalette.CommandID("window.swap." + swap.id), title: swap.title,
+			section: coreSectionTiling, icon: swap.icon, when: splitWindowWhen,
 		})
 	}
 	for slot := 1; slot <= 8; slot++ {
