@@ -23,8 +23,10 @@ export interface RetainedDraftPolicy<TContext> {
 
 interface DraftBox<TContext> {
   store: DraftStore<TContext> | null;
-  /** What this editor retained when it went away, until something drops it. */
-  retained: { key: string; context: TContext } | null;
+  /** The resource the editor shows, or showed last. */
+  key: string;
+  /** What this editor retained per resource it left, until something drops it. */
+  retained: Map<string, TContext>;
 }
 
 /**
@@ -37,17 +39,20 @@ interface DraftBox<TContext> {
  * kept as unsaved. A store replaced under the same key (a reload, a clean editor following the
  * server) retains nothing.
  *
- * Returns `forget`, which drops what this editor retained: a Discard answered for a window that
- * closed after the editor went away still drops its edits.
+ * Returns `forget`, which drops what this editor retained for the resource it shows, or showed
+ * last: a Discard answered for a window that closed after the editor went away still drops its
+ * edits, and never another resource's.
  */
 export function useRetainedEditorDraft<TContext>(
   key: string,
   store: DraftStore<TContext>,
   policy: RetainedDraftPolicy<TContext>
 ): { forget: () => void } {
-  const boxRef = useRef<DraftBox<TContext>>({ store: null, retained: null });
+  const boxRef = useRef<DraftBox<TContext>>({ store: null, key, retained: new Map() });
   useEffect(() => {
     boxRef.current.store = store;
+    boxRef.current.key = key;
+    boxRef.current.retained.delete(key);
     // Before any event reaches a new store, its context is the draft it was seeded from, if any.
     takeRetainedEditorDraft(key, store.getSnapshot().context);
   }, [key, store]);
@@ -61,7 +66,7 @@ export function useRetainedEditorDraft<TContext>(
         if (!policy.isDirty(context)) return;
         const draft = policy.idle(context);
         retainEditorDraft(key, draft);
-        box.retained = { key, context: draft };
+        box.retained.set(key, draft);
       };
       // Read the store, not the last render: a Discard answered just before unmount counts.
       const context = current.getSnapshot().context;
@@ -71,19 +76,20 @@ export function useRetainedEditorDraft<TContext>(
         if (policy.isBusy(snapshot.context)) return;
         subscription.unsubscribe();
         // Only while the draft kept at unmount is still unclaimed: forgotten or taken, it is done.
-        const kept = box.retained;
-        if (kept === null || kept.key !== key || !isRetainedEditorDraft(key, kept.context)) return;
-        takeRetainedEditorDraft(key, kept.context);
-        box.retained = null;
+        const kept = box.retained.get(key);
+        if (kept === undefined || !isRetainedEditorDraft(key, kept)) return;
+        takeRetainedEditorDraft(key, kept);
+        box.retained.delete(key);
         retain(snapshot.context);
       });
     };
   }, [key, policy]);
   const forget = useCallback(() => {
     const box = boxRef.current;
-    const retained = box.retained;
-    box.retained = null;
-    if (retained) takeRetainedEditorDraft(retained.key, retained.context);
+    const kept = box.retained.get(box.key);
+    if (kept === undefined) return;
+    box.retained.delete(box.key);
+    takeRetainedEditorDraft(box.key, kept);
   }, []);
   return { forget };
 }

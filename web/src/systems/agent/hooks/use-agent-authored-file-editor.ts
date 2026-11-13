@@ -77,14 +77,16 @@ export function useAgentAuthoredFileEditor({
       : { resourceKey, kind: "heartbeat", payload };
   const draftKey = retainedDraftKey("authored-file", resourceKey);
   // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653);
-  // only a new editor resumes them, never a store replaced while this one is mounted.
+  // a store replaced under the same key (a reload, following the server) does not resume them.
+  const resume = () =>
+    createAuthoredFileEditorLogic(
+      retainedEditorDraft<AuthoredFileEditorState>(draftKey)
+    ).createStore(input);
   const { replace, store } = useStoreBinding(
     resourceKey,
-    () =>
-      createAuthoredFileEditorLogic(
-        retainedEditorDraft<AuthoredFileEditorState>(draftKey)
-      ).createStore(input),
-    () => createAuthoredFileEditorLogic().createStore(input),
+    resume,
+    (_previous, previousKey) =>
+      previousKey === resourceKey ? createAuthoredFileEditorLogic().createStore(input) : resume(),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAuthoredFileSource(current.store.getSnapshot().context, input)

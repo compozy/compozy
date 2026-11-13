@@ -336,6 +336,25 @@ describe("useAgentSettingsPage", () => {
       expect(older.result.current.draft?.prompt).toBe("First window");
     });
 
+    it("Should resume each agent's draft when a mounted editor moves between agents", () => {
+      const { result, rerender } = renderHook(
+        ({ name }: { name: string }) => useAgentSettingsPage({ name, section: "instructions" }),
+        { initialProps: { name: "agent-a" }, wrapper: createWrapper() }
+      );
+      act(() => result.current.patchDraft({ prompt: "Edits to A" }));
+
+      rerender({ name: "agent-b" });
+      expect(result.current.dirty).toBe(false);
+      act(() => result.current.patchDraft({ prompt: "Edits to B" }));
+      // Discarding B's edits leaves the draft kept for A alone.
+      act(() => mocks.guard?.onDiscard?.());
+      expect(result.current.dirty).toBe(false);
+
+      rerender({ name: "agent-a" });
+      expect(result.current.dirty).toBe(true);
+      expect(result.current.draft?.prompt).toBe("Edits to A");
+    });
+
     it("Should not keep edits a save running at unmount went on to write", async () => {
       let finish!: (agent: unknown) => void;
       mocks.updateMutateAsync.mockReturnValueOnce(

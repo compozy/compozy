@@ -52,16 +52,14 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const resourceKey = JSON.stringify([destination, runtimeWorkspaceId, name]);
   const draftKey = retainedDraftKey("agent-settings", resourceKey);
   // Edits kept from an editor of this agent that went away unsaved come back as unsaved (#1653);
-  // only a new editor resumes them, never a store replaced while this one is mounted.
+  // a store replaced under the same key (a reload, following the server) does not resume them.
+  const create = (retained?: AgentSettingsEditorState) =>
+    createAgentSettingsEditorLogic().createStore({ resourceKey, agent: agentQuery.data, retained });
+  const resume = () => create(retainedEditorDraft<AgentSettingsEditorState>(draftKey));
   const { store } = useStoreBinding(
     resourceKey,
-    () =>
-      createAgentSettingsEditorLogic().createStore({
-        resourceKey,
-        agent: agentQuery.data,
-        retained: retainedEditorDraft<AgentSettingsEditorState>(draftKey),
-      }),
-    () => createAgentSettingsEditorLogic().createStore({ resourceKey, agent: agentQuery.data }),
+    resume,
+    (_previous, previousKey) => (previousKey === resourceKey ? create() : resume()),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAgentSettingsSource(current.store.getSnapshot().context, agentQuery.data)

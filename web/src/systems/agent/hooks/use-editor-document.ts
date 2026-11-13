@@ -50,15 +50,17 @@ export function useEditorDocument<TForm>({
 }: UseEditorDocumentArgs<TForm>) {
   const draftKey = retainedDraftKey("document", resourceKey);
   // Edits kept from an editor of this file that went away unsaved come back as unsaved (#1653);
-  // only a new editor resumes them, never a store replaced while this one is mounted.
+  // a store replaced under the same key (a reload, following the server) does not resume them.
+  const resume = () =>
+    createEditorDocumentStore(
+      snapshot,
+      retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
+    );
   const { store } = useStoreBinding(
     resourceKey,
-    () =>
-      createEditorDocumentStore(
-        snapshot,
-        retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
-      ),
-    () => createEditorDocumentStore(snapshot),
+    resume,
+    (_previous, previousKey) =>
+      previousKey === resourceKey ? createEditorDocumentStore(snapshot) : resume(),
     (current, key) =>
       current.key !== key ||
       shouldAdoptSnapshot(current.store.getSnapshot().context, snapshot, countChanges)
