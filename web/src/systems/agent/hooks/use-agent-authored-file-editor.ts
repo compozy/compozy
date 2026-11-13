@@ -18,7 +18,11 @@ import {
   type AuthoredFileValidate,
 } from "../stores/agent-authored-file-editor-store";
 import type { AgentHeartbeatHistoryResponse, AgentSoulHistoryResponse } from "../types";
-import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
+import {
+  isDuplicateDraftStore,
+  retainedDraftKey,
+  retainedEditorDraft,
+} from "../lib/retained-editor-drafts";
 import { type RetainedDraftPolicy, useRetainedEditorDraft } from "./use-retained-editor-draft";
 import { useUnsavedGuard } from "./use-unsaved-guard";
 
@@ -85,13 +89,15 @@ export function useAgentAuthoredFileEditor({
   const { replace, store } = useStoreBinding(
     resourceKey,
     resume,
-    (_previous, previousKey) =>
-      previousKey === resourceKey ? createAuthoredFileEditorLogic().createStore(input) : resume(),
+    (previous, previousKey) =>
+      previousKey === resourceKey && !isDuplicateDraftStore(previous)
+        ? createAuthoredFileEditorLogic().createStore(input)
+        : resume(),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAuthoredFileSource(current.store.getSnapshot().context, input)
   );
-  const { forget } = useRetainedEditorDraft(draftKey, store, AUTHORED_FILE_DRAFT_POLICY);
+  const { forget } = useRetainedEditorDraft(draftKey, store, AUTHORED_FILE_DRAFT_POLICY, replace);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const dirty = isAuthoredFileEditorDirty(editor);

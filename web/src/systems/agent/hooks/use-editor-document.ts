@@ -6,7 +6,11 @@ import { toast } from "@compozy/ui";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
-import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
+import {
+  isDuplicateDraftStore,
+  retainedDraftKey,
+  retainedEditorDraft,
+} from "../lib/retained-editor-drafts";
 import {
   countEditorDocumentChanges,
   createEditorDocumentStore,
@@ -56,11 +60,13 @@ export function useEditorDocument<TForm>({
       snapshot,
       retainedEditorDraft<EditorDocumentContext<TForm>>(draftKey)
     );
-  const { store } = useStoreBinding(
+  const { replace, store } = useStoreBinding(
     resourceKey,
     resume,
-    (_previous, previousKey) =>
-      previousKey === resourceKey ? createEditorDocumentStore(snapshot) : resume(),
+    (previous, previousKey) =>
+      previousKey === resourceKey && !isDuplicateDraftStore(previous)
+        ? createEditorDocumentStore(snapshot)
+        : resume(),
     (current, key) =>
       current.key !== key ||
       shouldAdoptSnapshot(current.store.getSnapshot().context, snapshot, countChanges)
@@ -75,7 +81,7 @@ export function useEditorDocument<TForm>({
     }),
     [countChanges]
   );
-  const { forget } = useRetainedEditorDraft(draftKey, store, draftPolicy);
+  const { forget } = useRetainedEditorDraft(draftKey, store, draftPolicy, replace);
   const document = useSelector(store, state => state.context);
   const { baseline, form, raw, conflict, phase, problem } = document;
 

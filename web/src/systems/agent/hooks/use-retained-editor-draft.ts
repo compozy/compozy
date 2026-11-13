@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef } from "react";
 
 import {
   isRetainedEditorDraft,
+  markDuplicateDraftStore,
   retainEditorDraft,
   takeRetainedEditorDraft,
+  wasRetainedEditorDraft,
 } from "../lib/retained-editor-drafts";
 
 interface DraftStore<TContext> {
@@ -23,6 +25,7 @@ export interface RetainedDraftPolicy<TContext> {
 
 interface DraftBox<TContext> {
   store: DraftStore<TContext> | null;
+  reseed: () => void;
   /** The resource the editor shows, or showed last. */
   key: string;
   /** What this editor retained per resource it left, until something drops it. */
@@ -41,6 +44,11 @@ interface DraftBox<TContext> {
  * kept as unsaved. A store replaced under the same key (a reload, a clean editor following the
  * server) retains nothing.
  *
+ * Editors of one resource that mount in one commit all render before any claims a draft, so they
+ * may seed from the same one. The first to commit keeps it; any other marks its store a
+ * duplicate and calls `reseed`, which replaces the store: the replacement for a duplicate
+ * resumes the next draft of the resource, or starts clean (`isDuplicateDraftStore`).
+ *
  * Returns `forget`, which drops what this editor retained for the resource it shows, or showed
  * last: a Discard answered for a window that closed after the editor went away still drops its
  * edits, and never another resource's.
@@ -48,20 +56,29 @@ interface DraftBox<TContext> {
 export function useRetainedEditorDraft<TContext>(
   key: string,
   store: DraftStore<TContext>,
-  policy: RetainedDraftPolicy<TContext>
+  policy: RetainedDraftPolicy<TContext>,
+  reseed: () => void
 ): { forget: () => void } {
   const boxRef = useRef<DraftBox<TContext>>({
     store: null,
+    reseed,
     key,
     retained: new Map(),
     discarded: null,
+  });
+  useEffect(() => {
+    boxRef.current.reseed = reseed;
   });
   useEffect(() => {
     boxRef.current.store = store;
     boxRef.current.key = key;
     boxRef.current.retained.delete(key);
     // Before any event reaches a new store, its context is the draft it was seeded from, if any.
-    takeRetainedEditorDraft(key, store.getSnapshot().context);
+    const seed = store.getSnapshot().context;
+    if (takeRetainedEditorDraft(key, seed) || !wasRetainedEditorDraft(seed)) return;
+    // Another editor of the resource claimed this draft in the same commit: start over.
+    markDuplicateDraftStore(store);
+    boxRef.current.reseed();
   }, [key, store]);
   useEffect(() => {
     // One box for the editor's life: the cleanup reads the store committed last.

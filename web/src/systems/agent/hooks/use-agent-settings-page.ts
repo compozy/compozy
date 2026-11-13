@@ -11,7 +11,11 @@ import {
   type AgentSettingsEditorState,
 } from "../stores/agent-settings-editor-store";
 import { validateAgentSettingsDraft, type AgentSettingsDraft } from "../lib/agent-settings-draft";
-import { retainedDraftKey, retainedEditorDraft } from "../lib/retained-editor-drafts";
+import {
+  isDuplicateDraftStore,
+  retainedDraftKey,
+  retainedEditorDraft,
+} from "../lib/retained-editor-drafts";
 import { type RetainedDraftPolicy, useRetainedEditorDraft } from "./use-retained-editor-draft";
 import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import { useAgent, useUpdateAgent } from "./use-agents";
@@ -56,15 +60,16 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const create = (retained?: AgentSettingsEditorState) =>
     createAgentSettingsEditorLogic().createStore({ resourceKey, agent: agentQuery.data, retained });
   const resume = () => create(retainedEditorDraft<AgentSettingsEditorState>(draftKey));
-  const { store } = useStoreBinding(
+  const { replace, store } = useStoreBinding(
     resourceKey,
     resume,
-    (_previous, previousKey) => (previousKey === resourceKey ? create() : resume()),
+    (previous, previousKey) =>
+      previousKey === resourceKey && !isDuplicateDraftStore(previous) ? create() : resume(),
     (current, nextResourceKey) =>
       current.key !== nextResourceKey ||
       shouldAdoptAgentSettingsSource(current.store.getSnapshot().context, agentQuery.data)
   );
-  const { forget } = useRetainedEditorDraft(draftKey, store, SETTINGS_DRAFT_POLICY);
+  const { forget } = useRetainedEditorDraft(draftKey, store, SETTINGS_DRAFT_POLICY, replace);
   const editor = useSelector(store, snapshot => snapshot.context);
 
   const {

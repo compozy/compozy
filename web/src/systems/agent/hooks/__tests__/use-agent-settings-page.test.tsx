@@ -336,6 +336,22 @@ describe("useAgentSettingsPage", () => {
       expect(older.result.current.draft?.prompt).toBe("First window");
     });
 
+    it("Should give editors of one agent that reopen together a draft each", () => {
+      const first = renderHook(page, { wrapper: createWrapper() });
+      const second = renderHook(page, { wrapper: createWrapper() });
+      act(() => first.result.current.patchDraft({ prompt: "First window" }));
+      act(() => second.result.current.patchDraft({ prompt: "Second window" }));
+      first.unmount();
+      second.unmount();
+
+      // Both render before either claims a draft, as a reopened split does.
+      const both = renderHook(() => [page(), page()], { wrapper: createWrapper() });
+      expect(both.result.current.map(editor => editor.draft?.prompt)).toEqual([
+        "Second window",
+        "First window",
+      ]);
+    });
+
     it("Should resume each agent's draft when a mounted editor moves between agents", () => {
       const { result, rerender } = renderHook(
         ({ name }: { name: string }) => useAgentSettingsPage({ name, section: "instructions" }),
