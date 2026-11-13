@@ -624,6 +624,9 @@ func TestUsageService(t *testing.T) {
 				WithClaudeHTTP(server.URL, nil),
 			)
 			collector.platform = "darwin"
+			if file {
+				collector.platform = "linux"
+			}
 			catalog := &TargetCatalog{}
 			catalog.Replace(target.ProfileID, []Target{target})
 			service := NewService(Options{Resolver: catalog, Collectors: Registry{"claude": collector}, Clock: clock})

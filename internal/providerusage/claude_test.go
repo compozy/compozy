@@ -94,7 +94,8 @@ func TestClaudeCollector(t *testing.T) {
 				`{"five_hour":{"utilization":34,"resets_at":"2026-10-21T05:00:00Z"},"seven_day":{"utilization":61},"seven_day_opus":{"utilization":88},"extra_usage":{"is_enabled":true,"monthly_limit":5000,"used_credits":1240,"currency":"USD"}}`,
 			)
 		})
-		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeHTTP(server.URL, nil))
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+			WithClaudePlatform("linux"), WithClaudeHTTP(server.URL, nil))
 		snapshot, err := collectClaude(t, c, target, IntentBackground)
 		requireNoError(t, err)
 		requireEqual(t, StatusOK, snapshot.Status)
@@ -127,7 +128,8 @@ func TestClaudeCollector(t *testing.T) {
 				path := filepath.Join(dir, ".credentials.json")
 				requireNoError(t, os.WriteFile(path, []byte(body), 0o600))
 				reader := &fakeClaudeKeychain{}
-				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+					WithClaudePlatform("linux"), WithClaudeKeychain(reader))
 				_, err := c.Identity(t.Context(), target, IntentExplicit)
 				requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
 				got, err := os.ReadFile(path)
@@ -174,7 +176,8 @@ func TestClaudeCollector(t *testing.T) {
 					return w.Result(), nil
 				})
 				clock := fixtureClock(t)
-				c := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeHTTP("https://claude.test", transport))
+				c := NewClaudeCollector(WithClaudeClock(clock.Now),
+					WithClaudePlatform("linux"), WithClaudeHTTP("https://claude.test", transport))
 				_, err := collectClaude(t, c, target, IntentBackground)
 				if tc.code == "" {
 					requireNoError(t, err)
@@ -192,6 +195,94 @@ func TestClaudeCollector(t *testing.T) {
 }
 
 func TestClaudeKeychain(t *testing.T) {
+	t.Run("Should follow native credential precedence with a plaintext fallback", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, platform, file, token string
+			readErr                     error
+			code                        ErrorCode
+			consent                     bool
+			keychainExpired             bool
+			reads                       int32
+		}{
+			{name: "Should prefer Keychain over an expired file", file: "expired", token: "keychain-secret", consent: true, reads: 1},
+			{name: "Should prefer Keychain over a valid old login", file: "valid", token: "keychain-secret", consent: true, reads: 1},
+			{name: "Should prefer Keychain over malformed file content", file: "malformed", token: "keychain-secret", consent: true, reads: 1},
+			{name: "Should fall back to a file when Keychain has no entry", file: "valid", token: "synthetic-secret", readErr: os.ErrNotExist, consent: true, reads: 2},
+			{name: "Should fall back to a file when Keychain is denied", file: "valid", token: "synthetic-secret", readErr: os.ErrPermission, consent: true, reads: 2},
+			{name: "Should fall back to a file when Keychain times out", file: "valid", token: "synthetic-secret", readErr: NewUsageError(ErrorCodeKeychainReadTimeout, "Claude"), consent: true, reads: 2},
+			{name: "Should retain file access without Keychain consent", file: "valid", token: "synthetic-secret"},
+			{name: "Should request consent instead of trusting an expired file", file: "expired", code: ErrorCodeKeychainConsentRequired},
+			{name: "Should report denied access instead of an expired fallback", file: "expired", readErr: os.ErrPermission, code: ErrorCodeKeychainDenied, consent: true, reads: 1},
+			{name: "Should report timed out access instead of an expired fallback", file: "expired", readErr: NewUsageError(ErrorCodeKeychainReadTimeout, "Claude"), code: ErrorCodeKeychainReadTimeout, consent: true, reads: 1},
+			{name: "Should report expiry when the file is the only login", file: "expired", readErr: os.ErrNotExist, code: ErrorCodeAuthExpired, consent: true, reads: 1},
+			{name: "Should not replace an expired Keychain login with an old file", file: "valid", keychainExpired: true, code: ErrorCodeAuthExpired, consent: true, reads: 1},
+			{name: "Should preserve Linux file precedence", platform: "linux", file: "valid", token: "synthetic-secret", consent: true},
+			{name: "Should preserve Windows file precedence", platform: "windows", file: "valid", token: "synthetic-secret", consent: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				for _, intent := range []Intent{IntentBackground, IntentExplicit} {
+					t.Run("Should honor precedence for "+string(intent), func(t *testing.T) {
+						t.Parallel()
+						target, dir, credential := claudeFixture(t, false)
+						target.Route.KeychainAccess = tc.consent
+						file := credential
+						if tc.file == "expired" {
+							file = strings.ReplaceAll(
+								file,
+								fmt.Sprint(fixtureClock(t).Now().Add(time.Hour).UnixMilli()),
+								"1",
+							)
+						} else if tc.file == "malformed" {
+							file = "{"
+						}
+						path := filepath.Join(dir, ".credentials.json")
+						requireNoError(t, os.WriteFile(path, []byte(file), 0o600))
+						keychain := strings.ReplaceAll(credential, "synthetic-secret", "keychain-secret")
+						if tc.keychainExpired {
+							keychain = strings.ReplaceAll(
+								keychain,
+								fmt.Sprint(fixtureClock(t).Now().Add(time.Hour).UnixMilli()),
+								"1",
+							)
+						}
+						reader := &fakeClaudeKeychain{data: keychain, err: tc.readErr}
+						server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+							requireEqual(t, "Bearer "+tc.token, r.Header.Get("Authorization"))
+							claudeResponse(t, w, `{"five_hour":{"utilization":42}}`)
+						})
+						platform := tc.platform
+						if platform == "" {
+							platform = "darwin"
+						}
+						collector := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+							WithClaudeKeychain(reader), WithClaudePlatform(platform), WithClaudeHTTP(server.URL, nil))
+						_, err := collectClaude(t, collector, target, intent)
+						if tc.code != "" {
+							requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
+						} else {
+							requireNoError(t, err)
+							snapshot, err := collectClaude(t, collector, target, IntentBackground)
+							requireNoError(t, err)
+							requireEqual(t, StatusOK, snapshot.Status)
+							requireEqual(t, 42.0, *snapshot.Windows[0].UsedPercent)
+						}
+						requireEqual(t, tc.reads, reader.calls.Load())
+						interactive := int32(0)
+						if intent == IntentExplicit && tc.reads > 0 {
+							interactive = 1
+						}
+						requireEqual(t, interactive, reader.interactive.Load())
+						unchanged, err := os.ReadFile(path)
+						requireNoError(t, err)
+						requireEqual(t, file, string(unchanged))
+					})
+				}
+			})
+		}
+	})
+
 	t.Run("Should reread a rejected token before its expiry without prompting", func(t *testing.T) {
 		t.Parallel()
 		target, _, credential := claudeFixture(t, false)
@@ -545,7 +636,8 @@ func TestClaudeIsolation(t *testing.T) {
 			requireEqual(t, "Bearer alias-secret", r.Header.Get("Authorization"))
 			claudeResponse(t, w, `{"five_hour":{"utilization":12}}`)
 		})
-		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeHTTP(server.URL, nil))
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+			WithClaudePlatform("linux"), WithClaudeHTTP(server.URL, nil))
 		first, err := c.Identity(t.Context(), primary, IntentBackground)
 		requireNoError(t, err)
 		second, err := c.Identity(t.Context(), alias, IntentBackground)
@@ -618,7 +710,7 @@ func TestClaudeIsolation(t *testing.T) {
 	t.Run("Should reject changed file material before publication UT-071 UT-072 UT-073 UT-074", func(t *testing.T) {
 		t.Parallel()
 		target, dir, credential := claudeFixture(t, true)
-		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now))
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudePlatform("linux"))
 		before, err := c.Identity(t.Context(), target, IntentBackground)
 		requireNoError(t, err)
 		requireNoError(
@@ -643,7 +735,7 @@ func TestClaudeIsolation(t *testing.T) {
 		requireNoError(t, err)
 		requireEqual(t, false, after.Same(next))
 	})
-	t.Run("Should not reuse keychain credentials across profiles or a new file", func(t *testing.T) {
+	t.Run("Should isolate Keychain profiles while ignoring a leftover credential file", func(t *testing.T) {
 		t.Parallel()
 		target, dir, credential := claudeFixture(t, false)
 		reader := &fakeClaudeKeychain{data: credential}
@@ -658,8 +750,7 @@ func TestClaudeIsolation(t *testing.T) {
 		requireEqual(t, int32(2), reader.calls.Load())
 		requireEqual(t, int32(1), reader.interactive.Load())
 		requireNoError(t, os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte(credential), 0o600))
-		err = c.ValidateIdentity(t.Context(), target, identity)
-		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
+		requireNoError(t, c.ValidateIdentity(t.Context(), target, identity))
 		requireEqual(t, int32(2), reader.calls.Load())
 	})
 	t.Run("Should avoid ambient files when route home is absent", func(t *testing.T) {

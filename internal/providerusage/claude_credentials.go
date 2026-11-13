@@ -48,31 +48,38 @@ type claudeOAuthFile struct {
 }
 
 func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Intent) (*claudeCredential, error) {
-	record, err := loadClaudeFile(target, c.now())
-	if !isClaudeFileAbsent(err) {
-		c.clearLocked(claudeKeyOf(target))
-		if record != nil {
-			c.records[claudeKeyOf(target)] = record
-		}
-		return record, err
-	}
 	if claudeCredentialPath(target) == "" || c.platform != "darwin" {
-		c.clearLocked(claudeKeyOf(target))
-		return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
+		return c.resolveFileLocked(target, NewUsageError(ErrorCodeAuthMissing, "Claude"))
 	}
+	// Claude Code prefers macOS secure storage over its plaintext fallback.
 	if !target.Route.KeychainAccess {
-		c.clearLocked(claudeKeyOf(target))
-		return nil, NewUsageError(ErrorCodeKeychainConsentRequired, "Claude")
+		return c.resolveFileLocked(target, NewUsageError(ErrorCodeKeychainConsentRequired, "Claude"))
 	}
 	if intent != IntentExplicit {
-		record = c.records[claudeKeyOf(target)]
-		if record != nil && c.validateLocked(target, record.identity) == nil {
+		record := c.records[claudeKeyOf(target)]
+		if record != nil && record.keychain && c.validateLocked(target, record.identity) == nil {
 			if !record.singleUse && !record.expired && c.now().Before(record.expires) {
 				return record, nil
 			}
 		}
 	}
 	return c.readKeychainLocked(ctx, target, intent)
+}
+
+func (c *ClaudeCollector) resolveFileLocked(target Target, fallback *UsageError) (*claudeCredential, error) {
+	record, err := loadClaudeFile(target, c.now())
+	c.clearLocked(claudeKeyOf(target))
+	// An unusable fallback must not hide the Keychain access needed to read the live login.
+	if isClaudeFileAbsent(err) || (err != nil && fallback.Code != ErrorCodeAuthMissing) {
+		if record != nil {
+			clear(record.token)
+		}
+		return nil, fallback
+	}
+	if record != nil {
+		c.records[claudeKeyOf(target)] = record
+	}
+	return record, err
 }
 
 // readKeychainLocked releases the collector lock during OS access; the reader enforces refresh intent.
@@ -97,14 +104,19 @@ func (c *ClaudeCollector) readKeychainLocked(
 	}
 	delete(c.pending, claudeKeyOf(target))
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, AsUsageError(ctx.Err(), "Claude")
+		}
+		var fallback *UsageError
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
+			fallback = NewUsageError(ErrorCodeAuthMissing, "Claude")
 		case errors.Is(err, os.ErrPermission):
-			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
+			fallback = NewUsageError(ErrorCodeKeychainDenied, "Claude")
 		default:
-			return nil, AsUsageError(err, "Claude")
+			fallback = AsUsageError(err, "Claude")
 		}
+		return c.resolveFileLocked(target, fallback)
 	}
 	record, err := parseClaudeCredential(data, c.now())
 	if record == nil {

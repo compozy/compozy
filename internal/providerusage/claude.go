@@ -237,13 +237,6 @@ func (c *ClaudeCollector) validateLocked(target Target, identity CredentialIdent
 			c.clearLocked(claudeKeyOf(target))
 			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
-		// A newly created credential file changes the authoritative source, even for the same account.
-		fileData, fileErr := readCredentialFile(claudeCredentialPath(target), "Claude")
-		clear(fileData)
-		if !isClaudeFileAbsent(fileErr) {
-			c.clearLocked(claudeKeyOf(target))
-			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
-		}
 		return nil
 	}
 	fresh, err := loadClaudeFile(target, c.now())
