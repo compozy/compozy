@@ -51,12 +51,11 @@ func TestLayoutDocumentContract(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				warnings := document.Overrides.Deprecations()
+				warnings := document.InputDeprecations
 				if len(warnings) != item.deprecations {
 					t.Fatalf("override deprecations = %+v, want %d", warnings, item.deprecations)
 				}
 				want := snapshot.Overrides
-				want.deprecations = warnings
 				if !reflect.DeepEqual(document.Overrides, want) {
 					t.Fatalf("document overrides = %+v, want converted overrides %+v", document.Overrides, want)
 				}

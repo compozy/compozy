@@ -20,11 +20,13 @@ const (
 
 // LayoutDocument is the validated raw export and replacement contract.
 type LayoutDocument struct {
-	Version     uint32              `json:"version"`
-	WorkspaceID WorkspaceID         `json:"workspace_id"`
-	Desktops    []Desktop           `json:"desktops"`
-	Windows     map[WindowID]Window `json:"windows"`
-	Overrides   WorkspaceConfig     `json:"overrides"`
+	// InputDeprecations is transient request metadata, excluded from exported layouts and stored state.
+	InputDeprecations []Deprecation       `json:"-"`
+	Version           uint32              `json:"version"`
+	WorkspaceID       WorkspaceID         `json:"workspace_id"`
+	Desktops          []Desktop           `json:"desktops"`
+	Windows           map[WindowID]Window `json:"windows"`
+	Overrides         WorkspaceConfig     `json:"overrides"`
 }
 
 // LayoutResource describes one declarative registry contribution.

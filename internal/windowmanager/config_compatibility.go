@@ -6,18 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"slices"
-	"sync"
 )
-
-var deprecatedConfigSurfaces sync.Map
 
 // WarnRetiredConfigKey reports a boundary translation once per process until v0.8.0.
 func WarnRetiredConfigKey(key string, translated bool) {
-	if _, warned := deprecatedConfigSurfaces.LoadOrStore(key, struct{}{}); warned {
-		return
-	}
-	WarnSurfaceDeprecation(context.Background(), nil, RetiredConfigDeprecation(key, translated), "config")
+	WarnSurfaceDeprecation(context.Background(), nil, RetiredConfigDeprecation(key, translated), "config", nil)
 }
 
 // RetiredConfigDeprecation describes a config translation until v0.8.0.
@@ -32,11 +25,6 @@ func RetiredConfigDeprecation(key string, translated bool) Deprecation {
 	return entry
 }
 
-// Deprecations returns input translations for the owning service's request observer.
-func (c WorkspaceConfig) Deprecations() []Deprecation {
-	return slices.Clone(c.deprecations)
-}
-
 // RetiredConfigWarning is the operator-facing warning for a v0.7 config shim.
 func RetiredConfigWarning(key string, translated bool) string {
 	if translated {
@@ -45,23 +33,22 @@ func RetiredConfigWarning(key string, translated bool) string {
 	return "warning: window_manager." + key + " is retired and ignored; remove it before v0.8.0."
 }
 
-// DecodeWorkspaceConfigJSON translates retired overrides at input boundaries until v0.8.0.
-func DecodeWorkspaceConfigJSON(data []byte) (WorkspaceConfig, error) {
+// DecodeWorkspaceConfigJSON returns effective overrides and separate input deprecations until v0.8.0.
+func DecodeWorkspaceConfigJSON(data []byte) (WorkspaceConfig, []Deprecation, error) {
 	var deprecations []Deprecation
 	translated, err := translateWorkspaceConfigJSON(data, func(key string, translated bool) {
 		deprecations = append(deprecations, RetiredConfigDeprecation(key, translated))
 	})
 	if err != nil {
-		return WorkspaceConfig{}, err
+		return WorkspaceConfig{}, nil, err
 	}
 	var decoded WorkspaceConfig
 	decoder := json.NewDecoder(bytes.NewReader(translated))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&decoded); err != nil {
-		return WorkspaceConfig{}, err
+		return WorkspaceConfig{}, nil, err
 	}
-	decoded.deprecations = deprecations
-	return decoded, nil
+	return decoded, deprecations, nil
 }
 
 func translateDocumentOverridesJSON(data []byte) ([]byte, error) {
@@ -73,7 +60,7 @@ func translateDocumentOverridesJSON(data []byte) ([]byte, error) {
 	if !present {
 		return data, nil
 	}
-	overrides, err := DecodeWorkspaceConfigJSON(raw)
+	overrides, _, err := DecodeWorkspaceConfigJSON(raw)
 	if err != nil {
 		return nil, fmt.Errorf("decode workspace overrides: %w", err)
 	}

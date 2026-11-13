@@ -4,13 +4,23 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 )
 
 const deprecationMoveToTab = `window.move with placement "tab"`
 
-// WarnSurfaceDeprecation shares the boundary log shape through v0.8.0.
-// The caller owns warning deduplication for its lifetime.
-func WarnSurfaceDeprecation(ctx context.Context, logger *slog.Logger, entry Deprecation, actorKind string) {
+var deprecatedSurfaces sync.Map
+
+// WarnSurfaceDeprecation logs once per surface until v0.8.0; nil seen uses the daemon process lifetime.
+func WarnSurfaceDeprecation(
+	ctx context.Context, logger *slog.Logger, entry Deprecation, actorKind string, seen *sync.Map,
+) {
+	if seen == nil {
+		seen = &deprecatedSurfaces
+	}
+	if _, warned := seen.LoadOrStore(entry.Surface, struct{}{}); warned {
+		return
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}

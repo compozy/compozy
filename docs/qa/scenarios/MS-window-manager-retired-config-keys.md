@@ -58,6 +58,8 @@ new retired key. 5) Open a session from the shell: it opens as a new tab. 6) Tak
 overrides without the retired keys and with `new_window_policy` `tab`, and the daemon log has a
 `window_manager.deprecated_surface_used` warning naming each key, its replacement and `actor_kind`.
 Repeat the document through direct HTTP validate and PUT layout requests: both succeed; each surface
-has exactly one such daemon log entry across all calls in that daemon run, regardless of which route
-was used first. 7) Remove the keys and run
+has exactly one such daemon log entry across config loads and all layout calls in that daemon run,
+regardless of which source or route was used first. In a fresh daemon run without the retired TOML
+keys, send the layout first, then load the TOML keys: the same once-per-surface limit holds in this
+reverse order. 7) Remove the keys and run
 `compozy config show` again: no warning.

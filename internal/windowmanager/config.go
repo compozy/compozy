@@ -80,7 +80,6 @@ type Config struct {
 
 // WorkspaceConfig contains optional workspace overrides.
 type WorkspaceConfig struct {
-	deprecations        []Deprecation              `json:"-"`
 	NewWindowPolicy     *NewWindowPolicy           `json:"new_window_policy,omitzero"`
 	SmallViewportPolicy *SmallViewportPolicy       `json:"small_viewport_policy,omitzero"`
 	FocusPolicy         *FocusPolicy               `json:"focus_policy,omitzero"`

@@ -231,6 +231,7 @@ func cloneSubscriptionUpdate(update SubscriptionUpdate) SubscriptionUpdate {
 }
 
 func cloneLayoutDocument(document LayoutDocument) LayoutDocument {
+	document.InputDeprecations = append([]Deprecation(nil), document.InputDeprecations...)
 	document.Desktops = cloneDesktops(document.Desktops)
 	document.Windows = cloneWindows(document.Windows)
 	document.Overrides = cloneWorkspaceConfig(document.Overrides)

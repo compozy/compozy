@@ -40,7 +40,7 @@ func (n *daemonNativeTools) windowList(
 			payload.Deprecations,
 			windowmanager.SurfaceDeprecation("compozy__window_list.include_minimized"),
 		)
-		windowManagerSurfaceDeprecationLogger(slog.Default(), &deprecatedWindowSurfaces)(ctx,
+		windowManagerSurfaceDeprecationLogger(slog.Default(), nil)(ctx,
 			windowmanager.CommandRequest{Actor: windowManagerActor(scope)}, payload.Deprecations)
 	}
 	return structuredResult(payload, fmt.Sprintf("listed %d windows at revision %d", len(windows), payload.Revision))

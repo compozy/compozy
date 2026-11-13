@@ -45,7 +45,7 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 	case ArrangeLayoutCommand:
 		request.Payload = canonicalArrangeCommand(c, report)
 	case ReplaceLayoutCommand:
-		deprecations = append(deprecations, c.Document.Overrides.Deprecations()...)
+		deprecations = append(deprecations, c.Document.InputDeprecations...)
 	case BalanceLayoutCommand:
 		if c.GroupID != nil && *c.GroupID != "" {
 			report("layout.balance.group_id")

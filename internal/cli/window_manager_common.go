@@ -282,7 +282,7 @@ func readWindowManagerDocument(cmd *cobra.Command, file string) (contract.Window
 	if err := decodeStrictWindowManagerJSON(data, &document); err != nil {
 		return contract.WindowManagerLayoutDocument{}, fmt.Errorf("cli: decode layout document: %w", err)
 	}
-	for _, entry := range document.Overrides.Deprecations() {
+	for _, entry := range document.InputDeprecations {
 		cmd.PrintErrln(entry.Message)
 	}
 	return document, nil

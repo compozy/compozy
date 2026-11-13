@@ -147,7 +147,7 @@ func convertLegacyOverrides(legacy WorkspaceConfigV5, current *WorkspaceConfig) 
 	if err != nil {
 		return fmt.Errorf("encode legacy overrides: %w", err)
 	}
-	decoded, err := DecodeWorkspaceConfigJSON(encodedOverrides)
+	decoded, _, err := DecodeWorkspaceConfigJSON(encodedOverrides)
 	if err != nil {
 		return err
 	}

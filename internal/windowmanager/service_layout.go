@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // ExportLayout returns a history-free declarative document.
@@ -33,7 +34,7 @@ func (m *Manager) ValidateLayout(
 	if m.deprecationObserver != nil {
 		m.deprecationObserver(ctx, CommandRequest{
 			WorkspaceID: workspaceID, CommandID: CommandLayoutReplace, Actor: Actor{Kind: "config"},
-		}, document.Overrides.Deprecations())
+		}, slices.Clone(document.InputDeprecations))
 	}
 	defaults, err := m.resolveWorkspaceDefaults(ctx, workspaceID)
 	if err != nil {

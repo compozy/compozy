@@ -101,7 +101,7 @@ func (n *daemonNativeTools) cmdPaletteInvoke(
 		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "command palette is unavailable")
 	}
 	if replacement, deprecated := windowmanager.CommandAlias(commandID); deprecated {
-		windowManagerSurfaceDeprecationLogger(nil, &deprecatedWindowSurfaces)(
+		windowManagerSurfaceDeprecationLogger(nil, nil)(
 			ctx,
 			windowmanager.CommandRequest{
 				Actor: windowManagerActor(scope),

@@ -14,10 +14,10 @@ func (document *LayoutDocument) UnmarshalJSON(raw []byte) error {
 	if err := json.Unmarshal(raw, &header); err != nil {
 		return err
 	}
-	var overrides WorkspaceConfig
+	var deprecations []Deprecation
 	if len(header.Overrides) > 0 {
 		var err error
-		overrides, err = DecodeWorkspaceConfigJSON(header.Overrides)
+		_, deprecations, err = DecodeWorkspaceConfigJSON(header.Overrides)
 		if err != nil {
 			return fmt.Errorf("decode workspace overrides: %w", err)
 		}
@@ -43,13 +43,13 @@ func (document *LayoutDocument) UnmarshalJSON(raw []byte) error {
 		if err != nil {
 			return fmt.Errorf("convert layout document: %w", err)
 		}
-		snapshot.Overrides.deprecations = overrides.deprecations
 		*document = LayoutDocument{
-			Version:     SnapshotVersion,
-			WorkspaceID: legacy.WorkspaceID,
-			Desktops:    snapshot.Desktops,
-			Windows:     snapshot.Windows,
-			Overrides:   snapshot.Overrides,
+			InputDeprecations: deprecations,
+			Version:           SnapshotVersion,
+			WorkspaceID:       legacy.WorkspaceID,
+			Desktops:          snapshot.Desktops,
+			Windows:           snapshot.Windows,
+			Overrides:         snapshot.Overrides,
 		}
 		return nil
 	}
@@ -59,6 +59,6 @@ func (document *LayoutDocument) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	*document = LayoutDocument(decoded)
-	document.Overrides.deprecations = overrides.deprecations
+	document.InputDeprecations = deprecations
 	return nil
 }

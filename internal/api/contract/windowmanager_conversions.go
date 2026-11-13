@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -27,7 +28,8 @@ func WindowManagerSnapshotFromDomain(snapshot windowmanager.Snapshot) (WindowMan
 func WindowManagerLayoutFromDomain(document windowmanager.LayoutDocument) (WindowManagerLayoutDocument, error) {
 	windows := windowManagerWindowsFromDomain(document.Windows)
 	return WindowManagerLayoutDocument{
-		Version: document.Version, WorkspaceID: document.WorkspaceID,
+		InputDeprecations: slices.Clone(document.InputDeprecations),
+		Version:           document.Version, WorkspaceID: document.WorkspaceID,
 		Desktops: windowManagerDesktopsFromDomain(document.Desktops),
 		Windows:  windows, Overrides: cloneWindowManagerWorkspaceConfig(document.Overrides),
 	}, nil
@@ -36,7 +38,8 @@ func WindowManagerLayoutFromDomain(document windowmanager.LayoutDocument) (Windo
 // Domain converts a stable wire layout to the authoritative domain document.
 func (document WindowManagerLayoutDocument) Domain() windowmanager.LayoutDocument {
 	return windowmanager.LayoutDocument{
-		Version: document.Version, WorkspaceID: document.WorkspaceID,
+		InputDeprecations: slices.Clone(document.InputDeprecations),
+		Version:           document.Version, WorkspaceID: document.WorkspaceID,
 		Desktops:  windowManagerDesktopsToDomain(document.Desktops),
 		Windows:   windowManagerWindowsToDomain(document.Windows),
 		Overrides: cloneWindowManagerWorkspaceConfig(document.Overrides),
@@ -260,7 +263,7 @@ func (document *WindowManagerLayoutDocument) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 	*document = converted
-	if len(domain.Overrides.Deprecations()) > 0 {
+	if len(domain.InputDeprecations) > 0 {
 		var input struct {
 			Overrides json.RawMessage `json:"overrides"`
 		}
@@ -279,7 +282,7 @@ func (document WindowManagerLayoutDocument) MarshalJSON() ([]byte, error) {
 	if len(document.inputOverrides) == 0 {
 		return json.Marshal(wire(document))
 	}
-	input, err := windowmanager.DecodeWorkspaceConfigJSON(document.inputOverrides)
+	input, _, err := windowmanager.DecodeWorkspaceConfigJSON(document.inputOverrides)
 	if err != nil {
 		return nil, err
 	}

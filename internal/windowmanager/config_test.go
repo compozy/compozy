@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -591,25 +592,34 @@ func TestRetiredWorkspaceOverrides(t *testing.T) {
 	})
 	t.Run("Should translate retired overrides while rejecting unknown fields", func(t *testing.T) {
 		t.Parallel()
-		warnings := map[string]int{}
 		input := []byte(
 			`{"new_window_policy":"floating","raise_on_focus":42,"drag_away_policy":false,"group_move_modifier":[],"snap":{"edge_band":false,"corner_reach":-5,"exit_slack":"bad","repeat_ratios":42},"bindings":{"top_center":true,"bottom_center":42}}`,
 		)
-		_, err := translateWorkspaceConfigJSON(input, func(key string, _ bool) { warnings[key]++ })
+		overrides, deprecations, err := DecodeWorkspaceConfigJSON(input)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(warnings) != 10 {
-			t.Fatalf("warnings=%v", warnings)
+		if len(deprecations) != 10 {
+			t.Fatalf("deprecations=%v", deprecations)
 		}
-		for key, count := range warnings {
-			if count != 1 {
-				t.Fatalf("%s warned %d times", key, count)
+		warnings := map[string]int{}
+		for _, entry := range deprecations {
+			key := strings.TrimPrefix(entry.Surface, "window_manager.")
+			warnings[key]++
+			if want := RetiredConfigDeprecation(key, key == "new_window_policy"); entry != want {
+				t.Fatalf("deprecation = %+v, want %+v", entry, want)
 			}
 		}
-		overrides, err := DecodeWorkspaceConfigJSON(input)
-		if err != nil {
-			t.Fatal(err)
+		for _, key := range []string{
+			"new_window_policy", "raise_on_focus", "drag_away_policy", "group_move_modifier", "snap.edge_band",
+			"snap.corner_reach", "snap.exit_slack", "snap.repeat_ratios", "bindings.top_center", "bindings.bottom_center",
+		} {
+			if warnings[key] != 1 {
+				t.Fatalf("%s warned %d times", key, warnings[key])
+			}
+		}
+		if want := (WorkspaceConfig{NewWindowPolicy: new(NewWindowTab)}); !reflect.DeepEqual(overrides, want) {
+			t.Fatalf("effective override value = %+v, want %+v", overrides, want)
 		}
 		effective, err := effectiveConfig(DefaultConfig(), overrides)
 		if err != nil || effective.NewWindowPolicy != NewWindowTab {
@@ -622,8 +632,14 @@ func TestRetiredWorkspaceOverrides(t *testing.T) {
 		if string(encoded) != `{"new_window_policy":"tab"}` {
 			t.Fatalf("effective overrides retain retired keys: %s", encoded)
 		}
+		if _, storedDeprecations, decodeErr := DecodeWorkspaceConfigJSON(
+			encoded,
+		); decodeErr != nil ||
+			len(storedDeprecations) != 0 {
+			t.Fatalf("stored override deprecations = %+v, error = %v", storedDeprecations, decodeErr)
+		}
 		for _, invalid := range []string{`{"snap":{"unknown":true}}`, `{"unknown":true}`, `{"gaps":{"inner":1,"unknown":true}}`} {
-			if _, err := DecodeWorkspaceConfigJSON([]byte(invalid)); err == nil {
+			if _, _, err := DecodeWorkspaceConfigJSON([]byte(invalid)); err == nil {
 				t.Fatalf("unknown field accepted: %s", invalid)
 			}
 		}

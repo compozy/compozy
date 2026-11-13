@@ -365,7 +365,7 @@ func (r *cmdPaletteBindingsResolver) warnDeprecatedBinding(id string) {
 	if !alias && !windowmanager.RetiredShortcut(id) {
 		return
 	}
-	windowManagerSurfaceDeprecationLogger(r.logger, &deprecatedWindowSurfaces)(
+	windowManagerSurfaceDeprecationLogger(r.logger, nil)(
 		context.Background(),
 		windowmanager.CommandRequest{
 			Actor: windowmanager.Actor{Kind: "config"},

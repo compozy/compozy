@@ -23,8 +23,6 @@ func windowManagerAppDeprecationLogger(
 	}
 }
 
-var deprecatedWindowSurfaces sync.Map
-
 // Remove surface warning deduplication with the shims in v0.8.0.
 func windowManagerSurfaceDeprecationLogger(logger *slog.Logger, seen *sync.Map) windowmanager.DeprecationObserver {
 	if logger == nil {
@@ -32,10 +30,7 @@ func windowManagerSurfaceDeprecationLogger(logger *slog.Logger, seen *sync.Map) 
 	}
 	return func(ctx context.Context, request windowmanager.CommandRequest, entries []windowmanager.Deprecation) {
 		for _, entry := range entries {
-			if _, warned := seen.LoadOrStore(entry.Surface, struct{}{}); warned {
-				continue
-			}
-			windowmanager.WarnSurfaceDeprecation(ctx, logger, entry, request.Actor.Kind)
+			windowmanager.WarnSurfaceDeprecation(ctx, logger, entry, request.Actor.Kind, seen)
 		}
 	}
 }

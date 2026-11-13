@@ -755,7 +755,10 @@ func TestSubscription(t *testing.T) {
 		}
 		if len(switched.Client.FocusOrder) == 0 || switched.Client.FocusOrder[0] != "w2" ||
 			valueOrZero(switched.Client.FocusedWindowID) != "w2" {
-			t.Fatalf("desktop.switch client view = %+v, want active tab w2 focused and leading the MRU", switched.Client)
+			t.Fatalf(
+				"desktop.switch client view = %+v, want active tab w2 focused and leading the MRU",
+				switched.Client,
+			)
 		}
 		switchUpdate := <-boundA.Updates()
 		if switchUpdate.Event != nil || switchUpdate.Client == nil ||

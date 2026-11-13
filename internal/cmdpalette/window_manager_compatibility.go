@@ -22,9 +22,7 @@ func (s *Service) invokeRetiredWindowManagerCommand(ctx context.Context, request
 		return InvokeResult{}, errors.New("cmd palette: generated invocation ID is empty")
 	}
 	entry := windowmanager.SurfaceDeprecation(string(request.CommandID))
-	if _, warned := s.retiredWarnings.LoadOrStore(entry.Surface, struct{}{}); !warned {
-		windowmanager.WarnSurfaceDeprecation(ctx, s.logger, entry, "cmd_palette")
-	}
+	windowmanager.WarnSurfaceDeprecation(ctx, s.logger, entry, "cmd_palette", s.retiredWarnings)
 	payload, err := json.Marshal(struct {
 		Applied      bool                        `json:"applied"`
 		Deprecations []windowmanager.Deprecation `json:"deprecations"`

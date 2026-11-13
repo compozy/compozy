@@ -78,7 +78,7 @@ func (d *Daemon) bootWindowManager(
 			windowManagerAppDeprecationLogger(state.logger, &deprecatedWindowApps),
 		),
 		windowmanager.WithDeprecationObserver(
-			windowManagerSurfaceDeprecationLogger(state.logger, &deprecatedWindowSurfaces),
+			windowManagerSurfaceDeprecationLogger(state.logger, nil),
 		),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
 		windowmanager.WithClientUnregisteredObserver(closeCmdPaletteClientViews(state)),

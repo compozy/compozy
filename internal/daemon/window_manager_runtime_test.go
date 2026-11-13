@@ -607,26 +607,30 @@ func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
 func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 	t.Parallel()
 
-	// Invariant: retired document overrides reach the daemon observer before normalization hides them.
+	// Invariant: retired input surfaces share one daemon-lifetime warning across TOML and layout routes.
 	for _, item := range []struct {
 		name    string
 		forward bool
 		first   string
+		toml    string
 	}{
-		{"Should log direct validation overrides once per surface", false, http.MethodPost},
-		{"Should log direct apply overrides once per surface", false, http.MethodPut},
-		{"Should log forwarded CLI validation overrides once per surface", true, http.MethodPost},
-		{"Should log forwarded CLI apply overrides once per surface", true, http.MethodPut},
+		{"Should log direct validation overrides once per surface", false, http.MethodPost, ""},
+		{"Should log direct apply overrides once per surface", false, http.MethodPut, ""},
+		{"Should log forwarded CLI validation overrides once per surface", true, http.MethodPost, ""},
+		{"Should log forwarded CLI apply overrides once per surface", true, http.MethodPut, ""},
+		{"Should deduplicate TOML input before layout routes", false, http.MethodPost, "before"},
+		{"Should deduplicate TOML input after a layout route", false, http.MethodPut, "after"},
 	} {
 		t.Run(item.name, func(t *testing.T) {
 			t.Parallel()
 			fixture := newDaemonWindowManagerFixture(t)
 			var logs bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+			surfaceWarnings := &sync.Map{}
 			registry, err := newWindowManagerRegistry(
 				fixture.engine, windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver}, nil,
 				fixture.resolver, windowmanager.DefaultConfig(), logger,
-				windowmanager.WithDeprecationObserver(windowManagerSurfaceDeprecationLogger(logger, &sync.Map{})),
+				windowmanager.WithDeprecationObserver(windowManagerSurfaceDeprecationLogger(logger, surfaceWarnings)),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -686,7 +690,35 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 			if item.first == http.MethodPost {
 				second = http.MethodPut
 			}
-			for _, method := range []string{item.first, second, item.first} {
+			loadRetiredConfig := func() {
+				t.Helper()
+				home := testHomePaths(t)
+				writeDaemonWindowManagerConfig(t, home.ConfigFile, `[window_manager]
+raise_on_focus = "ignored"
+new_window_policy = "floating"
+[window_manager.snap]
+edge_band = false
+`)
+				_, err := compozyconfig.LoadForHome(
+					home,
+					compozyconfig.WithWindowManagerWarning(func(key string, translated bool) {
+						windowmanager.WarnSurfaceDeprecation(
+							t.Context(),
+							logger,
+							windowmanager.RetiredConfigDeprecation(key, translated),
+							"config",
+							surfaceWarnings,
+						)
+					}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if item.toml == "before" {
+				loadRetiredConfig()
+			}
+			for index, method := range []string{item.first, second, item.first} {
 				body, err := json.Marshal(map[string]any{
 					"workspace_id": fixture.workspace.ID, "document": json.RawMessage(raw),
 					"expected_revision": revision, "actor": map[string]string{"kind": "cli"},
@@ -717,6 +749,9 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 					}
 					revision = windowmanager.Revision(result.Snapshot.Revision)
 				}
+				if item.toml == "after" && index == 0 {
+					loadRetiredConfig()
+				}
 				lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
 				if len(lines) != 3 {
 					t.Fatalf("daemon logs = %s, want exactly three surface warnings", logs.String())
@@ -743,12 +778,17 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 				}
 			}
 			var effective contract.WindowManagerLayoutDocument
+			warnings := logs.String()
 			if err := json.Unmarshal(request(http.MethodGet, base, nil).Body.Bytes(), &effective); err != nil {
 				t.Fatal(err)
 			}
 			if effective.Overrides.RaiseOnFocus != nil || effective.Overrides.Snap != nil ||
-				effective.Overrides.NewWindowPolicy == nil || *effective.Overrides.NewWindowPolicy != windowmanager.NewWindowTab {
+				effective.Overrides.NewWindowPolicy == nil || *effective.Overrides.NewWindowPolicy != windowmanager.NewWindowTab ||
+				len(effective.InputDeprecations) != 0 {
 				t.Fatalf("effective overrides = %+v", effective.Overrides)
+			}
+			if logs.String() != warnings {
+				t.Fatalf("stored layout read emitted a deprecation: %s", logs.String())
 			}
 		})
 	}

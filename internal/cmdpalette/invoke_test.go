@@ -26,6 +26,7 @@ func TestRegistryInvoke(t *testing.T) {
 			executor := &testExecutor{}
 			service := testRegistryWithOptions(staticTestProvider{commands: []Descriptor{testDescriptor("unrelated")}},
 				nil, nil, executor, WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
+			service.retiredWarnings = &sync.Map{}
 			for range 2 {
 				result, err := service.Invoke(t.Context(), InvokeRequest{
 					ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: CommandID(id),
