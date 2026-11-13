@@ -56,9 +56,9 @@ export function observeRenderedElementOffset(
  * returns to the same depth under the top edge, read from the virtualizer's measurements. With
  * the same text layout that depth is kept in pixels, so a reply that grew while hidden does not
  * move the text the reader was on; after a width or text-size change it is kept as a share of
- * the row's height, so the reflowed row keeps the same text in view. The rows re-measure over the next frames
- * (a new width, rows that mounted on show) and the virtualizer compensates for them, so the
- * row is held there until it rests, for at most {@link RESUME_MAX_FRAMES}, or until the reader's
+ * the row's height, so the reflowed row keeps the same text in view. The rows re-measure over
+ * the next frames (a new width, rows that mounted on show) and the virtualizer compensates for
+ * them, so the row is held there until it rests, for at most {@link RESUME_MAX_FRAMES}, or until the reader's
  * gesture, a mode change, or the controller's own move (a message jump, an older page landing:
  * the returned `endHold`). A row that left the list while hidden falls back to the raw offset.
  * The pane host announces the show with {@link SCROLL_RESTORE_EVENT} before the frame paints,
