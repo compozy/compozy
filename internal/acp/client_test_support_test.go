@@ -1164,13 +1164,9 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	}
 	if a.scenario == "config_options_late_update" {
 		// Apply the value only in a notification that lands after this response:
-		// that is the race the confirmation window exists for.
-		updated := append([]acpsdk.SessionConfigOption(nil), a.configOptions...)
-		for index := range updated {
-			if updated[index].Select != nil && string(updated[index].Select.Id) == "reasoning_effort" {
-				updated[index].Select.CurrentValue = "high"
-			}
-		}
+		// that is the race the confirmation window exists for. Copy the select
+		// option, because the response still has to report the previous value.
+		updated := helperConfigOptionsWithCurrent(a.configOptions, "reasoning_effort", "high")
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			_ = a.conn.SessionUpdate(context.Background(), acpsdk.SessionNotification{
@@ -1260,6 +1256,25 @@ func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOp
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
 	a.configOptions = append([]acpsdk.SessionConfigOption(nil), options...)
+}
+
+// helperConfigOptionsWithCurrent copies the option list and sets one select value,
+// leaving the original options untouched.
+func helperConfigOptionsWithCurrent(
+	options []acpsdk.SessionConfigOption,
+	id string,
+	current string,
+) []acpsdk.SessionConfigOption {
+	updated := append([]acpsdk.SessionConfigOption(nil), options...)
+	for index := range updated {
+		if updated[index].Select == nil || string(updated[index].Select.Id) != id {
+			continue
+		}
+		selectOption := *updated[index].Select
+		selectOption.CurrentValue = acpsdk.SessionConfigValueId(current)
+		updated[index].Select = &selectOption
+	}
+	return updated
 }
 
 func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.SessionConfigOption {
