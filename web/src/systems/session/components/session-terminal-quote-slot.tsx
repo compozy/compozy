@@ -18,5 +18,12 @@ export interface SessionTerminalQuoteSlotProps {
 export function SessionTerminalQuoteSlot({ sessionId }: SessionTerminalQuoteSlotProps) {
   const quote = useSessionTerminalQuote(sessionId);
   if (!quote) return null;
-  return <TerminalQuoteBlock onRemove={() => clearSessionTerminalQuote(sessionId)} quote={quote} />;
+  // A new excerpt mounts fresh, so a collapse lasts only for the quote it was made on.
+  return (
+    <TerminalQuoteBlock
+      key={`${quote.terminalId}:${quote.fromLine}-${quote.toLine}`}
+      onRemove={() => clearSessionTerminalQuote(sessionId)}
+      quote={quote}
+    />
+  );
 }

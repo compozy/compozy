@@ -1,6 +1,22 @@
-import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "@compozy/ui/icons";
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  MessagesSquare,
+  Plus,
+  TerminalSquare,
+  X,
+} from "@compozy/ui/icons";
+import { useState } from "react";
 
-import { Button, Eyebrow, cn } from "@compozy/ui";
+import {
+  Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Eyebrow,
+  cn,
+} from "@compozy/ui";
 
 import { copySourcedTerminalQuote, type TerminalQuote } from "../lib/terminal-quote";
 import { holdPendingTerminalQuote } from "../lib/terminal-quote-pending";
@@ -10,26 +26,53 @@ export interface TerminalQuoteBlockProps {
   onRemove: () => void;
 }
 
+/** Quotes longer than this mount collapsed, so a large selection never buries the input. */
+const TERMINAL_QUOTE_COLLAPSE_THRESHOLD = 12;
+
 /**
  * A terminal excerpt waiting in the composer.
  *
  * It carries where it came from and states the one thing that can go stale:
  * line numbers are scrollback-relative and shift as old output is trimmed.
+ *
+ * Any selection size fits: the excerpt scrolls inside a viewport-bounded body
+ * (shorter on narrow screens), keeping the composer input and controls in view,
+ * and output whitespace survives with horizontal scroll. The head chevron
+ * collapses it to the source line plus a line count; quotes above the
+ * threshold mount collapsed. Remove works in both states, and the envelope
+ * sent to the agent is unchanged.
  */
 export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps) {
+  const lineCount = quote.lines.length;
+  const [expanded, setExpanded] = useState(lineCount <= TERMINAL_QUOTE_COLLAPSE_THRESHOLD);
   return (
-    <div
+    <Collapsible
       className="tm-quote overflow-hidden rounded-lg bg-sunken"
+      data-expanded={expanded}
       data-testid="terminal-quote-block"
+      onOpenChange={setExpanded}
+      open={expanded}
     >
       <div className="flex min-h-7 items-center gap-1.75 pr-1 pl-3 font-mono text-micro text-subtle">
-        <TerminalSquare aria-hidden="true" className="size-3" />
-        <span>
+        <TerminalSquare aria-hidden="true" className="size-3 shrink-0" />
+        <span className="min-w-0 truncate">
           {quote.terminalId} · lines {quote.fromLine}–{quote.toLine}
+          {expanded ? null : (
+            <span data-testid="terminal-quote-line-count">
+              {" "}
+              · {lineCount} {lineCount === 1 ? "line" : "lines"}
+            </span>
+          )}
         </span>
+        <CollapsibleTrigger
+          aria-label={expanded ? "Collapse quote" : "Expand quote"}
+          className="ml-auto"
+          render={<Button size="icon-xs" type="button" variant="quiet" />}
+        >
+          {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+        </CollapsibleTrigger>
         <Button
           aria-label="Remove quote"
-          className="ml-auto"
           onClick={onRemove}
           size="icon-xs"
           type="button"
@@ -38,21 +81,29 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
           <X aria-hidden="true" />
         </Button>
       </div>
-      {/* A quoted excerpt sits below the live grid's 12.5px — never at it. */}
-      <div className="px-3 pb-1.5 font-mono text-badge leading-normal text-fg-3">
-        {quote.lines.map((line, index) => (
-          <span className="block" key={`${quote.fromLine + index}`}>
-            <span aria-hidden="true" className="mr-2.5 text-faint select-none">
-              {quote.fromLine + index}
+      <CollapsibleContent>
+        {/* A quoted excerpt sits below the live grid's 12.5px — never at it. */}
+        <div
+          className="max-h-[25dvh] overflow-auto px-3 pb-1.5 font-mono text-badge leading-normal text-fg-3 sm:max-h-[40dvh]"
+          data-testid="terminal-quote-lines"
+        >
+          {quote.lines.map((line, index) => (
+            <span
+              className="block w-max min-w-full whitespace-pre"
+              key={`${quote.fromLine + index}`}
+            >
+              <span aria-hidden="true" className="mr-2.5 text-faint select-none">
+                {quote.fromLine + index}
+              </span>
+              {line}
             </span>
-            {line}
-          </span>
-        ))}
-      </div>
-      <div className="px-3 pt-0.75 pb-2 text-eyebrow text-subtle">
-        Line numbers can shift as old output is trimmed.
-      </div>
-    </div>
+          ))}
+        </div>
+        <div className="px-3 pt-0.75 pb-2 text-eyebrow text-subtle">
+          Line numbers can shift as old output is trimmed.
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
