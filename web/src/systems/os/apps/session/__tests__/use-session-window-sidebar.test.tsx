@@ -9,6 +9,8 @@
 // document's view transition itself. Over the board (#1052) the rail is never read, and an
 // in-place open keeps the window's drawer open.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -359,6 +361,15 @@ describe("useSessionWindowSidebar", () => {
 // Owning layer: session-window navigation; this suite owns selection routing.
 describe("useSessionBoardWindow", () => {
   beforeEach(() => vi.clearAllMocks());
+  // The board's open reads a child session's agent through the shell's query client.
+  const renderBoardWindow = (sessionId: string | null, drawerOpen: boolean) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return renderHook(() => useSessionBoardWindow("source", sessionId, drawerOpen), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+  };
 
   it("Should switch the existing destination window to List before focusing it", () => {
     const target = session("workspace-1");
@@ -366,7 +377,7 @@ describe("useSessionBoardWindow", () => {
       windows: { destination: { id: "destination", app: "session", instanceKey: target.id } },
       client: { focusOrder: ["destination"] },
     });
-    const { result } = renderHook(() => useSessionBoardWindow("source", null, false));
+    const { result } = renderBoardWindow(null, false);
     act(() => result.current.onOpen(target));
     expect(setSessionWindowView).toHaveBeenCalledWith("destination", "list");
     expect(userRetarget).toHaveBeenCalledWith(
@@ -391,7 +402,7 @@ describe("useSessionBoardWindow", () => {
       },
       client: { focusOrder: ["source"] },
     });
-    const { result } = renderHook(() => useSessionBoardWindow("source", target.id, false));
+    const { result } = renderBoardWindow(target.id, false);
     act(() => result.current.onOpen(target));
     expect(setSessionWindowView).not.toHaveBeenCalled();
     expect(userRetarget).toHaveBeenCalledExactlyOnceWith("source", {
@@ -417,7 +428,7 @@ describe("useSessionBoardWindow", () => {
       },
       client: { focusOrder: ["source"] },
     });
-    const { result } = renderHook(() => useSessionBoardWindow("source", target.id, true));
+    const { result } = renderBoardWindow(target.id, true);
     act(() => result.current.setView("list"));
     expect(userRetarget).toHaveBeenCalledExactlyOnceWith("source", {
       app: "session",

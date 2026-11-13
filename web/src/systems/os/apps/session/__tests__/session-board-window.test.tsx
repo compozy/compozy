@@ -350,10 +350,23 @@ describe("SessionBoardWindow drawer", () => {
       )
     );
     const user = userEvent.setup({ pointerEventsCheck: 0 });
+    // Submenus are driven by keys, as the session list suite does: a pointer click on a submenu
+    // item can land before jsdom settles its pointer guard.
     const openChild = async (cardId: string, number: number) => {
       await user.click(screen.getByTestId(`session-row-actions-${cardId}`));
-      await user.click(await screen.findByRole("menuitem", { name: `Pull request #${number}` }));
-      await user.click(await screen.findByRole("menuitem", { name: "Open session" }));
+      const trigger = await screen.findByRole("menuitem", { name: `Pull request #${number}` });
+      trigger.focus();
+      await user.keyboard("{ArrowRight}");
+      const submenu = await waitFor(() => {
+        const menu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
+        expect(menu).toBeTruthy();
+        expect(menu).not.toContainElement(trigger);
+        return menu!;
+      });
+      within(submenu).getByRole("menuitem", { name: "Open session" }).focus();
+      await user.keyboard("{Enter}");
+      // The next card's menu must not find this closing menu's Open session.
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     };
 
     await openChild("w1", slowLead!.pull_request!.number);
