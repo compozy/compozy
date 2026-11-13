@@ -13553,10 +13553,14 @@ export interface components {
       /** Format: date-time */
       at?: string;
       error?: components["schemas"]["Diagnostic"] | null;
-      /** Format: uint64 */
+      /**
+       * Format: uint64
+       * @description Topology revision installed on conversion failure; cleared after a successful retry.
+       */
       failure_revision?: number;
       from_version?: number;
-      state: string;
+      /** @enum {string} */
+      state: "none" | "migrated" | "failed";
       summary?: components["schemas"]["MigrationSummary"] | null;
     };
     MigrationSummary: {
@@ -21432,15 +21436,18 @@ export interface components {
       kind?: string;
     };
     WindowManagerArrangeLayoutPayload: {
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "stack": translated to adjacent tabs; removed in v0.8.0.
+       * @enum {string}
+       */
       arrangement: "horizontal" | "vertical" | "grid" | "stack" | "main_stack";
       desktop_id: string;
-      frame: components["schemas"]["NormalizedRect"];
+      frame?: components["schemas"]["NormalizedRect"];
       /**
        * @deprecated
        * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
        */
-      group_id: string;
+      group_id?: string;
       /**
        * @deprecated
        * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
@@ -21513,7 +21520,7 @@ export interface components {
        * @deprecated
        * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
        */
-      minimize: boolean;
+      minimize?: boolean;
       /** @enum {string} */
       scope?: "tab" | "group" | "others" | "right" | "left" | "all";
       window_id: string;
@@ -21930,12 +21937,12 @@ export interface components {
       edits: components["schemas"]["WindowManagerGroupFrameEditPayload"][];
     };
     WindowManagerGroupFrameEditPayload: {
-      frame: components["schemas"]["NormalizedRect"];
+      frame?: components["schemas"]["NormalizedRect"];
       /**
        * @deprecated
        * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
        */
-      group_id: string;
+      group_id?: string;
     };
     WindowManagerGroupWindowsPayload: {
       /**
@@ -21989,14 +21996,19 @@ export interface components {
       workspace_id: string;
     };
     WindowManagerMigrationRequest: {
-      action: string;
-      replace: boolean;
+      /** @enum {string} */
+      action: "ack" | "retry";
+      /** @description Replace the layout on retry when it changed after failure. */
+      replace?: boolean;
     };
     WindowManagerMoveWindowPayload: {
       destination_desktop_id: string;
       floating_rect?: components["schemas"]["NormalizedRect"] | null;
       move_group: boolean;
-      /** @enum {string} */
+      /**
+       * @description Deprecated value "floating": translated to "tab"; removed in v0.8.0.
+       * @enum {string}
+       */
       placement:
         | "tab"
         | "floating"
@@ -22099,7 +22111,7 @@ export interface components {
       split_id: string;
     };
     WindowManagerResizeWindowPayload: {
-      frame: components["schemas"]["NormalizedRect"];
+      frame?: components["schemas"]["NormalizedRect"];
       window_id: string;
     };
     WindowManagerResult: {
@@ -22174,9 +22186,9 @@ export interface components {
        * @description Deprecated: retained for compatibility; removed in v0.8.0. See the window-manager deprecation matrix for its replacement.
        */
       floating?: boolean;
-      floating_rect: components["schemas"]["NormalizedRect"];
+      floating_rect?: components["schemas"]["NormalizedRect"];
       id?: string;
-      insert_tiled: boolean;
+      insert_tiled?: boolean;
       instance_key?: string | null;
       route: components["schemas"]["RouteIntent"];
       stack_target_window_id?: string | null;

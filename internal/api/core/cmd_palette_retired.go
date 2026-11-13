@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/cmdpalette/corecmds"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 var deprecatedPaletteIDs sync.Map
@@ -31,8 +32,7 @@ func resolvePaletteCommandID(
 				logger = slog.Default()
 			}
 			if corecmds.RetiredCommandRemovalRelease(id) == "v0.8.0" {
-				logger.WarnContext(ctx, "window_manager.deprecated_surface_used", "surface", id,
-					"replacement", replacement, "actor_kind", "api", "removal_release", "v0.8.0")
+				windowmanager.WarnSurfaceDeprecation(ctx, logger, windowmanager.SurfaceDeprecation(string(id)), "api")
 				return replacement
 			}
 			logger.WarnContext(ctx, "deprecated command id", "event", "cmdpalette.command_id_deprecated",

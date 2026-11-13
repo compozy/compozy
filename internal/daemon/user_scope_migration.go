@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
@@ -80,7 +81,8 @@ func migrateUserScopeLayouts(
 		if entry.Deleted {
 			continue
 		}
-		if _, ok := windowManagerSnapshotProfile(entry.Key); !ok {
+		profile, ok := windowManagerSnapshotProfile(entry.Key)
+		if !ok {
 			continue
 		}
 		target := clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID)
@@ -99,7 +101,7 @@ func migrateUserScopeLayouts(
 		if !errors.Is(err, clientstate.ErrNotFound) {
 			return err
 		}
-		snapshot, err := decodeWindowManagerSnapshot(entry.Value, windowmanager.WorkspaceID(sourceID))
+		snapshot, summary, err := windowmanager.DecodeSnapshot(entry.Value)
 		if err != nil {
 			return err
 		}
@@ -113,11 +115,15 @@ func migrateUserScopeLayouts(
 		if err != nil {
 			return err
 		}
+		ops, err := userScopeLayoutMigrationOps(ctx, engine, target, profile, entry, encoded, summary)
+		if err != nil {
+			return err
+		}
 		if _, err := engine.Apply(
 			ctx,
 			target,
 			windowManagerStateDomain,
-			[]clientstate.Op{{Kind: clientstate.OpPut, Key: entry.Key, Value: encoded}},
+			ops,
 			clientstate.ApplyOptions{Origin: "user_scope_migration"},
 		); err != nil {
 			return err
@@ -131,4 +137,38 @@ func migrateUserScopeLayouts(
 		}
 	}
 	return nil
+}
+
+func userScopeLayoutMigrationOps(
+	ctx context.Context,
+	engine *clientstate.Engine,
+	target clientstate.WorkspaceID,
+	profile string,
+	entry clientstate.Entry,
+	encoded []byte,
+	summary windowmanager.MigrationSummary,
+) ([]clientstate.Op, error) {
+	ops := []clientstate.Op{{Kind: clientstate.OpPut, Key: entry.Key, Value: encoded}}
+	version := storedWindowManagerSnapshotVersion(entry.Value)
+	if version >= windowmanager.SnapshotVersion {
+		return ops, nil
+	}
+	backupKey := windowManagerLegacyKey(profile)
+	backup, err := engine.Get(ctx, target, windowManagerStateDomain, backupKey)
+	if err != nil && !errors.Is(err, clientstate.ErrNotFound) {
+		return nil, err
+	}
+	if err == nil && !bytes.Equal(backup.Value, entry.Value) {
+		return nil, errors.New("resolve the User layout backup before importing different legacy bytes")
+	}
+	status, err := json.Marshal(windowmanager.MigrationStatus{
+		State: windowManagerMigrationMigrated, FromVersion: version, At: time.Now().UTC(), Summary: &summary,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(ops,
+		clientstate.Op{Kind: clientstate.OpPut, Key: backupKey, Value: entry.Value, IfRev: backup.Rev},
+		clientstate.Op{Kind: clientstate.OpPut, Key: windowManagerMigrationKey(profile), Value: status},
+	), nil
 }

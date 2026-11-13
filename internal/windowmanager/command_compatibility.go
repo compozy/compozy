@@ -9,12 +9,13 @@ type reuseWindowCommand struct{ id WindowID }
 func (reuseWindowCommand) CommandID() CommandID { return CommandWindowOpen }
 
 type adjacentTabsCommand struct {
+	id      CommandID
 	target  *WindowID
 	desktop DesktopID
 	ids     []WindowID
 }
 
-func (adjacentTabsCommand) CommandID() CommandID { return CommandWindowStackGroup }
+func (c adjacentTabsCommand) CommandID() CommandID { return c.id }
 
 // canonicalCommandSurfaces keeps the v0.6 request vocabulary through v0.7; remove in v0.8.0.
 func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Deprecation) {
@@ -43,7 +44,7 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 		request.Payload = ActivateTabCommand(c)
 	case GroupWindowsCommand:
 		report(string(c.CommandID()))
-		request.Payload = adjacentTabsCommand{target: new(c.TargetWindowID), ids: c.WindowIDs}
+		request.Payload = adjacentTabsCommand{id: c.CommandID(), target: new(c.TargetWindowID), ids: c.WindowIDs}
 	case ArrangeLayoutCommand:
 		request.Payload = canonicalArrangeCommand(c, report)
 	case BalanceLayoutCommand:
@@ -144,8 +145,10 @@ func canonicalOpenCommand(c OpenWindowCommand, report func(string)) Command {
 
 func canonicalMoveCommand(c MoveWindowCommand, report func(string)) Command {
 	var payload Command
-	if c.Placement == DropFloating || c.Placement == "" {
+	if c.Placement == DropFloating {
 		report("window.move.placement=floating")
+	}
+	if c.Placement == DropFloating || c.Placement == "" {
 		c.Placement = DropTab
 	}
 	if c.FloatingRect != nil && *c.FloatingRect != (NormalizedRect{}) {
@@ -172,7 +175,7 @@ func canonicalArrangeCommand(c ArrangeLayoutCommand, report func(string)) Comman
 	c.KeepFrames = false
 	if c.Arrangement == ArrangementStack {
 		report("layout.arrange.arrangement=stack")
-		payload = adjacentTabsCommand{desktop: c.DesktopID, ids: c.WindowIDs}
+		payload = adjacentTabsCommand{id: c.CommandID(), desktop: c.DesktopID, ids: c.WindowIDs}
 	} else {
 		payload = c
 	}

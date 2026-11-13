@@ -5436,9 +5436,12 @@ export type MigrationStatus = {
   acknowledged: boolean;
   at?: string;
   error?: Diagnostic | null;
+  /**
+   * Topology revision installed on conversion failure; cleared after a successful retry.
+   */
   failure_revision?: number;
   from_version?: number;
-  state: string;
+  state: "none" | "migrated" | "failed";
   summary?: MigrationSummary | null;
 };
 
@@ -13107,8 +13110,11 @@ export type WindowManagerLayoutNode = {
 };
 
 export type WindowManagerMigrationRequest = {
-  action: string;
-  replace: boolean;
+  action: "ack" | "retry";
+  /**
+   * Replace the layout on retry when it changed after failure.
+   */
+  replace?: boolean;
 };
 
 export type WindowManagerPaletteContext = {

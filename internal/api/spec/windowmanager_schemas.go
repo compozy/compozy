@@ -105,6 +105,10 @@ func customizeWindowManagerSchemas(schemas openapi3.Schemas) {
 	}
 	customizeWindowManagerCommandRequest(schemas)
 	customizeWindowManagerRouteIntent(schemas)
+	schemas["WindowManagerMoveWindowPayload"].Value.Properties["placement"].Value.Description =
+		`Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+	schemas["WindowManagerArrangeLayoutPayload"].Value.Properties["arrangement"].Value.Description =
+		`Deprecated value "stack": translated to adjacent tabs; removed in v0.8.0.`
 }
 
 func customizeSettingsWindowManagerConfigSchema(schema *openapi3.Schema) {

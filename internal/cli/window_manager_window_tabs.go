@@ -113,10 +113,10 @@ func newWindowActivateCommand(deps commandDeps) *cobra.Command {
 func newWindowPinCommand(deps commandDeps, pinned bool) *cobra.Command {
 	var flags windowManagerMutationFlags
 	verb := cliUnpinVerb
-	short := "Unpin one managed window"
+	short := "Unpin the window's tab"
 	if pinned {
 		verb = cliPinVerb
-		short = "Pin one managed window"
+		short = "Pin the window's tab"
 	}
 	cmd := &cobra.Command{
 		Use: verb + " <window-id>", Short: short, Args: cobra.ExactArgs(1),

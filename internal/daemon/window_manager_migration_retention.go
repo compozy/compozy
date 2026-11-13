@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/clientstate"
@@ -38,7 +37,9 @@ func (r *windowManagerRegistry) expireMigrationBackups(ctx context.Context, rele
 			}
 			var status windowmanager.MigrationStatus
 			if err := json.Unmarshal(entry.Value, &status); err != nil {
-				return fmt.Errorf("decode migration status for backup retention: %w", err)
+				r.logger.WarnContext(ctx, "window_manager.migration_retention_skipped",
+					"workspace_id", workspace, "profile_id", profile, "error", err)
+				continue
 			}
 			if status.State != windowManagerMigrationMigrated {
 				continue

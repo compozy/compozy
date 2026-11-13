@@ -577,6 +577,18 @@ func TestServiceDefaultConfigLifecycle(t *testing.T) {
 
 // UT-056: workspace JSON translation has the same semantics as TOML and stays strict.
 func TestRetiredWorkspaceOverrides(t *testing.T) {
+	t.Run("Should ignore non-object retired tables and warn once per table", func(t *testing.T) {
+		t.Parallel()
+		for _, value := range []string{`false`, `42`, `"retired"`, `[]`, `null`} {
+			warnings := map[string]int{}
+			raw := []byte(`{"snap":` + value + `,"bindings":` + value + `,"focus_wrap":true}`)
+			translated, err := translateWorkspaceConfigJSON(raw, func(key string, _ bool) { warnings[key]++ })
+			if err != nil || string(translated) != `{"focus_wrap":true}` ||
+				warnings["snap"] != 1 || warnings["bindings"] != 1 || len(warnings) != 2 {
+				t.Fatalf("value=%s translated=%s warnings=%v error=%v", value, translated, warnings, err)
+			}
+		}
+	})
 	t.Run("Should translate retired overrides while rejecting unknown fields", func(t *testing.T) {
 		t.Parallel()
 		warnings := map[string]int{}

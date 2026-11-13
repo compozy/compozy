@@ -262,6 +262,20 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should invoke retired window palette IDs with one-release warnings", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range windowmanager.RetiredPaletteCommandIDs() {
+			client := newClient()
+			client.invokeResult = contract.CmdPaletteInvokeResult{Status: cmdpalette.InvokeStatusOK}
+			_, stderr, err := executeRootCommand(t, newTestDeps(t, client),
+				"cmd-palette", "invoke", id, "--workspace", "workspace-1", "-o", "json")
+			if err != nil || client.invokeCommand != id ||
+				!strings.Contains(stderr, id) || !strings.Contains(stderr, "v0.8.0") {
+				t.Fatalf("id=%s command=%s stderr=%s error=%v", id, client.invokeCommand, stderr, err)
+			}
+		}
+	})
+
 	t.Run("Should resolve retired automation palette IDs with a deprecation warning", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()

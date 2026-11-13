@@ -1492,6 +1492,7 @@ func TestWindowManagerTabsCompatibility(t *testing.T) {
 		if r.Snapshot.Windows["a"].TabID == r.Snapshot.Windows["b"].TabID {
 			t.Fatal("legacy move did not unsplit")
 		}
+		execute("window.move", `{"window_id":"b","destination_desktop_id":"desktop-default"}`)
 		r = execute("window.close", `{"window_id":"a","minimize":true,"scope":"tab"}`, "window.close.minimize")
 		if r.Applied || r.Snapshot.Windows["a"].ID != "a" {
 			t.Fatal("minimize closed window")

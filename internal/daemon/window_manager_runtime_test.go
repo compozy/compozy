@@ -1309,7 +1309,7 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 		t.Parallel()
 		observed := make(chan hookspkg.WindowManagerPayload, 8)
 		declarations := []hookspkg.HookDecl{}
-		for _, event := range []hookspkg.HookEvent{hookspkg.HookWindowManagerTabSplit, hookspkg.HookWindowManagerTabUnsplit, hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated, hookspkg.HookWindowManagerStackGrouped, hookspkg.HookWindowManagerStackUngrouped} {
+		for _, event := range []hookspkg.HookEvent{hookspkg.HookWindowManagerLayoutApplied, hookspkg.HookWindowManagerTabSplit, hookspkg.HookWindowManagerTabUnsplit, hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated, hookspkg.HookWindowManagerStackGrouped, hookspkg.HookWindowManagerStackUngrouped} {
 			declarations = append(
 				declarations,
 				hookspkg.HookDecl{
@@ -1398,6 +1398,15 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 			t.Fatal(err)
 		}
 		desktop := snapshot.Windows["window-a"].DesktopID
+		arranged := execute(windowmanager.ArrangeLayoutCommand{
+			DesktopID: desktop, WindowIDs: []windowmanager.WindowID{"window-b", "window-a"},
+			Arrangement: windowmanager.ArrangementStack,
+		}, nil)
+		history := arranged.Snapshot.History.Undo
+		if !arranged.Applied || len(history) == 0 ||
+			history[len(history)-1].CommandID != windowmanager.CommandLayoutArrange {
+			t.Fatalf("stack arrangement lost its originating command: %+v", arranged)
+		}
 		execute(
 			windowmanager.MoveWindowCommand{
 				WindowID:             "window-b",
@@ -1440,6 +1449,10 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 				len(payload.Changes.TabIDs) == 0 {
 				t.Fatalf("incomplete envelope: %+v", payload)
 			}
+			if payload.Event == hookspkg.HookWindowManagerLayoutApplied &&
+				payload.CommandID != string(windowmanager.CommandLayoutArrange) {
+				t.Fatalf("stack arrangement hook=%+v", payload)
+			}
 			if payload.Actor.ID == "active_coalescer" {
 				coalesced++
 				if payload.CommandID != string(windowmanager.CommandWindowTabActivate) {
@@ -1450,7 +1463,8 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 		if counts[hookspkg.HookWindowManagerTabSplit] != 1 || counts[hookspkg.HookWindowManagerTabUnsplit] != 1 ||
 			counts[hookspkg.HookWindowManagerTabActivated] != 2 ||
 			counts[hookspkg.HookWindowManagerStackActivated] != 2 ||
-			len(counts) != 4 ||
+			counts[hookspkg.HookWindowManagerLayoutApplied] != 1 ||
+			len(counts) != 5 ||
 			coalesced != 2 {
 			t.Fatalf("events=%v coalesced=%d", counts, coalesced)
 		}

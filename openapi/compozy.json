@@ -19273,6 +19273,7 @@
             ]
           },
           "failure_revision": {
+            "description": "Topology revision installed on conversion failure; cleared after a successful retry.",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
@@ -19283,6 +19284,11 @@
             "type": "integer"
           },
           "state": {
+            "enum": [
+              "none",
+              "migrated",
+              "failed"
+            ],
             "type": "string"
           },
           "summary": {
@@ -45582,6 +45588,7 @@
         "additionalProperties": false,
         "properties": {
           "arrangement": {
+            "description": "Deprecated value \"stack\": translated to adjacent tabs; removed in v0.8.0.",
             "enum": [
               "horizontal",
               "vertical",
@@ -45620,8 +45627,6 @@
         "required": [
           "arrangement",
           "desktop_id",
-          "frame",
-          "group_id",
           "window_ids"
         ],
         "type": "object"
@@ -45865,7 +45870,6 @@
           }
         },
         "required": [
-          "minimize",
           "window_id"
         ],
         "type": "object"
@@ -47676,10 +47680,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "frame",
-          "group_id"
-        ],
         "type": "object"
       },
       "WindowManagerGroupWindowsPayload": {
@@ -47886,17 +47886,22 @@
         "type": "object"
       },
       "WindowManagerMigrationRequest": {
+        "additionalProperties": false,
         "properties": {
           "action": {
+            "enum": [
+              "ack",
+              "retry"
+            ],
             "type": "string"
           },
           "replace": {
+            "description": "Replace the layout on retry when it changed after failure.",
             "type": "boolean"
           }
         },
         "required": [
-          "action",
-          "replace"
+          "action"
         ],
         "type": "object"
       },
@@ -47923,6 +47928,7 @@
             "type": "boolean"
           },
           "placement": {
+            "description": "Deprecated value \"floating\": translated to \"tab\"; removed in v0.8.0.",
             "enum": [
               "tab",
               "floating",
@@ -48286,7 +48292,6 @@
           }
         },
         "required": [
-          "frame",
           "window_id"
         ],
         "type": "object"
@@ -48627,8 +48632,6 @@
         "required": [
           "app",
           "desktop_id",
-          "floating_rect",
-          "insert_tiled",
           "route"
         ],
         "type": "object"

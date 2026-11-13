@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -126,7 +127,7 @@ func (r *windowManagerRepository) migrationBackupOp(
 	entry clientstate.Entry,
 	status *windowmanager.MigrationStatus,
 ) (*clientstate.Op, error) {
-	_, err := r.service.Get(
+	legacy, err := r.service.Get(
 		ctx,
 		clientstate.WorkspaceID(workspace),
 		windowManagerStateDomain,
@@ -141,7 +142,13 @@ func (r *windowManagerRepository) migrationBackupOp(
 			return nil, err
 		}
 		if previous.State == windowManagerMigrationFailed {
-			// Only an explicit successful retry can retire a failed backup.
+			if !bytes.Equal(legacy.Value, entry.Value) {
+				return nil, fmt.Errorf("resolve the failed layout migration before replacing newer legacy bytes: %w",
+					windowmanager.ErrUnavailable)
+			}
+			if status.State != windowManagerMigrationFailed {
+				return nil, nil
+			}
 			*status = previous
 			return nil, nil
 		}
@@ -246,6 +253,7 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 	}
 	snapshot.Revision, snapshot.UpdatedAt, snapshot.Migration = next, status.At, nil
 	status.State, status.Error, status.Summary = windowManagerMigrationMigrated, nil, &summary
+	status.FailureRevision = 0
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return status, err

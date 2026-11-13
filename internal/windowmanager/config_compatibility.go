@@ -2,10 +2,10 @@ package windowmanager
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"sync"
 )
 
@@ -21,8 +21,9 @@ func WarnRetiredConfigKey(key string, translated bool) {
 	if translated {
 		replacement = `window_manager.new_window_policy = "tab"`
 	}
-	slog.Warn(message, "event", "window_manager.deprecated_surface_used", "surface", "window_manager."+key,
-		"replacement", replacement, "actor_kind", "config", "removal_release", "v0.8.0")
+	WarnSurfaceDeprecation(context.Background(), nil, Deprecation{
+		Surface: "window_manager." + key, Replacement: replacement, Message: message, RemovalRelease: "v0.8.0",
+	}, "config")
 }
 
 // RetiredConfigWarning is the operator-facing warning for a v0.7 config shim.
@@ -92,8 +93,10 @@ func translateWorkspaceConfigJSON(data []byte, warn func(string, bool)) ([]byte,
 	} {
 		if raw, present := fields[table.name]; present {
 			var values map[string]json.RawMessage
-			if err := json.Unmarshal(raw, &values); err != nil {
-				return nil, err
+			if err := json.Unmarshal(raw, &values); err != nil || values == nil {
+				delete(fields, table.name)
+				warn(table.name, false)
+				continue
 			}
 			for _, name := range table.keys {
 				if _, present := values[name]; present {

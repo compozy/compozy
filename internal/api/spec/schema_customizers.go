@@ -104,6 +104,8 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		}}
 	},
 	reflect.TypeFor[windowmanager.WorkspaceConfig]():           customizeWindowManagerConfigSchema,
+	reflect.TypeFor[contract.WindowManagerMigrationRequest]():  customizeWindowManagerMigrationRequestSchema,
+	reflect.TypeFor[windowmanager.MigrationStatus]():           customizeWindowManagerMigrationStatusSchema,
 	reflect.TypeFor[contract.UpdateSettingsAttentionRequest](): customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionResponse]():      customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsAttentionPayload]():       customizeClosedObjectSchema,

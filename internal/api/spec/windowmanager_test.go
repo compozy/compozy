@@ -20,6 +20,33 @@ import (
 )
 
 func TestWindowManagerOpenAPIContract(t *testing.T) {
+	t.Run("Should describe optional compatibility inputs and migration actions precisely", func(t *testing.T) {
+		t.Parallel()
+		document, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for component, fields := range map[string][]string{
+			"WindowManagerWindowSpecPayload":     {"floating_rect", "insert_tiled"},
+			"WindowManagerCloseWindowPayload":    {"minimize"},
+			"WindowManagerResizeWindowPayload":   {"frame"},
+			"WindowManagerArrangeLayoutPayload":  {"frame", "group_id"},
+			"WindowManagerGroupFrameEditPayload": {"frame", "group_id"},
+			"WindowManagerMigrationRequest":      {"replace"},
+		} {
+			for _, field := range fields {
+				schema := componentSchema(t, document, component)
+				if propertySchema(t, schema, field) == nil || slices.Contains(schema.Required, field) {
+					t.Fatalf("%s.%s must be accepted but optional", component, field)
+				}
+			}
+		}
+		request := componentSchema(t, document, "WindowManagerMigrationRequest")
+		assertEnumValues(t, propertySchema(t, request, "action"), "ack", "retry")
+		status := componentSchema(t, document, "MigrationStatus")
+		assertEnumValues(t, propertySchema(t, status, "state"), "none", "migrated", "failed")
+		assertResponseStatus(t, operationFor(t, document, windowManagerPath+"/migration", http.MethodPost), 422)
+	})
 	t.Run("Should mark retired command and projection fields without changing live fields", func(t *testing.T) {
 		t.Parallel()
 		document, err := Document()
@@ -528,6 +555,41 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 				visit(child)
 			}
 			properties, _ := node["properties"].(map[string]any)
+			if required, ok := node["required"].([]any); ok {
+				node["required"] = slices.DeleteFunc(required, func(field any) bool {
+					switch field {
+					case "frame", "group_id", "minimize", "floating_rect", "insert_tiled":
+						return true
+					default:
+						return false
+					}
+				})
+				if len(node["required"].([]any)) == 0 {
+					delete(node, "required")
+				}
+			}
+			if property, ok := properties["placement"].(map[string]any); ok {
+				property["description"] = `Deprecated value "floating": translated to "tab"; removed in v0.8.0.`
+				counts["floating_placement"]++
+			}
+			if property, ok := properties["arrangement"].(map[string]any); ok {
+				property["description"] = `Deprecated value "stack": translated to adjacent tabs; removed in v0.8.0.`
+				counts["stack_arrangement"]++
+			}
+			if _, status := properties["acknowledged"]; status {
+				properties["state"].(map[string]any)["enum"] = []any{"none", "migrated", "failed"}
+				properties["failure_revision"].(map[string]any)["description"] =
+					"Topology revision installed on conversion failure; cleared after a successful retry."
+				counts["migration_status"]++
+			}
+			if _, action := properties["action"]; action {
+				properties["action"].(map[string]any)["enum"] = []any{"ack", "retry"}
+				properties["replace"].(map[string]any)["description"] =
+					"Replace the layout on retry when it changed after failure."
+				node["required"] = []any{"action"}
+				node["additionalProperties"] = false
+				counts["migration_request"]++
+			}
 			for _, name := range []string{"floating", "floating_rect", "restore_window_id", "minimize", "insert_index", "frame", "group_id", "keep_frames", "group_ids", "stack_grouped", "stack_ungrouped", "stack_active", "window_floating", "window_stacked"} {
 				if property, ok := properties[name].(map[string]any); ok {
 					if alternatives, ok := property["oneOf"].([]any); ok {
@@ -569,20 +631,24 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 	// Change-set fields occur in Event/Result/Preview components and commands/layout/preview responses (3+3).
 	// stack_active occurs in six component views and seven inline client/command/layout/preview/stream views.
 	want := map[string]int{
-		"floating":          1,
-		"floating_rect":     3,
-		"restore_window_id": 1,
-		"minimize":          1,
-		"insert_index":      1,
-		"frame":             3,
-		"group_id":          3,
-		"keep_frames":       1,
-		"group_ids":         6,
-		"stack_grouped":     6,
-		"stack_ungrouped":   6,
-		"stack_active":      13,
-		"window_floating":   1,
-		"window_stacked":    1,
+		"migration_request":  1,
+		"floating_placement": 1,
+		"stack_arrangement":  1,
+		"migration_status":   11,
+		"floating":           1,
+		"floating_rect":      3,
+		"restore_window_id":  1,
+		"minimize":           1,
+		"insert_index":       1,
+		"frame":              3,
+		"group_id":           3,
+		"keep_frames":        1,
+		"group_ids":          6,
+		"stack_grouped":      6,
+		"stack_ungrouped":    6,
+		"stack_active":       13,
+		"window_floating":    1,
+		"window_stacked":     1,
 	}
 	if !maps.Equal(counts, want) {
 		t.Fatalf("approved retired wire annotations = %v, want %v", counts, want)

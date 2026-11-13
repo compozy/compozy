@@ -104,7 +104,7 @@ type WindowManagerLayoutValidationResponse struct {
 // WindowManagerMigrationRequest is a daemon API value.
 type WindowManagerMigrationRequest struct {
 	Action  string `json:"action"`
-	Replace bool   `json:"replace"`
+	Replace bool   `json:"replace,omitempty"`
 }
 
 // WindowManagerPaletteContext is a daemon API value.

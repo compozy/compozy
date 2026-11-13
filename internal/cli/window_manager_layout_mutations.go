@@ -238,7 +238,7 @@ func newLayoutFrameResizeCommand(deps commandDeps) *cobra.Command {
 		&edits,
 		"edit",
 		nil,
-		"Group frame edit as <group-id>=<x>,<y>,<width>,<height> (repeatable)",
+		"Deprecated until v0.8.0: ignored group frame edit as <group-id>=<x>,<y>,<width>,<height> (repeatable)",
 	)
 	return cmd
 }
