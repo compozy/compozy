@@ -812,6 +812,95 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
 
+  /** Activations whose focus completes only when the test settles it, in dispatch order. */
+  function deferFocusCompletions(store: ReturnType<typeof createCoordinator>["store"]) {
+    const settles: Array<(applied: boolean) => void> = [];
+    store.spies.focusWindow.mockImplementation(() => ({
+      accepted: true,
+      completion: new Promise<boolean>(resolve => {
+        settles.push(resolve);
+      }),
+    }));
+    return settles;
+  }
+
+  it.each([
+    // A pane activates on pointer-down and again on focus: the first is replaced, the daemon
+    // answers the repeat unapplied because the window is already focused.
+    { burst: "A, A", ids: ["w-tasks", "w-tasks"], answers: [false, false] },
+    { burst: "A, A with the first refused", ids: ["w-tasks", "w-tasks"], answers: [false, true] },
+    // B is dropped before it is sent; the second A is a repeat at the daemon.
+    { burst: "A, B, A", ids: ["w-tasks", "w-settings", "w-tasks"], answers: [false, false, false] },
+    // B was sent and replaced; the second A moves the daemon back.
+    {
+      burst: "A, B, A with B sent",
+      ids: ["w-tasks", "w-settings", "w-tasks"],
+      answers: [false, false, true],
+    },
+  ])(
+    "Should write one entry for a burst ($burst) that ends on its window [R9-01]",
+    async ({ ids, answers }) => {
+      const tasks = windowFixture("tasks", "/tasks");
+      const settings = windowFixture("settings", "/settings/general");
+      const agents = windowFixture("agents", "/agents");
+      const { coordinator, router, store } = createCoordinator([tasks, settings, agents]);
+      coordinator.completeHydration();
+      vi.mocked(router.replace).mockClear();
+      const settles = deferFocusCompletions(store);
+
+      const activations = ids.map(id => coordinator.userFocus(id));
+      // The stream reports the daemon focusing Tasks while the burst is still in flight.
+      store.setAuthoritativeFocus(tasks.id);
+      coordinator.reportAuthoritativeState();
+      answers.forEach((applied, index) => settles[index]!(applied));
+      await Promise.all(activations);
+
+      expect(router.navigate).toHaveBeenCalledOnce();
+      expect(router.navigate).toHaveBeenCalledWith(tasks.route);
+      expect(router.replace).not.toHaveBeenCalled();
+      await expect(activations.at(-1)!).resolves.toBe(true);
+    }
+  );
+
+  it("Should write nothing for a burst that leaves focus where it was [R9-01]", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const agents = windowFixture("agents", "/agents");
+    const { coordinator, router, store } = createCoordinator([tasks, agents]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const settles = deferFocusCompletions(store);
+
+    const activations = [coordinator.userFocus(tasks.id), coordinator.userFocus(tasks.id)];
+    for (const settle of settles) settle(false);
+
+    await expect(Promise.all(activations)).resolves.toEqual([false, false]);
+    expect(store.getState().focusedId).toBe(agents.id);
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("Should push where another source moved this client during an activation, keeping the entry before it [R9-02]", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const agents = windowFixture("agents", "/agents");
+    const { coordinator, router, store } = createCoordinator([tasks, settings, agents]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const settles = deferFocusCompletions(store);
+
+    const activation = coordinator.userFocus(tasks.id);
+    // A held view adopted mid-flight: another source focused Settings, and this focus then fails.
+    store.setAuthoritativeFocus(settings.id);
+    coordinator.reportAuthoritativeState();
+    expect(router.replace).not.toHaveBeenCalled();
+    settles[0]!(false);
+
+    await expect(activation).resolves.toBe(false);
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(settings.route);
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it("Should retarget the current window in place with one history write", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const { coordinator, router, store } = createCoordinator([current]);

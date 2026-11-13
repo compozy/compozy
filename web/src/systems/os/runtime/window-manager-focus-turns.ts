@@ -6,18 +6,22 @@ export interface FocusTicket {
   readonly seq: number;
   /** Dispatched with `replaceable`: a newer focus may drop it or resolve it as replaced. */
   readonly replaceable: boolean;
+  /** The binding and registration it was dispatched under (see `reset`). */
+  readonly epoch: number;
   /** A newer absolute focus replaced this one before it was sent. */
   superseded: boolean;
 }
 
 interface PresentationView {
   presentationRevision: number;
+  /** Present on a registration's view: it starts the revisions its later views count from. */
+  attachmentToken?: string;
 }
 
 /**
- * How long a client view may wait behind this client's focuses. Past it the view is offered at the
- * next settled command even while focuses are still in flight, so a stream of clicks faster than
- * one round trip cannot keep another source's view off screen.
+ * How long a client view may wait behind this client's focuses. Once it has waited this long it
+ * is adopted, whether or not a command settles then, so neither a stream of clicks faster than one
+ * round trip nor one slow focus keeps another source's view off screen.
  */
 export const FOCUS_HOLD_LIMIT_MS = 300;
 
@@ -41,15 +45,19 @@ function isAbsoluteFocus(command: WindowManagerCommandInput): boolean {
  * is ignored; each held view that is adopted is reported to `onHeldViewAdopted` listeners. Any
  * other command between two focuses keeps the earlier one: layout commands are never dropped,
  * reordered or kept from observing the focus they were queued after.
+ *
+ * What is held belongs to one binding and one registration: `reset` ends both, and an answer to
+ * a focus dispatched before it is dropped, never held or shown.
  */
 export class FocusTurns<View extends PresentationView> {
   private absolute = 0;
+  private epoch = 0;
   /** Commands admitted and not yet settled, of every kind. */
   private running = 0;
   private queuedTail: FocusTicket | null = null;
   private readonly outstanding = new Set<FocusTicket>();
   private heldView: View | null = null;
-  private heldSince = 0;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly adoptedListeners = new Set<() => void>();
 
   /** `adopt` shows a released view and says whether it was adopted (not ignored as older). */
@@ -71,33 +79,57 @@ export class FocusTurns<View extends PresentationView> {
       if (this.queuedTail !== null) this.queuedTail.superseded = true;
     }
     const replaceable = command.replaceable === true;
-    const ticket: FocusTicket = { seq: this.absolute, replaceable, superseded: false };
+    const ticket: FocusTicket = {
+      seq: this.absolute,
+      replaceable,
+      epoch: this.epoch,
+      superseded: false,
+    };
     this.outstanding.add(ticket);
     this.queuedTail = waits && replaceable ? ticket : null;
     return ticket;
   }
 
-  /** Whether the command whose turn came is still sent; a sent focus can no longer be replaced. */
+  /**
+   * Whether the command whose turn came is still sent; a sent focus can no longer be replaced. A
+   * focus queued before the last `reset` belonged to what ended and is not sent.
+   */
   takeoff(ticket: FocusTicket | null): boolean {
     if (ticket === null) return true;
     if (this.queuedTail === ticket) this.queuedTail = null;
-    return !ticket.superseded;
+    return !ticket.superseded && ticket.epoch === this.epoch;
   }
 
-  /** Whether a newer absolute focus replaced this replaceable focus. */
+  /**
+   * Whether a newer absolute focus replaced this replaceable focus, or the binding or registration
+   * it was dispatched under ended.
+   */
   replaced(ticket: FocusTicket | null): boolean {
-    return ticket !== null && ticket.replaceable && this.absolute > ticket.seq;
+    if (ticket === null) return false;
+    return ticket.epoch !== this.epoch || (ticket.replaceable && this.absolute > ticket.seq);
   }
 
-  /** Holds a replaced focus's answer view instead of showing it. */
+  /**
+   * Keeps a focus answer's view off screen when a newer focus replaced it (held) or when it was
+   * dispatched before the last `reset` (dropped).
+   */
   holdAnswer(ticket: FocusTicket | null, view: View): boolean {
     if (!this.replaced(ticket)) return false;
-    this.keep(view);
+    if (ticket?.epoch === this.epoch) this.keep(view);
     return true;
   }
 
-  /** Holds a client view that arrives while a focus of this client still waits for its answer. */
-  hold(view: View): boolean {
+  /**
+   * Whether a client view arriving from the stream waits behind a focus of this client. A view
+   * that ends the registration (`null`) or starts another (a new attachment token) is never held,
+   * and ends what was held for the last one.
+   */
+  offer(view: View | null, attachmentToken: string | null): boolean {
+    if (view === null || (view.attachmentToken ?? attachmentToken) !== attachmentToken) {
+      this.reset();
+      return false;
+    }
+    if (view.attachmentToken !== undefined) return false;
     if (this.outstanding.size === 0) return false;
     this.keep(view);
     return true;
@@ -107,12 +139,7 @@ export class FocusTurns<View extends PresentationView> {
   settle(ticket: FocusTicket | null): void {
     this.running -= 1;
     if (ticket !== null) this.outstanding.delete(ticket);
-    const view = this.heldView;
-    if (view === null) return;
-    if (this.outstanding.size > 0 && Date.now() - this.heldSince < FOCUS_HOLD_LIMIT_MS) return;
-    this.heldView = null;
-    if (!this.adopt(view)) return;
-    for (const listener of this.adoptedListeners) listener();
+    if (this.outstanding.size === 0) this.release();
   }
 
   /** Calls `listener` after each held client view is adopted; returns the unsubscribe. */
@@ -124,19 +151,38 @@ export class FocusTurns<View extends PresentationView> {
   }
 
   /**
-   * Forgets the focuses of a binding being left: their commands resolve unapplied, and a view held
-   * for them must not keep the next binding's client views waiting.
+   * Ends the binding or registration the queued and held focus state belongs to: focuses already
+   * dispatched resolve as replaced, their answers are dropped, and nothing held for them is shown.
    */
   reset(): void {
+    this.epoch += 1;
     this.queuedTail = null;
     this.outstanding.clear();
     this.heldView = null;
+    this.stopHoldTimer();
   }
 
   private keep(view: View): void {
-    if (this.heldView === null) this.heldSince = Date.now();
+    if (this.heldView === null) {
+      this.holdTimer = setTimeout(() => this.release(), FOCUS_HOLD_LIMIT_MS);
+    }
     if (this.heldView === null || view.presentationRevision >= this.heldView.presentationRevision) {
       this.heldView = view;
     }
+  }
+
+  private release(): void {
+    this.stopHoldTimer();
+    const view = this.heldView;
+    if (view === null) return;
+    this.heldView = null;
+    if (!this.adopt(view)) return;
+    for (const listener of this.adoptedListeners) listener();
+  }
+
+  private stopHoldTimer(): void {
+    if (this.holdTimer === null) return;
+    clearTimeout(this.holdTimer);
+    this.holdTimer = null;
   }
 }

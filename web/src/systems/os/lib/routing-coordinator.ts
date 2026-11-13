@@ -56,6 +56,8 @@ export class RoutingCoordinator {
    * late push would drag the operator back to a destination they left (rule 3 coalescing).
    */
   private nextUserIntentToken = 0;
+  /** Window activations whose focus is still in flight; each writes its own entry when it settles. */
+  private activationsInFlight = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
   private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
   private readonly echoes = new RoutingWriteEchoes();
@@ -155,6 +157,8 @@ export class RoutingCoordinator {
       if (!this.routeReconciliation.inFlight) this.reconcilePendingRoute();
       return;
     }
+    // A window activation in flight writes the URL once it settles (`activate`).
+    if (this.activationsInFlight > 0) return;
     const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
@@ -269,12 +273,7 @@ export class RoutingCoordinator {
     if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
     if (alreadyActive) return false;
-    // Nothing follows a replaced focus but the newer focus's own route.
-    const outcome = this.manager.focusWindow(windowId, { replaceable: true });
-    if (!(await outcome.completion)) return false;
-    const focused = this.manager.getState().windows[windowId];
-    if (focused) this.pushRoute(focused.route);
-    return focused !== undefined;
+    return this.activate(windowId);
   }
 
   /**
@@ -287,12 +286,30 @@ export class RoutingCoordinator {
     const win = state.windows[windowId];
     if (!win) return false;
     this.nextUserIntentToken += 1;
-    // Nothing follows a replaced focus but the newer focus's own route.
-    const outcome = this.manager.focusWindow(windowId, { replaceable: true });
-    if (!(await outcome.completion)) return false;
-    const focused = this.manager.getState().windows[windowId];
-    if (focused) this.pushRoute(focused.route);
-    return focused !== undefined;
+    return this.activate(windowId);
+  }
+
+  /**
+   * One activation writes one entry (rule 5) once its focus settles, if it is still the newest
+   * intent and focus ended on its window or moved: the window focused then, whatever the answer (a
+   * replaced focus or a repeat the daemon answers unapplied still ends there). Reports meanwhile
+   * defer to it, so the entry before a burst stays a Back target; unmoved focus writes nothing.
+   */
+  private async activate(windowId: string): Promise<boolean> {
+    const intent = this.nextUserIntentToken;
+    const startedOn = this.manager.getState().focusedId;
+    this.activationsInFlight += 1;
+    // A rejected completion still ends the activation: the count must never leak.
+    await this.manager.focusWindow(windowId, { replaceable: true }).completion.catch(() => false);
+    this.activationsInFlight -= 1;
+    const { focusedId, windows } = this.manager.getState();
+    const focused = focusedId === null ? undefined : windows[focusedId];
+    const newest = intent === this.nextUserIntentToken;
+    const landed = focusedId === windowId || focusedId !== startedOn;
+    if (newest && focused && landed) this.pushRoute(focused.route);
+    // Reports deferred to activations catch up once none is left in flight.
+    else if (this.activationsInFlight === 0) this.reportAuthoritativeState();
+    return newest && focusedId === windowId;
   }
 
   /**

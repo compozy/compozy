@@ -112,6 +112,7 @@ export abstract class WindowManagerRuntimeCore {
     this.unsubscribeQuery = null;
     this.unsubscribePresentation = null;
     this.cancelDiagnosticExpiry();
+    this.focusTurns.reset();
   }
 
   destroy(): void {
@@ -191,8 +192,8 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   setClient(client: WindowManagerClientView | WindowManagerRegisteredClientView | null): void {
-    // A registration carries its attachment proof and is never held behind a pending focus.
-    if (client !== null && !("attachmentToken" in client) && this.focusTurns.hold(client)) return;
+    // A registration is never held; one that ends or starts drops what was held for the last.
+    if (this.focusTurns.offer(client, this.clientAttachmentToken)) return;
     this.adoptClient(client);
   }
 

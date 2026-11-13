@@ -663,29 +663,101 @@ describe("WindowManagerRuntime", () => {
       expect(adopted).toHaveBeenCalledOnce();
     });
 
-    it("Should not hold a view from another source past the hold limit while clicks keep coming", async () => {
+    it("Should adopt a held view once it has waited the hold limit while a focus is still in flight [R9-04]", async () => {
       const answers = deferCommandAnswers();
-      const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-      onTestFinished(() => now.mockRestore());
       const runtime = startRuntime();
       const adopted = vi.fn();
       runtime.onHeldClientAdopted(adopted);
 
-      runtime.focusWindow("app:b", REPLACEABLE);
+      const click = runtime.focusWindow("app:b", REPLACEABLE);
       await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // Only the hold timer is faked: the click stays in flight while the limit passes.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
       runtime.setClient(focusedView("app:a", 9));
-      // A newer click is still in flight when the first answer lands past the hold limit.
-      const newest = runtime.focusWindow("app:c", REPLACEABLE);
-      now.mockReturnValue(1_000 + FOCUS_HOLD_LIMIT_MS);
-      answers[0]!(answer(focusedView("app:b", 2)));
-
-      await vi.waitFor(() => expect(adopted).toHaveBeenCalledOnce());
-      expect(shownTab(runtime)).toBe(tabIdFor("app:a"));
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
-      answers[1]!(answer(focusedView("app:c", 10)));
-      await expect(newest.completion).resolves.toBe(true);
+      vi.advanceTimersByTime(FOCUS_HOLD_LIMIT_MS - 1);
+      expect(adopted).not.toHaveBeenCalled();
       expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+      vi.advanceTimersByTime(1);
       expect(adopted).toHaveBeenCalledOnce();
+      expect(shownTab(runtime)).toBe(tabIdFor("app:a"));
+      vi.useRealTimers();
+
+      answers[0]!(answer(focusedView("app:b", 10)));
+      await expect(click.completion).resolves.toBe(true);
+      expect(shownTab(runtime)).toBe(tabIdFor("app:b"));
+      expect(adopted).toHaveBeenCalledOnce();
+    });
+
+    it("Should show the window of a same-window pair whose repeat the daemon answers unapplied [R9-01]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+
+      const first = runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // Pointer-down and focus entering the pane each ask for app:a.
+      const repeat = runtime.focusWindow("app:a", REPLACEABLE);
+      answers[0]!(answer(focusedView("app:a", 2)));
+      await expect(first.completion).resolves.toBe(false);
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      // The daemon already focused app:a: the repeat changes nothing.
+      answers[1]!({ ...answer(null), applied: false });
+
+      await expect(repeat.completion).resolves.toBe(false);
+      expect(shownTab(runtime)).toBe(tabIdFor("app:a"));
+      expect(runtime.getState().focusedId).toBe("app:a");
+      expect(sentCommands()).toEqual(["focus app:a", "focus app:a"]);
+    });
+
+    it("Should drop an answer from a binding the runtime left instead of holding it [R9-03]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+      const adopted = vi.fn();
+      runtime.onHeldClientAdopted(adopted);
+
+      const left = runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      runtime.focusWindow("app:b", REPLACEABLE);
+      // The runtime rebinds while app:a is in flight; the new binding starts from revision 1.
+      runtime.unbind();
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient(baseClient);
+      answers[0]!(answer(focusedView("app:a", 40)));
+
+      await expect(left.completion).resolves.toBe(false);
+      expect(adopted).not.toHaveBeenCalled();
+      expect(runtime.getState().client?.presentationRevision).toBe(1);
+      runtime.setClient(focusedView("app:b", 2));
+      expect(runtime.getState().client?.presentationRevision).toBe(2);
+    });
+
+    it("Should drop what was held for a registration that ended [R9-03]", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+      const adopted = vi.fn();
+      runtime.onHeldClientAdopted(adopted);
+
+      const click = runtime.focusWindow("app:b", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // Another source's view waits behind the click; then the registration ends and a new one
+      // starts its revisions from 1.
+      runtime.setClient(focusedView("app:a", 30));
+      runtime.setClient(null);
+      runtime.setClient({ ...focusedView("app:c", 1), attachmentToken: "attachment-2" });
+      answers[0]!(answer(focusedView("app:b", 31)));
+
+      await expect(click.completion).resolves.toBe(false);
+      expect(adopted).not.toHaveBeenCalled();
+      expect(runtime.getState().client?.presentationRevision).toBe(1);
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+      runtime.setClient(focusedView("app:b", 2));
+      expect(runtime.getState().client?.presentationRevision).toBe(2);
     });
   });
 
