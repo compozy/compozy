@@ -1083,8 +1083,8 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
   });
 
   it("Should fall back to the empty state when the claimed create is refused", async () => {
-    // Another waiting window took the freed slot first: the daemon refuses this create.
-    const actions = stubWindowActions();
+    // An earlier create of this window was refused; that stale answer must not end the next claim.
+    const actions = stubWindowActions({ openTerminalRefusal: 1 });
     const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
 
     await screen.findByTestId("terminal-limit-dialog");
@@ -1092,8 +1092,11 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
       <TerminalWindowApp {...waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP.slice(1))} />
     );
     await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId("terminal-empty-open")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Opening a terminal");
 
-    const refused = { ...actions, openTerminalRefused: true };
+    // Another waiting window took the freed slot first: the daemon refuses this claim's create.
+    const refused = { ...actions, openTerminalRefusal: 2 };
     rerender(<TerminalWindowApp {...waitingAtCapProps(refused, TERMINAL_FIXTURES_AT_CAP)} />);
 
     expect(await screen.findByTestId("terminal-empty-open")).toBeInTheDocument();

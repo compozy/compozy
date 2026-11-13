@@ -13,6 +13,8 @@ interface LimitWait {
   status: "waiting" | "claimed" | "dismissed";
   /** The limit dialog's own Close was used: the dismissal that follows keeps the wait. */
   closeRequested: boolean;
+  /** The host's refusal when the slot was claimed; only a later one belongs to this claim. */
+  refusalAtClaim?: number | null;
 }
 
 export interface UseTerminalLimitWaitOptions {
@@ -23,8 +25,8 @@ export interface UseTerminalLimitWaitOptions {
   atLimit: boolean;
   setLimitOpen: (open: boolean) => void;
   onOpenTerminal: (() => void) | undefined;
-  /** The host's last create for this window was refused. */
-  openRefused: boolean;
+  /** Identifies the host's last refused create for this window; `null` while none is refused. */
+  openRefusal: number | null;
   onCloseTerminal: (terminalId: string) => void;
 }
 
@@ -50,7 +52,7 @@ export function useTerminalLimitWait({
   atLimit,
   setLimitOpen,
   onOpenTerminal,
-  openRefused,
+  openRefusal,
   onCloseTerminal,
 }: UseTerminalLimitWaitOptions): TerminalLimitWait {
   const [limitWait, setLimitWait] = useState<LimitWait | null>(null);
@@ -59,7 +61,7 @@ export function useTerminalLimitWait({
   // claimed before the dialog could show over a window that already took it.
   if (limitWait !== null && current === null) setLimitWait(null);
   if (current?.status === "waiting" && !atLimit) {
-    setLimitWait({ ...current, status: "claimed" });
+    setLimitWait({ ...current, status: "claimed", refusalAtClaim: openRefusal });
     setLimitOpen(false);
   }
   const claimed = current?.status === "claimed" ? current : null;
@@ -77,7 +79,10 @@ export function useTerminalLimitWait({
 
   return {
     // A refused create (another window took the slot first) ends the wait on the empty state.
-    dismissed: current?.status === "dismissed" || (claimed !== null && openRefused),
+    // An earlier refusal still on the host is not this claim's answer.
+    dismissed:
+      current?.status === "dismissed" ||
+      (claimed !== null && openRefusal !== null && openRefusal !== claimed.refusalAtClaim),
     wait: () => {
       if (awaitingRoute) {
         setLimitWait({ key: resolutionKey, status: "waiting", closeRequested: false });
