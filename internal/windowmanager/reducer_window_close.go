@@ -112,7 +112,7 @@ func captureClosedMember(tab Tab, id WindowID) *ClosedMember {
 				if neighborIndex < i {
 					neighbor = ids[len(ids)-1]
 				}
-				return &ClosedMember{
+				member := &ClosedMember{
 					TabID:         tab.ID,
 					ParentSplitID: n.ID,
 					ChildIndex:    i,
@@ -120,6 +120,10 @@ func captureClosedMember(tab Tab, id WindowID) *ClosedMember {
 					NeighborID:    neighbor,
 					NeighborEdge:  edge,
 				}
+				if len(ids) > 1 {
+					member.NeighborIDs = ids
+				}
+				return member
 			}
 			if m := walk(child); m != nil {
 				return m

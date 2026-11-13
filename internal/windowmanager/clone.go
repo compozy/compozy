@@ -1,6 +1,9 @@
 package windowmanager
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 func cloneSnapshot(snapshot Snapshot) Snapshot {
 	snapshot.Migration = clonePointer(snapshot.Migration)
@@ -77,6 +80,9 @@ func cloneClosedEntries(entries []ClosedEntry) []ClosedEntry {
 			entry.Windows[windowIndex] = cloneWindow(window)
 		}
 		entry.Member = clonePointer(entry.Member)
+		if entry.Member != nil {
+			entry.Member.NeighborIDs = slices.Clone(entry.Member.NeighborIDs)
+		}
 		entry.Tabs = append([]ClosedTab(nil), entry.Tabs...)
 		for i := range entry.Tabs {
 			entry.Tabs[i].Root = cloneNode(entry.Tabs[i].Root)

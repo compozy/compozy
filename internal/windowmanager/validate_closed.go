@@ -1,6 +1,9 @@
 package windowmanager
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 func (v *snapshotValidator) validateClosedTopology(entry ClosedEntry, path string) {
 	if entry.Member != nil {
@@ -12,7 +15,8 @@ func (v *snapshotValidator) validateClosedTopology(entry ClosedEntry, path strin
 			m.Weight <= 0 ||
 			m.Weight >= 1 ||
 			m.NeighborID == "" ||
-			!edge {
+			!edge ||
+			(len(m.NeighborIDs) > 0 && (len(m.NeighborIDs) < 2 || !slices.Contains(m.NeighborIDs, m.NeighborID))) {
 			v.add(
 				"topology.closed_member",
 				path+".member",
