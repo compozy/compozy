@@ -62,16 +62,22 @@ function splitTabFor(
   return tabOrder[index + 1] ?? tabOrder[index - 1] ?? null;
 }
 
+/**
+ * The drag's frozen facts. A bar or head drag starts on the active desktop only; an overview tab
+ * row may start on any desktop (`anyDesktop`), and only desktop targets take its drop.
+ */
 function dragSession(
   state: OsDesktopRuntimeStore,
-  source: TabDragSource | null
+  source: TabDragSource | null,
+  anyDesktop = false
 ): TabDragSession | null {
   const revision = state.snapshot?.revision;
   if (source === null || revision === undefined) return null;
   const desktop = state.desktops.find(candidate =>
     candidate.tabs.some(tab => tab.id === source.tabId)
   );
-  if (desktop === undefined || desktop.id !== state.activeDesktopId) return null;
+  if (desktop === undefined) return null;
+  if (!anyDesktop && desktop.id !== state.activeDesktopId) return null;
   const tabOrder = desktop.tabs.map(tab => tab.id);
   const focusOrder = state.client?.focusOrder ?? [];
   const tabLeads = desktop.tabs.map(tab => leadWindowId(tab, focusOrder) ?? "");
@@ -171,12 +177,38 @@ function contentDrop(
   return fits ? drop : null;
 }
 
+/** Marks an element as a desktop drop target: its value is the desktop's ID. */
+export const DESKTOP_DROP_TARGET_ATTRIBUTE = "data-desktop-drop-target";
+
+/**
+ * Desktop targets win over everything under them; while the desktops overview is open it covers
+ * the bar and the content, so a point on the overview off every card drops nowhere.
+ */
+function desktopZone(point: PixelPoint): TabDragZone | null {
+  const targets = document.querySelectorAll<HTMLElement>(`[${DESKTOP_DROP_TARGET_ATTRIBUTE}]`);
+  for (const target of targets) {
+    const desktopId = target.getAttribute(DESKTOP_DROP_TARGET_ATTRIBUTE);
+    if (desktopId && within(target.getBoundingClientRect(), point)) {
+      return { kind: "desktop", desktopId };
+    }
+  }
+  const overview = document.querySelector('[data-slot="desktops-overview"]');
+  if (overview !== null && within(overview.getBoundingClientRect(), point)) {
+    return { kind: "outside" };
+  }
+  return null;
+}
+
 function resolveZone(
   state: OsDesktopRuntimeStore,
   session: TabDragSession,
   point: PixelPoint,
   swapHeld: boolean
 ): TabDragZone {
+  const desktop = desktopZone(point);
+  if (desktop !== null) return desktop;
+  // A drag from another desktop's tab has no bar or content of its own to land on.
+  if (session.desktopId !== state.activeDesktopId) return { kind: "outside" };
   const bar = document.querySelector('[data-slot="os-tab-bar"]');
   if (bar !== null) {
     const rect = bar.getBoundingClientRect();
@@ -326,18 +358,22 @@ export function useOsTabDragStart() {
   const { manager } = useOsShell();
   const start = (
     event: ReactPointerEvent<HTMLElement>,
-    pick: (state: OsDesktopRuntimeStore) => TabDragSource | null
+    pick: (state: OsDesktopRuntimeStore) => TabDragSource | null,
+    anyDesktop = false
   ) => {
     if (event.button !== 0 || osTabDragStore.getSnapshot().context.phase !== "idle") return;
     const origin = event.target instanceof Element ? event.target : null;
     if (origin?.closest("input, textarea, select, [contenteditable='true']")) return;
     const state = manager.getState();
-    const session = dragSession(state, pick(state));
+    const session = dragSession(state, pick(state), anyDesktop);
     if (session !== null) trackGesture(manager, session, event);
   };
   return {
     startTabDrag: (tabId: TabId, event: ReactPointerEvent<HTMLElement>) =>
       start(event, state => tabSource(state, tabId)),
+    /** A tab row in the desktops overview: any desktop's tab, dropped on another desktop. */
+    startOverviewTabDrag: (tabId: TabId, event: ReactPointerEvent<HTMLElement>) =>
+      start(event, state => tabSource(state, tabId), true),
     startHeadDrag: (windowId: WindowId, event: ReactPointerEvent<HTMLElement>) =>
       start(event, state => headSource(state, windowId)),
   };
@@ -346,6 +382,14 @@ export function useOsTabDragStart() {
 /** The drag's view for the bar, the content and the ghost. */
 export function useOsTabDrag() {
   return useSelector(osTabDragStore, snapshot => snapshot.context);
+}
+
+/** The desktop a dragged tab would move to on release, for highlighting its drop target. */
+export function useOsTabDragDesktopTarget(): string | null {
+  return useSelector(osTabDragStore, snapshot => {
+    const { phase, target } = snapshot.context;
+    return phase === "dragging" && target?.kind === "desktop" ? target.desktopId : null;
+  });
 }
 
 /** Whether this window's head is the one being dragged; read per pane, so it stays cheap. */

@@ -4,7 +4,8 @@
 // (or the previously active one when it is itself active); a head held still over a tab for 400ms
 // previews that tab; cancel restores everything and emits no command; a drop emits exactly one
 // command fenced to the layout the drag started from (UT-034–UT-036); a head dropped on the bar
-// becomes its own unpinned tab at the marker (US-010.AC-2).
+// becomes its own unpinned tab at the marker (US-010.AC-2); a tab or head released over another
+// desktop's target moves there as a whole tab, and over its own desktop changes nothing (US-016).
 // Boundary IN: named store events with resolved pointer zones, the dwell timer, emitted intents.
 // Boundary OUT: DOM hit testing, the window-manager runtime and the daemon.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -293,6 +294,53 @@ describe("tab drag store", () => {
           rebase: { windowId: "win:a1", sourceNodeId: "leaf:a1", targetNodeId: "leaf:win:a2" },
         },
       },
+    ]);
+  });
+
+  it("US-016.AC-1: a tab released over another desktop moves there whole, its own desktop is inert", () => {
+    const { store, intents, context } = setup(tabSession("tab:b"));
+    const over = (desktopId: string) =>
+      store.trigger.moved({
+        point: { x: 300, y: 300 },
+        zone: { kind: "desktop", desktopId },
+        swapHeld: false,
+      });
+    over("desktop:1");
+    expect(context()).toMatchObject({ phase: "dragging", mode: null, target: null });
+    over("desktop:2");
+    expect(context()).toMatchObject({
+      target: { kind: "desktop", desktopId: "desktop:2" },
+      insertionIndex: null,
+      contentTabId: "tab:a",
+    });
+    store.trigger.released();
+    expect(intents).toEqual([
+      {
+        kind: "move",
+        windowId: "win:tab:b",
+        input: { destinationDesktopId: "desktop:2", placement: "tab", moveGroup: true },
+        fence: {
+          expectedRevision: 7,
+          rebase: { windowId: "win:tab:b", sourceNodeId: "leaf:tab:b" },
+        },
+      },
+    ]);
+  });
+
+  it("a head released over another desktop leaves its split as its own tab there", () => {
+    const { store, intents } = setup(headSession());
+    store.trigger.moved({
+      point: { x: 300, y: 300 },
+      zone: { kind: "desktop", desktopId: "desktop:2" },
+      swapHeld: false,
+    });
+    store.trigger.released();
+    expect(intents).toEqual([
+      expect.objectContaining({
+        kind: "move",
+        windowId: "win:a1",
+        input: { destinationDesktopId: "desktop:2", placement: "tab", moveGroup: false },
+      }),
     ]);
   });
 });

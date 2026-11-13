@@ -45,12 +45,14 @@ export interface TabDragSession {
 }
 
 /**
- * Where the pointer is, resolved by the shell's hit test. S8/S9 add a `desktop` zone; each is a
- * new variant, the gesture rules stay here.
+ * Where the pointer is, resolved by the shell's hit test: the bar, the shown tab's content, or a
+ * desktop drop target (an overview card, a top-bar indicator). Each is a variant; the gesture
+ * rules stay here.
  */
 export type TabDragZone =
   | { kind: "bar"; index: number; overTabId: TabId | null }
   | { kind: "content"; drop: ContentDrop | null }
+  | { kind: "desktop"; desktopId: DesktopId }
   | { kind: "outside" };
 
 export type TabDragTarget =
@@ -59,7 +61,9 @@ export type TabDragTarget =
   | { kind: "unsplit"; index: number }
   | { kind: "window"; tabId: TabId; windowId: WindowId; nodeId: LayoutNodeId; edge: DropEdge }
   | { kind: "root"; tabId: TabId; edge: DropEdge }
-  | { kind: "swap"; windowId: WindowId; nodeId: LayoutNodeId };
+  | { kind: "swap"; windowId: WindowId; nodeId: LayoutNodeId }
+  /** The dragged tab (or head, as its own tab) joins the end of another desktop's bar (US-016). */
+  | { kind: "desktop"; desktopId: DesktopId };
 
 /** The one command a finished drag sends. */
 export type TabDragIntent =
@@ -202,7 +206,9 @@ function fence(
       ? { windowId }
       : target.kind === "root"
         ? { windowId, sourceNodeId: nodeId, tabId: target.tabId }
-        : { windowId, sourceNodeId: nodeId, targetNodeId: target.nodeId };
+        : target.kind === "desktop"
+          ? { windowId, sourceNodeId: nodeId }
+          : { windowId, sourceNodeId: nodeId, targetNodeId: target.nodeId };
   return { expectedRevision: session.revision, rebase };
 }
 
@@ -227,6 +233,18 @@ export function tabDragIntent(state: TabDragState): TabDragIntent | null {
       kind: "swap",
       firstWindowId: source.windowId,
       secondWindowId: target.windowId,
+      fence: fence(session, target),
+    };
+  }
+  if (target.kind === "desktop") {
+    return {
+      kind: "move",
+      windowId: source.windowId,
+      input: {
+        destinationDesktopId: target.desktopId,
+        placement: "tab",
+        moveGroup: source.kind === "tab",
+      },
       fence: fence(session, target),
     };
   }
@@ -298,6 +316,23 @@ function onContent(
   };
 }
 
+/** Over a desktop target: no preview; dropping on the drag's own desktop changes nothing. */
+function onDesktop(
+  state: TabDragState,
+  zone: Extract<TabDragZone, { kind: "desktop" }>
+): TabDragState {
+  const session = state.session!;
+  return {
+    ...state,
+    mode: null,
+    contentTabId: session.source.kind === "head" ? session.source.tabId : session.activeTabId,
+    insertionIndex: null,
+    target:
+      zone.desktopId === session.desktopId ? null : { kind: "desktop", desktopId: zone.desktopId },
+    dwell: null,
+  };
+}
+
 export type TabDragEvents = {
   pressed: { session: TabDragSession; point: PixelPoint };
   moved: { point: PixelPoint; zone: TabDragZone; swapHeld: boolean };
@@ -351,6 +386,7 @@ export function createOsTabDragStore() {
         if (event.zone.kind === "bar") next = onBar(moving, event.zone, event.point);
         else if (event.zone.kind === "content")
           next = onContent(moving, event.zone, event.swapHeld);
+        else if (event.zone.kind === "desktop") next = onDesktop(moving, event.zone);
         else next = { ...moving, mode: null, insertionIndex: null, target: null, dwell: null };
         if (next.dwell !== state.dwell) {
           const dwell = next.dwell;

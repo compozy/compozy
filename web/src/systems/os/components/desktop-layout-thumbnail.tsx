@@ -1,82 +1,90 @@
 import { cn } from "@compozy/ui";
 
 import { getOsAppDescriptor } from "../lib/app-catalog";
-import type { OsWindow } from "../lib/os-types";
-import type { PixelRect, TabProjection } from "../lib/window-manager-types";
+import type { OsAppId } from "../lib/os-types";
+import type { LayoutNode, TabId, WindowId } from "../lib/window-manager-types";
 
-function thumbnailStyle(rect: PixelRect, workArea: PixelRect): React.CSSProperties {
-  const width = Math.max(1, workArea.w);
-  const height = Math.max(1, workArea.h);
-  return {
-    left: `${((rect.x - workArea.x) / width) * 100}%`,
-    top: `${((rect.y - workArea.y) / height) * 100}%`,
-    width: `${(rect.w / width) * 100}%`,
-    height: `${(rect.h / height) * 100}%`,
-  };
-}
+/** Tab marks drawn on the thumbnail's strip before it stops adding more. */
+const STRIP_TABS = 8;
 
-interface ThumbnailTile {
-  key: string;
-  rect: PixelRect;
-  windowId: string;
-  /** Other members a collapsed split keeps behind its switcher. */
-  others: number;
-}
-
-/**
- * Tiles from the active tab's projection: one per window laid out side by side, and one per
- * collapsed split (its shown member, +N for the rest).
- */
-function thumbnailTiles(projection: TabProjection | undefined): ThumbnailTile[] {
-  if (projection === undefined) return [];
-  const collapsedWindowIds = new Set(projection.collapsed.flatMap(split => split.windowIds));
-  const tiles: ThumbnailTile[] = projection.collapsed.map(split => ({
-    key: split.splitId,
-    rect: split.rect,
-    windowId: split.shownWindowId,
-    others: split.windowIds.length - 1,
-  }));
-  for (const window of projection.windows) {
-    if (collapsedWindowIds.has(window.windowId)) continue;
-    tiles.push({ key: window.windowId, rect: window.rect, windowId: window.windowId, others: 0 });
+function ThumbnailNode({
+  node,
+  appOf,
+}: {
+  node: LayoutNode;
+  appOf: (windowId: WindowId) => OsAppId | undefined;
+}) {
+  if (node.kind === "leaf") {
+    const app = appOf(node.windowId);
+    const Icon = app ? getOsAppDescriptor(app).icon : null;
+    return (
+      <span
+        className="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden rounded-xxs bg-elevated shadow-card"
+        data-slot="desktop-thumbnail-window"
+        data-window-id={node.windowId}
+      >
+        <span className="absolute inset-x-0 top-0 h-1.75 border-b border-line-soft bg-surface-2" />
+        {Icon ? <Icon aria-hidden="true" className="mt-1.5 size-4 text-subtle" /> : null}
+      </span>
+    );
   }
-  return tiles;
+  return (
+    <span
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 gap-0.5",
+        node.axis === "horizontal" ? "flex-row" : "flex-col"
+      )}
+    >
+      {node.children.map((child, index) => (
+        <span
+          className="flex min-h-0 min-w-0"
+          key={child.id}
+          style={{ flex: `${node.weights[index] ?? 1} 1 0` }}
+        >
+          <ThumbnailNode appOf={appOf} node={child} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export interface DesktopLayoutThumbnailProps {
+  /** The desktop's tabs in bar order, drawn as the strip's marks. */
+  tabIds: readonly TabId[];
+  activeTabId: TabId | null;
+  /** The active tab's split tree; each window takes its share by weight. */
+  root: LayoutNode | null;
+  appOf: (windowId: WindowId) => OsAppId | undefined;
 }
 
 /**
- * A miniature of one desktop (shell-rail v2 `.mw`): the active tab's windows as surface tiles
- * with a head strip and the window's title, laid out from the tab's split. Presentational only.
+ * A miniature of one desktop: its tab strip, then its active tab's windows laid out from the
+ * split tree's weights, each with its app's icon. Presentational only.
  */
 export function DesktopLayoutThumbnail({
-  projection,
-  windows,
-}: {
-  projection: TabProjection | undefined;
-  windows: readonly OsWindow[];
-}) {
-  const workArea = projection?.workArea ?? { x: 0, y: 0, w: 1, h: 1 };
-  const apps = new Map(windows.map(window => [window.id, window.app]));
+  tabIds,
+  activeTabId,
+  root,
+  appOf,
+}: DesktopLayoutThumbnailProps) {
   return (
-    <span className="relative block size-full">
-      {thumbnailTiles(projection).map(tile => {
-        const app = apps.get(tile.windowId);
-        const title = app ? getOsAppDescriptor(app).title : "";
-        return (
+    <span
+      aria-hidden="true"
+      className="flex aspect-16/10 w-full flex-col gap-1 rounded-md bg-rail p-1.5"
+      data-slot="desktop-thumbnail"
+    >
+      <span className="flex h-2 shrink-0 items-center gap-0.5">
+        {tabIds.slice(0, STRIP_TABS).map(tabId => (
           <span
-            key={tile.key}
-            data-slot="desktop-thumbnail-window"
             className={cn(
-              "absolute min-h-px min-w-px overflow-hidden bg-card ring-[0.5px] ring-line",
-              "before:absolute before:inset-x-0 before:top-0 before:h-2.25 before:border-b before:border-line-soft before:bg-surface-2"
+              "h-full max-w-8 flex-1 rounded-[2px]",
+              tabId === activeTabId ? "bg-fg/25" : "bg-fg/8"
             )}
-            style={thumbnailStyle(tile.rect, workArea)}
-          >
-            <span className="absolute inset-x-1.75 top-3.75 truncate text-badge font-medium text-fg-2">
-              {tile.others > 0 ? `${title} +${tile.others}` : title}
-            </span>
-          </span>
-        );
-      })}
+            key={tabId}
+          />
+        ))}
+      </span>
+      {root ? <ThumbnailNode appOf={appOf} node={root} /> : null}
     </span>
   );
 }

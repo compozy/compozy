@@ -40,14 +40,14 @@ import { ensureWindowSlotStore } from "../lib/window-slot-registry";
 const TILE_HEIGHT = 20;
 const TILE_SHRINK = 2;
 
-interface TabSignal {
+export interface TabSignal {
   state: StateGlyphState;
   /** Accessible name: the glyph stands alone, without a visible label. */
   label: string;
 }
 
 /** Session badge → the tab's signal; accent marks attention only. */
-function sessionSignal(session: SessionPayload | undefined): TabSignal | null {
+export function sessionSignal(session: SessionPayload | undefined): TabSignal | null {
   switch (session?.badge) {
     case "running":
       return { state: "running", label: "Session running" };
@@ -67,7 +67,7 @@ function sessionSignal(session: SessionPayload | undefined): TabSignal | null {
 const SIGNAL_RANK: Record<string, number> = { attention: 0, failed: 1, running: 2 };
 
 /** The loudest signal among a tab's members: needs you, then failed, then working. */
-function tabSignal(signals: readonly (TabSignal | null)[]): TabSignal | null {
+export function tabSignal(signals: readonly (TabSignal | null)[]): TabSignal | null {
   let loudest: TabSignal | null = null;
   for (const signal of signals) {
     if (signal === null) continue;

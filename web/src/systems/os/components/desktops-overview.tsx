@@ -1,6 +1,5 @@
 import { MonitorUp, Plus, RefreshCw } from "@compozy/ui/icons";
-import { useRef } from "react";
-import type * as React from "react";
+import { useRef, type PointerEvent } from "react";
 
 import {
   Alert,
@@ -17,22 +16,29 @@ import {
   cn,
 } from "@compozy/ui";
 
+import type { SessionPayload } from "@/systems/session";
+
+import type { OsWindow } from "../lib/os-types";
+import type { LayoutNode, TabId, WindowId } from "../lib/window-manager-types";
 import { DesktopsOverviewGrid, DesktopsOverviewSkeleton } from "./desktops-overview-grid";
 
-export interface DesktopOverviewWindow {
-  id: string;
-  title: string;
-  detail?: string;
+export interface DesktopOverviewTab {
+  id: TabId;
+  /** The member that names the tab and takes focus when it is chosen. */
+  leadWindowId: WindowId;
+  /** Members in reading order, lead first. */
+  members: readonly OsWindow[];
 }
 
 export interface DesktopOverviewItem {
   id: string;
   name: string;
-  /** A non-interactive thumbnail projected from the authoritative layout. */
-  thumbnail: React.ReactNode;
-  /** Work-area width over height; the thumbnail box keeps the desk's shape. */
-  aspectRatio?: number;
-  windows: readonly DesktopOverviewWindow[];
+  /** The desktop's tabs in bar order. */
+  tabs: readonly DesktopOverviewTab[];
+  /** The tab this client shows on the desktop. */
+  activeTabId: TabId | null;
+  /** That tab's split tree, drawn as the card's thumbnail. */
+  activeRoot: LayoutNode | null;
   /** A window on this desktop needs you. */
   needsYou?: boolean;
   /** The live switch chord for this position ("⌃1"), when bound. */
@@ -71,7 +77,16 @@ export interface DesktopsOverviewProps {
   onRenameDesktop: (desktopId: string, name: string) => void;
   onReorderDesktop: (desktopId: string, targetIndex: number) => void;
   onDeleteDesktop: (desktopId: string, transferToDesktopId: string | null) => void;
-  onMoveWindow: (windowId: string, sourceDesktopId: string, destinationDesktopId: string) => void;
+  /** "Move a tab ▸": the tab of `leadWindowId`, split included, joins the destination's bar. */
+  onMoveTab: (leadWindowId: string, destinationDesktopId: string) => void;
+  /** Choosing a tab: switch to its desktop and activate it; the overview then closes. */
+  onChooseTab: (desktopId: string, windowId: string) => void;
+  /** A press on a tab row; it becomes a tab drag toward another card. */
+  onTabPointerDown?: (tabId: TabId, event: PointerEvent<HTMLElement>) => void;
+  /** The card a dragged tab would move to on release. */
+  dropTargetDesktopId?: string | null;
+  /** Live session facts for tab titles and signals. */
+  sessionOf?: (win: OsWindow) => SessionPayload | undefined;
   onRetry?: () => void;
   onResolveConflict?: () => void;
 }
@@ -98,7 +113,11 @@ export function DesktopsOverview({
   onRenameDesktop,
   onReorderDesktop,
   onDeleteDesktop,
-  onMoveWindow,
+  onMoveTab,
+  onChooseTab,
+  onTabPointerDown,
+  dropTargetDesktopId = null,
+  sessionOf = noSession,
   onRetry,
   onResolveConflict,
 }: DesktopsOverviewProps) {
@@ -134,7 +153,7 @@ export function DesktopsOverview({
           aria-describedby={undefined}
           className={cn(
             "inset-0 h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none",
-            "flex flex-col gap-4.5 overflow-y-auto rounded-none bg-desk px-8 py-7 shadow-none",
+            "flex flex-col gap-5 overflow-y-auto rounded-none bg-overlay-scrim px-8 py-7 shadow-none backdrop-blur-md",
             "origin-center transition-[opacity,scale] duration-shell-base ease-spring",
             "data-starting-style:scale-98.5 data-starting-style:opacity-0 motion-reduce:transition-none"
           )}
@@ -146,13 +165,15 @@ export function DesktopsOverview({
                 <DialogTitle className="text-heading font-medium tracking-tight text-fg">
                   Desktops
                 </DialogTitle>
-                <p className="text-meta text-muted-foreground">
-                  Each desktop keeps its own windows, tabs and layout
-                </p>
+                <p className="text-meta text-fg-2">Each desktop keeps its own tabs</p>
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {ready && !empty ? (
-                  <CreateDesktopButton disabled={mutationsDisabled} onClick={onCreateDesktop} />
+                  <CreateDesktopButton
+                    disabled={mutationsDisabled}
+                    variant="secondary"
+                    onClick={onCreateDesktop}
+                  />
                 ) : null}
                 <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
                   Done
@@ -183,13 +204,16 @@ export function DesktopsOverview({
                 busy={mutationsDisabled}
                 initialFocusDesktopId={initialFocusDesktopId}
                 initialFocusRef={initialFocusRef}
+                sessionOf={sessionOf}
+                dropTargetDesktopId={dropTargetDesktopId}
                 onOpenChange={onOpenChange}
-                onCreateDesktop={onCreateDesktop}
                 onSwitchDesktop={onSwitchDesktop}
                 onRenameDesktop={onRenameDesktop}
                 onReorderDesktop={onReorderDesktop}
                 onDeleteDesktop={onDeleteDesktop}
-                onMoveWindow={onMoveWindow}
+                onMoveTab={onMoveTab}
+                onChooseTab={onChooseTab}
+                onTabPointerDown={onTabPointerDown}
               />
             ) : null}
           </TooltipProvider>
@@ -203,9 +227,21 @@ function isDesktopsToggle(target: EventTarget | null | undefined): boolean {
   return target instanceof Element && target.closest('[data-slot="os-menubar-desktops"]') !== null;
 }
 
-function CreateDesktopButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+function noSession(): undefined {
+  return undefined;
+}
+
+function CreateDesktopButton({
+  disabled,
+  variant = "default",
+  onClick,
+}: {
+  disabled: boolean;
+  variant?: "default" | "secondary";
+  onClick: () => void;
+}) {
   return (
-    <Button type="button" disabled={disabled} onClick={onClick}>
+    <Button type="button" variant={variant} disabled={disabled} onClick={onClick}>
       <Plus aria-hidden="true" data-icon="inline-start" />
       New desktop
     </Button>

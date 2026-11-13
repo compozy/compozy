@@ -351,7 +351,7 @@ function DesktopShellScopedBody({
             onDeleteDesktop={(desktopId, destinationId) =>
               manager.deleteDesktop(desktopId, destinationId)
             }
-            onMoveWindow={(windowId, destinationDesktopId) =>
+            onMoveTab={(windowId, destinationDesktopId) =>
               manager.moveWindowToDesktop(windowId, destinationDesktopId)
             }
             onOpenChange={onDesktopManagerOpenChange}

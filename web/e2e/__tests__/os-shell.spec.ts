@@ -1424,18 +1424,16 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   await expect(overview).toBeVisible();
   await expect(overview.getByRole("button", { name: "Switch to Desktop 6" })).toBeFocused();
   await expect(overview.getByRole("button", { name: "Current desktop Desktop 2" })).toBeVisible();
-  // Each card's "Move a window" menu lists exactly the windows on that desktop.
+  // Each card lists exactly the tabs on its desktop.
+  const vaultTab = (await windowManagerSnapshot(runtime, workspace.id)).windows[vaultID]?.tab_id;
+  if (!vaultTab) throw new Error("Vault must sit in an authoritative tab");
   for (const [desktop, present, absent] of [
-    ["Desktop 1", "Tasks", "Vault"],
-    ["Desktop 2", "Vault", "Tasks"],
+    ["Desktop 1", tasksTab, vaultTab],
+    ["Desktop 2", vaultTab, tasksTab],
   ] as const) {
-    await overview.getByRole("button", { name: `Actions for ${desktop}` }).click();
-    await appPage.getByRole("menuitem", { name: "Move a window" }).click();
-    await expect(appPage.getByRole("menuitem", { name: present, exact: true })).toBeVisible();
-    await expect(appPage.getByRole("menuitem", { name: absent, exact: true })).toHaveCount(0);
-    await appPage.keyboard.press("Escape");
-    await appPage.keyboard.press("Escape");
-    await expect(appPage.getByRole("menuitem", { name: "Move a window" })).toHaveCount(0);
+    const card = overview.getByRole("listitem", { name: desktop, exact: true });
+    await expect(card.locator(`[data-tab-id="${present}"]`)).toBeVisible();
+    await expect(card.locator(`[data-tab-id="${absent}"]`)).toHaveCount(0);
   }
   await expect(overview).toBeVisible();
   await overview.getByRole("button", { name: "Switch to Desktop 1" }).click();
@@ -2523,6 +2521,122 @@ test("Tabs-split E2E-010: directional focus, tile left, Split with, and undo/red
   await expect.poll(focused).toBe(agentsID);
   await appPage.keyboard.press("Control+Alt+ArrowLeft");
   await expect.poll(() => tabMembers(tasksID)).toEqual([agentsID, tasksID]);
+});
+
+// Invariant: the overview lists every desktop's tabs; a tab row dragged onto another card moves
+// the whole tab there; choosing a tab switches to its desktop, activates it and closes the
+// overview; a card dragged onto another reorders desktops; Escape closes and leaves the desktop
+// as it was; closing a desktop with tabs asks for a destination and moves them, closing none
+// (US-014, US-016). Owner: desktops overview + tab drag store `desktop` target + desktop
+// commands; canonical suite: this file.
+test("Tabs-split E2E-011: the overview lists tabs per desktop, moves a dragged tab, jumps, reorders and closes into a destination", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("the overview fixture needs two windows");
+  const second = "desktop-e2e-second";
+  await executeWindowManagerCommand(runtime, workspace.id, {
+    commandId: "desktop.create",
+    payload: { desktop_id: second, name: "Second" },
+  });
+  const shell = osShellSelectors(appPage);
+  const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+  const agentsTab = tabForWindow(snapshot, agentsID)?.id;
+  if (!agentsTab) throw new Error("Agents must sit in an authoritative tab");
+  const firstTabs = desktopTabIds(snapshot, "desktop-default");
+
+  // S9 owns the first E2E-011 step: drag a tab onto its top-bar indicator, and each desktop's
+  // bar reflects the move. It lands with the indicators; the overview steps follow.
+
+  const overview = appPage.locator('[data-slot="desktops-overview"]');
+  const openOverview = async () => {
+    await openMenu(appPage, "Window");
+    await appPage.getByRole("menuitem", { name: /^All desktops/ }).click();
+    await expect(overview).toBeVisible();
+  };
+  const card = (name: string) => overview.getByRole("listitem", { name, exact: true });
+  const tabRow = (tabId: string) =>
+    overview.locator(`[data-slot="desktop-overview-tab"][data-tab-id="${tabId}"]`);
+
+  await test.step("the overview opens as an overlay listing each desktop's tabs", async () => {
+    await openOverview();
+    await expect(card("Desktop 1").locator('[data-slot="desktop-overview-tab"]')).toHaveCount(
+      Math.min(firstTabs.length, 4)
+    );
+    await expect(card("Second").locator('[data-slot="desktop-overview-tab"]')).toHaveCount(1);
+    await expect(card("Second").getByText("1 tab", { exact: true })).toBeVisible();
+  });
+
+  await test.step("a tab row dragged onto another card moves the tab there", async () => {
+    await startPointerDrag(appPage, await boxCenter(tabRow(agentsTab)));
+    await movePointer(appPage, await boxCenter(card("Second")));
+    await expect(card("Second")).toHaveAttribute("data-drop-target", "true");
+    await appPage.mouse.up();
+    await expect
+      .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[agentsID])
+      .toMatchObject({ desktop_id: second, tab_id: agentsTab });
+    await expect(card("Second").locator(`[data-tab-id="${agentsTab}"]`)).toBeVisible();
+    await expect(card("Desktop 1").locator(`[data-tab-id="${agentsTab}"]`)).toHaveCount(0);
+    await expect(overview).toBeVisible();
+  });
+
+  await test.step("choosing a tab jumps to it and closes the overview", async () => {
+    await tabRow(agentsTab).click();
+    await expect(overview).toBeHidden();
+    await expect(activeDesktop(appPage, second)).toHaveAttribute("data-active", "true");
+    await expect(shell.tab(agentsTab)).toHaveAttribute("aria-selected", "true");
+    await expect(shell.window(agentsID)).toBeVisible();
+  });
+
+  await test.step("dragging a card reorders desktops", async () => {
+    await openOverview();
+    const thumbnail = card("Second").getByRole("button", { name: "Current desktop Second" });
+    await startPointerDrag(appPage, await boxCenter(thumbnail));
+    await movePointer(appPage, await boxCenter(card("Desktop 1")));
+    await expect(overview.locator('[data-slot="desktop-gap"]')).toHaveCount(1);
+    await appPage.mouse.up();
+    await expect
+      .poll(async () =>
+        [...(await windowManagerSnapshot(runtime, workspace.id)).desktops]
+          .sort((left, right) => left.order - right.order)
+          .map(desktop => desktop.id)
+      )
+      .toEqual([second, "desktop-default"]);
+    // The release was a drop, not a click: the overview stays open on the same desktop.
+    await expect(overview).toBeVisible();
+  });
+
+  await test.step("Escape closes the overview and leaves the desktop as it was", async () => {
+    await appPage.keyboard.press("Escape");
+    await expect(overview).toBeHidden();
+    await expect(activeDesktop(appPage, second)).toHaveAttribute("data-active", "true");
+    await expect(shell.tab(agentsTab)).toHaveAttribute("aria-selected", "true");
+  });
+
+  await test.step("closing a desktop with tabs asks for a destination and moves them", async () => {
+    const before = await windowManagerSnapshot(runtime, workspace.id);
+    const moving = desktopTabIds(before, second);
+    await openOverview();
+    const closing = card("Second");
+    await closing.getByRole("button", { name: "Close Second" }).click();
+    const confirm = closing.getByRole("button", { name: "Confirm: Close Second" });
+    await expect(confirm).toBeDisabled();
+    await closing.getByRole("combobox").selectOption({ label: "Desktop 1" });
+    await confirm.click();
+    await expect
+      .poll(async () =>
+        (await windowManagerSnapshot(runtime, workspace.id)).desktops.map(desktop => desktop.id)
+      )
+      .toEqual(["desktop-default"]);
+    const after = await windowManagerSnapshot(runtime, workspace.id);
+    // Nothing closed: every tab of the closed desktop now ends the destination's bar.
+    expect(desktopTabIds(after, "desktop-default").slice(-moving.length)).toEqual(moving);
+    expect(after.windows[agentsID]).toMatchObject({ desktop_id: "desktop-default" });
+    await expect(card("Desktop 1").getByRole("button", { name: "Close Desktop 1" })).toHaveCount(0);
+  });
 });
 
 // Invariant: a stored v5 layout opens as tabs: floating and minimized windows become their own

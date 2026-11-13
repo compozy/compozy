@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 
 import {
   Button,
+  DeleteButton,
+  type DeleteButtonPhase,
   Input,
   Kbd,
   NativeSelect,
@@ -29,7 +31,6 @@ import {
 } from "../window-tabs-shared/model";
 import { APP_ICON } from "../window-tabs-shared/apps";
 import { OsTabTiles } from "../window-tabs-shared/os-tab";
-import { DeleteButton, type DeleteButtonPhase } from "./delete-button";
 
 const TAB_ROWS = 4;
 

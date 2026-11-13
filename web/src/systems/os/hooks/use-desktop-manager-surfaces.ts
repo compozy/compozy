@@ -1,6 +1,10 @@
 import { shallowEqual } from "@xstate/store";
 
-import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
+import {
+  leadWindowId as tabLeadWindowId,
+  resolveActiveTabId,
+  tabWindowIds,
+} from "../lib/tab-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import {
@@ -29,41 +33,32 @@ export function useDesktopManagerSurfaces() {
         ? {
             desktops: state.desktops,
             activeTabIds: state.activeTabIds,
-            projections: state.projections,
             windows: state.windows,
+            focusOrder: state.client?.focusOrder,
           }
         : null,
     shallowEqual
   );
-  const windowsByDesktop = new Map<
-    string,
-    Array<NonNullable<typeof projection>["windows"][string]>
-  >();
-  for (const windowRecord of Object.values(projection?.windows ?? {})) {
-    const records = windowsByDesktop.get(windowRecord.desktopId);
-    if (records) records.push(windowRecord);
-    else windowsByDesktop.set(windowRecord.desktopId, [windowRecord]);
-  }
+  const focusOrder = projection?.focusOrder ?? [];
   const desktops = (projection?.desktops ?? []).map(desktop => {
-    const windowRecords = windowsByDesktop.get(desktop.id) ?? [];
-    const activeTabId = projection?.activeTabIds[desktop.id];
+    const activeTabId = projection?.activeTabIds[desktop.id] ?? resolveActiveTabId(desktop, null);
+    const tabs = desktop.tabs.flatMap(tab => {
+      const leadWindowId = tabLeadWindowId(tab, focusOrder);
+      if (leadWindowId === null) return [];
+      const ordered = [leadWindowId, ...tabWindowIds(tab).filter(id => id !== leadWindowId)];
+      const members = ordered.flatMap(id => {
+        const win = projection?.windows[id];
+        return win ? [win] : [];
+      });
+      return members.length === 0 ? [] : [{ id: tab.id, leadWindowId, members }];
+    });
     return {
       id: desktop.id,
       name: desktop.name,
+      tabs,
+      activeTabId,
       // The thumbnail draws the tab this client shows on the desktop.
-      projection: activeTabId === undefined ? undefined : projection?.projections[activeTabId],
-      windowRecords,
-      windows: windowRecords.flatMap(window => {
-        const app = osAppId(window.app);
-        if (app === null) return [];
-        return [
-          {
-            id: window.id,
-            title: getOsAppDescriptor(app).title,
-            detail: window.instanceKey ?? undefined,
-          },
-        ];
-      }),
+      activeRoot: desktop.tabs.find(tab => tab.id === activeTabId)?.root ?? null,
     };
   });
 

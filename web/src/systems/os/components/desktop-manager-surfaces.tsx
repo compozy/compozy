@@ -1,7 +1,10 @@
 import { useState } from "react";
 
 import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
-import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
+import { useOsShell } from "../hooks/use-os-shell";
+import { useTabSessions } from "../hooks/use-os-tab-bar";
+import { useOsTabDragDesktopTarget, useOsTabDragStart } from "../hooks/use-os-tab-drag";
+import type { OsWindow } from "../lib/os-types";
 import {
   DesktopsOverview,
   type DesktopOverviewItem,
@@ -45,7 +48,8 @@ export interface DesktopManagerSurfacesProps {
   onRenameDesktop: (desktopId: string, name: string) => void;
   onReorderDesktop: (desktopId: string, order: number) => void;
   onDeleteDesktop: (desktopId: string, destinationId: string | null) => void;
-  onMoveWindow: (windowId: string, destinationDesktopId: string) => void;
+  /** Moves the window's whole tab, split included, to the end of the destination's bar. */
+  onMoveTab: (windowId: string, destinationDesktopId: string) => void;
   onOpenChange: (open: boolean) => void;
   onRetry: () => void;
   onResolveConflict: () => void;
@@ -60,27 +64,27 @@ export function DesktopManagerSurfaces({
   onRenameDesktop,
   onReorderDesktop,
   onDeleteDesktop,
-  onMoveWindow,
+  onMoveTab,
   onOpenChange,
   onRetry,
   onResolveConflict,
 }: DesktopManagerSurfacesProps) {
   // The overview portals into this desk-sized host so it covers the desk only.
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
-  const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => {
-    const area = desktop.projection?.workArea;
-    return {
-      id: desktop.id,
-      name: desktop.name,
-      thumbnail: (
-        <DesktopLayoutThumbnail projection={desktop.projection} windows={desktop.windowRecords} />
-      ),
-      aspectRatio: area && area.w > 0 && area.h > 0 ? area.w / area.h : undefined,
-      windows: desktop.windows,
-      needsYou: needsYouDesktopIds.has(desktop.id),
-      switchShortcut: switchShortcuts[index] ?? null,
-    };
-  });
+  const { coordinator } = useOsShell();
+  const { startOverviewTabDrag } = useOsTabDragStart();
+  const dropTargetDesktopId = useOsTabDragDesktopTarget();
+  const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => ({
+    ...desktop,
+    needsYou: needsYouDesktopIds.has(desktop.id),
+    switchShortcut: switchShortcuts[index] ?? null,
+  }));
+  const hasSession = desktops.some(desktop =>
+    desktop.tabs.some(tab => tab.members.some(member => member.app === "session"))
+  );
+  const sessionById = useTabSessions(hasSession);
+  const sessionOf = (win: OsWindow) =>
+    win.app === "session" && win.instanceKey ? sessionById.get(win.instanceKey) : undefined;
   const overview = overviewState({
     hydration: model.hydration,
     activeDesktopId: model.activeDesktopId,
@@ -112,9 +116,16 @@ export function DesktopManagerSurfaces({
         onRenameDesktop={onRenameDesktop}
         onReorderDesktop={onReorderDesktop}
         onDeleteDesktop={onDeleteDesktop}
-        onMoveWindow={(windowId, _sourceDesktopId, destinationDesktopId) =>
-          onMoveWindow(windowId, destinationDesktopId)
-        }
+        onMoveTab={onMoveTab}
+        // Choosing a tab switches to its desktop and shows it there (AC-5): focusing its lead
+        // window does both for this client, as a tab click in the bar does.
+        onChooseTab={(desktopId, windowId) => {
+          if (desktopId !== model.activeDesktopId) onSwitchDesktop(desktopId);
+          void coordinator.userFocus(windowId);
+        }}
+        onTabPointerDown={startOverviewTabDrag}
+        dropTargetDesktopId={dropTargetDesktopId}
+        sessionOf={sessionOf}
         onRetry={onRetry}
         onResolveConflict={onResolveConflict}
       />

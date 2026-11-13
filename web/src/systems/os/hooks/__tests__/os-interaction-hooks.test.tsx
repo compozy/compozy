@@ -455,9 +455,9 @@ describe("desktop chrome projection subscriptions", () => {
         windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
       );
       expect(result.current.desktops[0]?.name).toBe("Renamed while closed");
-      expect(result.current.desktops[0]?.windowRecords[0]?.nodeId).toBe("leaf:moved");
+      expect(result.current.desktops[0]?.tabs[0]?.members[0]?.nodeId).toBe("leaf:moved");
       act(() => shell.setRuntimeState({ windows: {} }));
-      expect(result.current.desktops[0]?.windows).toEqual([]);
+      expect(result.current.desktops[0]?.tabs).toEqual([]);
       act(() => windowManagerStore.trigger.overlayClosed());
       const closedRenders = renders;
       act(() => shell.setRuntimeState({ windows: { [primary.id]: primary } }));
@@ -465,7 +465,7 @@ describe("desktop chrome projection subscriptions", () => {
       act(() =>
         windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
       );
-      expect(result.current.desktops[0]?.windowRecords[0]?.nodeId).toBe(primary.nodeId);
+      expect(result.current.desktops[0]?.tabs[0]?.members[0]?.nodeId).toBe(primary.nodeId);
     } finally {
       unmount();
       act(() => windowManagerStore.trigger.overlayClosed());
