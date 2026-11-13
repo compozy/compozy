@@ -12,7 +12,7 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
@@ -1504,6 +1504,9 @@ describe("WindowPaneHosts", () => {
       first.remove();
       second.remove();
     };
+    // Also when an assertion fails first: a host left listening, or a stray desk layer, would
+    // change what later suites in this file hit-test.
+    onTestFinished(cleanup);
     return {
       hosts,
       focus,
@@ -1745,6 +1748,7 @@ describe("WindowPaneHosts", () => {
     shown.append(slot);
     deskLayer.append(shown, other);
     document.body.append(deskLayer);
+    onTestFinished(() => deskLayer.remove());
     hosts.place("w", slot);
     scrollTo(120);
     field.focus();
@@ -1772,6 +1776,7 @@ describe("WindowPaneHosts", () => {
     split.append(before);
     deskLayer.append(split);
     document.body.append(deskLayer);
+    onTestFinished(() => deskLayer.remove());
     hosts.place("w", before);
     const told = vi.fn();
     owner.addEventListener(SCROLL_RESTORE_EVENT, told);
