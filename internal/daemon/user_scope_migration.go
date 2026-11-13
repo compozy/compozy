@@ -162,7 +162,7 @@ func userScopeLayoutMigrationOps(
 	status := windowmanager.MigrationStatus{
 		State: windowManagerMigrationMigrated, FromVersion: version, At: time.Now().UTC(), Summary: &summary,
 	}
-	annotateSupersededBackups(&status, superseded)
+	status.SupersededBackups = len(superseded)
 	record, err := json.Marshal(status)
 	if err != nil {
 		return nil, err

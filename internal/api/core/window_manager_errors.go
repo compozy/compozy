@@ -38,6 +38,9 @@ func windowManagerErrorPayload(
 	if ahead, ok := errors.AsType[*windowmanager.SnapshotVersionError](err); ok {
 		payload.Diagnostics = []windowmanager.Diagnostic{ahead.Diagnostic()}
 	}
+	if quota, ok := errors.AsType[*windowmanager.SnapshotQuotaError](err); ok {
+		payload.Diagnostics = []windowmanager.Diagnostic{quota.Diagnostic()}
+	}
 	return status, payload
 }
 

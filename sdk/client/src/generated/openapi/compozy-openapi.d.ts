@@ -13548,6 +13548,7 @@ export interface components {
       /** Format: double */
       min_delta?: number | null;
     };
+    /** @description Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error. */
     MigrationStatus: {
       acknowledged: boolean;
       /** Format: date-time */
@@ -13562,6 +13563,8 @@ export interface components {
       /** @enum {string} */
       state: "none" | "migrated" | "failed";
       summary?: components["schemas"]["MigrationSummary"] | null;
+      /** @description Number of set-aside layout backups currently retained for this profile; omitted when zero. */
+      superseded_backups?: number;
     };
     MigrationSummary: {
       desktops: number;

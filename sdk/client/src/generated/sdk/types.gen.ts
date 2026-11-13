@@ -5432,6 +5432,9 @@ export type MetricSpec = {
   min_delta?: number | null;
 };
 
+/**
+ * Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error.
+ */
 export type MigrationStatus = {
   acknowledged: boolean;
   at?: string;
@@ -5443,6 +5446,10 @@ export type MigrationStatus = {
   from_version?: number;
   state: "none" | "migrated" | "failed";
   summary?: MigrationSummary | null;
+  /**
+   * Number of set-aside layout backups currently retained for this profile; omitted when zero.
+   */
+  superseded_backups?: number;
 };
 
 export type MigrationSummary = {

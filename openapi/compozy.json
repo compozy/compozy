@@ -19251,6 +19251,7 @@
         "type": "object"
       },
       "MigrationStatus": {
+        "description": "Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error.",
         "properties": {
           "acknowledged": {
             "type": "boolean"
@@ -19303,6 +19304,11 @@
                 "nullable": true
               }
             ]
+          },
+          "superseded_backups": {
+            "description": "Number of set-aside layout backups currently retained for this profile; omitted when zero.",
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [

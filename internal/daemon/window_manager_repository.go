@@ -321,6 +321,8 @@ func mapWindowManagerStoreError(operation string, err error) error {
 		mapped = windowmanager.ErrRevisionConflict
 	case errors.Is(err, clientstate.ErrClosed):
 		mapped = windowmanager.ErrClosed
+	case errors.Is(err, clientstate.ErrKeyQuota):
+		mapped = &windowmanager.SnapshotQuotaError{Cause: err}
 	default:
 		mapped = err
 	}

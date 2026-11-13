@@ -990,6 +990,15 @@ func TestWindowManagerHandlers(t *testing.T) {
 			t.Fatalf("future snapshot error = status %d payload %+v", status, payload)
 		}
 
+		status, payload = windowManagerErrorPayload("workspace-a", &windowmanager.SnapshotQuotaError{
+			Cause: errors.New("client state key quota exceeded"),
+		})
+		if status != http.StatusServiceUnavailable || payload.Code != contract.WindowManagerErrorUnavailable ||
+			len(payload.Diagnostics) != 1 || payload.Diagnostics[0].Code != "snapshot_key_quota" ||
+			!strings.Contains(payload.Diagnostics[0].Message, "key quota exceeded") {
+			t.Fatalf("quota error = status %d payload %+v", status, payload)
+		}
+
 		if !isExpectedWindowManagerSocketError(net.ErrClosed) {
 			t.Fatal("net.ErrClosed was classified as an unexpected socket failure")
 		}

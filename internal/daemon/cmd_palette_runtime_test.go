@@ -126,6 +126,21 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 func TestCmdPaletteClientDirectory(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should project split availability from the current context instead of the retired mirror",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, inSplit := range []bool{false, true} {
+				context := cmdPaletteContextSnapshot(windowmanager.ClientView{
+					PaletteContext: windowmanager.PaletteContext{WindowInSplit: inSplit, WindowStacked: !inSplit},
+				})
+				if context.Values[cmdpalette.ContextWindowStacked] != inSplit {
+					t.Fatalf("split availability=%v, want %t", context.Values, inSplit)
+				}
+			}
+		},
+	)
+
 	t.Run("Should return no-attached-shell when the window manager is missing", func(t *testing.T) {
 		t.Parallel()
 		directory := &cmdPaletteClientDirectory{}

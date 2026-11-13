@@ -45,6 +45,11 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		assertEnumValues(t, propertySchema(t, request, "action"), "ack", "retry")
 		status := componentSchema(t, document, "MigrationStatus")
 		assertEnumValues(t, propertySchema(t, status, "state"), "none", "migrated", "failed")
+		backups := propertySchema(t, status, windowManagerSupersededBackupsKey)
+		if !backups.Type.Is("integer") || backups.Min == nil || *backups.Min != 0 ||
+			slices.Contains(status.Required, windowManagerSupersededBackupsKey) {
+			t.Fatalf("retained backup count must be an optional nonnegative integer: %+v", backups)
+		}
 		assertResponseStatus(t, operationFor(t, document, windowManagerPath+"/migration", http.MethodPost), 422)
 	})
 	t.Run("Should mark retired command and projection fields without changing live fields", func(t *testing.T) {

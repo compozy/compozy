@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-const supersededPrefix = "superseded:"
+const (
+	supersededPrefix  = "superseded:"
+	dispositionSuffix = ":disposition"
+)
 
 // Snapshot identifies the current stored layout for a profile.
 func Snapshot(profile string) string { return "snapshot:" + profile }
@@ -24,8 +27,13 @@ func SupersededLegacy(profile string, value []byte) string {
 	return supersededPrefix + profile + ":" + hex.EncodeToString(digest[:])
 }
 
-// IsSupersededLegacy identifies backups retained independently of the latest upgrade.
-func IsSupersededLegacy(key string) bool { return strings.HasPrefix(key, supersededPrefix) }
+// SupersededLegacyDisposition identifies the lifecycle record of a raw backup key.
+func SupersededLegacyDisposition(key string) string { return key + dispositionSuffix }
+
+// IsSupersededLegacy distinguishes raw backup bytes from their disposition records.
+func IsSupersededLegacy(key string) bool {
+	return strings.HasPrefix(key, supersededPrefix) && !strings.HasSuffix(key, dispositionSuffix)
+}
 
 // Profile identifies every key that belongs to a window-manager profile partition.
 func Profile(key string) (string, bool) {

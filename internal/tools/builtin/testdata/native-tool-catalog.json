@@ -1646,9 +1646,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "7737f0ebf903a066d2577754fc9781502eb15a57a15821e3c2eb05be9ea2decf",
-    "output_schema_digest": "d27287570781d67374d231c9e144523dc24549a32a35c722142c36343e3fb737",
+    "output_schema_digest": "6446e4ca82546df3e41f121a5a992bf7c956fbd0df4ef83bca134815cd0656e2",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "d27287570781d67374d231c9e144523dc24549a32a35c722142c36343e3fb737",
+    "compact_output_schema_digest": "6446e4ca82546df3e41f121a5a992bf7c956fbd0df4ef83bca134815cd0656e2",
     "full_output_schema_digest": "3ffbd1f8a33a319535f80de9d6e3b57a94f331b7cfaab9e2e84ff36d57bad688",
     "required_capabilities": [
       "window_manager.read"
@@ -1665,9 +1665,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "5434b806dffc6283db58fd2ed306b262d27f725224673ed0f19f5c6507bdca94",
-    "output_schema_digest": "fb4149b5d582eb25385e6d66aa89ec69591c0d73be492db6b217ef783a8dc187",
+    "output_schema_digest": "a571aa223ec6917ab212833c65f6835ff1d2c440ae2d802203e2483afb57846b",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "fb4149b5d582eb25385e6d66aa89ec69591c0d73be492db6b217ef783a8dc187",
+    "compact_output_schema_digest": "a571aa223ec6917ab212833c65f6835ff1d2c440ae2d802203e2483afb57846b",
     "full_output_schema_digest": "1d27e4da098233999d18c10a2b73221fa1cadd67e461133252e60989ed40a67f",
     "required_capabilities": [
       "window_manager.read"

@@ -66,6 +66,21 @@ func (e *SnapshotVersionError) Diagnostic() Diagnostic {
 	return Diagnostic{Code: topologyUnsupportedVersionCode, Path: "version", Message: e.Error()}
 }
 
+// SnapshotQuotaError leaves the stored layout and backups intact when preservation cannot fit.
+type SnapshotQuotaError struct{ Cause error }
+
+var _ error = (*SnapshotQuotaError)(nil)
+
+func (e *SnapshotQuotaError) Error() string {
+	return fmt.Sprintf("layout storage is unavailable: %v", e.Cause)
+}
+
+func (e *SnapshotQuotaError) Unwrap() []error { return []error{ErrUnavailable, e.Cause} }
+
+func (e *SnapshotQuotaError) Diagnostic() Diagnostic {
+	return Diagnostic{Code: "snapshot_key_quota", Message: e.Error()}
+}
+
 // Conflict identifies one stale reference that prevented a safe rebase.
 type Conflict struct {
 	Code      string `json:"code"`

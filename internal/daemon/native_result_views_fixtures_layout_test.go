@@ -26,7 +26,7 @@ func nativeResultViewFixturesLayout(t *testing.T) []nativeResultViewFixture {
 		ClosedEntries: []windowmanager.ClosedEntry{{DesktopID: "desk"}},
 		History:       windowmanager.History{Undo: []windowmanager.HistoryEntry{{CommandID: "cmd"}}},
 		UpdatedAt:     time.Unix(1, 0).UTC(),
-		Migration:     &windowmanager.MigrationStatus{State: "migrated", FromVersion: 5},
+		Migration:     &windowmanager.MigrationStatus{State: "migrated", FromVersion: 5, SupersededBackups: 2},
 	}
 	p := windowManagerSnapshotResult{WorkspaceID: "ws", Revision: 4, Snapshot: s}
 	preview := windowManagerPreviewResult{
@@ -53,6 +53,7 @@ func nativeResultViewFixturesLayout(t *testing.T) []nativeResultViewFixture {
 				"snapshot.version",
 				"snapshot.migration.state",
 				"snapshot.migration.from_version",
+				"snapshot.migration.superseded_backups",
 				"snapshot.desktops.0.id",
 				"snapshot.windows.win.id",
 				"snapshot.overrides",

@@ -3,15 +3,15 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"slices"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/compozy/compozy/internal/windowmanager/statekeys"
 )
 
-// Callers commit backups with the converted snapshot and status; superseded bytes never expire.
+// The archive bytes and their conservative disposition commit with the converted snapshot.
 func migrationBackupOps(
 	ctx context.Context,
 	service clientstate.Service,
@@ -42,7 +42,8 @@ func migrationBackupOps(
 	var ops []clientstate.Op
 	if legacy.Key != "" {
 		key := statekeys.SupersededLegacy(profile, legacy.Value)
-		if previous, exists := archived[key]; exists {
+		previous, exists := archived[key]
+		if exists {
 			if !bytes.Equal(previous.Value, legacy.Value) {
 				return nil, nil, fmt.Errorf("superseded backup %q has different bytes", key)
 			}
@@ -52,6 +53,7 @@ func migrationBackupOps(
 			})
 			keys = append(keys, key)
 		}
+		ops = append(ops, supersededDispositionOps(archived, profile, key, exists)...)
 	}
 	replacement.Key, replacement.IfRev = windowManagerLegacyKey(profile), legacy.Rev
 	ops = append(ops, replacement)
@@ -69,33 +71,29 @@ func supersededBackupKeys(entries []clientstate.Entry, profile string) []string 
 	return keys
 }
 
-// State remains authoritative; the diagnostic notes archives, while retry uses the latest legacy bytes.
-func annotateSupersededBackups(status *windowmanager.MigrationStatus, keys []string) {
-	if len(keys) == 0 {
-		return
+func supersededDispositionOps(
+	entries map[string]clientstate.Entry,
+	profile, backup string,
+	exists bool,
+) []clientstate.Op {
+	key := statekeys.SupersededLegacyDisposition(backup)
+	previous := entries[key]
+	state := migrationBackupState(entries[windowManagerMigrationKey(profile)].Value)
+	if exists && migrationBackupState(previous.Value) != windowManagerMigrationMigrated {
+		state = windowManagerMigrationFailed
 	}
-	message := fmt.Sprintf("%d earlier layout backup(s) were set aside and preserved; "+
-		"retry uses the current legacy backup.", len(keys))
-	if status.Error == nil {
-		status.Error = &windowmanager.Diagnostic{
-			Code: "migration.backup_superseded", Path: slices.Min(keys), Message: message,
-		}
-		return
+	value := []byte(`{"state":"` + state + `"}`)
+	if bytes.Equal(value, previous.Value) {
+		return nil
 	}
-	diagnostic := *status.Error
-	diagnostic.Message += " " + message
-	status.Error = &diagnostic
+	return []clientstate.Op{{Kind: clientstate.OpPut, Key: key, Value: value, IfRev: previous.Rev}}
 }
 
-func (r *windowManagerRepository) annotateSupersededBackups(
-	ctx context.Context,
-	workspace windowmanager.WorkspaceID,
-	status *windowmanager.MigrationStatus,
-) error {
-	entries, err := r.service.List(ctx, clientstate.WorkspaceID(workspace), windowManagerStateDomain)
-	if err != nil {
-		return err
+func migrationBackupState(raw []byte) string {
+	var status windowmanager.MigrationStatus
+	if err := json.Unmarshal(raw, &status); err != nil || status.State != windowManagerMigrationMigrated ||
+		status.Error != nil {
+		return windowManagerMigrationFailed
 	}
-	annotateSupersededBackups(status, supersededBackupKeys(entries, r.profileID))
-	return nil
+	return windowManagerMigrationMigrated
 }

@@ -42,6 +42,7 @@ func (r *windowManagerRegistry) reconcilePartitions(
 	if err != nil {
 		return err
 	}
+	var unavailable []error
 	for _, partition := range partitions {
 		manager, err := r.For(partition.profileID)
 		if errors.Is(err, errWindowManagerProfileDeleted) {
@@ -60,11 +61,15 @@ func (r *windowManagerRegistry) reconcilePartitions(
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("daemon: reconcile profile %q partition %q: %w",
+			wrapped := fmt.Errorf("daemon: reconcile profile %q partition %q: %w",
 				partition.profileID, partition.workspaceID, err)
+			if !errors.Is(err, windowmanager.ErrUnavailable) {
+				return errors.Join(errors.Join(unavailable...), wrapped)
+			}
+			unavailable = append(unavailable, wrapped)
 		}
 	}
-	return nil
+	return errors.Join(unavailable...)
 }
 
 func (r *windowManagerRegistry) ReconcileUnregisteredWorkspace(ctx context.Context, workspaceID string) error {

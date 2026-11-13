@@ -812,6 +812,49 @@ func TestWindowManagerUserSessionDeletion(t *testing.T) {
 }
 
 func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
+	t.Run("Should reconcile readable partitions before reporting every unavailable layout", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		for _, partition := range []windowmanager.WorkspaceID{
+			windowmanager.WorkspaceID(f.workspace.ID), windowmanager.GlobalDesktopWorkspaceID,
+			windowmanager.UserDesktopWorkspaceID,
+		} {
+			raw := []byte(`{"version":7}`)
+			if partition == windowmanager.UserDesktopWorkspaceID {
+				var err error
+				raw, err = json.Marshal(windowmanager.DefaultSnapshot(partition))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := f.engine.Apply(
+				ctx,
+				clientstate.WorkspaceID(partition),
+				windowManagerStateDomain,
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: raw},
+				},
+				clientstate.ApplyOptions{},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		visited := make(map[windowmanager.WorkspaceID]bool)
+		err := f.registry.reconcilePartitions(
+			ctx,
+			false,
+			func(m *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+				_, err := m.Snapshot(ctx, partition)
+				visited[partition] = err == nil
+				return err
+			},
+		)
+		if !errors.Is(err, windowmanager.ErrUnavailable) || len(visited) != 3 ||
+			!visited[windowmanager.UserDesktopWorkspaceID] || strings.Count(err.Error(), "reconcile profile") != 2 {
+			t.Fatalf("strict sweep visited=%v error=%v", visited, err)
+		}
+	})
 	for _, retirement := range []string{"session", "workspace"} {
 		t.Run("Should reconcile every persisted profile partition after "+retirement+" retirement", func(t *testing.T) {
 			t.Parallel()

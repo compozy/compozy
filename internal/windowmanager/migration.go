@@ -14,13 +14,14 @@ type MigrationSummary struct {
 }
 
 type MigrationStatus struct {
-	State           string            `json:"state"`
-	FromVersion     uint32            `json:"from_version,omitempty"`
-	At              time.Time         `json:"at,omitzero"`
-	Acknowledged    bool              `json:"acknowledged"`
-	Summary         *MigrationSummary `json:"summary,omitzero"`
-	Error           *Diagnostic       `json:"error,omitzero"`
-	FailureRevision Revision          `json:"failure_revision,omitempty"`
+	State             string            `json:"state"`
+	FromVersion       uint32            `json:"from_version,omitempty"`
+	At                time.Time         `json:"at,omitzero"`
+	Acknowledged      bool              `json:"acknowledged"`
+	Summary           *MigrationSummary `json:"summary,omitzero"`
+	Error             *Diagnostic       `json:"error,omitzero"`
+	FailureRevision   Revision          `json:"failure_revision,omitempty"`
+	SupersededBackups int               `json:"superseded_backups,omitempty"`
 }
 
 type Deprecation struct {

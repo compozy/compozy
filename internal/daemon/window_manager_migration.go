@@ -30,15 +30,22 @@ func (r *windowManagerRepository) readMigration(
 		windowManagerStateDomain,
 		windowManagerMigrationKey(r.profileID),
 	)
-	if errors.Is(err, clientstate.ErrNotFound) {
-		return windowmanager.MigrationStatus{State: "none"}, nil
-	}
-	if err != nil {
+	status := windowmanager.MigrationStatus{State: "none"}
+	if err != nil && !errors.Is(err, clientstate.ErrNotFound) {
 		return windowmanager.MigrationStatus{}, mapWindowManagerStoreError("read migration", err)
 	}
-	var status windowmanager.MigrationStatus
-	if err := json.Unmarshal(entry.Value, &status); err != nil {
-		return status, fmt.Errorf("decode migration status: %w", err)
+	if err == nil {
+		if err := json.Unmarshal(entry.Value, &status); err != nil {
+			return status, fmt.Errorf("decode migration status: %w", err)
+		}
+	}
+	entries, err := r.service.List(ctx, clientstate.WorkspaceID(workspace), windowManagerStateDomain)
+	if err != nil {
+		return status, mapWindowManagerStoreError("count superseded backups", err)
+	}
+	status.SupersededBackups = len(supersededBackupKeys(entries, r.profileID))
+	if status.State != windowManagerMigrationFailed {
+		status.Error = nil
 	}
 	return status, nil
 }
@@ -72,7 +79,7 @@ func (r *windowManagerRepository) migrateSnapshot(
 	if err != nil {
 		return windowmanager.Snapshot{}, err
 	}
-	annotateSupersededBackups(&status, superseded)
+	status.SupersededBackups = len(superseded)
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return windowmanager.Snapshot{}, err
@@ -207,9 +214,6 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 	status.Acknowledged, status.At = false, time.Now().UTC()
 	if conversionErr != nil {
 		status.Error = migrationDiagnostic(conversionErr)
-		if err := r.annotateSupersededBackups(ctx, workspace, &status); err != nil {
-			return status, err
-		}
 		return status, r.writeMigrationStatus(ctx, workspace, status, "retry")
 	}
 	next, err := windowmanager.NextTopologyRevision(current.Revision)
@@ -219,9 +223,6 @@ func (r *windowManagerRepository) retrySnapshotMigration(
 	snapshot.Revision, snapshot.UpdatedAt, snapshot.Migration = next, status.At, nil
 	status.State, status.Error, status.Summary = windowManagerMigrationMigrated, nil, &summary
 	status.FailureRevision = 0
-	if err := r.annotateSupersededBackups(ctx, workspace, &status); err != nil {
-		return status, err
-	}
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return status, err

@@ -31,39 +31,61 @@ func (r *windowManagerRegistry) expireMigrationBackups(ctx context.Context, rele
 		if err != nil {
 			return err
 		}
-		for _, entry := range entries {
-			// A successful current upgrade cannot expire an earlier failed backup.
-			// Superseded keys stay discoverable for explicit workspace/profile purge.
-			if statekeys.IsSupersededLegacy(entry.Key) {
-				continue
-			}
-			profile, ok := strings.CutPrefix(entry.Key, "migration:")
-			if !ok || profile == "" || entry.Deleted {
-				continue
-			}
-			var status windowmanager.MigrationStatus
-			if err := json.Unmarshal(entry.Value, &status); err != nil {
-				r.logger.WarnContext(ctx, "window_manager.migration_retention_skipped",
-					"workspace_id", workspace, "profile_id", profile, "error", err)
-				continue
-			}
-			if status.State != windowManagerMigrationMigrated {
-				continue
-			}
-			backup, err := r.engine.Get(ctx, workspace, windowManagerStateDomain, windowManagerLegacyKey(profile))
-			if errors.Is(err, clientstate.ErrNotFound) {
-				continue
-			}
-			if err != nil {
-				return err
-			}
-			if _, err := r.engine.Apply(ctx, workspace, windowManagerStateDomain,
-				[]clientstate.Op{{Kind: clientstate.OpDelete, Key: backup.Key, IfRev: backup.Rev}},
-				clientstate.ApplyOptions{Origin: "window-manager.migration.expire"},
-			); err != nil {
-				return err
-			}
+		ops := r.migrationExpiryOps(ctx, workspace, entries)
+		if len(ops) == 0 {
+			continue
+		}
+		if _, err := r.engine.Apply(ctx, workspace, windowManagerStateDomain, ops,
+			clientstate.ApplyOptions{Origin: "window-manager.migration.expire"},
+		); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (r *windowManagerRegistry) migrationExpiryOps(
+	ctx context.Context,
+	workspace clientstate.WorkspaceID,
+	entries []clientstate.Entry,
+) []clientstate.Op {
+	active := make(map[string]clientstate.Entry)
+	for _, entry := range entries {
+		if !entry.Deleted {
+			active[entry.Key] = entry
+		}
+	}
+	var ops []clientstate.Op
+	remove := func(key string) {
+		if entry, ok := active[key]; ok {
+			ops = append(ops, clientstate.Op{Kind: clientstate.OpDelete, Key: key, IfRev: entry.Rev})
+		}
+	}
+	for _, entry := range entries {
+		if entry.Deleted {
+			continue
+		}
+		if statekeys.IsSupersededLegacy(entry.Key) {
+			disposition := statekeys.SupersededLegacyDisposition(entry.Key)
+			if migrationBackupState(active[disposition].Value) == windowManagerMigrationMigrated {
+				remove(entry.Key)
+				remove(disposition)
+			}
+			continue
+		}
+		profile, ok := strings.CutPrefix(entry.Key, "migration:")
+		if !ok || profile == "" {
+			continue
+		}
+		var status windowmanager.MigrationStatus
+		if err := json.Unmarshal(entry.Value, &status); err != nil {
+			r.logger.WarnContext(ctx, "window_manager.migration_retention_skipped",
+				"workspace_id", workspace, "profile_id", profile, "error", err)
+			continue
+		}
+		if migrationBackupState(entry.Value) == windowManagerMigrationMigrated {
+			remove(windowManagerLegacyKey(profile))
+		}
+	}
+	return ops
 }

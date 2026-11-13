@@ -1147,7 +1147,11 @@ func TestWindowManagerLayoutRawCommands(t *testing.T) {
 					if workspace != "w1" || operation != wantAction || replace != (action == "retry") {
 						t.Fatalf("migration=%s/%s/%v", workspace, operation, replace)
 					}
-					return windowmanager.MigrationStatus{State: "migrated", Acknowledged: action == "ack"}, nil
+					return windowmanager.MigrationStatus{
+						State:             "migrated",
+						Acknowledged:      action == "ack",
+						SupersededBackups: 2,
+					}, nil
 				}
 				args := []string{"layout", "migration", action, "--workspace", "w1", "-o", "json"}
 				if action == "retry" {
@@ -1159,10 +1163,39 @@ func TestWindowManagerLayoutRawCommands(t *testing.T) {
 				}
 				var status windowmanager.MigrationStatus
 				decodeWindowManagerCommandJSON(t, stdout, &status)
-				if status.State != "migrated" || status.Acknowledged != (action == "ack") {
+				if status.State != "migrated" || status.Acknowledged != (action == "ack") ||
+					status.SupersededBackups != 2 || status.Error != nil {
 					t.Fatalf("status=%+v", status)
 				}
 			})
+		}
+	})
+
+	t.Run("Should show retained backup counts in migration text and JSON and omit zero", func(t *testing.T) {
+		t.Parallel()
+		for _, count := range []int{0, 2} {
+			for _, format := range []string{"json", "human"} {
+				client := newWindowManagerCommandStub()
+				client.migrationFn = func(context.Context, string, string, bool) (windowmanager.MigrationStatus, error) {
+					return windowmanager.MigrationStatus{State: "migrated", SupersededBackups: count}, nil
+				}
+				stdout, stderr, err := executeRootCommand(t, newTestDeps(t, client),
+					"layout", "migration", "status", "--workspace", "w1", "-o", format)
+				if err != nil || stderr != "" {
+					t.Fatalf("migration status format=%s stdout=%s stderr=%s error=%v", format, stdout, stderr, err)
+				}
+				if strings.Contains(stdout, `"superseded_backups"`) != (count > 0) ||
+					strings.Contains(stdout, `"error"`) {
+					t.Fatalf("migration status count=%d output=%s", count, stdout)
+				}
+				if format == "json" {
+					var status windowmanager.MigrationStatus
+					decodeWindowManagerCommandJSON(t, stdout, &status)
+					if status.SupersededBackups != count || status.State != "migrated" {
+						t.Fatalf("migration status=%+v", status)
+					}
+				}
+			}
 		}
 	})
 
