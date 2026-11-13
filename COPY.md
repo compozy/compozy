@@ -462,17 +462,19 @@ Terms: **check-in action**, **auto-accept**, **pick**, **check-in authority** (g
 The web UI presents as a desktop environment. These terms are runtime-true — each names a real surface or projection, never an aspirational one. A `workspace` remains the project/runtime scope; each workspace owns one or more persistent visual `desktops`.
 
 - `workspace`: the project root and scoped runtime context. The Workspaces surface switches runtime scope; it does not manage visual desktops.
-- `desktop`: one persistent virtual arrangement inside a workspace. It owns its tiled groups and floating-window order. Switching desktops does not switch runtime scope.
-- `window`: a frame hosting one app's durably resumed route subtree; the views inside are the same views the routes render. A window belongs to exactly one desktop and may be tiled, stacked, or floating.
-- `tiled group`: one non-overlapping arrangement tree inside a desktop. A desktop may contain multiple tiled groups alongside floating windows.
+- `desktop`: one persistent virtual arrangement inside a workspace. It owns one tab bar. Switching desktops does not switch runtime scope.
+- `window`: a frame hosting one app's durably resumed route subtree; the views inside are the same views the routes render. A window belongs to exactly one tab of one desktop: it is a tab of its own or a member of a split inside a tab. It only opens or closes; there is no minimize, maximize, or zoom.
+- `tab`: one entry of a desktop's tab bar, holding one window or a split. Tab menu: **Pin tab** / **Unpin tab**, **Move left**, **Move right**, **Split with ▸**, **Arrange ▸**, **Move to desktop ▸**, **Close tab**, **Close other tabs**, **Close tabs to the right**, **Close tabs to the left**, **Close all tabs**, **Reopen closed tab** (an item absent where it cannot apply).
+- `split`: windows side by side inside one tab, resized only at the seam between them. A split window's head offers **Move to new tab** and **Close window**.
+- Layout upgrade notice: **Your windows are now tabs** with the counts ("3 floating windows are tabs now."); on failure **We could not move your layout to tabs** — "Your previous layout is saved and nothing was lost. This desktop started empty so you can keep working." — with **Retry**.
 - `desktop pager`: the desktop indicators in the menubar tray, one dot per desktop; a click switches and an amber dot marks an off-screen desktop that needs you. Each dot's menu reads **Rename**, **Move left**, **Move right**, **Close desktop**, **New desktop** (an item absent where it cannot apply). While a tab is dragged the dots grow into targets labelled "Move tab to {desktop}". Past seven desktops, "Show N earlier/later desktops" controls open Desktops Overview. The All desktops button beside them opens Desktops Overview, where create, rename, reorder, tab moves and delete with a destination also live; Rename and Close desktop from a dot's menu finish on that desktop's card.
-- `dock`: the rail of app launchers along the left edge (a bottom tab bar in compact presentation), with running/minimized indicators and badges bound to runtime projections. Its foot holds the profile switcher, the light/dark toggle, and Settings. User-facing copy says "dock", not "rail".
+- `dock`: the rail of app launchers along the left edge (a bottom tab bar in compact presentation), with running indicators and badges bound to runtime projections. Its foot holds the profile switcher, the light/dark toggle, and Settings. User-facing copy says "dock", not "rail".
 - `menubar`: the top bar — CompozyOS mark (its menu holds Settings), **All projects** globe, destination chip, app menus, then the tray: desktop pager, All desktops, Provider usage (present only while the active profile has usage targets; its popover opens the **Usage** app and Settings › Provider usage), the approvals bell, the ⌘K palette. The globe sits between the mark and the chip and is the only owner of breadth: pressed is **All projects**, unpressed is the focus. The chip's switcher lists **All projects**, **User**, then the projects; picking one sets the focus. Chip identity is the project name when a project is focused, **User** (`~`) when User is focused, or **All projects** (stacked mark) while the globe is pressed; its tooltip then reads "Back to {project | User}".
 - `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections.
 - `theme`: the light or dark color scheme. Settings › Appearance offers **Light**, **Dark**, and **System** (help: "System follows your computer's light or dark setting."); Dark is the default. The dock-foot toggle reads "Switch to light mode" / "Switch to dark mode" (tooltip "Light mode" / "Dark mode"). Say "light" and "dark", never "night mode" or "day mode".
 - `fonts`: Settings › Appearance › **Fonts** has two rows, **Interface** (help: "Menus, lists, and conversations.") and **Code** (help: "Code blocks, diffs, paths, and the terminal."), under the line "Fonts apply to every app connected to this CompozyOS." Each picker lists **Default · Inter** / **Default · Geist Mono**, the catalog (**JetBrains Mono**, **System**), and an **Installed** group where the device allows it; search reads "Search fonts…" and the reset link reads **Use default**. Name fonts by their family, never "typeface" or "font family".
 - Empty desktop: the question "What should we work on?" above the session composer (placeholder "Describe a task or ask a question"; outside a project "Pick a project to start a session" with **Pick a project**), plus the quiet line "Press ⌘K to open anything." Sending starts a session on that desktop. No card, never a modal and never a blocking wall.
-- Window arrangements (Window › Arrange): **Main and stack**, **Columns**, **Grid**, **Balance sizes**; **Move window to** sends the focused window to another desktop by name. Use "desktop", never "space" or "workspace", for these destinations.
+- Window menu: **Move to new tab** (a split member), **Arrange ▸** (**Main and stack**, **Columns**, **Grid**, **Balance sizes**), **Move to desktop ▸** (sends the focused window's tab to another desktop by name), **All desktops**, **Close window**. Use "desktop", never "space" or "workspace", for these destinations.
 
 ### Marketplace Terms
 
@@ -637,10 +639,9 @@ Avoid:
 
 Goal: tell the person what is true and what they can do next.
 
-Internal window controls use `Zoom window` to maximize and `Restore window` while
-zoomed to return to the saved placement and size. These labels describe internal
-CompozyOS windows, not native browser or application fullscreen. Resizing a zoomed
-window adopts the resized geometry instead of restoring its saved placement.
+Internal CompozyOS windows have no maximize, minimize, or zoom control. To give one
+window the whole work area, use **Move to new tab**; never label an internal control
+"Zoom window" or "Restore window". Native browser or application fullscreen is separate.
 
 Composer send feedback: a prompt the daemon refuses reads "Message not sent: {daemon reason}. Your draft was kept." A prompt that never got an answer after its session window closed reads "Couldn't confirm the message was sent. Your draft was kept." Either way the text and files return to that session's composer. Enter held by a send blocker answers with the blocker itself ("Saving {file}", "Remove files that are not supported", "This agent does not accept images").
 

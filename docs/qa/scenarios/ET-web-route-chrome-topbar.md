@@ -4,9 +4,9 @@ area: ET
 title: Unified window head absorbs PageHead
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Every open desktop window owns one 48px unified head — identity (a 26px identity well + title for root windows, a window-local drill-in trail, or a document self-title with a state glyph), then status + ≤2 actions, then a hairline and the quiet Minimize · Zoom · Close icon controls (in the deck row instead when the window has ≥2 tabs) — with an optional 44px toolbar for peer views and listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); blurred windows dim identity and trail without a border change; focusing a window makes its head and URL authoritative without creating a second shell-level title.
+expected: Every open desktop window owns one 48px unified head — identity (a 26px identity well + title for root windows, a window-local drill-in trail, or a document self-title with a state glyph), then status + ≤2 actions, then a hairline and the quiet icon controls — Close window, plus Move to new tab when the window sits in a split — with an optional 44px toolbar for peer views and listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); blurred windows dim identity and trail without a border change; focusing a window makes its head and URL authoritative without creating a second shell-level title.
 entry_points: web desktop windows; any windowed catalog or detail route
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -37,3 +37,5 @@ qa-impact: 2026-09-30 shell rail v2 (flat topbar, left dock rail, gutterless til
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimize and Zoom are retired and the per-pane deck row is gone (tabs live on one tab bar per desktop). Expected rewritten: every window head carries Close window, and a window inside a split also carries Move to new tab. Walk: a window alone in a tab (Close window only), then two windows in a split (both controls on each head; Move to new tab returns that window to its own tab); confirm identity, trail, toolbar and focus dimming are unchanged. Reset for the current build.

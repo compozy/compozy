@@ -1,12 +1,12 @@
 ---
 id: ET-window-tab-v3-discard
 area: ET
-title: Preserve user layouts across version upgrades
+title: Upgrade stored layouts from every supported release to tabs
 persona: Ada
 journey: J-agent-manage-window-tabs
-expected: Stored layouts from supported releases upgrade losslessly, including navigation and reopen history; an unsupported document is rejected without deleting or overwriting its source. Public layout interfaces follow SD-013 compatibility windows.
-entry_points: compozy layout export|validate|apply; compozy layout-profile get|put; HTTP and UDS layout endpoints; skills/compozy/references/window-management.md
-qa_status: blocked-verify
+expected: Stored snapshots of version 3, 4 and 5 convert to version 6 on load without losing any window, route, navigation history or desktop; the original bytes are kept under a backup key and the migration status reports `migrated` with counts; a snapshot that cannot convert keeps its bytes, opens a default desktop and reports `failed`; a stored snapshot newer than the daemon is never modified and loads fail with `window_manager_unavailable`; layout documents of version 4, 5 and 6 are accepted by validate/apply/profiles, and other versions are rejected without writing.
+entry_points: daemon boot on an older COMPOZY_HOME; compozy layout migration status; compozy layout validate|apply; compozy layout get
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -29,3 +29,5 @@ converter. Reset to re-walk both the migration and the rejections.
 qa-impact: 2026-09-01 the migration now persists the version 4 arrangement once under the next revision (a reconnecting browser kept the pre-migration layout while the revision stayed the same); a former focus desktop survives as a regular desktop hosting its owner as a lifted zoom, and unzoom takes the owner home and drops it. Walked P5a, P5b, P5c.
 
 Policy revalidation (2026-09-04): prior evidence below/above proves the historical implementation, not lossless upgrades. Current code still drops incompatible stored layouts in `internal/daemon/window_manager_repository.go` and resets history in `internal/windowmanager/snapshot_v3.go`; legacy layout documents have no converter. This scenario is `blocked-verify` pending the owning runtime migration fix and a new walk. No new runtime QA was performed during the instruction audit.
+
+qa-impact: 2026-11-13 window-tabs-split S10. The blocked-verify reason above is resolved: incompatible stored layouts are no longer dropped; v3/v4/v5 go through frozen legacy types and a permanent converter, and failures keep the original. Walk: take a COMPOZY_HOME last used by v0.4/v0.5 (version 3/4 layouts) and one by v0.6 (version 5), start this build on each, and confirm `compozy layout migration status -o json` reports `migrated` with `from_version` 3, 4 or 5 and the Web shell shows every former window as a tab. For the failure and retry path use `ET-window-layout-upgrade-failure-retry`; for the v0.6 detail and notice use `ET-window-layout-upgrade-v06`.

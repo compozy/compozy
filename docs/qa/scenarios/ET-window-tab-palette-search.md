@@ -4,9 +4,9 @@ area: ET
 title: Find and activate a tab from the command palette
 persona: Bruno
 journey: J-organize-tabbed-work
-expected: Command-K lists live tabs with disambiguating app, desktop, leaf-title, attention, and minimized context; selecting a result restores and activates that exact window without changing its route depth, and an empty or closed result group disappears without stale rows.
+expected: Command-K lists live tabs and their windows with disambiguating app, desktop, title and attention context; selecting a result activates that window's tab (switching desktop when needed) and focuses the window without changing its route depth; a window inside a split is listed and focused in place; an empty or closed result group disappears without stale rows.
 entry_points: Command-K; command palette Go to tab; web desktop URL
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -41,3 +41,5 @@ branches.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimized windows no longer exist; split members replace them as the in-place case. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. Across two desktops open several tabs, one of them a split of two windows. ⌘K and type a title from the split's second window: the row names its app and desktop; selecting it switches desktop if needed, activates that tab and focuses that window inside the split. Close a listed tab from another browser: its row is gone on the next query.

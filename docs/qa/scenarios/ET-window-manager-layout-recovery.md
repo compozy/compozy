@@ -4,9 +4,9 @@ area: ET
 title: Validate, apply, undo, and recover declarative layouts
 persona: Ada
 journey: J-administer-window-manager
-expected: Export returns a history-free workspace document and preserves daemon-owned `return_anchor.source_group` state for every tiled return anchor; validate and preview report stable diagnostics without writing; apply replaces the complete topology once at the expected revision; undo and redo round-trip it; global and workspace `window_layout` resources resolve with workspace precedence; malformed, executable-like, mixed resource-inline, foreign-workspace, stale, and unsupported-version documents preserve the last known-good state.
-entry_points: compozy layout export|validate|apply|undo|redo|arrange; compozy__layout_*; compozy__resources_list; Settings layout editor
-qa_status: skipped
+expected: Export returns a history-free version 6 workspace document (`{version: 6, workspace_id, desktops, windows, overrides}`); validate and preview report stable diagnostics without writing and accept documents of version 4, 5 and 6; apply replaces the complete topology once at the expected revision and converts a version 4 or 5 document to tabs; undo and redo round-trip it; global and workspace `window_layout` resources resolve with workspace precedence; malformed or unsupported-version documents fail with `window_manager_invalid_topology` (`topology.unsupported_version`) and write nothing.
+entry_points: compozy layout export|validate|apply|preview|undo|redo; compozy__layout_export|validate|apply; compozy layout-profile put
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -34,3 +34,5 @@ Re-walk the resource-precedence and recovery arms in a non-default profile.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Documents are version 6; `return_anchor` no longer exists. Walk: Preconditions: an isolated lab from `eng-qa-bootstrap` running this build, one workspace open in the Web shell. Build two desktops with a split tab and a pinned tab. `compozy layout export -o json > v6.json`: `version` is 6, no history or closed entries. `compozy layout validate --file v6.json` passes with no write (revision unchanged). Edit `version` to 7: validate fails with `topology.unsupported_version`. Validate and apply a version 5 document exported by v0.6 (keep one from an older lab, or the fixture used by `ET-layout-editor-import-legacy-document`): it applies as tabs, then `compozy layout undo` restores the previous layout and `redo` re-applies it. Export again: `version` is 6.

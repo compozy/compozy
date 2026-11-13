@@ -1,12 +1,12 @@
 ---
 id: ET-web-dock-default-window-size
 area: ET
-title: Dock apps open as a tab in the focused window, beside it, or at the default floating size
+title: Dock apps open as a new tab or as a split beside the focused window
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: With the default `new_window_policy = tab`, opening an app from the dock onto an empty desktop fills the desk as one flat tiled pane, and opening it while a window on the same desktop is focused (tiled or floating) adds the app as a new tab of that window's frame and makes it the active, focused tab; with `new_window_policy = beside_focus` the app instead splits the focused tiled pane with the new window after it; when the focused window floats under `beside_focus`, or `new_window_policy = floating` is set explicitly, the app opens as a floating window (1px hairline + elevated shadow) at the one default floating rect every app shares (0.68 × 0.78 of the desk, inset 12% from its left and 8% from its top — ≈938×661 on a 1380×848 desk) clamped inside the desk; closing and reopening applies the same rule; an explicit config value always wins over the new default.
-entry_points: web dock (left rail); [window_manager] new_window_policy; app-registry defaultRect
-qa_status: skipped
+expected: With the default `new_window_policy = tab`, opening an app from the dock onto an empty desktop fills the desk with one tab holding that window, and opening another app while a window on the same desktop is focused adds it as a new tab on that desktop's tab bar and makes it the active, focused tab; with `new_window_policy = beside_focus` the app instead opens in a split beside the focused window, with the new window after it; a config that still says `new_window_policy = floating` loads as `tab` with a deprecation warning; closing and reopening applies the same rule; an explicit config value always wins over the default.
+entry_points: web dock (left rail); [window_manager] new_window_policy
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-web-window-routing-lifecycle; ET-web-desktop-shell-lifecycle; ET-web-catalog-navigation
 ---
 
-Opening Agents, Loops, Jobs, Triggers, Vault, Marketplace, Dashboard, or Session from a fresh closed state lands a floating window at the enlarged registry defaultRect (≈920×640 list surfaces, ≈960×680 dashboards/marketplace, Session ≈860×680); Tasks and Settings keep their existing large defaults; clampRect still fits the window inside the desktop gutters on smaller viewports; closing and reopening applies the registry defaults again.
+Opening Agents, Loops, Automations, Vault, Marketplace, Dashboard, or Session from a fresh closed state lands the app in a new tab (default policy) or in a split beside the focused window (`beside_focus`); there is no floating window and no default window rect; closing and reopening applies the same placement rule again.
 
 Walk each listed public entry point, then reload and read the stored result independently. Exercise rejection and recovery with the same workspace and profile to confirm that unrelated state remains intact.
 
@@ -31,3 +31,5 @@ qa-impact: 2026-09-30 shell-rail polish P6 — the default `new_window_policy` i
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-11-13 window-tabs-split S10. Floating windows, the shared default floating rect and `new_window_policy = "floating"` are retired: the policy is `tab` (default) or `beside_focus`, and `floating` loads as `tab` with a deprecation warning. Title, expected and entry points rewritten. Walk: fresh config (empty desktop → one tab; second app → a new active tab on the tab bar), `new_window_policy = "beside_focus"` (second app opens in a split beside focus), and `new_window_policy = "floating"` (opens as a tab; the deprecation warning names `tab`). Reset for the current build.

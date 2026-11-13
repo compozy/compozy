@@ -55,7 +55,11 @@ journey:
     natural: "The operator closes the finished terminal or continues work in the resumed one."
   abandonment:
     - at_step: 2
-      how: "Minimize the window or detach the viewer while the command is still running."
+      how: "Switch to another tab or desktop, or detach the viewer, while the command is still running."
       resume: "Reopen the Terminal app and attach to the same terminal from the current stream cursor."
   crosses: [terminal-runtime, session-transcript, journal, recordings, profile-scope, WebSocket-stream]
 ```
+
+qa-impact: 2026-11-13 window-tabs-split S10. Minimize was retired with tabs and splits; the
+abandonment now leaves the Terminal window in a background tab or on another desktop instead of
+minimizing it. Walk with ET-terminal-stream-resilience step 9.

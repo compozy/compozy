@@ -92,3 +92,17 @@ that keep the earlier results as history. `RT-retired-builtin-provider-shim` cov
 window. Charters, dated reports, bug receipts, `_seeds/`, and `evidence/` that mention the removed
 providers record historical observations only, and `src:` lines that cite the `hermes-comparison`
 program name a task folder, not the provider.
+
+### Product retirement — floating windows, minimize, zoom (2026-11-13)
+
+The window-tabs-split spec replaced floating windows, minimize, zoom, snapping, and tabs inside a
+pane with one tab bar per desktop whose tabs hold one window or a split. The dedicated scenarios
+`ET-window-zoom-in-place`, `ET-layout-editor-board-summary`, and `ET-layout-editor-group-overlap-refused`
+were deleted with the behavior they covered; their ids are never reused. Mixed scenarios and journeys
+were rewritten in place with dated QA impact notes that keep earlier results as history. The upgrade
+walks are `ET-window-layout-upgrade-v06` and `ET-window-layout-upgrade-failure-retry`; the
+deprecation window until v0.8.0 is covered by `ET-window-retired-surfaces-deprecations`,
+`MS-window-manager-retired-config-keys`, and `MS-window-shortcut-retired-binding`. Charters
+(including `CH-window-manager-review-fixes` and `CH-untested-043-administer-window-manager-bruno-part-1`),
+dated reports, bug receipts, `_seeds/`, and `evidence/` that mention floating, minimized, or zoomed
+windows record historical observations only.

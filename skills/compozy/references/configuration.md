@@ -577,9 +577,12 @@ write scalar settings with `compozy config get|set cmd_palette.<key>`. Use the t
 
 ## Window Manager
 
-`[window_manager]` controls global behavior defaults for new-window placement, small-viewport
-fallback, focus and raise policy, drag-away grouping, bounded history, desktop transitions, gaps,
-snap thresholds and repeat ratios, edge bindings, and shortcuts. Every `window_manager.*` path is
+`[window_manager]` controls global behavior defaults for new-window placement (`tab` or
+`beside_focus`), small-viewport fallback, focus policy, the swap modifier, bounded history, desktop
+transitions, gaps, and shortcuts. The retired keys `raise_on_focus`, `drag_away_policy`,
+`group_move_modifier`, `snap.*`, `bindings.top_center`, and `bindings.bottom_center` still load with
+one `warning:` and are ignored until v0.8.0; `new_window_policy = "floating"` loads as `"tab"` with a
+warning. Remove them instead of setting them. Every `window_manager.*` path is
 live-applied only after the complete candidate validates; a failed apply keeps the prior active
 generation. Workspace topology overrides remain part of revisioned layout documents rather than a
 second Settings scope. Field detail lives in `references/window-management.md` (Configuration and hooks).
