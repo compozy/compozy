@@ -28,15 +28,6 @@ func (s *service) updateWindowManagerSection(
 			errors.New("settings: window-manager section payload is required"),
 		)
 	}
-	if loaded.scope == ScopeWorkspace {
-		loaded.config.WindowManager, err = workspaceWindowManagerConfig(
-			loaded.target.Path(),
-			loaded.config.WindowManager,
-		)
-		if err != nil {
-			return MutationResult{}, err
-		}
-	}
 	desired, desiredAliases, err := s.normalizeWindowManagerRequest(ctx, &loaded, req)
 	if err != nil {
 		return MutationResult{}, err
@@ -80,7 +71,7 @@ func (s *service) updateWindowManagerSection(
 		loaded.workspaceID,
 		loaded.workspaceRoot,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return applyWindowManagerSettings(editor, desired, desiredAliases, req)
+			return applyWindowManagerSettings(editor, desired, desiredAliases)
 		},
 	)
 	if err != nil {
