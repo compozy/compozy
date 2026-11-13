@@ -198,21 +198,23 @@ jobs:
       - name: Verify product language
         run: make product-language-check
 
-  frontend:
-    name: Frontend (${{ matrix.lane }})
+  frontend-tasks:
+    name: ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
-        lane: ${{ fromJSON(needs.changes.outputs.frontend_lanes) }}
+        include: ${{ fromJSON(needs.changes.outputs.frontend_lanes) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.web == 'true'
+    env:
+      CI_WEB_SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Set up Go for scaffold tests
-        if: matrix.lane != 'lint'
+        if: matrix.lane != 'lint' && matrix.lane != 'web-tests'
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -227,9 +229,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ github.run_id }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
@@ -256,7 +258,7 @@ jobs:
         if: always() && matrix.lane != 'lint'
         uses: actions/upload-artifact@v7
         with:
-          name: turbo-receipts-${{ matrix.lane }}
+          name: turbo-receipts-${{ matrix.lane }}-${{ strategy.job-index }}
           path: .turbo/runs/*.json
           if-no-files-found: ignore
           retention-days: 7
@@ -265,17 +267,35 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-verify-artifacts-${{ matrix.lane }}
-          path: web/dist
+          name: frontend-verify-artifacts-${{ matrix.lane }}-${{ strategy.job-index }}
+          path: |
+            web/dist
+            web/.turbo/turbo-test.log
           if-no-files-found: ignore
           retention-days: 7
+          include-hidden-files: true
 
       - name: Save Turbo cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v6
         with:
           path: .turbo/cache
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ github.run_id }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ matrix.lane }}-${{ matrix.shard || 'all' }}-${{ github.run_id }}
+
+  # Preserve the canonical check and needs ID consumed by the fast-lane gate.
+  # always() prevents a failed/canceled shard from skipping this aggregate.
+  frontend:
+    name: Frontend (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, frontend-tasks]
+    if: always() && needs.changes.outputs.web == 'true'
+    steps:
+      - name: Require every selected frontend task
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-tasks.result }}
+        run: test "$CHANGES_RESULT" = success && test "$FRONTEND_RESULT" = success
 
   go-static:
     name: Go (format, lint)

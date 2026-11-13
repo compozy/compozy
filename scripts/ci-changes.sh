@@ -245,6 +245,12 @@ assert "compozy-web" in module.select(["web/deleted.ts"])
 assert module.select(["internal/session/manager.go"]) == []
 assert module.select(["AGENTS.md", ".agents/agents/example.md", "docs/_memory/lessons/example.md"]) == []
 assert "@compozy/site" in module.select(["docs/_memory/glossary.md"])
+web_lanes = module.frontend_lanes(['compozy-web', '@compozy/ui'])
+assert [lane['shard'] for lane in web_lanes if lane['lane'] == 'web-tests'] == ['1/4', '2/4', '3/4', '4/4']
+assert any(lane['lane'] == 'web' for lane in web_lanes)
+assert not any(lane['lane'] == 'web-tests' for lane in module.frontend_lanes(['@compozy/ui']))
+assert not any(lane['lane'] == 'web-tests' for lane in module.frontend_lanes(['@compozy/site']))
+assert len([lane for lane in module.frontend_lanes(['*']) if lane['lane'] == 'web-tests']) == 4
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     (root / 'package.json').write_text('{"workspaces": []}')
@@ -297,6 +303,59 @@ with tempfile.TemporaryDirectory() as directory:
                 raise AssertionError('empty current-run manifest accepted')
             except RuntimeError:
                 pass
+        (root / 'web').mkdir()
+        (root / 'web/package.json').write_text('{"name": "compozy-web"}')
+        (root / 'package.json').write_text('{"workspaces": ["web", "lint-plugins"]}')
+        receipt_number = 0
+        def write_fresh_receipt(*args, **kwargs):
+            global receipt_number
+            receipt_number += 1
+            (root / f'.turbo/runs/run-{receipt_number}.json').write_text('{"tasks": []}')
+        with patch.dict(os.environ, CI_WORKSPACES='["compozy-web", "@compozy/lint-plugins"]'):
+            with patch('sys.argv', [frontend, 'web']), patch('subprocess.run', side_effect=write_fresh_receipt) as common:
+                runpy.run_path(frontend)
+                commands = [call.args[0] for call in common.call_args_list]
+                assert any('test' in command and '--filter=@compozy/lint-plugins' in command for command in commands)
+                assert not any('test' in command and '--filter=compozy-web' in command for command in commands)
+                assert any('typecheck' in command and '--filter=compozy-web' in command for command in commands)
+                assert len(json.loads((root / '.turbo/ci-receipts.json').read_text())) == 3
+            for shard in ['1/4', '2/4', '3/4', '4/4']:
+                with patch.dict(os.environ, CI_WEB_SHARD=shard), patch('sys.argv', [frontend, 'web-tests']):
+                    with patch('subprocess.run', side_effect=write_fresh_receipt) as execute:
+                        runpy.run_path(frontend)
+                    execute.assert_called_once_with(('bunx', '--no-install', 'turbo', 'run', 'test',
+                        '--filter=compozy-web', '--concurrency=2', '--log-order=stream', '--summarize',
+                        '--', '--shard=' + shard, '--maxWorkers=75%', '--retry=2'), check=True)
+                    receipts = json.loads((root / '.turbo/ci-receipts.json').read_text())
+                    assert len(receipts) == 1
+                    Path(receipts[0]).write_text(json.dumps({'tasks': [{
+                        'taskId': 'compozy-web#test', 'package': 'compozy-web',
+                        'task': 'test', 'cache': {'status': 'HIT'}}]}))
+                    with patch('subprocess.run') as audit:
+                        runpy.run_path(report)
+                    audit.assert_called_once_with(['bunx', '--no-install', 'turbo', 'run', 'test',
+                        '--filter=compozy-web', '--cache=', '--concurrency=2',
+                        '--', '--shard=' + shard, '--maxWorkers=75%', '--retry=2'], check=True)
+                    for effect in [None, subprocess.CalledProcessError(7, ['turbo', 'test'])]:
+                        with patch('subprocess.run', side_effect=effect):
+                            try:
+                                runpy.run_path(frontend)
+                                raise AssertionError('missing receipt or failed shard was accepted')
+                            except (RuntimeError, subprocess.CalledProcessError):
+                                pass
+                    def write_two_receipts(*args, **kwargs):
+                        write_fresh_receipt()
+                        write_fresh_receipt()
+                    with patch('subprocess.run', side_effect=write_two_receipts):
+                        try:
+                            runpy.run_path(frontend)
+                            raise AssertionError('multiple shard receipts were accepted')
+                        except RuntimeError:
+                            pass
+        with patch.dict(os.environ, CI_WORKSPACES='["@compozy/lint-plugins"]'), patch('sys.argv', [frontend, 'web-tests']):
+            with patch('subprocess.run') as execute:
+                runpy.run_path(frontend)
+            execute.assert_not_called()
     finally:
         os.chdir(previous)
 CHECK

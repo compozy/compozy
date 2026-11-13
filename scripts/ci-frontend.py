@@ -26,13 +26,14 @@ def run(*args):
     subprocess.run(args, check=True)
 
 
-def turbo(tasks, targets):
+def turbo(tasks, targets, test_args=()):
     """Require a fresh receipt from every selected Turbo invocation."""
     if targets:
         before = set(Path('.turbo/runs').glob('*.json'))
         run('bunx', '--no-install', 'turbo', 'run', *tasks,
             *['--filter=' + name for name in targets],
-            '--concurrency=2', '--log-order=stream', '--summarize')
+            '--concurrency=2', '--log-order=stream', '--summarize',
+            *(['--', *test_args] if test_args else []))
         receipts = set(Path('.turbo/runs').glob('*.json')) - before
         if len(receipts) != 1:
             raise RuntimeError(f'Expected one new Turbo receipt for {tasks}: got {len(receipts)}')
@@ -41,8 +42,13 @@ def turbo(tasks, targets):
 
 if lane == 'lint':
     run('bun', 'run', 'lint')
+elif lane == 'web-tests':
+    if 'compozy-web' in names:
+        turbo(['test'], ['compozy-web'],
+              ['--shard=' + os.environ['CI_WEB_SHARD'], '--maxWorkers=75%', '--retry=2'])
 else:
-    turbo(['typecheck', 'test'], names)
+    turbo(['typecheck', 'test'], [name for name in names if name != 'compozy-web'])
+    turbo(['typecheck'], [name for name in names if name == 'compozy-web'])
     turbo(['build'], [name for name in names if name in {'compozy-web', '@compozy/site', '@compozy/brand', '@compozy/example-prompt-enhancer'}])
     if '@compozy/client' in names:
         turbo(['test:package'], ['@compozy/client'])
