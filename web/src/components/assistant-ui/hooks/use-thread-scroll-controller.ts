@@ -330,8 +330,42 @@ export function useThreadScrollController(
     return () => cancelAnimationFrame(animationFrame);
   }, [historyAnchor, leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
 
+  // The new-turn anchor: the sent bubble held near the top, or following once the reply outgrew
+  // the reserved space. Applied on each commit while rendered, and on show for a turn that
+  // started while the pane was hidden. Returns whether a turn was placed.
+  const placeTurn = useRef<(viewport: HTMLDivElement) => boolean>(() => false);
+  useLayoutEffect(() => {
+    placeTurn.current = viewport => {
+      const scrollState = store.getSnapshot().context;
+      const anchorIndex = scrollState.anchorIndex;
+      if (threadScrollMode(scrollState) !== "anchoring-new-turn" || anchorIndex === null) {
+        return false;
+      }
+      const viewportHeight = Math.max(
+        viewport.clientHeight,
+        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
+      );
+      const metrics = getAnchoredTurnMetrics({
+        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
+        anchorIndex: anchorIndex + leadingItemCount,
+        composerOverlayHeight: scrollState.composerOverlayHeight,
+        anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
+      });
+      if (!metrics) return false;
+      if (metrics.overflowsUsableViewport) {
+        // The reply outgrew the reserved space: following takes over.
+        store.trigger.anchorOutgrown();
+        virtualizer.scrollToEnd();
+      } else {
+        virtualizer.scrollToOffset(Math.max(0, metrics.anchorTop - NEW_TURN_ANCHOR_OFFSET_PX));
+      }
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+      return true;
+    };
+  });
+
   useThreadScrollGestures(viewportRef, store);
-  useThreadScrollResume(viewportRef, virtualizer, store);
+  useThreadScrollResume(viewportRef, virtualizer, store, placeTurn);
 
   // End-maintenance: streaming growth (content) and composer growth (viewport
   // shrink) keep the pin while following, and only then; a disclosure holds it
@@ -398,31 +432,9 @@ export function useThreadScrollController(
     store.trigger.messagesCommitted({ count: messageCount, lastUserId, lastUserIndex });
     // Rows that arrive while the pane is hidden are booked; the resume on show places them.
     if (!isRenderedElement(viewport)) return;
-    const scrollState = store.getSnapshot().context;
-    const mode = threadScrollMode(scrollState);
-
-    const anchorIndex = scrollState.anchorIndex;
-    if (mode === "anchoring-new-turn" && anchorIndex !== null) {
-      const viewportHeight = Math.max(
-        viewport.clientHeight,
-        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
-      );
-      const metrics = getAnchoredTurnMetrics({
-        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
-        anchorIndex: anchorIndex + leadingItemCount,
-        composerOverlayHeight: scrollState.composerOverlayHeight,
-        anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
-      });
-      if (!metrics) return;
-      if (metrics.overflowsUsableViewport) {
-        // The reply outgrew the reserved space: following takes over.
-        store.trigger.anchorOutgrown();
-        virtualizer.scrollToEnd();
-        store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
-        return;
-      }
-      virtualizer.scrollToOffset(Math.max(0, metrics.anchorTop - NEW_TURN_ANCHOR_OFFSET_PX));
-      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+    const mode = threadScrollMode(store.getSnapshot().context);
+    if (mode === "anchoring-new-turn") {
+      placeTurn.current(viewport);
       return;
     }
 
@@ -430,7 +442,7 @@ export function useThreadScrollController(
       virtualizer.scrollToEnd();
       store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
     }
-  }, [leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
+  }, [messageCount, messages, store, viewportRef, virtualizer]);
 
   return {
     captureHistoryAnchor,

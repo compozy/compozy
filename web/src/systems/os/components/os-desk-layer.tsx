@@ -188,6 +188,8 @@ function DeskLayer({
     tabs.some(tab => tab.id === drag.contentTabId);
   const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
   const { visited, paneWindowIds, hosts } = useDeskTabPanes(tabs, shownTabId, manager);
+  // A window's route change, read in the commit that rendered it, before a later move or hide.
+  useLayoutEffect(() => hosts.syncRoutes(), [hosts, windows]);
   const renderWindow = (windowId: string) => (
     <OsWindowSlot key={windowId} hosts={hosts} windowId={windowId} />
   );

@@ -7,10 +7,20 @@ import type { ThreadScrollStore } from "./thread-scroll-context";
 import { threadScrollMode } from "./thread-scroll-store";
 import { pinToEnd } from "./use-thread-scroll-gestures";
 
-/** The row at the viewport's top edge and how far into it the reader is. */
+/** Frames the resumed row is held in place while the rows re-measure after a show. */
+const RESUME_MAX_FRAMES = 60;
+/** Consecutive frames the resumed row must rest before the hold ends early. */
+const RESUME_STABLE_FRAMES = 4;
+/** Input that is the reader taking the viewport, ending a hold still settling. */
+const READER_GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+
+/** The row at the viewport's top edge, how far into it the reader is, and the raw offset. */
 interface ReadingAnchor {
   key: VirtualItem["key"];
-  offset: number;
+  /** The reader's depth into the row as a share of its height, so a reflow keeps the same text. */
+  fraction: number;
+  /** The viewport's offset when read: the place when the row left the list while hidden. */
+  top: number;
 }
 
 /**
@@ -31,49 +41,102 @@ export function observeRenderedElementOffset(
 
 /**
  * Where the transcript resumes when its pane is rendered again (after a tab switch, a move into
- * a split, a collapsed switcher). Nothing about the transcript changes while it is not rendered,
- * so it resumes from the state it had: following pins the end again; otherwise the row the
- * reader was on returns to the same distance under the top edge, read from the virtualizer's
- * measurements rather than as a pixel offset, so a width change that reflowed the rows above
- * keeps the same message in view. The pane host announces the show with
- * {@link SCROLL_RESTORE_EVENT} before the frame paints, and leaves this viewport's offsets to it.
+ * a split, a collapsed switcher). Following pins the end again; a turn that started while the
+ * pane was hidden gets its new-turn anchor (`placeTurn`); otherwise the row the reader was on
+ * returns to the same depth under the top edge. That depth is kept as a share of the row's
+ * height, read from the virtualizer's measurements, so a width change that reflowed the rows
+ * keeps the same message and the same text in view. The rows re-measure over the next frames
+ * (a new width, rows that mounted on show) and the virtualizer compensates for them, so the
+ * row is held there until it rests, for at most {@link RESUME_MAX_FRAMES}, or until the reader's
+ * gesture. A row that left the list while hidden falls back to the raw offset. The pane host
+ * announces the show with {@link SCROLL_RESTORE_EVENT} before the frame paints, and leaves this
+ * viewport's offsets to it.
  */
 export function useThreadScrollResume(
   viewportRef: RefObject<HTMLDivElement | null>,
   virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>,
-  store: ThreadScrollStore
+  store: ThreadScrollStore,
+  placeTurn: RefObject<(viewport: HTMLDivElement) => boolean>
 ): void {
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return undefined;
     let anchor: ReadingAnchor | null = null;
+    let frame = 0;
+    let holding = false;
+    const release = () => {
+      holding = false;
+      cancelAnimationFrame(frame);
+    };
     const read = () => {
-      if (!isRenderedElement(viewport)) return;
-      const item = virtualizer.getVirtualItemForOffset(viewport.scrollTop);
-      anchor =
-        item === undefined ? null : { key: item.key, offset: viewport.scrollTop - item.start };
+      // While the row is held, the scrolls are the hold's own writes, not the reader's.
+      if (holding || !isRenderedElement(viewport)) return;
+      const top = viewport.scrollTop;
+      const item = virtualizer.getVirtualItemForOffset(top);
+      if (item === undefined) {
+        anchor = null;
+        return;
+      }
+      const depth = item.size > 0 ? (top - item.start) / item.size : 0;
+      anchor = { key: item.key, fraction: Math.min(1, Math.max(0, depth)), top };
+    };
+    /** Where the anchored row puts the viewport now, by its current measurement. */
+    const targetOf = (reading: ReadingAnchor): number => {
+      const item = virtualizer.measurementsCache.find(entry => entry.key === reading.key);
+      if (item === undefined) return reading.top;
+      return item.start + reading.fraction * item.size;
+    };
+    const place = (reading: ReadingAnchor): boolean => {
+      const top = targetOf(reading);
+      if (Math.abs(viewport.scrollTop - top) < 1) return false;
+      viewport.scrollTop = top;
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+      return true;
+    };
+    const hold = (reading: ReadingAnchor) => {
+      release();
+      holding = true;
+      const mode = threadScrollMode(store.getSnapshot().context);
+      let frames = 0;
+      let stable = 0;
+      const tick = () => {
+        frames += 1;
+        if (!isRenderedElement(viewport)) return release();
+        // A new turn or a jump to the end owns the viewport from here on.
+        if (threadScrollMode(store.getSnapshot().context) !== mode) return release();
+        stable = place(reading) ? 0 : stable + 1;
+        if (stable >= RESUME_STABLE_FRAMES || frames >= RESUME_MAX_FRAMES) return release();
+        frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
     };
     const resume = () => {
       if (!isRenderedElement(viewport)) return;
-      if (threadScrollMode(store.getSnapshot().context) === "following-end") {
+      release();
+      const mode = threadScrollMode(store.getSnapshot().context);
+      if (mode === "following-end") {
         pinToEnd(viewport, store);
         return;
       }
+      if (mode === "anchoring-new-turn" && placeTurn.current(viewport)) return;
       const reading = anchor;
       if (reading === null) return;
-      const item = virtualizer.measurementsCache.find(entry => entry.key === reading.key);
-      if (item === undefined) return;
-      const top = item.start + Math.min(reading.offset, item.size);
-      if (Math.abs(viewport.scrollTop - top) < 1) return;
-      viewport.scrollTop = top;
-      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+      place(reading);
+      hold(reading);
     };
     read();
     viewport.addEventListener("scroll", read, { passive: true });
     viewport.addEventListener(SCROLL_RESTORE_EVENT, resume);
+    for (const gesture of READER_GESTURES) {
+      viewport.addEventListener(gesture, release, { capture: true, passive: true });
+    }
     return () => {
+      release();
       viewport.removeEventListener("scroll", read);
       viewport.removeEventListener(SCROLL_RESTORE_EVENT, resume);
+      for (const gesture of READER_GESTURES) {
+        viewport.removeEventListener(gesture, release, { capture: true });
+      }
     };
-  }, [store, viewportRef, virtualizer]);
+  }, [placeTurn, store, viewportRef, virtualizer]);
 }

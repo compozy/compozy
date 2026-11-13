@@ -4506,6 +4506,18 @@ describe("SessionThread transcript states", () => {
 
     expect(viewport.scrollTop).toBe(300);
     expect(pill).toHaveAttribute("data-visible", "true");
+
+    // Rows re-measure over the next frames and the virtualizer compensates with no reader: the
+    // resumed row is held where it was until it rests.
+    viewport.scrollTop = 900;
+    fireEvent.scroll(viewport);
+    await waitFor(() => expect(viewport.scrollTop).toBe(300));
+
+    // The reader's gesture ends the hold: their move stays.
+    fireEvent.wheel(viewport, { deltaY: 120 });
+    scrollViewportTo(viewport, 600);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    expect(viewport.scrollTop).toBe(600);
   });
 
   function settlingTranscript(prefix: string, length = 40) {
