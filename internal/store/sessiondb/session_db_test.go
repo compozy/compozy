@@ -2779,10 +2779,10 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: "step "},
 				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: fmt.Sprintf("%d", i)},
 				acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "turn-long", ToolCallID: call, Title: "Bash",
-					Raw: json.RawMessage(fmt.Sprintf(`{"rawInput":{"command":"echo %d"}}`, i))},
+					Raw: json.RawMessage(fmt.Sprintf(`{"rawInput": {"command": "echo '<%d>' && true"}}`, i))},
 			)
 			if i%3 != 2 {
-				result := fmt.Sprintf(`{"status":"completed","rawOutput":{"stdout":"%d"}}`, i)
+				result := fmt.Sprintf(`{"status":"completed","rawOutput":{"stdout":"%s"}}`, strings.Repeat("ok ", i*40))
 				stream = append(stream, acp.AgentEvent{
 					Type: acp.EventTypeToolResult, TurnID: "turn-long", ToolCallID: call, Raw: json.RawMessage(result),
 				})
@@ -2842,6 +2842,32 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 		if !strings.Contains(encode(page.Entries[1].Message), "late") {
 			t.Fatalf("late tool result missing from its routed entry: %s", encode(page.Entries[1].Message))
+		}
+		// Persisted rows, not only decoded pages, must be the json.Marshal bytes
+		// of the replayed message after the writer reused its encode buffer.
+		rows, err := sessionDB.readDB.QueryContext(ctx,
+			`SELECT message_json FROM transcript_entries WHERE message_json IS NOT NULL ORDER BY start_sequence`)
+		if err != nil {
+			t.Fatalf("query stored message_json: %v", err)
+		}
+		var stored []string
+		for rows.Next() {
+			var messageJSON string
+			if err := rows.Scan(&messageJSON); err != nil {
+				t.Fatalf("scan stored message_json: %v", err)
+			}
+			stored = append(stored, messageJSON)
+		}
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+			t.Fatalf("read stored message_json: %v", err)
+		}
+		if len(stored) != len(want) {
+			t.Fatalf("stored rows = %d, want full replay %d", len(stored), len(want))
+		}
+		for i := range want {
+			if wantJSON := encode(want[i].Message); stored[i] != wantJSON {
+				t.Fatalf("stored message_json %d differs from json.Marshal:\n got %s\nwant %s", i, stored[i], wantJSON)
+			}
 		}
 	})
 

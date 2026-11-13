@@ -1,9 +1,11 @@
 package sessiondb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -156,7 +158,8 @@ func persistProjectionEntry(
 	identity transcript.EntryIdentity,
 	entry *transcript.Entry,
 ) error {
-	params, err := prepareProjectionEntry(identity, entry)
+	var encoder projectionMessageEncoder
+	params, err := prepareProjectionEntry(&encoder, identity, entry)
 	if err != nil {
 		return err
 	}
@@ -166,7 +169,35 @@ func persistProjectionEntry(
 	return nil
 }
 
+// maxRetainedProjectionBuffer bounds the encode buffer a session writer keeps
+// between appends. Larger messages still encode correctly but release their
+// buffer afterwards instead of pinning it for the session lifetime.
+const maxRetainedProjectionBuffer = 4 << 20
+
+// projectionMessageEncoder encodes transcript messages into a reused buffer.
+// Every append rewrites the whole active assistant message, so a fresh
+// encoder buffer per append would regrow to the full message size each time.
+// The zero value is ready to use; it is not safe for concurrent use.
+type projectionMessageEncoder struct {
+	buf bytes.Buffer
+}
+
+// encode returns the same bytes as json.Marshal(message): MarshalWrite with
+// the v1 default options omits the top-level newline exactly like Marshal.
+func (e *projectionMessageEncoder) encode(message *transcript.UIMessage) (string, error) {
+	e.buf.Reset()
+	if err := jsonv2.MarshalWrite(&e.buf, message, json.DefaultOptionsV1()); err != nil {
+		return "", err
+	}
+	encoded := e.buf.String()
+	if e.buf.Cap() > maxRetainedProjectionBuffer {
+		e.buf = bytes.Buffer{}
+	}
+	return encoded, nil
+}
+
 func prepareProjectionEntry(
+	encoder *projectionMessageEncoder,
 	identity transcript.EntryIdentity,
 	entry *transcript.Entry,
 ) (sqlcgen.UpsertTranscriptEntryParams, error) {
@@ -174,11 +205,11 @@ func prepareProjectionEntry(
 	var eventType string
 	var markerJSON sql.NullString
 	if entry != nil {
-		encoded, err := json.Marshal(entry.Message)
+		encoded, err := encoder.encode(&entry.Message)
 		if err != nil {
 			return sqlcgen.UpsertTranscriptEntryParams{}, fmt.Errorf("store: marshal transcript message: %w", err)
 		}
-		messageJSON = sql.NullString{String: string(encoded), Valid: true}
+		messageJSON = sql.NullString{String: encoded, Valid: true}
 		eventType = entry.EventType
 		if entry.Marker != nil {
 			encodedMarker, markerErr := json.Marshal(entry.Marker)
