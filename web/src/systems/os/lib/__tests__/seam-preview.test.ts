@@ -142,6 +142,60 @@ describe("applySeamPreviewToTab", () => {
     expect(applySeamPreviewToTab(base, { ...SEAM, splitId: "split:missing" }, 99.2)).toBe(base);
   });
 
+  it("Should keep a horizontal seam over a collapsed branch laid out when an over-limit preview stops at the switcher-inclusive minimum (F8)", () => {
+    // 500×600: a 300×200 pair on top (collapsed: it cannot sit side by side) over one window,
+    // stored weights normalized as the daemon keeps them.
+    const stacked: LayoutTab = {
+      id: "tab:stack",
+      pinned: false,
+      root: {
+        id: "split:outer",
+        kind: "split",
+        axis: "vertical",
+        weights: [0.5, 0.5],
+        children: [
+          {
+            id: "split:top",
+            kind: "split",
+            axis: "horizontal",
+            weights: [0.5, 0.5],
+            children: [
+              { id: "leaf:a", kind: "leaf", windowId: "window:a" },
+              { id: "leaf:b", kind: "leaf", windowId: "window:b" },
+            ],
+          },
+          { id: "leaf:c", kind: "leaf", windowId: "window:c" },
+        ],
+      },
+    };
+    const project = (tab: LayoutTab) =>
+      projectTab({
+        tab,
+        workArea: { x: 0, y: 0, w: 500, h: 600 },
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: {
+          "window:a": { width: 300, height: 200 },
+          "window:b": { width: 300, height: 200 },
+          "window:c": { width: 300, height: 200 },
+        },
+      });
+    const seam = project(stacked).seams.find(entry => entry.id === "split:outer:0");
+    if (seam === undefined) throw new Error("expected the outer seam");
+
+    // The pointer goes 200px up, 136px past where the member under the switcher reaches 200px.
+    const previewed = project(applySeamPreviewToTab(stacked, seam, -200));
+
+    // The outer split is still laid out, its seam at the minimum: 36px switcher + 200px member.
+    expect(previewed.collapsed.map(entry => entry.splitId)).toEqual(["split:top"]);
+    expect(previewed.seams.find(entry => entry.id === "split:outer:0")?.value).toBe(236);
+    expect(previewed.windows.find(entry => entry.windowId === "window:a")?.rect).toEqual({
+      x: 0,
+      y: 36,
+      w: 500,
+      h: 200,
+    });
+  });
+
   it("Should preserve unaffected branch identities when one split changes", () => {
     const base = tab();
 

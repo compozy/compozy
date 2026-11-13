@@ -2870,6 +2870,70 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
   });
 
+  it("Should stop a horizontal seam over a collapsed branch at its minimum and commit there (F8)", () => {
+    // 400×700: [a | b] on top cannot sit side by side over 220px floors, so it shows one member
+    // at a time under its 36px switcher; c below. Stored 60/40: the seam sits at 420.
+    const shell = exactShell(
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "vertical",
+          weights: [0.6, 0.4],
+          children: [
+            {
+              id: "split:top",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:a"), leafNode("window:b")],
+            },
+            leafNode("window:c"),
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        SNAPSHOT.revision
+      ),
+      400
+    );
+    const outer: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:outer:0",
+      splitId: "split:outer",
+      orientation: "horizontal",
+      rect: { x: 0, y: 420, w: 400, h: 0 },
+      value: 420,
+      // 36px switcher + the 220px member floor; 220px for c below.
+      minValue: 256,
+      maxValue: 480,
+      axisSpan: 700,
+      leadingWeight: 0.6,
+      trailingWeight: 0.4,
+      leadingWindowIds: ["window:a", "window:b"],
+      trailingWindowIds: ["window:c"],
+    };
+    render(<SeamHarness seam={outer} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+
+    // 270px up, 106px past the minimum.
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 200, clientY: 420 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 200, clientY: 150 });
+    flushFrames();
+    expect(seam).toHaveAttribute("data-state", "limit");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toMatchObject({
+      splitId: "split:outer",
+      boundaryIndex: 0,
+    });
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 200, clientY: 150 });
+
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(-164 / 700),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+  });
+
   it("Should not arm a press on a seam the stored layout does not have (R7-02)", () => {
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={{ ...EXACT_SEAM, id: "split:gone:0", splitId: "split:gone" }} />, {
