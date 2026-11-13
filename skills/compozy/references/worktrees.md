@@ -198,12 +198,18 @@ or `failed` in input order and continue after each failure. Inspect every result
 outcomes. CLI non-dry batches fail if any item fails. Existing singular calls without `dry_run`
 keep their request and response shapes.
 
-Registered checkout removal stages bytes under `<worktrees-root>/.trash/<id>` after safety,
+Registered checkout removal stages bytes under `<worktrees-root>/.compozy-trash/<id>` after safety,
 hooks and teardown, then clears Git metadata and finishes the row before background deletion.
 One daemon worker paces deletion, yields during CPU pressure and sweeps leftovers on boot.
 A failed rename falls back to synchronous deletion. Do not treat staged files as active worktrees.
 A failed fenced read rolls the original row back; repeat removal by ID to reconcile an abandoned
 `removing` row without restarting the daemon. An active removal keeps its exclusive usage lock.
+The collector rediscovers workspace/profile roots on startup and only sweeps `.compozy-trash`
+directories bearing its ownership marker. Unmarked directories and system Trash stay untouched.
+Checkouts with submodule metadata use synchronous Git removal to retain its safety checks.
+The CLI gives batches one ordinary request budget per target; caller cancellation still applies.
+Before clearing registration, non-force removal rechecks the staged checkout and restores it on
+new changes. Adoption rejects trash paths, and collection preserves live registered checkouts.
 
 ## Configuration And Errors
 

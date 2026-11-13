@@ -3846,7 +3846,11 @@ func (s *stubClient) CancelAutomationRun(ctx context.Context, id string) (RunRec
 	return RunRecord{}, errors.New("unexpected CancelAutomationRun call")
 }
 
-func (s *stubClient) RemoveWorktrees(ctx context.Context, workspace string, request contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error) {
+func (s *stubClient) RemoveWorktrees(
+	ctx context.Context,
+	workspace string,
+	request contract.RemoveWorktreesRequest,
+) (contract.RemoveWorktreesResponse, error) {
 	if s.removeWorktreesFn != nil {
 		return s.removeWorktreesFn(ctx, workspace, request)
 	}

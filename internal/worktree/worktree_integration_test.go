@@ -29,7 +29,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Run("Should remove a large real checkout before deleting dependency files", func(t *testing.T) {
 		t.Parallel()
 		f := newRealGitFixture(t)
-		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Large removal"})
+		item, err := f.service.Create(
+			t.Context(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Large removal"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +52,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); err != nil || refusal != nil {
 			t.Fatalf("Remove() = %#v, %v", refusal, err)
 		}
-		t.Logf("real Git removal request: %s; dependency files: %d; bytes staged: %d (single CI sample, no latency threshold)", time.Since(started), files, files*len(content))
+		t.Logf(
+			"real Git removal request: %s; dependency files: %d; bytes staged: %d (single CI sample, no latency threshold)",
+			time.Since(started),
+			files,
+			files*len(content),
+		)
 		staged := filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "node_modules", "file-00000")
 		assertFileContent(t, staged, string(content))
 		if listing := f.git(f.workspace.Root, "worktree", "list", "--porcelain"); strings.Contains(listing, item.Path) {
@@ -61,6 +70,63 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if _, err := os.Stat(filepath.Dir(staged)); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("dependency bytes remain after collection: %v", err)
 		}
+	})
+
+	t.Run("Should restore a real tracked write made immediately before staging", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Late write removal",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.service.renameCheckout = func(from, to string) error {
+			if from == item.Path {
+				if err := os.WriteFile(filepath.Join(from, "README.md"), []byte("late tracked change\n"), 0o600); err != nil {
+					return err
+				}
+			}
+			return os.Rename(from, to)
+		}
+		refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+		if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || refusal.Risk.ChangedFiles != 1 {
+			t.Fatalf("late tracked write = %#v, %v", refusal, err)
+		}
+		assertFileContent(t, filepath.Join(item.Path, "README.md"), "late tracked change\n")
+		if f.item(item.ID).State != StateReady ||
+			!strings.Contains(f.git(f.workspace.Root, "worktree", "list", "--porcelain"), item.Path) {
+			t.Fatal("late tracked work lost its ready registration")
+		}
+	})
+
+	t.Run("Should preserve Git refusal for populated submodules before forced synchronous removal", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		module := newRealGitFixture(t)
+		f.git(f.workspace.Root, "-c", "protocol.file.allow=always", "submodule", "add", module.workspace.Root, "module")
+		f.git(f.workspace.Root, "commit", "-am", "add submodule")
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Submodule removal",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.git(item.Path, "-c", "protocol.file.allow=always", "submodule", "update", "--init")
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(err, ErrRemovalFailed) {
+			t.Fatalf("Remove(submodule) = %v, want Git refusal", err)
+		}
+		assertFileContent(t, filepath.Join(item.Path, "module", "README.md"), "initial\n")
+		if f.item(item.ID).State != StateReady {
+			t.Fatal("refused submodule removal did not restore ready state")
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("forced synchronous removal left checkout: %v", err)
+		}
+		assertFileContent(t, filepath.Join(module.workspace.Root, "README.md"), "initial\n")
 	})
 
 	t.Run("Should tear down external resources before removing the real checkout", func(t *testing.T) {

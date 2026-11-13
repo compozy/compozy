@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 )
@@ -35,13 +34,18 @@ func ValidateWorktreeRemovalBatch(request contract.RemoveWorktreesRequest) error
 
 func RemoveWorktreeBatch(
 	ctx context.Context, service WorktreeService, workspaceID string, request contract.RemoveWorktreesRequest,
-	authorize func(*worktree.Worktree) error,
+	authorize func(*worktree.Worktree) error, formatError func(error) string,
 ) contract.RemoveWorktreesResponse {
+	if formatError == nil {
+		formatError = func(err error) string {
+			return ErrorPayloadForStatus(StatusForWorktreeError(err), err, false).Error
+		}
+	}
 	response := contract.RemoveWorktreesResponse{
 		DryRun: request.DryRun, Results: make([]contract.WorktreeRemovalResult, 0, len(request.Targets)),
 	}
 	for _, target := range request.Targets {
-		result := removeWorktreeBatchItem(ctx, service, workspaceID, target, request, authorize)
+		result := removeWorktreeBatchItem(ctx, service, workspaceID, target, request, authorize, formatError)
 		response.Results = append(response.Results, result)
 	}
 	return response
@@ -49,7 +53,7 @@ func RemoveWorktreeBatch(
 
 func removeWorktreeBatchItem(
 	ctx context.Context, service WorktreeService, workspaceID string, target contract.WorktreeRemovalTarget,
-	request contract.RemoveWorktreesRequest, authorize func(*worktree.Worktree) error,
+	request contract.RemoveWorktreesRequest, authorize func(*worktree.Worktree) error, formatError func(error) string,
 ) contract.WorktreeRemovalResult {
 	result := contract.WorktreeRemovalResult{Target: target, State: "removed"}
 	if request.DryRun {
@@ -65,16 +69,17 @@ func removeWorktreeBatchItem(
 			err = authorize(item)
 		}
 		if err != nil {
-			return failedWorktreeRemoval(result, nil, err)
+			return failedWorktreeRemoval(result, nil, err, formatError)
 		}
 		ref, result.WorktreeID = item.ID, item.ID
 	}
 	var refusalResult *worktree.RemovalRefusal
 	var err error
-	if request.DryRun {
+	switch {
+	case request.DryRun:
 		previewer, ok := service.(WorktreeRemovalPreviewer)
 		if !ok {
-			return failedWorktreeRemoval(result, nil, errors.New("worktree removal preview unavailable"))
+			return failedWorktreeRemoval(result, nil, errors.New("worktree removal preview unavailable"), formatError)
 		}
 		var risk worktree.RemovalRisk
 		risk, refusalResult, err = previewer.PreviewRemoval(ctx, workspaceID, worktree.RemovalTarget{
@@ -82,28 +87,34 @@ func removeWorktreeBatchItem(
 		}, request.Force)
 		payload := WorktreeRemovalRefusalPayload(worktree.RemovalRefusal{Risk: risk})
 		result.Risk = &payload.Risk
-	} else if ref != "" {
+	case ref != "":
 		refusalResult, err = service.Remove(ctx, workspaceID, ref, request.Force)
-	} else {
+	default:
 		refusalResult, err = service.RemoveDiscovered(ctx, workspaceID, target.Path, worktree.RemoveDiscoveredOptions{
 			Force: request.Force, ExpectStale: target.ExpectStale,
 		})
 	}
 	if err != nil || refusalResult != nil {
-		return failedWorktreeRemoval(result, refusalResult, err)
+		return failedWorktreeRemoval(result, refusalResult, err, formatError)
 	}
 	if !request.DryRun && request.DeleteBranch {
 		result.Branch, err = CleanupBranchOutcome(ctx, service, workspaceID, ref, request.Force)
 		if err != nil {
 			result.Code = WorktreeErrorCode(err)
-			result.Error = diagnostics.RedactAndBound(err.Error(), 2048)
+			if result.Code == "" {
+				result.Code = "worktree_removal_failed"
+			}
+			result.Error = formatError(err)
 		}
 	}
 	return result
 }
 
 func failedWorktreeRemoval(
-	result contract.WorktreeRemovalResult, refusalResult *worktree.RemovalRefusal, err error,
+	result contract.WorktreeRemovalResult,
+	refusalResult *worktree.RemovalRefusal,
+	err error,
+	formatError func(error) string,
 ) contract.WorktreeRemovalResult {
 	result.State = "failed"
 	if refusalResult != nil {
@@ -111,7 +122,9 @@ func failedWorktreeRemoval(
 		result.State, result.Code, result.Risk, result.Error = "refused", payload.Code, &payload.Risk, payload.Error
 	}
 	if err != nil {
-		result.Error = diagnostics.RedactAndBound(err.Error(), 2048)
+		if result.Error == "" {
+			result.Error = formatError(err)
+		}
 		if result.Code == "" {
 			result.Code = WorktreeErrorCode(err)
 		}
@@ -167,5 +180,13 @@ func (h *BaseHandlers) RemoveWorktrees(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(http.StatusOK, RemoveWorktreeBatch(c.Request.Context(), h.Worktrees, scope.RegistryID, request, authorize))
+	formatError := func(err error) string {
+		status := StatusForWorktreeError(err)
+		h.logServerError(c, status, err)
+		return ErrorPayloadForStatus(status, err, h.MaskInternalErrors).Error
+	}
+	c.JSON(
+		http.StatusOK,
+		RemoveWorktreeBatch(c.Request.Context(), h.Worktrees, scope.RegistryID, request, authorize, formatError),
+	)
 }

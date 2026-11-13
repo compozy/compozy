@@ -39,6 +39,16 @@ func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePa
 	if canonicalCandidate == canonicalWorkspace {
 		return nil, ErrAdoptionMainCheckout
 	}
+	trashRoots, err := s.trashRoots(ctx)
+	if err != nil {
+		return nil, refusal(ErrAdoptionUnreadable, err.Error())
+	}
+	for _, trash := range trashRoots {
+		within, err := fileutil.PathWithinRoot(trash, canonicalCandidate)
+		if err != nil || within {
+			return nil, refusal(ErrAdoptionUnreadable, "candidate is inside a worktree trash directory")
+		}
+	}
 	commonDir, err := s.commonDir(ctx, workspace.Root)
 	if err != nil {
 		return nil, err

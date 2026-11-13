@@ -15,7 +15,17 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
-const trashDirectory = ".trash"
+const (
+	trashDirectory    = ".compozy-trash"
+	trashOwnerFile    = ".compozy-owner"
+	trashOwnerContent = "CompozyOS worktree trash v1\n"
+)
+
+var errTrashRegisteredCheckout = errors.New("worktree: trash entry is a registered checkout")
+
+type worktreeTrashRootResolver interface {
+	ListWorktreeTrashRoots(context.Context) ([]string, error)
+}
 
 // Staged checkouts remain protected until repository bookkeeping releases its lock.
 type trashCollector struct {
@@ -42,6 +52,10 @@ func (s *Service) stageRemoval(workspace Workspace, item Worktree, commonDir str
 	if _, err := checkoutRemovalArgs(commonDir, item.Path, item.GitDir, force); err != nil {
 		return "", err
 	}
+	// Keep Git's populated-submodule safeguards on the synchronous path.
+	if hasSubmoduleRemovalMetadata(item, commonDir) {
+		return "", nil
+	}
 	_, managedRoot := s.worktreeSettings(workspace)
 	if managedRoot == "" || filepath.Base(item.ID) != item.ID || item.ID == "." || item.ID == "" {
 		return "", nil
@@ -53,13 +67,9 @@ func (s *Service) stageRemoval(workspace Workspace, item Worktree, commonDir str
 			return "", refusal(ErrSafetyCheckFailed, "the checkout contains a protected directory")
 		}
 	}
-	if err := os.MkdirAll(trash, 0o700); err != nil {
+	if err := prepareOwnedTrash(trash); err != nil {
 		s.logTrashError(err)
 		return "", nil
-	}
-	info, err := os.Lstat(trash)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return "", refusal(ErrSafetyCheckFailed, "the worktree trash is not a directory")
 	}
 	staged := filepath.Join(trash, item.ID)
 	s.trash.mu.Lock()
@@ -68,7 +78,7 @@ func (s *Service) stageRemoval(workspace Workspace, item Worktree, commonDir str
 	s.trash.mu.Unlock()
 	if _, err := os.Lstat(staged); !errors.Is(err, os.ErrNotExist) {
 		s.releaseTrash(staged)
-		return "", refusal(ErrRemovalFailed, "a staged checkout already exists")
+		return "", nil
 	}
 	if err := s.renameCheckout(item.Path, staged); err != nil {
 		s.releaseTrash(staged)
@@ -87,11 +97,18 @@ func (s *Service) completeFencedRemoval(
 		return "", false, nil, err
 	}
 	if staged != "" {
-		if err := s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, mode.force); err != nil {
+		refusalResult, err := s.checkStagedRemoval(ctx, item, staged, mode)
+		if err == nil && refusalResult == nil {
+			err = s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, mode.force)
+		}
+		if err != nil || refusalResult != nil {
 			if restoreErr := s.renameCheckout(staged, item.Path); restoreErr != nil {
-				return staged, true, nil, errors.Join(err, fmt.Errorf("worktree: restore staged checkout: %w", restoreErr))
+				return staged, true, refusalResult, errors.Join(
+					err,
+					fmt.Errorf("worktree: restore staged checkout: %w", restoreErr),
+				)
 			}
-			return staged, false, nil, err
+			return staged, false, refusalResult, err
 		}
 	} else {
 		irreversible, refusalResult, err := s.runFencedRemoval(ctx, workspace.Root, item, commonDir, mode.force)
@@ -100,6 +117,24 @@ func (s *Service) completeFencedRemoval(
 		}
 	}
 	return staged, true, nil, s.finishRemoval(ctx, workspace, item, mode)
+}
+
+func (s *Service) checkStagedRemoval(
+	ctx context.Context, item Worktree, staged string, mode removalMode,
+) (*RemovalRefusal, error) {
+	if mode.force {
+		return nil, nil
+	}
+	item.Path = staged
+	status := s.collectStatus(ctx, item)
+	risk, err := s.removalRiskFromStatus(ctx, item, &status)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSafetyCheckFailed, err)
+	}
+	if mode.keepBranch {
+		risk.UnpushedCommits = 0
+	}
+	return classifyRemovalRisk(risk, false)
 }
 
 func (s *Service) releaseTrash(path string) {
@@ -165,11 +200,7 @@ func (s *Service) collectTrash(ctx context.Context, pressured func() bool) error
 			protected[row.ID] = true
 		}
 	}
-	roots, err := s.trashRoots(ctx)
-	if err != nil {
-		return err
-	}
-	var sweepErr error
+	roots, sweepErr := s.trashRoots(ctx)
 	for _, path := range roots {
 		sweepErr = errors.Join(sweepErr, s.collectTrashRoot(ctx, path, protected, pressured))
 	}
@@ -184,15 +215,12 @@ func (s *Service) trashRoots(ctx context.Context) ([]string, error) {
 	if root != "" {
 		roots[filepath.Join(root, trashDirectory)] = struct{}{}
 	}
-	if s.resolver != nil {
-		workspaces, err := s.resolver.ListWorktreeWorkspaces(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, workspace := range workspaces {
-			if workspace.WorktreesRoot != "" {
-				roots[filepath.Join(workspace.WorktreesRoot, trashDirectory)] = struct{}{}
-			}
+	var resolveErr error
+	if resolver, ok := s.resolver.(worktreeTrashRootResolver); ok {
+		configured, err := resolver.ListWorktreeTrashRoots(ctx)
+		resolveErr = err
+		for _, configuredRoot := range configured {
+			roots[filepath.Join(configuredRoot, trashDirectory)] = struct{}{}
 		}
 	}
 	s.trash.mu.Lock()
@@ -204,45 +232,44 @@ func (s *Service) trashRoots(ctx context.Context) ([]string, error) {
 	for path := range roots {
 		result = append(result, path)
 	}
-	return result, nil
+	return result, resolveErr
 }
 
 func (s *Service) collectTrashRoot(
 	ctx context.Context, path string, protected map[string]bool, pressured func() bool,
 ) error {
-	info, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("worktree: refusing a linked trash directory")
-	}
-	root, err := os.OpenRoot(path)
-	if err != nil {
+	root, err := openOwnedTrash(path)
+	if err != nil || root == nil {
 		return err
 	}
 	defer root.Close()
-	entries, err := os.ReadDir(path)
+	dir, err := root.Open(".")
 	if err != nil {
+		return err
+	}
+	entries, readErr := dir.ReadDir(-1)
+	if err := errors.Join(readErr, dir.Close()); err != nil {
 		return err
 	}
 	var sweepErr error
 	for _, entry := range entries {
+		if entry.Name() == trashOwnerFile {
+			continue
+		}
 		s.trash.mu.Lock()
 		active := s.trash.active[filepath.Join(path, entry.Name())]
 		s.trash.mu.Unlock()
 		if active || protected[entry.Name()] {
 			continue
 		}
-		sweepErr = errors.Join(sweepErr, deleteTrashEntry(ctx, root, entry.Name(), pressured))
+		if err := s.deleteTrashEntry(ctx, root, entry.Name(), pressured); !errors.Is(err, errTrashRegisteredCheckout) {
+			sweepErr = errors.Join(sweepErr, err)
+		}
 	}
 	return sweepErr
 }
 
-func deleteTrashEntry(ctx context.Context, root *os.Root, path string, pressured func() bool) error {
+func (s *Service) deleteTrashEntry(ctx context.Context, root *os.Root, path string, pressured func() bool) error {
 	if err := yieldTrash(ctx, pressured); err != nil {
 		return err
 	}
@@ -254,36 +281,50 @@ func deleteTrashEntry(ctx context.Context, root *os.Root, path string, pressured
 		return err
 	}
 	if info.IsDir() {
-		if err := deleteTrashDirectory(ctx, root, path, pressured); err != nil {
+		owned, err := s.store.PathOwnedByAnyWorkspace(ctx, canonicalComparablePath(filepath.Join(root.Name(), path)))
+		if err != nil {
+			return err
+		}
+		if owned {
+			return errTrashRegisteredCheckout
+		}
+		if err := s.deleteTrashDirectory(ctx, root, path, pressured); err != nil {
 			return err
 		}
 	}
 	return root.Remove(path)
 }
 
-func deleteTrashDirectory(ctx context.Context, root *os.Root, path string, pressured func() bool) error {
-	dir, err := root.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
+func (s *Service) deleteTrashDirectory(ctx context.Context, root *os.Root, path string, pressured func() bool) error {
 	for {
-		names, readErr := dir.Readdirnames(64)
-		for _, name := range names {
-			if err := deleteTrashEntry(ctx, root, filepath.Join(path, name), pressured); err != nil {
-				return err
-			}
+		// Reopen after each batch: deleting through an advancing handle can skip entries on APFS.
+		dir, err := root.Open(path)
+		if err != nil {
+			return err
 		}
-		if errors.Is(readErr, io.EOF) {
+		names, readErr := dir.Readdirnames(64)
+		if err := errors.Join(dir.Close(), nonEOFError(readErr)); err != nil {
+			return err
+		}
+		if len(names) == 0 {
 			return nil
 		}
-		if readErr != nil {
-			return readErr
+		for _, name := range names {
+			if err := s.deleteTrashEntry(ctx, root, filepath.Join(path, name), pressured); err != nil {
+				return err
+			}
 		}
 		if err := waitTrash(ctx, 10*time.Millisecond); err != nil {
 			return err
 		}
 	}
+}
+
+func nonEOFError(err error) error {
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
 }
 
 func yieldTrash(ctx context.Context, pressured func() bool) error {
@@ -309,4 +350,84 @@ func waitTrash(ctx context.Context, delay time.Duration) error {
 func (s *Service) logTrashError(err error) {
 	s.logger.Warn("worktree trash collection failed",
 		"error", diagnostics.RedactAndBound(strings.TrimSpace(err.Error()), 2048))
+}
+
+func prepareOwnedTrash(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.Mkdir(path, 0o700); err == nil {
+		if err := createTrashOwner(path); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	root, err := openOwnedTrash(path)
+	if err != nil {
+		return err
+	}
+	if root == nil {
+		return errors.New("worktree: trash directory has no matching ownership marker")
+	}
+	return root.Close()
+}
+
+func createTrashOwner(path string) error {
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	marker, err := root.OpenFile(trashOwnerFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	_, writeErr := marker.WriteString(trashOwnerContent)
+	return errors.Join(writeErr, marker.Close())
+}
+
+func openOwnedTrash(path string) (*os.Root, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("worktree: refusing a linked trash directory")
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return nil, err
+	}
+	marker, markerErr := root.Lstat(trashOwnerFile)
+	if markerErr == nil && marker.Mode().IsRegular() && marker.Size() == int64(len(trashOwnerContent)) {
+		content, readErr := root.ReadFile(trashOwnerFile)
+		if readErr == nil && string(content) == trashOwnerContent {
+			return root, nil
+		}
+		markerErr = readErr
+	}
+	return nil, errors.Join(nonMissingTrashMarkerError(markerErr), root.Close())
+}
+
+func nonMissingTrashMarkerError(err error) error {
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+func hasSubmoduleRemovalMetadata(item Worktree, commonDir string) bool {
+	for _, path := range []string{
+		filepath.Join(item.Path, ".gitmodules"), filepath.Join(item.GitDir, "modules"),
+		filepath.Join(commonDir, "modules"),
+	} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			return true
+		}
+	}
+	return false
 }

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -256,6 +257,10 @@ func (c *daemonClient) RemoveWorktrees(
 	ctx context.Context, workspaceRef string, request contract.RemoveWorktreesRequest,
 ) (contract.RemoveWorktreesResponse, error) {
 	var response contract.RemoveWorktreesResponse
-	err := c.doJSON(ctx, http.MethodPost, worktreeCollectionPath(workspaceRef)+"/remove", nil, request, &response)
+	client := *c.httpClient
+	// Each target pays for independent safety checks, hooks, teardown and branch cleanup.
+	client.Timeout = max(client.Timeout, defaultUnixSocketClientTimeout*time.Duration(max(1, len(request.Targets))))
+	err := c.doJSONWithClient(ctx, http.MethodPost, worktreeCollectionPath(workspaceRef)+"/remove",
+		nil, request, &response, &client)
 	return response, err
 }

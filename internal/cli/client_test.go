@@ -3600,6 +3600,48 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 		}
 	}
 
+	t.Run("Should allow batch removal to outlive the shared client timeout", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/api/workspaces/ws-1/worktrees/remove" {
+				t.Errorf("batch request = %s %s", r.Method, r.URL.Path)
+			}
+			var request contract.RemoveWorktreesRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+				return
+			}
+			if len(request.Targets) != 2 || request.Targets[0].Ref != "one" || request.Targets[1].Ref != "two" {
+				t.Errorf("targets = %#v", request.Targets)
+			}
+			timer := time.NewTimer(50 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				if _, err := io.WriteString(w, `{"dry_run":false,"results":[{"target":{"ref":"one"},"state":"removed"},{"target":{"ref":"two"},"state":"removed"}]}`); err != nil {
+					t.Error(err)
+				}
+			case <-r.Context().Done():
+				t.Error("batch canceled at the shared client timeout")
+			}
+		}))
+		defer server.Close()
+		transport := server.Client()
+		transport.Timeout = time.Millisecond
+		client := &daemonClient{
+			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
+		}
+		response, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
+			Targets: []contract.WorktreeRemovalTarget{{Ref: "one"}, {Ref: "two"}},
+		})
+		if err != nil || len(response.Results) != 2 || response.Results[1].State != "removed" {
+			t.Fatalf("batch response = %#v, %v", response, err)
+		}
+		if transport.Timeout != time.Millisecond {
+			t.Fatal("shared client timeout changed")
+		}
+	})
+
 	t.Run("Should keep plain removal on the no-content contract", func(t *testing.T) {
 		t.Parallel()
 		client := newClient(t, "/api/workspaces/ws-1/worktrees/wt-1", url.Values{}, http.StatusNoContent, "")

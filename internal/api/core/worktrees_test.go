@@ -1365,13 +1365,25 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 		t.Run(fmt.Sprintf("Should report per-target risk and results with dry_run %t", dryRun), func(t *testing.T) {
 			t.Parallel()
 			mutations := 0
+			var logs strings.Builder
 			h := &BaseHandlers{
-				Profiles: worktreeProfileServiceStub{},
-				Workspaces: workspaceServiceStub{resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-					return workspacepkg.ResolvedWorkspace{ID: "registry-alpha", Name: ref, WorkspaceID: "registry-alpha"}, nil
-				}},
+				Profiles:           worktreeProfileServiceStub{},
+				MaskInternalErrors: true,
+				Logger:             slog.New(slog.NewTextHandler(&logs, nil)),
+				Workspaces: workspaceServiceStub{
+					resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{
+							ID:          "registry-alpha",
+							Name:        ref,
+							WorkspaceID: "registry-alpha",
+						}, nil
+					},
+				},
 				Worktrees: worktreeServiceStub{
 					resolve: func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+						if ref == "broken" {
+							return nil, errors.New("private storage failure")
+						}
 						if ref == "missing" {
 							return nil, worktree.ErrNotFound
 						}
@@ -1387,7 +1399,10 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 						}
 						if target.Ref == "dirty" {
 							risk := worktree.RemovalRisk{ChangedFiles: 2}
-							return risk, &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error(), Risk: risk}, worktree.ErrDirtyRequiresForce
+							return risk, &worktree.RemovalRefusal{
+								Code: worktree.ErrDirtyRequiresForce.Error(),
+								Risk: risk,
+							}, worktree.ErrDirtyRequiresForce
 						}
 						return worktree.RemovalRisk{}, nil, nil
 					},
@@ -1396,7 +1411,10 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 							t.Fatal("dry-run removed a checkout")
 						}
 						if ref == "dirty" {
-							return &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error(), Risk: worktree.RemovalRisk{ChangedFiles: 2}}, worktree.ErrDirtyRequiresForce
+							return &worktree.RemovalRefusal{
+								Code: worktree.ErrDirtyRequiresForce.Error(),
+								Risk: worktree.RemovalRisk{ChangedFiles: 2},
+							}, worktree.ErrDirtyRequiresForce
 						}
 						mutations++
 						return nil, nil
@@ -1406,19 +1424,40 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 			router := gin.New()
 			router.POST("/workspaces/:workspace_id/worktrees/remove", h.RemoveWorktrees)
 			response := httptest.NewRecorder()
-			body := fmt.Sprintf(`{"targets":[{"ref":"dirty"},{"ref":"clean"},{"ref":"missing"},{"ref":"foreign"}],"dry_run":%t}`, dryRun)
-			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/workspaces/registry-alpha/worktrees/remove?profile=marketing", strings.NewReader(body))
+			body := fmt.Sprintf(
+				`{"targets":[{"ref":"dirty"},{"ref":"clean"},{"ref":"missing"},{"ref":"foreign"},{"ref":"broken"}],"dry_run":%t}`,
+				dryRun,
+			)
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/workspaces/registry-alpha/worktrees/remove?profile=marketing",
+				strings.NewReader(body),
+			)
 			request.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(response, request)
 			var result contract.RemoveWorktreesResponse
 			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 				t.Fatal(err)
 			}
-			if response.Code != http.StatusOK || result.DryRun != dryRun || len(result.Results) != 4 {
+			if response.Code != http.StatusOK || result.DryRun != dryRun || len(result.Results) != 5 {
 				t.Fatalf("response = %d %s", response.Code, response.Body.String())
 			}
-			if result.Results[0].State != "refused" || result.Results[0].Risk == nil || result.Results[0].Risk.ChangedFiles != 2 || result.Results[2].Code != "worktree_not_found" || result.Results[3].Code != "worktree_not_found" {
+			if result.Results[0].State != "refused" || result.Results[0].Risk == nil ||
+				result.Results[0].Risk.ChangedFiles != 2 ||
+				result.Results[2].Code != "worktree_not_found" ||
+				result.Results[3].Code != "worktree_not_found" {
 				t.Fatalf("results = %#v", result.Results)
+			}
+			if result.Results[0].Error != WorktreeRemovalRefusalPayload(worktree.RemovalRefusal{
+				Code: worktree.ErrDirtyRequiresForce.Error(),
+			}).Error {
+				t.Fatalf("batch lost actionable refusal: %q", result.Results[0].Error)
+			}
+			if result.Results[4].State != "failed" ||
+				result.Results[4].Error != http.StatusText(http.StatusInternalServerError) ||
+				!strings.Contains(logs.String(), "private storage failure") {
+				t.Fatalf("masked result = %#v, logs = %q", result.Results[4], logs.String())
 			}
 			if dryRun && (mutations != 0 || result.Results[1].State != "ready") {
 				t.Fatal("preview performed removal")
@@ -2228,7 +2267,12 @@ func (s worktreeBindingSessions) ChangeWorktreeBinding(
 	return s.change(ctx, id, ref, expected)
 }
 
-func (s worktreeServiceStub) PreviewRemoval(ctx context.Context, workspaceID string, target worktree.RemovalTarget, force bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
+func (s worktreeServiceStub) PreviewRemoval(
+	ctx context.Context,
+	workspaceID string,
+	target worktree.RemovalTarget,
+	force bool,
+) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
 	if s.preview == nil {
 		return worktree.RemovalRisk{}, nil, errors.New("unexpected PreviewRemoval call")
 	}

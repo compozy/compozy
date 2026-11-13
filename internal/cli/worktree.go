@@ -212,7 +212,8 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 	addWorktreeDeleteBranchFlag(cmd, &opts.DeleteBranch)
 	cmd.Flags().StringVar(&discoveredPath, "path", "",
 		"Remove a discovered (not adopted) worktree by its listed path; its branch is kept")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview per-target risk without removing worktrees or running hooks")
+	cmd.Flags().
+		BoolVar(&dryRun, "dry-run", false, "Preview per-target risk without removing worktrees or running hooks")
 	cmd.MarkFlagsMutuallyExclusive("path", "delete-branch")
 	return cmd
 }

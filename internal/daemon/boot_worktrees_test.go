@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -91,6 +92,63 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run(
+		"Should discover profile trash roots including archived owners without resolving mutation authority",
+		func(t *testing.T) {
+			t.Parallel()
+			paths, err := config.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			profileRoot := filepath.Join(t.TempDir(), "profile-worktrees")
+			for _, layer := range []struct {
+				scope              config.WriteScope
+				profile, worktrees string
+			}{
+				{scope: config.WriteScopeUser, worktrees: worktreesRoot},
+				{scope: config.WriteScopeProfile, profile: "archived-owner", worktrees: profileRoot},
+			} {
+				target, err := config.ResolveConfigWriteTarget(paths, root, layer.scope, layer.profile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := config.EditConfigOverlay(paths, root, target, func(editor *config.OverlayEditor) error {
+					return editor.SetValue([]string{"worktrees", "root"}, layer.worktrees)
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			profileStub := &daemonWorktreeResolverStub{
+				listed: []workspacepkg.Workspace{{ID: resolved.ID, Name: resolved.Name, RootDir: root}},
+			}
+			profileResolver := daemonWorktreeWorkspaceResolver{
+				resolver: profileStub, homePaths: paths,
+				trashProfiles: func(context.Context) ([]profilepkg.Profile, error) {
+					return []profilepkg.Profile{
+						{ID: "profile-old", Name: "archived-owner", State: profilepkg.StateArchived},
+					}, nil
+				},
+			}
+			roots, err := profileResolver.ListWorktreeTrashRoots(t.Context())
+			if err != nil || len(roots) != 2 || profileStub.profileName != "" {
+				t.Fatalf("trash roots = %#v, profile = %q, error = %v", roots, profileStub.profileName, err)
+			}
+			found := map[string]bool{}
+			for _, root := range roots {
+				found[root] = true
+			}
+			if !found[worktreesRoot] || !found[profileRoot] {
+				t.Fatalf("trash roots = %#v, want default and archived-profile roots", roots)
+			}
+			profileStub.profileName = ""
+			listed, err := profileResolver.ListWorktreeWorkspaces(t.Context())
+			if err != nil || len(listed) != 1 || profileStub.profileName != "" || listed[0].WorktreesRoot != "" {
+				t.Fatalf("metadata listing unexpectedly resolved configuration: %#v, %v", listed, err)
+			}
+		},
+	)
 
 	empty := daemonWorktreeWorkspaceResolver{homePaths: homePaths}
 	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing", ""); !errors.Is(

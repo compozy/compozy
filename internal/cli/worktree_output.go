@@ -197,9 +197,29 @@ func worktreeRemovalBatchBundle(response contract.RemoveWorktreesResponse) outpu
 			unpushed = strconv.Itoa(item.Risk.UnpushedCommits)
 			leftover = strconv.Itoa(item.Risk.LeftoverFiles)
 		}
-		return []string{target, item.State, changed, unpushed, leftover, item.Code, item.Error}
+		branch := "-"
+		if item.Branch != nil {
+			branch = worktreeBranchOutcomeSummary(*item.Branch)
+		}
+		return []string{target, item.State, changed, unpushed, leftover, item.Code, item.Error, branch}
 	}
-	return listBundle(response, response.Results, "Worktree removal",
-		[]string{"Target", "State", "Changed", "Unpushed", "Leftover", "Code", "Error"}, "results",
-		[]string{"target", "state", "changed_files", "unpushed_commits", "leftover_files", "code", "error"}, row, row)
+	return listBundle(
+		response,
+		response.Results,
+		"Worktree removal",
+		[]string{"Target", "State", "Changed Files", "Unpushed", "Leftover", "Code", "Error", "Branch"},
+		"results",
+		[]string{
+			"target",
+			stateKey,
+			"changed_files",
+			"unpushed_commits",
+			"leftover_files",
+			"code",
+			"error",
+			worktreeBranchKey,
+		},
+		row,
+		row,
+	)
 }

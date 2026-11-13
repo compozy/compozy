@@ -30,7 +30,8 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		if err := os.WriteFile(payload, []byte("preserved until collection"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil || refusal != nil {
+		if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil ||
+			refusal != nil {
 			t.Fatalf("Remove() = %#v, %v", refusal, err)
 		}
 		staged := filepath.Join(f.service.root, trashDirectory, f.item.ID, "large-dependency")
@@ -49,6 +50,93 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 		release()
 	})
+
+	t.Run("Should restore changes written while staging without clearing Git registration", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		f.service.renameCheckout = func(from, to string) error {
+			if from == f.item.Path {
+				if err := os.WriteFile(filepath.Join(from, "changed.txt"), []byte("late work"), 0o600); err != nil {
+					return err
+				}
+				f.dirty.Store(true)
+			}
+			return os.Rename(from, to)
+		}
+		refusal, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false)
+		if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || refusal.Risk.ChangedFiles != 1 {
+			t.Fatalf("late-write removal = %#v, %v", refusal, err)
+		}
+		if f.mustItem(t).State != StateReady || f.removeCalls.Load() != 0 {
+			t.Fatal("late-write refusal changed registration or stranded the fence")
+		}
+		if data, err := os.ReadFile(filepath.Join(f.item.Path, "changed.txt")); err != nil ||
+			string(data) != "late work" {
+			t.Fatalf("late work = %q, %v", data, err)
+		}
+	})
+
+	t.Run("Should remove synchronously when the same ID still has staged bytes", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		trash := filepath.Join(f.service.root, trashDirectory)
+		if err := prepareOwnedTrash(trash); err != nil {
+			t.Fatal(err)
+		}
+		prior := filepath.Join(trash, f.item.ID)
+		if err := os.Mkdir(prior, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		sentinel := filepath.Join(prior, "old-bytes")
+		if err := os.WriteFile(sentinel, []byte("prior staged checkout"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if f.mustItem(t).State != StateRemoved || f.removeCalls.Load() != 1 {
+			t.Fatal("staging collision blocked removal")
+		}
+		if data, err := os.ReadFile(sentinel); err != nil || string(data) != "prior staged checkout" {
+			t.Fatalf("prior staged checkout changed: %q, %v", data, err)
+		}
+	})
+
+	for _, nested := range []bool{false, true} {
+		t.Run(
+			"Should preserve a registered checkout inside owned trash nested "+strconv.FormatBool(nested),
+			func(t *testing.T) {
+				t.Parallel()
+				f := newRemovalTestFixture(t)
+				trash := filepath.Join(f.service.root, trashDirectory)
+				if err := prepareOwnedTrash(trash); err != nil {
+					t.Fatal(err)
+				}
+				checkout := filepath.Join(trash, "live-checkout")
+				if nested {
+					checkout = filepath.Join(checkout, "nested")
+				}
+				if err := os.MkdirAll(checkout, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				sentinel := filepath.Join(checkout, "uncommitted")
+				if err := os.WriteFile(sentinel, []byte("keep live work"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				live := f.item
+				live.ID, live.Path = "wt-live", canonicalComparablePath(checkout)
+				if err := f.store.Insert(t.Context(), live); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.service.collectTrash(t.Context(), nil); err != nil {
+					t.Fatal(err)
+				}
+				if data, err := os.ReadFile(sentinel); err != nil || string(data) != "keep live work" {
+					t.Fatalf("registered checkout changed: %q, %v", data, err)
+				}
+			},
+		)
+	}
 
 	t.Run("Should fall back to synchronous removal across filesystem volumes", func(t *testing.T) {
 		t.Parallel()
@@ -111,6 +199,58 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	for _, directory := range []string{trashDirectory, ".trash", ".Trash"} {
+		t.Run("Should preserve unowned trash at "+directory, func(t *testing.T) {
+			t.Parallel()
+			f := newRemovalTestFixture(t)
+			unowned := filepath.Join(f.service.root, directory)
+			if err := os.MkdirAll(unowned, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			sentinel := filepath.Join(unowned, "keep")
+			if err := os.WriteFile(sentinel, []byte("user data"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.service.collectTrash(t.Context(), nil); err != nil {
+				t.Fatal(err)
+			}
+			if data, err := os.ReadFile(sentinel); err != nil || string(data) != "user data" {
+				t.Fatalf("unowned data = %q, %v", data, err)
+			}
+			if directory == trashDirectory {
+				if f.removeCalls.Load() != 1 {
+					t.Fatal("unowned trash did not use synchronous removal")
+				}
+				if _, err := os.Lstat(filepath.Join(unowned, trashOwnerFile)); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("unowned directory was adopted: %v", err)
+				}
+			}
+		})
+	}
+
+	t.Run("Should rediscover configured profile trash without in-memory staging roots", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		resolver := removalTrashRootsResolver{roots: []string{f.service.root}}
+		recovered := NewService(f.store, f.runner,
+			WithConfig(config.DefaultWorktreesConfig(), t.TempDir()), WithWorkspaceResolver(resolver))
+		if err := recovered.collectTrash(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(f.service.root, trashDirectory, f.item.ID)); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("profile boot leftovers remain: %v", err)
+		}
+	})
+
 	t.Run("Should roll back the original fence when the fenced target read fails", func(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)
@@ -142,8 +282,15 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)
 		f.dirty.Store(true)
-		f.service.hooks = removalHookDispatcher{dispatch: func(HookRequest) (HookVerdict, error) { t.Fatal("preview ran hooks"); return HookVerdict{}, nil }}
-		risk, refusal, err := f.service.PreviewRemoval(t.Context(), f.workspace.ID, RemovalTarget{Ref: f.item.ID}, false)
+		f.service.hooks = removalHookDispatcher{
+			dispatch: func(HookRequest) (HookVerdict, error) { t.Fatal("preview ran hooks"); return HookVerdict{}, nil },
+		}
+		risk, refusal, err := f.service.PreviewRemoval(
+			t.Context(),
+			f.workspace.ID,
+			RemovalTarget{Ref: f.item.ID},
+			false,
+		)
 		if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || risk.ChangedFiles != 1 {
 			t.Fatalf("preview = %#v, %#v, %v", risk, refusal, err)
 		}
@@ -1543,4 +1690,13 @@ func (s *recordingEventSink) count(name string) int {
 		}
 	}
 	return count
+}
+
+type removalTrashRootsResolver struct {
+	staticWorkspaceResolver
+	roots []string
+}
+
+func (r removalTrashRootsResolver) ListWorktreeTrashRoots(context.Context) ([]string, error) {
+	return r.roots, nil
 }

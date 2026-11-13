@@ -143,11 +143,19 @@ your review.
 ## Responsive removal and background cleanup
 
 After safety checks, removal hooks and teardown finish, CompozyOS moves a registered checkout into
-`<worktrees-root>/.trash/<worktree-id>`, clears its Git registration and marks the record removed.
+`<worktrees-root>/.compozy-trash/<worktree-id>`, clears its Git registration and marks the record removed.
 The request finishes before the staged files are deleted. One daemon worker deletes those files
-in paced batches, pauses during CPU pressure and sweeps leftovers on startup. It does not hold the
-repository lock while deleting files. A failed rename, including a different filesystem volume,
-uses the synchronous removal path. Safety checks and teardown still contribute to request time.
+in paced batches, pauses during CPU pressure and sweeps leftovers on startup, including roots
+configured for individual profiles. It only collects CompozyOS-owned trash with a matching
+ownership marker; preexisting unmarked directories remain untouched. It does not hold the
+repository lock while deleting files. Adoption refuses paths inside these trash roots, and the
+collector preserves live registered checkouts encountered there. A failed rename, including a different filesystem volume,
+uses the synchronous removal path. Reusing an ID with bytes still awaiting collection also uses
+that path, preserving the previous staged checkout. Checkouts with submodule metadata also retain synchronous Git
+removal and its existing safeguards. Safety checks and teardown still contribute to request time.
+
+Without `--force`, removal rechecks the staged checkout before clearing its Git registration and
+restores it if new changes appeared during staging.
 
 A failed fenced-target read restores the original record to `ready`. If an interrupted removal
 leaves a record `removing`, repeat removal by its ID to reconcile it without restarting the daemon;
@@ -169,7 +177,8 @@ is an observation, so an actual removal repeats all safety checks.
 
 Remove the same targets by omitting `--dry-run`. Results stay in input order and each item reports
 `removed`, `refused` or `failed`; a failure does not undo or stop other targets. A non-dry CLI batch
-exits unsuccessfully if any target fails. `--force` and `--delete-branch` apply to the whole batch;
+exits unsuccessfully if any target fails. The CLI allocates the ordinary request timeout for each
+target in the batch without changing the timeout of other commands. `--force` and `--delete-branch` apply to the whole batch;
 review the preview before using them. The limit is 100 targets. Existing single-target calls keep
 their existing output, and `remove --path <listed-path> --dry-run` previews a discovered checkout.
 

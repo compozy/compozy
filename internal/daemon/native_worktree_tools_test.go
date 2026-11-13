@@ -198,7 +198,10 @@ func TestNativeWorktreeTools(t *testing.T) {
 					}
 					if target.Ref == "dirty" {
 						risk := worktree.RemovalRisk{ChangedFiles: 3}
-						return risk, &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error(), Risk: risk}, worktree.ErrDirtyRequiresForce
+						return risk, &worktree.RemovalRefusal{
+							Code: worktree.ErrDirtyRequiresForce.Error(),
+							Risk: risk,
+						}, worktree.ErrDirtyRequiresForce
 					}
 					return worktree.RemovalRisk{}, nil, nil
 				},
@@ -207,12 +210,19 @@ func TestNativeWorktreeTools(t *testing.T) {
 						t.Fatal("preview removed a checkout")
 					}
 					if ref == "dirty" {
-						return &worktree.RemovalRefusal{Code: worktree.ErrDirtyRequiresForce.Error(), Risk: worktree.RemovalRisk{ChangedFiles: 3}}, worktree.ErrDirtyRequiresForce
+						return &worktree.RemovalRefusal{
+							Code: worktree.ErrDirtyRequiresForce.Error(),
+							Risk: worktree.RemovalRisk{ChangedFiles: 3},
+						}, worktree.ErrDirtyRequiresForce
 					}
 					return nil, nil
 				},
 			}
-			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service}, nativeApproveAllPolicyInputs())
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service},
+				nativeApproveAllPolicyInputs(),
+			)
 			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDWorktreeRemove, Input: json.RawMessage(fmt.Sprintf(`{"workspace":"ws-a","targets":[{"ref":"dirty"},{"ref":"clean"}],"dry_run":%t}`, dryRun)),
 			})
@@ -223,7 +233,8 @@ func TestNativeWorktreeTools(t *testing.T) {
 			if err := json.Unmarshal(result.Structured, &payload); err != nil {
 				t.Fatal(err)
 			}
-			if payload.DryRun != dryRun || len(payload.Results) != 2 || payload.Results[0].State != "refused" || payload.Results[0].Risk.ChangedFiles != 3 {
+			if payload.DryRun != dryRun || len(payload.Results) != 2 || payload.Results[0].State != "refused" ||
+				payload.Results[0].Risk.ChangedFiles != 3 {
 				t.Fatalf("payload = %s", result.Structured)
 			}
 			want := "removed"
@@ -945,7 +956,12 @@ func (*nativeLinkedWorkFailure) SessionLinkedWork(
 	return nil, nil
 }
 
-func (s *nativeWorktreeServiceStub) PreviewRemoval(ctx context.Context, workspaceID string, target worktree.RemovalTarget, force bool) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
+func (s *nativeWorktreeServiceStub) PreviewRemoval(
+	ctx context.Context,
+	workspaceID string,
+	target worktree.RemovalTarget,
+	force bool,
+) (worktree.RemovalRisk, *worktree.RemovalRefusal, error) {
 	if s.preview == nil {
 		return worktree.RemovalRisk{}, nil, errors.New("unexpected PreviewRemoval call")
 	}

@@ -4603,7 +4603,7 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "c1f3a3493ed052bb9c20025938f58e8e0f588bfa62d8af60fd245e6b05099414",
+    "input_schema_digest": "c1db9c25f008db61195396ab55eb7ef52c6204afd5c10eeded5d118784dd9996",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "minimal"

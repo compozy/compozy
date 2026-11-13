@@ -86,10 +86,12 @@ const worktreeRemoveInputSchema = `{
 	"type":"object",
 	"properties":{
 		"workspace":{"type":"string"},
-		"dry_run":{"type":"boolean","description":"Preview risk without removal, hooks, or teardown. Returns per-item results."},
+		"dry_run":{
+			"type":"boolean","description":"Preview per-item risk without removal, hooks, or teardown."
+		},
 		"targets":{
 			"type":"array","minItems":1,"maxItems":100,
-			"description":"Batch targets, replacing ref/path. Inspect every per-item result; failures do not undo completed items.",
+			"description":"Batch targets replace ref/path. Inspect every result; failures do not undo completed items.",
 			"items":{"type":"object","properties":{
 				"ref":{"type":"string"},"path":{"type":"string"},"expect_stale":{"type":"boolean"}
 			},"additionalProperties":false}

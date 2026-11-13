@@ -55,10 +55,21 @@ Repeat metadata-only removal through CLI/HTTP and the native tool after deleting
 
 2026-11-13 #1663 impact: remove a registered checkout with a large dependency tree.
 Verify the active path and Git registration disappear while staged bytes still exist under the
-managed root's `.trash/<id>`, and another operation acquires the repository lock before collection.
+managed root's `.compozy-trash/<id>`, and another operation acquires the repository lock before collection.
 Inject cross-volume rename failure and retain synchronous safety behavior. Restart the collector
 with leftovers, inject CPU pressure, cancel and join it, then resume cleanup; a symlink to an
 external sentinel must preserve that sentinel. Failed fenced rereads must restore the original ID,
 and repeating removal must reconcile an abandoned `removing` row without restart. Existing
 `TestServiceRemoveAndRecover` and `TestWorktreeLifecycleIntegration` own these invariants. The real
 Git test logs a single CI latency/file-count sample; no local runtime or performance claim is made.
+
+Also restart with a profile-specific worktrees root, including an archived owner, and confirm its
+marked trash is collected. Leave sentinels in an unmarked `.compozy-trash` and system `.Trash`;
+confirm they survive and removal falls back synchronously without adopting either directory.
+A populated submodule must retain Git's non-force refusal; a forced removal uses the synchronous
+path and preserves the external submodule source repository.
+
+Inject a tracked write immediately before rename: non-force removal must restore those bytes and
+keep the ready Git registration. Reject adoption under a trash root and preserve preexisting
+registered checkouts found there, including nested paths. Reuse an ID with old staged bytes and
+confirm synchronous removal succeeds without overwriting the previous discard.

@@ -214,19 +214,66 @@ func TestWorktreeListCommand(t *testing.T) {
 func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 	t.Parallel()
 
+	for _, format := range []string{"human", "toon"} {
+		t.Run("Should report kept and deleted branches in batch "+format+" output", func(t *testing.T) {
+			t.Parallel()
+			client := withWorkspaceResolution(&stubClient{removeWorktreesFn: func(
+				_ context.Context, _ string, request contract.RemoveWorktreesRequest,
+			) (contract.RemoveWorktreesResponse, error) {
+				if !request.DeleteBranch || len(request.Targets) != 2 {
+					t.Fatalf("request = %#v", request)
+				}
+				return contract.RemoveWorktreesResponse{Results: []contract.WorktreeRemovalResult{
+					{Target: request.Targets[0], State: "removed", Branch: &contract.WorktreeBranchOutcomePayload{
+						Name: "main", Reason: "protected",
+					}},
+					{Target: request.Targets[1], State: "removed", Branch: &contract.WorktreeBranchOutcomePayload{
+						Name: "topic", Deleted: true,
+					}},
+				}}, nil
+			}})
+			code, stdout, stderr := executeRootCommandWithExit(t, newWorkspaceTestDeps(t, client),
+				"worktree", "remove", "one", "two", "--workspace", "workspace-a", "--delete-branch", "-o", format)
+			if code != 0 || !strings.Contains(stdout, "main kept (protected)") ||
+				!strings.Contains(stdout, "topic deleted") {
+				t.Fatalf("branch output = %d %q %q", code, stdout, stderr)
+			}
+		})
+	}
+
 	for _, dryRun := range []bool{true, false} {
 		t.Run("Should preserve per-target batch output with dry-run "+strconv.FormatBool(dryRun), func(t *testing.T) {
 			t.Parallel()
-			client := withWorkspaceResolution(&stubClient{removeWorktreesFn: func(_ context.Context, workspace string, request contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error) {
-				if workspace != "workspace-a" || request.DryRun != dryRun || !request.Force || len(request.Targets) != 2 || request.Targets[0].Ref != "one" || request.Targets[1].Ref != "two" {
-					t.Fatalf("request = %s %#v", workspace, request)
-				}
-				return contract.RemoveWorktreesResponse{DryRun: dryRun, Results: []contract.WorktreeRemovalResult{
-					{Target: request.Targets[0], State: "refused", Code: "worktree_session_active"},
-					{Target: request.Targets[1], State: "removed"},
-				}}, nil
-			}})
-			args := []string{"worktree", "remove", " one ", "two", "--workspace", "workspace-a", "--force", "-o", "json"}
+			client := withWorkspaceResolution(
+				&stubClient{
+					removeWorktreesFn: func(_ context.Context, workspace string, request contract.RemoveWorktreesRequest) (contract.RemoveWorktreesResponse, error) {
+						if workspace != "workspace-a" || request.DryRun != dryRun || !request.Force ||
+							len(request.Targets) != 2 ||
+							request.Targets[0].Ref != "one" ||
+							request.Targets[1].Ref != "two" {
+							t.Fatalf("request = %s %#v", workspace, request)
+						}
+						return contract.RemoveWorktreesResponse{
+							DryRun: dryRun,
+							Results: []contract.WorktreeRemovalResult{
+								{Target: request.Targets[0], State: "refused", Code: "worktree_session_active"},
+								{Target: request.Targets[1], State: "removed"},
+							},
+						}, nil
+					},
+				},
+			)
+			args := []string{
+				"worktree",
+				"remove",
+				" one ",
+				"two",
+				"--workspace",
+				"workspace-a",
+				"--force",
+				"-o",
+				"json",
+			}
 			if dryRun {
 				args = append(args, "--dry-run")
 			}
@@ -235,7 +282,8 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 			if err := json.Unmarshal([]byte(stdout), &response); err != nil {
 				t.Fatalf("decode %s: %v", stdout, err)
 			}
-			if len(response.Results) != 2 || response.Results[0].Code != "worktree_session_active" || (code == 0) != dryRun {
+			if len(response.Results) != 2 || response.Results[0].Code != "worktree_session_active" ||
+				(code == 0) != dryRun {
 				t.Fatalf("output=%s exit=%d", stdout, code)
 			}
 		})

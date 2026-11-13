@@ -15,6 +15,26 @@ import (
 func TestServiceAdopt(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should refuse adoption inside the managed trash root", func(t *testing.T) {
+		t.Parallel()
+		f := newAdoptionTestFixture(t)
+		trash := filepath.Join(f.service.root, trashDirectory)
+		candidate := filepath.Join(trash, "candidate")
+		if err := os.MkdirAll(candidate, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Adopt(t.Context(), testWorktreeProfileID, f.workspace.ID, candidate); !errors.Is(
+			err,
+			ErrAdoptionUnreadable,
+		) {
+			t.Fatalf("Adopt(trash) = %v, want unreadable adoption refusal", err)
+		}
+		rows, err := f.store.List(t.Context(), f.workspace.ID)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("trash adoption mutated registry: %#v, %v", rows, err)
+		}
+	})
+
 	t.Run("Should preserve the discovered label when adopting a detached worktree", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)

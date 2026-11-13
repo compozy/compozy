@@ -286,6 +286,6 @@ func (n *daemonNativeTools) worktreeRemoveBatch(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	result := core.RemoveWorktreeBatch(ctx, n.deps.Worktrees, workspaceID, request, nil)
+	result := core.RemoveWorktreeBatch(ctx, n.deps.Worktrees, workspaceID, request, nil, nil)
 	return structuredResult(result, fmt.Sprintf("%d worktree removal results", len(result.Results)))
 }
