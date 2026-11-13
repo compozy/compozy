@@ -305,6 +305,7 @@ export type {
   SessionTranscriptThreadStatus,
 } from "./lib/session-transcript-thread-context-value";
 export { SessionCreateProvider } from "./contexts/session-create-context";
+export { ProjectMenuHostProvider } from "./components/project-menu-host-provider";
 export type { SessionCreateOpenOptions } from "./lib/session-create-target";
 export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 

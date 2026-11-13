@@ -511,13 +511,34 @@ describe("AutomationDetailPanel", () => {
       );
     });
 
-    it("Should report a copy failure when the browser has no Clipboard API", () => {
+    it("Should offer the row's automation menu, with the copies behind Copy", async () => {
+      const user = userEvent.setup();
+      renderPanel(deployWebhookTrigger);
+
+      await user.click(screen.getByTestId("automation-detail-overflow"));
+      const menu = await screen.findByTestId("automation-detail-overflow-menu");
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .map(item => item.textContent?.trim())
+      ).toEqual(["Edit", "Inspect", "Copy", "Delete automation…"]);
+      await user.click(within(menu).getByRole("menuitem", { name: "Copy" }));
+      expect(await screen.findByRole("menuitem", { name: "Copy link" })).toBeVisible();
+      expect(screen.getByTestId("automation-copy-id-btn")).toBeVisible();
+    });
+
+    it("Should report a copy failure when the browser has no Clipboard API", async () => {
+      // jsdom has no geometry for the submenu's hover guard, which keeps its items at
+      // pointer-events: none until a real pointer crosses it. Set up before removing the
+      // Clipboard API: setup installs its own clipboard stub.
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
       const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
       try {
         renderPanel(morningDigestJob);
-        fireEvent.click(screen.getByTestId("automation-detail-overflow"));
-        fireEvent.click(screen.getByTestId("automation-copy-id-btn"));
+        await user.click(screen.getByTestId("automation-detail-overflow"));
+        await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+        await user.click(await screen.findByTestId("automation-copy-id-btn"));
         expect(toast.error).toHaveBeenCalledWith("Could not copy the automation id.");
       } finally {
         if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor);

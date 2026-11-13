@@ -106,6 +106,29 @@ const sessions = [
     state: "stopped" as const,
   },
 ];
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+/**
+ * Opens a submenu from the keyboard and resolves once focus sits inside it. jsdom has no geometry
+ * for a submenu's hover guard, so a pointer crossing from its trigger may close it on the way.
+ */
+async function openSubmenu(user: MenuUser, trigger: HTMLElement) {
+  await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
+  trigger.focus();
+  await user.keyboard("{ArrowRight}");
+  await waitFor(() => {
+    const submenu = document.activeElement?.closest('[role="menu"]');
+    expect(submenu).toBeTruthy();
+    expect(submenu).not.toContainElement(trigger);
+  });
+}
+
+/** Activates a menu item from the keyboard. */
+async function chooseItem(user: MenuUser, item: HTMLElement) {
+  item.focus();
+  await user.keyboard("{Enter}");
+}
+
 const view: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
   setSort: vi.fn(),
@@ -195,6 +218,7 @@ function renderList(
     onMarkSeen: vi.fn(),
     onMarkSeenMany: vi.fn(),
     onMakeTopLevelMany: vi.fn(),
+    onNestMany: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -637,10 +661,8 @@ describe("SessionList selection", () => {
     expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent(
       "Stop and archive2 sessions"
     );
-    expect(screen.getByTestId("session-sidebar-selection-unarchive")).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
+    // A verb no selected session can take is absent, not a disabled "0 sessions" row.
+    expect(screen.queryByTestId("session-sidebar-selection-unarchive")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-selection-stop"));
     expect(actions.onStopMany).toHaveBeenCalledWith([sessions[0], sessions[1]]);
   });
@@ -711,11 +733,10 @@ describe("SessionList selection", () => {
     const stopped = { ...sessions[0]!, state: "stopped" as const };
     update([stopped, sessions[1]!, sessions[2]!]);
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    expect(await screen.findByTestId("session-sidebar-selection-stop")).toHaveAttribute(
-      "aria-disabled",
-      "true"
+    expect(await screen.findByTestId("session-sidebar-selection-archive")).toHaveTextContent(
+      "2 stopped"
     );
-    expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent("2 stopped");
+    expect(screen.queryByTestId("session-sidebar-selection-stop")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     update([sessions[1]!, sessions[2]!]);
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
@@ -747,7 +768,7 @@ describe("SessionList selection", () => {
     const running = screen.getByTestId("session-sidebar-session-running");
     fireEvent.click(running, { metaKey: true });
     fireEvent.contextMenu(running);
-    expect(await screen.findByTestId("session-row-menu-copy-id-running")).toBeVisible();
+    expect(await screen.findByTestId("session-row-menu-copy-running")).toBeVisible();
     await user.keyboard("{Escape}");
     fireEvent.click(screen.getByTestId("session-sidebar-session-stopped"));
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
@@ -755,7 +776,7 @@ describe("SessionList selection", () => {
     expect(await screen.findByTestId("session-sidebar-selection-menu-count")).toHaveTextContent(
       "2 sessions"
     );
-    expect(screen.queryByTestId("session-row-menu-copy-id-running")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-menu-copy-running")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-sidebar-selection-menu-stop")).toHaveTextContent("1 active");
     expect(screen.getByTestId("session-sidebar-selection-menu-archive")).toHaveTextContent(
       "Stop and archive2 sessions"
@@ -781,7 +802,7 @@ describe("SessionList selection", () => {
     );
 
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-other"));
-    expect(await screen.findByTestId("session-row-menu-copy-id-other")).toBeVisible();
+    expect(await screen.findByTestId("session-row-menu-copy-other")).toBeVisible();
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
     expect(screen.getByTestId("session-sidebar-session-other")).toHaveAttribute(
       "aria-pressed",
@@ -1793,8 +1814,8 @@ describe("SessionList Mark as seen", () => {
   });
 });
 
-// Invariant: both row menus copy the session's CompozyOS ID and its shown title, and the
-// selection menu copies every selected ID, and say so.
+// Invariant: both row menus copy the session's CompozyOS ID and its shown title from Copy ▸, and
+// the selection menu copies every selected ID, and say so.
 describe("SessionList row copy actions", () => {
   it("Should copy the session ID from the … menu and the title from the context menu", async () => {
     const user = userEvent.setup();
@@ -1803,16 +1824,31 @@ describe("SessionList row copy actions", () => {
     renderList();
 
     await user.click(screen.getByTestId("session-row-actions-running"));
-    await user.click(await screen.findByTestId("session-row-copy-id-running"));
+    await openSubmenu(user, await screen.findByTestId("session-row-copy-running"));
+    await chooseItem(user, await screen.findByTestId("session-row-copy-id-running"));
     expect(writeText).toHaveBeenLastCalledWith("running");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session ID copied"));
 
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-stopped"));
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Copy session ID" })).toBeInTheDocument();
-    await user.click(within(menu).getByRole("menuitem", { name: "Copy title" }));
+    await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Copy" }));
+    expect(await screen.findByRole("menuitem", { name: "Copy session ID" })).toBeInTheDocument();
+    await chooseItem(user, screen.getByRole("menuitem", { name: "Copy title" }));
     expect(writeText).toHaveBeenLastCalledWith("Stopped work");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
+  });
+
+  it("Should copy the session's branch name from Copy ▸", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const success = vi.spyOn(toast, "success");
+    renderList({ sessions: [{ ...sessions[0]!, branch: "feat/session-menus" }] });
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    await openSubmenu(user, await screen.findByTestId("session-row-copy-running"));
+    await chooseItem(user, await screen.findByTestId("session-row-copy-branch-running"));
+    expect(writeText).toHaveBeenLastCalledWith("feat/session-menus");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Branch name copied"));
   });
 
   // Invariant: row, toolbar and context menus share meaningful batch verbs; single-only
@@ -1848,10 +1884,12 @@ describe("SessionList row copy actions", () => {
       await user.click(within(menu).getByRole("menuitem", { name: /^Mark as seen/ }));
       expect(actions.onMarkSeenMany).toHaveBeenCalledWith([first, child]);
       menu = await open();
-      await user.click(within(menu).getByRole("menuitem", { name: /^Make top-level/ }));
+      await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Move" }));
+      await chooseItem(user, await screen.findByRole("menuitem", { name: /^Make top-level/ }));
       expect(actions.onMakeTopLevelMany).toHaveBeenCalledWith([first, child]);
       menu = await open();
-      await user.click(within(menu).getByRole("menuitem", { name: "Copy titles" }));
+      await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Copy" }));
+      await chooseItem(user, await screen.findByRole("menuitem", { name: "Copy titles" }));
       expect(writeText).toHaveBeenLastCalledWith("Running work\nStopped work");
     }
   );
@@ -1864,7 +1902,8 @@ describe("SessionList row copy actions", () => {
     fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
     fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    await user.click(await screen.findByTestId("session-sidebar-selection-copy-ids"));
+    await openSubmenu(user, await screen.findByTestId("session-sidebar-selection-copy"));
+    await chooseItem(user, await screen.findByTestId("session-sidebar-selection-copy-ids"));
     expect(writeText).toHaveBeenLastCalledWith("running\nother");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session IDs copied"));
   });
@@ -1877,7 +1916,8 @@ describe("SessionList row copy actions", () => {
     fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-running"));
     const menu = await screen.findByRole("menu");
-    await user.click(within(menu).getByRole("menuitem", { name: "Copy session IDs" }));
+    await openSubmenu(user, within(menu).getByRole("menuitem", { name: "Copy" }));
+    await chooseItem(user, await screen.findByRole("menuitem", { name: "Copy session IDs" }));
     expect(writeText).toHaveBeenLastCalledWith("running\nother");
   });
 });
@@ -2329,7 +2369,7 @@ describe("SessionList folders and manual order", () => {
 
   // BR-11: folders and manual order live in one (workspace, profile) pair; a list
   // spanning pairs has no layout, so filed sessions render as plain rows.
-  it("Should render filed sessions as plain rows where no single pair owns the list", () => {
+  it("Should render filed sessions as plain rows where no single pair owns the list", async () => {
     const rows = [
       { ...layoutRows[0]!, profile_id: "default" },
       { ...layoutRows[1]!, profile_id: "other", profile_name: "other" },
@@ -2339,7 +2379,9 @@ describe("SessionList folders and manual order", () => {
     expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
-    expect(screen.queryByRole("menuitem", { name: "Move to folder" })).not.toBeInTheDocument();
+    // No folder layout and nothing else to move: the menu has no Move ▸ at all.
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Move" })).not.toBeInTheDocument();
   });
 
   // Invariant: stale aggregate rows cannot navigate while a page change is in flight.
@@ -2444,26 +2486,38 @@ describe("SessionList folders and manual order", () => {
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
   });
 
-  it("Should offer the row actions plus folder moves and Move up/down on right-click", async () => {
-    const user = userEvent.setup();
-    const { layout } = renderLayout();
-    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { name: "Delete session" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
-    await user.click(within(menu).getByRole("menuitem", { name: "Remove from folder" }));
-    expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
+  // Invariant: right-click and `…` carry the row's verbs plus folder moves and Move up/down
+  // under Move ▸, one tree on both entry points.
+  it.each(["context", "dropdown"])(
+    "Should offer the row actions plus folder moves and Move up/down from the %s menu",
+    async host => {
+      const user = userEvent.setup();
+      const { layout } = renderLayout();
+      const prefix = host === "context" ? "session-row-menu" : "session-row";
+      const open = async (id: string) => {
+        if (host === "context")
+          fireEvent.contextMenu(screen.getByTestId(`session-sidebar-session-${id}`));
+        else await user.click(screen.getByTestId(`session-row-actions-${id}`));
+        return screen.findByRole("menu");
+      };
+      const menu = await open("f1");
+      expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+      expect(within(menu).getByRole("menuitem", { name: "Delete session" })).toBeInTheDocument();
+      await openSubmenu(user, within(menu).getByTestId(`${prefix}-move-f1`));
+      expect(await screen.findByTestId(`${prefix}-move-f1-fa`)).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      await chooseItem(user, screen.getByRole("menuitem", { name: "Remove from folder" }));
+      expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
 
-    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
-    const rootMenu = await screen.findByRole("menu");
-    expect(within(rootMenu).getByRole("menuitem", { name: "Move up" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
-    await user.click(within(rootMenu).getByRole("menuitem", { name: "Move down" }));
-    expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
-  });
+      const rootMenu = await open("r1");
+      await openSubmenu(user, within(rootMenu).getByTestId(`${prefix}-move-r1`));
+      expect(await screen.findByTestId(`${prefix}-up-r1`)).toHaveAttribute("aria-disabled", "true");
+      await chooseItem(user, screen.getByTestId(`${prefix}-down-r1`));
+      expect(layout.reorderSessions).toHaveBeenCalledWith(null, ["r2", "r1"]);
+    }
+  );
 
   it("Should say the folders failed to load and retry from the list", async () => {
     const user = userEvent.setup();
@@ -2504,11 +2558,13 @@ describe("SessionList folders and manual order", () => {
       sessions: layoutRows,
       view: { ...view, sort: "manual", layout, catalog, ...narrowed },
     });
+    const user = userEvent.setup();
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-r1"));
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Move to folder" })).toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Move" }));
+    expect(await screen.findByRole("menuitem", { name: "Beta" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
 
     const row = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`).parentElement!;
     fireEvent.dragStart(row("r1"));
@@ -2525,7 +2581,7 @@ describe("SessionList folders and manual order", () => {
     await user.keyboard("{Shift>}{F10}{/Shift}");
     const menu = await screen.findByRole("menu");
     expect(within(menu).queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
-    within(menu).getByRole("menuitem", { name: "Move to folder" }).focus();
+    within(menu).getByRole("menuitem", { name: "Move" }).focus();
     await user.keyboard("{ArrowRight}");
     const beta = await screen.findByRole("menuitem", { name: "Beta" });
     await waitFor(() =>
@@ -2688,15 +2744,15 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: [source, continued], actions: { onAdopt: vi.fn() } });
     screen.getByTestId(`session-row-actions-${source.id}`).focus();
     await user.keyboard("{Enter}");
-    await user.keyboard("Move under");
-    const moveUnder = await screen.findByTestId(`session-row-move-under-${source.id}`);
-    await waitFor(() => expect(moveUnder).toHaveFocus());
-    await user.keyboard("{Enter}");
+    // Move under… sits in Move ▸: open it from the keyboard.
+    await openSubmenu(user, await screen.findByTestId(`session-row-move-${source.id}`));
+    await chooseItem(user, await screen.findByTestId(`session-row-move-under-${source.id}`));
     expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe(source.id);
     sessionParentPickerStore.trigger.closed();
 
     await user.click(screen.getByTestId(`session-row-actions-${continued.id}`));
-    await user.click(await screen.findByTestId(`session-row-move-under-${continued.id}`));
+    await openSubmenu(user, await screen.findByTestId(`session-row-move-${continued.id}`));
+    await chooseItem(user, await screen.findByTestId(`session-row-move-under-${continued.id}`));
     expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe(continued.id);
     sessionParentPickerStore.trigger.closed();
   });
@@ -2729,10 +2785,13 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: [parent, child], actions: { onMakeTopLevel } });
 
     await user.click(screen.getByTestId("session-row-actions-r1"));
-    expect(screen.queryByTestId("session-row-make-top-level-r1")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("session-row-delete-r1")).toBeInTheDocument();
+    // A top-level row has nothing to move here: no Move ▸, so no Make top-level.
+    expect(screen.queryByTestId("session-row-move-r1")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("session-row-actions-c-prov"));
-    await user.click(await screen.findByTestId("session-row-make-top-level-c-prov"));
+    await openSubmenu(user, await screen.findByTestId("session-row-move-c-prov"));
+    await chooseItem(user, await screen.findByTestId("session-row-make-top-level-c-prov"));
     expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "c-prov" }));
   });
 
@@ -2769,17 +2828,20 @@ describe("SessionList folders and manual order", () => {
 
     for (const id of ["w-running", "w-subagent"]) {
       await user.click(screen.getByTestId(`session-row-actions-${id}`));
-      expect(screen.queryByTestId(`session-row-take-over-${id}`)).not.toBeInTheDocument();
+      expect(await screen.findByTestId(`session-row-delete-${id}`)).toBeInTheDocument();
+      // Take over is the only Move ▸ verb these rows could have: none, so no Move ▸.
+      expect(screen.queryByTestId(`session-row-move-${id}`)).not.toBeInTheDocument();
       await user.keyboard("{Escape}");
     }
     await user.click(screen.getByTestId("session-row-actions-w-stopped"));
     expect(screen.queryByTestId("session-row-rename-w-stopped")).not.toBeInTheDocument();
-    await user.click(await screen.findByTestId("session-row-take-over-w-stopped"));
+    await openSubmenu(user, await screen.findByTestId("session-row-move-w-stopped"));
+    await chooseItem(user, await screen.findByTestId("session-row-take-over-w-stopped"));
     expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "w-stopped" }));
   });
 
   // Invariant: a selection moves into a folder or the root through the bar's
-  // Move to folder menu or by dragging a selected row, as one layout write of
+  // Move ▸ Folder group or by dragging a selected row, as one layout write of
   // its thread roots in on-screen order; success ends the selection, a refusal
   // keeps it, and a selection that cannot move says why.
   const rowNames: Record<string, string> = {
@@ -2798,26 +2860,16 @@ describe("SessionList folders and manual order", () => {
     return user;
   }
   /**
-   * Opens the selection bar's More menu and, from the keyboard, its Move to
-   * folder submenu; resolves once focus sits inside the submenu.
+   * Opens the selection bar's More menu and, from the keyboard, its Move
+   * submenu; resolves once focus sits inside the submenu.
    */
-  async function openMoveMenu(user: ReturnType<typeof userEvent.setup>) {
+  async function openMoveMenu(user: MenuUser) {
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    const trigger = await screen.findByTestId("session-sidebar-selection-move");
-    await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
-    trigger.focus();
-    await user.keyboard("{ArrowRight}");
-    await waitFor(() => {
-      const submenu = document.activeElement?.closest('[role="menu"]');
-      expect(submenu).toBeTruthy();
-      expect(submenu).not.toContainElement(trigger);
-    });
+    await openSubmenu(user, await screen.findByTestId("session-sidebar-selection-move"));
   }
   /** Activates one submenu target from the keyboard, as the row menu suite does. */
-  async function chooseMoveTarget(user: ReturnType<typeof userEvent.setup>, name: string) {
-    const item = await screen.findByRole("menuitem", { name });
-    item.focus();
-    await user.keyboard("{Enter}");
+  async function chooseMoveTarget(user: MenuUser, name: string) {
+    await chooseItem(user, await screen.findByRole("menuitem", { name }));
   }
 
   it("Should move the selection to a folder from the selection menu and end the selection", async () => {
@@ -2828,7 +2880,7 @@ describe("SessionList folders and manual order", () => {
     expect(items.map(item => item.textContent)).toEqual([
       "Alpha",
       "Beta",
-      "No folder",
+      "Remove from folder",
       "New folder…",
     ]);
     await chooseMoveTarget(user, "Beta");
@@ -2856,7 +2908,7 @@ describe("SessionList folders and manual order", () => {
       "aria-disabled",
       "true"
     );
-    await chooseMoveTarget(user, "No folder");
+    await chooseMoveTarget(user, "Remove from folder");
 
     expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null);
     await waitFor(() =>
@@ -2882,6 +2934,27 @@ describe("SessionList folders and manual order", () => {
       expect(screen.queryByTestId("session-folder-name-dialog")).not.toBeInTheDocument()
     );
     expect(screen.queryByTestId("session-sidebar-selection-bar")).not.toBeInTheDocument();
+  });
+
+  // Invariant: the selection's Nest under offers the unselected sessions a selected one can move
+  // under, counts the selected sessions that can, and nests the selection under the chosen one.
+  it("Should nest the selection under a listed session from Move ▸ Nest under", async () => {
+    // Only a top-level session moves under another: these rows carry no parent lineage.
+    const { actions } = renderList({
+      sessions: layoutRows.map(row => ({ ...row, lineage: undefined })),
+      view: { ...view, layout: fakeLayout() },
+    });
+    const user = await selectRows("r1", "f1");
+    await openMoveMenu(user);
+    const nest = await screen.findByTestId("session-sidebar-selection-nest");
+    expect(nest).toHaveTextContent("2 sessions");
+    await openSubmenu(user, nest);
+    expect(screen.queryByTestId("session-sidebar-selection-nest-r1")).not.toBeInTheDocument();
+    await chooseItem(user, await screen.findByTestId("session-sidebar-selection-nest-r2"));
+    expect(actions.onNestMany).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "r1" }), expect.objectContaining({ id: "f1" })],
+      expect.objectContaining({ id: "r2" })
+    );
   });
 
   it("Should say a selection of child rows moves with its parent", async () => {
@@ -3532,6 +3605,26 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).not.toHaveBeenCalled();
   });
 
+  // Invariant: a project header's right-click carries its + verbs under New ▸, and New session
+  // starts in the same project and profile as the + (one project menu on every surface).
+  it("Should start a session from a group header's New submenu like its +", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    renderList({ sessions: [], onNewSession, view: grouped() });
+
+    const toggle = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    await waitFor(() => {
+      fireEvent.contextMenu(toggle);
+      expect(screen.getByRole("menuitem", { name: "New" })).toBeVisible();
+    });
+    await user.hover(screen.getByTestId("session-sidebar-group-project:ws-alpha-menu-new"));
+    // The submenu opens on hover; its item is pressed directly once it mounts.
+    fireEvent.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-menu-new-session")
+    );
+    expect(onNewSession).toHaveBeenCalledWith({ workspaceId: "ws-alpha", profile: "default" });
+  });
+
   // Invariant: the toolbar + offers Add always-on agent in any grouping, and a list spanning
   // several projects asks where the agent lives first (#1181).
   it("Should offer Add always-on agent from the toolbar + of a grouped All projects list", async () => {
@@ -3808,7 +3901,11 @@ describe("SessionList breadth and Group by", () => {
     expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-alpha", "wf-1");
 
     fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-project:ws-beta-header"));
-    await user.click(
+    // Move out of folder sits with the folder choices under Move ▸.
+    await user.hover(
+      await screen.findByTestId("session-sidebar-group-project:ws-beta-arrange-move-to")
+    );
+    fireEvent.click(
       await screen.findByTestId("session-sidebar-group-project:ws-beta-arrange-move-out")
     );
     expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-beta", null);

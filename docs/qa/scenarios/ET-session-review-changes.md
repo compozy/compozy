@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: lab compozy-file-explorer-integration-20261107-073905-206925 (qa-artifacts/qa/journey-log.jsonl, screenshots/C01–C10, notes/cli-*.txt|json)
 last_report: docs/qa/reports/2026-11-07-file-explorer-integration.md
-overlaps: ET-transcript-paths-files-app
+overlaps: ET-transcript-paths-files-app; APP-open-in-targets
 ---
 
 Introduced by the file-explorer spec (US-005.AC-6, US-007–US-010). Walk it on a real daemon with a
@@ -155,3 +155,9 @@ a symlink outside the approved root, and an invalid relative path through patche
 CLI and the native tool. Preserve path_denied, path_outside_root and invalid_path respectively;
 return no partial patch batch and disclose no absolute host path. Verify these outcomes both
 while obtaining fingerprints and if denial appears during sensitivity or untracked-content reads.
+
+## 2026-11-13 qa-impact (grouped file menu)
+
+In the desktop app, each changed (not deleted) file header gains a **More actions** menu after Copy
+path: the shared file menu led by **Open in Files**. Its walk lives in `APP-open-in-targets` step 5;
+browser tabs show no such menu, so this scenario's browser walk is unchanged.

@@ -157,6 +157,13 @@ function useLinkedWorkList(
         else linkedWork.refresh(item);
       },
       onPrompt: input.onSendPrompt,
+      ...(input.worktreeAction ? { worktreeAction: input.worktreeAction } : {}),
+      // The session's own branch diff (US-007.AC-8): Branch scope, absent in user scope.
+      ...(sessionHasFileRoot(session.workspace_id)
+        ? {
+            onReviewChanges: () => requestSessionReviewChanges(session.id, { scope: "branch" }),
+          }
+        : {}),
     },
   };
 }
@@ -305,7 +312,6 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
             onClippedChange={linkedWork.setClipped}
             ownChip={ownChipActions(input)}
             ownFacts={sessionPullRequestFacts(session)}
-            worktreeAction={input.worktreeAction}
           />
         )}
         <SessionStatusLine

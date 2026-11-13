@@ -1,7 +1,20 @@
-import { Button, Pill, Spinner, cn } from "@compozy/ui";
-import { ChevronDown, ChevronRight, Copy, FileCode, Lock } from "@compozy/ui/icons";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Pill,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  cn,
+} from "@compozy/ui";
+import { ChevronDown, ChevronRight, Copy, FileCode, Lock, MoreHorizontal } from "@compozy/ui/icons";
 
 import type { DiffViewerFileHeaderState } from "@compozy/ui";
+
+import { FileMenuItems, canOpenInTargets, type FilesRootRef } from "@/systems/files";
 
 import type { SessionChangeNote } from "../../hooks/use-session-changes";
 import { changeStatusLetter, type SessionChangeItem } from "../../lib/session-changes";
@@ -55,6 +68,10 @@ function fileNote(
 
 export interface SessionChangeFileHeaderProps {
   item: SessionChangeItem;
+  /** The session's files root: the file menu opens paths under it. */
+  filesRoot: FilesRootRef;
+  /** The first changed line, where Open in Files and the editors land. */
+  firstLine: number | undefined;
   state: DiffViewerFileHeaderState;
   note: SessionChangeNote | undefined;
   revealed: boolean;
@@ -68,11 +85,14 @@ export interface SessionChangeFileHeaderProps {
 
 /**
  * One diff's header (US-007.AC-4): status, path (directory muted, basename emphasised, a
- * rename as `old → new`), `+N −M`, collapse, Open in Files, Copy path — and the reason a
- * file shows no diff: binary, sensitive, too large, or a failed load.
+ * rename as `old → new`), `+N −M`, collapse, Open in Files, Copy path, the shared file menu
+ * in the desktop app — and the reason a file shows no diff: binary, sensitive, too large, or a
+ * failed load.
  */
 export function SessionChangeFileHeader({
   item,
+  filesRoot,
+  firstLine,
   state,
   note,
   revealed,
@@ -161,6 +181,16 @@ export function SessionChangeFileHeader({
         <ChangesIconAction label="Copy path" testId="changes-copy-path" onClick={onCopyPath}>
           <Copy aria-hidden className="size-3.5" />
         </ChangesIconAction>
+        {/* The file menu adds the editors and the reveal target, which only the desktop app can
+            open; a deleted file has nothing on disk to open. */}
+        {canOpenInTargets() && item.file.status !== "deleted" ? (
+          <ChangeFileMenu
+            root={filesRoot}
+            path={item.path}
+            line={firstLine}
+            onOpenInViewer={onOpenInViewer}
+          />
+        ) : null}
       </div>
       {reason && !state.collapsed ? (
         <FileNote
@@ -171,6 +201,61 @@ export function SessionChangeFileHeader({
         />
       ) : null}
     </div>
+  );
+}
+
+/** The shared file menu (Files tree row, viewer, folder header), led by Open in Files. */
+function ChangeFileMenu({
+  root,
+  path,
+  line,
+  onOpenInViewer,
+}: {
+  root: FilesRootRef;
+  path: string;
+  line: number | undefined;
+  onOpenInViewer: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="icon-xs"
+                  aria-label={`More actions for ${path}`}
+                  data-testid="changes-file-menu"
+                />
+              }
+            />
+          }
+        >
+          <MoreHorizontal aria-hidden className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipContent>More actions</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-auto">
+        <FileMenuItems
+          host="dropdown"
+          root={root}
+          request={{ path, line }}
+          copyPath={path}
+          leading={[
+            {
+              kind: "item",
+              id: "open-in-files",
+              label: "Open in Files",
+              icon: FileCode,
+              onSelect: onOpenInViewer,
+            },
+          ]}
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

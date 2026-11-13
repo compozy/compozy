@@ -6,6 +6,12 @@ export function canListOpenTargets(): boolean {
   return typeof files?.listOpenTargets === "function";
 }
 
+/** Whether this client can list and open Open in targets: a desktop shell with both bridges. */
+export function canOpenInTargets(): boolean {
+  const files = desktopShellBridge()?.files;
+  return Boolean(files?.listOpenTargets && files.openWith);
+}
+
 /** The split button's primary label: "Open in Cursor", "Reveal in Finder", "Show in folder". */
 export function openTargetActionLabel(target: OpenTarget): string {
   if (target.kind === "editor") return `Open in ${target.label}`;

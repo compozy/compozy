@@ -1,28 +1,19 @@
-import {
-  CircleAlert,
-  Link2,
-  Lock,
-  MoreHorizontal,
-  Pencil,
-  Play,
-  SkipForward,
-  Trash2,
-} from "@compozy/ui/icons";
+import { CircleAlert, Lock, MoreHorizontal, SkipForward } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  MenuTreeItems,
   Pill,
   Time,
   cn,
 } from "@compozy/ui";
 
 import { automationLastRunMeta } from "../lib/automation-formatters";
+import { automationMenuNodes } from "../lib/automation-menu";
 import { AUTOMATION_START_ICON } from "../lib/automation-start-icon";
 import type { AutomationSentence } from "../lib/automation-sentence";
 import type { AutomationStart, AutomationView } from "../lib/automation-view";
@@ -121,8 +112,8 @@ export function AutomationPublicLinkText({ view }: { view: AutomationView }) {
 export interface AutomationOverflowHandlers {
   onRunNow: (view: AutomationView) => void;
   onEdit: (view: AutomationView) => void;
+  onInspect: (view: AutomationView) => void;
   onDelete: (view: AutomationView) => void;
-  onCopyLink: (view: AutomationView) => void;
 }
 
 interface AutomationOverflowMenuProps extends AutomationOverflowHandlers {
@@ -131,16 +122,32 @@ interface AutomationOverflowMenuProps extends AutomationOverflowHandlers {
   runPending: boolean;
 }
 
-/** Only the actions the daemon supports for this kind and source (Business Rules 10–11). */
+/** The row's `…`: the automation menu the detail page's `⋯` also renders. */
 export function AutomationOverflowMenu({
   view,
   runDisabled,
   runPending,
   onRunNow,
   onEdit,
+  onInspect,
   onDelete,
-  onCopyLink,
 }: AutomationOverflowMenuProps) {
+  const nodes = automationMenuNodes(
+    view,
+    {
+      runDisabled,
+      runPending,
+      onRunNow: () => onRunNow(view),
+      onEdit: () => onEdit(view),
+      onInspect: () => onInspect(view),
+      onDelete: () => onDelete(view),
+    },
+    {
+      runNow: `automation-run-now-${view.id}`,
+      edit: `automation-edit-${view.id}`,
+      delete: `automation-delete-${view.id}`,
+    }
+  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -158,47 +165,7 @@ export function AutomationOverflowMenu({
         <MoreHorizontal aria-hidden="true" className="size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {view.canRunNow ? (
-          <DropdownMenuItem
-            data-testid={`automation-run-now-${view.id}`}
-            disabled={runDisabled || runPending}
-            onClick={() => onRunNow(view)}
-          >
-            <Play aria-hidden="true" />
-            {runPending ? "Starting…" : "Run now"}
-          </DropdownMenuItem>
-        ) : null}
-        {view.webhookPath ? (
-          <DropdownMenuItem onClick={() => onCopyLink(view)}>
-            <Link2 aria-hidden="true" />
-            Copy link
-          </DropdownMenuItem>
-        ) : null}
-        {view.canEdit ? (
-          <>
-            <DropdownMenuItem
-              data-testid={`automation-edit-${view.id}`}
-              onClick={() => onEdit(view)}
-            >
-              <Pencil aria-hidden="true" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              data-testid={`automation-delete-${view.id}`}
-              onClick={() => onDelete(view)}
-            >
-              <Trash2 aria-hidden="true" />
-              Delete automation…
-            </DropdownMenuItem>
-          </>
-        ) : view.source === "config" ? (
-          <DropdownMenuItem disabled>
-            <Lock aria-hidden="true" />
-            Edit in config.toml
-          </DropdownMenuItem>
-        ) : null}
+        <MenuTreeItems host="dropdown" nodes={nodes} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

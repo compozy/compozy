@@ -1,6 +1,7 @@
 // Suite: Automations listing rows, cards and states
 // Invariant: a row reads as a sentence with its time and last-run truth, shows only exception
-//   badges and supported actions, never flips its switch before the daemon answers; the shell
+//   badges and supported actions (the automation menu the detail page shares, copies behind
+//   Copy ▸), never flips its switch before the daemon answers; the shell
 //   tells first run, filtered empty, loading and load error apart.
 // Boundary IN: AutomationView (board story fixtures) and row controls.
 // Boundary OUT: data loading (use-automations-page suite) and routing.
@@ -55,8 +56,8 @@ function controls(overrides: Partial<AutomationItemControls> = {}): AutomationIt
     onToggleEnabled: vi.fn(),
     onRunNow: vi.fn(),
     onEdit: vi.fn(),
+    onInspect: vi.fn(),
     onDelete: vi.fn(),
-    onCopyLink: vi.fn(),
     ...overrides,
   };
 }
@@ -185,16 +186,41 @@ describe("AutomationRow", () => {
   });
 
   it.each([
-    ["morning-digest", ["Run now", "Edit", "Delete automation…"]],
-    ["summarize-failures", ["Edit", "Delete automation…"]],
-    ["deploy-webhook", ["Copy link", "Edit", "Delete automation…"]],
-    ["release-checklist", ["Run now", "Edit in config.toml"]],
+    ["morning-digest", ["Run now", "Edit", "Inspect", "Copy", "Delete automation…"]],
+    ["summarize-failures", ["Edit", "Inspect", "Copy", "Delete automation…"]],
+    ["deploy-webhook", ["Edit", "Inspect", "Copy", "Delete automation…"]],
+    ["release-checklist", ["Run now", "Edit in config.toml", "Inspect", "Copy"]],
   ])("Should offer only supported actions for %s", async (id, labels) => {
     const user = userEvent.setup();
     renderRow(view(id));
     await user.click(screen.getByRole("button", { name: `More actions for ${id}` }));
     const items = await screen.findAllByRole("menuitem");
     expect(items.map(item => item.textContent?.trim())).toEqual(labels);
+  });
+
+  it.each([
+    ["deploy-webhook", ["Copy link", "Copy automation id"]],
+    ["morning-digest", ["Copy automation id"]],
+  ])("Should keep the copies for %s behind Copy", async (id, labels) => {
+    const user = userEvent.setup();
+    renderRow(view(id));
+    await user.click(screen.getByRole("button", { name: `More actions for ${id}` }));
+    await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+    const copyId = await screen.findByRole("menuitem", { name: "Copy automation id" });
+    const submenu = copyId.closest<HTMLElement>('[role="menu"]')!;
+    expect(
+      within(submenu)
+        .getAllByRole("menuitem")
+        .map(item => item.textContent?.trim())
+    ).toEqual(labels);
+  });
+
+  it("Should inspect the row's automation from its menu", async () => {
+    const user = userEvent.setup();
+    const rowControls = renderRow(view("summarize-failures"));
+    await user.click(screen.getByRole("button", { name: "More actions for summarize-failures" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Inspect" }));
+    expect(rowControls.onInspect).toHaveBeenCalledWith(view("summarize-failures"));
   });
 });
 

@@ -1,129 +1,24 @@
-import type { ReactNode } from "react";
-import {
-  ExternalLinkIcon,
-  FileDiffIcon,
-  GitPullRequestCreateIcon,
-  MessageSquareTextIcon,
-  RefreshCwIcon,
-  UploadIcon,
-  WrenchIcon,
-  type LucideIcon,
-} from "@compozy/ui/icons";
+import { DropdownMenuContent, MenuTreeItems } from "@compozy/ui";
 
-import {
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  Eyebrow,
-  Spinner,
-  Time,
-} from "@compozy/ui";
+import { copySessionText } from "../lib/session-copy";
+import { pullRequestMenuTree, type PullRequestMenuTreeInput } from "../lib/pull-request-menu-tree";
 
-import {
-  buildAddressReviewPrompt,
-  buildFixChecksPrompt,
-  pullRequestMenuModel,
-  type PullRequestExitPlanView,
-  type PullRequestMenuItem,
-} from "../lib/pull-request-actions";
-import type { SessionPullRequest } from "../lib/session-pull-request";
-
-export type SessionPullRequestPromptKind = "fix" | "address";
-
-const EXIT_ICON: Record<string, LucideIcon> = {
-  commit_push: UploadIcon,
-  push: UploadIcon,
-  open_pr: GitPullRequestCreateIcon,
-};
-
-const EXIT_BUSY_LABEL: Record<string, string> = {
-  commit_push: "Committing & pushing…",
-  push: "Pushing…",
-  open_pr: "Creating PR…",
-};
-
-const ITEM_ICON: Record<Exclude<PullRequestMenuItem["id"], "exit">, LucideIcon> = {
-  fix: WrenchIcon,
-  address: MessageSquareTextIcon,
-  open: ExternalLinkIcon,
-  refresh: RefreshCwIcon,
-};
-
-interface SessionPullRequestMenuProps {
-  pullRequest: SessionPullRequest | null | undefined;
-  /** Last successful observation; the Refresh item's hint. */
-  observedAt?: string | null;
-  controllable: boolean;
-  exitPlan?: PullRequestExitPlanView;
-  exitRunning: boolean;
-  refreshing: boolean;
-  onExitAction?: (action: string) => void;
-  onRefresh?: () => void;
-  onPrompt?: (kind: SessionPullRequestPromptKind, text: string) => void;
-  /** Opens the session's Review panel on Changes; absent without a session root (user scope). */
-  onReviewChanges?: () => void;
-  /** Rows after every delivery action, in their own trailing group. */
-  footer?: ReactNode;
-}
+export type SessionPullRequestMenuProps = Omit<
+  PullRequestMenuTreeInput,
+  "onCopy" | "testId" | "key"
+>;
 
 /**
- * The chip's menu (`_uiux.md` S2): the next action first, then Open PR and
- * Refresh, then any remaining "Ask the agent" prompt. Order carries priority.
+ * The pull request menu of the topbar PR chip and of a Linked work row: one tree
+ * (`pullRequestMenuTree`), the next action first. Items read
+ * `session-pull-request-action-<id>`.
  */
-export function SessionPullRequestMenu({
-  pullRequest,
-  observedAt,
-  controllable,
-  exitPlan,
-  exitRunning,
-  refreshing,
-  onExitAction,
-  onRefresh,
-  onPrompt,
-  onReviewChanges,
-  footer,
-}: SessionPullRequestMenuProps) {
-  const model = pullRequestMenuModel({
-    pullRequest,
-    controllable,
-    ...(exitPlan ? { exitPlan } : {}),
+export function SessionPullRequestMenu(props: SessionPullRequestMenuProps) {
+  const nodes = pullRequestMenuTree({
+    ...props,
+    onCopy: (text, kind) => void copySessionText(text, kind),
+    testId: id => `session-pull-request-action-${id}`,
   });
-
-  const run = (item: PullRequestMenuItem) => {
-    switch (item.id) {
-      case "exit":
-        if (!exitRunning) onExitAction?.(item.action);
-        return;
-      case "open":
-        window.open(item.url, "_blank", "noreferrer");
-        return;
-      case "refresh":
-        if (!refreshing) onRefresh?.();
-        return;
-      case "fix":
-        if (pullRequest) onPrompt?.("fix", buildFixChecksPrompt(pullRequest));
-        return;
-      case "address":
-        if (pullRequest) onPrompt?.("address", buildAddressReviewPrompt(pullRequest));
-    }
-  };
-
-  const busy = (item: PullRequestMenuItem) =>
-    (item.id === "exit" && exitRunning) || (item.id === "refresh" && refreshing);
-
-  const renderItem = (item: PullRequestMenuItem, title?: string) => (
-    <MenuItem
-      busy={busy(item)}
-      hint={item.id === "refresh" ? observedAt : null}
-      item={item}
-      key={item.id}
-      onSelect={() => run(item)}
-      {...(title ? { title } : {})}
-    />
-  );
-
   return (
     <DropdownMenuContent
       align="start"
@@ -131,68 +26,7 @@ export function SessionPullRequestMenu({
       className="min-w-58"
       data-testid="session-pull-request-menu"
     >
-      {model.primary ? renderItem(model.primary, model.primaryReason) : null}
-      {model.primary ? <DropdownMenuSeparator /> : null}
-      {model.rest.map(item => renderItem(item))}
-      {onReviewChanges ? (
-        <DropdownMenuItem
-          data-action="review-changes"
-          data-slot="session-pull-request-action"
-          onClick={onReviewChanges}
-        >
-          <FileDiffIcon aria-hidden="true" />
-          Review changes
-        </DropdownMenuItem>
-      ) : null}
-      {model.prompts.length > 0 ? (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="px-2.5 pt-1.5 pb-1">
-              <Eyebrow variant="caps">Ask the agent</Eyebrow>
-            </DropdownMenuLabel>
-            {model.prompts.map(item => renderItem(item))}
-          </DropdownMenuGroup>
-        </>
-      ) : null}
-      {footer ? (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>{footer}</DropdownMenuGroup>
-        </>
-      ) : null}
+      <MenuTreeItems host="dropdown" nodes={nodes} />
     </DropdownMenuContent>
-  );
-}
-
-function MenuItem({
-  item,
-  busy,
-  hint,
-  title,
-  onSelect,
-}: {
-  item: PullRequestMenuItem;
-  busy: boolean;
-  hint?: string | null;
-  title?: string;
-  onSelect: () => void;
-}) {
-  const Icon = item.id === "exit" ? (EXIT_ICON[item.action] ?? UploadIcon) : ITEM_ICON[item.id];
-  const busyLabel =
-    item.id === "exit" ? (EXIT_BUSY_LABEL[item.action] ?? "Working…") : "Refreshing…";
-  return (
-    <DropdownMenuItem
-      aria-busy={busy || undefined}
-      closeOnClick={!busy}
-      data-action={item.id}
-      data-slot="session-pull-request-action"
-      onClick={onSelect}
-      title={title}
-    >
-      {busy ? <Spinner aria-hidden="true" role={undefined} /> : <Icon aria-hidden="true" />}
-      {busy ? busyLabel : item.label}
-      {hint && !busy ? <Time className="ml-auto text-eyebrow text-subtle" iso={hint} /> : null}
-    </DropdownMenuItem>
   );
 }

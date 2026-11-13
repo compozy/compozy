@@ -13,6 +13,7 @@ import {
   type SessionBulkFolderSource,
 } from "./use-session-list-bulk-folders";
 import { copySessionText } from "../lib/session-copy";
+import { sessionAdoptRefusal } from "../lib/session-reparent";
 import { sessionSelectionCounts, useSessionSelection } from "./use-session-selection";
 
 interface SessionListBulkSelectionInput {
@@ -58,11 +59,43 @@ export interface SessionSelectionVerbs {
   onCopyTitles: () => void;
   onMarkSeen?: () => void;
   onMakeTopLevel?: () => void;
+  /** Selected sessions with a branch, for Copy branch names. */
+  branches: number;
+  onCopyBranches: () => void;
+  /** Nest under: the listed sessions some selected session can move under; absent without a host verb. */
+  nest?: SessionSelectionNest;
   /** Move to folder; absent while the list has no folders to move into. */
   folders?: SessionBulkFolderMenu;
 }
 
+export interface SessionSelectionNest {
+  parents: readonly SessionPayload[];
+  /** Selected sessions that can move under at least one of the parents. */
+  nestable: number;
+  onNest: (parent: SessionPayload) => void;
+}
+
 type ManyHandler = ((sessions: readonly SessionPayload[]) => void) | undefined;
+
+/** Unselected listed sessions a selected one can move under; none outside a selection. */
+function selectionNest(
+  handler: SessionLifecycleActionHandlers["onNestMany"],
+  sessions: readonly SessionPayload[],
+  selected: readonly SessionPayload[],
+  selectedIds: ReadonlySet<string>
+): SessionSelectionNest | undefined {
+  if (!handler || selected.length === 0) return undefined;
+  const parents = sessions.filter(
+    parent =>
+      !selectedIds.has(parent.id) &&
+      selected.some(session => sessionAdoptRefusal(session, parent) === null)
+  );
+  if (parents.length === 0) return undefined;
+  const nestable = selected.filter(session =>
+    parents.some(parent => sessionAdoptRefusal(session, parent) === null)
+  ).length;
+  return { parents, nestable, onNest: parent => handler(selected, parent) };
+}
 
 /** Binds an optional bulk verb to the current selection; absent verbs stay absent. */
 function bindToSelection(handler: ManyHandler, selected: readonly SessionPayload[]) {
@@ -158,6 +191,13 @@ export function useSessionListBulkSelection({
       void copySessionText(selectedSessions.map(getSessionDisplayTitle).join("\n"), "Titles"),
     onCopyIds: () =>
       void copySessionText(selectedSessions.map(session => session.id).join("\n"), "Session IDs"),
+    branches: selectedSessions.filter(session => session.branch).length,
+    onCopyBranches: () =>
+      void copySessionText(
+        selectedSessions.flatMap(session => (session.branch ? [session.branch] : [])).join("\n"),
+        "Branch names"
+      ),
+    nest: selectionNest(sessionActions.onNestMany, sessions, selectedSessions, selectedIdSet),
     folders: folderMove?.menu,
   };
 

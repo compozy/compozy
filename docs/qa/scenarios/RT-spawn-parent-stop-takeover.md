@@ -4,7 +4,7 @@ area: RT
 title: Resume and take over a spawned worker after its parent stops
 persona: Ada
 journey: J-15
-expected: When an orchestrator that spawned a worker (also into another workspace) stops, the reaper stops the worker as a resumable stop. Prompting the worker resumes it and later reaper sweeps leave it running. Stopping it and choosing Take over session (or `session reparent --top-level`) turns it into a top-level user session with the full row menu; subagents and running workers are refused.
+expected: When an orchestrator that spawned a worker (also into another workspace) stops, the reaper stops the worker as a resumable stop. Prompting the worker resumes it and later reaper sweeps leave it running. Stopping it and choosing Move ▸ Take over session (or `session reparent --top-level`) turns it into a top-level user session with the full row menu; subagents and running workers are refused.
 entry_points: compozy spawn; compozy__session_spawn; compozy session prompt/stop; compozy session reparent --top-level; compozy__session_reparent; DELETE /api/workspaces/{workspace_id}/sessions/{session_id}/parent; Web session row menu Take over session
 qa_status: pass
 bug_ids: GH-1095

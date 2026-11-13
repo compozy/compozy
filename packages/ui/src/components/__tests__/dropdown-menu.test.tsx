@@ -15,6 +15,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "../dropdown-menu";
+import { tidyMenuTree, type MenuTreeNode } from "../../lib/menu-tree";
+import { MenuTreeItems } from "../menu-tree";
 
 describe("DropdownMenu", () => {
   it("Should mount closed and expose a trigger with the stable data-slot", () => {
@@ -193,5 +195,82 @@ describe("DropdownMenu", () => {
       expect(screen.getByRole("menu")).toHaveAttribute("data-side", "top");
       expect(positioner.style.transform).toBe("translate(120px, 76px)");
     });
+  });
+});
+
+describe("MenuTreeItems", () => {
+  const tree = (onRename: () => void): MenuTreeNode[] => [
+    { kind: "item", id: "rename", label: "Rename", onSelect: onRename },
+    {
+      kind: "sub",
+      id: "move",
+      label: "Move",
+      children: [
+        {
+          kind: "group",
+          id: "folders",
+          label: "Folder",
+          children: [{ kind: "item", id: "specs", label: "specs", checked: true }],
+        },
+      ],
+    },
+    { kind: "separator", id: "end" },
+    { kind: "item", id: "delete", label: "Delete", destructive: true },
+  ];
+
+  it("Should render items, open a submenu with its group, and select an item", async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <MenuTreeItems host="dropdown" nodes={tree(onRename)} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move" }));
+    expect(await screen.findByRole("group", { name: "Folder" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "specs" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveAttribute(
+      "data-variant",
+      "destructive"
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(onRename).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep the menu open when an informational item sets closeOnClick false", async () => {
+    const user = userEvent.setup();
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <MenuTreeItems
+            host="dropdown"
+            nodes={[
+              { kind: "item", id: "why", label: "Moves with its parent", closeOnClick: false },
+            ]}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Moves with its parent" }));
+    expect(screen.getByRole("menuitem", { name: "Moves with its parent" })).toBeInTheDocument();
+  });
+
+  it("Should drop empty submenus and stray separators", () => {
+    const tidy = tidyMenuTree([
+      { kind: "separator", id: "lead" },
+      { kind: "item", id: "rename", label: "Rename" },
+      { kind: "separator", id: "a" },
+      { kind: "separator", id: "b" },
+      { kind: "sub", id: "empty", label: "Move", children: [{ kind: "separator", id: "c" }] },
+      { kind: "item", id: "delete", label: "Delete" },
+      { kind: "separator", id: "trail" },
+    ]);
+    expect(tidy.map(node => node.id)).toEqual(["rename", "a", "delete"]);
   });
 });

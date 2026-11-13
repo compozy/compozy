@@ -8,18 +8,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@compozy/ui";
-import { ChevronDown, ExternalLink } from "@compozy/ui/icons";
+import { ChevronDown, Code2, ExternalLink, FolderOpen } from "@compozy/ui/icons";
+import { CursorLogo } from "@compozy/ui/logos";
 
-import { desktopShellBridge } from "@/systems/os";
+import { desktopShellBridge, type OpenTarget } from "@/systems/os";
 
 import type { FilesRootRef } from "../adapters/files-api";
 import { useOpenIn, type OpenInRequest } from "../hooks/use-open-in";
-import { openTargetActionLabel } from "../lib/open-in-targets";
-import { OpenInMenuItems, OpenTargetIcon } from "./open-in-menu-items";
+import { canOpenInTargets, openTargetActionLabel } from "../lib/open-in-targets";
+import { FileMenuItems, OpenInMenuItems } from "./open-in-menu-items";
 
-function hasOpenInBridge(): boolean {
-  const files = desktopShellBridge()?.files;
-  return Boolean(files?.listOpenTargets && files.openWith);
+/** Brand marks that exist in `@compozy/ui/logos`; other editors use the generic code icon. */
+function OpenTargetIcon({ target }: { target: OpenTarget }) {
+  if (target.kind === "reveal") return <FolderOpen aria-hidden />;
+  if (target.id === "cursor") return <CursorLogo aria-hidden className="size-4" />;
+  return <Code2 aria-hidden />;
 }
 
 /**
@@ -39,7 +42,7 @@ export function OpenInButton({
 }) {
   if (!desktopShellBridge()?.files?.listOpenTargets) return null;
   if (!root || !path) return <>{children}</>;
-  if (!hasOpenInBridge()) return null;
+  if (!canOpenInTargets()) return null;
   return <OpenTargetButton root={root} request={{ path, line }} copyPath={path} />;
 }
 
@@ -81,21 +84,19 @@ function OpenTargetButton({
           <ChevronDown />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-auto">
-          <OpenInMenuItems openIn={openIn} request={request} copyPath={copyPath} />
+          <OpenInMenuItems host="dropdown" openIn={openIn} request={request} copyPath={copyPath} />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   );
 }
 
-/** The tree root header's Open in menu: the root directory, without a line (US-006.AC-4). */
+/**
+ * The tree root header's Open in menu: the root directory, without a line (US-006.AC-4). The
+ * root has no root-relative path, so its menu has no Copy path.
+ */
 export function OpenRootInMenu({ root }: { root: FilesRootRef }) {
-  if (!hasOpenInBridge()) return null;
-  return <OpenRootMenu root={root} />;
-}
-
-function OpenRootMenu({ root }: { root: FilesRootRef }) {
-  const openIn = useOpenIn(root);
+  if (!canOpenInTargets()) return null;
   return (
     <DropdownMenu>
       <Tooltip>
@@ -119,7 +120,7 @@ function OpenRootMenu({ root }: { root: FilesRootRef }) {
         <TooltipContent>Open folder in…</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-auto">
-        <OpenInMenuItems openIn={openIn} request={{ path: "", directory: true }} />
+        <FileMenuItems host="dropdown" root={root} request={{ path: "", directory: true }} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

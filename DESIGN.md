@@ -1217,6 +1217,14 @@ topbar tray; 18px rail app glyphs; 14px inline with 13px text; 12px inline
 with 12px text. Icons in buttons need tooltips or accessible labels when the
 command is not obvious.
 
+Menu glyphs sit a step below their label so the eye reads the words first:
+item and submenu-trigger icons in context menus, dropdowns, and the menubar
+take `subtle` ink (dark `#8e8e8e`, 60% of `fg`; light `#6b6b6b`) while the
+label keeps `fg`: about 40% dimmer than the label, never the same ink.
+The primitives own this; call sites pass no icon color. Destructive items keep
+`destructive` on both glyph and label, and an icon that carries its own
+`text-*` class (a status or provider mark) keeps it.
+
 The CompozyOS wordmark is official SVG geometry from the logo sources. It never
 uses a `<text>` node or font fallback; product and provider marks still come
 from the logo package or their official assets, never generic substitute logos.

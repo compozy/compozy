@@ -74,6 +74,8 @@ export function useSessionReparent({ blocked = () => false }: { blocked?: () => 
   return {
     pending: mutation.isPending,
     detachAsync: (session: SessionPayload) => mutation.mutateAsync({ kind: "detach", session }),
+    adoptAsync: (session: SessionPayload, parent: SessionPayload) =>
+      mutation.mutateAsync({ kind: "adopt", session, parent }),
     adopt: (session: SessionPayload, parent: SessionPayload) => {
       if (declined()) return;
       mutation.mutate(

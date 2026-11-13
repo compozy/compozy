@@ -44,6 +44,9 @@ import type {
   SessionPullRequestLookup,
 } from "../session-pull-request";
 
+import type { MenuTreeNode } from "@compozy/ui";
+
+import { sessionLinkedWorkNode, type SessionMenuLinkedWork } from "../session-menu-linked-work";
 import {
   SESSION_LINK_BRANCHES,
   SESSION_LINK_PULL_REQUESTS,
@@ -590,6 +593,75 @@ describe("session linked work", () => {
       const branch = { repository: search.repository, branch: "feat/usage-report" };
       const result = sessionLinkSearch({ ...search, query: "usage", branches: [branch] });
       expect(result.kind === "results" ? result.branches : null).toEqual([]);
+    });
+  });
+});
+
+// Invariant: the session menu shows one linked item as its own `Pull request #N ▸` (or
+// `Branch x ▸`) and several as `Linked work N ▸`, one submenu per item, grouped from five items
+// and capped at eight with Show all; every item submenu is the shared pull request menu, and a
+// rolled-up item is never unlinked from the parent.
+describe("session menu linked work", () => {
+  const options = { disabled: false, onCopy: () => undefined, testId: (id: string) => id };
+  const work = (items: readonly SessionLinkedWorkItem[]): SessionMenuLinkedWork => ({
+    items,
+    total: items.length,
+    refreshing: false,
+    onRefresh: () => undefined,
+    onUnlink: () => undefined,
+    onLink: () => undefined,
+    onShowAll: () => undefined,
+  });
+  const labels = (nodes: readonly MenuTreeNode[]) =>
+    nodes.flatMap(node => (node.kind === "item" || node.kind === "sub" ? [node.label] : []));
+  const sub = (node: MenuTreeNode | null) => {
+    if (node?.kind !== "sub") throw new Error("expected a submenu");
+    return node;
+  };
+
+  it("Should offer nothing without linked work", () => {
+    expect(sessionLinkedWorkNode(work([]), options)).toBeNull();
+  });
+
+  it("Should name a lone pull request and end its menu with Link another and Unlink", () => {
+    const item = READY_ITEM();
+    const node = sub(sessionLinkedWorkNode(work([item]), options));
+    expect(node.label).toBe(`Pull request #${item.pull_request?.number}`);
+    expect(labels(node.children)).toEqual(
+      expect.arrayContaining(["Open PR", "Refresh", "Copy pull request link"])
+    );
+    expect(labels(node.children).slice(-2)).toEqual(["Link another…", "Unlink from this session"]);
+  });
+
+  it("Should name a lone branch by its branch and copy the branch name", () => {
+    const item = BRANCH_ITEM();
+    const node = sub(sessionLinkedWorkNode(work([item]), options));
+    expect(node.label).toBe(`Branch ${item.branch}`);
+    expect(labels(node.children)).toContain("Copy branch name");
+  });
+
+  it("Should group several items, cap the submenu at eight, and offer the full list", () => {
+    const node = sub(sessionLinkedWorkNode(work(SESSION_LINKS_DOZEN), options));
+    expect(node.label).toBe("Linked work");
+    expect(node.hint).toBe(String(SESSION_LINKS_DOZEN.length));
+    const groups = node.children.filter(child => child.kind === "group");
+    expect(groups.length).toBeGreaterThan(0);
+    const shown = groups.flatMap(group => (group.kind === "group" ? group.children : []));
+    expect(shown).toHaveLength(8);
+    expect(labels(node.children)).toEqual([
+      `Show all ${SESSION_LINKS_DOZEN.length}…`,
+      "Link another…",
+    ]);
+  });
+
+  it("Should never unlink a rolled-up item from the parent's menu", () => {
+    const items = SESSION_LINK_SETS.rolledUp;
+    const node = sub(sessionLinkedWorkNode(work(items), options));
+    const subs = node.children.filter(child => child.kind === "sub");
+    expect(subs).toHaveLength(items.length);
+    items.forEach((item, index) => {
+      const unlink = labels(sub(subs[index] ?? null).children).includes("Unlink from this session");
+      expect(unlink).toBe(!item.source_session_id);
     });
   });
 });

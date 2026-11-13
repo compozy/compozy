@@ -42,6 +42,7 @@ import {
   WorkspaceProfilesHint,
 } from "@/systems/profiles";
 import {
+  ProjectMenuHostProvider,
   SessionCreateDialogHost,
   SessionCreateProvider,
   useSessionCreateActions,
@@ -141,7 +142,9 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
           openDialog={props.model.agentCreate.openDialog}
           openForDuplicate={props.model.agentCreate.openForDuplicate}
         >
-          <DesktopShellBody {...props} />
+          <ProjectMenuHostProvider>
+            <DesktopShellBody {...props} />
+          </ProjectMenuHostProvider>
           <SessionCreateDialogHost
             activeWorkspace={props.model.runtimeWorkspace}
             agents={props.model.workspaceAgents}

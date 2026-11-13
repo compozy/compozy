@@ -1,15 +1,12 @@
-import type { ReactNode } from "react";
+import { useState } from "react";
 
 import { StatusDot, cn } from "@compozy/ui";
 
 import { openContextMenuFromKeyboard } from "@/systems/os";
 import { ProfileOwnerTag } from "@/systems/profiles";
-import { CreateDestinationPicker, WorkspaceBadge } from "@/systems/workspace";
+import { WorkspaceBadge, type ProjectMenuMove } from "@/systems/workspace";
 
-import {
-  useSessionListGroupFolderCreate,
-  type SessionGroupFolderAxis,
-} from "../../hooks/use-session-list-group-folder-create";
+import { useSessionListGroupFolderCreate } from "../../hooks/use-session-list-group-folder-create";
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import {
@@ -20,8 +17,8 @@ import {
 } from "../../lib/session-list-groups";
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { AlwaysOnCollapsedSignal } from "../always-on/always-on-signals";
-import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListCreateMenu } from "./session-list-create-menu";
+import { SessionListGroupFolderDialog } from "./session-list-group-folder-dialog";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
 
@@ -70,13 +67,13 @@ export interface SessionListGroupHeaderProps {
   arrange?: SessionListGroupArrange;
 }
 
-/** How a project header takes part in project folders: drag, drop edge, and menu items. */
+/** How a project header takes part in project folders: drag, drop edge, and its Move ▸ verbs. */
 export interface SessionListGroupArrange {
   drag: SessionDragHandlers;
   dropEdge: SessionDropPosition | null;
   dragging: boolean;
-  /** Folder verbs shown first in the header's context menu. */
-  menuItems?: ReactNode;
+  /** The header menu's Move ▸: folder choices and manual order. */
+  move?: ProjectMenuMove;
 }
 
 function groupSessionOptions(target: ReturnType<typeof sessionListGroupTarget>) {
@@ -106,38 +103,6 @@ function GroupDropEdge({ edge }: { edge: SessionDropPosition }) {
   );
 }
 
-/** Where a new folder lands, with a picker for each axis the group leaves open. */
-function GroupFolderDestination({
-  folder,
-  name,
-  testId,
-}: {
-  folder: ReturnType<typeof useSessionListGroupFolderCreate>;
-  name: string;
-  testId: string;
-}) {
-  if (!folder.project && !folder.profile) return undefined;
-  return (
-    <p
-      className="flex flex-wrap items-baseline gap-x-1 text-small-body text-muted-foreground"
-      data-testid={`${testId}-destination`}
-    >
-      In
-      {folder.project ? (
-        <FolderAxisPicker axis="Project" testId={`${testId}-project`} {...folder.project} />
-      ) : (
-        <span className="font-medium text-fg">{name}</span>
-      )}
-      {folder.profile ? (
-        <>
-          <span aria-hidden="true">·</span>
-          <FolderAxisPicker axis="Profile" testId={`${testId}-profile`} {...folder.profile} />
-        </>
-      ) : null}
-    </p>
-  );
-}
-
 /**
  * One group's header row: the collapse toggle (identity, collapsed signal,
  * count) and, after it, the group's own `+` — New session or New folder in
@@ -157,18 +122,30 @@ export function SessionListGroupHeader({
   const testId = `${testIdPrefix}-group-${group.key}`;
   const name = sessionListGroupName(group);
   const alwaysOn = groupAlwaysOn(group, target.workspaceId, name);
+  const [addingAlwaysOn, setAddingAlwaysOn] = useState(false);
+  const newSession = () => onNewSession(groupSessionOptions(target));
   const createMenu = {
     variant: "quiet",
     size: "icon-xs",
     className: "text-subtle",
     label: { session: `New session in ${name}`, menu: `New session or folder in ${name}` },
-    onNewSession: () => onNewSession(groupSessionOptions(target)),
+    onNewSession: newSession,
     onNewFolder: folder.openDialog,
     testId,
   } as const;
   return (
     <>
-      <SessionListGroupProjectMenu group={group} leadingItems={arrange?.menuItems}>
+      <SessionListGroupProjectMenu
+        group={group}
+        // The `+`'s verbs, so right-click starts what the `+` starts (the picker opens over it).
+        verbs={{
+          newSession,
+          newFolder: folder.openDialog,
+          addAlwaysOn: alwaysOn ? () => setAddingAlwaysOn(true) : undefined,
+          move: arrange?.move,
+        }}
+        testId={`${testId}-menu`}
+      >
         <div
           {...arrange?.drag}
           className={cn(
@@ -190,40 +167,18 @@ export function SessionListGroupHeader({
             testId={testId}
           />
           {alwaysOn ? (
-            <AlwaysOnCreateMenu {...createMenu} alwaysOn={alwaysOn} />
+            <AlwaysOnCreateMenu
+              {...createMenu}
+              alwaysOn={alwaysOn}
+              adding={addingAlwaysOn}
+              onAddingChange={setAddingAlwaysOn}
+            />
           ) : (
             <SessionListCreateMenu {...createMenu} />
           )}
         </div>
       </SessionListGroupProjectMenu>
-      <SessionFolderDialogs
-        state={folder.open ? { kind: "create" } : null}
-        onClose={folder.close}
-        onCreate={folder.create}
-        onRename={() => Promise.resolve()}
-        onDelete={() => Promise.resolve()}
-        destination={
-          <GroupFolderDestination folder={folder} name={name} testId={`${testId}-folder`} />
-        }
-      />
+      <SessionListGroupFolderDialog folder={folder} name={name} testId={`${testId}-folder`} />
     </>
-  );
-}
-
-function FolderAxisPicker({
-  axis,
-  testId,
-  options,
-  value,
-  onChange,
-}: SessionGroupFolderAxis & { axis: string; testId: string }) {
-  return (
-    <CreateDestinationPicker
-      axis={axis}
-      options={options}
-      value={value}
-      onChange={onChange}
-      testId={testId}
-    />
   );
 }

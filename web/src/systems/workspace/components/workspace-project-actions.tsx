@@ -1,24 +1,30 @@
-import type { ComponentProps, ReactElement, ReactNode } from "react";
-import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "@compozy/ui/icons";
+import { use, useEffect, type ComponentProps, type ReactElement } from "react";
+import { MoreHorizontal } from "@compozy/ui/icons";
 import {
   Button,
   ConfirmDialog,
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
+  MenuTreeItems,
+  type MenuTreeHost,
 } from "@compozy/ui";
 import { WorkspaceApiError } from "@/systems/workspace/adapters/workspace-api";
+import { ProjectMenuHostContext } from "@/systems/workspace/contexts/project-menu-host-context";
 import {
   useWorkspaceProjectAction,
   type WorkspaceProjectAction,
   type WorkspaceProjectActionFlow,
 } from "@/systems/workspace/hooks/use-workspace-project-action";
+import {
+  hasProjectMenuVerbs,
+  mergeProjectMenuVerbs,
+  projectMenuTree,
+  type ProjectMenuVerbs,
+} from "@/systems/workspace/lib/project-menu";
 import type { WorkspacePayload } from "@/systems/workspace/types";
 
 type ProjectAction = WorkspaceProjectAction;
@@ -77,20 +83,25 @@ function WorkspaceProjectActionDialog({
 }
 
 /**
- * A project's actions: a context menu on `children` (right-click; the child
+ * A project's menu: a context menu on `children` (right-click; the child
  * owns Shift+F10 by dispatching `contextmenu`), or a `…` button without one.
  */
 export function WorkspaceProjectActions({
   workspace,
+  onLeave,
   children,
 }: {
   workspace: WorkspacePayload;
+  /** After a verb that opens something elsewhere (a session, Files, a folder dialog). */
+  onLeave?: () => void;
   children?: ReactElement;
 }) {
   const flow = useWorkspaceProjectAction(workspace);
   if (children) {
     return (
-      <WorkspaceProjectContextMenu workspace={workspace}>{children}</WorkspaceProjectContextMenu>
+      <WorkspaceProjectContextMenu workspace={workspace} onLeave={onLeave}>
+        {children}
+      </WorkspaceProjectContextMenu>
     );
   }
   return (
@@ -102,7 +113,12 @@ export function WorkspaceProjectActions({
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="dropdown" />
+          <ProjectMenuItems
+            workspace={workspace}
+            choose={flow.choose}
+            host="dropdown"
+            onLeave={onLeave}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       <WorkspaceProjectActionDialog workspace={workspace} flow={flow} />
@@ -112,32 +128,41 @@ export function WorkspaceProjectActions({
 
 /**
  * Right-click (and Shift+F10, which the child dispatches as `contextmenu`) on
- * `children` opens the project's actions. Without a project yet the trigger
+ * `children` opens the project's menu. Without a project yet the trigger
  * stays mounted but inert, so the child never remounts when the project loads.
  */
 export function WorkspaceProjectContextMenu({
   workspace,
-  leadingItems,
+  verbs,
+  testId,
+  onLeave,
   children,
 }: {
   workspace: WorkspacePayload | undefined;
-  /** Host items shown before the project's own actions; they keep the menu available without one. */
-  leadingItems?: ReactNode;
+  /** The surface's own verbs, over the shell's; they keep the menu available without a project. */
+  verbs?: ProjectMenuVerbs;
+  /** Test id prefix of the menu's rows. */
+  testId?: string;
+  /** After a verb that opens something elsewhere (a session, Files, a folder dialog). */
+  onLeave?: () => void;
   children: ReactElement;
 }) {
   const flow = useWorkspaceProjectAction(workspace);
-  const enabled = Boolean(workspace) || Boolean(leadingItems);
+  const enabled = Boolean(workspace) || (verbs !== undefined && hasProjectMenuVerbs(verbs));
   return (
     <>
       <ContextMenu disabled={!enabled}>
         <ContextMenuTrigger render={children} />
         {enabled ? (
           <ContextMenuContent>
-            {leadingItems}
-            {leadingItems && workspace ? <ContextMenuSeparator /> : null}
-            {workspace ? (
-              <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="context" />
-            ) : null}
+            <ProjectMenuItems
+              workspace={workspace}
+              verbs={verbs}
+              choose={flow.choose}
+              host="context"
+              testId={testId}
+              onLeave={onLeave}
+            />
           </ContextMenuContent>
         ) : null}
       </ContextMenu>
@@ -194,7 +219,7 @@ export function WorkspaceProjectPointMenu({
           className="w-auto"
           data-testid={`workspace-project-menu-${workspace.id}`}
         >
-          <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="dropdown" />
+          <ProjectMenuItems workspace={workspace} choose={flow.choose} host="dropdown" />
         </DropdownMenuContent>
       </DropdownMenu>
       <WorkspaceProjectActionDialog workspace={workspace} flow={flow} finalFocus={finalFocus} />
@@ -206,35 +231,63 @@ function pointAnchor({ x, y }: WorkspaceProjectMenuPoint) {
   return { getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) };
 }
 
-const PROJECT_MENU_KITS = {
-  context: { Item: ContextMenuItem },
-  dropdown: { Item: DropdownMenuItem },
-} as const;
-
-function WorkspaceActionItems({
+/**
+ * The project menu's rows, mounted only while the menu is open: the surface's verbs over the
+ * shell's, then the archive/remove flow. Opening tells the shell to read what its verbs need.
+ */
+function ProjectMenuItems({
   workspace,
+  verbs,
   choose,
-  kind,
+  host,
+  testId,
+  onLeave,
 }: {
-  workspace: WorkspacePayload;
+  workspace: WorkspacePayload | undefined;
+  verbs?: ProjectMenuVerbs;
   choose: (action: ProjectAction) => void;
-  kind: keyof typeof PROJECT_MENU_KITS;
+  host: MenuTreeHost;
+  testId?: string;
+  onLeave?: () => void;
 }) {
-  const { Item } = PROJECT_MENU_KITS[kind];
-  const archived = Boolean(workspace.archived_at);
-  const ArchiveIcon = archived ? ArchiveRestore : Archive;
-  return (
-    <>
-      <Item onClick={() => choose("archive")}>
-        <ArchiveIcon />
-        {archived ? "Unarchive project" : "Archive project"}
-      </Item>
-      <Item variant="destructive" onClick={() => choose("remove")}>
-        <Trash2 />
-        Remove project
-      </Item>
-    </>
+  const shell = use(ProjectMenuHostContext);
+  const menuOpened = shell?.menuOpened;
+  useEffect(() => {
+    menuOpened?.();
+  }, [menuOpened]);
+  const merged = mergeProjectMenuVerbs(
+    workspace && shell ? shell.verbsFor(workspace) : undefined,
+    verbs
   );
+  return (
+    <MenuTreeItems
+      host={host}
+      nodes={projectMenuTree({
+        workspace,
+        verbs: onLeave ? leavingVerbs(merged, onLeave) : merged,
+        choose,
+        testId,
+      })}
+    />
+  );
+}
+
+/** The verbs that open something elsewhere, followed by `leave`. */
+function leavingVerbs(verbs: ProjectMenuVerbs, leave: () => void): ProjectMenuVerbs {
+  const then = (verb?: () => void) =>
+    verb
+      ? () => {
+          verb();
+          leave();
+        }
+      : undefined;
+  return {
+    ...verbs,
+    newSession: then(verbs.newSession),
+    newFolder: then(verbs.newFolder),
+    addAlwaysOn: then(verbs.addAlwaysOn),
+    openFiles: then(verbs.openFiles),
+  };
 }
 
 function WorkspaceArchiveBlockers({ blockers }: { blockers: WorkspaceApiError["blockers"] }) {

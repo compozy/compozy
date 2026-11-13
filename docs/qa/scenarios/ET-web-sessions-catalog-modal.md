@@ -49,7 +49,7 @@ QA impact 2026-08-24 ENG-136: the dock Sessions action is now contextual — it 
 QA completion 2026-08-24: the Session menu opened the shell catalog and dismissed cleanly in the dedicated ENG-136 walk; the compact E2E-020 path opened the same catalog through the command palette. Evidence: `docs/qa/evidence/2026-08-24-eng-136/session-menu-catalog.png`. Verdict: pass.
 
 QA impact 2026-09-28 (session-continue-fork task_04/task_06): each user row's menu in the catalog now
-offers "Continue with another agent…" and "Fork session…"; either opens its dialog over the catalog,
+offers "Continue with another agent…" and "Fork session…" under "New from this ▸"; either opens its dialog over the catalog,
 which stays open (no dismissal) while the dialog is up, and the child opens in its own window. Reset
 for a focused re-walk; the derive flows themselves are walked in ET-web-session-continue and
 ET-web-session-fork-from-here.

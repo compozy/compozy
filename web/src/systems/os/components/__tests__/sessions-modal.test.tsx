@@ -469,7 +469,7 @@ describe("OsSessionsModal", () => {
   // UT-074 with US-001.EC-1/EC-2: Continue and Fork are offered on user rows only
   // (never spawned or archived) and hand the row to the dialog host; Fork from a
   // row is the whole session (no fork point).
-  it("Should offer Continue and Fork on user rows only and hand the row to the dialog host", () => {
+  it("Should offer Continue and Fork on user rows only and hand the row to the dialog host", async () => {
     const shell = createShell();
     const requestContinue = vi.fn();
     const requestFork = vi.fn();
@@ -502,28 +502,31 @@ describe("OsSessionsModal", () => {
       </TestShell>
     );
 
+    // Continue and Fork live under New from this ▸, which a session that cannot derive lacks.
     fireEvent.click(screen.getByTestId("session-row-actions-session-spawned"));
-    expect(screen.queryByTestId("session-row-continue-session-spawned")).toBeNull();
-    expect(screen.queryByTestId("session-row-fork-session-spawned")).toBeNull();
+    expect(screen.getByTestId("session-row-delete-session-spawned")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-derive-session-spawned")).toBeNull();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
 
     fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
-    expect(screen.queryByTestId("session-row-continue-session-archived")).toBeNull();
-    expect(screen.queryByTestId("session-row-fork-session-archived")).toBeNull();
+    expect(screen.getByTestId("session-row-delete-session-archived")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-derive-session-archived")).toBeNull();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
 
     fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
-    const item = screen.getByTestId("session-row-continue-session-user");
+    fireEvent.click(screen.getByTestId("session-row-derive-session-user"));
+    const item = await screen.findByTestId("session-row-continue-session-user");
     expect(item).toHaveTextContent("Continue with another agent…");
-    const labels = screen.getAllByRole("menuitem").map(entry => entry.textContent);
-    expect(labels.indexOf("Fork session…")).toBe(
-      labels.indexOf("Continue with another agent…") + 1
-    );
+    const labels = within(item.closest('[role="menu"]') as HTMLElement)
+      .getAllByRole("menuitem")
+      .map(entry => entry.textContent);
+    expect(labels).toEqual(["Continue with another agent…", "Fork session…"]);
     fireEvent.click(item);
     expect(requestContinue).toHaveBeenCalledExactlyOnceWith(rows[0]);
 
     fireEvent.click(screen.getByTestId("session-row-actions-session-user"));
-    fireEvent.click(screen.getByTestId("session-row-fork-session-user"));
+    fireEvent.click(screen.getByTestId("session-row-derive-session-user"));
+    fireEvent.click(await screen.findByTestId("session-row-fork-session-user"));
     expect(requestFork).toHaveBeenCalledExactlyOnceWith(rows[0]);
   });
 

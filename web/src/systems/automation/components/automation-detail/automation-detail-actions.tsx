@@ -1,16 +1,15 @@
-import { Copy, FileCode, Pencil, Play, Search, Trash2 } from "@compozy/ui/icons";
+import { Pencil, Play } from "@compozy/ui/icons";
 
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  toast,
+  MenuTreeItems,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import { automationMenuNodes } from "../../lib/automation-menu";
 import type { AutomationView } from "../../lib/automation-view";
 
 export interface AutomationRunNowState {
@@ -72,31 +71,39 @@ export function AutomationDetailActions({
 
 interface AutomationDetailOverflowProps {
   view: AutomationView;
+  runNow: AutomationRunNowState;
+  onRunNow: () => void;
+  onEdit: () => void;
   onInspect: () => void;
   onDelete: () => void;
 }
 
-/**
- * Copy id and Inspect for every automation. Delete only for one created here;
- * a config-owned one says where to edit it instead (BR 11).
- */
+/** The detail page's `⋯`: the automation menu the list row's `…` also renders. */
 export function AutomationDetailOverflow({
   view,
+  runNow,
+  onRunNow,
+  onEdit,
   onInspect,
   onDelete,
 }: AutomationDetailOverflowProps) {
-  const handleCopyId = () => {
-    const clipboard = navigator.clipboard;
-    if (!clipboard) {
-      toast.error("Could not copy the automation id.");
-      return;
+  const nodes = automationMenuNodes(
+    view,
+    {
+      runDisabled: runNow.disabled,
+      runPending: runNow.pending,
+      onRunNow,
+      onEdit,
+      onInspect,
+      onDelete,
+    },
+    {
+      editInConfig: "automation-edit-in-config",
+      inspect: "automation-inspect-menu-btn",
+      copyId: "automation-copy-id-btn",
+      delete: "automation-delete-btn",
     }
-    void clipboard
-      .writeText(view.id)
-      .then(() => toast.success(`Copied ${view.id}.`))
-      .catch(() => toast.error("Could not copy the automation id."));
-  };
-
+  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -107,33 +114,7 @@ export function AutomationDetailOverflow({
         <TopbarOverflowIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
-        <DropdownMenuItem data-testid="automation-copy-id-btn" onClick={handleCopyId}>
-          <Copy aria-hidden="true" />
-          Copy automation id
-        </DropdownMenuItem>
-        <DropdownMenuItem data-testid="automation-inspect-menu-btn" onClick={onInspect}>
-          <Search aria-hidden="true" />
-          Inspect
-        </DropdownMenuItem>
-        {view.source === "config" ? (
-          <DropdownMenuItem data-testid="automation-edit-in-config" disabled>
-            <FileCode aria-hidden="true" />
-            Edit in config.toml
-          </DropdownMenuItem>
-        ) : null}
-        {view.canEdit ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              data-testid="automation-delete-btn"
-              onClick={onDelete}
-              variant="destructive"
-            >
-              <Trash2 aria-hidden="true" />
-              Delete automation…
-            </DropdownMenuItem>
-          </>
-        ) : null}
+        <MenuTreeItems host="dropdown" nodes={nodes} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

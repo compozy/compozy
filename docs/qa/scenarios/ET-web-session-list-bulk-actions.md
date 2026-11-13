@@ -61,7 +61,7 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    The deterministic lifecycle suite owns this I/O failure case when a real
    failure cannot be induced safely.
 
-9. With folders in the workspace, the More menu starts with Move to folder; moving
+9. With folders in the workspace, the More menu's Move ▸ starts with the Folder group; moving
    the selection into a folder or out of folders, and dragging a selected row, are
    specified and walked in ET-web-session-folders-manual-order. While a folder move
    runs, the selection bar's actions are disabled, and a running lifecycle batch
@@ -112,15 +112,16 @@ report's session matrix in a future QA cycle.
 Added 2026-10-29. Walk in both the session window sidebar and the Sessions modal, flat and
 grouped (Group by project under All projects).
 
-1. With no selection, right-click a row: the per-session menu (Copy session ID, Copy title,
+1. With no selection, right-click a row: the per-session menu (Copy ▸, Move ▸,
    Archive/Stop and archive session, Delete session) opens for that row, unchanged.
 2. Select one row and right-click it: still the per-session menu for that row.
 3. Select two or more rows and right-click any selected row (or focus it and press Shift+F10):
    the menu is headed "N sessions" and offers the selection bar's More verbs with the same
-   counts and eligibility (Move to folder when folders exist, Stop · N active, Archive · N
-   stopped or Stop and archive · N sessions, Unarchive · N archived), plus Copy session IDs
-   (one ID per line, "Session IDs copied") and Delete N sessions, which opens the same set
-   confirmation as the toolbar. No single-session verb appears.
+   counts and eligibility (Move ▸ with the Folder group when folders exist, Stop · N active,
+   Archive · N stopped or Stop and archive · N sessions, Unarchive · N archived), plus Copy ▸
+   Copy session IDs (one ID per line, "Session IDs copied") and Delete N sessions, which opens
+   the same set confirmation as the toolbar. No single-session verb appears, and a verb no
+   selected session can take is absent.
 4. Right-click a row outside the selection (Finder convention): the selection becomes that one
    row, the bar reads "1 selected", and the per-session menu opens for it.
 5. Select a parent and its own child, plus a session with another child. Delete shows the child
@@ -131,8 +132,8 @@ grouped (Group by project under All projects).
 ## Batch menu parity and concurrency (#1464)
 
 Select dismissible Needs you sessions and provenance children alongside ordinary sessions. Both
-the selection toolbar and selected-row context menu offer Mark as seen, Make top-level and Copy
-titles with the row menu's eligibility. Copy titles preserves selection order. Rename, Fork and
+the selection toolbar and selected-row context menu offer Mark as seen, Move ▸ Make top-level and
+Copy ▸ Copy titles with the row menu's eligibility. Copy titles preserves selection order. Rename, Fork and
 Continue with another agent remain single-session actions. Mark as seen clears only dismissible
 attention; Make top-level detaches only eligible nested user sessions. Ineligible rows are counted
 with a reason, and failed requests name each target without hiding successes.
