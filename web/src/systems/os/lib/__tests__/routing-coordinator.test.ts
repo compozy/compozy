@@ -237,7 +237,8 @@ function createHistory(entries: RoutingEntryLedger) {
   const commit = (
     mode: "push" | "replace",
     kind: "write" | "push" | "replace",
-    pathname: string
+    pathname: string,
+    continuation = false
   ) => {
     entryKeySeq += 1;
     const key = `entry-${entryKeySeq}`;
@@ -247,7 +248,8 @@ function createHistory(entries: RoutingEntryLedger) {
     } else {
       stack[index] = { key, pathname };
     }
-    entries.observe(kind === "push" ? { kind, key } : { kind, key, pathname });
+    if (kind === "replace") entries.observe({ kind, key, pathname, continuation });
+    else entries.observe(kind === "push" ? { kind, key } : { kind, key, pathname });
     return key;
   };
   const currentPathname = () => stack[index]?.pathname ?? "/";
@@ -256,10 +258,12 @@ function createHistory(entries: RoutingEntryLedger) {
     /** An operator link: a push the coordinator did not write. */
     link: (pathname = "/") => commit("push", "push", pathname),
     /**
-     * A replace the coordinator did not write: by default the router's redirect or normalization
-     * of the current entry, which keeps its path.
+     * The router's redirect or canonicalization of the current entry (it bypasses blockers, the
+     * mark the bridge reads), which keeps its path by default.
      */
-    redirect: (pathname = currentPathname()) => commit("replace", "replace", pathname),
+    redirect: (pathname = currentPathname()) => commit("replace", "replace", pathname, true),
+    /** An app's or the operator's replace (a filter, a tab in the route): it answers blockers. */
+    replace: (pathname = currentPathname()) => commit("replace", "replace", pathname),
     back: () => {
       index -= 1;
       const key = stack[index]?.key;
@@ -309,9 +313,15 @@ function createBridgedCoordinator(
       }
     },
   });
+  // Tasks' preload can be held open, so a filter can change while the coordinator's write loads.
+  const tasksLoad: { held: Promise<void> | null } = { held: null };
   const router = createRouter({
     routeTree: rootRoute.addChildren([
-      createRoute({ getParentRoute: () => rootRoute, path: "/tasks" }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/tasks",
+        loader: () => tasksLoad.held ?? undefined,
+      }),
       createRoute({ getParentRoute: () => rootRoute, path: "/settings" }),
       sessionRoute,
     ]),
@@ -339,6 +349,17 @@ function createBridgedCoordinator(
     store,
     currentKey: () => router.history.location.state.__TSR_key ?? null,
     lastPushKey: () => pushed.at(-1) ?? null,
+    /** Holds every Tasks load until the returned release. */
+    holdTasks: () => {
+      let release: () => void = () => undefined;
+      tasksLoad.held = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      return () => {
+        tasksLoad.held = null;
+        release();
+      };
+    },
     disconnect: () => {
       releaseBlocker();
       stopPushLog();
@@ -1989,7 +2010,57 @@ describe("RoutingCoordinator", () => {
       }
     );
 
-    it("Should drop a same-path replace made during an owned load when a competing activation moves focus [AS-F-17 residual]", async () => {
+    it.each(registeredBlockers)(
+      "Should carry a Tasks filter made while Tasks still loads to its window unless a blocker holds it, when it %s [AS-F-17]",
+      async (label, blockerFn) => {
+        const settings = windowFixture("settings", "/settings");
+        const tasks = windowFixture("tasks", "/tasks");
+        const { coordinator, router, store, currentKey, holdTasks, disconnect } =
+          createBridgedCoordinator([settings, tasks], blockerFn);
+        await router.load();
+        coordinator.completeHydration();
+        coordinator.reportRouteMatch(tasks.route, currentKey());
+        await coordinator.userActivateWindow(settings.id);
+        await router.load();
+        coordinator.reportRouteMatch(settings.route, currentKey());
+        // The coordinator writes Tasks; its preload stays outstanding.
+        const releaseTasks = holdTasks();
+        await coordinator.userActivateWindow(tasks.id);
+        expect(router.history.location.pathname).toBe("/tasks");
+        coordinator.reportRouteMatch(tasks.route, currentKey());
+        store.deferLifecycle();
+        const toSettings = coordinator.userActivateWindow(settings.id);
+
+        // The Tasks filter, as `tasks-catalog-location.tsx` changes it: an app's replace.
+        const filtered = route("/tasks", { status: "open" });
+        void router.navigate({ to: "/tasks", search: { status: "open" }, replace: true });
+        const letsThrough = label.startsWith("lets");
+        if (letsThrough) {
+          await vi.waitFor(() => expect(router.history.location.search).toContain("status=open"));
+          coordinator.reportRouteMatch(filtered, currentKey());
+        } else {
+          await Promise.resolve();
+          expect(router.history.location.search).not.toContain("status=open");
+        }
+        releaseTasks();
+        store.settleLifecycle(true);
+        await toSettings;
+        coordinator.reportAuthoritativeState();
+
+        if (letsThrough) {
+          await vi.waitFor(() =>
+            expect(store.getState().windows[tasks.id]?.route).toEqual(filtered)
+          );
+        } else {
+          await Promise.resolve();
+          expect(store.getState().windows[tasks.id]?.route).toEqual(tasks.route);
+          expect(store.getState().focusedId).toBe(settings.id);
+        }
+        disconnect();
+      }
+    );
+
+    it("Should carry a same-path replace made during an owned load to its window when a competing activation moves focus [AS-F-17]", async () => {
       const tasks = windowFixture("tasks", "/tasks");
       const settings = windowFixture("settings", "/settings");
       const { coordinator, store, history } = createCoordinator([tasks, settings]);
@@ -2002,19 +2073,41 @@ describe("RoutingCoordinator", () => {
       store.deferLifecycle();
       const toSettings = coordinator.userActivateWindow(settings.id);
 
-      // The operator changes a Tasks filter before the preload settled: a same-path replace that
-      // history cannot tell from the loader's own canonicalization.
+      // The operator changes a Tasks filter before the preload settled: an app's replace on the
+      // same path, unmarked, so it is intent and not the loader's continuation.
       const filtered = route("/tasks", { status: "open" });
-      coordinator.reportRouteMatch(filtered, history.redirect());
+      coordinator.reportRouteMatch(filtered, history.replace());
+      store.settleLifecycle(true);
+      await toSettings;
+      coordinator.reportAuthoritativeState();
+
+      await vi.waitFor(() => expect(store.getState().windows[tasks.id]?.route).toEqual(filtered));
+      expect(store.spies.openOrFocus).toHaveBeenCalledWith(
+        expect.objectContaining({ app: "tasks", route: filtered })
+      );
+    });
+
+    it("Should still own the router's marked continuation of an owned load at the same path [AS-F-17]", async () => {
+      const tasks = windowFixture("tasks", "/tasks");
+      const settings = windowFixture("settings", "/settings");
+      const { coordinator, store, history } = createCoordinator([tasks, settings]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(settings.route, history.current());
+      await coordinator.userActivateWindow(tasks.id);
+      coordinator.reportRouteMatch(tasks.route, history.current());
+      store.spies.openOrFocus.mockClear();
+      store.deferLifecycle();
+      const toSettings = coordinator.userActivateWindow(settings.id);
+
+      // Tasks' loader canonicalizes its search while it is still loading.
+      coordinator.reportRouteMatch(route("/tasks", { mode: "list" }), history.redirect());
       store.settleLifecycle(true);
       await toSettings;
       coordinator.reportAuthoritativeState();
       await Promise.resolve();
 
-      // Known loss: the filter waited for the activation and was dropped with it.
       expect(store.getState().focusedId).toBe(settings.id);
       expect(store.getState().windows[tasks.id]?.route).toEqual(tasks.route);
-      expect(store.spies.navigateWindow).not.toHaveBeenCalled();
       expect(store.spies.openOrFocus).not.toHaveBeenCalled();
     });
 

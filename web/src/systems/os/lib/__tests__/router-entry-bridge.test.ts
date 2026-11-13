@@ -3,8 +3,9 @@
 // same-location check holds (a link to the URL shown commits nothing); the ledger learns each
 // entry's identity from the key the router's history assigns: the entry the coordinator's own
 // call committed (a navigation blocker never holds it) and a same-path redirect the router makes
-// while loading it are its own; a link, Back, a replace to another path and an operator
-// navigation a blocker held are not.
+// while loading it (marked by bypassing blockers) are its own; a link, Back, a replace to another
+// path, an app's replace on the same path (it answers blockers) and an operator navigation a
+// blocker held are not.
 // Owning layer: the bridge between the coordinator and TanStack Router's history. It needs the
 // real router and history: the same-location check, the redirect's replace and the blocker's
 // deferral live in router-core and the history.
@@ -196,6 +197,55 @@ describe("RouterEntryBridge", () => {
     releaseSlow();
     disconnect();
   });
+
+  it("Should read an app's same-path replace during an owned load as intent [AS-F-17]", async () => {
+    const { router, entries, bridge, disconnect, currentKey, releaseSlow } = createHarness();
+    await router.load();
+    bridge.port.navigate({ pathname: "/slow", search: {} });
+    const written = currentKey();
+
+    // A filter changed while the written entry still loads: same path, the app's own replace.
+    void router.navigate({ to: "/slow", search: { status: "open" }, replace: true });
+    await vi.waitFor(() => expect(router.history.location.search).toContain("status=open"));
+
+    expect(currentKey()).not.toBe(written);
+    expect(entries.isEcho(written)).toBe(true);
+    expect(entries.isEcho(currentKey())).toBe(false);
+    releaseSlow();
+    disconnect();
+  });
+
+  it.each([
+    ["keeps editing", true],
+    ["discards and lets it through", false],
+  ] as const)(
+    "Should ask a blocker about an app's same-path replace during an owned load, which %s [AS-F-17]",
+    async (_label, blocked) => {
+      const { router, entries, bridge, disconnect, currentKey, releaseSlow } = createHarness();
+      await router.load();
+      bridge.port.navigate({ pathname: "/slow", search: {} });
+      const written = currentKey();
+      const guard = holdNavigations(router);
+
+      void router.navigate({ to: "/slow", search: { status: "open" }, replace: true });
+      await vi.waitFor(() => expect(guard.held()).toBe(true));
+      expect(currentKey()).toBe(written);
+      guard.answer(blocked);
+      await settle();
+
+      if (blocked) {
+        expect(currentKey()).toBe(written);
+        expect(router.history.location.search).not.toContain("status=open");
+      } else {
+        expect(router.history.location.search).toContain("status=open");
+        expect(entries.isEcho(currentKey())).toBe(false);
+      }
+      expect(guard.asked()).toBe(1);
+      guard.release();
+      releaseSlow();
+      disconnect();
+    }
+  );
 
   it.each([
     ["lets every navigation through", false],

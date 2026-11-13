@@ -11,8 +11,12 @@ export type RouterEntryEvent =
   | { kind: "write"; key: string; pathname: string }
   /** Any other push: a link, a typed URL, an app's own navigation. */
   | { kind: "push"; key: string }
-  /** Any other replace: the router's redirect or normalization, or an app's own replace. */
-  | { kind: "replace"; key: string; pathname: string }
+  /**
+   * Any other replace. `continuation`: the router committed it as the continuation of the
+   * navigation it is loading (a loader or `beforeLoad` redirect). The router marks those, and only
+   * those, by bypassing navigation blockers; an app's or the operator's replace answers them.
+   */
+  | { kind: "replace"; key: string; pathname: string; continuation: boolean }
   /** Back, Forward or a jump in history landed on this entry. */
   | { kind: "traverse"; key: string }
   /** The router finished loading and rendering this entry. */
@@ -25,19 +29,20 @@ export type RouterEntryEvent =
  * equal to it, so the router commits nothing.
  *
  * - The coordinator's write creates an entry it owns.
- * - A replace that keeps the path of an owned entry the router is still loading (a loader
- *   redirect adding a binding, a search normalization) creates an owned entry too: it is the same
- *   navigation, and every report it produces is an echo. History does not say who made a replace,
- *   and router-core marks its redirects only on private state, so the path is the line: a replace
- *   to another path is the operator's or an app's (`origin/main` read every such report as
- *   intent too), and a loader redirect to another path is read as intent with it. Router-core's
- *   public events (`onBeforeNavigate`, `onBeforeLoad`, `onResolved`) do not tell them apart either.
+ * - A replace creates an owned entry only when it is positively the router's continuation of an
+ *   owned entry it is still loading, at the same path (a loader redirect adding a binding, a
+ *   search canonicalization): the same navigation, every report of which is an echo. The mark is
+ *   carried where the cause is known: router-core commits every redirect it follows through the
+ *   history's public `replace` with `ignoreBlocker`, and the bridge reads that argument inside the
+ *   call (`connectRouterEntries`). An app's or the operator's replace answers blockers, so it is
+ *   never marked: a Tasks filter changed while the Tasks preload is still loading is intent, like
+ *   any replace to another path and a redirect to another path (`origin/main` read every such
+ *   report as intent).
  *
- *   Residual: a same-path replace an app or the operator makes while the owned entry is still
- *   loading (a Tasks filter changed before the Tasks preload settled) reads as the loader's
- *   continuation. With its window still focused and no activation in flight it still reaches the
- *   window (canonical adoption); when another activation is in flight and moves focus, it is
- *   dropped with that activation and never reaches the window's stored route.
+ *   An unmarked replace fails toward intent. A continuation the router stopped marking would cost
+ *   a redundant reconciliation of its own window, or bring that window back when focus moved on
+ *   before its report; a mark wrongly given to an app's replace would drop the operator's input.
+ *   Only a navigation that bypasses blockers can be marked, and none in the app does.
  * - A traversal is the operator's: it lands on an entry whose report is intent, even when the
  *   coordinator wrote that entry earlier. Nothing written before it can still be reported (the
  *   router renders the entry it landed on), so it ends every echo.
@@ -56,7 +61,7 @@ export class RoutingEntryLedger {
         this.own(event.key, event.pathname);
         break;
       case "replace":
-        if (this.current !== null && this.loading.get(this.current) === event.pathname) {
+        if (event.continuation && this.continues(event.pathname)) {
           this.own(event.key, event.pathname);
         }
         break;
@@ -81,6 +86,11 @@ export class RoutingEntryLedger {
   /** True when the reported entry is the one history shows now: no later navigation replaced it. */
   isCurrent(key: string | null): boolean {
     return key !== null && key === this.current;
+  }
+
+  /** Whether the current entry is an owned one the router is still loading at `pathname`. */
+  private continues(pathname: string): boolean {
+    return this.current !== null && this.loading.get(this.current) === pathname;
   }
 
   private own(key: string, pathname: string): void {
