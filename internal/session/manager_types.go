@@ -147,6 +147,7 @@ type Manager struct {
 	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
+	metadataCacheGeneration    uint64
 	restartInputsHeld          sync.Map
 	daemonShutdown             atomic.Pointer[daemonShutdownStop]
 	daemonShutdownTurnGrace    time.Duration

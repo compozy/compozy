@@ -71,6 +71,7 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 		return cached.meta, nil
 	}
 	delete(m.metadataCache, target)
+	generation := m.metadataCacheGeneration
 	m.metadataCacheMu.Unlock()
 	reader := m.readSessionMeta
 	if reader == nil {
@@ -93,10 +94,13 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 	}
 	if os.SameFile(info, after) && info.Size() == after.Size() && info.ModTime().Equal(after.ModTime()) {
 		m.metadataCacheMu.Lock()
-		if m.metadataCache == nil {
-			m.metadataCache = make(map[string]cachedSessionMetadata)
+		// An invalidation must also fence readers that already checked the file.
+		if m.metadataCacheGeneration == generation {
+			if m.metadataCache == nil {
+				m.metadataCache = make(map[string]cachedSessionMetadata)
+			}
+			m.metadataCache[target] = cachedSessionMetadata{file: info, meta: meta}
 		}
-		m.metadataCache[target] = cachedSessionMetadata{file: info, meta: meta}
 		m.metadataCacheMu.Unlock()
 	}
 	return meta, nil
@@ -220,6 +224,7 @@ func (m *Manager) listTriageInventory(ctx context.Context) ([]*Info, error) {
 // reads never prune the whole cache, so removal must not wait for the next full ListAll.
 func (m *Manager) forgetInventoryMetadata(id string) {
 	m.metadataCacheMu.Lock()
+	m.metadataCacheGeneration++
 	delete(m.metadataCache, id)
 	m.metadataCacheMu.Unlock()
 }
