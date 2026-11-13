@@ -28,6 +28,7 @@ import {
   prependPath,
   requiresHTTPAPIReadinessProbe,
   hermeticTerminalShell,
+  isLaunchRuntimeReady,
   renderRuntimeConfig,
   resolveRuntimeMode,
   runtimeURL,
@@ -227,6 +228,7 @@ async function createBrowserRuntimeAttempt(
       baseURL,
       runtime.process,
       paths.daemonLog,
+      path.join(paths.homeDir, "daemon.json"),
       options.readyTimeoutMs,
       requireHTTPAPIStatus
     );
@@ -500,6 +502,7 @@ async function waitForRuntimeReady(
   baseURL: string,
   child: ChildProcessWithoutNullStreams,
   daemonLogPath: string,
+  daemonInfoPath: string,
   timeoutMs = DEFAULT_READY_TIMEOUT_MS,
   requireHTTPAPIStatus = true
 ): Promise<void> {
@@ -519,7 +522,11 @@ async function waitForRuntimeReady(
         if (!requireHTTPAPIStatus) {
           assertDaemonServedHTML(await response.text(), baseURL);
         }
-        return;
+        // An HTTP listener may serve during boot, before daemon.json exists.
+        // A fixture stopping in that window would miss this process and then
+        // race its discovery publication when starting the seeded replacement.
+        const info: unknown = JSON.parse(await readFile(daemonInfoPath, "utf8"));
+        if (isLaunchRuntimeReady(info, child.pid)) return;
       }
     } catch {
       // Keep polling until the timeout or process exit.

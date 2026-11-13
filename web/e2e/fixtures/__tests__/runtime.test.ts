@@ -19,12 +19,24 @@ import {
   normalizeBaseURL,
   requiresHTTPAPIReadinessProbe,
   hermeticTerminalShell,
+  isLaunchRuntimeReady,
   renderRuntimeConfig,
   resolveRuntimeMode,
   runtimeURL,
 } from "../runtime-helpers";
 
 describe("runtime helpers", () => {
+  // Invariant: HTTP availability cannot release a launch-mode runtime until
+  // its own process has published completed boot. Owner: browser E2E harness.
+  it("requires ready discovery from the launched process before fixtures may stop or seed it", () => {
+    expect(isLaunchRuntimeReady(undefined, 42)).toBe(false);
+    expect(isLaunchRuntimeReady({ pid: 42, readiness_phase: "serving" }, 42)).toBe(false);
+    expect(isLaunchRuntimeReady({ pid: 42 }, 42)).toBe(false);
+    expect(isLaunchRuntimeReady({ pid: 41, readiness_phase: "ready" }, 42)).toBe(false);
+    expect(isLaunchRuntimeReady({ pid: 42, readiness_phase: "ready" }, undefined)).toBe(false);
+    expect(isLaunchRuntimeReady({ pid: 42, readiness_phase: "ready" }, 42)).toBe(true);
+  });
+
   it("removes every launch-owned path during runtime cleanup", async () => {
     const testRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-runtime-cleanup-test-"));
     const paths = {

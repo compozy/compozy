@@ -1667,8 +1667,14 @@ test("E2E-004 E2E-013 E2E-014: running deep links reject hostile paths and launc
       "compozyos://open/../../etc",
       "compozyos://open//host",
     ]) {
+      const defaultNavigation = product.waitForEvent("framenavigated", {
+        predicate: frame => frame === product.mainFrame() && new URL(frame.url()).pathname === "/",
+      });
       await desktop.spawnSecondary([hostile]);
-      await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+      await defaultNavigation;
+      // The default intent briefly visits `/`, then projects the retained
+      // focused window. Await that final route before sending the next link.
+      await expect(product).toHaveURL(/\/agents$/u);
     }
   });
 
@@ -1705,7 +1711,8 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   await cold.closeShell();
   const hostile = await launchDesktop({ home: cold.home, argv: ["compozyos://open/../../etc"] });
   const product = await hostile.product();
-  await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+  // A rejected cold link retains the saved Settings window after hydration.
+  await expect(product).toHaveURL(/\/settings\/general$/u);
   await hostile.cli(["app", "open", "/tasks"]);
   await expect(product).toHaveURL(/\/tasks(?:\?|$)/u);
   for (const invalid of ["../etc", "/../etc", "//host", "/http://evil.com", "/bad\\path"]) {

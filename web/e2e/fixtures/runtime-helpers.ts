@@ -195,6 +195,12 @@ export function buildLaunchRuntimeEnv(repoRoot: string, env: NodeJS.ProcessEnv):
   };
 }
 
+/** Serving HTTP precedes discovery publication and completed boot. */
+export function isLaunchRuntimeReady(info: unknown, pid: number | undefined): boolean {
+  if (info === null || typeof info !== "object" || pid === undefined) return false;
+  return Reflect.get(info, "pid") === pid && Reflect.get(info, "readiness_phase") === "ready";
+}
+
 function tomlString(value: string): string {
   return JSON.stringify(value);
 }

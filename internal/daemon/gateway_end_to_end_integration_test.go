@@ -105,7 +105,7 @@ func TestGatewayBootRedactsExposureRefusal(t *testing.T) {
 	cfg.Gateway.PublicPort = 0
 	seedGatewayEndToEndExposure(t, homePaths.DatabaseFile)
 
-	var logs bytes.Buffer
+	var logs lockedHostedMCPBuffer
 	daemonInstance, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(&cfg),
@@ -139,7 +139,7 @@ func TestGatewayBootContinuesLocalOnlyWhenProviderDegraded(t *testing.T) {
 	cfg.Gateway.PublicPort = 0
 	seedGatewayEndToEndExposure(t, homePaths.DatabaseFile)
 
-	var logs bytes.Buffer
+	var logs lockedHostedMCPBuffer
 	daemonInstance, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(&cfg),
