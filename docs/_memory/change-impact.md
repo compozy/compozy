@@ -18,7 +18,11 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   and `migration:<profileID>` (status). A failed conversion keeps the bytes and writes a default
   snapshot with `state: "failed"`; a newer value (version 7+) is never modified: its partition answers
   `ErrUnavailable` (HTTP 503), and boot reconciliation logs `window_manager.partition_reconciliation_skipped`
-  and serves the other partitions instead of stopping the daemon. A re-upgrade after a downgrade
+  and serves the other partitions instead of stopping the daemon. Only boot skips it: session-delete
+  window reconciliation and workspace unregistration call `reconcilePartitions` strictly, so while a
+  version 7 partition exists the session delete still succeeds but its window cleanup is retried in
+  the background (tombstone kept), and unregistration answers HTTP 500 with the intent staged until
+  a repeat succeeds. A re-upgrade after a downgrade
   converts the layout v0.6 wrote whatever the earlier status (no refusal, no 503): when its bytes
   differ from `legacy:<profileID>`, the same atomic batch copies the earlier backup to
   `superseded:<profileID>:<sha256 hex>` and writes the new bytes to `legacy:`; `migration:` holds the
@@ -51,7 +55,8 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `compozy__window_move`) maps to `tab` and reports the deprecation `window.move.placement=empty`. New routes `GET` and `POST
   /api/workspaces/{workspace_id}/window-manager/migration` (`WindowManagerMigrationRequest` →
   `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
-  stream frame. A failed status carries `failure_revision` (cleared by a successful retry) and `error`,
+  stream frame. A failed status carries `failure_revision` (`omitempty`; the fallback snapshot is revision 0, so
+  a fresh failure omits it; cleared by a successful retry) and `error`,
   whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`.
   `window open` and its preview refuse an unregistered app id with `window_manager_invalid_command`
   (HTTP 422, "unregistered window app") on HTTP, UDS, CLI and native tools, after the retired
