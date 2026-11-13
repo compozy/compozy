@@ -445,7 +445,7 @@ export function useThreadScrollController(
       virtualizer.scrollToEnd();
       store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
     }
-  }, [messageCount, messages, store, viewportRef, virtualizer]);
+  }, [leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
 
   return {
     captureHistoryAnchor,

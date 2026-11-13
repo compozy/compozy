@@ -4509,18 +4509,6 @@ describe("SessionThread transcript states", () => {
 
     expect(viewport.scrollTop).toBe(300);
     expect(pill).toHaveAttribute("data-visible", "true");
-
-    // Rows re-measure over the next frames and the virtualizer compensates with no reader: the
-    // resumed row is held where it was until it rests.
-    viewport.scrollTop = 900;
-    fireEvent.scroll(viewport);
-    await waitFor(() => expect(viewport.scrollTop).toBe(300));
-
-    // The reader's gesture ends the hold: their move stays.
-    fireEvent.wheel(viewport, { deltaY: 120 });
-    scrollViewportTo(viewport, 600);
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    expect(viewport.scrollTop).toBe(600);
   });
 
   function settlingTranscript(prefix: string, length = 40) {
@@ -8987,6 +8975,7 @@ describe("useThreadScrollResume", () => {
       },
       getVirtualItemForOffset: (offset: number) =>
         measurements().find(item => offset >= item.start && offset < item.end),
+      getTotalSize: () => rows.reduce((total, row) => total + row.size, 0),
     } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>;
     const viewport = document.createElement("div");
     document.body.append(viewport);
@@ -9042,6 +9031,28 @@ describe("useThreadScrollResume", () => {
 
     expect(placeTurn.current).toHaveBeenCalledWith(viewport);
     expect(viewport.scrollTop).toBe(1_000);
+  });
+
+  it("Should hold the resumed row while rows re-measure, and yield to any other move", async () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    hideAndShow(() => undefined);
+
+    // Row a re-measures taller and the virtualizer compensates: the row is held in place.
+    rows[0]!.size = 500;
+    viewport.scrollTop = 900;
+    fireEvent.scroll(viewport);
+    await waitFor(() => expect(viewport.scrollTop).toBe(700));
+
+    // A move with no re-measure (autoscroll, assistive tech, a scrollbar drag) is the reader's.
+    viewport.scrollTop = 150;
+    fireEvent.scroll(viewport);
+    await frame();
+    await frame();
+    expect(viewport.scrollTop).toBe(150);
   });
 
   it("Should let go of the resumed row when the controller moves the viewport", async () => {

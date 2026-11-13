@@ -64,13 +64,21 @@ export function useThreadScrollResume(
     let anchor: ReadingAnchor | null = null;
     let frame = 0;
     let holding = false;
+    /** The offset and content size the hold last left: a move off it with no growth is not ours. */
+    let held = { top: 0, size: 0 };
     const release = () => {
       holding = false;
       cancelAnimationFrame(frame);
     };
     const read = () => {
-      // While the row is held, the scrolls are the hold's own writes, not the reader's.
-      if (holding || !isRenderedElement(viewport)) return;
+      if (!isRenderedElement(viewport)) return;
+      if (holding) {
+        // The hold's own writes and the virtualizer's compensation for re-measured rows are not
+        // the reader's; any other move (autoscroll, assistive tech, a scrollbar drag) is.
+        const moved = Math.abs(viewport.scrollTop - held.top) >= 1;
+        if (!moved || virtualizer.getTotalSize() !== held.size) return;
+        release();
+      }
       const top = viewport.scrollTop;
       const item = virtualizer.getVirtualItemForOffset(top);
       if (item === undefined) {
@@ -93,9 +101,14 @@ export function useThreadScrollResume(
       store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
       return true;
     };
-    const hold = (reading: ReadingAnchor) => {
+    const settle = () => {
+      held = { top: viewport.scrollTop, size: virtualizer.getTotalSize() };
+    };
+    /** Re-applies `step` each frame until the viewport rests; `step` places it. */
+    const hold = (step: () => void) => {
       release();
       holding = true;
+      settle();
       const mode = threadScrollMode(store.getSnapshot().context);
       let frames = 0;
       let stable = 0;
@@ -104,7 +117,10 @@ export function useThreadScrollResume(
         if (!isRenderedElement(viewport)) return release();
         // A new turn or a jump to the end owns the viewport from here on.
         if (threadScrollMode(store.getSnapshot().context) !== mode) return release();
-        stable = place(reading) ? 0 : stable + 1;
+        const before = viewport.scrollTop;
+        step();
+        settle();
+        stable = Math.abs(viewport.scrollTop - before) >= 1 ? 0 : stable + 1;
         if (stable >= RESUME_STABLE_FRAMES || frames >= RESUME_MAX_FRAMES) return release();
         frame = requestAnimationFrame(tick);
       };
@@ -118,11 +134,15 @@ export function useThreadScrollResume(
         pinToEnd(viewport, store);
         return;
       }
-      if (mode === "anchoring-new-turn" && placeTurn.current(viewport)) return;
+      // A turn that started while hidden is placed, and held while its rows re-measure.
+      if (mode === "anchoring-new-turn" && placeTurn.current(viewport)) {
+        hold(() => void placeTurn.current(viewport));
+        return;
+      }
       const reading = anchor;
       if (reading === null) return;
       place(reading);
-      hold(reading);
+      hold(() => void place(reading));
     };
     endHold.current = release;
     read();
