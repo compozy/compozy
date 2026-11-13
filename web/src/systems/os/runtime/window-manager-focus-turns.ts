@@ -46,8 +46,9 @@ function isAbsoluteFocus(command: WindowManagerCommandInput): boolean {
  * other command between two focuses keeps the earlier one: layout commands are never dropped,
  * reordered or kept from observing the focus they were queued after.
  *
- * What is held belongs to one binding and one registration: `reset` ends both, and an answer to
- * a focus dispatched before it is dropped, never held or shown.
+ * What is held belongs to one binding and one registration: `reset` ends both, and the view a
+ * focus dispatched before it answers is dropped, never held or shown; its completion still
+ * reports what the daemon answered.
  */
 export class FocusTurns<View extends PresentationView> {
   private absolute = 0;
@@ -101,21 +102,23 @@ export class FocusTurns<View extends PresentationView> {
   }
 
   /**
-   * Whether a newer absolute focus replaced this replaceable focus, or the binding or registration
-   * it was dispatched under ended.
+   * Whether a newer absolute focus replaced this replaceable focus. A `reset` replaces nothing: a
+   * focus the daemon answered still reports that answer, whichever binding is current by then.
    */
   replaced(ticket: FocusTicket | null): boolean {
     if (ticket === null) return false;
-    return ticket.epoch !== this.epoch || (ticket.replaceable && this.absolute > ticket.seq);
+    return ticket.replaceable && this.absolute > ticket.seq;
   }
 
   /**
-   * Keeps a focus answer's view off screen when a newer focus replaced it (held) or when it was
-   * dispatched before the last `reset` (dropped).
+   * Keeps a focus answer's view off screen when it was dispatched before the last `reset`
+   * (dropped) or a newer focus replaced it (held).
    */
   holdAnswer(ticket: FocusTicket | null, view: View): boolean {
+    if (ticket === null) return false;
+    if (ticket.epoch !== this.epoch) return true;
     if (!this.replaced(ticket)) return false;
-    if (ticket?.epoch === this.epoch) this.keep(view);
+    this.keep(view);
     return true;
   }
 
@@ -151,8 +154,9 @@ export class FocusTurns<View extends PresentationView> {
   }
 
   /**
-   * Ends the binding or registration the queued and held focus state belongs to: focuses already
-   * dispatched resolve as replaced, their answers are dropped, and nothing held for them is shown.
+   * Ends the binding or registration the queued and held focus state belongs to: a focus queued
+   * before it is not sent, the view a focus dispatched before it answers is dropped, and nothing
+   * held for them is shown.
    */
   reset(): void {
     this.epoch += 1;

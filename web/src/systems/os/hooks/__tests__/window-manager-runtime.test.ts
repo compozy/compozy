@@ -549,10 +549,14 @@ describe("WindowManagerRuntime", () => {
         windowManagerKeys.snapshot("workspace:test", "marketing"),
         focusSnapshot
       );
-      // A second workspace the runtime can rebind to.
+      // A second workspace the runtime can rebind to, with the config its projection needs.
       queryClient.setQueryData(
         windowManagerKeys.snapshot("workspace:other", "marketing"),
         focusSnapshot
+      );
+      queryClient.setQueryData(
+        windowManagerKeys.config("workspace:other", "client:web", "marketing"),
+        SETTINGS_SECTION
       );
       queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
       const runtime = new WindowManagerRuntime(queryClient);
@@ -736,6 +740,7 @@ describe("WindowManagerRuntime", () => {
         clientId: "client:web",
       });
       runtime.setClient(inOther(focusedView("app:c", 1)));
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
       const click = runtime.focusWindow("app:b", REPLACEABLE);
       // X's answer lands at a revision far above Y's.
       answers[0]!(answer(focusedView("app:a", 100)));
@@ -773,7 +778,9 @@ describe("WindowManagerRuntime", () => {
       runtime.setClient({ ...focusedView("app:c", 1), attachmentToken: "attachment-2" });
       answers[0]!(answer(focusedView("app:b", 31)));
 
-      await expect(click.completion).resolves.toBe(false);
+      // The daemon applied the click, and its completion says so; its view of the registration
+      // that ended is dropped with what was held for it.
+      await expect(click.completion).resolves.toBe(true);
       expect(adopted).not.toHaveBeenCalled();
       expect(runtime.getState().client?.presentationRevision).toBe(1);
       expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
