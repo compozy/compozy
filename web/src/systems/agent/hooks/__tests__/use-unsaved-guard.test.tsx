@@ -169,6 +169,22 @@ describe("useUnsavedGuard", () => {
     expect(discardA).toHaveBeenCalledTimes(1);
   });
 
+  it("Should keep edits made after a Discard whose navigation did not leave [#1653]", () => {
+    mockUseBlocker.mockReturnValue({ status: "blocked", proceed: mockProceed, reset: mockReset });
+    const onDiscard = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ revision }: { revision: number }) =>
+        useUnsavedGuard({ dirty: true, entityName: "Memory", onDiscard, revision }),
+      { initialProps: { revision: 1 } }
+    );
+
+    act(() => result.current.proceed?.());
+    // Another guard held the navigation; the operator kept typing.
+    rerender({ revision: 2 });
+    unmount();
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
   describe("inside a window of the desktop shell [B-1]", () => {
     function shell(port: Partial<WindowNavigationGuardPort>) {
       const held: Array<{ windowId: string; edits: UnsavedWindowEdits }> = [];

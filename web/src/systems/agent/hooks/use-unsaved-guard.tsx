@@ -25,6 +25,11 @@ export interface UseUnsavedGuardOptions {
    * resource it was answered on, once the editor leaves that resource or goes.
    */
   resourceKey?: string;
+  /**
+   * Changes whenever the edits do (the editor's state). A Discard answered for a navigation that
+   * did not leave covers only the edits it was answered on: newer edits keep it from dropping them.
+   */
+  revision?: unknown;
 }
 
 export interface UseUnsavedGuardResult {
@@ -57,6 +62,7 @@ export function useUnsavedGuard({
   entityName,
   onDiscard,
   resourceKey,
+  revision,
 }: UseUnsavedGuardOptions): UseUnsavedGuardResult {
   const windowId = use(WindowScopeContext);
   const windows = use(WindowNavigationGuardContext);
@@ -96,7 +102,7 @@ export function useUnsavedGuard({
   useEffect(() => {
     // Edits changed after a Discard whose navigation another guard held: they are new edits.
     latest.current.pendingDiscard = null;
-  }, [dirty]);
+  }, [dirty, revision]);
   useEffect(() => {
     const current = latest.current;
     // Runs when the editor leaves the resource or goes, before it settles on the next one.

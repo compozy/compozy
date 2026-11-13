@@ -108,10 +108,13 @@ export function useEditorDocument<TForm>({
     }
   };
 
+  // Changes whenever the document's state does; opaque to the editor's views.
+  const revision: unknown = document;
   const shownSource = raw ?? (baseline.block ? baseline.source : compose(form));
 
   return {
     resourceKey,
+    revision,
     baseline,
     form,
     raw,

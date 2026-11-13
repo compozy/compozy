@@ -103,6 +103,7 @@ export function useAgentAuthoredFileEditor({
       forget();
     },
     resourceKey,
+    revision: editor,
   });
   const editorError = "error" in editor ? editor.error : null;
   const revisions = history && "revisions" in history ? (history.revisions ?? []) : [];

@@ -22,6 +22,7 @@ function LoadedEditor({
     entityName: "Heartbeat",
     onDiscard: model.document.discard,
     resourceKey: model.document.resourceKey,
+    revision: model.document.revision,
   });
   return (
     <>
