@@ -668,6 +668,50 @@ func TestUsageService(t *testing.T) {
 		})
 	}
 
+	for _, tc := range []struct {
+		name string
+		err  error
+		code ErrorCode
+	}{
+		{"Should retain same owner Claude file data without a Keychain login UT083", os.ErrNotExist, ErrorCodeAuthExpired},
+		{"Should retain same owner Claude file data when Keychain access is denied UT083",
+			os.ErrPermission, ErrorCodeKeychainDenied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			target, _, _ := claudeFixture(t, true)
+			clock := fixtureClock(t)
+			reader := &fakeClaudeKeychain{err: tc.err}
+			server := fixtureServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				writeFixture(w, t, `{"five_hour":{"utilization":42}}`)
+			})
+			collector := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeKeychain(reader),
+				WithClaudeHTTP(server.URL, nil), WithClaudePlatform("darwin"))
+			catalog := &TargetCatalog{}
+			catalog.Replace(target.ProfileID, []Target{target})
+			service := NewService(Options{Resolver: catalog, Collectors: Registry{"claude": collector}, Clock: clock})
+			defer func() { requireNoError(t, service.Shutdown(context.Background())) }()
+			refresh := func(intent Intent) Snapshot {
+				env, err := service.Refresh(
+					t.Context(),
+					RefreshRequest{ProfileID: target.ProfileID, Intent: intent, Wait: 15 * time.Second},
+				)
+				requireNoError(t, err)
+				return env.Targets[0]
+			}
+			first := refresh(IntentExplicit)
+			requireEqual(t, StatusOK, first.Status)
+			requireEqual(t, int32(0), reader.calls.Load())
+			clock.Advance(2 * time.Hour)
+			stale := refresh(IntentBackground)
+			requireEqual(t, StatusStale, stale.Status)
+			requireEqual(t, *first.MeasuredAt, *stale.MeasuredAt)
+			requireEqual(t, 42.0, *stale.Windows[0].UsedPercent)
+			requireEqual(t, tc.code, stale.Error.Code)
+			requireEqual(t, int32(0), reader.interactive.Load())
+		})
+	}
+
 	t.Run("Should advertise the daemon host Keychain capability even when disabled", func(t *testing.T) {
 		t.Parallel()
 		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })

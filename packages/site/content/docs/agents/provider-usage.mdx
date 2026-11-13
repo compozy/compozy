@@ -145,15 +145,20 @@ What happens next:
   flag that absolutely forbids a prompt.
 - Explicit **Refresh** uses `security` directly and may request authorization. If you click **Deny**,
   the row reads `Keychain access denied` with **Try again**.
-- If Claude Code has no login in the Keychain, the row reads
+- If Claude Code has no login in the Keychain or a usable credential file, the row reads
   `Signed out · Sign in with Claude to read usage`. Run `claude`, sign in, then refresh.
 - If you sign in to Claude Code with another account, or sign out, CompozyOS drops the old login and
   its numbers.
 - To withdraw consent, turn off **Claude Keychain access** in Settings → Provider usage. CompozyOS
   forgets the login right away.
 
-When Claude Code keeps a `.credentials.json` file in its config directory, CompozyOS reads that file
-and never touches the Keychain. If you reach CompozyOS from another device through the
+When Claude Code keeps a usable `.credentials.json` file in its config directory, CompozyOS reads
+that file and never touches the Keychain. On macOS, an expired or unreadable leftover file does not
+hide the Keychain login: with **Claude Keychain access** on, CompozyOS reads the Keychain the same
+silent way it does without a file. With access off, the row asks for Keychain access rather than a
+new login. Linux and Windows read the file only. CompozyOS never rewrites either credential store.
+
+If you reach CompozyOS from another device through the
 [Gateway](/docs/gateway), the row says
 `Approve on the host Mac: open CompozyOS there and refresh`: only someone at the Mac that runs the
 daemon can approve a Keychain read.
