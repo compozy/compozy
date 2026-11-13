@@ -752,6 +752,23 @@ describe("RoutingCoordinator", () => {
     await vi.waitFor(() => expect(request).toHaveBeenCalledWith(settings.id, expect.any(Number)));
   });
 
+  it("Should hand the keyboard to the window an open recovered onto [#1655]", async () => {
+    const files = windowFixture("files", "/files/project-a");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([files, tasks]);
+    coordinator.completeHydration();
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    // Another client opened Files first; the conflict retry focuses that window instead.
+    store.spies.openOrFocus.mockImplementationOnce(() => {
+      store.setAuthoritativeFocus(files.id);
+      return { windowId: "w-files-unplaced", accepted: true, completion: Promise.resolve(true) };
+    });
+
+    await coordinator.userOpen({ app: "files", route: files.route });
+
+    expect(request).toHaveBeenCalledExactlyOnceWith(files.id, expect.any(Number));
+  });
+
   it("Should keep a navigation's first keyboard mark when the router reports it again [#1655]", async () => {
     const tasks = windowFixture("tasks", "/tasks");
     const settings = windowFixture("settings", "/settings/general");
