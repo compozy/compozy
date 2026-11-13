@@ -24,15 +24,42 @@ import { authoritativeTabBalance } from "../lib/window-manager-view";
 import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
 import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
 
+/** This client's commands in flight of one kind, and the waiters for none to be left. */
+class InFlightCommands {
+  private count = 0;
+  private waiters: Array<() => void> = [];
+
+  get busy(): boolean {
+    return this.count > 0;
+  }
+
+  /** Counts a dispatched command until its completion settles. */
+  track(completion: Promise<boolean>): void {
+    this.count += 1;
+    const settle = () => {
+      this.count -= 1;
+      if (this.count > 0) return;
+      for (const resolve of this.waiters.splice(0)) resolve();
+    };
+    void completion.then(settle, settle);
+  }
+
+  /** Resolves once none is in flight: at once when none is. */
+  settled(): Promise<void> {
+    if (this.count === 0) return Promise.resolve();
+    return new Promise(resolve => this.waiters.push(resolve));
+  }
+}
+
 /**
  * Layout half of the command surface: moving windows between tabs and splits, arrange presets,
  * and split weights. Every method dispatches one semantic daemon command; pixels never persist.
  */
 export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime {
   /** This client's commands that can move the layout, dispatched and not yet settled. */
-  private inFlight = 0;
-  /** Waiters for the moment no command of this client is in flight. */
-  private settledWaiters: Array<() => void> = [];
+  private readonly layoutInFlight = new InFlightCommands();
+  /** Every command of this client dispatched and not yet settled, focus included. */
+  private readonly allInFlight = new InFlightCommands();
 
   /**
    * Whether a command of this client that can move the layout is dispatched and not yet settled.
@@ -40,24 +67,16 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
    * changes the shown frame, which ends a seam gesture anyway. The runtime publishes a command's
    * snapshot before its completion settles, so its result lands while this holds.
    */
-  commandsInFlight = (): boolean => this.inFlight > 0;
+  commandsInFlight = (): boolean => this.layoutInFlight.busy;
 
-  /** Resolves once no command of this client is in flight: at once when none is. */
-  commandsSettled = (): Promise<void> => {
-    if (this.inFlight === 0) return Promise.resolve();
-    return new Promise(resolve => this.settledWaiters.push(resolve));
-  };
+  /** Resolves once no such command of this client is in flight: at once when none is. */
+  commandsSettled = (): Promise<void> => this.layoutInFlight.settled();
 
   protected override dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {
     const outcome = super.dispatch(command);
-    if (!outcome.accepted || command.commandId === "window.focus") return outcome;
-    this.inFlight += 1;
-    const settle = () => {
-      this.inFlight -= 1;
-      if (this.inFlight > 0) return;
-      for (const resolve of this.settledWaiters.splice(0)) resolve();
-    };
-    void outcome.completion.then(settle, settle);
+    if (!outcome.accepted) return outcome;
+    this.allInFlight.track(outcome.completion);
+    if (command.commandId !== "window.focus") this.layoutInFlight.track(outcome.completion);
     return outcome;
   }
 
@@ -111,9 +130,10 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
    * "Balance sizes" for a whole tab, admitted like a seam double-click (`planTabBalance`): one
    * `layout.balance` of the tab when every split, evened together, still lays out side by side
    * wherever it does now; otherwise the splits that can be evened without that, outermost first;
-   * nothing when none can. The plan is made against the latest layout and work area once this
-   * client's commands in flight have settled, and made again before every further split, so a
-   * layout or viewport change while a balance waits never collapses a split.
+   * nothing when none can. The plan is made against the latest layout and work area once every
+   * command of this client in flight (focus included) has settled, so the balance is the next
+   * command the runtime runs, and made again before every further split, so a layout or viewport
+   * change while a balance waits never collapses a split.
    */
   balanceTab = (tabId: string): void => {
     this.balanceTabFrom(tabId, this.binding, new Set());
@@ -124,8 +144,8 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
     binding: WindowManagerRuntimeBinding | null,
     balanced: Set<LayoutNodeId>
   ): void {
-    if (this.inFlight > 0) {
-      void this.commandsSettled().then(() => this.balanceTabFrom(tabId, binding, balanced));
+    if (this.allInFlight.busy) {
+      void this.allInFlight.settled().then(() => this.balanceTabFrom(tabId, binding, balanced));
       return;
     }
     if (this.binding !== binding) return;

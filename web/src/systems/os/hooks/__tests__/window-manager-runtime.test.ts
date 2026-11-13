@@ -2519,49 +2519,66 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
-  it("Should plan a tab balance against the layout this client's command in flight leaves", async () => {
-    const queryClient = new QueryClient();
-    const snapshot = snapshotWithSplitTab();
-    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
-    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
-    const answers = deferCommandAnswers();
-    const runtime = new WindowManagerRuntime(queryClient);
-    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
-    runtime.setClient({
-      ...CLIENT_VIEW_DEFAULTS,
-      workspaceId: "workspace:test",
-      clientId: "client:web",
-      presentationRevision: 1,
-      activeDesktopId: "desktop:one",
-      focusedWindowId: "app:tasks",
-      focusOrder: ["app:tasks"],
-      connectedAt: "2026-07-22T00:00:00Z",
-    });
-    const resize = runtime.resizeLayout("split:one", 0, -0.1);
-    await vi.waitFor(() => expect(answers).toHaveLength(1));
+  it.each([
+    {
+      kind: "resize",
+      send: (runtime: WindowManagerRuntime) => runtime.resizeLayout("split:one", 0, -0.1),
+      sent: "layout.resize",
+    },
+    {
+      kind: "focus",
+      send: (runtime: WindowManagerRuntime) => runtime.focusWindow("app:agents"),
+      sent: "focus app:agents",
+    },
+  ])(
+    "Should plan a tab balance against the layout this client's $kind in flight leaves",
+    async ({ send, sent }) => {
+      const queryClient = new QueryClient();
+      const snapshot = snapshotWithSplitTab();
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      const answers = deferCommandAnswers();
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: "app:tasks",
+        focusOrder: ["app:tasks"],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+      const inFlight = send(runtime);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
 
-    // Asked for while the resize is in flight: nothing is planned or sent until it settles.
-    runtime.balanceFocusedLayout();
-    await flushCommandQueue();
-    expect(sentCommands()).toEqual(["layout.resize"]);
-    expect(runtime.commandsInFlight()).toBe(true);
+      // Asked for while the command is in flight: nothing is planned or sent until it settles.
+      runtime.balanceFocusedLayout();
+      await flushCommandQueue();
+      expect(sentCommands()).toEqual([sent]);
 
-    // The resize's answer takes the split away: planned against that, there is nothing to even.
-    answers[0]!({
-      snapshot: { ...SNAPSHOT, revision: snapshot.revision + 1 },
-      applied: true,
-      changes: EMPTY_CHANGES,
-      diagnostics: [],
-      deprecations: [],
-      client: null,
-      rebasedFrom: null,
-    });
-    await expect(resize.completion).resolves.toBe(true);
-    await new Promise(resolve => setTimeout(resolve, 0));
-    expect(runtime.commandsInFlight()).toBe(false);
-    expect(sentCommands()).toEqual(["layout.resize"]);
-    runtime.stop();
-  });
+      // The command's answer takes the split away: planned against that, there is nothing to even.
+      answers[0]!({
+        snapshot: { ...SNAPSHOT, revision: snapshot.revision + 1 },
+        applied: true,
+        changes: EMPTY_CHANGES,
+        diagnostics: [],
+        deprecations: [],
+        client: null,
+        rebasedFrom: null,
+      });
+      await expect(inFlight.completion).resolves.toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(runtime.commandsInFlight()).toBe(false);
+      expect(sentCommands()).toEqual([sent]);
+      runtime.stop();
+    }
+  );
 
   it("Should describe a bare daemon refusal code in plain language", async () => {
     vi.useFakeTimers();

@@ -3085,6 +3085,49 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
   });
 
+  it("Should keep seam input behind a release that still waits on an own non-seam command once the seam command ahead of it settles", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    const settleArrow = deferResize(shell);
+    let settleBalance!: () => void;
+    vi.mocked(shell.controller.commandsSettled).mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        settleBalance = resolve;
+      })
+    );
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    // A palette balance of this client is in flight as well.
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(true);
+    dragSeam(seam, 4, 500, 560);
+    flushFrames();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
+
+    // The arrow's resize settles; the release now waits on the balance, and an arrow pressed
+    // meanwhile waits behind it instead of going out first.
+    await settleArrow();
+    fireEvent.keyDown(seam, { key: "ArrowLeft" });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    await act(async () => settleBalance());
+    await waitFor(() => expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3));
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.06),
+      fenceAt(7)
+    );
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      3,
+      "split:main",
+      0,
+      expect.closeTo(-0.02),
+      fenceAt(7)
+    );
+  });
+
   it("Should compute an arrow press made while a resize is in flight against that resize's result", async () => {
     const shell = exactShell(snapshotWithSplit([0.7, 0.3]));
     const near: ProjectedSeam = {

@@ -400,12 +400,16 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
           commit(true, scope.at);
           return;
         }
-        void manager.commandsSettled().then(() => {
-          if (!live) return;
+        // Still counted as an own seam command while it waits, so the seam queue stays blocked
+        // until this release commits or drops.
+        const waited = manager.commandsSettled().then(() => {
+          if (!live) return true;
           if (seamInputHolds(scope, currentSeamFrame(manager), commandClockNow())) {
             afterOwnSettled();
           } else drop();
+          return true;
         });
+        void trackOwnCommand(manager, waited);
       };
       afterOwnCommands(manager, { scope, run: afterOwnSettled, drop });
     };
