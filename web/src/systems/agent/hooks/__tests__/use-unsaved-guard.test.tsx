@@ -136,16 +136,19 @@ describe("useUnsavedGuard", () => {
     expect(screen.getByTestId("unsaved-guard-discard")).toBeInTheDocument();
     expect(screen.getByTestId("unsaved-guard-keep-editing")).toBeInTheDocument();
 
+    // Keep editing stays on the editor and keeps the edits.
+    await user.click(screen.getByTestId("unsaved-guard-keep-editing"));
+    expect(mockReset).toHaveBeenCalledTimes(1);
+    expect(mockProceed).not.toHaveBeenCalled();
+
     await user.click(screen.getByTestId("unsaved-guard-discard"));
     expect(mockProceed).toHaveBeenCalledTimes(1);
     // Discard drops the edits once the editor goes (#1653): another guard may still hold the
     // navigation, and then the edits stay.
     expect(onDiscard).not.toHaveBeenCalled();
-
-    await user.click(screen.getByTestId("unsaved-guard-keep-editing"));
-    expect(mockReset).toHaveBeenCalledTimes(1);
     unmount();
     expect(onDiscard).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 
   it("Should drop only the left resource's edits when a reused editor moves on [#1653]", () => {
