@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { OsHydration, OsOpenTarget, OsWindow, OsWindowRoute } from "../os-types";
 import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
-import { RoutingEntryLedger, type RouterEntryEvent } from "../routing-entry-ledger";
+import { RoutingEntryLedger } from "../routing-entry-ledger";
 import type { WindowManagerClientView } from "../window-manager-types";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
@@ -224,36 +224,44 @@ let entryKeySeq = 0;
  * key, Back restores the key of the entry it lands on.
  */
 function createHistory(entries: RoutingEntryLedger) {
-  const stack: string[] = [];
+  const stack: { key: string; pathname: string }[] = [];
   let index = -1;
-  const commit = (mode: "push" | "replace", kind: "write" | "push" | "replace") => {
+  const commit = (
+    mode: "push" | "replace",
+    kind: "write" | "push" | "replace",
+    pathname: string
+  ) => {
     entryKeySeq += 1;
     const key = `entry-${entryKeySeq}`;
     if (mode === "push" || index < 0) {
-      stack.splice(index + 1, stack.length, key);
+      stack.splice(index + 1, stack.length, { key, pathname });
       index += 1;
     } else {
-      stack[index] = key;
+      stack[index] = { key, pathname };
     }
-    entries.observe({ kind, key } as RouterEntryEvent);
+    entries.observe(kind === "push" ? { kind, key } : { kind, key, pathname });
     return key;
   };
+  const currentPathname = () => stack[index]?.pathname ?? "/";
   return {
-    write: (mode: "push" | "replace") => commit(mode, "write"),
+    write: (mode: "push" | "replace", pathname: string) => commit(mode, "write", pathname),
     /** An operator link: a push the coordinator did not write. */
-    link: () => commit("push", "push"),
-    /** The router's redirect or normalization of the current entry. */
-    redirect: () => commit("replace", "replace"),
+    link: (pathname = "/") => commit("push", "push", pathname),
+    /**
+     * A replace the coordinator did not write: by default the router's redirect or normalization
+     * of the current entry, which keeps its path.
+     */
+    redirect: (pathname = currentPathname()) => commit("replace", "replace", pathname),
     back: () => {
       index -= 1;
-      const key = stack[index];
+      const key = stack[index]?.key;
       if (key === undefined) throw new Error("history has no earlier entry");
       entries.observe({ kind: "traverse", key });
       return key;
     },
     resolve: (key: string) => entries.observe({ kind: "resolved", key }),
     /** The key of the entry history now shows; `null` before any entry was written. */
-    current: (): string | null => stack[index] ?? null,
+    current: (): string | null => stack[index]?.key ?? null,
   };
 }
 
@@ -263,8 +271,8 @@ function createCoordinator(initialWindows: readonly OsWindow[] = []) {
   const history = createHistory(entries);
   // The history reports each write synchronously, inside the router's push or replace.
   const router: OsRouterPort = {
-    navigate: vi.fn((_route: OsWindowRoute) => void history.write("push")),
-    replace: vi.fn((_route: OsWindowRoute) => void history.write("replace")),
+    navigate: vi.fn((route: OsWindowRoute) => void history.write("push", route.pathname)),
+    replace: vi.fn((route: OsWindowRoute) => void history.write("replace", route.pathname)),
   };
   return {
     coordinator: new RoutingCoordinator(store, router, entries),
@@ -1671,7 +1679,11 @@ describe("RoutingCoordinator", () => {
 
     /** The coordinator's own activation of a session window its loader redirects to bind. */
     async function afterOwnActivationOfUnbound() {
-      const unbound = windowFixture("session", "/agents/general/sessions/sess-x", "sess-x");
+      // Shown on its tab, as a window the dock can go to again.
+      const unbound = {
+        ...windowFixture("session", "/agents/general/sessions/sess-x", "sess-x"),
+        shown: true,
+      };
       const tasks = windowFixture("tasks", "/tasks");
       const harness = createCoordinator([unbound, tasks]);
       const { coordinator, router, store, history } = harness;
@@ -1686,7 +1698,7 @@ describe("RoutingCoordinator", () => {
       store.spies.focusWindow.mockClear();
       vi.mocked(router.navigate).mockClear();
       vi.mocked(router.replace).mockClear();
-      return { ...harness, unbound, written, bound, redirected };
+      return { ...harness, unbound, tasks, written, bound, redirected };
     }
 
     it("Should adopt the canonical route of its own write for the window still focused [R10-05]", async () => {

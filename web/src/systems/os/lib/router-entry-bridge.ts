@@ -14,17 +14,26 @@ export interface RouterEntryHistory {
  * The coordinator's history writes, and the classification of every history notification into
  * the coordinator's own writes and everything else.
  *
+ * A notification is the coordinator's own only when it arrives inside the bridge's own `push` or
+ * `replace` call: the history notifies synchronously inside the call when nothing defers it.
+ * Nothing is remembered once the call returns, so a write a navigation blocker cancelled can never
+ * claim a later entry, and nothing accumulates.
+ *
+ * A write a blocker deferred and later let through lands outside the call and reads as any other
+ * navigation: the route the coordinator wrote is still its current route then, so reconciling it
+ * finds the focused window already showing it and does nothing. A newer coordinator write while
+ * the blocker still holds one is held by the same blocker, which answers only its newest request,
+ * so only the newest write can land.
+ *
  * A write adds no state to its entry: the router compares user state when a navigation targets
  * the location already shown, and an entry carrying state the navigation lacks would get a
- * duplicate entry instead of nothing. The bridge instead remembers each write's mode and href
- * until the history reports it. The history reports a write synchronously inside `push` and
- * `replace`; a navigation blocker can defer it, so a write stays expected until it is reported or
- * another navigation takes over.
+ * duplicate entry instead of nothing.
  */
 export class RouterEntryBridge {
   private readonly history: RouterEntryHistory;
   private readonly hrefOf: (route: OsWindowRoute) => string;
-  private expected: { mode: "push" | "replace"; href: string }[] = [];
+  /** The mode of the bridge's own call in progress, until its notification arrives. */
+  private writing: "push" | "replace" | null = null;
   readonly port: OsRouterPort;
 
   constructor(history: RouterEntryHistory, hrefOf: (route: OsWindowRoute) => string) {
@@ -40,28 +49,27 @@ export class RouterEntryBridge {
    * One history notification as the ledger reads it; `null` for an entry without a key, which
    * the router's own history never produces.
    */
-  classify(action: string, href: string, key: string | undefined): RouterEntryEvent | null {
+  classify(action: string, pathname: string, key: string | undefined): RouterEntryEvent | null {
     if (key === undefined) return null;
-    if (action !== "PUSH" && action !== "REPLACE") {
-      this.expected = [];
-      return { kind: "traverse", key };
-    }
+    if (action !== "PUSH" && action !== "REPLACE") return { kind: "traverse", key };
     const mode = action === "PUSH" ? "push" : "replace";
-    const index = this.expected.findIndex(write => write.mode === mode && write.href === href);
-    if (index < 0) {
-      // Another navigation took over: a write a blocker still holds reads as intent if it lands.
-      this.expected = [];
-      return { kind: mode, key };
+    if (this.writing === mode) {
+      // Only the call's own commit: a navigation it triggers synchronously is not the write.
+      this.writing = null;
+      return { kind: "write", key, pathname };
     }
-    this.expected = this.expected.slice(index + 1);
-    return { kind: "write", key };
+    return mode === "push" ? { kind: "push", key } : { kind: "replace", key, pathname };
   }
 
   private write(mode: "push" | "replace", route: OsWindowRoute): void {
     const href = this.hrefOf(route);
-    this.expected.push({ mode, href });
-    if (mode === "push") this.history.push(href);
-    else this.history.replace(href);
+    this.writing = mode;
+    try {
+      if (mode === "push") this.history.push(href);
+      else this.history.replace(href);
+    } finally {
+      this.writing = null;
+    }
   }
 }
 
@@ -85,7 +93,7 @@ export function connectRouterEntries(
   entries: RoutingEntryLedger
 ): () => void {
   const stopHistory = router.history.subscribe(({ location, action }) => {
-    const event = bridge.classify(action.type, location.href, location.state.__TSR_key);
+    const event = bridge.classify(action.type, location.pathname, location.state.__TSR_key);
     if (event !== null) entries.observe(event);
   });
   const stopResolved = router.subscribe("onResolved", ({ toLocation }) => {
