@@ -80,7 +80,7 @@ func (s *service) updateWindowManagerSection(
 		loaded.workspaceID,
 		loaded.workspaceRoot,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return applyWindowManagerSettings(editor, desired, desiredAliases, base)
+			return applyWindowManagerSettings(editor, desired, desiredAliases, &base)
 		},
 	)
 	if err != nil {

@@ -22,7 +22,7 @@ export interface UseTerminalLimitWaitOptions {
   resolutionKey: string;
   atLimit: boolean;
   setLimitOpen: (open: boolean) => void;
-  onOpenTerminal: (() => void) | undefined;
+  onOpenTerminal: (() => void | Promise<boolean>) | undefined;
   onCloseTerminal: (terminalId: string) => void;
 }
 
@@ -63,13 +63,18 @@ export function useTerminalLimitWait({
 
   // Creating the terminal is the daemon synchronization; once per claim.
   const lastClaimRef = useRef<LimitWait | null>(null);
-  const openClaimedSlot = useEffectEvent(() => {
-    onOpenTerminal?.();
+  const openClaimedSlot = useEffectEvent((claim: LimitWait) => {
+    const opened = onOpenTerminal?.();
+    if (!(opened instanceof Promise)) return;
+    // A refused create (another window took the slot first) ends the wait on the empty state.
+    void opened.then(ok => {
+      if (!ok) setLimitWait(wait => (wait === claim ? { ...claim, status: "dismissed" } : wait));
+    });
   });
   useEffect(() => {
     if (claimed === null || lastClaimRef.current === claimed) return;
     lastClaimRef.current = claimed;
-    openClaimedSlot();
+    openClaimedSlot(claimed);
   }, [claimed]);
 
   return {

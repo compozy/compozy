@@ -1082,6 +1082,21 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     expect(actions.onCloseTerminal).not.toHaveBeenCalled();
   });
 
+  it("Should fall back to the empty state when the claimed create is refused", async () => {
+    // Another waiting window took the freed slot first: the daemon refuses this create.
+    const actions = stubWindowActions({ onOpenTerminal: vi.fn(() => Promise.resolve(false)) });
+    const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
+
+    await screen.findByTestId("terminal-limit-dialog");
+    rerender(
+      <TerminalWindowApp {...waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP.slice(1))} />
+    );
+
+    await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
+    expect(await screen.findByTestId("terminal-empty-open")).toBeInTheDocument();
+    expect(screen.queryByText(/Opening a terminal/)).not.toBeInTheDocument();
+  });
+
   it("Should fall back to the empty state when the cap dialog is dismissed", async () => {
     const actions = stubWindowActions();
     const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));

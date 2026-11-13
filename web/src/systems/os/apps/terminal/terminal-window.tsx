@@ -136,7 +136,14 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     retargetSearch,
     workspaceId,
   } = useTerminalWindowControllerContext();
-  const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
+  // Resolves whether the create went through; a refusal is already reported by its toast.
+  const openTerminal = viewer
+    ? () =>
+        create.mutateAsync(viewer).then(
+          () => true,
+          () => false
+        )
+    : undefined;
   const retargetTerminal = (terminalId: string) => {
     void coordinator.userRetarget(windowId, {
       app: "terminal",

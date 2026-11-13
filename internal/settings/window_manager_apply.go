@@ -49,7 +49,7 @@ func applyWindowManagerSettings(
 	editor *compozyconfig.OverlayEditor,
 	settings compozyconfig.WindowManagerConfig,
 	aliases map[string]string,
-	base windowManagerWriteBase,
+	base *windowManagerWriteBase,
 ) error {
 	if err := applyWindowManagerScalars(editor, settings, base); err != nil {
 		return err
@@ -99,7 +99,7 @@ func sameWindowManagerMap[K comparable, V any](current, desired map[K]V) bool {
 func applyWindowManagerScalars(
 	editor *compozyconfig.OverlayEditor,
 	settings compozyconfig.WindowManagerConfig,
-	base windowManagerWriteBase,
+	base *windowManagerWriteBase,
 ) error {
 	updates := windowManagerScalarUpdates(settings)
 	if base.inherited == nil {

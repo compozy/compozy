@@ -1731,9 +1731,16 @@ func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *test
 	calls := 0
 	workspaces := stubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			// The held removal already deleted the registration; only its pending deletion remains.
+			if calls > 0 {
+				return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
 			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
 		},
-		UnregisterFn: func(context.Context, string) error {
+		UnregisterFn: func(_ context.Context, id string) error {
+			if id != "ws_alpha" {
+				t.Fatalf("Unregister() id = %q, want ws_alpha", id)
+			}
 			calls++
 			if calls == 1 {
 				return fmt.Errorf("daemon: reconcile profile %q partition %q: %w",
