@@ -1761,8 +1761,10 @@ func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *test
 	var payload contract.ErrorPayload
 	decodeJSONResponse(t, recorder, &payload)
 	if payload.Code != string(contract.WindowManagerErrorUnavailable) ||
-		!strings.Contains(payload.Error, `"ws_beta"`) {
-		t.Fatalf("payload = %+v, want window_manager_unavailable naming the layout partition", payload)
+		!strings.Contains(payload.Error, `"prof_1"`) ||
+		!strings.Contains(payload.Error, `"ws_beta"`) ||
+		!strings.Contains(payload.Error, "finishes when it is retried") {
+		t.Fatalf("payload = %+v, want window_manager_unavailable naming the layout and the retry", payload)
 	}
 	retry := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
 	if retry.Code != http.StatusNoContent {

@@ -271,13 +271,9 @@ func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *test
 	}
 	var payload contract.ErrorPayload
 	decodeJSONResponse(t, resp, &payload)
+	// HTTP masks 5xx messages; the code is the contract here, and UDS carries the detail.
 	if payload.Code != string(contract.WindowManagerErrorUnavailable) {
 		t.Fatalf("code = %q, want %q", payload.Code, contract.WindowManagerErrorUnavailable)
-	}
-	for _, want := range []string{`"prof_1"`, `"ws_beta"`, "finishes when it is retried"} {
-		if !strings.Contains(payload.Error, want) {
-			t.Fatalf("error = %q, want it to contain %q", payload.Error, want)
-		}
 	}
 
 	retry := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
