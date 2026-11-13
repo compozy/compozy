@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import {
   isRetainedEditorDraft,
@@ -45,14 +45,16 @@ export function useRetainedEditorDraft<TContext>(
   store: DraftStore<TContext>,
   policy: RetainedDraftPolicy<TContext>
 ): { forget: () => void } {
-  const [box] = useState<DraftBox<TContext>>(() => ({ store: null, retained: null }));
+  const boxRef = useRef<DraftBox<TContext>>({ store: null, retained: null });
   useEffect(() => {
-    box.store = store;
+    boxRef.current.store = store;
     // Before any event reaches a new store, its context is the draft it was seeded from, if any.
     takeRetainedEditorDraft(key, store.getSnapshot().context);
-  }, [box, key, store]);
-  useEffect(
-    () => () => {
+  }, [key, store]);
+  useEffect(() => {
+    // One box for the editor's life: the cleanup reads the store committed last.
+    const box = boxRef.current;
+    return () => {
       const current = box.store;
       if (current === null) return;
       const retain = (context: TContext) => {
@@ -75,13 +77,13 @@ export function useRetainedEditorDraft<TContext>(
         box.retained = null;
         retain(snapshot.context);
       });
-    },
-    [box, key, policy]
-  );
-  const [forget] = useState(() => () => {
+    };
+  }, [key, policy]);
+  const forget = useCallback(() => {
+    const box = boxRef.current;
     const retained = box.retained;
     box.retained = null;
     if (retained) takeRetainedEditorDraft(retained.key, retained.context);
-  });
+  }, []);
   return { forget };
 }
