@@ -1,8 +1,9 @@
 // Suite: OS tab bar
 // Invariant: the bar renders the active desktop's tabs in order with the client's active tab
 // selected, activates a tab through its lead window, closes it by button, middle click, and menu
-// (never a pinned tab by middle click), skips pinned tabs in bulk closes, and opens the overflow
-// list only when tabs at the floor no longer fit. The tab menu offers a menu equivalent for every
+// (never a pinned tab by middle click), skips pinned tabs in bulk closes, keeps one tab stop that
+// follows the active tab while focus is outside the bar, hands focus on when the focused tab
+// closes, and opens the overflow list only when tabs at the floor no longer fit. The tab menu offers a menu equivalent for every
 // drag (Move left/right within the pin range, Split with ▸, Arrange ▸) and no retired control.
 // Owning layer: OsTabBar + useOsTabBar over the shell projection. Width rules: lib/tab-width.
 // Boundary OUT: runtime command execution and daemon reducers.
@@ -90,12 +91,16 @@ const TABS: LayoutTab[] = [
   solo("tab:vault", "w-vault"),
 ];
 
-function snapshot(tabs: LayoutTab[] = TABS, closedEntryCount = 1): WindowManagerSnapshot {
+function snapshot(
+  tabs: LayoutTab[] = TABS,
+  closedEntryCount = 1,
+  activeTabId = "tab:tasks"
+): WindowManagerSnapshot {
   return {
     version: 6,
     workspaceId: "workspace:test",
     revision: 3,
-    desktops: [{ id: "desktop:main", name: "Main", order: 0, tabs, activeTabId: "tab:tasks" }],
+    desktops: [{ id: "desktop:main", name: "Main", order: 0, tabs, activeTabId }],
     windows: {
       "w-dash": win("w-dash", "dashboard", "tab:dash"),
       "w-tasks": win("w-tasks", "tasks", "tab:tasks"),
@@ -128,12 +133,18 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-function renderBar(
-  options: { tabs?: LayoutTab[]; focusOrder?: string[]; closedEntryCount?: number } = {}
-) {
-  const state = buildOsDesktopRuntimeView({
+interface BarOptions {
+  tabs?: LayoutTab[];
+  focusOrder?: string[];
+  closedEntryCount?: number;
+  /** The desktop's active tab; the client keeps no override of its own. */
+  activeTabId?: string;
+}
+
+function barState(options: BarOptions) {
+  return buildOsDesktopRuntimeView({
     viewportWidth: 1440,
-    snapshot: snapshot(options.tabs, options.closedEntryCount),
+    snapshot: snapshot(options.tabs, options.closedEntryCount, options.activeTabId),
     globalConfig: CONFIG,
     client: {
       workspaceId: "workspace:test",
@@ -154,8 +165,12 @@ function renderBar(
     wallpaper: "flat",
     reduceMotion: false,
   });
+}
+
+function renderBar(options: BarOptions = {}) {
+  const projection = createWindowManagerProjectionAtom(barState(options));
   const manager = {
-    getState: () => state,
+    getState: () => projection.get(),
     closeWindowScoped: vi.fn(async () => true),
     pinWindow: vi.fn(() => outcome()),
     reopenWindow: vi.fn(() => outcome()),
@@ -170,18 +185,20 @@ function renderBar(
     userClose: vi.fn(async () => true),
     userOpen: vi.fn(async () => "w-new"),
   };
-  const shell = {
-    projection: createWindowManagerProjectionAtom(state),
-    manager,
-    coordinator,
-  } as unknown as OsShellHandle;
+  const shell = { projection, manager, coordinator } as unknown as OsShellHandle;
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <OsShellContext.Provider value={shell}>
-      <TooltipProvider delay={0}>{children}</TooltipProvider>
+      <TooltipProvider delay={0}>
+        {children}
+        {/* A focus target past the bar, standing in for the window content. */}
+        <button type="button">Outside</button>
+      </TooltipProvider>
     </OsShellContext.Provider>
   );
   render(<OsTabBar />, { wrapper });
-  return { manager, coordinator };
+  /** Replaces the projection, as a daemon snapshot or client view update would. */
+  const update = (next: BarOptions) => act(() => projection.set(barState(next)));
+  return { manager, coordinator, update };
 }
 
 beforeEach(() => {
@@ -304,6 +321,51 @@ describe("OsTabBar", () => {
     expect(coordinator.userFocus).not.toHaveBeenCalled();
     await user.keyboard("{ArrowRight}{Enter}");
     expect(coordinator.userFocus).toHaveBeenCalledExactlyOnceWith("w-tasks");
+  });
+
+  it("Should enter the bar on the active tab once focus has left it [R2-11]", async () => {
+    const user = userEvent.setup();
+    const { update } = renderBar();
+    const stops = () =>
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.tabIndex);
+
+    act(() => screen.getByTestId("os-tab-tab:dash").focus());
+    expect(stops()).toEqual([0, -1, -1, -1]);
+    await user.click(screen.getByRole("button", { name: "Outside" }));
+    // Focus left the bar: the stop is the active tab again, not the tab focused last.
+    expect(stops()).toEqual([-1, 0, -1, -1]);
+    // The active tab changes while focus is elsewhere (a shortcut): the stop follows it.
+    update({ activeTabId: "tab:vault" });
+    expect(stops()).toEqual([-1, -1, -1, 0]);
+    // Back into the bar past New tab: Shift+Tab lands on the active tab, the bar's one stop.
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: /^New tab/ })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByTestId("os-tab-tab:vault")).toHaveFocus();
+  });
+
+  it("Should hand focus to the tab that becomes active when the focused tab closes [R2-11]", async () => {
+    const user = userEvent.setup();
+    const { coordinator, update } = renderBar();
+
+    act(() => screen.getByTestId("os-tab-tab:tasks").focus());
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByRole("menuitem", { name: /^Close tab(?!s)/ }));
+    expect(coordinator.userClose).toHaveBeenCalledExactlyOnceWith("w-tasks");
+
+    update({ tabs: TABS.filter(tab => tab.id !== "tab:tasks"), activeTabId: "tab:split" });
+    expect(screen.queryByTestId("os-tab-tab:tasks")).toBeNull();
+    expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus();
+  });
+
+  it("Should hand focus to New tab when the focused tab was the last one [R2-11]", () => {
+    const { update } = renderBar({ tabs: [solo("tab:tasks", "w-tasks")] });
+
+    act(() => screen.getByTestId("os-tab-tab:tasks").focus());
+    update({ tabs: [] });
+    expect(screen.getByRole("button", { name: /^New tab/ })).toHaveFocus();
   });
 
   it("Should run bulk closes from the tab menu and offer Unpin instead of Close on a pinned tab", async () => {

@@ -2329,7 +2329,7 @@ test("Tabs-split E2E-007: a head dropped on a sibling's top edge stacks them, an
 });
 
 // Invariant: a seam drag changes only its two sides' shares and persists; a double-click
-// balances them; arrow keys move a focused seam (US-009). Owner: seam hook + `layout.resize`
+// balances them; arrow keys move a focused seam; Escape mid-drag cancels it (US-009). Owner: seam hook + `layout.resize`
 // and `layout.balance`.
 test("Tabs-split E2E-008: seam drag persists, double-click balances, and arrow keys resize", async ({
   appPage,
@@ -2373,6 +2373,21 @@ test("Tabs-split E2E-008: seam drag persists, double-click balances, and arrow k
   await appPage.keyboard.press("ArrowRight");
   await expect.poll(leading).toBeCloseTo(0.52, 3);
   await expect(seam).toHaveAttribute("aria-valuenow", "52");
+
+  // Escape mid-drag cancels: the panes return to their shares and the release commits nothing.
+  const revision = async () => (await windowManagerSnapshot(runtime, workspace.id)).revision;
+  const before = await revision();
+  const pressAt = await boxCenter(seam);
+  await startPointerDrag(appPage, pressAt);
+  await movePointer(appPage, { x: pressAt.x + 150, y: pressAt.y });
+  await expect(seam).toHaveAttribute("data-state", "drag");
+  await expect.poll(share).toBeGreaterThan(0.57);
+  await appPage.keyboard.press("Escape");
+  await expect(seam).not.toHaveAttribute("data-state", "drag");
+  await appPage.mouse.up();
+  await expect.poll(share).toBeCloseTo(0.52, 1);
+  expect(await revision()).toBe(before);
+  expect(await leading()).toBeCloseTo(0.52, 3);
 });
 
 // Invariant: a split member leaves for its own tab, right after the split, by its head button,

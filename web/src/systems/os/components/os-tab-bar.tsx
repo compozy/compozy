@@ -141,7 +141,7 @@ export function OsTabBarView({
 }) {
   const sessionOf = sessionLookup(bar.sessionById);
   const pinnedCount = bar.tabs.filter(model => model.tab.pinned).length;
-  const { tabProps } = useTabBarRoving(
+  const { tabProps, newTabRef } = useTabBarRoving(
     bar.tabs.map(model => model.tab.id),
     bar.tabs.find(model => model.active)?.tab.id ?? null
   );
@@ -185,6 +185,7 @@ export function OsTabBarView({
           {drag.insertionIndex === bar.tabs.length ? <OsTabInsertion /> : null}
         </div>
         <Button
+          ref={newTabRef}
           type="button"
           variant="quiet"
           size="icon-sm"
