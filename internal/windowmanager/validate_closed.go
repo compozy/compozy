@@ -7,16 +7,7 @@ import (
 
 func (v *snapshotValidator) validateClosedTopology(entry ClosedEntry, path string) {
 	if entry.Member != nil {
-		m := entry.Member
-		_, _, edge := placementAxis(DropPlacement(m.NeighborEdge))
-		if len(entry.Tabs) != 0 || len(entry.Windows) != 1 || m.TabID == "" || m.ParentSplitID == "" ||
-			m.ChildIndex < 0 ||
-			!finite(m.Weight) ||
-			m.Weight <= 0 ||
-			m.Weight >= 1 ||
-			m.NeighborID == "" ||
-			!edge ||
-			(len(m.NeighborIDs) > 0 && (len(m.NeighborIDs) < 2 || !slices.Contains(m.NeighborIDs, m.NeighborID))) {
+		if !validClosedMember(entry) {
 			v.add(
 				"topology.closed_member",
 				path+".member",
@@ -54,4 +45,14 @@ func (v *snapshotValidator) validateClosedTopology(entry ClosedEntry, path strin
 		diagnostic.Path = fmt.Sprintf("%s.%s", path, diagnostic.Path)
 		v.diagnostics = append(v.diagnostics, diagnostic)
 	}
+}
+
+func validClosedMember(entry ClosedEntry) bool {
+	m := entry.Member
+	_, _, edge := placementAxis(DropPlacement(m.NeighborEdge))
+	if len(entry.Tabs) != 0 || len(entry.Windows) != 1 || m.TabID == "" || m.ParentSplitID == "" ||
+		m.ChildIndex < 0 || !finite(m.Weight) || m.Weight <= 0 || m.Weight >= 1 || m.NeighborID == "" || !edge {
+		return false
+	}
+	return len(m.NeighborIDs) == 0 || (len(m.NeighborIDs) >= 2 && slices.Contains(m.NeighborIDs, m.NeighborID))
 }

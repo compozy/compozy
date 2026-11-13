@@ -961,7 +961,8 @@ func TestTabsAndSplits(t *testing.T) {
 				return false
 			}
 			for i := range want.Children {
-				if !same(got.Children[i], want.Children[i]) || math.Abs(got.Weights[i]-want.Weights[i]) > weightTolerance {
+				if !same(got.Children[i], want.Children[i]) ||
+					math.Abs(got.Weights[i]-want.Weights[i]) > weightTolerance {
 					return false
 				}
 			}
@@ -980,7 +981,9 @@ func TestTabsAndSplits(t *testing.T) {
 			}
 			return n
 		}
-		fixed := func(want LayoutNode) func(LayoutNode) LayoutNode { return func(LayoutNode) LayoutNode { return want } }
+		fixed := func(want LayoutNode) func(LayoutNode) LayoutNode {
+			return func(LayoutNode) LayoutNode { return want }
+		}
 		wholeBranch := func(after LayoutNode) LayoutNode {
 			return split("member-parent", AxisHorizontal, []float64{.3, .7}, leaf("a"), after)
 		}

@@ -58,32 +58,11 @@ func (r *reducer) reopenSplitMember(s *Snapshot, d *Desktop, id WindowID, m *Clo
 		if err != nil {
 			return false, err
 		}
-		if parent, exists := findNode(&tab.Root, m.ParentSplitID); exists && parent.Kind == NodeKindSplit {
-			index := max(0, min(m.ChildIndex, len(parent.Children)))
-			parent.Children = slices.Insert(parent.Children, index, leaf)
-			weights := make([]float64, len(parent.Children))
-			j := 0
-			for i := range weights {
-				if i == index {
-					weights[i] = m.Weight
-				} else {
-					weights[i] = parent.Weights[j] * (1 - m.Weight)
-					j++
-				}
-			}
-			parent.Weights = weights
-			tab.Root = flattenNode(tab.Root)
-		} else if root, restored, err := r.restoreBranch(tab.Root, m, leaf); err != nil {
+		placed, err := r.placeMember(tab, m, leaf)
+		if err != nil {
 			return false, err
-		} else if restored {
-			tab.Root = root
-		} else if slices.Contains(nodeWindowIDs(tab.Root), m.NeighborID) {
-			root, err := r.restoreNeighbor(tab.Root, m, leaf)
-			if err != nil {
-				return false, err
-			}
-			tab.Root = root
-		} else {
+		}
+		if !placed {
 			return r.reopenAsTab(s, d, id, ti+1)
 		}
 		assignTabWindows(s, td, *tab)
@@ -92,6 +71,43 @@ func (r *reducer) reopenSplitMember(s *Snapshot, d *Desktop, id WindowID, m *Clo
 		return true, nil
 	}
 	return r.reopenAsTab(s, d, id, len(d.Tabs))
+}
+
+// placeMember re-inserts leaf into tab at the member's recorded anchor: its
+// parent split, else beside its former sibling branch, else beside its former
+// neighbor window. It reports false when no anchor survives.
+func (r *reducer) placeMember(tab *Tab, m *ClosedMember, leaf LayoutNode) (bool, error) {
+	if parent, exists := findNode(&tab.Root, m.ParentSplitID); exists && parent.Kind == NodeKindSplit {
+		index := max(0, min(m.ChildIndex, len(parent.Children)))
+		parent.Children = slices.Insert(parent.Children, index, leaf)
+		weights := make([]float64, len(parent.Children))
+		j := 0
+		for i := range weights {
+			if i == index {
+				weights[i] = m.Weight
+			} else {
+				weights[i] = parent.Weights[j] * (1 - m.Weight)
+				j++
+			}
+		}
+		parent.Weights = weights
+		tab.Root = flattenNode(tab.Root)
+		return true, nil
+	}
+	root, restored, err := r.restoreBranch(tab.Root, m, leaf)
+	if err != nil {
+		return false, err
+	}
+	if !restored {
+		if !slices.Contains(nodeWindowIDs(tab.Root), m.NeighborID) {
+			return false, nil
+		}
+		if root, err = r.restoreNeighbor(tab.Root, m, leaf); err != nil {
+			return false, err
+		}
+	}
+	tab.Root = root
+	return true, nil
 }
 
 func (r *reducer) restoreNeighbor(root LayoutNode, member *ClosedMember, leaf LayoutNode) (LayoutNode, error) {
