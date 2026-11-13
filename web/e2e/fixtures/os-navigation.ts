@@ -64,9 +64,12 @@ export function sessionWindow(page: Page, sessionId: string): Locator {
   );
 }
 
-/** Locate the split-view pane that owns a window surface; it carries `data-focused`. */
+/**
+ * Locate the window surface that owns `win` (itself, or the nearest enclosing surface); the
+ * surface carries `data-focused` and `data-shown`.
+ */
 export function windowPane(win: Locator): Locator {
-  return win.locator("xpath=ancestor-or-self::*[@data-slot='os-window'][1]");
+  return win.locator("xpath=ancestor-or-self::*[@data-slot='os-window-surface'][1]");
 }
 
 /** Read the authority-issued opaque ID carried by a rendered window surface. */
@@ -85,13 +88,16 @@ export async function windowID(win: Locator): Promise<string> {
  * window head, which leaves the rest of the split in place.
  */
 export async function closeAppWindow(page: Page, win: Locator): Promise<void> {
-  const tab = page
+  // The close button is the tab button's sibling inside the tab plate, not its child.
+  const plate = page
     .getByTestId("os-tab-bar")
-    .locator(`[role="tab"][data-lead-window-id="${await windowID(win)}"]`);
+    .locator('[data-slot="os-tab"]')
+    .filter({ has: page.locator(`[role="tab"][data-lead-window-id="${await windowID(win)}"]`) });
+  const close = plate.locator('[data-slot="os-tab-close"]');
   const inSplit = (await win.locator("xpath=ancestor::*[@data-slot='os-split'][1]").count()) > 0;
-  if (!inSplit && (await tab.count()) > 0) {
-    await tab.hover();
-    await tab.locator('[data-slot="os-tab-close"]').click();
+  if (!inSplit && (await close.count()) > 0) {
+    await plate.hover();
+    await close.click();
   } else {
     await win.getByRole("button", { name: "Close window" }).click();
   }

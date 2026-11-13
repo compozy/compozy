@@ -15,16 +15,21 @@ export const sessionLifecycleTestIds = {
  */
 export const osShellSelectors = (page: Page) => ({
   desktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
-  /** The active desktop's tab bar. */
+  /** The active desktop's tab bar box: the strip, then the overflow list when tabs overflow. */
   tabBar: page.getByTestId("os-tab-bar"),
+  /** The bar's horizontally scrolling strip of tabs and the New tab button. */
+  tabStrip: page.getByTestId("os-tab-bar").locator('[data-slot="os-tab-strip"]'),
   /** Every tab of the active desktop's bar, in bar order. */
   tabs: page.getByTestId("os-tab-bar").getByRole("tab"),
   tab: (tabId: string) => page.getByTestId(`os-tab-${tabId}`),
   /** The tab whose lead window is `windowId`. */
   tabOfWindow: (windowId: string) =>
     page.getByTestId("os-tab-bar").locator(`[role="tab"][data-lead-window-id="${windowId}"]`),
+  /** The close button is the tab button's sibling inside the tab plate, not its child. */
   tabClose: (tabId: string) =>
-    page.getByTestId(`os-tab-${tabId}`).locator('[data-slot="os-tab-close"]'),
+    page
+      .getByTestId("os-tab-bar")
+      .locator(`[data-slot="os-tab"][data-tab-id="${tabId}"] [data-slot="os-tab-close"]`),
   tabMenu: (tabId: string) => page.getByTestId(`os-tab-menu-${tabId}`),
   newTab: page.getByTestId("os-tab-bar").getByRole("button", { name: /^New tab/ }),
   window: (windowId: string) => page.getByTestId(`os-window-${windowId}`),

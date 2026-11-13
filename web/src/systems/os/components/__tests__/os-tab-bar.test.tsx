@@ -90,7 +90,7 @@ const TABS: LayoutTab[] = [
   solo("tab:vault", "w-vault"),
 ];
 
-function snapshot(tabs: LayoutTab[] = TABS): WindowManagerSnapshot {
+function snapshot(tabs: LayoutTab[] = TABS, closedEntryCount = 1): WindowManagerSnapshot {
   return {
     version: 6,
     workspaceId: "workspace:test",
@@ -103,7 +103,7 @@ function snapshot(tabs: LayoutTab[] = TABS): WindowManagerSnapshot {
       "w-loops": win("w-loops", "loops", "tab:split"),
       "w-vault": win("w-vault", "vault", "tab:vault"),
     },
-    closedEntryCount: 1,
+    closedEntryCount,
     overrides: {},
     migration: null,
     updatedAt: "2026-11-12T00:00:00Z",
@@ -128,10 +128,12 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-function renderBar(options: { tabs?: LayoutTab[]; focusOrder?: string[] } = {}) {
+function renderBar(
+  options: { tabs?: LayoutTab[]; focusOrder?: string[]; closedEntryCount?: number } = {}
+) {
   const state = buildOsDesktopRuntimeView({
     viewportWidth: 1440,
-    snapshot: snapshot(options.tabs),
+    snapshot: snapshot(options.tabs, options.closedEntryCount),
     globalConfig: CONFIG,
     client: {
       workspaceId: "workspace:test",
@@ -257,6 +259,53 @@ describe("OsTabBar", () => {
     expect(pinnedPlate.querySelector('[data-slot="os-tab-close"]')).toBeNull();
   });
 
+  it("Should close a pinned split tab whole on middle click [US-002.AC-4, EC-3]", () => {
+    const pinnedSplit: LayoutTab = { ...TABS[2]!, pinned: true };
+    const { coordinator, manager } = renderBar({ tabs: [TABS[0]!, pinnedSplit, TABS[1]!] });
+
+    fireEvent(
+      screen.getByTestId("os-tab-tab:split"),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 })
+    );
+
+    expect(manager.closeWindowScoped).toHaveBeenCalledExactlyOnceWith("w-agents", "group");
+    expect(coordinator.userClose).not.toHaveBeenCalled();
+  });
+
+  it("Should keep one tab stop on the active tab and move focus with the arrow keys, Home and End", async () => {
+    const user = userEvent.setup();
+    const { coordinator } = renderBar();
+    const tab = (tabId: string) => screen.getByTestId(`os-tab-${tabId}`);
+
+    expect(
+      within(screen.getByTestId("os-tab-bar"))
+        .getAllByRole("tab")
+        .map(element => element.tabIndex)
+    ).toEqual([-1, 0, -1, -1]);
+    // The close buttons are not tab stops of their own.
+    expect(
+      tab("tab:tasks").closest('[data-slot="os-tab"]')!.querySelector('[data-slot="os-tab-close"]')
+    ).toHaveAttribute("tabindex", "-1");
+
+    act(() => tab("tab:tasks").focus());
+    await user.keyboard("{ArrowRight}");
+    expect(tab("tab:split")).toHaveFocus();
+    expect(tab("tab:split").tabIndex).toBe(0);
+    expect(tab("tab:tasks").tabIndex).toBe(-1);
+    await user.keyboard("{End}");
+    expect(tab("tab:vault")).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(tab("tab:dash")).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(tab("tab:vault")).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(tab("tab:dash")).toHaveFocus();
+    // Moving focus never activates; Enter on the focused tab does.
+    expect(coordinator.userFocus).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowRight}{Enter}");
+    expect(coordinator.userFocus).toHaveBeenCalledExactlyOnceWith("w-tasks");
+  });
+
   it("Should run bulk closes from the tab menu and offer Unpin instead of Close on a pinned tab", async () => {
     const user = userEvent.setup();
     const { manager } = renderBar();
@@ -269,11 +318,40 @@ describe("OsTabBar", () => {
     expect(await screen.findByRole("menuitem", { name: "Unpin tab" })).toBeInTheDocument();
     // "Close tab" may carry its shortcut in the name; "Close tabs to the …" must not match.
     expect(screen.queryByRole("menuitem", { name: /^Close tab(?!s)/ })).toBeNull();
-    // Every other tab is unpinned and to its right.
-    expect(screen.getByRole("menuitem", { name: "Close tabs to the left" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
+    // Every other tab is unpinned and to its right: a close that reaches nothing is absent
+    // (US-006.EC-4, `_uiux.md` S7), while the ones that reach tabs stay.
+    expect(screen.queryByRole("menuitem", { name: "Close tabs to the left" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Close tabs to the right" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Close other tabs" })).toBeInTheDocument();
+  });
+
+  it("Should leave out bulk closes that reach no tab on a bar of one unpinned tab [US-006.EC-4]", async () => {
+    renderBar({ tabs: [solo("tab:tasks", "w-tasks")] });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    expect(await screen.findByRole("menuitem", { name: /^Close tab(?!s)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Close other tabs" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Close tabs to the right" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Close tabs to the left" })).toBeNull();
+    // The tab itself is unpinned, so "Close all tabs" still closes something.
+    expect(screen.getByRole("menuitem", { name: "Close all tabs" })).toBeInTheDocument();
+  });
+
+  it("Should offer Reopen closed tab only while a closed entry exists [US-006.EC-4]", async () => {
+    const user = userEvent.setup();
+    const { manager } = renderBar({ closedEntryCount: 1 });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    await user.click(await screen.findByRole("menuitem", { name: /^Reopen closed tab/ }));
+    expect(manager.reopenWindow).toHaveBeenCalledOnce();
+  });
+
+  it("Should leave Reopen closed tab out of the menu when nothing was closed [US-006.EC-4]", async () => {
+    renderBar({ closedEntryCount: 0 });
+
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:tasks"));
+    expect(await screen.findByRole("menuitem", { name: "Pin tab" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /^Reopen closed tab/ })).toBeNull();
   });
 
   it("Should move a tab one step within its range and leave out moves past the range [US-012]", async () => {

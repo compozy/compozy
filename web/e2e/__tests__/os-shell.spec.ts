@@ -2952,9 +2952,10 @@ test("E2E-039 (logical E2E-004/013): a crowded tab bar keeps overflow, tooltip, 
   expect(order.length).toBeGreaterThanOrEqual(15);
   await expect(shell.tabs).toHaveCount(order.length);
   for (const id of ids) await expect(shell.tabOfWindow(id)).toHaveCount(1);
-  const dimensions = await shell.tabBar.evaluate(bar => ({
-    clientWidth: bar.clientWidth,
-    scrollWidth: bar.scrollWidth,
+  // The strip scrolls; the bar box around it holds the overflow list's trigger.
+  const dimensions = await shell.tabStrip.evaluate(strip => ({
+    clientWidth: strip.clientWidth,
+    scrollWidth: strip.scrollWidth,
   }));
   const overflow = shell.tabBar.getByRole("button", { name: `All ${order.length} tabs` });
   expect(dimensions.scrollWidth > dimensions.clientWidth || (await overflow.isVisible())).toBe(
@@ -3454,8 +3455,9 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
 
   // Switch among the tabs the bar shows without scrolling. Each one is visited
   // once as warm-up: a tab's first mount is lazy app startup, not a switch.
-  const barBox = await shell.tabBar.boundingBox();
-  if (!barBox) throw new Error("the tab bar must be measurable");
+  // The strip is the bar's scrolling viewport: a tab outside its box needs a scroll.
+  const barBox = await shell.tabStrip.boundingBox();
+  if (!barBox) throw new Error("the tab strip must be measurable");
   const targets: Array<{ x: number; y: number }> = [];
   for (const id of perfWindowIDs.values()) {
     const box = await shell.tabOfWindow(id).boundingBox();

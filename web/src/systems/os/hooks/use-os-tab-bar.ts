@@ -157,6 +157,8 @@ export function useOsTabBar() {
       reopen: shortcutActionLabel(effective, "window.tab.reopen", platform) ?? undefined,
     };
   }, shallowEqual);
+  // Reopen is offered only while the closed list holds an entry (US-006.EC-4).
+  const canReopen = useDesktop(state => (state.snapshot?.closedEntryCount ?? 0) > 0);
   const activeLeadId = tabs.find(model => model.active)?.leadId ?? null;
   const modelOf = (tabId: string) => tabs.find(model => model.tab.id === tabId);
 
@@ -164,6 +166,7 @@ export function useOsTabBar() {
     tabs,
     sessionById,
     shortcutLabels,
+    canReopen,
     ...widths,
     activate: (tabId: string) => {
       const model = modelOf(tabId);

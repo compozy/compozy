@@ -67,8 +67,9 @@ function SplitWithItem({
 /**
  * The tab's context menu: Pin, Move left / Move right, Split with ▸, Arrange ▸, Move to desktop ▸,
  * then the close set. An item that cannot apply is absent (a single tab has no Split with, the
- * first tab of its range no Move left). Bulk closes skip pinned tabs; a pinned single-window tab
- * has no Close item — Unpin comes first.
+ * first tab of its range no Move left, a bulk close that reaches no tab, Reopen with nothing
+ * closed). Bulk closes skip pinned tabs; a pinned single-window tab has no Close item — Unpin
+ * comes first.
  */
 export function OsTabMenu({
   bar,
@@ -180,31 +181,38 @@ export function OsTabMenu({
             ) : null}
           </ContextMenuItem>
         ) : null}
-        <ContextMenuItem
-          disabled={reach.others === 0}
-          onClick={() => bar.closeScoped(tabId, "others")}
-        >
-          Close other tabs
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={reach.right === 0}
-          onClick={() => bar.closeScoped(tabId, "right")}
-        >
-          Close tabs to the right
-        </ContextMenuItem>
-        <ContextMenuItem disabled={reach.left === 0} onClick={() => bar.closeScoped(tabId, "left")}>
-          Close tabs to the left
-        </ContextMenuItem>
-        <ContextMenuItem disabled={reach.all === 0} onClick={() => bar.closeScoped(tabId, "all")}>
-          Close all tabs
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onClick={bar.reopen}>
-          Reopen closed tab
-          {bar.shortcutLabels.reopen ? (
-            <ContextMenuShortcut>{bar.shortcutLabels.reopen}</ContextMenuShortcut>
-          ) : null}
-        </ContextMenuItem>
+        {/* A bulk close that would close nothing is absent, not disabled (US-006.EC-4, S7). */}
+        {reach.others > 0 ? (
+          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "others")}>
+            Close other tabs
+          </ContextMenuItem>
+        ) : null}
+        {reach.right > 0 ? (
+          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "right")}>
+            Close tabs to the right
+          </ContextMenuItem>
+        ) : null}
+        {reach.left > 0 ? (
+          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "left")}>
+            Close tabs to the left
+          </ContextMenuItem>
+        ) : null}
+        {reach.all > 0 ? (
+          <ContextMenuItem onClick={() => bar.closeScoped(tabId, "all")}>
+            Close all tabs
+          </ContextMenuItem>
+        ) : null}
+        {bar.canReopen ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={bar.reopen}>
+              Reopen closed tab
+              {bar.shortcutLabels.reopen ? (
+                <ContextMenuShortcut>{bar.shortcutLabels.reopen}</ContextMenuShortcut>
+              ) : null}
+            </ContextMenuItem>
+          </>
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   );

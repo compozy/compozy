@@ -27,6 +27,7 @@ import {
   TAB_TILE_WIDTH,
 } from "../hooks/use-os-tab-bar";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
+import type { TabRovingProps } from "../hooks/use-tab-bar-roving";
 import { useWindowMemberSlot } from "../hooks/use-window-member-slot";
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
@@ -85,7 +86,7 @@ export function OsTabTiles({
           <span
             key={win.id}
             className={cn(
-              "absolute grid place-items-center rounded-[5px]",
+              "absolute grid place-items-center rounded-xxs",
               // Opaque mixes: a translucent front tile would show the one tucked behind it.
               depth === 0
                 ? "bg-[color-mix(in_srgb,var(--color-fg)_13%,var(--color-rail))]"
@@ -138,6 +139,8 @@ export interface OsTabProps {
   onClose?: () => void;
   /** Starts a drag: along the bar to reorder, into the content to split. */
   onPointerDown?: (event: PointerEvent<HTMLElement>) => void;
+  /** The bar's roving tab stop and arrow keys; omitted, the tab is a plain tab stop. */
+  roving?: TabRovingProps;
 }
 
 /**
@@ -157,6 +160,7 @@ export function OsTab({
   onActivate,
   onClose,
   onPointerDown,
+  roving,
 }: OsTabProps) {
   const lead = members[0]!;
   const title = useOsWindowTitle(lead, sessionOf(lead));
@@ -176,8 +180,10 @@ export function OsTab({
   // The inline signal moves to the tile's corner once the tab is too narrow to show it.
   const cornerSignal = signalMark !== null && (pinned || !show.signal);
 
+  // Middle-click closes like "Close tab" (US-002.AC-4): a pinned split tab closes whole; only the
+  // last window of a pinned tab is refused (EC-3).
   const closeOnMiddleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    if (event.button !== 1 || pinned) return;
+    if (event.button !== 1 || (pinned && members.length === 1)) return;
     event.preventDefault();
     onClose?.();
   };
@@ -212,6 +218,7 @@ export function OsTab({
               data-active={active ? "" : undefined}
               data-pinned={pinned ? "" : undefined}
               data-lead-window-id={lead.id}
+              {...roving}
               className={cn(
                 "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[inherit] text-left outline-none",
                 iconOnly && "justify-center"
@@ -247,6 +254,8 @@ export function OsTab({
               <button
                 type="button"
                 aria-label="Close tab"
+                // The bar keeps one tab stop; the keyboard closes through the menu or shortcut.
+                tabIndex={roving ? -1 : undefined}
                 className={cn(
                   "ml-1 grid size-4.5 shrink-0 place-items-center rounded-xs text-subtle opacity-0 transition-opacity duration-fast",
                   "hover:bg-fg/10 hover:text-fg focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",

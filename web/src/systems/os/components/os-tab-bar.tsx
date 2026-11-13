@@ -13,6 +13,7 @@ import type { SessionPayload } from "@/systems/session";
 
 import { useOsTabBar, type OsTabBarModel, type OsTabModel } from "../hooks/use-os-tab-bar";
 import { useOsTabDrag, useOsTabDragStart } from "../hooks/use-os-tab-drag";
+import { useTabBarRoving } from "../hooks/use-tab-bar-roving";
 import type { OsWindow } from "../lib/os-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
 import { useOsWindowTitle } from "../hooks/use-os-window-title";
@@ -140,17 +141,23 @@ export function OsTabBarView({
 }) {
   const sessionOf = sessionLookup(bar.sessionById);
   const pinnedCount = bar.tabs.filter(model => model.tab.pinned).length;
+  const { tabProps } = useTabBarRoving(
+    bar.tabs.map(model => model.tab.id),
+    bar.tabs.find(model => model.active)?.tab.id ?? null
+  );
   return (
     <div
       className={cn("flex h-10 min-w-0 items-center gap-1 bg-rail pr-2 pl-1.5", className)}
       data-slot="os-tab-bar"
+      // The bar box, not the `contents` tablist: strip, New tab and the overflow list live here.
+      data-testid="os-tab-bar"
     >
       <div
         ref={stripRef}
         className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         data-slot="os-tab-strip"
       >
-        <div aria-label="Tabs" className="contents" data-testid="os-tab-bar" role="tablist">
+        <div aria-label="Tabs" className="contents" role="tablist">
           {bar.tabs.map((model, index) => (
             <Fragment key={model.tab.id}>
               {drag.insertionIndex === index ? <OsTabInsertion /> : null}
@@ -170,6 +177,7 @@ export function OsTabBarView({
                   onActivate={() => bar.activate(model.tab.id)}
                   onClose={() => bar.close(model.tab.id)}
                   onPointerDown={event => onTabPointerDown?.(model.tab.id, event)}
+                  roving={tabProps(model.tab.id)}
                 />
               </OsTabMenu>
             </Fragment>
