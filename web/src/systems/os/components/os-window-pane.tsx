@@ -26,6 +26,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
   // Destructured at the call: the overlay host's callback ref stays its own binding.
   const {
     member,
+    liveDataEnabled,
     contentHost,
     setOverlayHost,
     deskBound,
@@ -34,7 +35,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
     classifyNavigation,
     startHeadDrag,
   } = useOsWindowPane(windowId);
-  const { win, focused, liveDataEnabled, windowBinding } = member;
+  const { win, focused, windowBinding } = member;
   if (!win) return null;
   const appId = osAppId(win.app);
   if (appId === null) return null;

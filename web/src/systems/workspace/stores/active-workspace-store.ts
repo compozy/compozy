@@ -95,8 +95,18 @@ export function resolveScopedWorktreeId(
   byScope: Record<string, string | null>,
   scopeId: string
 ): string | null {
-  if (Object.hasOwn(byScope, scopeId)) return byScope[scopeId] ?? null;
-  return byScope[SHELL_WORKTREE_SCOPE] ?? null;
+  return byScope[effectiveWorktreeScopeId(byScope, scopeId)] ?? null;
+}
+
+/**
+ * The entry `resolveScopedWorktreeId` reads for `scopeId`: its own, else the shell's. Scopes with
+ * the same effective entry resolve the same selection.
+ */
+export function effectiveWorktreeScopeId(
+  byScope: Readonly<Record<string, string | null>>,
+  scopeId: string
+): string {
+  return Object.hasOwn(byScope, scopeId) ? scopeId : SHELL_WORKTREE_SCOPE;
 }
 
 export const activeWorkspaceStore = createStore({

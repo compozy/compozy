@@ -6,6 +6,7 @@ import { useWorktrees, WorktreeBulkRemoveDialog } from "@/systems/workspace";
 
 import type { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import { useWorktreeScopeId } from "../hooks/use-worktree-scope";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 
 const WorktreeAdoptDialogBoundary = lazy(() =>
@@ -37,8 +38,6 @@ const WorktreeRemoveDialogBoundary = lazy(() =>
 interface DesktopWorktreeDialogsProps {
   model: DesktopShellModel;
   worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
-  /** The acting scope a create/adopt selection binds (focused window or shell). */
-  scopeId: string;
 }
 
 function DeferredWorktreeDialog({
@@ -71,11 +70,9 @@ function DeferredWorktreeDialog({
 }
 
 /** Mounts each worktree dialog boundary only while its target exists. */
-export function DesktopWorktreeDialogs({
-  model,
-  worktreeDialogs,
-  scopeId,
-}: DesktopWorktreeDialogsProps) {
+export function DesktopWorktreeDialogs({ model, worktreeDialogs }: DesktopWorktreeDialogsProps) {
+  // A created or adopted worktree is selected for the window the shell acts on: the focused one.
+  const scopeId = useWorktreeScopeId();
   const createListing = useWorktrees(model.worktreeCreateWorkspaceId, {
     enabled: model.worktreeCreateWorkspaceId !== null,
   });

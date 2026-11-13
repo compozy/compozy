@@ -12,6 +12,10 @@ export function useOsWindowPane(windowId: string) {
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   // Mount layout-heavy bodies, including app skeletons, after the pane commits.
   const contentHost = useDeferredValue(overlayHost);
+  // Every tab switch moves the live-data budget from the tab left to the tab shown, and the app
+  // bodies of both re-render with it (query gates, streams). That is not part of showing the tab:
+  // it renders in a background pass React slices, after the switch frame.
+  const liveDataEnabled = useDeferredValue(member.liveDataEnabled);
   const deskBound = useDeskBoundToActingProfile();
   const { startHeadDrag } = useOsTabDragStart();
   const dragged = useOsWindowDragged(windowId);
@@ -41,6 +45,7 @@ export function useOsWindowPane(windowId: string) {
 
   return {
     member,
+    liveDataEnabled,
     contentHost,
     setOverlayHost,
     deskBound,
