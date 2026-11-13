@@ -903,7 +903,8 @@ describe("WindowManagerRuntime", () => {
     it("Should resolve a swap pressed behind another against the layout that one leaves [#1658]", async () => {
       const answers = deferCommandAnswers();
       const runtime = startSplitRuntime();
-      // The first swap's answer: Agents | Tasks, so nothing lies right of Tasks any more.
+      // The first swap's answer: the daemon keeps both leaves and exchanges their windows, so
+      // Agents | Tasks and nothing lies right of Tasks any more.
       const swapped: WindowManagerSnapshot = {
         ...splitSnapshot,
         revision: splitSnapshot.revision + 1,
@@ -911,7 +912,16 @@ describe("WindowManagerRuntime", () => {
           ...desktop,
           tabs: desktop.tabs.map(tab =>
             tab.root.kind === "split"
-              ? { ...tab, root: { ...tab.root, children: [...tab.root.children].reverse() } }
+              ? {
+                  ...tab,
+                  root: {
+                    ...tab.root,
+                    children: [
+                      { id: "leaf:tasks", kind: "leaf" as const, windowId: "app:agents" },
+                      { id: "leaf:agents", kind: "leaf" as const, windowId: "app:tasks" },
+                    ],
+                  },
+                }
               : tab
           ),
         })),
