@@ -6226,10 +6226,16 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			opts := agentOpts("explicit-defaults", "sess-a", false)
-			opts.Runtime = &live
+			explicitRuntime := live
+			explicitRuntime.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "default"}}
+			opts.Runtime = &explicitRuntime
 			explicit, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, opts)
 			if err != nil {
 				t.Fatal(err)
+			}
+			stored, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, explicit.QueueEntryID)
+			if err != nil || !sameSessionInputRuntime(stored.Runtime, storeRuntimeSelection(&explicitRuntime)) {
+				t.Fatalf("explicit selection = %#v, %v; want the requested runtime persisted", stored.Runtime, err)
 			}
 			f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
 			select {
