@@ -123,6 +123,17 @@ func (q *Queries) GetSessionAttachState(ctx context.Context, id string) (GetSess
 	return i, err
 }
 
+const getSessionInstanceID = `-- name: GetSessionInstanceID :one
+SELECT instance_id FROM sessions WHERE id = ?1
+`
+
+func (q *Queries) GetSessionInstanceID(ctx context.Context, id string) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getSessionInstanceID, id)
+	var instance_id sql.NullString
+	err := row.Scan(&instance_id)
+	return instance_id, err
+}
+
 const getSessionTranscriptEpoch = `-- name: GetSessionTranscriptEpoch :one
 SELECT transcript_epoch FROM sessions WHERE id = ?1
 `

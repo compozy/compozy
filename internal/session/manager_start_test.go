@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -106,7 +108,8 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		h := newHarness(t)
 		db := openManagerInputQueueStore(t)
 		registerManagerInputQueueWorkspace(t, db, h)
-		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithEventLedger(db))
+		catalog := &statusReadCatalog{GlobalDB: db}
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog), WithEventLedger(db))
 		cleanupTestManager(t, h.manager)
 		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
 			ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: "coder",
@@ -125,9 +128,14 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		if err != nil || caller.InstanceID != instance.ID {
 			t.Fatalf("instance binding: %#v, %v", caller, err)
 		}
+		listsBefore := catalog.keyedLists(created.ID)
 		status, statusErr := h.manager.Status(t.Context(), created.ID)
 		if statusErr != nil || status.InstanceID != instance.ID || created.InstanceID != instance.ID {
 			t.Fatalf("instance status: %#v, %v", status, statusErr)
+		}
+		// Status is on many per-session hot paths; its binding read must stay keyed.
+		if lists := catalog.keyedLists(created.ID) - listsBefore; lists != 0 {
+			t.Fatalf("Status read the session catalog list %d times, want a keyed binding read", lists)
 		}
 		rows, listErr := db.ListSessions(t.Context(), store.SessionListQuery{
 			ID:        created.ID,
@@ -596,6 +604,32 @@ func TestCreatePreallocatedSessionIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+// statusReadCatalog counts catalog list reads filtered to one session.
+type statusReadCatalog struct {
+	*globaldb.GlobalDB
+	mu    sync.Mutex
+	lists map[string]int
+}
+
+func (c *statusReadCatalog) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	c.mu.Lock()
+	if c.lists == nil {
+		c.lists = make(map[string]int)
+	}
+	c.lists[query.ID]++
+	c.mu.Unlock()
+	return c.GlobalDB.ListSessions(ctx, query)
+}
+
+func (c *statusReadCatalog) keyedLists(sessionID string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lists[sessionID]
 }
 
 func persistedSessionMetas(t *testing.T, h *harness) []store.SessionMeta {

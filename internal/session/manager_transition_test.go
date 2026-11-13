@@ -3070,6 +3070,16 @@ func (c *recordingSessionCatalog) ListSessions(
 	return out, nil
 }
 
+func (c *recordingSessionCatalog) SessionInstanceID(_ context.Context, sessionID string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	current, ok := c.sessions[sessionID]
+	if !ok {
+		return "", fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
+	}
+	return current.InstanceID, nil
+}
+
 func (c *recordingSessionCatalog) AttachSession(
 	_ context.Context,
 	req store.SessionAttachRequest,
