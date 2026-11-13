@@ -55,13 +55,13 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   }
 
   /**
-   * Moves focus between the windows on screen in the active tab, by projected geometry, from the
-   * newest focus this client asked for.
+   * Moves focus between the windows on screen in the active tab, by projected geometry with this
+   * client's unanswered swaps applied, from the newest focus this client asked for.
    */
   focusDirection(direction: FocusDirection): void {
     const config = this.view.windowManagerConfig;
     if (config === null) return;
-    const candidates = activeTabCandidates(this.view);
+    const candidates = this.directionalCandidates();
     if (candidates.length === 0) return;
     const from = this.directionalFocusId();
     const target = directionalFocusTarget({
@@ -83,7 +83,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
    */
   swapDirection(direction: FocusDirection): void {
     const from = this.directionalFocusId();
-    const candidates = this.swapCandidates();
+    const candidates = this.directionalCandidates();
     const target = directionalSwapTarget(candidates, from, direction);
     const fromRect = candidates.find(candidate => candidate.id === from)?.rect;
     if (from === null || target === null || fromRect === undefined) return;
@@ -101,11 +101,12 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   private pendingSwaps: Array<{ first: string; second: string; firstRect: PixelRect }> = [];
 
   /**
-   * The active tab's on-screen windows with this client's unanswered swaps applied. A swap whose
+   * The active tab's on-screen windows with this client's unanswered swaps applied, so directional
+   * focus and swaps pressed before an answer move from where the windows are going. A swap whose
    * first window no longer stands where it did already shows (its answer or a stream update came)
    * or was overtaken, and adds nothing.
    */
-  private swapCandidates(): FocusCandidate[] {
+  private directionalCandidates(): FocusCandidate[] {
     let candidates = activeTabCandidates(this.view);
     for (const swap of this.pendingSwaps) {
       const first = candidates.find(candidate => candidate.id === swap.first);

@@ -132,8 +132,8 @@ function SwapDirectionItem({
  * neighbour in its tab. Outside a split the entry disables in place with the
  * registry's reason, as "Move to new tab" does; a side with no neighbour is absent.
  * Sides are read from the window the command will start from (a focus still
- * waiting for its answer included), so a listed side is one that swaps. The menu
- * content mounts on open, and every view change re-reads it.
+ * waiting for its answer included), when the menu opens and whenever the
+ * projection changes; an unanswered swap shows once its answer lands.
  */
 function SwapMenu({ onRun }: { onRun: (commandId: string) => void }) {
   const { manager } = useOsShell();
