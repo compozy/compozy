@@ -1,5 +1,5 @@
 import { ConfirmDialog, OverlayContainerContext } from "@compozy/ui";
-import { useBlocker } from "@tanstack/react-router";
+import { type ShouldBlockFn, useBlocker } from "@tanstack/react-router";
 import { type ReactNode, use, useCallback } from "react";
 
 import { WindowScopeContext } from "@/hooks/use-window-scope";
@@ -38,13 +38,14 @@ export function useUnsavedGuard({
   const windowId = use(WindowScopeContext);
   const windows = use(WindowNavigationGuardContext);
   // Stable while the window and the shell's answers are: the blocker registers once.
-  const shouldBlockFn = useCallback(
-    (args: { next: { pathname: string; search: Record<string, unknown> } }) =>
+  const shouldBlockFn = useCallback<ShouldBlockFn>(
+    args =>
       windowId === null ||
       windows === null ||
+      // Each route's search schema is its own type; the shell compares plain search records.
       windows.replacesWindowContent(windowId, {
         pathname: args.next.pathname,
-        search: args.next.search,
+        search: Object.fromEntries(Object.entries(args.next.search)),
       }),
     [windowId, windows]
   );
