@@ -6725,8 +6725,15 @@ func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
 		case map[string]any:
 			if values, ok := node["enum"].([]any); ok {
 				if index := slices.Index(values, any("window_manager.layout.applied")); index >= 0 {
-					node["enum"] = slices.Insert(values, index,
-						any("window_manager.tab.split"), any("window_manager.tab.unsplit"), any("window_manager.tab.activated"))
+					node["enum"] = slices.Insert(
+						values,
+						index,
+						any(
+							"window_manager.tab.split",
+						),
+						any("window_manager.tab.unsplit"),
+						any("window_manager.tab.activated"),
+					)
 					changes++
 				}
 			}

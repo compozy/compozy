@@ -34,7 +34,10 @@ func (n *daemonNativeTools) windowList(
 	}
 	payload.Deprecations = []windowmanager.Deprecation{}
 	if input.IncludeMinimized {
-		payload.Deprecations = append(payload.Deprecations, windowmanager.SurfaceDeprecation("compozy__window_list.include_minimized"))
+		payload.Deprecations = append(
+			payload.Deprecations,
+			windowmanager.SurfaceDeprecation("compozy__window_list.include_minimized"),
+		)
 		windowManagerSurfaceDeprecationLogger(slog.Default(), &deprecatedWindowSurfaces)(ctx,
 			windowmanager.CommandRequest{Actor: windowManagerActor(scope)}, payload.Deprecations)
 	}

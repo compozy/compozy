@@ -145,10 +145,29 @@ var fixedShellCommands = []shellCommandDefinition{
 
 func shellCommands() []cmdpalette.Descriptor {
 	definitions := append([]shellCommandDefinition(nil), fixedShellCommands...)
-	definitions = append(definitions,
-		shellCommandDefinition{id: "window.unsplit", title: "Move to new tab", section: coreSectionWindow, icon: "panels-top-left", needsFocus: true},
-		shellCommandDefinition{id: "window.tab.move_left", title: "Move tab left", section: coreSectionTabs, icon: coreIconArrowLeft, needsFocus: true},
-		shellCommandDefinition{id: "window.tab.move_right", title: "Move tab right", section: coreSectionTabs, icon: "arrow-right", needsFocus: true},
+	definitions = append(
+		definitions,
+		shellCommandDefinition{
+			id:         "window.unsplit",
+			title:      "Move to new tab",
+			section:    coreSectionWindow,
+			icon:       "panels-top-left",
+			needsFocus: true,
+		},
+		shellCommandDefinition{
+			id:         "window.tab.move_left",
+			title:      "Move tab left",
+			section:    coreSectionTabs,
+			icon:       coreIconArrowLeft,
+			needsFocus: true,
+		},
+		shellCommandDefinition{
+			id:         "window.tab.move_right",
+			title:      "Move tab right",
+			section:    coreSectionTabs,
+			icon:       "arrow-right",
+			needsFocus: true,
+		},
 	)
 	placements := []struct{ id, title string }{
 		{"left", "Move to tab's left edge"}, {"right", "Move to tab's right edge"},

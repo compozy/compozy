@@ -4,9 +4,18 @@ import "github.com/compozy/compozy/internal/hooks"
 
 func windowManagerNamedHookTypes() map[string]NamedType {
 	return map[string]NamedType{
-		"WindowManagerTabSplitPayload":     {Name: "WindowManagerTabSplitPayload", Value: hooks.WindowManagerTabSplitPayload{}},
-		"WindowManagerTabUnsplitPayload":   {Name: "WindowManagerTabUnsplitPayload", Value: hooks.WindowManagerTabUnsplitPayload{}},
-		"WindowManagerTabActivatedPayload": {Name: "WindowManagerTabActivatedPayload", Value: hooks.WindowManagerTabActivatedPayload{}},
+		"WindowManagerTabSplitPayload": {
+			Name:  "WindowManagerTabSplitPayload",
+			Value: hooks.WindowManagerTabSplitPayload{},
+		},
+		"WindowManagerTabUnsplitPayload": {
+			Name:  "WindowManagerTabUnsplitPayload",
+			Value: hooks.WindowManagerTabUnsplitPayload{},
+		},
+		"WindowManagerTabActivatedPayload": {
+			Name:  "WindowManagerTabActivatedPayload",
+			Value: hooks.WindowManagerTabActivatedPayload{},
+		},
 		"WindowManagerLayoutAppliedPayload": {
 			Name:  "WindowManagerLayoutAppliedPayload",
 			Value: hooks.WindowManagerLayoutAppliedPayload{},

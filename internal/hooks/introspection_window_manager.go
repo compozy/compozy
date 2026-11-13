@@ -4,9 +4,27 @@ const introspectionWindowManagerObservationPatchValue = "WindowManagerObservatio
 
 func windowManagerHookEventDescriptors() map[HookEvent]EventDescriptor {
 	return map[HookEvent]EventDescriptor{
-		HookWindowManagerTabActivated: {Event: HookWindowManagerTabActivated, Family: HookEventFamilyWindowManager, SyncEligible: false, PayloadSchema: "WindowManagerTabActivatedPayload", PatchSchema: introspectionWindowManagerObservationPatchValue},
-		HookWindowManagerTabUnsplit:   {Event: HookWindowManagerTabUnsplit, Family: HookEventFamilyWindowManager, SyncEligible: false, PayloadSchema: "WindowManagerTabUnsplitPayload", PatchSchema: introspectionWindowManagerObservationPatchValue},
-		HookWindowManagerTabSplit:     {Event: HookWindowManagerTabSplit, Family: HookEventFamilyWindowManager, SyncEligible: false, PayloadSchema: "WindowManagerTabSplitPayload", PatchSchema: introspectionWindowManagerObservationPatchValue},
+		HookWindowManagerTabActivated: {
+			Event:         HookWindowManagerTabActivated,
+			Family:        HookEventFamilyWindowManager,
+			SyncEligible:  false,
+			PayloadSchema: "WindowManagerTabActivatedPayload",
+			PatchSchema:   introspectionWindowManagerObservationPatchValue,
+		},
+		HookWindowManagerTabUnsplit: {
+			Event:         HookWindowManagerTabUnsplit,
+			Family:        HookEventFamilyWindowManager,
+			SyncEligible:  false,
+			PayloadSchema: "WindowManagerTabUnsplitPayload",
+			PatchSchema:   introspectionWindowManagerObservationPatchValue,
+		},
+		HookWindowManagerTabSplit: {
+			Event:         HookWindowManagerTabSplit,
+			Family:        HookEventFamilyWindowManager,
+			SyncEligible:  false,
+			PayloadSchema: "WindowManagerTabSplitPayload",
+			PatchSchema:   introspectionWindowManagerObservationPatchValue,
+		},
 		HookWindowManagerLayoutApplied: {
 			Event:         HookWindowManagerLayoutApplied,
 			Family:        HookEventFamilyWindowManager,

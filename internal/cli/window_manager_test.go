@@ -164,8 +164,16 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 			},
 			{method: http.MethodPut, path: "/api/workspaces/w1/window-manager/layout", body: normalize(replacement)},
 			{method: http.MethodGet, path: "/api/workspaces/w1/window-manager/migration"},
-			{method: http.MethodPost, path: "/api/workspaces/w1/window-manager/migration", body: normalize(contract.WindowManagerMigrationRequest{Action: "ack"})},
-			{method: http.MethodPost, path: "/api/workspaces/w1/window-manager/migration", body: normalize(contract.WindowManagerMigrationRequest{Action: "retry", Replace: true})},
+			{
+				method: http.MethodPost,
+				path:   "/api/workspaces/w1/window-manager/migration",
+				body:   normalize(contract.WindowManagerMigrationRequest{Action: "ack"}),
+			},
+			{
+				method: http.MethodPost,
+				path:   "/api/workspaces/w1/window-manager/migration",
+				body:   normalize(contract.WindowManagerMigrationRequest{Action: "retry", Replace: true}),
+			},
 		}
 		if len(seen) != len(want) {
 			t.Fatalf("request count = %d, want %d: %#v", len(seen), len(want), seen)
@@ -554,24 +562,75 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			},
 		},
 		{
-			name: "Should reorder a tab", commandID: contract.WindowManagerCommandWindowTabReorder,
+			name:            "Should reorder a tab",
+			commandID:       contract.WindowManagerCommandWindowTabReorder,
 			expectedPayload: `{"window_id":"win-2","index":0}`,
-			args:            []string{"window", "reorder", "win-2", "--index", "0", "--workspace", "w1", "--revision", "7"},
+			args: []string{
+				"window",
+				"reorder",
+				"win-2",
+				"--index",
+				"0",
+				"--workspace",
+				"w1",
+				"--revision",
+				"7",
+			},
 		},
 		{
-			name: "Should move to a tab root edge", commandID: contract.WindowManagerCommandWindowMove,
+			name:            "Should move to a tab root edge",
+			commandID:       contract.WindowManagerCommandWindowMove,
 			expectedPayload: `{"window_id":"win-1","destination_desktop_id":"d2","target_tab_id":"tab-2","placement":"left","move_group":false}`,
-			args:            []string{"window", "move", "--id", "win-1", "--desktop", "d2", "--tab", "tab-2", "--placement", "left", "--workspace", "w1", "--revision", "7"},
+			args: []string{
+				"window",
+				"move",
+				"--id",
+				"win-1",
+				"--desktop",
+				"d2",
+				"--tab",
+				"tab-2",
+				"--placement",
+				"left",
+				"--workspace",
+				"w1",
+				"--revision",
+				"7",
+			},
 		},
 		{
-			name: "Should close tabs on the left", commandID: contract.WindowManagerCommandWindowClose,
+			name:            "Should close tabs on the left",
+			commandID:       contract.WindowManagerCommandWindowClose,
 			expectedPayload: `{"window_id":"win-1","minimize":false,"scope":"left"}`,
-			args:            []string{"window", "close", "--id", "win-1", "--scope", "left", "--workspace", "w1", "--revision", "7"},
+			args: []string{
+				"window",
+				"close",
+				"--id",
+				"win-1",
+				"--scope",
+				"left",
+				"--workspace",
+				"w1",
+				"--revision",
+				"7",
+			},
 		},
 		{
-			name: "Should close every unpinned tab", commandID: contract.WindowManagerCommandWindowClose,
+			name:            "Should close every unpinned tab",
+			commandID:       contract.WindowManagerCommandWindowClose,
 			expectedPayload: `{"window_id":"win-1","minimize":false,"scope":"all"}`,
-			args:            []string{"window", "close", "--id", "win-1", "--scope", "all", "--workspace", "w1", "--revision", "7"},
+			args: []string{
+				"window",
+				"close",
+				"--id",
+				"win-1",
+				"--scope",
+				"all",
+				"--workspace",
+				"w1",
+				"--revision",
+				"7",
+			},
 		},
 		{
 			name: "Should balance a tab", commandID: contract.WindowManagerCommandLayoutBalance,
@@ -1667,9 +1726,24 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			wantError: "--target or --tab is required for structural placement",
 		},
 		{
-			name:     "Should reject a blank tab target",
-			args:     []string{"window", "move", "--workspace", "w1", "--revision", "1", "--id", "win-1", "--desktop", "d2", "--tab", " "},
-			wantKind: windowManagerCLIValidationInvalidValue, wantField: "tab", wantError: "--tab must not be blank",
+			name: "Should reject a blank tab target",
+			args: []string{
+				"window",
+				"move",
+				"--workspace",
+				"w1",
+				"--revision",
+				"1",
+				"--id",
+				"win-1",
+				"--desktop",
+				"d2",
+				"--tab",
+				" ",
+			},
+			wantKind:  windowManagerCLIValidationInvalidValue,
+			wantField: "tab",
+			wantError: "--tab must not be blank",
 		},
 	}
 
@@ -1808,7 +1882,11 @@ func newWindowManagerCommandStub() *windowManagerCommandStub {
 	}}
 }
 
-func (s *windowManagerCommandStub) WindowManagerMigration(ctx context.Context, workspace, action string, replace bool) (windowmanager.MigrationStatus, error) {
+func (s *windowManagerCommandStub) WindowManagerMigration(
+	ctx context.Context,
+	workspace, action string,
+	replace bool,
+) (windowmanager.MigrationStatus, error) {
 	if s.migrationFn == nil {
 		return windowmanager.MigrationStatus{}, errors.New("unexpected WindowManagerMigration call")
 	}
@@ -2080,7 +2158,12 @@ func decodeWindowManagerCommandJSON(t *testing.T, value string, target any) {
 func TestWindowManagerTabCLICompatibility(t *testing.T) {
 	t.Run("Should warn for float and execute tab reorder and default move", func(t *testing.T) {
 		t.Parallel()
-		manager, err := windowmanager.NewService(windowmanager.NewMemoryRepository(), windowmanager.NewMemoryWorkspaceResolver("w1"), nil, windowmanager.DefaultConfig())
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("w1"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2119,9 +2202,31 @@ func TestWindowManagerTabCLICompatibility(t *testing.T) {
 			}
 			return result, stderr
 		}
-		opened, _ := run("window", "open", "--id", "win-a", "--app", "terminal", "--pathname", "/terminal/a", "--search-json", "{}")
+		opened, _ := run(
+			"window",
+			"open",
+			"--id",
+			"win-a",
+			"--app",
+			"terminal",
+			"--pathname",
+			"/terminal/a",
+			"--search-json",
+			"{}",
+		)
 		desktop := string(opened.Snapshot.Windows["win-a"].DesktopID)
-		opened, _ = run("window", "open", "--id", "win-b", "--app", "terminal", "--pathname", "/terminal/b", "--search-json", "{}")
+		opened, _ = run(
+			"window",
+			"open",
+			"--id",
+			"win-b",
+			"--app",
+			"terminal",
+			"--pathname",
+			"/terminal/b",
+			"--search-json",
+			"{}",
+		)
 		before := opened.Snapshot.Revision
 		noOp, warning := run("window", "float", "--id", "win-a")
 		wantWarning := "warning: `window float` is deprecated and does nothing; floating windows were removed. It will be deleted in v0.8.0.\n"
@@ -2129,15 +2234,28 @@ func TestWindowManagerTabCLICompatibility(t *testing.T) {
 			t.Fatalf("no-op=%+v stderr=%q", noOp, warning)
 		}
 		reordered, warning := run("window", "reorder", "win-b", "--index", "0")
-		if warning != "" || !reordered.Applied || reordered.Snapshot.Desktops[0].Tabs[0].ID != reordered.Snapshot.Windows["win-b"].TabID {
+		if warning != "" || !reordered.Applied ||
+			reordered.Snapshot.Desktops[0].Tabs[0].ID != reordered.Snapshot.Windows["win-b"].TabID {
 			t.Fatalf("reorder=%+v stderr=%q", reordered, warning)
 		}
-		split, _ := run("window", "move", "--id", "win-b", "--desktop", desktop, "--target", "win-a", "--placement", "right")
+		split, _ := run(
+			"window",
+			"move",
+			"--id",
+			"win-b",
+			"--desktop",
+			desktop,
+			"--target",
+			"win-a",
+			"--placement",
+			"right",
+		)
 		if split.Snapshot.Windows["win-a"].TabID != split.Snapshot.Windows["win-b"].TabID {
 			t.Fatal("split did not join tab")
 		}
 		unsplit, warning := run("window", "move", "--id", "win-b", "--desktop", desktop)
-		if warning != "" || len(unsplit.Deprecations) != 0 || unsplit.Snapshot.Windows["win-a"].TabID == unsplit.Snapshot.Windows["win-b"].TabID {
+		if warning != "" || len(unsplit.Deprecations) != 0 ||
+			unsplit.Snapshot.Windows["win-a"].TabID == unsplit.Snapshot.Windows["win-b"].TabID {
 			t.Fatalf("default move=%+v stderr=%q", unsplit, warning)
 		}
 	})

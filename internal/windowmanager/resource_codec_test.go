@@ -113,7 +113,11 @@ func TestLayoutResourceCodec(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := codec.DecodeAndValidate(t.Context(), resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, raw)
+		got, err := codec.DecodeAndValidate(
+			t.Context(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			raw,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

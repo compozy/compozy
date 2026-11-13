@@ -134,7 +134,7 @@ type WindowManagerClientView struct {
 	FocusedWindowID      *windowmanager.WindowID                    `json:"focused_window_id,omitzero"`
 	FocusOrder           []windowmanager.WindowID                   `json:"focus_order"`
 	ActiveTab            map[string]string                          `json:"active_tab"`
-	StackActive          map[string]string                          `json:"stack_active" deprecated:"true"`
+	StackActive          map[string]string                          `json:"stack_active"               deprecated:"true"`
 	PaletteContext       WindowManagerPaletteContext                `json:"palette_context"`
 	GlobalShortcuts      []windowmanager.GlobalShortcutRegistration `json:"global_shortcuts"`
 	ConnectedAt          time.Time                                  `json:"connected_at"`
@@ -143,9 +143,9 @@ type WindowManagerClientView struct {
 
 type WindowManagerPaletteContext struct {
 	WindowFocused       bool                       `json:"window_focused"`
-	WindowFloating      bool                       `json:"window_floating" deprecated:"true"`
+	WindowFloating      bool                       `json:"window_floating"                 deprecated:"true"`
 	WindowInSplit       bool                       `json:"window_in_split"`
-	WindowStacked       bool                       `json:"window_stacked" deprecated:"true"`
+	WindowStacked       bool                       `json:"window_stacked"                  deprecated:"true"`
 	DesktopWindowCount  int                        `json:"desktop_window_count"`
 	ScopeGlobal         bool                       `json:"scope_global"`
 	ShellDesktop        bool                       `json:"shell_desktop"`

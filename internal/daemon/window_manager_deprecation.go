@@ -35,8 +35,18 @@ func windowManagerSurfaceDeprecationLogger(logger *slog.Logger, seen *sync.Map) 
 			if _, warned := seen.LoadOrStore(entry.Surface, struct{}{}); warned {
 				continue
 			}
-			logger.WarnContext(ctx, "window_manager.deprecated_surface_used", "surface", entry.Surface,
-				"replacement", entry.Replacement, "actor_kind", request.Actor.Kind, "removal_release", entry.RemovalRelease)
+			logger.WarnContext(
+				ctx,
+				"window_manager.deprecated_surface_used",
+				"surface",
+				entry.Surface,
+				"replacement",
+				entry.Replacement,
+				"actor_kind",
+				request.Actor.Kind,
+				"removal_release",
+				entry.RemovalRelease,
+			)
 		}
 	}
 }

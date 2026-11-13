@@ -49,7 +49,18 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 				if err := os.WriteFile(home.ConfigFile, []byte(before), 0o600); err != nil {
 					t.Fatal(err)
 				}
-				out, stderr, err := executeRootCommand(t, deps, "config", "set", "window_manager."+key, "arbitrary retired value", "--scope", "user", "-o", "json")
+				out, stderr, err := executeRootCommand(
+					t,
+					deps,
+					"config",
+					"set",
+					"window_manager."+key,
+					"arbitrary retired value",
+					"--scope",
+					"user",
+					"-o",
+					"json",
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -57,7 +68,8 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 				if err := json.Unmarshal([]byte(out), &record); err != nil {
 					t.Fatal(err)
 				}
-				if record.Path != "window_manager."+key || record.Applied || record.RestartRequired || record.ApplyRecordID != "" {
+				if record.Path != "window_manager."+key || record.Applied || record.RestartRequired ||
+					record.ApplyRecordID != "" {
 					t.Fatalf("ignored mutation receipt = %#v", record)
 				}
 				warning := windowmanager.RetiredConfigWarning(key, false)
@@ -77,7 +89,18 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Run("Should translate the retired floating policy before writing", func(t *testing.T) {
 		t.Parallel()
 		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-		out, stderr, err := executeRootCommand(t, deps, "config", "set", "window_manager.new_window_policy", "floating", "--scope", "user", "-o", "json")
+		out, stderr, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.new_window_policy",
+			"floating",
+			"--scope",
+			"user",
+			"-o",
+			"json",
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +108,8 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &record); err != nil {
 			t.Fatal(err)
 		}
-		if record.Value != "tab" || strings.TrimSpace(stderr) != windowmanager.RetiredConfigWarning("new_window_policy", true) {
+		if record.Value != "tab" ||
+			strings.TrimSpace(stderr) != windowmanager.RetiredConfigWarning("new_window_policy", true) {
 			t.Fatalf("translation = %#v, stderr = %q", record, stderr)
 		}
 		home, err := deps.resolveHome()
@@ -3171,7 +3195,10 @@ repeat_ratios = false
 				t.Fatalf("warning %s: %s", key, stderr)
 			}
 		}
-		if strings.Count(stderr, `warning: window_manager.new_window_policy = "floating" is deprecated; use "tab" before v0.8.0.`) != 1 {
+		if strings.Count(
+			stderr,
+			`warning: window_manager.new_window_policy = "floating" is deprecated; use "tab" before v0.8.0.`,
+		) != 1 {
 			t.Fatalf("policy warning: %s", stderr)
 		}
 		windowConfig := output.Config["window_manager"].(map[string]any)

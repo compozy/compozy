@@ -185,7 +185,9 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 	t.Run("Should resolve retired window command IDs before invocation", func(t *testing.T) {
 		t.Parallel()
 		for old, current := range map[string]cmdpalette.CommandID{"window.stack.reorder": "window.tab.reorder", "window.stack.set_active": "window.tab.activate"} {
-			registry := &nativeCmdPaletteRegistryStub{invokeResult: cmdpalette.InvokeResult{Status: cmdpalette.InvokeStatusApprovalPending}}
+			registry := &nativeCmdPaletteRegistryStub{
+				invokeResult: cmdpalette.InvokeResult{Status: cmdpalette.InvokeStatusApprovalPending},
+			}
 			native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 				CmdPalette: func() cmdpalette.Registry { return registry },
 				Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"acme": "workspace-1"}},
@@ -194,7 +196,11 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := native.cmdPaletteInvoke(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDCmdPaletteInvoke, Input: input}); err != nil {
+			if _, err := native.cmdPaletteInvoke(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDCmdPaletteInvoke, Input: input},
+			); err != nil {
 				t.Fatal(err)
 			}
 			if registry.invokeRequest.CommandID != current {

@@ -781,7 +781,12 @@ func TestWindowManagerHandlers(t *testing.T) {
 		document["overrides"] = json.RawMessage(`{"snap":{"unknown":true}}`)
 		rejected := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
 			marshalWindowManagerTestJSON(t, map[string]any{"workspace_id": "workspace-a", "document": document}))
-		requireWindowManagerError(t, rejected, http.StatusUnprocessableEntity, contract.WindowManagerErrorInvalidCommand)
+		requireWindowManagerError(
+			t,
+			rejected,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
 	})
 
 	t.Run("Should hand the resolved profile to the window-manager provider", func(t *testing.T) {

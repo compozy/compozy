@@ -42,7 +42,8 @@ func newWindowMoveCommand(deps commandDeps) *cobra.Command {
 		string(windowmanager.DropTab),
 		"Placement: tab, before, after, left, right, top, bottom, center, or floating (deprecated)",
 	)
-	cmd.Flags().StringVar(&values.rectRaw, windowManagerRectFlag, "", "Deprecated: ignored floating rect; removed in v0.8.0")
+	cmd.Flags().
+		StringVar(&values.rectRaw, windowManagerRectFlag, "", "Deprecated: ignored floating rect; removed in v0.8.0")
 	cmd.Flags().BoolVar(&values.moveGroup, "group", false, "Move the complete tab")
 	return cmd
 }
@@ -117,7 +118,8 @@ func windowMovePlacement(
 	if err != nil {
 		return nil, "", nil, err
 	}
-	if placement != windowmanager.DropTab && placement != windowmanager.DropFloating && target == nil && strings.TrimSpace(values.targetTabID) == "" {
+	if placement != windowmanager.DropTab && placement != windowmanager.DropFloating && target == nil &&
+		strings.TrimSpace(values.targetTabID) == "" {
 		return nil, "", nil, newWindowManagerCLIValidationError(windowManagerCLIValidationRequired, automationTargetKey,
 			errors.New("cli: --target or --tab is required for structural placement"))
 	}

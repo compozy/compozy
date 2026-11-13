@@ -27,14 +27,17 @@ func TestCmdPaletteBindingsResolver(t *testing.T) {
 			"window.stack.reorder": {"alt+KeyR"}, "window.minimize": {"alt+KeyM"},
 			"window.merge_all": {"alt+KeyM"}, "window.tab.detach": {"alt+KeyM"},
 		}
-		paletteConfig := compozyconfig.CmdPaletteConfig{Aliases: map[string]string{"window.stack.set_active": "activate"}}
+		paletteConfig := compozyconfig.CmdPaletteConfig{
+			Aliases: map[string]string{"window.stack.set_active": "activate"},
+		}
 		resolver := &cmdPaletteBindingsResolver{logger: discardLogger()}
 		bindings, aliases, err := resolver.resolveBindingsFromSnapshot("workspace-a", windowConfig, paletteConfig,
 			[]cmdpalette.CommandID{"window.tab.reorder", "window.tab.activate"}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Equal(bindings["window.tab.reorder"], []string{"alt+KeyR"}) || aliases["window.tab.activate"] != "activate" {
+		if !slices.Equal(bindings["window.tab.reorder"], []string{"alt+KeyR"}) ||
+			aliases["window.tab.activate"] != "activate" {
 			t.Fatalf("bindings=%v aliases=%v", bindings, aliases)
 		}
 		for _, id := range []cmdpalette.CommandID{"window.stack.reorder", "window.minimize", "window.merge_all", "window.tab.detach"} {

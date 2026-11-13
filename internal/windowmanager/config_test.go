@@ -580,7 +580,9 @@ func TestRetiredWorkspaceOverrides(t *testing.T) {
 	t.Run("Should translate retired overrides while rejecting unknown fields", func(t *testing.T) {
 		t.Parallel()
 		warnings := map[string]int{}
-		input := []byte(`{"new_window_policy":"floating","raise_on_focus":42,"drag_away_policy":false,"group_move_modifier":[],"snap":{"edge_band":false,"corner_reach":-5,"exit_slack":"bad","repeat_ratios":42},"bindings":{"top_center":true,"bottom_center":42}}`)
+		input := []byte(
+			`{"new_window_policy":"floating","raise_on_focus":42,"drag_away_policy":false,"group_move_modifier":[],"snap":{"edge_band":false,"corner_reach":-5,"exit_slack":"bad","repeat_ratios":42},"bindings":{"top_center":true,"bottom_center":42}}`,
+		)
 		_, err := translateWorkspaceConfigJSON(input, func(key string, _ bool) { warnings[key]++ })
 		if err != nil {
 			t.Fatal(err)
@@ -620,7 +622,15 @@ func TestRetiredWorkspaceOverrides(t *testing.T) {
 func TestRetiredShortcutResolution(t *testing.T) {
 	t.Run("Should preserve retired bindings without resolving an action", func(t *testing.T) {
 		t.Parallel()
-		bindings := map[string]ShortcutBinding{"window.minimize": {"alt+KeyM"}, "window.merge_all": {"alt+KeyM"}, "window.tab.detach": {"alt+KeyM"}, "window.tile.left": {"alt+KeyH"}, "window.unsplit": {"alt+KeyU"}, "window.tab.move_left": {"alt+KeyJ"}, "window.tab.move_right": {"alt+KeyL"}}
+		bindings := map[string]ShortcutBinding{
+			"window.minimize":       {"alt+KeyM"},
+			"window.merge_all":      {"alt+KeyM"},
+			"window.tab.detach":     {"alt+KeyM"},
+			"window.tile.left":      {"alt+KeyH"},
+			"window.unsplit":        {"alt+KeyU"},
+			"window.tab.move_left":  {"alt+KeyJ"},
+			"window.tab.move_right": {"alt+KeyL"},
+		}
 		stored, err := CanonicalShortcutsV2(bindings, DefaultBindableIDs())
 		if err != nil {
 			t.Fatal(err)
@@ -650,7 +660,10 @@ func TestRetiredShortcutResolution(t *testing.T) {
 		}
 		bindable := DefaultBindableIDs()
 		bindable[string(CommandWindowTabReorder)] = struct{}{}
-		alias, err := EffectiveKeymap(map[string]ShortcutBinding{string(CommandWindowStackReorder): {"alt+KeyR"}}, bindable)
+		alias, err := EffectiveKeymap(
+			map[string]ShortcutBinding{string(CommandWindowStackReorder): {"alt+KeyR"}},
+			bindable,
+		)
 		if err != nil || !slices.Equal(alias[string(CommandWindowTabReorder)], ShortcutBinding{"alt+KeyR"}) {
 			t.Fatalf("alias=%v err=%v", alias, err)
 		}

@@ -555,7 +555,22 @@ func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]a
 			visit(value)
 		}
 	}
-	want := map[string]int{"floating": 1, "floating_rect": 3, "restore_window_id": 1, "minimize": 1, "insert_index": 1, "frame": 3, "group_id": 3, "keep_frames": 1, "group_ids": 6, "stack_grouped": 6, "stack_ungrouped": 6, "stack_active": 13, "window_floating": 1, "window_stacked": 1}
+	want := map[string]int{
+		"floating":          1,
+		"floating_rect":     3,
+		"restore_window_id": 1,
+		"minimize":          1,
+		"insert_index":      1,
+		"frame":             3,
+		"group_id":          3,
+		"keep_frames":       1,
+		"group_ids":         6,
+		"stack_grouped":     6,
+		"stack_ungrouped":   6,
+		"stack_active":      13,
+		"window_floating":   1,
+		"window_stacked":    1,
+	}
 	if !maps.Equal(counts, want) {
 		t.Fatalf("approved retired wire annotations = %v, want %v", counts, want)
 	}

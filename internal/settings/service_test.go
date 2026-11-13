@@ -931,7 +931,12 @@ bottom_center = 42
 			want := cloneWindowManagerConfig(current.WindowManager)
 			want.HistoryLimit++
 			desired := cloneWindowManagerConfig(want)
-			changed := diffWindowManagerSettings(current.WindowManager, current.CmdPalette.Aliases, desired, current.CmdPalette.Aliases)
+			changed := diffWindowManagerSettings(
+				current.WindowManager,
+				current.CmdPalette.Aliases,
+				desired,
+				current.CmdPalette.Aliases,
+			)
 			if !slices.Equal(changed, []string{"window_manager.history_limit"}) {
 				t.Fatalf("changed fields = %v, want only the kept option", changed)
 			}

@@ -1707,7 +1707,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				},
 				Snap: contract.SettingsWindowManagerSnapPayload{RepeatRatios: []float64{}},
 				Bindings: contract.SettingsWindowManagerBindingPayload{
-					TopCenter: contract.SettingsWindowBindingActionNone, BottomCenter: contract.SettingsWindowBindingActionNone,
+					TopCenter:    contract.SettingsWindowBindingActionNone,
+					BottomCenter: contract.SettingsWindowBindingActionNone,
 				},
 				Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 				GlobalShortcuts: map[string]string{
@@ -2683,8 +2684,13 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				return settingspkg.ApplyResult{Section: req.Section, Scope: req.Scope, Applied: true}, nil
 			},
 			GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
-				return settingspkg.SectionEnvelope{Section: req.Section, Scope: settingspkg.ScopeUser,
-					WindowManager: &settingspkg.WindowManagerSection{Config: compozyconfig.DefaultWindowManagerConfig()}}, nil
+				return settingspkg.SectionEnvelope{
+					Section: req.Section,
+					Scope:   settingspkg.ScopeUser,
+					WindowManager: &settingspkg.WindowManagerSection{
+						Config: compozyconfig.DefaultWindowManagerConfig(),
+					},
+				}, nil
 			},
 		}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
@@ -2697,8 +2703,15 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config}))
 		var result contract.SettingsWindowManagerMutationResponse
 		decodeJSON(t, response.Body.Bytes(), &result)
-		if response.Code != http.StatusOK || service.ApplySectionCalls != 1 || service.UpdateSectionCalls != 0 || result.Config.NewWindowPolicy != contract.SettingsWindowNewPolicyTab {
-			t.Fatalf("legacy request response=%d %+v; applies=%d updates=%d", response.Code, result, service.ApplySectionCalls, service.UpdateSectionCalls)
+		if response.Code != http.StatusOK || service.ApplySectionCalls != 1 || service.UpdateSectionCalls != 0 ||
+			result.Config.NewWindowPolicy != contract.SettingsWindowNewPolicyTab {
+			t.Fatalf(
+				"legacy request response=%d %+v; applies=%d updates=%d",
+				response.Code,
+				result,
+				service.ApplySectionCalls,
+				service.UpdateSectionCalls,
+			)
 		}
 	})
 

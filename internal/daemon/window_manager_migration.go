@@ -59,7 +59,9 @@ func (r *windowManagerRepository) migrateSnapshot(
 	}
 	if conversionErr != nil {
 		snapshot = windowmanager.DefaultSnapshot(workspace)
-		status.State, status.Summary, status.Error = windowManagerMigrationFailed, nil, migrationDiagnostic(conversionErr)
+		status.State, status.Summary, status.Error = windowManagerMigrationFailed, nil, migrationDiagnostic(
+			conversionErr,
+		)
 		status.FailureRevision = snapshot.Revision
 	}
 	backup, err := r.migrationBackupOp(ctx, workspace, entry, &status)

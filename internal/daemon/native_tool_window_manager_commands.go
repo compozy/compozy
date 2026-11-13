@@ -341,15 +341,28 @@ func decodeWindowManagerWindowPreviewCommand(
 	case windowmanager.CommandWindowStackGroup:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowGroupPayload.command)
 	case windowmanager.CommandWindowStackReorder:
-		return decodeWindowManagerPreviewPayload(id, raw, func(p windowManagerWindowReorderPayload) windowmanager.Command {
-			return windowmanager.ReorderStackCommand{WindowID: windowmanager.WindowID(strings.TrimSpace(p.WindowID)), Index: p.Index}
-		})
+		return decodeWindowManagerPreviewPayload(
+			id,
+			raw,
+			func(p windowManagerWindowReorderPayload) windowmanager.Command {
+				return windowmanager.ReorderStackCommand{
+					WindowID: windowmanager.WindowID(strings.TrimSpace(p.WindowID)),
+					Index:    p.Index,
+				}
+			},
+		)
 	case windowmanager.CommandWindowTabReorder:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowReorderPayload.command)
 	case windowmanager.CommandWindowStackSetActive:
-		return decodeWindowManagerPreviewPayload(id, raw, func(p windowManagerWindowActivatePayload) windowmanager.Command {
-			return windowmanager.SetStackActiveCommand{WindowID: windowmanager.WindowID(strings.TrimSpace(p.WindowID))}
-		})
+		return decodeWindowManagerPreviewPayload(
+			id,
+			raw,
+			func(p windowManagerWindowActivatePayload) windowmanager.Command {
+				return windowmanager.SetStackActiveCommand{
+					WindowID: windowmanager.WindowID(strings.TrimSpace(p.WindowID)),
+				}
+			},
+		)
 	case windowmanager.CommandWindowTabActivate:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowActivatePayload.command)
 	case windowmanager.CommandWindowPin:

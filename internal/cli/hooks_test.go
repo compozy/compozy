@@ -413,9 +413,16 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 func TestHooksListRetiredWindowEvents(t *testing.T) {
 	t.Run("Should warn once per retired event and preserve catalog JSON", func(t *testing.T) {
 		t.Parallel()
-		deps := newWorkspaceTestDeps(t, &stubClient{hookCatalogFn: func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error) {
-			return []HookCatalogRecord{{Name: "old-group", Event: "window_manager.stack.grouped"}, {Name: "old-group-2", Event: "window_manager.stack.grouped"}, {Name: "old-ungroup", Event: "window_manager.stack.ungrouped"}}, nil
-		}})
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{hookCatalogFn: func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error) {
+				return []HookCatalogRecord{
+					{Name: "old-group", Event: "window_manager.stack.grouped"},
+					{Name: "old-group-2", Event: "window_manager.stack.grouped"},
+					{Name: "old-ungroup", Event: "window_manager.stack.ungrouped"},
+				}, nil
+			}},
+		)
 		stdout, stderr, err := executeRootCommand(t, deps, "hooks", "list", "-o", "json")
 		if err != nil {
 			t.Fatal(err)

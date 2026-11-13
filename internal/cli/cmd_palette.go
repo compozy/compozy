@@ -132,7 +132,12 @@ func canonicalCmdPaletteCommandID(cmd *cobra.Command, id string) string {
 	if !retired {
 		return id
 	}
-	cmd.PrintErrf("warning: command %q is deprecated and will be removed in %s; use %q\n", id, corecmds.RetiredCommandRemovalRelease(cmdpalette.CommandID(id)), replacement)
+	cmd.PrintErrf(
+		"warning: command %q is deprecated and will be removed in %s; use %q\n",
+		id,
+		corecmds.RetiredCommandRemovalRelease(cmdpalette.CommandID(id)),
+		replacement,
+	)
 	return string(replacement)
 }
 

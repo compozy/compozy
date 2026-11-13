@@ -164,14 +164,23 @@ func TestWindowManagerHookBridge(t *testing.T) {
 				},
 			},
 			{
-				name:  "retired group outcomes never emit",
-				event: windowmanager.Event{CommandID: windowmanager.CommandWindowStackGroup, Changes: windowmanager.ChangeSet{StackGrouped: []windowmanager.NodeID{"legacy"}, StackUngrouped: []windowmanager.NodeID{"legacy"}}},
-				want:  nil,
+				name: "retired group outcomes never emit",
+				event: windowmanager.Event{
+					CommandID: windowmanager.CommandWindowStackGroup,
+					Changes: windowmanager.ChangeSet{
+						StackGrouped:   []windowmanager.NodeID{"legacy"},
+						StackUngrouped: []windowmanager.NodeID{"legacy"},
+					},
+				},
+				want: nil,
 			},
 			{
 				name:  "durable activation",
 				event: windowmanager.Event{CommandID: windowmanager.CommandWindowTabActivate},
-				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated},
+				want: []hookspkg.HookEvent{
+					hookspkg.HookWindowManagerTabActivated,
+					hookspkg.HookWindowManagerStackActivated,
+				},
 			},
 			{
 				name:  "presentation focus",
@@ -884,7 +893,8 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 						t.Fatal(err)
 					}
 					bound, exists := snapshot.Windows["bound"]
-					if len(snapshot.History.Undo) != 0 || snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
+					if len(snapshot.History.Undo) != 0 ||
+						snapshot.Windows["win-newtab-desktop-default"].App != "new-tab" {
 						t.Fatalf("retirement state %s/%s: %#v", profile, partition, snapshot)
 					}
 					if retirement == "session" {
@@ -1300,19 +1310,43 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 		observed := make(chan hookspkg.WindowManagerPayload, 8)
 		declarations := []hookspkg.HookDecl{}
 		for _, event := range []hookspkg.HookEvent{hookspkg.HookWindowManagerTabSplit, hookspkg.HookWindowManagerTabUnsplit, hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated, hookspkg.HookWindowManagerStackGrouped, hookspkg.HookWindowManagerStackUngrouped} {
-			declarations = append(declarations, hookspkg.HookDecl{Name: event.String(), Event: event, Mode: hookspkg.HookModeAsync, ExecutorKind: hookspkg.HookExecutorNative})
+			declarations = append(
+				declarations,
+				hookspkg.HookDecl{
+					Name:         event.String(),
+					Event:        event,
+					Mode:         hookspkg.HookModeAsync,
+					ExecutorKind: hookspkg.HookExecutorNative,
+				},
+			)
 		}
-		dispatcher := hookspkg.NewHooks(hookspkg.WithLogger(discardLogger()), hookspkg.WithNativeDeclarations(declarations), hookspkg.WithAsyncWorkerCount(1), hookspkg.WithAsyncQueueCapacity(8), hookspkg.WithExecutorResolver(func(hookspkg.HookDecl) (hookspkg.Executor, error) {
-			return hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.WindowManagerPayload) (hookspkg.WindowManagerObservationPatch, error) {
-				observed <- payload
-				return hookspkg.WindowManagerObservationPatch{}, nil
-			}), nil
-		}))
+		dispatcher := hookspkg.NewHooks(
+			hookspkg.WithLogger(discardLogger()),
+			hookspkg.WithNativeDeclarations(declarations),
+			hookspkg.WithAsyncWorkerCount(1),
+			hookspkg.WithAsyncQueueCapacity(8),
+			hookspkg.WithExecutorResolver(func(hookspkg.HookDecl) (hookspkg.Executor, error) {
+				return hookspkg.NewTypedNativeExecutor(
+					func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.WindowManagerPayload) (hookspkg.WindowManagerObservationPatch, error) {
+						observed <- payload
+						return hookspkg.WindowManagerObservationPatch{}, nil
+					},
+				), nil
+			}),
+		)
 		t.Cleanup(dispatcher.Close)
 		if err := dispatcher.Rebuild(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		manager, err := windowmanager.NewService(windowmanager.NewMemoryRepository(), windowmanager.NewMemoryWorkspaceResolver("workspace-a"), nil, windowmanager.DefaultConfig(), windowmanager.WithEventObserver(newWindowManagerHookObserver(&bootState{hookDispatcher: dispatcher, logger: discardLogger()})))
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+			windowmanager.WithEventObserver(
+				newWindowManagerHookObserver(&bootState{hookDispatcher: dispatcher, logger: discardLogger()}),
+			),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1327,24 +1361,65 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := manager.Execute(t.Context(), windowmanager.CommandRequest{WorkspaceID: "workspace-a", CommandID: command.CommandID(), ExpectedRevision: snapshot.Revision, ClientID: client, Payload: command, Actor: windowmanager.Actor{Kind: "cli", ID: "operator"}, Origin: "hook-integration"})
+			result, err := manager.Execute(
+				t.Context(),
+				windowmanager.CommandRequest{
+					WorkspaceID:      "workspace-a",
+					CommandID:        command.CommandID(),
+					ExpectedRevision: snapshot.Revision,
+					ClientID:         client,
+					Payload:          command,
+					Actor:            windowmanager.Actor{Kind: "cli", ID: "operator"},
+					Origin:           "hook-integration",
+				},
+			)
 			if err != nil {
 				t.Fatalf("%s: %v", command.CommandID(), err)
 			}
 			return result
 		}
 		for _, id := range []windowmanager.WindowID{"window-a", "window-b"} {
-			execute(windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{ID: id, App: "terminal", Route: windowmanager.RouteIntent{Pathname: "/terminal/test", Search: windowmanager.RouteSearch{}}}}, nil)
+			execute(
+				windowmanager.OpenWindowCommand{
+					Window: windowmanager.WindowSpec{
+						ID:  id,
+						App: "terminal",
+						Route: windowmanager.RouteIntent{
+							Pathname: "/terminal/test",
+							Search:   windowmanager.RouteSearch{},
+						},
+					},
+				},
+				nil,
+			)
 		}
 		snapshot, err := manager.Snapshot(t.Context(), "workspace-a")
 		if err != nil {
 			t.Fatal(err)
 		}
 		desktop := snapshot.Windows["window-a"].DesktopID
-		execute(windowmanager.MoveWindowCommand{WindowID: "window-b", DestinationDesktopID: desktop, TargetWindowID: new(windowmanager.WindowID("window-a")), Placement: windowmanager.DropRight}, nil)
-		execute(windowmanager.MoveWindowCommand{WindowID: "window-b", DestinationDesktopID: desktop, Placement: windowmanager.DropTab}, nil)
+		execute(
+			windowmanager.MoveWindowCommand{
+				WindowID:             "window-b",
+				DestinationDesktopID: desktop,
+				TargetWindowID:       new(windowmanager.WindowID("window-a")),
+				Placement:            windowmanager.DropRight,
+			},
+			nil,
+		)
+		execute(
+			windowmanager.MoveWindowCommand{
+				WindowID:             "window-b",
+				DestinationDesktopID: desktop,
+				Placement:            windowmanager.DropTab,
+			},
+			nil,
+		)
 		client := windowmanager.ClientID("client-a")
-		if _, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{WorkspaceID: "workspace-a", ClientID: client, ActiveDesktopID: desktop}); err != nil {
+		if _, err := manager.RegisterClient(
+			t.Context(),
+			windowmanager.ClientRegistration{WorkspaceID: "workspace-a", ClientID: client, ActiveDesktopID: desktop},
+		); err != nil {
 			t.Fatal(err)
 		}
 		execute(windowmanager.ActivateTabCommand{WindowID: "window-a"}, &client)
@@ -1359,7 +1434,10 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 		coalesced := 0
 		for payload := range observed {
 			counts[payload.Event]++
-			if payload.WorkspaceID != "workspace-a" || payload.Revision == 0 || payload.Timestamp.IsZero() || payload.Origin == "" || payload.Actor.Kind == "" || len(payload.Changes.TabIDs) == 0 {
+			if payload.WorkspaceID != "workspace-a" || payload.Revision == 0 || payload.Timestamp.IsZero() ||
+				payload.Origin == "" ||
+				payload.Actor.Kind == "" ||
+				len(payload.Changes.TabIDs) == 0 {
 				t.Fatalf("incomplete envelope: %+v", payload)
 			}
 			if payload.Actor.ID == "active_coalescer" {
@@ -1369,7 +1447,11 @@ func TestWindowManagerTabHookTransitions(t *testing.T) {
 				}
 			}
 		}
-		if counts[hookspkg.HookWindowManagerTabSplit] != 1 || counts[hookspkg.HookWindowManagerTabUnsplit] != 1 || counts[hookspkg.HookWindowManagerTabActivated] != 2 || counts[hookspkg.HookWindowManagerStackActivated] != 2 || len(counts) != 4 || coalesced != 2 {
+		if counts[hookspkg.HookWindowManagerTabSplit] != 1 || counts[hookspkg.HookWindowManagerTabUnsplit] != 1 ||
+			counts[hookspkg.HookWindowManagerTabActivated] != 2 ||
+			counts[hookspkg.HookWindowManagerStackActivated] != 2 ||
+			len(counts) != 4 ||
+			coalesced != 2 {
 			t.Fatalf("events=%v coalesced=%d", counts, coalesced)
 		}
 	})

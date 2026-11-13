@@ -427,7 +427,8 @@ func TestWindowTabCommandAliases(t *testing.T) {
 		commands := mustCommands(t)
 		for _, id := range []cmdpalette.CommandID{"window.unsplit", "window.tab.move_left", "window.tab.move_right", "window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom"} {
 			index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool { return command.ID == id })
-			if index < 0 || commands[index].Action.Kind != cmdpalette.ActionKindClientOp || commands[index].Action.Op != string(id) {
+			if index < 0 || commands[index].Action.Kind != cmdpalette.ActionKindClientOp ||
+				commands[index].Action.Op != string(id) {
 				t.Fatalf("missing client action %s", id)
 			}
 		}

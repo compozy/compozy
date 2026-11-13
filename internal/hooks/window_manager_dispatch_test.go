@@ -196,14 +196,24 @@ func TestRetiredWindowManagerHooksLoadWithoutDispatch(t *testing.T) {
 		events := []HookEvent{HookWindowManagerStackGrouped, HookWindowManagerStackUngrouped}
 		declarations := []HookDecl{}
 		for _, event := range events {
-			declarations = append(declarations, HookDecl{Name: event.String(), Event: event, Mode: HookModeAsync, ExecutorKind: HookExecutorNative})
+			declarations = append(
+				declarations,
+				HookDecl{Name: event.String(), Event: event, Mode: HookModeAsync, ExecutorKind: HookExecutorNative},
+			)
 		}
-		h := newTestHooks(t, WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))), WithNativeDeclarations(declarations), WithExecutorResolver(func(HookDecl) (Executor, error) {
-			return NewTypedNativeExecutor(func(_ context.Context, _ RegisteredHook, _ WindowManagerPayload) (WindowManagerObservationPatch, error) {
-				calls.Add(1)
-				return WindowManagerObservationPatch{}, nil
-			}), nil
-		}))
+		h := newTestHooks(
+			t,
+			WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
+			WithNativeDeclarations(declarations),
+			WithExecutorResolver(func(HookDecl) (Executor, error) {
+				return NewTypedNativeExecutor(
+					func(_ context.Context, _ RegisteredHook, _ WindowManagerPayload) (WindowManagerObservationPatch, error) {
+						calls.Add(1)
+						return WindowManagerObservationPatch{}, nil
+					},
+				), nil
+			}),
+		)
 		for range 2 {
 			if err := h.Rebuild(t.Context()); err != nil {
 				t.Fatal(err)
@@ -213,12 +223,22 @@ func TestRetiredWindowManagerHooksLoadWithoutDispatch(t *testing.T) {
 			if strings.Count(logs.String(), `"surface":"`+event.String()+`"`) != 1 {
 				t.Fatalf("warnings: %s", logs.String())
 			}
-			if err := dispatchWindowManagerTestPayload(t.Context(), h, event, windowManagerDispatchTestPayload(event)); err != nil {
+			if err := dispatchWindowManagerTestPayload(
+				t.Context(),
+				h,
+				event,
+				windowManagerDispatchTestPayload(event),
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
 		for _, event := range []HookEvent{HookWindowManagerTabSplit, HookWindowManagerTabUnsplit} {
-			if err := dispatchWindowManagerTestPayload(t.Context(), h, event, windowManagerDispatchTestPayload(event)); err != nil {
+			if err := dispatchWindowManagerTestPayload(
+				t.Context(),
+				h,
+				event,
+				windowManagerDispatchTestPayload(event),
+			); err != nil {
 				t.Fatal(err)
 			}
 		}

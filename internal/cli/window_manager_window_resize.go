@@ -51,6 +51,7 @@ func newWindowResizeCommand(deps commandDeps) *cobra.Command {
 	}
 	flags.add(cmd)
 	cmd.Flags().StringVar(&windowID, "id", "", "Window ID")
-	cmd.Flags().StringVar(&rectRaw, windowManagerRectFlag, "", "Deprecated: ignored frame; use layout resize; removed in v0.8.0")
+	cmd.Flags().
+		StringVar(&rectRaw, windowManagerRectFlag, "", "Deprecated: ignored frame; use layout resize; removed in v0.8.0")
 	return cmd
 }

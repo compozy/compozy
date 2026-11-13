@@ -89,12 +89,23 @@ func executeWindowManagerDispatch(
 	)
 }
 
-func (h *Hooks) DispatchWindowManagerTabSplit(ctx context.Context, payload WindowManagerTabSplitPayload) (WindowManagerTabSplitPayload, error) {
+func (h *Hooks) DispatchWindowManagerTabSplit(
+	ctx context.Context,
+	payload WindowManagerTabSplitPayload,
+) (WindowManagerTabSplitPayload, error) {
 	return executeWindowManagerDispatch(ctx, h, HookWindowManagerTabSplit, payload)
 }
-func (h *Hooks) DispatchWindowManagerTabUnsplit(ctx context.Context, payload WindowManagerTabUnsplitPayload) (WindowManagerTabUnsplitPayload, error) {
+
+func (h *Hooks) DispatchWindowManagerTabUnsplit(
+	ctx context.Context,
+	payload WindowManagerTabUnsplitPayload,
+) (WindowManagerTabUnsplitPayload, error) {
 	return executeWindowManagerDispatch(ctx, h, HookWindowManagerTabUnsplit, payload)
 }
-func (h *Hooks) DispatchWindowManagerTabActivated(ctx context.Context, payload WindowManagerTabActivatedPayload) (WindowManagerTabActivatedPayload, error) {
+
+func (h *Hooks) DispatchWindowManagerTabActivated(
+	ctx context.Context,
+	payload WindowManagerTabActivatedPayload,
+) (WindowManagerTabActivatedPayload, error) {
 	return executeWindowManagerDispatch(ctx, h, HookWindowManagerTabActivated, payload)
 }

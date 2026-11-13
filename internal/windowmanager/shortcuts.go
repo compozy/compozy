@@ -342,7 +342,12 @@ func effectiveKeymap(
 		resolved, alias := CommandAlias(action)
 		if alias {
 			if _, exists := canonical[resolved]; exists {
-				return nil, fmt.Errorf("shortcut aliases %q and %q both configured: %w", action, resolved, ErrInvalidCommand)
+				return nil, fmt.Errorf(
+					"shortcut aliases %q and %q both configured: %w",
+					action,
+					resolved,
+					ErrInvalidCommand,
+				)
 			}
 		}
 		effective[resolved] = append(ShortcutBinding(nil), binding...)

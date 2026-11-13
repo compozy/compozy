@@ -2585,7 +2585,12 @@ func TestDaemonNativeTools(t *testing.T) {
 	// IT-010: the real native gateway preserves deprecated tools with structured guidance.
 	t.Run("Should accept every retired window tool with actionable deprecations [IT-010]", func(t *testing.T) {
 		t.Parallel()
-		manager, err := windowmanager.NewService(windowmanager.NewMemoryRepository(), windowmanager.NewMemoryWorkspaceResolver("workspace-a"), nil, windowmanager.DefaultConfig())
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2594,11 +2599,23 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager("workspace-a"), WindowManagers: staticWindowManagers{manager: manager}, Workspaces: nativeTestWorkspaceService(t)}, nativeApproveAllPolicyInputs())
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:       nativeTestSessionManager("workspace-a"),
+				WindowManagers: staticWindowManagers{manager: manager},
+				Workspaces:     nativeTestWorkspaceService(t),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
 		scope := toolspkg.Scope{WorkspaceID: "workspace-a", SessionID: "session-a", AgentName: "agent-a"}
 		call := func(id toolspkg.ToolID, input string) windowManagerCommandResult {
 			t.Helper()
-			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)})
+			result, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)},
+			)
 			if err != nil {
 				t.Fatalf("%s: %v", id, err)
 			}
@@ -2613,7 +2630,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call(toolspkg.ToolIDWindowOpen, fmt.Sprintf(`{"expected_revision":%d,"window_id":%q,"app":"terminal","route":{"pathname":"/terminal/test","search":{}}}`, snapshot.Revision, id))
+			call(
+				toolspkg.ToolIDWindowOpen,
+				fmt.Sprintf(
+					`{"expected_revision":%d,"window_id":%q,"app":"terminal","route":{"pathname":"/terminal/test","search":{}}}`,
+					snapshot.Revision,
+					id,
+				),
+			)
 		}
 		for _, item := range []struct {
 			id         toolspkg.ToolID
@@ -2635,7 +2659,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("%s result=%+v", item.id, result)
 			}
 			warning := result.Deprecations[0]
-			if warning.Surface != item.id.String() || warning.Replacement == "" || warning.Message == "" || warning.RemovalRelease != "v0.8.0" {
+			if warning.Surface != item.id.String() || warning.Replacement == "" || warning.Message == "" ||
+				warning.RemovalRelease != "v0.8.0" {
 				t.Fatalf("%s deprecation=%+v", item.id, warning)
 			}
 			if !item.translated && result.Revision != snapshot.Revision {
@@ -2652,7 +2677,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		slices.Sort(wantWindowIDs)
 		for _, include := range []bool{false, true} {
-			listed, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDWindowList, Input: json.RawMessage(fmt.Sprintf(`{"include_minimized":%v}`, include))})
+			listed, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDWindowList,
+					Input:  json.RawMessage(fmt.Sprintf(`{"include_minimized":%v}`, include)),
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2675,7 +2707,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			if !slices.Equal(windowIDs, wantWindowIDs) {
 				t.Fatalf("listed windows = %v, want every open window %v", windowIDs, wantWindowIDs)
 			}
-			if include && (payload.Deprecations[0].Surface != "compozy__window_list.include_minimized" || payload.Deprecations[0].Replacement == "") {
+			if include &&
+				(payload.Deprecations[0].Surface != "compozy__window_list.include_minimized" || payload.Deprecations[0].Replacement == "") {
 				t.Fatalf("deprecation=%+v", payload.Deprecations)
 			}
 		}
@@ -2688,7 +2721,21 @@ func TestDaemonNativeTools(t *testing.T) {
 			if id == "window.stack.reorder" {
 				fields += `,"index":0`
 			}
-			preview, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDLayoutPreview, Input: json.RawMessage(fmt.Sprintf(`{"expected_revision":%d,"command_id":%q,"payload":{%s}}`, snapshot.Revision, id, fields))})
+			preview, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDLayoutPreview,
+					Input: json.RawMessage(
+						fmt.Sprintf(
+							`{"expected_revision":%d,"command_id":%q,"payload":{%s}}`,
+							snapshot.Revision,
+							id,
+							fields,
+						),
+					),
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2696,7 +2743,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err := json.Unmarshal(preview.Structured, &payload); err != nil {
 				t.Fatal(err)
 			}
-			if len(payload.Deprecations) != 1 || payload.Deprecations[0].Surface != id || payload.Deprecations[0].Replacement == "" {
+			if len(payload.Deprecations) != 1 || payload.Deprecations[0].Surface != id ||
+				payload.Deprecations[0].Replacement == "" {
 				t.Fatalf("preview=%+v", payload)
 			}
 			after, err := manager.Snapshot(t.Context(), "workspace-a")

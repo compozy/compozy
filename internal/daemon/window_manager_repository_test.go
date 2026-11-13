@@ -470,137 +470,145 @@ func TestWindowManagerRepositoryReconcile(t *testing.T) {
 
 // Migration invariants belong to the repository suite over the real client-state store.
 func TestWindowManagerSnapshotMigration(t *testing.T) {
-	t.Run("Should stream acknowledgement and both retry outcomes only within the migration partition", func(t *testing.T) {
-		t.Parallel()
-		f := newDaemonWindowManagerFixture(t)
-		ws := windowmanager.WorkspaceID(f.workspace.ID)
-		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID),
-			daemonLegacySnapshot(t, ws, true))
-		var observed atomic.Int64
-		manager, err := windowmanager.NewService(
-			f.repository, windowManagerWorkspaceAuthorizer{resolver: f.storeResolver}, nil,
-			windowmanager.DefaultConfig(),
-			windowmanager.WithEventObserver(func(context.Context, windowmanager.Event) { observed.Add(1) }),
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := manager.Close(); err != nil {
-				t.Error(err)
-			}
-		})
-		// A nonempty undo history must survive notice-only mutations.
-		created := executeDaemonDesktopCreate(t, manager, ws, "extra", "Extra")
-		before := created.Snapshot
-		if len(before.History.Undo) == 0 {
-			t.Fatal("fixture has no undo history")
-		}
-		hooksBefore := observed.Load()
-		subscribe := func(
-			owner *windowmanager.Manager,
-			workspace windowmanager.WorkspaceID,
-			client *windowmanager.ClientID,
-		) windowmanager.Subscription {
-			t.Helper()
-			subscription, err := owner.Subscribe(t.Context(), windowmanager.SubscriptionRequest{
-				WorkspaceID: workspace, ClientID: client,
-			})
+	t.Run(
+		"Should stream acknowledgement and both retry outcomes only within the migration partition",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newDaemonWindowManagerFixture(t)
+			ws := windowmanager.WorkspaceID(f.workspace.ID)
+			putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID),
+				daemonLegacySnapshot(t, ws, true))
+			var observed atomic.Int64
+			manager, err := windowmanager.NewService(
+				f.repository, windowManagerWorkspaceAuthorizer{resolver: f.storeResolver}, nil,
+				windowmanager.DefaultConfig(),
+				windowmanager.WithEventObserver(func(context.Context, windowmanager.Event) { observed.Add(1) }),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
-				if err := subscription.Close(); err != nil {
+				if err := manager.Close(); err != nil {
 					t.Error(err)
 				}
 			})
-			return subscription
-		}
-		subscribers := []windowmanager.Subscription{}
-		for _, id := range []windowmanager.ClientID{"migration-a", "migration-b"} {
-			if _, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
-				WorkspaceID: ws, ClientID: id,
-			}); err != nil {
+			// A nonempty undo history must survive notice-only mutations.
+			created := executeDaemonDesktopCreate(t, manager, ws, "extra", "Extra")
+			before := created.Snapshot
+			if len(before.History.Undo) == 0 {
+				t.Fatal("fixture has no undo history")
+			}
+			hooksBefore := observed.Load()
+			subscribe := func(
+				owner *windowmanager.Manager,
+				workspace windowmanager.WorkspaceID,
+				client *windowmanager.ClientID,
+			) windowmanager.Subscription {
+				t.Helper()
+				subscription, err := owner.Subscribe(t.Context(), windowmanager.SubscriptionRequest{
+					WorkspaceID: workspace, ClientID: client,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := subscription.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				return subscription
+			}
+			subscribers := []windowmanager.Subscription{}
+			for _, id := range []windowmanager.ClientID{"migration-a", "migration-b"} {
+				if _, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
+					WorkspaceID: ws, ClientID: id,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				subscribers = append(subscribers, subscribe(manager, ws, &id))
+			}
+			otherProfile, err := f.registry.For("01JQPROFILEOTHER0000000000")
+			if err != nil {
 				t.Fatal(err)
 			}
-			subscribers = append(subscribers, subscribe(manager, ws, &id))
-		}
-		otherProfile, err := f.registry.For("01JQPROFILEOTHER0000000000")
-		if err != nil {
-			t.Fatal(err)
-		}
-		isolated := []windowmanager.Subscription{
-			subscribe(manager, windowmanager.GlobalDesktopWorkspaceID, nil),
-			subscribe(otherProfile, ws, nil),
-		}
-		assertIsolated := func() {
-			t.Helper()
-			for _, subscription := range isolated {
-				select {
-				case update := <-subscription.Updates():
-					t.Fatalf("migration crossed workspace/profile boundary: %+v", update)
-				default:
-				}
+			isolated := []windowmanager.Subscription{
+				subscribe(manager, windowmanager.GlobalDesktopWorkspaceID, nil),
+				subscribe(otherProfile, ws, nil),
 			}
-			if observed.Load() != hooksBefore {
-				t.Fatal("migration dispatched a command observer and could fire layout/window hooks")
-			}
-		}
-		assertSnapshot := func(
-			status *windowmanager.MigrationStatus,
-			revision windowmanager.Revision,
-			topologyChanged bool,
-		) {
-			t.Helper()
-			for _, subscription := range subscribers {
-				if topologyChanged {
+			assertIsolated := func() {
+				t.Helper()
+				for _, subscription := range isolated {
 					select {
 					case update := <-subscription.Updates():
-						if update.Event == nil || update.Event.Revision != revision {
-							t.Fatalf("retry topology event = %+v", update)
-						}
+						t.Fatalf("migration crossed workspace/profile boundary: %+v", update)
 					default:
-						t.Fatal("subscriber missed retry topology event")
 					}
 				}
-				select {
-				case update := <-subscription.Updates():
-					if update.Snapshot == nil || update.Event != nil || update.Client != nil ||
-						update.Snapshot.Revision != revision || !reflect.DeepEqual(update.Snapshot.Migration, status) {
-						t.Fatalf("migration snapshot = %+v, want status %+v revision %d",
-							update, status, revision)
-					}
-					if !topologyChanged && (!reflect.DeepEqual(update.Snapshot.History, before.History) ||
-						!reflect.DeepEqual(update.Snapshot.Desktops, before.Desktops)) {
-						t.Fatal("notice changed layout or undo history")
-					}
-				default:
-					t.Fatal("subscriber missed migration snapshot")
+				if observed.Load() != hooksBefore {
+					t.Fatal("migration dispatched a command observer and could fire layout/window hooks")
 				}
 			}
-			assertIsolated()
-		}
-		status, err := manager.Migration(t.Context(), ws, "ack", false)
-		if err != nil || !status.Acknowledged {
-			t.Fatalf("ack = %+v, error = %v", status, err)
-		}
-		assertSnapshot(nil, before.Revision, false)
-		// Retry reopens the notice even when conversion still fails.
-		putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID),
-			[]byte(`{"version":5,"windows":{"broken":{}}}`))
-		status, err = manager.Migration(t.Context(), ws, "retry", true)
-		if err != nil || status.State != "failed" || status.Acknowledged || status.Error == nil ||
-			reflect.DeepEqual(status.Error, before.Migration.Error) {
-			t.Fatalf("failed retry = %+v, error = %v", status, err)
-		}
-		assertSnapshot(&status, before.Revision, false)
-		putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID), daemonLegacySnapshot(t, ws, false))
-		status, err = manager.Migration(t.Context(), ws, "retry", true)
-		if err != nil || status.State != "migrated" || status.Acknowledged || status.Error != nil {
-			t.Fatalf("successful retry = %+v, error = %v", status, err)
-		}
-		assertSnapshot(&status, before.Revision+1, true)
-	})
+			assertSnapshot := func(
+				status *windowmanager.MigrationStatus,
+				revision windowmanager.Revision,
+				topologyChanged bool,
+			) {
+				t.Helper()
+				for _, subscription := range subscribers {
+					if topologyChanged {
+						select {
+						case update := <-subscription.Updates():
+							if update.Event == nil || update.Event.Revision != revision {
+								t.Fatalf("retry topology event = %+v", update)
+							}
+						default:
+							t.Fatal("subscriber missed retry topology event")
+						}
+					}
+					select {
+					case update := <-subscription.Updates():
+						if update.Snapshot == nil || update.Event != nil || update.Client != nil ||
+							update.Snapshot.Revision != revision || !reflect.DeepEqual(update.Snapshot.Migration, status) {
+							t.Fatalf("migration snapshot = %+v, want status %+v revision %d",
+								update, status, revision)
+						}
+						if !topologyChanged && (!reflect.DeepEqual(update.Snapshot.History, before.History) ||
+							!reflect.DeepEqual(update.Snapshot.Desktops, before.Desktops)) {
+							t.Fatal("notice changed layout or undo history")
+						}
+					default:
+						t.Fatal("subscriber missed migration snapshot")
+					}
+				}
+				assertIsolated()
+			}
+			status, err := manager.Migration(t.Context(), ws, "ack", false)
+			if err != nil || !status.Acknowledged {
+				t.Fatalf("ack = %+v, error = %v", status, err)
+			}
+			assertSnapshot(nil, before.Revision, false)
+			// Retry reopens the notice even when conversion still fails.
+			putDaemonState(t, &f, windowManagerLegacyKey(testWindowManagerProfileID),
+				[]byte(`{"version":5,"windows":{"broken":{}}}`))
+			status, err = manager.Migration(t.Context(), ws, "retry", true)
+			if err != nil || status.State != "failed" || status.Acknowledged || status.Error == nil ||
+				reflect.DeepEqual(status.Error, before.Migration.Error) {
+				t.Fatalf("failed retry = %+v, error = %v", status, err)
+			}
+			assertSnapshot(&status, before.Revision, false)
+			putDaemonState(
+				t,
+				&f,
+				windowManagerLegacyKey(testWindowManagerProfileID),
+				daemonLegacySnapshot(t, ws, false),
+			)
+			status, err = manager.Migration(t.Context(), ws, "retry", true)
+			if err != nil || status.State != "migrated" || status.Acknowledged || status.Error != nil {
+				t.Fatalf("successful retry = %+v, error = %v", status, err)
+			}
+			assertSnapshot(&status, before.Revision+1, true)
+		},
+	)
 
 	t.Run("Should expire only successful migration backups starting with v0.8.0", func(t *testing.T) {
 		t.Parallel()

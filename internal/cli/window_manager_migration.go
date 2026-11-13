@@ -14,7 +14,11 @@ type windowManagerMigrationClient interface {
 	WindowManagerMigration(context.Context, string, string, bool) (windowmanager.MigrationStatus, error)
 }
 
-func (c *daemonClient) WindowManagerMigration(ctx context.Context, workspace, action string, replace bool) (windowmanager.MigrationStatus, error) {
+func (c *daemonClient) WindowManagerMigration(
+	ctx context.Context,
+	workspace, action string,
+	replace bool,
+) (windowmanager.MigrationStatus, error) {
 	var status windowmanager.MigrationStatus
 	method := http.MethodGet
 	var body any
@@ -32,7 +36,9 @@ func newLayoutMigrationCommand(deps commandDeps) *cobra.Command {
 		var workspace string
 		var replace bool
 		child := &cobra.Command{
-			Use: action, Short: map[string]string{"status": "Show the layout migration status", "ack": "Acknowledge the layout migration notice", appRetryMethod: "Retry the preserved layout migration"}[action], Args: cobra.NoArgs,
+			Use:   action,
+			Short: map[string]string{"status": "Show the layout migration status", "ack": "Acknowledge the layout migration notice", appRetryMethod: "Retry the preserved layout migration"}[action],
+			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 				if err != nil {
@@ -50,7 +56,10 @@ func newLayoutMigrationCommand(deps commandDeps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return writeCommandOutput(cmd, windowManagerJSONBundle("window_manager_migration", "Layout migration", status))
+				return writeCommandOutput(
+					cmd,
+					windowManagerJSONBundle("window_manager_migration", "Layout migration", status),
+				)
 			},
 		}
 		child.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")

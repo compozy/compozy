@@ -99,7 +99,11 @@ func windowManagerHookEventsForCommit(event windowmanager.Event) []hookspkg.Hook
 	case windowmanager.CommandWindowClose:
 		hookEvents = append(hookEvents, hookspkg.HookWindowManagerWindowClosed)
 	case windowmanager.CommandWindowTabActivate:
-		hookEvents = append(hookEvents, hookspkg.HookWindowManagerTabActivated, hookspkg.HookWindowManagerStackActivated)
+		hookEvents = append(
+			hookEvents,
+			hookspkg.HookWindowManagerTabActivated,
+			hookspkg.HookWindowManagerStackActivated,
+		)
 	}
 	if len(event.Changes.TabSplit) > 0 {
 		hookEvents = append(hookEvents, hookspkg.HookWindowManagerTabSplit)
