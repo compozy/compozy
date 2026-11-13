@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,33 @@ func TestRecoverFinalizesOrphanedDelegation(t *testing.T) {
 	}
 }
 
+func TestRecoverFinalizesOrphanedIsolatedDelegation(t *testing.T) {
+	t.Parallel()
+
+	s, db, _ := newSubagentTestService(t)
+	// The isolated recovery path compensates through the worktree service, which the
+	// daemon always wires; an empty stub means the reservation never got a worktree.
+	s.worktrees = &subagentWorktreeStub{}
+	row := orphanedDelegationRow()
+	row.Isolation = SubagentIsolationWorktree
+	db.rows["orphan"] = row
+
+	if err := s.Recover(t.Context()); err != nil {
+		t.Fatalf("Recover() error = %v", err)
+	}
+
+	settled := db.rows["orphan"]
+	if settled.Status != store.SubagentStatusFailed {
+		t.Fatalf("status = %q, want %q", settled.Status, store.SubagentStatusFailed)
+	}
+	if settled.WakePolicy != store.SubagentWakePolicyAlways {
+		t.Fatalf("wake policy = %q, want the parent woken for an orphaned isolated lane", settled.WakePolicy)
+	}
+	if settled.SettledAt == nil {
+		t.Fatal("settled_at = nil, want the recovery instant")
+	}
+}
+
 func TestRecoverSkipsInFlightOrphan(t *testing.T) {
 	t.Parallel()
 
@@ -66,7 +94,33 @@ func TestRecoverSkipsInFlightOrphan(t *testing.T) {
 }
 
 // A terminal write that loses writer admission must be retried: surfacing it once
-// leaves the delegation running forever with no settlement.
+// leaves the delegation running forever with no settlement. The retry has to
+// outlive the caller budget that the first attempt already spent.
+func TestFinalizeSubagentRetryOutlivesExpiredCallerContext(t *testing.T) {
+	t.Parallel()
+
+	s, db, _ := newSubagentTestService(t)
+	db.rows["orphan"] = orphanedDelegationRow()
+	db.finalizeFailures = 1
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+	defer cancel()
+	<-ctx.Done()
+
+	settled, changed, err := s.finalizeSubagentWithRetry(ctx, store.SubagentFinalize{
+		ID:        "orphan",
+		Status:    store.SubagentStatusFailed,
+		WorkState: store.SubagentWorkStateResultAvailable,
+		SettledAt: time.Date(2026, 10, 8, 0, 1, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("finalizeSubagentWithRetry() error = %v", err)
+	}
+	if !changed || settled.Status != store.SubagentStatusFailed {
+		t.Fatalf("settled = %+v changed = %v, want a failed terminal write", settled, changed)
+	}
+}
+
 func TestFinalizeSubagentRetriesWriterContention(t *testing.T) {
 	t.Parallel()
 

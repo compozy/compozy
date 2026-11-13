@@ -290,7 +290,7 @@ func (s *subagentService) recoverIsolation(ctx context.Context, row store.Sessio
 	}
 	unlock := s.lock(row.ParentSessionID)
 	defer unlock()
-	failed, changed, err := s.store.FinalizeSubagent(
+	failed, changed, err := s.finalizeSubagentWithRetry(
 		ctx,
 		store.SubagentFinalize{
 			ID:        row.ID,

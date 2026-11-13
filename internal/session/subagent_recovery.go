@@ -75,7 +75,13 @@ func (s *subagentService) recoverRunning(ctx context.Context) error {
 			}
 			// The delegation never linked a child session: the start failed after the
 			// reservation and the settlement was lost. Nothing can resume it, so settle
-			// the row instead of leaving it running for the life of the daemon.
+			// the row instead of leaving it running for the life of the daemon. Isolated
+			// rows keep their own path, which also releases the worktree and wakes the
+			// parent; failDelegation returns the original cause for them.
+			if row.Isolation == SubagentIsolationWorktree {
+				s.recoveryResult(ctx, row.ID, "orphaned_isolation", s.recoverIsolation(ctx, row))
+				continue
+			}
 			s.recoveryResult(ctx, row.ID, "orphaned_delegation", s.failRecovered(ctx, row, ""))
 			continue
 		}
