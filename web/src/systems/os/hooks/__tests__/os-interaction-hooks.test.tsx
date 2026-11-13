@@ -3085,6 +3085,36 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
   });
 
+  it("Should hold an arrow step pressed while this client's own non-seam command is in flight and author it against its result", async () => {
+    const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
+    render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    let settleBalance!: () => void;
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(true);
+    vi.mocked(shell.controller.commandsSettled).mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        settleBalance = resolve;
+      })
+    );
+
+    // A palette balance of this client is in flight: the step waits for its result.
+    fireEvent.keyDown(seam, { key: "ArrowRight" });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.3, 0.7], 8) }));
+    vi.mocked(shell.controller.commandsInFlight).mockReturnValue(false);
+    await act(async () => settleBalance());
+
+    await waitFor(() =>
+      expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+        "split:main",
+        0,
+        expect.closeTo(0.02),
+        fenceAt(8)
+      )
+    );
+  });
+
   it("Should keep seam input behind a release that still waits on an own non-seam command once the seam command ahead of it settles", async () => {
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });

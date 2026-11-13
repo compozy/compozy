@@ -34,7 +34,6 @@ import {
   formatSeamFrame,
   ownBusy,
   ownPending,
-  seamInputHolds,
   trackOwnCommand,
   type SeamInputScope,
   type SeamKeyStep,
@@ -378,40 +377,21 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
         commit(false, scope.at);
         return;
       }
-      // A command of this client is in flight (or a seam command queued), and its result may
-      // move the layout this release would be sent against: hold the release, previewed, in line
-      // behind the seam commands and until every own command has settled; then author it against
-      // the latest layout and send — or cancel it if its input no longer holds by then.
+      // A command of this client that can move the layout is in flight (or a seam command
+      // queued), and its result may move the layout this release would be sent against: hold the
+      // release, previewed, in the seam queue, which runs it once nothing of this client is in
+      // flight ahead of it; then author it against the latest layout and send — or cancel it if
+      // its input no longer holds by then.
       detach();
-      const drop = () => {
-        if (live) cancel("context-changed");
-      };
-      // Waiting only on a non-seam command, the release still takes its place in the seam queue,
-      // so seam input made after it (an arrow step, another seam's release) waits behind it.
-      if (!ownBusy(manager)) {
-        void trackOwnCommand(
-          manager,
-          manager.commandsSettled().then(() => true)
-        );
-      }
-      const afterOwnSettled = () => {
-        if (!live) return;
-        if (!manager.commandsInFlight()) {
-          commit(true, scope.at);
-          return;
-        }
-        // Still counted as an own seam command while it waits, so the seam queue stays blocked
-        // until this release commits or drops.
-        const waited = manager.commandsSettled().then(() => {
-          if (!live) return true;
-          if (seamInputHolds(scope, currentSeamFrame(manager), commandClockNow())) {
-            afterOwnSettled();
-          } else drop();
-          return true;
-        });
-        void trackOwnCommand(manager, waited);
-      };
-      afterOwnCommands(manager, { scope, run: afterOwnSettled, drop });
+      afterOwnCommands(manager, {
+        scope,
+        run: () => {
+          if (live) commit(true, scope.at);
+        },
+        drop: () => {
+          if (live) cancel("context-changed");
+        },
+      });
     };
 
     element.setPointerCapture(pointerId);
