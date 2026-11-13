@@ -5,7 +5,7 @@
 //   tells first run, filtered empty, loading and load error apart.
 // Boundary IN: AutomationView (board story fixtures) and row controls.
 // Boundary OUT: data loading (use-automations-page suite) and routing.
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -199,11 +199,14 @@ describe("AutomationRow", () => {
   });
 
   it("Should keep a webhook's two copies behind Copy", async () => {
-    // Base UI leaves a submenu's items pointer-events: none until the pointer settles in jsdom.
-    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const user = userEvent.setup();
     renderRow(view("deploy-webhook"));
     await user.click(screen.getByRole("button", { name: "More actions for deploy-webhook" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+    // Keyboard, not pointer: jsdom has no geometry for the submenu's hover guard, so a pointer
+    // crossing from Copy to its items may close the submenu before the click lands.
+    const copy = await screen.findByRole("menuitem", { name: "Copy" });
+    copy.focus();
+    await user.keyboard("{ArrowRight}");
     const copyId = await screen.findByRole("menuitem", { name: "Copy automation id" });
     const submenu = copyId.closest<HTMLElement>('[role="menu"]')!;
     expect(
@@ -211,8 +214,10 @@ describe("AutomationRow", () => {
         .getAllByRole("menuitem")
         .map(item => item.textContent?.trim())
     ).toEqual(["Copy link", "Copy automation id"]);
+    await waitFor(() => expect(submenu).toContainElement(document.activeElement as HTMLElement));
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
-    await user.click(within(submenu).getByRole("menuitem", { name: "Copy link" }));
+    within(submenu).getByRole("menuitem", { name: "Copy link" }).focus();
+    await user.keyboard("{Enter}");
     // The published public link, never the app's own origin joined to the webhook path.
     expect(writeText).toHaveBeenCalledWith(view("deploy-webhook").publicUrl);
     expect(view("deploy-webhook").publicUrl).toMatch(/^https:\/\/northstar\.gateway\.test\//);
