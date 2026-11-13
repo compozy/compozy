@@ -173,6 +173,7 @@ func (n *daemonNativeTools) layoutValidate(
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
 	payload := windowManagerValidationResult{
+		Document:    validation.Document,
 		WorkspaceID: snapshot.WorkspaceID,
 		Revision:    snapshot.Revision,
 		Valid:       validation.Valid,

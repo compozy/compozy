@@ -1740,7 +1740,7 @@
     "input_schema_digest": "f32fde50fe49921a96dd0b67b587b25aec645a103de218d953c908a184ba3b3e",
     "output_schema_digest": "3ffbd1f8a33a319535f80de9d6e3b57a94f331b7cfaab9e2e84ff36d57bad688",
     "result_contract": "single",
-    "single_result_reason": "minimal",
+    "single_result_reason": "content",
     "required_capabilities": [
       "window_manager.read"
     ]

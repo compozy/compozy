@@ -22,7 +22,7 @@ func (m *Manager) ExportLayout(ctx context.Context, workspaceID WorkspaceID) (La
 	}, nil
 }
 
-// ValidateLayout checks a raw document without normalization or writes.
+// ValidateLayout returns diagnostics and the canonical input without reading live windows or writing state.
 func (m *Manager) ValidateLayout(
 	ctx context.Context,
 	workspaceID WorkspaceID,
@@ -41,7 +41,11 @@ func (m *Manager) ValidateLayout(
 		return Validation{}, err
 	}
 	document = canonicalLayoutApps(ctx, document, m.appDeprecationObserver, "command")
-	return validateLayoutDocument(defaults, workspaceID, document)
+	validation, err := validateLayoutDocument(defaults, workspaceID, document)
+	if err == nil && validation.Valid {
+		validation.Document = &document
+	}
+	return validation, err
 }
 
 func validateLayoutDocument(

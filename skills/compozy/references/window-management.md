@@ -489,9 +489,12 @@ rules above; this is permanent. Retired `jobs`/`triggers` windows in a version 4
 `automations`. Any other version fails validation with `window_manager_invalid_topology` and the
 `topology.unsupported_version` diagnostic.
 
-Validate never writes. Apply binds the document to the requested workspace,
-validates the complete topology, preserves current routes for surviving window IDs, and performs one
-atomic replacement. There is no raw key-value fallback.
+Validate never writes. When valid, its optional `document` is the canonical version 6 input,
+including the file's routes and navigation stacks even when the same window IDs are open on other
+routes. Invalid results omit `document` and report diagnostics. Use validation for import conversion;
+a replace preview preserves live routes and is not a document converter. Apply binds the document to
+the requested workspace, validates the complete topology, preserves current routes for surviving
+window IDs, and performs one atomic replacement. There is no raw key-value fallback.
 
 ## Configuration And Hooks
 

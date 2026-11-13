@@ -47,10 +47,11 @@ func CloneLayoutResource(resource LayoutResource) LayoutResource {
 	return resource
 }
 
-// Validation reports stable layout diagnostics.
+// Validation reports stable diagnostics and the canonical document when valid.
 type Validation struct {
-	Valid       bool         `json:"valid"`
-	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
+	Valid       bool            `json:"valid"`
+	Diagnostics []Diagnostic    `json:"diagnostics,omitempty"`
+	Document    *LayoutDocument `json:"document,omitzero"`
 }
 
 // ReplaceLayoutRequest applies a validated document with normal revision CAS.

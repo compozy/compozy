@@ -294,10 +294,16 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		tags: []string{windowManagerTag, windowManagerLayoutTag, "export"},
 	},
 	{
-		id: toolspkg.ToolIDLayoutValidate, nativeName: "layout_validate", title: "Layout Validate",
-		description: "Validate a raw declarative layout and return stable diagnostics without writing.",
-		inputSchema: windowManagerLayoutValidateInputSchema, outputSchema: windowManagerReadOutputSchema,
-		risk: toolspkg.RiskRead, readOnly: true, capability: windowManagerReadCapability,
+		id:         toolspkg.ToolIDLayoutValidate,
+		nativeName: "layout_validate",
+		title:      "Layout Validate",
+		description: "Validate a raw declarative layout and return diagnostics plus its canonical document " +
+			"when valid, without writing.",
+		inputSchema:  windowManagerLayoutValidateInputSchema,
+		outputSchema: windowManagerReadOutputSchema,
+		risk:         toolspkg.RiskRead,
+		readOnly:     true,
+		capability:   windowManagerReadCapability,
 		tags: []string{
 			windowManagerTag,
 			windowManagerLayoutTag,

@@ -3299,6 +3299,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addSettingsMCPHeaderPresence(t, baseline)
 		deprecateRetiredWindowManagerSettings(t, baseline)
 		deprecateRetiredWindowManagerWireFields(t, baseline)
+		addWindowManagerValidationDocument(t, baseline)
 		addWindowManagerTabHookSchemas(t, baseline)
 		if addSessionLinkedWorkSchemas(baseline) == 0 {
 			t.Fatal("approved linked_work addition: no historical session schemas found")

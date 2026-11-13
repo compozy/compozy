@@ -149,7 +149,7 @@ func windowManagerLayoutOperations(
 				[]ResponseSpec{
 					{
 						Status:      200,
-						Description: "Validation result",
+						Description: "Validation diagnostics and the canonical v6 document when valid",
 						Body:        contract.WindowManagerLayoutValidationResponse{},
 					},
 				},

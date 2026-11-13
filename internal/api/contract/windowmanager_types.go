@@ -185,11 +185,12 @@ type WindowManagerLayoutValidationRequest struct {
 	Document    WindowManagerLayoutDocument `json:"document"`
 }
 
-// WindowManagerLayoutValidationResponse returns stable topology diagnostics.
+// WindowManagerLayoutValidationResponse returns diagnostics and the canonical document when valid.
 type WindowManagerLayoutValidationResponse struct {
-	WorkspaceID windowmanager.WorkspaceID  `json:"workspace_id"`
-	Valid       bool                       `json:"valid"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics,omitempty"`
+	Document    *WindowManagerLayoutDocument `json:"document,omitzero"`
+	WorkspaceID windowmanager.WorkspaceID    `json:"workspace_id"`
+	Valid       bool                         `json:"valid"`
+	Diagnostics []windowmanager.Diagnostic   `json:"diagnostics,omitempty"`
 }
 
 // WindowManagerLayoutReplaceRequest applies a declarative document through revision CAS.

@@ -11,5 +11,5 @@ var singleResultLayout = map[toolspkg.ToolID]SingleResultReason{
 	toolspkg.ToolIDLayoutRedo:        SingleResultMinimal,
 	toolspkg.ToolIDLayoutResize:      SingleResultMinimal,
 	toolspkg.ToolIDLayoutUndo:        SingleResultMinimal,
-	toolspkg.ToolIDLayoutValidate:    SingleResultMinimal,
+	toolspkg.ToolIDLayoutValidate:    SingleResultContent,
 }

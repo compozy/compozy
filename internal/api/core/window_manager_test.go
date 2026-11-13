@@ -772,6 +772,64 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 	})
 
+	// Invariant: the shared validate response returns only valid canonical input, never live routes.
+	for _, version := range []uint32{5, 6} {
+		t.Run(
+			fmt.Sprintf("Should return a canonical document only for valid v%d layout input", version),
+			func(t *testing.T) {
+				t.Parallel()
+				fixture := newWindowManagerHandlerFixture(t)
+				path := windowManagerTestPath("workspace-a")
+				opened := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/commands",
+					windowManagerTestCommandBody("workspace-a", 0, "window.open",
+						`{"window":{"id":"window-a","app":"tasks","desktop_id":"desktop-default",`+
+							`"route":{"pathname":"/live","search":{}}}}`))
+				requireWindowManagerStatus(t, opened, http.StatusOK)
+				desktop := `{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["window-a"],"floating_stacks":[]}`
+				binding := `"placement":"floating"`
+				if version == 6 {
+					binding = `"tab_id":"tab-a"`
+					desktop = `{"id":"saved","name":"Saved","order":0,"active_tab_id":"tab-a",` +
+						`"tabs":[{"id":"tab-a","pinned":false,"root":{"id":"leaf-a","kind":"leaf","window_id":"window-a"}}]}`
+				}
+				document := fmt.Sprintf(`{"version":%d,"workspace_id":"workspace-a","desktops":[%s],
+				"windows":{"window-a":{"id":"window-a","app":"tasks","desktop_id":"saved",%s,
+				"route":{"pathname":"/imported","search":{"source":"file"}},
+				"nav_stack":[{"pathname":"/import-history","search":{"source":"file"}}]}},"overrides":{}}`, version, desktop, binding)
+				validated := performWindowManagerTestRequest(
+					t,
+					fixture.router,
+					http.MethodPost,
+					path+"/layout/validate",
+					`{"workspace_id":"workspace-a","document":`+document+`}`,
+				)
+				requireWindowManagerStatus(t, validated, http.StatusOK)
+				var validation contract.WindowManagerLayoutValidationResponse
+				decodeWindowManagerTestBody(t, validated, &validation)
+				if !validation.Valid || validation.Document == nil || validation.Document.Version != 6 {
+					t.Fatalf("validation=%+v", validation)
+				}
+				window := validation.Document.Windows["window-a"]
+				if window.Route.Pathname != "/imported" || string(window.Route.Search["source"]) != `"file"` ||
+					len(window.NavStack) != 1 || window.NavStack[0].Pathname != "/import-history" ||
+					string(window.NavStack[0].Search["source"]) != `"file"` {
+					t.Fatalf("converted window=%+v", window)
+				}
+				validation.Document.Version = 99
+				rejected := performWindowManagerTestRequest(t, fixture.router, http.MethodPost, path+"/layout/validate",
+					marshalWindowManagerTestJSON(t, contract.WindowManagerLayoutValidationRequest{
+						WorkspaceID: "workspace-a", Document: *validation.Document,
+					}))
+				requireWindowManagerStatus(t, rejected, http.StatusOK)
+				var invalid map[string]json.RawMessage
+				decodeWindowManagerTestBody(t, rejected, &invalid)
+				if string(invalid["valid"]) != "false" || invalid["document"] != nil ||
+					len(invalid["diagnostics"]) == 0 {
+					t.Fatalf("invalid response=%s", rejected.Body.String())
+				}
+			},
+		)
+	}
 	t.Run("Should accept retired override values before strict layout request decoding", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)

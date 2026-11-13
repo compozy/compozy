@@ -207,6 +207,54 @@ func TestLayoutDocumentContract(t *testing.T) {
 			t.Fatal("input version mutated")
 		}
 	})
+	// Invariant: validation returns the file's v6 routes and history independently of live windows.
+	for _, version := range []uint32{5, 6} {
+		t.Run(
+			fmt.Sprintf("Should return canonical v%d input without substituting live routes", version),
+			func(t *testing.T) {
+				t.Parallel()
+				environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+				openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+				executeTestCommand(t, environment.manager, "workspace-a", nil, NavigateWindowCommand{
+					WindowID: "w1", Route: testRoute("/live"),
+				})
+				before := mustSnapshot(t, environment.manager, "workspace-a")
+				desktop := `{"id":"saved","name":"Saved","order":0,"groups":[],"floating":["w1"],"floating_stacks":[]}`
+				binding := `"placement":"floating"`
+				if version == 6 {
+					binding = `"tab_id":"tab-w1"`
+					desktop = `{"id":"saved","name":"Saved","order":0,"active_tab_id":"tab-w1",` +
+						`"tabs":[{"id":"tab-w1","pinned":false,"root":{"id":"leaf-w1","kind":"leaf","window_id":"w1"}}]}`
+				}
+				raw := fmt.Sprintf(`{"version":%d,"workspace_id":"workspace-a","desktops":[%s],
+				"windows":{"w1":{"id":"w1","app":"tasks","desktop_id":"saved",%s,
+				"route":{"pathname":"/imported","search":{"source":"file"}},
+				"nav_stack":[{"pathname":"/import-history","search":{"source":"file"}}]}},"overrides":{}}`, version, desktop, binding)
+				var document LayoutDocument
+				if err := json.Unmarshal([]byte(raw), &document); err != nil {
+					t.Fatal(err)
+				}
+				validation, err := environment.manager.ValidateLayout(t.Context(), "workspace-a", document)
+				if err != nil || !validation.Valid || validation.Document == nil {
+					t.Fatalf("validation=%+v error=%v", validation, err)
+				}
+				canonical, err := json.Marshal(validation.Document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want, err := json.Marshal(document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if validation.Document.Version != SnapshotVersion || string(canonical) != string(want) {
+					t.Fatalf("canonical document=%s want=%s", canonical, want)
+				}
+				if after := mustSnapshot(t, environment.manager, "workspace-a"); !reflect.DeepEqual(after, before) {
+					t.Fatal("validation changed live layout state")
+				}
+			},
+		)
+	}
 	t.Run(
 		"Should export immutable documents, validate diagnostics, and replace through normal revision CAS",
 		func(t *testing.T) {

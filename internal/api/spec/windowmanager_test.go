@@ -564,6 +564,36 @@ func componentSchema(t *testing.T, document *openapi3.T, name string) *openapi3.
 	return schemaRef.Value
 }
 
+// Validation adds an optional canonical document while preserving the frozen response fields and required set.
+func addWindowManagerValidationDocument(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	document := maps.Clone(schemas["WindowManagerLayoutDocument"].(map[string]any))
+	// Embedded response documents retain the layout fields without standalone request strictness.
+	delete(document, "additionalProperties")
+	document["nullable"] = true
+	response := baseline
+	for _, key := range []string{
+		"paths", windowManagerPath + "/layout/validate", "post", "responses", "200", "content",
+		"application/json", "schema",
+	} {
+		next, ok := response[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved layout validation document addition: missing object %q", key)
+		}
+		response = next
+	}
+	for _, schema := range []map[string]any{
+		response, schemas["WindowManagerLayoutValidationResponse"].(map[string]any),
+	} {
+		properties := schema["properties"].(map[string]any)
+		if _, exists := properties["document"]; exists {
+			t.Fatal("document already exists in the historical layout validation baseline")
+		}
+		properties["document"] = document
+	}
+}
+
 // Deprecations annotate the frozen v6 contract; the strict schema comparison still owns every field and type.
 func deprecateRetiredWindowManagerWireFields(t *testing.T, baseline map[string]any) {
 	t.Helper()

@@ -96,9 +96,10 @@ type WindowManagerLayoutValidationRequest struct {
 
 // WindowManagerLayoutValidationResponse is a daemon API value.
 type WindowManagerLayoutValidationResponse struct {
-	WorkspaceID WindowmanagerWorkspaceID `json:"workspace_id"`
-	Valid       bool                     `json:"valid"`
-	Diagnostics []Diagnostic             `json:"diagnostics,omitempty"`
+	Document    *WindowManagerLayoutDocument `json:"document,omitzero"`
+	WorkspaceID WindowmanagerWorkspaceID     `json:"workspace_id"`
+	Valid       bool                         `json:"valid"`
+	Diagnostics []Diagnostic                 `json:"diagnostics,omitempty"`
 }
 
 // WindowManagerMigrationRequest is a daemon API value.

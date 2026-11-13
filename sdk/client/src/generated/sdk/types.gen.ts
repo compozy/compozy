@@ -1785,6 +1785,7 @@ export type ContractWindowManagerLayoutValidationRequest = {
 
 export type ContractWindowManagerLayoutValidationResponse = {
   diagnostics?: Array<Diagnostic>;
+  document?: ContractWindowManagerLayoutDocument | null;
   valid: boolean;
   workspace_id: string;
 };
@@ -44518,7 +44519,7 @@ export type ValidateWindowManagerLayoutError =
 
 export type ValidateWindowManagerLayoutResponses = {
   /**
-   * Validation result
+   * Validation diagnostics and the canonical v6 document when valid
    */
   200: ContractWindowManagerLayoutValidationResponse;
 };

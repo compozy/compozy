@@ -6381,6 +6381,19 @@
             },
             "type": "array"
           },
+          "document": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContractWindowManagerLayoutDocument"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "valid": {
             "type": "boolean"
           },
@@ -47968,6 +47981,19 @@
               "$ref": "#/components/schemas/Diagnostic"
             },
             "type": "array"
+          },
+          "document": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContractWindowManagerLayoutDocument"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "valid": {
             "type": "boolean"
@@ -110398,7 +110424,7 @@
                 }
               }
             },
-            "description": "Validation result"
+            "description": "Validation diagnostics and the canonical v6 document when valid"
           },
           "400": {
             "content": {

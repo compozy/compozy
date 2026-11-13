@@ -9830,6 +9830,7 @@ export interface components {
     };
     ContractWindowManagerLayoutValidationResponse: {
       diagnostics?: components["schemas"]["Diagnostic"][];
+      document?: components["schemas"]["ContractWindowManagerLayoutDocument"] | null;
       valid: boolean;
       workspace_id: string;
     };
@@ -22028,6 +22029,7 @@ export interface components {
     };
     WindowManagerLayoutValidationResponse: {
       diagnostics?: components["schemas"]["Diagnostic"][];
+      document?: components["schemas"]["ContractWindowManagerLayoutDocument"] | null;
       valid: boolean;
       workspace_id: string;
     };
@@ -62918,7 +62920,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Validation result */
+      /** @description Validation diagnostics and the canonical v6 document when valid */
       200: {
         headers: {
           [name: string]: unknown;

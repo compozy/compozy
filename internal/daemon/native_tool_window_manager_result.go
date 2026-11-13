@@ -48,10 +48,11 @@ type windowManagerExportResult struct {
 }
 
 type windowManagerValidationResult struct {
-	WorkspaceID windowmanager.WorkspaceID  `json:"workspace_id"`
-	Revision    windowmanager.Revision     `json:"revision"`
-	Valid       bool                       `json:"valid"`
-	Diagnostics []windowmanager.Diagnostic `json:"diagnostics"`
+	Document    *windowmanager.LayoutDocument `json:"document,omitzero"`
+	WorkspaceID windowmanager.WorkspaceID     `json:"workspace_id"`
+	Revision    windowmanager.Revision        `json:"revision"`
+	Valid       bool                          `json:"valid"`
+	Diagnostics []windowmanager.Diagnostic    `json:"diagnostics"`
 }
 
 type windowManagerCommandResult struct {
