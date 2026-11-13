@@ -243,7 +243,7 @@ describe("RouterEntryBridge", () => {
     await settle();
     expect(blocker.held()).toBe(true);
     // Another navigation the blocker does not hold overtakes the held write.
-    await router.navigate({ to: "/bound", ignoreBlocker: true });
+    await router.navigate({ href: "/bound", ignoreBlocker: true });
     const overtaking = currentKey();
     expect(entries.isEcho(overtaking)).toBe(false);
 
