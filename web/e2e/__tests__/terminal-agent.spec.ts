@@ -268,9 +268,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1", {
       timeout: 20_000,
     });
-    await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${harness.sessionId}`), {
-      waitUntil: "domcontentloaded",
-    });
+    // approveOnce restores the exact session URL once its tab is gone.
     await approveOnce(harness, appPage);
 
     const callResult = await pending;
@@ -281,6 +279,11 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const terminalId = execution.terminal_id;
 
     // Agent execution stays outside the desktop until the operator opens it.
+    // Observe live output first so the absence check runs after the terminal
+    // produced work, not merely before it started.
+    await expect
+      .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
+      .toContain("agent-live-1");
     const materialized = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
     await expect(materialized).toHaveCount(0);
     await expect(windowPane(harness.sessionWin)).toHaveAttribute("data-focused", "");
@@ -294,9 +297,8 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
       timeout: 20_000,
     });
-    await expect
-      .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
-      .toContain("agent-live-1");
+    // Explicit opening materializes exactly one window for this terminal identity.
+    await expect(terminalWindow).toHaveCount(1);
     // Keep the process live until its exact window and output have been observed.
     const released = await harness.client.callTool({
       name: "compozy__terminal_write",
@@ -316,7 +318,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     expect(completion.screen).toContain("agent-live-1");
     expect(completion.screen).toContain("agent-live-2");
     // Agent exit retires its desktop window; retained output and journal stay readable.
-    await expect(terminalWindow).toBeHidden({ timeout: 20_000 });
+    await expect(terminalWindowFor(appPage, terminalId)).toHaveCount(0, { timeout: 20_000 });
 
     const journalEntry = async () => {
       const journal = await runtime.requestJSON<{
@@ -539,8 +541,10 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
     const terminalId = await openAgentTerminal(harness, "quote-source", { shell: quoteShell });
     await stopHoldingTurn(harness, appPage);
     await ensureProjectWorkspace(appPage, runtime);
-    // The deep link is the deterministic way to this exact terminal; ambient
-    // adoption is covered by E2E-002/003/004/018.
+    // The deep link is the deterministic way to this exact terminal. Id-less
+    // adoption is owned by `terminal-window-app.test.tsx`; E2E-020 walks it
+    // through the dock, while E2E-003 keeps agent output catalog-only until
+    // it is explicitly opened.
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
       waitUntil: "domcontentloaded",
     });
@@ -642,10 +646,11 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await approveOnce(harness, appPage);
 
     await ensureProjectWorkspace(appPage, runtime);
-    // Both agent-opened terminals were materialized as their own windows, so
-    // the dock activation restores them rather than adopting one. The pending
-    // question is pinned right under the input terminal's grid; the dock badge
-    // is the cross-window attention surface.
+    // Agent terminals never materialize windows on their own (#1570). The dock
+    // launch lands on the id-less route, which adopts the newest running
+    // terminal no window shows: the input terminal opened last. The pending
+    // question is pinned right under its grid; the dock badge is the
+    // cross-window attention surface.
     const terminalLauncher = appPage.locator('[data-slot="os-dock-item"][data-app="terminal"]');
     await terminalLauncher.click();
     let terminalWindow = terminalWindowFor(appPage, inputTerminalId);

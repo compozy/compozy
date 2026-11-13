@@ -118,7 +118,13 @@ async function authorityWindow(page: Page, win: Locator): Promise<Locator> {
   }
   const appSelector = `[data-slot="os-window-surface"][data-app="${escapeAttributeValue(app)}"]`;
   if (instanceKey === null) {
-    return page.locator(appSelector).filter({ visible: true });
+    // A keyless window must never resolve to a keyed sibling of the same app,
+    // and a hidden target must not be swapped for whichever window is visible.
+    const keyless = page.locator(`${appSelector}:not([data-instance-key])`);
+    if ((await keyless.count()) <= 1) return keyless;
+    return page.locator(
+      `${appSelector}[data-testid="os-window-${escapeAttributeValue(await windowID(win))}"]`
+    );
   }
   return page.locator(`${appSelector}[data-instance-key="${escapeAttributeValue(instanceKey)}"]`);
 }
