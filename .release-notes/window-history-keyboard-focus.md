@@ -8,3 +8,5 @@ Opening or focusing a window from the dock, the palette or a menu now adds exact
 When you move focus yourself (directional focus, next or previous tab, **Focus last window**, the dock, the palette, a menu, Back or Forward), the keyboard now moves into the window you focused: to the field you last typed in there, or to the window itself. Focus sent from the CLI or another client still moves only the focused window and leaves the keyboard where you are typing.
 
 After a daemon restart, an open browser or desktop client comes back on the desktop it was showing, with the same window focused, if both still exist.
+
+Migration notes: no action needed.
