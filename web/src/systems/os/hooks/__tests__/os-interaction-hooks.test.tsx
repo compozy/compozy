@@ -23,6 +23,7 @@ import type {
 } from "../../lib/os-types";
 import type {
   LayoutNode,
+  LayoutTab,
   ProjectedSeam,
   WindowManagerConfig,
   WindowManagerSnapshot,
@@ -55,7 +56,9 @@ import { useOsSplitSeam } from "../use-os-split-seam";
 import { useOsTabDragStart } from "../use-os-tab-drag";
 import { TAB_DRAG_EXIT_PX } from "../../lib/drop-edge";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
-import { authoritativeSeam } from "../../lib/window-manager-view";
+import { applySeamPreviewToTab, seamWeightDelta } from "../../lib/seam-preview";
+import { projectTab } from "../../lib/tab-projection";
+import { authoritativeSeam, buildWindowManagerMinimums } from "../../lib/window-manager-view";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
 import { useDesktopPager, useDesktopShellState } from "../use-desktop-shell-state";
@@ -2992,6 +2995,56 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     );
     // The pair keeps 36px of switcher and 220px of member at the limit.
     expect(outer.minValue).toBeGreaterThanOrEqual(256);
+  });
+
+  it("Should keep a three-member split side by side at every frame and commit the shift of the last one (F8)", () => {
+    // The row of the seam preview suite: 820px, raw shares 300.3 | 300.3 | 219.4 over 220px
+    // floors, allocated 300 | 300 | 220; any half-pixel shift of the first seam hands the third
+    // member's spare pixel to the other two and leaves it 219px wide.
+    const snapshot = snapshotWithSplit([300.3 / 820, 300.3 / 820, 219.4 / 820]);
+    const shell = exactShell(snapshot, 820, 700);
+    const area = { x: 0, y: 0, w: 820, h: 700 };
+    const stored = authoritativeSeam(shell.state, area, {
+      splitId: "split:main",
+      boundaryIndex: 0,
+    });
+    const tab = snapshot.desktops[0]?.tabs[0];
+    if (stored === null || tab === undefined) throw new Error("expected the first row seam");
+    const project = (previewed: LayoutTab) =>
+      projectTab({
+        tab: previewed,
+        workArea: area,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+        minimums: buildWindowManagerMinimums(snapshot),
+      });
+    // Rendered half a pixel past where the layout has it, as a preview frame may leave it: the
+    // press re-anchors on the stored seam, so every whole-pixel pointer asks for k + 0.5px.
+    render(<SeamHarness seam={{ ...stored, value: stored.value + 0.5 }} />, {
+      wrapper: shell.wrapper,
+    });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: stored.value, clientY: 300 });
+
+    // Past both bounds (80px either way): no frame shows the row one member at a time, and each
+    // is held at a whole pixel, so the seam reports its limit.
+    for (let pointer = stored.value - 120; pointer <= stored.value + 120; pointer += 1) {
+      fireEvent.pointerMove(seam, { pointerId: 4, clientX: pointer, clientY: 300 });
+      flushFrames();
+      const frame = project(applySeamPreviewToTab(tab, stored, previewDelta() ?? 0));
+      expect(frame.collapsed).toEqual([]);
+      expect(frame.seams.map(entry => entry.id)).toEqual(["split:main:0", "split:main:1"]);
+      expect(seam).toHaveAttribute("data-state", "limit");
+    }
+    // Released asking for 40.5px: the last frame shows 40px, and that is what commits.
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: stored.value + 40, clientY: 300 });
+
+    expect(previewDelta()).toBe(40);
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      seamWeightDelta(stored, 40),
+      fenceAt(SNAPSHOT.revision)
+    );
   });
 
   it("Should not arm a press on a seam the stored layout does not have (R7-02)", () => {

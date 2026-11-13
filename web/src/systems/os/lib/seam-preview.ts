@@ -10,6 +10,12 @@ export interface SeamPreview {
   readonly deltaPx: number;
 }
 
+/** A seam drag in pixels held to the bounds the projection gives the seam. */
+export function clampSeamShift(seam: ProjectedSeam, deltaPx: number): number {
+  if (!Number.isFinite(deltaPx)) return 0;
+  return Math.min(seam.maxValue - seam.value, Math.max(seam.minValue - seam.value, deltaPx));
+}
+
 /**
  * Converts a seam drag in pixels to the weight-space delta `layout.resize`
  * commits, clamped by the projection's pixel minimums and the daemon's
@@ -18,11 +24,7 @@ export interface SeamPreview {
  */
 export function seamWeightDelta(seam: ProjectedSeam, deltaPx: number): number {
   if (!Number.isFinite(deltaPx) || seam.axisSpan <= 0) return 0;
-  const clampedPx = Math.min(
-    seam.maxValue - seam.value,
-    Math.max(seam.minValue - seam.value, deltaPx)
-  );
-  const delta = clampedPx / seam.axisSpan;
+  const delta = clampSeamShift(seam, deltaPx) / seam.axisSpan;
   const maxDelta = Math.max(seam.trailingWeight - MIN_SPLIT_WEIGHT, 0);
   const minDelta = Math.min(MIN_SPLIT_WEIGHT - seam.leadingWeight, 0);
   return Math.min(maxDelta, Math.max(minDelta, delta));

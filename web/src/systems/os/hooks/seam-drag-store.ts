@@ -9,6 +9,13 @@ import type { LayoutRevision, ProjectedSeam } from "../lib/window-manager-types"
 export const SEAM_WEIGHT_EPSILON = 0.000001;
 
 /**
+ * The shift a drag frame requesting `requestedPx` pixels shows: held to the seam's bounds and to
+ * the shifts its split still lays out side by side at (`admitSeamShift`), read from the layout the
+ * drag is based on when the frame is made.
+ */
+export type SeamShiftAdmission = (requestedPx: number) => number;
+
+/**
  * One seam drag: the seam's geometry and layout revision it is currently based on, and the
  * context it was drawn in (binding, shown desktop and tab, work area). The press bases it on the
  * authoritative seam; every change of that seam's layout under the drag either re-bases the whole
@@ -21,7 +28,13 @@ export interface SeamDragState {
   pointerId: number | null;
   /** The pointer coordinate on the seam's axis that leaves `seam` where it is laid out. */
   origin: number;
+  /** The shift the pointer asks for. */
   deltaPx: number;
+  /**
+   * The shift the drag shows, reports at its limit and commits: `deltaPx` as the admission the
+   * last pointer move, re-base or re-admission carried lets it be. 0 shows the seam where it is.
+   */
+  shownPx: number;
   seam: ProjectedSeam | null;
   revision: LayoutRevision | null;
   contextKey: string | null;
@@ -41,8 +54,10 @@ export type SeamDragEvents = {
    * The seam's layout changed under the drag: `seam` is its latest unpreviewed layout at `revision`. The
    * pointer is re-anchored so the seam on screen stays under it.
    */
-  rebased: { seam: ProjectedSeam; revision: LayoutRevision };
-  pointerMoved: { pointerId: number; coordinate: number };
+  rebased: { seam: ProjectedSeam; revision: LayoutRevision; admit: SeamShiftAdmission };
+  pointerMoved: { pointerId: number; coordinate: number; admit: SeamShiftAdmission };
+  /** The layout under the drag changed without moving its seam: the shift is admitted again. */
+  readmitted: { admit: SeamShiftAdmission };
   dragEnded: { pointerId: number };
   dragCancelled: { reason: GestureCancelReason };
 };
@@ -53,6 +68,7 @@ function idleSeamDrag(cancelReason: GestureCancelReason | null): SeamDragState {
     pointerId: null,
     origin: 0,
     deltaPx: 0,
+    shownPx: 0,
     seam: null,
     revision: null,
     contextKey: null,
@@ -70,6 +86,7 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
         pointerId: event.pointerId,
         origin: event.coordinate,
         deltaPx: 0,
+        shownPx: 0,
         seam: event.seam,
         revision: event.revision,
         contextKey: event.contextKey,
@@ -79,10 +96,12 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
     rebased: (state, event) => {
       if (state.phase !== "dragging" || state.seam === null) return;
       const shift = event.seam.value - state.seam.value;
+      const deltaPx = state.deltaPx - shift;
       return {
         ...state,
         origin: state.origin + shift,
-        deltaPx: state.deltaPx - shift,
+        deltaPx,
+        shownPx: event.admit(deltaPx),
         seam: event.seam,
         revision: event.revision,
       };
@@ -90,7 +109,14 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
     pointerMoved: (state, event) => {
       if (state.phase !== "dragging" || state.pointerId !== event.pointerId) return;
       const deltaPx = event.coordinate - state.origin;
-      return deltaPx === state.deltaPx ? undefined : { ...state, deltaPx };
+      const shownPx = event.admit(deltaPx);
+      if (deltaPx === state.deltaPx && shownPx === state.shownPx) return;
+      return { ...state, deltaPx, shownPx };
+    },
+    readmitted: (state, event) => {
+      if (state.phase !== "dragging") return;
+      const shownPx = event.admit(state.deltaPx);
+      return shownPx === state.shownPx ? undefined : { ...state, shownPx };
     },
     dragEnded: (state, event) => {
       if (state.phase !== "dragging" || state.pointerId !== event.pointerId) return;
@@ -103,11 +129,13 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
   },
 });
 
-/** A pixel drag pushed past a member's minimum: the seam stops there and says so. */
+/**
+ * A pixel drag pushed past where its split still lays out side by side: the seam stops at the
+ * admitted shift and says so.
+ */
 export function seamDragAtLimit(state: SeamDragState): boolean {
   if (state.phase !== "dragging" || state.seam === null) return false;
-  const value = state.seam.value + state.deltaPx;
-  return value < state.seam.minValue || value > state.seam.maxValue;
+  return state.shownPx !== state.deltaPx;
 }
 
 export interface SeamDragCommit {
@@ -118,11 +146,11 @@ export interface SeamDragCommit {
   fence: WindowManagerCommandFence;
 }
 
-/** The one `layout.resize` a finished drag sends, or null when it moved nothing. */
+/** The one `layout.resize` a finished drag sends — the shift it shows — or null for none. */
 export function seamDragCommit(state: SeamDragState): SeamDragCommit | null {
   const { seam, revision } = state;
   if (state.phase !== "dragging" || seam === null || revision === null) return null;
-  const delta = seamWeightDelta(seam, state.deltaPx);
+  const delta = seamWeightDelta(seam, state.shownPx);
   if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return null;
   const { splitId, boundaryIndex } = seam;
   return {

@@ -1,11 +1,13 @@
 // Suite: shared seam drag lifecycle
 // Invariant: one captured pointer owns a seam drag; it commits at most one resize, fenced to the
 // revision and split of the seam it is based on, and a cancelled drag commits nothing. A re-based
-// drag keeps the seam on screen under the pointer and commits against the new seam only.
+// drag keeps the seam on screen under the pointer and commits against the new seam only. The
+// shift a frame's admission lets through is the one it reports at its limit and commits.
 // Owning layer: the shared seam drag interaction store. Boundary OUT: pointer transport, the seam
 // preview and command I/O (useOsSplitSeam in the OS interaction hooks suite).
 import { describe, expect, it } from "vitest";
 
+import { clampSeamShift } from "../../lib/seam-preview";
 import type { ProjectedSeam } from "../../lib/window-manager-types";
 import { seamDragAtLimit, seamDragCommit, seamDragLogic } from "../seam-drag-store";
 
@@ -25,6 +27,11 @@ const SEAM: ProjectedSeam = {
   trailingWindowIds: ["window:right"],
 };
 
+/** Admission by the seam's bounds alone: every shift inside them lays the split out side by side. */
+function within(seam: ProjectedSeam) {
+  return (requestedPx: number) => clampSeamShift(seam, requestedPx);
+}
+
 function startedStore() {
   const store = seamDragLogic.createStore();
   store.trigger.dragStarted({
@@ -41,8 +48,8 @@ describe("seamDragLogic", () => {
   it("Should follow only the captured pointer", () => {
     const store = startedStore();
 
-    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160 });
-    store.trigger.pointerMoved({ pointerId: 8, coordinate: 400 });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
+    store.trigger.pointerMoved({ pointerId: 8, coordinate: 400, admit: within(SEAM) });
     store.trigger.dragEnded({ pointerId: 8 });
 
     expect(store.getSnapshot().context).toMatchObject({ phase: "dragging", deltaPx: 60 });
@@ -52,7 +59,7 @@ describe("seamDragLogic", () => {
 
   it("Should commit one resize fenced to the press revision and the seam's split", () => {
     const store = startedStore();
-    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160 });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
 
     expect(seamDragCommit(store.getSnapshot().context)).toEqual({
       splitId: "split:root",
@@ -64,23 +71,41 @@ describe("seamDragLogic", () => {
 
   it("Should commit nothing for a drag that moved nothing", () => {
     const store = startedStore();
-    store.trigger.pointerMoved({ pointerId: 7, coordinate: 100 });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 100, admit: within(SEAM) });
 
     expect(seamDragCommit(store.getSnapshot().context)).toBeNull();
   });
 
   it("Should stop at a member's minimum and report it", () => {
     const store = startedStore();
-    store.trigger.pointerMoved({ pointerId: 7, coordinate: -150 });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: -150, admit: within(SEAM) });
 
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
     // The commit is clamped to the minimum: 200px of travel in a 1000px span.
     expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(-0.2);
   });
 
+  it("Should report the limit and commit the admitted shift when the admission holds a frame back", () => {
+    const store = startedStore();
+    // Inside the seam's bounds, but the split only lays out side by side up to 40px.
+    store.trigger.pointerMoved({
+      pointerId: 7,
+      coordinate: 160.5,
+      admit: requestedPx => Math.min(requestedPx, 40),
+    });
+
+    expect(store.getSnapshot().context).toMatchObject({ deltaPx: 60.5, shownPx: 40 });
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.04);
+    // Admitted again once the layout under it lets the whole request through.
+    store.trigger.readmitted({ admit: within(SEAM) });
+    expect(seamDragAtLimit(store.getSnapshot().context)).toBe(false);
+    expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(0.0605);
+  });
+
   it("Should re-base on a moved seam: the pointer keeps its place and the new bounds clamp", () => {
     const store = startedStore();
-    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160 });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
     // The split moved to 60/40 under the drag; its trailing minimum now stops the seam at 650.
     const moved: ProjectedSeam = {
       ...SEAM,
@@ -90,11 +115,11 @@ describe("seamDragLogic", () => {
       trailingWeight: 0.4,
     };
 
-    store.trigger.rebased({ seam: moved, revision: 13 });
+    store.trigger.rebased({ seam: moved, revision: 13, admit: within(moved) });
 
     // The seam was shown at 500 + 60 = 560: from 600 that is -40, and the pointer still owns it.
     expect(store.getSnapshot().context).toMatchObject({ deltaPx: -40, revision: 13, seam: moved });
-    store.trigger.pointerMoved({ pointerId: 7, coordinate: 400 });
+    store.trigger.pointerMoved({ pointerId: 7, coordinate: 400, admit: within(moved) });
     // 500 + 300 = 800 on screen is past 650: the commit stops where the new bounds do.
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
     expect(seamDragCommit(store.getSnapshot().context)).toEqual({
@@ -109,7 +134,7 @@ describe("seamDragLogic", () => {
     "Should end a drag cancelled by %s with nothing to commit",
     reason => {
       const store = startedStore();
-      store.trigger.pointerMoved({ pointerId: 7, coordinate: 160 });
+      store.trigger.pointerMoved({ pointerId: 7, coordinate: 160, admit: within(SEAM) });
 
       store.trigger.dragCancelled({ reason });
 

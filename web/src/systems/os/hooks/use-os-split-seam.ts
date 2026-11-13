@@ -13,6 +13,7 @@ import type {
 } from "../lib/os-types";
 import {
   authoritativeSeam,
+  authoritativeSeamShift,
   authoritativeSplitMembers,
   DEFAULT_WINDOW_MANAGER_WORK_AREA,
 } from "../lib/window-manager-view";
@@ -24,6 +25,7 @@ import {
   seamDragCommit,
   seamDragLogic,
   seamKeyStep,
+  type SeamShiftAdmission,
 } from "./seam-drag-store";
 import {
   afterOwnCommands,
@@ -244,6 +246,11 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     const vertical = seam.orientation === "vertical";
     const coordinate = (pointer: { clientX: number; clientY: number }) =>
       vertical ? pointer.clientX : pointer.clientY;
+    // Every frame's shift goes through the one rule the rendered preview does, against the
+    // authoritative layout as it is when the frame is made.
+    const admit: SeamShiftAdmission = requestedPx =>
+      authoritativeSeamShift(manager.getState(), projectedWorkArea(), base, requestedPx)?.shiftPx ??
+      0;
     let frame: number | null = null;
     let live = true;
     let unbindCancellation = () => {};
@@ -284,7 +291,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
         preview: {
           splitId: drag.seam.splitId,
           boundaryIndex: drag.seam.boundaryIndex,
-          deltaPx: drag.deltaPx,
+          deltaPx: drag.shownPx,
         },
       });
     };
@@ -306,12 +313,16 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
         cancel("context-changed");
         return false;
       }
-      if (sameSeamGeometry(latest, drag.seam)) return true;
+      if (sameSeamGeometry(latest, drag.seam)) {
+        store.trigger.readmitted({ admit });
+        if (store.getSnapshot().context.shownPx !== drag.shownPx) showPreview();
+        return true;
+      }
       if (!owned || latest.orientation !== drag.seam.orientation) {
         cancel("context-changed");
         return false;
       }
-      store.trigger.rebased({ seam: latest, revision: view.snapshot.revision });
+      store.trigger.rebased({ seam: latest, revision: view.snapshot.revision, admit });
       showPreview();
       return true;
     };
@@ -336,7 +347,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     };
     const onMove = (move: globalThis.PointerEvent) => {
       if (move.pointerId !== pointerId) return;
-      store.trigger.pointerMoved({ pointerId, coordinate: coordinate(move) });
+      store.trigger.pointerMoved({ pointerId, coordinate: coordinate(move), admit });
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
         frame = null;
@@ -345,7 +356,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     };
     const onUp = (up: globalThis.PointerEvent) => {
       if (up.pointerId !== pointerId) return;
-      store.trigger.pointerMoved({ pointerId, coordinate: coordinate(up) });
+      store.trigger.pointerMoved({ pointerId, coordinate: coordinate(up), admit });
+      // The release frame is the last one shown, and the commit sends its shift.
+      showPreview();
       const scope = inputScope();
       if (!ownBusy(manager)) {
         commit(false, scope.at);
@@ -356,7 +369,6 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       // it; once everything ahead has settled, author it against the latest layout and send — or
       // cancel it if its input no longer holds by then.
       detach();
-      showPreview();
       afterOwnCommands(manager, {
         scope,
         run: () => {
@@ -380,7 +392,7 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
     });
     // Anchored where the seam shows, based on where the layout really has it.
     if (!sameSeamGeometry(base, seam)) {
-      store.trigger.rebased({ seam: base, revision });
+      store.trigger.rebased({ seam: base, revision, admit });
       showPreview();
     }
     unbindCancellation = bindLayoutGestureCancellation(window, cancel);

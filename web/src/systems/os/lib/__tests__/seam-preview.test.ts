@@ -1,13 +1,14 @@
 // Suite: seam drag preview math
 // Invariant: the live seam preview and the committed layout.resize apply the same
 // weight-space delta — px clamped by projection minimums, weights floored at the
-// daemon's 0.01 adjacent minimum, normalized by the split's axis span.
+// daemon's 0.01 adjacent minimum, normalized by the split's axis span — and every frame shows
+// a shift at which the split still lays out side by side.
 // Boundary IN: a projected seam + raw pointer delta in pixels.
 // Boundary OUT: seam drag lifecycle and command transport.
 import { describe, expect, it } from "vitest";
 
 import { applySeamPreviewToTab, seamWeightDelta } from "../seam-preview";
-import { projectTab } from "../tab-projection";
+import { admitSeamShift, projectTab } from "../tab-projection";
 import type { LayoutTab, ProjectedSeam } from "../window-manager-types";
 
 const SEAM: ProjectedSeam = {
@@ -249,6 +250,60 @@ describe("applySeamPreviewToTab", () => {
         expect(previewed.collapsed.map(entry => entry.splitId)).toEqual(["split:pair"]);
         expect(previewed.seams.map(entry => entry.id)).toEqual(["split:column:0"]);
       }
+    }
+  });
+
+  it("Should keep a three-member split side by side at every frame a drag asks for when a fractional shift would give the third member's spare pixel away", () => {
+    // Largest-remainder allocation over an 820px row with 220px floors, raw shares
+    // 300.3 | 300.3 | 219.4: floors 300 + 300 + 219 = 819, the one spare pixel goes to the largest
+    // fraction (the third member's .4), so 300 | 300 | 220 and every member fits.
+    // Shifted by +0.5 across the first seam: 300.8 | 299.8 | 219.4, floors 300 + 299 + 219 = 818,
+    // the two spare pixels go to the two .8 fractions, so 301 | 300 | 219: the third member drops
+    // under its floor while the seam is 80px from either neighbour's minimum. A whole-pixel shift
+    // keeps the fractions at .3 | .3 | .4, so the pixel stays with the third member.
+    const row: LayoutTab = {
+      id: "tab:row",
+      pinned: false,
+      root: {
+        id: "split:row",
+        kind: "split",
+        axis: "horizontal",
+        weights: [300.3 / 820, 300.3 / 820, 219.4 / 820],
+        children: [
+          { id: "leaf:a", kind: "leaf", windowId: "window:a" },
+          { id: "leaf:b", kind: "leaf", windowId: "window:b" },
+          { id: "leaf:c", kind: "leaf", windowId: "window:c" },
+        ],
+      },
+    };
+    const input = (tab: LayoutTab) => ({
+      tab,
+      workArea: { x: 0, y: 0, w: 820, h: 700 },
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: {
+        "window:a": { width: 220, height: 220 },
+        "window:b": { width: 220, height: 220 },
+        "window:c": { width: 220, height: 220 },
+      },
+    });
+    const seam = projectTab(input(row)).seams.find(entry => entry.id === "split:row:0");
+    if (seam === undefined) throw new Error("expected the first row seam");
+    // 300px either side of the seam over 220px floors: 80px of travel each way.
+    expect([seam.minValue - seam.value, seam.maxValue - seam.value]).toEqual([-80, 80]);
+    // Unguarded, half a pixel is enough to show the row one member at a time.
+    expect(projectTab(input(applySeamPreviewToTab(row, seam, 0.5))).collapsed).toHaveLength(1);
+
+    // Every frame, in half-pixel steps and past both bounds, shows the nearest shift toward 0 the
+    // row lays out side by side at: the request itself on whole pixels, the whole pixel inside it
+    // on half pixels, and the bound past it.
+    for (let requestedPx = -120; requestedPx <= 120; requestedPx += 0.5) {
+      const admitted = admitSeamShift(input(row), seam, requestedPx);
+      if (admitted === null) throw new Error("expected the first row seam");
+      const bounded = Math.min(80, Math.max(-80, requestedPx));
+      expect(admitted.shiftPx).toBeCloseTo(Math.trunc(bounded), 9);
+      const frame = projectTab(input(applySeamPreviewToTab(row, admitted.seam, admitted.shiftPx)));
+      expect(frame.collapsed).toEqual([]);
+      expect(frame.seams.map(entry => entry.id)).toEqual(["split:row:0", "split:row:1"]);
     }
   });
 

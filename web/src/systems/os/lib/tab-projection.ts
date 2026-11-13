@@ -1,4 +1,5 @@
 import { descendantWindowIds, minimumForNode, minimumForWindow } from "./layout-minimums";
+import { clampSeamShift, seamWeightDelta } from "./seam-preview";
 import type {
   CollapsedSplit,
   ProjectedSeam,
@@ -27,6 +28,8 @@ interface ProjectionContext {
   seams: ProjectedSeam[];
   collapsed: CollapsedSplit[];
   diagnostics: TabProjectionDiagnostic[];
+  /** A split `admitSeamShift` looks for: the projection records its node and rect if laid out. */
+  probe?: { splitId: string; found: { node: LayoutSplitNode; rect: PixelRect } | null };
 }
 
 function finite(value: number, fallback = 0): number {
@@ -148,20 +151,19 @@ function projectCollapsed(
 }
 
 /**
- * Whether the split still lays out side by side once `shift` pixels move across one boundary,
- * weighted and allocated exactly as a seam preview or `layout.resize` of that shift would be:
+ * Whether the split still lays out side by side once the weight `delta` moves across one
+ * boundary, weighted and allocated exactly as a seam preview or `layout.resize` of it would be:
  * the same weight arithmetic as `applySeamPreviewToTab`, the same largest-remainder allocation
- * and the same fit test that decides between side by side and one member at a time.
+ * and the same fit test that decides between side by side and one member at a time. The split's
+ * own rect does not change, so no ancestor's decision does either.
  */
 function fitsShifted(
   node: LayoutSplitNode,
   rect: PixelRect,
   boundaryIndex: number,
-  shift: number,
-  axisSpan: number,
+  delta: number,
   context: ProjectionContext
 ): boolean {
-  const delta = shift / axisSpan;
   const weights = [...node.weights];
   weights[boundaryIndex] = (weights[boundaryIndex] ?? 0) + delta;
   weights[boundaryIndex + 1] = (weights[boundaryIndex + 1] ?? 0) - delta;
@@ -186,7 +188,7 @@ function admittedShift(
   // A split with no span cannot be dragged: `seamWeightDelta` moves nothing either.
   if (axisSpan <= 0) return 0;
   let shift = wanted;
-  while (shift !== 0 && !fitsShifted(node, rect, boundaryIndex, shift, axisSpan, context)) {
+  while (shift !== 0 && !fitsShifted(node, rect, boundaryIndex, shift / axisSpan, context)) {
     shift -= Math.sign(shift);
   }
   return shift;
@@ -378,6 +380,20 @@ function projectNode(
     const seam = seamForBoundary(node, rect, childRects, index, context);
     if (seam !== null) context.seams.push(seam);
   }
+  if (context.probe?.splitId === node.id) context.probe.found = { node, rect };
+}
+
+function projectionContext(input: TabProjectionInput): ProjectionContext {
+  return {
+    innerGap: nonNegativeInteger(input.gaps.inner),
+    minimums: input.minimums ?? {},
+    focusOrder: input.focusOrder ?? [],
+    compact: input.compact ?? false,
+    windows: [],
+    seams: [],
+    collapsed: [],
+    diagnostics: [],
+  };
 }
 
 /**
@@ -388,16 +404,7 @@ function projectNode(
 export function projectTab(input: TabProjectionInput): TabProjection {
   const workArea = pixelRect(input.workArea);
   const area = windowManagerLayoutArea(workArea, input.gaps);
-  const context: ProjectionContext = {
-    innerGap: nonNegativeInteger(input.gaps.inner),
-    minimums: input.minimums ?? {},
-    focusOrder: input.focusOrder ?? [],
-    compact: input.compact ?? false,
-    windows: [],
-    seams: [],
-    collapsed: [],
-    diagnostics: [],
-  };
+  const context = projectionContext(input);
   projectNode(input.tab.root, area, context, null, true);
   return {
     tabId: input.tab.id,
@@ -407,4 +414,50 @@ export function projectTab(input: TabProjectionInput): TabProjection {
     collapsed: context.collapsed,
     diagnostics: context.diagnostics,
   };
+}
+
+/** A seam drag frame as it may be shown and committed: the seam and the shift it admits. */
+export interface AdmittedSeamShift {
+  seam: ProjectedSeam;
+  shiftPx: number;
+}
+
+/**
+ * The one rule every frame of a seam drag goes through: the shift it shows, reports at its limit
+ * and commits. A requested shift is clamped to the seam's bounds; if the split would not lay out
+ * side by side at it (largest-remainder allocation can hand a fractional shift's spare pixel to
+ * another member, which then drops below its minimum), the frame takes the nearest whole-pixel
+ * shift toward 0 that does. Shift 0 is the laid-out split itself. Null when the tab does not lay
+ * the split out with that boundary. Cost: one projection of the tab, then at most |shift| + 1
+ * fit tests of the split's subtree; at most one when the first fits.
+ */
+export function admitSeamShift(
+  input: TabProjectionInput,
+  target: { splitId: string; boundaryIndex: number },
+  requestedPx: number
+): AdmittedSeamShift | null {
+  const probe: NonNullable<ProjectionContext["probe"]> = { splitId: target.splitId, found: null };
+  const context: ProjectionContext = { ...projectionContext(input), probe };
+  const area = windowManagerLayoutArea(pixelRect(input.workArea), input.gaps);
+  projectNode(input.tab.root, area, context, null, true);
+  const seam = context.seams.find(
+    candidate =>
+      candidate.splitId === target.splitId && candidate.boundaryIndex === target.boundaryIndex
+  );
+  const found = probe.found;
+  if (seam === undefined || found === null) return null;
+  const fits = (shiftPx: number) =>
+    fitsShifted(
+      found.node,
+      found.rect,
+      seam.boundaryIndex,
+      seamWeightDelta(seam, shiftPx),
+      context
+    );
+  const clamped = clampSeamShift(seam, requestedPx);
+  if (fits(clamped)) return { seam, shiftPx: clamped };
+  let shiftPx = Math.trunc(clamped);
+  if (shiftPx === clamped) shiftPx -= Math.sign(shiftPx);
+  while (shiftPx !== 0 && !fits(shiftPx)) shiftPx -= Math.sign(shiftPx);
+  return { seam, shiftPx };
 }

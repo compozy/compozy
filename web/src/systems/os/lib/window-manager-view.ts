@@ -13,7 +13,7 @@ import type {
   OsWindow,
   OsWindowRoute,
 } from "./os-types";
-import { projectTab } from "./tab-projection";
+import { admitSeamShift, projectTab, type AdmittedSeamShift } from "./tab-projection";
 import { resolveActiveTabId } from "./tab-model";
 import { effectiveWindowManagerConfig } from "./window-manager-config";
 import type {
@@ -71,6 +71,11 @@ export function buildActiveTabIds(
   return activeTabIds;
 }
 
+type AuthoritativeView = Pick<
+  OsDesktopRuntimeStore,
+  "snapshot" | "windowManagerConfig" | "client" | "presentation"
+>;
+
 interface ProjectionContext {
   workArea: PixelRect;
   config: WindowManagerConfig;
@@ -93,7 +98,8 @@ function projectionInputFor(tab: LayoutTab, context: ProjectionContext) {
 /**
  * The snapshot with a live seam drag applied to its split, so the rendered weights, the
  * projection and every view of the tab show the previewed shares until `layout.resize` commits.
- * The pixel delta is clamped against the tab's unpreviewed projection.
+ * The frame shows the shift `admitSeamShift` admits against the tab's unpreviewed projection, so
+ * no preview can turn the split to one member at a time.
  */
 function withSeamPreview(
   snapshot: WindowManagerSnapshot,
@@ -104,12 +110,9 @@ function withSeamPreview(
   let changed = false;
   const desktops = snapshot.desktops.map(desktop => {
     const tabs = desktop.tabs.map(tab => {
-      const seam = projectTab(projectionInputFor(tab, context)).seams.find(
-        candidate =>
-          candidate.splitId === preview.splitId && candidate.boundaryIndex === preview.boundaryIndex
-      );
-      if (seam === undefined) return tab;
-      const previewed = applySeamPreviewToTab(tab, seam, preview.deltaPx);
+      const admitted = admitSeamShift(projectionInputFor(tab, context), preview, preview.deltaPx);
+      if (admitted === null) return tab;
+      const previewed = applySeamPreviewToTab(tab, admitted.seam, admitted.shiftPx);
       if (previewed !== tab) changed = true;
       return previewed;
     });
@@ -124,10 +127,24 @@ function withSeamPreview(
  * Null when the split or the boundary no longer exists.
  */
 export function authoritativeSeam(
-  view: Pick<OsDesktopRuntimeStore, "snapshot" | "windowManagerConfig" | "client" | "presentation">,
+  view: AuthoritativeView,
   workArea: PixelRect,
   target: { splitId: string; boundaryIndex: number }
 ): ProjectedSeam | null {
+  return authoritativeSeamShift(view, workArea, target, 0)?.seam ?? null;
+}
+
+/**
+ * The shift a seam drag frame requesting `requestedPx` shows, reports and commits against the
+ * authoritative layout: `admitSeamShift`, the same rule the rendered preview goes through. Null
+ * when the split or the boundary no longer exists.
+ */
+export function authoritativeSeamShift(
+  view: AuthoritativeView,
+  workArea: PixelRect,
+  target: { splitId: string; boundaryIndex: number },
+  requestedPx: number
+): AdmittedSeamShift | null {
   const { snapshot, windowManagerConfig: config } = view;
   if (snapshot === null || config === null) return null;
   const context: ProjectionContext = {
@@ -139,11 +156,8 @@ export function authoritativeSeam(
   };
   for (const desktop of snapshot.desktops) {
     for (const tab of desktop.tabs) {
-      const seam = projectTab(projectionInputFor(tab, context)).seams.find(
-        candidate =>
-          candidate.splitId === target.splitId && candidate.boundaryIndex === target.boundaryIndex
-      );
-      if (seam !== undefined) return seam;
+      const admitted = admitSeamShift(projectionInputFor(tab, context), target, requestedPx);
+      if (admitted !== null) return admitted;
     }
   }
   return null;
