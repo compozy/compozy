@@ -220,7 +220,7 @@ func (s *subagentService) failIsolatedDelegation(
 			summary = "worktree_retained: " + summary
 		}
 		unlock := s.lock(row.ParentSessionID)
-		settled, changed, err := s.store.FinalizeSubagent(
+		settled, changed, err := s.finalizeSubagentWithRetry(
 			cleanup,
 			store.SubagentFinalize{
 				ID:        row.ID,
@@ -238,7 +238,10 @@ func (s *subagentService) failIsolatedDelegation(
 	}
 	// Failed calls stop their child even when admitted work requires retaining its checkout.
 	if retained && row.ChildSessionID != nil {
-		stopErr := s.runtime.Stop(cleanup, *row.ChildSessionID)
+		// The terminal write above may have consumed the cleanup budget on retries.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		defer stopCancel()
+		stopErr := s.runtime.Stop(stopCtx, *row.ChildSessionID)
 		if !errors.Is(stopErr, ErrSessionNotActive) && !errors.Is(stopErr, ErrSessionNotFound) {
 			cleanupErr = errors.Join(cleanupErr, stopErr)
 		}

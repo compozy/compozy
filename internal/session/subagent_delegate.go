@@ -271,7 +271,7 @@ func (s *subagentService) failDelegation(
 	defer cancel()
 	unlock := s.lock(row.ParentSessionID)
 	summary := cause.Error()
-	settled, changed, err := s.store.FinalizeSubagent(
+	settled, changed, err := s.finalizeSubagentWithRetry(
 		cleanup,
 		store.SubagentFinalize{
 			ID:        row.ID,
@@ -286,7 +286,11 @@ func (s *subagentService) failDelegation(
 	}
 	unlock()
 	if child != "" {
-		err = errors.Join(err, s.runtime.Stop(cleanup, child))
+		// The terminal write above may have consumed the cleanup budget on retries;
+		// the child still has to be stopped under its own bounded context.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+		err = errors.Join(err, s.runtime.Stop(stopCtx, child))
+		stopCancel()
 	}
 	if err != nil {
 		return Subagent{}, errors.Join(cause, err)

@@ -25,6 +25,8 @@ type memorySubagents struct {
 	rewrites           map[string]string
 	orphans            []string
 	committedAdmission bool
+	finalizeFailures   int
+	finalizeCalls      int
 }
 
 var _ store.SubagentStore = (*memorySubagents)(nil)
@@ -189,6 +191,12 @@ func (d *memorySubagents) FinalizeSubagent(
 ) (store.SessionSubagent, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.finalizeCalls++
+	if d.finalizeFailures > 0 {
+		d.finalizeFailures--
+		return store.SessionSubagent{}, false,
+			fmt.Errorf("store: wait for local sqlite writer admission: %w", context.DeadlineExceeded)
+	}
 	row, ok := d.rows[in.ID]
 	if !ok {
 		return row, false, store.ErrSubagentNotFound
