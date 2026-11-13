@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "@xstate/store-react";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
@@ -35,6 +35,7 @@ import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconcili
 import { useProfileSwitchWindowSweep } from "./use-profile-switch-window-sweep";
 import { useWindowScopePruning } from "./use-window-scope-pruning";
 import { clientRestore, useWindowManagerClient } from "./use-window-manager-client";
+import { useRestoredClientFocus } from "./use-restored-client-focus";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
 
@@ -172,31 +173,14 @@ export function useDesktopChrome(
   }, [activeWorkspaceId, client.client, client.error, manager, profileId, shell]);
 
   // A re-registration after a lost one (a daemon restart) refocuses the window this page had
-  // focused, once the restored view is adopted (#1655). The answer is authoritative state: its
-  // report replaces the URL to that window and adds no history entry. The saved focus is kept
-  // until the focus applies or the window is gone: a focus the daemon refuses (sent against a
-  // snapshot older than the restarted daemon's) is tried again on the next snapshot revision.
-  const restoredFocus = client.restoredFocus;
-  const settleRestore = useEffectEvent(() => client.restoreSettled());
-  const snapshotRevision = query.data?.revision ?? null;
-  const restoreInFlight = useRef(false);
-  useEffect(() => {
-    if (restoredFocus === null || snapshotRevision === null || restoreInFlight.current) return;
-    const state = manager.getState();
-    if (state.client === null) return;
-    if (!state.windows[restoredFocus] || state.focusedId === restoredFocus) {
-      settleRestore();
-      return;
-    }
-    restoreInFlight.current = true;
-    void manager
-      .focusWindow(restoredFocus, { replaceable: true })
-      .completion.catch(() => false)
-      .then(applied => {
-        restoreInFlight.current = false;
-        if (applied) settleRestore();
-      });
-  }, [client.client, manager, restoredFocus, snapshotRevision]);
+  // focused (#1655).
+  useRestoredClientFocus({
+    manager,
+    restoredFocus: client.restoredFocus,
+    settle: client.restoreSettled,
+    snapshotRevision: query.data?.revision ?? null,
+    client: client.client,
+  });
 
   // After the rebind above, so the sweep reads the target desk rather than the one it replaced.
   useProfileSwitchWindowSweep(shell, activeWorkspaceId);

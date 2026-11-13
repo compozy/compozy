@@ -62,7 +62,7 @@ export interface WindowManagerClientRegistrationState {
    * asks for (its desktop) and `restoredFocus` reports (its window).
    */
   reregister: (restore?: WindowManagerClientRestore | null) => void;
-  restoreSettled: () => void;
+  restoreSettled: (windowId: string) => void;
 }
 
 export function useWindowManagerClient(
@@ -153,6 +153,6 @@ export function useWindowManagerClient(
     restoredFocus: phase === "registered" ? (restore?.focusedWindowId ?? null) : null,
     reregister: next =>
       store.trigger.recoveryRequested(next === undefined ? {} : { restore: next }),
-    restoreSettled: () => store.trigger.restoreSettled(),
+    restoreSettled: windowId => store.trigger.restoreSettled({ windowId }),
   };
 }

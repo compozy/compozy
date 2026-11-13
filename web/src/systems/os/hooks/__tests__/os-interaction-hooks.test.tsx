@@ -1789,6 +1789,29 @@ describe("WindowPaneHosts", () => {
       expect(document.activeElement).toBe(field);
     });
 
+    it("Should leave a dialog region another window shows in its own pane", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      // A Sessions board's inline drawer: persistent pane content, not an overlay.
+      const pane = document.createElement("div");
+      pane.dataset.slot = "os-window-host";
+      const drawer = document.createElement("div");
+      drawer.setAttribute("role", "dialog");
+      const input = document.createElement("input");
+      drawer.append(input);
+      pane.append(drawer);
+      document.body.append(pane);
+      onTestFinished(() => pane.remove());
+      input.focus();
+
+      handoff.request("w", handoff.begin());
+
+      expect(document.activeElement).toBe(field);
+    });
+
     it("Should not take the caret from a field the operator clicked while the focus change was in flight", () => {
       const handoff = new KeyboardFocusHandoff();
       const { hosts, field, first, box } = setup(handoff);

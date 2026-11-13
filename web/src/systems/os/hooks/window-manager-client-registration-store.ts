@@ -62,8 +62,8 @@ type WindowManagerRegistrationEvents = {
   registrationFailed: { error: Error; epoch: number };
   /** The daemon refused the desktop hint (that desktop is gone): register again without it. */
   desktopHintRefused: { epoch: number };
-  /** The restored focus was applied or is moot; nothing is left to restore. */
-  restoreSettled: Record<never, never>;
+  /** The restored focus of `windowId` was applied or is moot; a newer restore stays. */
+  restoreSettled: { windowId: string };
   registrationSucceeded: { client: WindowManagerRegisteredClientView; epoch: number };
   retryElapsed: Record<never, never>;
 };
@@ -128,7 +128,9 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
         client: null,
         epoch: context.epoch + 1,
         phase: "registering",
-        restore: event.restore === undefined ? context.restore : event.restore,
+        // A restore still pending (a second loss before the first settled) outlives the view the
+        // fallback registration showed: that view is the daemon's default, not this page's.
+        restore: context.restore ?? event.restore ?? null,
         retryCount: 0,
       };
     },
@@ -141,8 +143,8 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
         restore: { ...context.restore, activeDesktopId: null },
       };
     },
-    restoreSettled: context => {
-      if (context.restore === null) return;
+    restoreSettled: (context, event) => {
+      if (context.restore?.focusedWindowId !== event.windowId) return;
       return { ...context, restore: null };
     },
     registrationFailed: (context, event) => {

@@ -297,8 +297,36 @@ describe("useWindowManagerClient", () => {
       "desktop:two",
     ]);
     expect(result.current.restoredFocus).toBe("win-w");
-    act(() => result.current.restoreSettled());
+    act(() => result.current.restoreSettled("win-other"));
+    expect(result.current.restoredFocus).toBe("win-w");
+    act(() => result.current.restoreSettled("win-w"));
     expect(result.current.restoredFocus).toBeNull();
+  });
+
+  it("Should keep a pending restore through a second loss before it settles", async () => {
+    vi.mocked(registerWindowManagerClient)
+      .mockResolvedValueOnce(client(1))
+      .mockResolvedValueOnce({ ...client(2), activeDesktopId: "desktop:two" })
+      .mockResolvedValueOnce({ ...client(3), activeDesktopId: "desktop:two" });
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+
+    act(() =>
+      result.current.reregister({ activeDesktopId: "desktop:two", focusedWindowId: "win-w" })
+    );
+    await waitFor(() => expect(result.current.client?.presentationRevision).toBe(2));
+    // Lost again before the focus applied: the view it reads now is the daemon's default.
+    act(() =>
+      result.current.reregister({ activeDesktopId: "desktop:default", focusedWindowId: null })
+    );
+    await waitFor(() => expect(result.current.client?.presentationRevision).toBe(3));
+
+    expect(vi.mocked(registerWindowManagerClient).mock.calls.map(call => call[3])).toEqual([
+      undefined,
+      "desktop:two",
+      "desktop:two",
+    ]);
+    expect(result.current.restoredFocus).toBe("win-w");
   });
 
   it("Should register without the desktop hint when the daemon refuses it", async () => {

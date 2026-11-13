@@ -50,17 +50,18 @@ export class WindowActivations {
   /**
    * Ends an open-or-focus once its command settled; returns the entry it writes, if any. One the
    * daemon did not apply writes nothing. `requested` is the route it asked for, written while the
-   * projection does not show the window yet.
+   * projection does not show the window yet; `landed` is the window the open settled on, which a
+   * conflict recovery can move to an existing instance.
    */
   endOpen(
     start: WindowActivationStart,
     state: ActivationState,
     currentRoute: OsWindowRoute | null,
     newestIntent: number,
-    outcome: { applied: boolean; requested: OsWindowRoute }
+    outcome: { applied: boolean; requested: OsWindowRoute; landed: string }
   ): OsWindowRoute | null {
     if (!this.finish(start) || !outcome.applied) return null;
-    return windowOpenEntry(start, state, currentRoute, newestIntent, outcome.requested);
+    return windowOpenEntry(start, state, currentRoute, newestIntent, outcome);
   }
 
   /** Counts one activation or open out; whether it still belongs to the current workspace cycle. */
@@ -111,12 +112,13 @@ export function windowOpenEntry(
   state: ActivationState,
   currentRoute: OsWindowRoute | null,
   newestIntent: number,
-  requested: OsWindowRoute
+  opened: { requested: OsWindowRoute; landed: string }
 ): OsWindowRoute | null {
   if (start.intent !== newestIntent) return null;
-  const route = state.windows[start.windowId]?.route ?? requested;
+  const route = state.windows[opened.landed]?.route ?? opened.requested;
   const unchanged =
     start.alreadyShown &&
+    opened.landed === start.windowId &&
     state.focusedId === start.windowId &&
     sameOsWindowRoute(currentRoute, route);
   return unchanged ? null : route;

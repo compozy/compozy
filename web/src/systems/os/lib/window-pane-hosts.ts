@@ -10,6 +10,7 @@ import { PaneScrollSettler } from "./pane-scroll-settler";
 import { sameOsWindowRoute } from "./window-manager-route";
 
 const HOST_SLOT = "os-window-host";
+const HOST_SELECTOR = `[data-slot="${HOST_SLOT}"]`;
 /** Below this many recorded containers a pane is never swept. */
 const SWEEP_FLOOR = 16;
 /** Where re-insertions stop mattering: the desk layer holds every desktop, tab and slot. */
@@ -46,8 +47,18 @@ export interface PaneHostWindows {
 }
 
 const OWNER_SELECTOR = `[${SCROLL_OWNER_ATTRIBUTE}]`;
-/** Surfaces above the desk that keep the keyboard while open: a keyboard handoff waits for them. */
+/**
+ * Surfaces above the desk that keep the keyboard while open: a keyboard handoff waits for them.
+ * Inside a pane only a modal one counts; a pane's own persistent dialog-like region (an inline
+ * drawer, a results listbox) is ordinary content the keyboard may leave.
+ */
 const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+const MODAL_SELECTOR = '[aria-modal="true"], [role="alertdialog"]';
+
+function holdsOverlay(element: Element): boolean {
+  if (element.closest(MODAL_SELECTOR) !== null) return true;
+  return element.closest(OVERLAY_SELECTOR) !== null && element.closest(HOST_SELECTOR) === null;
+}
 /** Input that is the operator taking a pane's scroll, ending any restore still settling there. */
 const GESTURES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
 
@@ -405,7 +416,7 @@ export class WindowPaneHosts {
     if (host === undefined || !this.windows.isFocused(windowId)) return false;
     const active = host.element.ownerDocument.activeElement;
     if (active !== null && host.element.contains(active)) return true;
-    if (active?.closest(OVERLAY_SELECTOR)) return false;
+    if (active !== null && holdsOverlay(active)) return false;
     const document = host.element.ownerDocument;
     const remembered = this.windowFocus.get(windowId);
     if (remembered !== undefined && host.element.contains(remembered) && isRendered(remembered)) {
@@ -429,7 +440,7 @@ export class WindowPaneHosts {
     this.lastFocus = host === undefined ? null : { windowId: host.windowId, element: target };
     if (host !== undefined) this.windowFocus.set(host.windowId, target);
     // Focus an overlay gave back on closing (the palette's trigger) lets a waiting handoff land.
-    if (target.closest(OVERLAY_SELECTOR) === null) this.handoff?.offer();
+    if (!holdsOverlay(target)) this.handoff?.offer();
   };
 
   /** A pointer press is the operator placing focus: a waiting handoff no longer applies. */

@@ -253,20 +253,21 @@ export class RoutingCoordinator {
     const applied = await outcome.completion.catch(() => false);
     const state = this.manager.getState();
     const newest = this.nextUserIntentToken;
+    // The window that landed: a conflict recovery can retarget the open to an existing instance.
+    const landed = outcome.windowId;
     // A window can consume its route intent before the opening command completes (`endOpen`).
     const entry = this.activations.endOpen(start, state, this.currentRoute, newest, {
       applied,
       requested: target.route ?? defaultOsWindowRoute(target.app),
+      landed,
     });
     if (entry !== null) this.pushRoute(entry);
     else if (!this.activations.settling) this.reportAuthoritativeState();
     if (!applied) return null;
-    // The window that landed: a conflict recovery can retarget the open to an existing instance.
-    const landed = outcome.windowId;
     if (intentToken === newest && state.focusedId === landed) {
       this.handOffKeyboard(landed, keyboardSince);
     }
-    return id;
+    return landed;
   }
 
   /** Launchers that open a just-created session directly: prefer an existing Session window. */

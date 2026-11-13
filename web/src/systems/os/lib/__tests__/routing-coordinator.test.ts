@@ -773,8 +773,9 @@ describe("RoutingCoordinator", () => {
       return outcome;
     });
 
-    await coordinator.userOpen({ app: "files", route: files.route });
+    const opened = await coordinator.userOpen({ app: "files", route: files.route });
 
+    expect(opened).toBe(files.id);
     expect(request).toHaveBeenCalledExactlyOnceWith(files.id, expect.any(Number));
   });
 

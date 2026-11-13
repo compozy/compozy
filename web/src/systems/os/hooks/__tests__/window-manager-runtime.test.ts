@@ -1263,6 +1263,53 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should name the window a continuation's own retry opens after the open it followed failed [#1655]", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    const answer = {
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      deprecations: [],
+      rebasedFrom: null,
+    };
+    vi.mocked(executeWindowManagerCommand)
+      .mockResolvedValueOnce({ ...answer, applied: false })
+      .mockResolvedValue(answer);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.openOrFocus({
+      app: "marketplace",
+      route: { pathname: "/marketplace", search: {} },
+    });
+    const continuation = runtime.openOrFocus({
+      app: "marketplace",
+      route: { pathname: "/marketplace", search: { q: "agents" } },
+    });
+
+    await expect(continuation.completion).resolves.toBe(true);
+    const reopened = vi.mocked(executeWindowManagerCommand).mock.calls.at(-1)?.[4] as {
+      payload: { window: { id: string } };
+    };
+    expect(reopened.payload.window.id).not.toBe(first.windowId);
+    expect(continuation.windowId).toBe(reopened.payload.window.id);
+    runtime.stop();
+  });
+
   it("Should reject a semantic-open continuation after the runtime binding changes", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
