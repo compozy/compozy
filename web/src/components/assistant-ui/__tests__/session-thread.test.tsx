@@ -6,6 +6,7 @@ import {
 } from "@/systems/session/stores/session-prompt-runtime-store";
 import { StrictMode, useEffect, useLayoutEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
+import type { Virtualizer } from "@tanstack/react-virtual";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -32,11 +33,13 @@ import {
   UNDO_COMMAND,
   type ElementNode,
 } from "lexical";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { OverlayContainerContext, toast } from "@compozy/ui";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 import { useSessionComposerState } from "../hooks/use-session-composer-state";
+import { threadScrollLogic, threadScrollMode } from "../hooks/thread-scroll-store";
+import { useThreadScrollResume } from "../hooks/use-thread-scroll-resume";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
@@ -8956,5 +8959,106 @@ describe("SessionMentionChip agent kind", () => {
 
     expect(chip).toHaveAttribute("data-mention-unresolved", "true");
     expect(chip).toHaveTextContent("Release Captain");
+  });
+});
+
+// Invariant (#1654): a transcript shown again resumes the reader's text, not a pixel offset, by
+// the row's current measurement; a turn that started while hidden is placed by its anchor; and
+// the controller's own move ends the hold. Owning layer: the resume hook's DOM wiring; the
+// virtualizer is reduced to the two reads the hook makes.
+describe("useThreadScrollResume", () => {
+  function setupResume() {
+    const rows = [
+      { key: "a", size: 400 },
+      { key: "b", size: 400 },
+      { key: "c", size: 400 },
+    ];
+    const measurements = () => {
+      let start = 0;
+      return rows.map((row, index) => {
+        const item = { key: row.key, index, start, size: row.size, end: start + row.size, lane: 0 };
+        start += row.size;
+        return item;
+      });
+    };
+    const virtualizer = {
+      get measurementsCache() {
+        return measurements();
+      },
+      getVirtualItemForOffset: (offset: number) =>
+        measurements().find(item => offset >= item.start && offset < item.end),
+    } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>;
+    const viewport = document.createElement("div");
+    document.body.append(viewport);
+    onTestFinished(() => viewport.remove());
+    const store = threadScrollLogic.createStore();
+    const placeTurn = { current: vi.fn((_viewport: HTMLDivElement) => false) };
+    const hook = renderHook(() =>
+      useThreadScrollResume({ current: viewport }, virtualizer, store, placeTurn)
+    );
+    onTestFinished(() => hook.unmount());
+    const hideAndShow = (whileHidden: () => void) => {
+      viewport.hidden = true;
+      viewport.scrollTop = 0;
+      whileHidden();
+      viewport.hidden = false;
+      act(() => {
+        viewport.dispatchEvent(new Event(SCROLL_RESTORE_EVENT));
+      });
+    };
+    return { rows, viewport, store, placeTurn, hook, hideAndShow };
+  }
+
+  it("Should resume the same depth into a row whose height changed while hidden", () => {
+    const { rows, viewport, store, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    // A narrower pane reflows the rows: each one doubles in height.
+    hideAndShow(() => {
+      for (const row of rows) row.size = 800;
+    });
+
+    // Halfway into row b, as before, not the old 200px into it.
+    expect(viewport.scrollTop).toBe(1_200);
+  });
+
+  it("Should place a turn that started while the pane was hidden", () => {
+    const { viewport, store, placeTurn, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+
+    hideAndShow(() => {
+      store.trigger.messagesCommitted({ count: 2, lastUserId: "u1", lastUserIndex: 0 });
+      store.trigger.messagesCommitted({ count: 4, lastUserId: "u2", lastUserIndex: 2 });
+      expect(threadScrollMode(store.getSnapshot().context)).toBe("anchoring-new-turn");
+      placeTurn.current.mockImplementation(target => {
+        target.scrollTop = 1_000;
+        return true;
+      });
+    });
+
+    expect(placeTurn.current).toHaveBeenCalledWith(viewport);
+    expect(viewport.scrollTop).toBe(1_000);
+  });
+
+  it("Should let go of the resumed row when the controller moves the viewport", async () => {
+    const { viewport, store, hook, hideAndShow } = setupResume();
+    store.trigger.manualNavigationObserved({ awayFromEnd: true, direction: "up" });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    hideAndShow(() => undefined);
+    expect(viewport.scrollTop).toBe(600);
+
+    // A message jump starts: its landing owns the viewport.
+    hook.result.current.current();
+    viewport.scrollTop = 100;
+    fireEvent.scroll(viewport);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    expect(viewport.scrollTop).toBe(100);
   });
 });

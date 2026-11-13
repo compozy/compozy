@@ -1,5 +1,5 @@
 import { observeElementOffset, type VirtualItem, type Virtualizer } from "@tanstack/react-virtual";
-import { type RefObject, useEffect } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 import { isRenderedElement, SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
 
@@ -46,16 +46,18 @@ export function observeRenderedElementOffset(
  * keeps the same message and the same text in view. The rows re-measure over the next frames
  * (a new width, rows that mounted on show) and the virtualizer compensates for them, so the
  * row is held there until it rests, for at most {@link RESUME_MAX_FRAMES}, or until the reader's
- * gesture. A row that left the list while hidden falls back to the raw offset. The pane host
- * announces the show with {@link SCROLL_RESTORE_EVENT} before the frame paints, and leaves this
- * viewport's offsets to it.
+ * gesture, a mode change, or the controller's own move (a message jump, an older page landing:
+ * the returned `endHold`). A row that left the list while hidden falls back to the raw offset.
+ * The pane host announces the show with {@link SCROLL_RESTORE_EVENT} before the frame paints,
+ * and leaves this viewport's offsets to it.
  */
 export function useThreadScrollResume(
   viewportRef: RefObject<HTMLDivElement | null>,
   virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>,
   store: ThreadScrollStore,
   placeTurn: RefObject<(viewport: HTMLDivElement) => boolean>
-): void {
+): RefObject<() => void> {
+  const endHold = useRef<() => void>(() => undefined);
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return undefined;
@@ -122,6 +124,7 @@ export function useThreadScrollResume(
       place(reading);
       hold(reading);
     };
+    endHold.current = release;
     read();
     viewport.addEventListener("scroll", read, { passive: true });
     viewport.addEventListener(SCROLL_RESTORE_EVENT, resume);
@@ -132,6 +135,7 @@ export function useThreadScrollResume(
     viewport.addEventListener("touchstart", release, { passive: true });
     return () => {
       release();
+      endHold.current = () => undefined;
       viewport.removeEventListener("scroll", read);
       viewport.removeEventListener(SCROLL_RESTORE_EVENT, resume);
       viewport.removeEventListener("wheel", release);
@@ -140,4 +144,5 @@ export function useThreadScrollResume(
       viewport.removeEventListener("touchstart", release);
     };
   }, [placeTurn, store, viewportRef, virtualizer]);
+  return endHold;
 }

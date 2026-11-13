@@ -224,6 +224,43 @@ export function useThreadScrollController(
     },
   });
 
+  // The new-turn anchor: the sent bubble held near the top, or following once the reply outgrew
+  // the reserved space. Applied on each commit while rendered, and on show for a turn that
+  // started while the pane was hidden. Returns whether a turn was placed.
+  const placeTurn = useRef<(viewport: HTMLDivElement) => boolean>(() => false);
+  useLayoutEffect(() => {
+    placeTurn.current = viewport => {
+      const scrollState = store.getSnapshot().context;
+      const anchorIndex = scrollState.anchorIndex;
+      if (threadScrollMode(scrollState) !== "anchoring-new-turn" || anchorIndex === null) {
+        return false;
+      }
+      const viewportHeight = Math.max(
+        viewport.clientHeight,
+        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
+      );
+      const metrics = getAnchoredTurnMetrics({
+        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
+        anchorIndex: anchorIndex + leadingItemCount,
+        composerOverlayHeight: scrollState.composerOverlayHeight,
+        anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
+      });
+      if (!metrics) return false;
+      if (metrics.overflowsUsableViewport) {
+        // The reply outgrew the reserved space: following takes over.
+        store.trigger.anchorOutgrown();
+        virtualizer.scrollToEnd();
+      } else {
+        virtualizer.scrollToOffset(Math.max(0, metrics.anchorTop - NEW_TURN_ANCHOR_OFFSET_PX));
+      }
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+      return true;
+    };
+  });
+
+  useThreadScrollGestures(viewportRef, store);
+  const endResumeHold = useThreadScrollResume(viewportRef, virtualizer, store, placeTurn);
+
   const scrollToEnd = () => {
     store.trigger.scrollToEndRequested();
     const viewport = viewportRef.current;
@@ -257,6 +294,8 @@ export function useThreadScrollController(
   ) => {
     const viewport = viewportRef.current;
     if (!viewport) return Promise.resolve(false);
+    // The jump owns the viewport: a resume still holding the reader's row lets go.
+    endResumeHold.current();
     store.trigger.navigationJumpRequested();
     return landMessageRow({
       estimateOffset: () => {
@@ -278,6 +317,7 @@ export function useThreadScrollController(
     const anchor = firstVisibleRow(viewport);
     const messageId = anchor?.dataset.messageId;
     if (!anchor || !messageId) return;
+    endResumeHold.current();
     store.trigger.historyPageRequested({
       messageId,
       offsetTop: anchor.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
@@ -329,43 +369,6 @@ export function useThreadScrollController(
     alignAnchor();
     return () => cancelAnimationFrame(animationFrame);
   }, [historyAnchor, leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
-
-  // The new-turn anchor: the sent bubble held near the top, or following once the reply outgrew
-  // the reserved space. Applied on each commit while rendered, and on show for a turn that
-  // started while the pane was hidden. Returns whether a turn was placed.
-  const placeTurn = useRef<(viewport: HTMLDivElement) => boolean>(() => false);
-  useLayoutEffect(() => {
-    placeTurn.current = viewport => {
-      const scrollState = store.getSnapshot().context;
-      const anchorIndex = scrollState.anchorIndex;
-      if (threadScrollMode(scrollState) !== "anchoring-new-turn" || anchorIndex === null) {
-        return false;
-      }
-      const viewportHeight = Math.max(
-        viewport.clientHeight,
-        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
-      );
-      const metrics = getAnchoredTurnMetrics({
-        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
-        anchorIndex: anchorIndex + leadingItemCount,
-        composerOverlayHeight: scrollState.composerOverlayHeight,
-        anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
-      });
-      if (!metrics) return false;
-      if (metrics.overflowsUsableViewport) {
-        // The reply outgrew the reserved space: following takes over.
-        store.trigger.anchorOutgrown();
-        virtualizer.scrollToEnd();
-      } else {
-        virtualizer.scrollToOffset(Math.max(0, metrics.anchorTop - NEW_TURN_ANCHOR_OFFSET_PX));
-      }
-      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
-      return true;
-    };
-  });
-
-  useThreadScrollGestures(viewportRef, store);
-  useThreadScrollResume(viewportRef, virtualizer, store, placeTurn);
 
   // End-maintenance: streaming growth (content) and composer growth (viewport
   // shrink) keep the pin while following, and only then; a disclosure holds it
