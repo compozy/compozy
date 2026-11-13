@@ -29,7 +29,7 @@
 
 import { createElement, type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const STORAGE_KEY = "compozy:session:sidebar:v1";
 const WINDOW_ONE = "win_one";
@@ -58,6 +58,13 @@ async function loadFreshSidebarState() {
 }
 
 type SidebarModule = Awaited<ReturnType<typeof loadFreshSidebarState>>;
+
+// Cold transformation of the real settings/workspace module graph is suite
+// setup. Keep it outside the first rail assertion's deadline under CI load;
+// every test still imports a fresh graph to exercise persistence and reloads.
+beforeAll(async () => {
+  await loadFreshSidebarState();
+}, 60_000);
 
 /** Renders the hook as a component inside one window (or the shell when `null`). */
 function renderInScopeMounted(module: SidebarModule, scopeId: string | null) {

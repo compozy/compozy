@@ -135,7 +135,18 @@ describe("useLoopStream", () => {
   it.each(["active", "disposed", "settled", "replaced", "disabled", "initial", "static"])(
     "Should bound a pending cached refresh while preserving the %s boundary",
     async boundary => {
-      vi.useFakeTimers();
+      // The coordinator batches wakes with queueMicrotask. Keep that queue on
+      // the same clock as its recovery deadline.
+      vi.useFakeTimers({
+        toFake: [
+          "Date",
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "queueMicrotask",
+        ],
+      });
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false, gcTime: Infinity } },
       });

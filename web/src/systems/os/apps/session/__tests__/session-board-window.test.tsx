@@ -179,6 +179,29 @@ function renderBoard(seed?: (client: QueryClient) => void) {
   return { ...view, windowSlot, rerenderBoard: () => view.rerender(ui()) };
 }
 
+// Submenus are driven by keys, as the session list suite does: a pointer click on a submenu
+// item can land before jsdom settles its pointer guard.
+async function openRolledUpSession(
+  user: ReturnType<typeof userEvent.setup>,
+  cardId: string,
+  number: number
+) {
+  await user.click(screen.getByTestId(`session-row-actions-${cardId}`));
+  const trigger = await screen.findByRole("menuitem", { name: `Pull request #${number}` });
+  trigger.focus();
+  await user.keyboard("{ArrowRight}");
+  const submenu = await waitFor(() => {
+    const menu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
+    expect(menu).toBeTruthy();
+    expect(menu).not.toContainElement(trigger);
+    return menu!;
+  });
+  within(submenu).getByRole("menuitem", { name: "Open session" }).focus();
+  await user.keyboard("{Enter}");
+  // The next card's menu must not find this closing menu's Open session.
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+}
+
 /** Applies the route the last gesture asked for, as the window manager would. */
 function applyLastRetarget() {
   const [, target] = harness.userRetarget.mock.calls.at(-1)!;
@@ -282,22 +305,7 @@ describe("SessionBoardWindow drawer", () => {
     );
     const user = userEvent.setup({ pointerEventsCheck: 0 });
 
-    // Submenus are driven by keys, as the next case does: a pointer click on a submenu item can
-    // land before jsdom settles its pointer guard, and the click is then dropped.
-    await user.click(screen.getByTestId("session-row-actions-w2"));
-    const trigger = await screen.findByRole("menuitem", {
-      name: `Pull request #${lead.pull_request!.number}`,
-    });
-    trigger.focus();
-    await user.keyboard("{ArrowRight}");
-    const submenu = await waitFor(() => {
-      const menu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
-      expect(menu).toBeTruthy();
-      expect(menu).not.toContainElement(trigger);
-      return menu!;
-    });
-    within(submenu).getByRole("menuitem", { name: "Open session" }).focus();
-    await user.keyboard("{Enter}");
+    await openRolledUpSession(user, "w2", lead.pull_request!.number);
 
     await waitFor(() =>
       expect(harness.userRetarget).toHaveBeenCalledExactlyOnceWith(WINDOW_ID, {
@@ -361,27 +369,9 @@ describe("SessionBoardWindow drawer", () => {
       )
     );
     const user = userEvent.setup({ pointerEventsCheck: 0 });
-    // Submenus are driven by keys, as the session list suite does: a pointer click on a submenu
-    // item can land before jsdom settles its pointer guard.
-    const openChild = async (cardId: string, number: number) => {
-      await user.click(screen.getByTestId(`session-row-actions-${cardId}`));
-      const trigger = await screen.findByRole("menuitem", { name: `Pull request #${number}` });
-      trigger.focus();
-      await user.keyboard("{ArrowRight}");
-      const submenu = await waitFor(() => {
-        const menu = document.activeElement?.closest<HTMLElement>('[role="menu"]');
-        expect(menu).toBeTruthy();
-        expect(menu).not.toContainElement(trigger);
-        return menu!;
-      });
-      within(submenu).getByRole("menuitem", { name: "Open session" }).focus();
-      await user.keyboard("{Enter}");
-      // The next card's menu must not find this closing menu's Open session.
-      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-    };
 
-    await openChild("w1", slowLead!.pull_request!.number);
-    await openChild("w2", fastLead!.pull_request!.number);
+    await openRolledUpSession(user, "w1", slowLead!.pull_request!.number);
+    await openRolledUpSession(user, "w2", fastLead!.pull_request!.number);
     await waitFor(() => expect(harness.userRetarget).toHaveBeenCalledTimes(1));
     await act(async () => release());
 

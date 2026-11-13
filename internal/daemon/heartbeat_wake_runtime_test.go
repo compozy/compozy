@@ -1308,8 +1308,14 @@ func (h *heartbeatSourceRuntime) inputs(t *testing.T) []source.Request {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A live script can still be appending the final JSONL frame. Only the
+	// newline publishes a complete request; malformed completed frames still fail.
+	complete, _, found := bytes.CutLast(data, []byte("\n"))
+	if !found {
+		return nil
+	}
 	var out []source.Request
-	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(string(complete), "\n") {
 		var req source.Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
 			t.Fatal(err)

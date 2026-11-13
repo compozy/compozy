@@ -294,13 +294,19 @@ describe("runtime reconnect refresh", () => {
     const cached = ["sessions", "list"];
     queryClient.setQueryData(cached, []);
     const stale = () => queryClient.getQueryState(cached)?.isInvalidated;
-    const { unmount } = renderHook(() => useRuntimeReconnectRefresh(), {
-      wrapper: createWrapper(queryClient),
-    });
+    const { result, unmount } = renderHook(
+      () => {
+        useRuntimeReconnectRefresh();
+        return useRuntimeIdentity();
+      },
+      { wrapper: createWrapper(queryClient) }
+    );
 
     try {
       await waitFor(() => {
-        expect(fetchRuntimeIdentity).toHaveBeenCalledTimes(1);
+        // Wait for the observer render, so the reconnect effect has bound the
+        // first process before the mock can answer for a different one.
+        expect(result.current.data).toEqual(runtimeIdentityFixture);
       });
       // The same process answering again is not a restart.
       await act(() => queryClient.refetchQueries({ queryKey: statusKeys.identity() }));
@@ -335,13 +341,17 @@ describe("runtime reconnect refresh", () => {
     const cached = ["sessions", "list"];
     queryClient.setQueryData(cached, []);
     const stale = () => queryClient.getQueryState(cached)?.isInvalidated;
-    const { unmount } = renderHook(() => useRuntimeReconnectRefresh(), {
-      wrapper: createWrapper(queryClient),
-    });
+    const { result, unmount } = renderHook(
+      () => {
+        useRuntimeReconnectRefresh();
+        return useDaemonStatus();
+      },
+      { wrapper: createWrapper(queryClient) }
+    );
 
     try {
       await waitFor(() => {
-        expect(queryClient.getQueryData(statusKeys.current())).toBeDefined();
+        expect(result.current.data).toEqual(statusInPhase("serving", "bootFinalize").daemon);
       });
       // Another answer from the same recovery is not its end.
       await act(() => queryClient.refetchQueries({ queryKey: statusKeys.current() }));

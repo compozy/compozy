@@ -30,7 +30,12 @@ import {
 import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
 import { executableSha256File } from "../../../src/bootstrap/executable-digest";
-import { appWindow, sessionWindow, windowID } from "../../../../web/e2e/fixtures/os-navigation";
+import {
+  appWindow,
+  sessionWindow,
+  windowPane,
+  windowID,
+} from "../../../../web/e2e/fixtures/os-navigation";
 import { osShellSelectors } from "../../../../web/e2e/fixtures/selectors";
 import { TERMINAL_SUBPROTOCOL } from "../../../../web/src/generated/terminal-wire";
 
@@ -1667,8 +1672,17 @@ test("E2E-004 E2E-013 E2E-014: running deep links reject hostile paths and launc
       "compozyos://open/../../etc",
       "compozyos://open//host",
     ]) {
+      const defaultNavigation = product.waitForEvent("framenavigated", {
+        predicate: frame => frame === product.mainFrame() && new URL(frame.url()).pathname === "/",
+      });
       await desktop.spawnSecondary([hostile]);
+      await defaultNavigation;
+      // The explicit default intent focuses Home after hydration. Wait for
+      // both its normalized URL and committed focus before the next link.
       await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+      const home = appWindow(product, "dashboard");
+      await expect(home).toBeVisible();
+      await expect(windowPane(home)).toHaveAttribute("data-focused", "");
     }
   });
 
@@ -1705,7 +1719,11 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   await cold.closeShell();
   const hostile = await launchDesktop({ home: cold.home, argv: ["compozyos://open/../../etc"] });
   const product = await hostile.product();
+  // The explicit default intent wins over saved Settings focus after hydration.
   await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/$/u);
+  const home = appWindow(product, "dashboard");
+  await expect(home).toBeVisible();
+  await expect(windowPane(home)).toHaveAttribute("data-focused", "");
   await hostile.cli(["app", "open", "/tasks"]);
   await expect(product).toHaveURL(/\/tasks(?:\?|$)/u);
   for (const invalid of ["../etc", "/../etc", "//host", "/http://evil.com", "/bad\\path"]) {
