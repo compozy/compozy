@@ -12,12 +12,15 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 		if hookBindings == nil {
 			return errors.New("daemon: hook bindings are required before starting the skills watcher")
 		}
+		if state.registry != nil && state.workspaceResolver == nil {
+			return errors.New("daemon: workspace resolver is required before starting the skills watcher")
+		}
 		state.skillsCancel, state.skillsDone = startSkillsWatcher(
 			ctx,
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
 			workspaceSkillWatcherRoots(
-				d.homePaths, state.registry, bootProfileCatalog{state: state},
+				d.homePaths, state.registry, bootProfileCatalog{state: state}, state.workspaceResolver,
 			),
 			workspaceAgentWatcherRoots(
 				d.homePaths, state.registry, bootProfileCatalog{state: state},
