@@ -70,7 +70,7 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 }
 
 func (m *Manager) populateInstanceMetadata(ctx context.Context, info *Info) error {
-	if m.sessionCatalog == nil {
+	if m.sessionCatalog == nil || strings.TrimSpace(info.ID) == "" {
 		return nil
 	}
 	// Status runs on many per-session hot paths; read only the binding column, keyed.
