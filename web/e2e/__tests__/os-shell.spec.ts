@@ -2808,8 +2808,7 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
   // Waited for after the reload, so only the new page's read of the list (or a later poll) counts.
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await appPage.waitForResponse(
-    response =>
-      new URL(response.url()).pathname === "/api/notifications/attention" && response.ok()
+    response => new URL(response.url()).pathname === "/api/notifications/attention" && response.ok()
   );
   await expect(osShellSelectors(appPage).tabs.first()).toBeVisible();
   await appPage.evaluate(
