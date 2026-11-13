@@ -1091,20 +1091,58 @@ func TestResolveAgentAppliesApproveAllProviderMode(t *testing.T) {
 	})
 }
 
-// Invariant: every config layer rejects the removed provider_full_access key.
-func TestLoadDeprecatedProviderFullAccessKey(t *testing.T) {
+// Invariant: a v0.6.0 config that still carries the retired, no-op provider_full_access key loads
+// from every layer (#1618). Writable files lose only that key after a backup of the original;
+// files that cannot be rewritten still load unchanged. Owner: persisted config boundary migration.
+func TestLoadUpgradesRetiredProviderFullAccessKey(t *testing.T) {
 	t.Parallel()
+	const header = "# operator notes stay\n[permissions]\nmode = \"approve-all\" # keep\n"
+	const footer = "\n[defaults]\nprovider = \"codex\" # trailing comment\n"
 	for _, tc := range []struct {
 		name      string
 		global    string
 		workspace string
+		want      string
+		readOnly  bool
 	}{
-		{name: "Should reject a disabled global key", global: "provider_full_access = false\n"},
-		{name: "Should reject an enabled global key", global: "provider_full_access = true\n"},
-		{name: "Should reject the key from workspace config", workspace: "provider_full_access = true\n"},
+		{
+			name:   "Should remove a disabled global key and keep everything else",
+			global: header + "provider_full_access = false\n" + footer,
+			want:   header + footer,
+		},
+		{
+			name:   "Should remove an enabled global key and keep everything else",
+			global: header + "  provider_full_access = true\n" + footer,
+			want:   header + footer,
+		},
+		{
+			name:   "Should keep a comment that trails the removed key",
+			global: header + "provider_full_access = true # from the Full access era\n" + footer,
+			want:   header + " # from the Full access era\n" + footer,
+		},
+		{
+			name:   "Should load an inline table it cannot rewrite",
+			global: "permissions = { mode = \"approve-all\", provider_full_access = true }\n" + footer,
+			want:   "permissions = { mode = \"approve-all\", provider_full_access = true }\n" + footer,
+		},
+		{
+			name:     "Should load a global file it cannot rewrite",
+			global:   header + "provider_full_access = true\n" + footer,
+			want:     header + "provider_full_access = true\n" + footer,
+			readOnly: true,
+		},
+		{
+			name:      "Should remove the key from workspace config",
+			global:    header + footer,
+			workspace: "[permissions]\nprovider_full_access = true\n",
+			want:      "[permissions]\n",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			if tc.readOnly && (runtime.GOOS == "windows" || os.Geteuid() == 0) {
+				t.Skip("directory write permissions are not enforced for this user")
+			}
 			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 			if err != nil {
 				t.Fatal(err)
@@ -1112,20 +1150,61 @@ func TestLoadDeprecatedProviderFullAccessKey(t *testing.T) {
 			if err := EnsureHomeLayout(homePaths); err != nil {
 				t.Fatal(err)
 			}
-			writeFile(t, homePaths.ConfigFile, "[permissions]\n"+tc.global+"\n[defaults]\nprovider = \"codex\"\n")
+			writeFile(t, homePaths.ConfigFile, tc.global)
+			migratedPath, original := homePaths.ConfigFile, tc.global
 			opts := []LoadOption{withoutDotEnv()}
 			if tc.workspace != "" {
 				workspaceRoot := t.TempDir()
-				workspaceConfig := filepath.Join(workspaceRoot, ".compozy", "config.toml")
-				if err := os.MkdirAll(filepath.Dir(workspaceConfig), 0o700); err != nil {
+				migratedPath = filepath.Join(workspaceRoot, ".compozy", "config.toml")
+				original = tc.workspace
+				if err := os.MkdirAll(filepath.Dir(migratedPath), 0o700); err != nil {
 					t.Fatal(err)
 				}
-				writeFile(t, workspaceConfig, "[permissions]\n"+tc.workspace)
+				writeFile(t, migratedPath, tc.workspace)
 				opts = append(opts, WithWorkspaceRoot(workspaceRoot))
 			}
-			_, err = LoadForHome(homePaths, opts...)
-			if err == nil || !strings.Contains(err.Error(), "provider_full_access") {
-				t.Fatalf("LoadForHome() error = %v, want removed key error", err)
+			if tc.readOnly {
+				directory := filepath.Dir(migratedPath)
+				if err := os.Chmod(directory, 0o500); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := os.Chmod(directory, 0o700); err != nil {
+						t.Error(err)
+					}
+				})
+			}
+			// The second load proves the migration is idempotent.
+			for range 2 {
+				cfg, err := LoadForHome(homePaths, opts...)
+				if err != nil {
+					t.Fatalf("LoadForHome() error = %v", err)
+				}
+				resolved, err := cfg.ResolveAgent(AgentDef{Name: "qa", Prompt: "prompt"})
+				if err != nil {
+					t.Fatalf("ResolveAgent() error = %v", err)
+				}
+				options := resolved.ACPOptionsValue()
+				if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != "agent-full-access" {
+					t.Fatalf("ResolveAgent() ACPOptions = %#v, want agent-full-access mode", options)
+				}
+			}
+			after, err := os.ReadFile(migratedPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != tc.want {
+				t.Fatalf("config after load = %q, want %q", after, tc.want)
+			}
+			backup, err := os.ReadFile(migratedPath + RetiredConfigKeysBackupSuffix)
+			if tc.want == original {
+				if !os.IsNotExist(err) {
+					t.Fatalf("unchanged config left a backup: %q, %v", backup, err)
+				}
+				return
+			}
+			if err != nil || string(backup) != original {
+				t.Fatalf("backup = %q, %v; want the original config", backup, err)
 			}
 		})
 	}

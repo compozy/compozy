@@ -1,5 +1,7 @@
 package daemon
 
+import "github.com/compozy/compozy/internal/api/contract"
+
 func (d *Daemon) publishBootState(state *bootState) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -66,6 +68,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		info:                  state.info,
 	}
 	d.admission.FinishBoot()
+	d.readiness.set(contract.DaemonReadinessReady, "", d.lifecycleNow())
 	if !d.readyClosed {
 		close(d.readyCh)
 		d.readyClosed = true

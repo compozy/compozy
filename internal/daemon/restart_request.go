@@ -95,8 +95,14 @@ func restartTransitionAllowed(current RestartStatus, next RestartStatus) bool {
 	}
 }
 
-// RequestRestart creates the persisted restart operation, launches the detached relaunch helper,
-// and signals the running daemon to enter its normal graceful shutdown path.
+// ErrRestartInProgress reports a restart request made while another one is still running.
+var ErrRestartInProgress = errors.New("daemon: restart already in progress")
+
+// RequestRestart creates the persisted restart operation, pre-flights the replacement binary,
+// launches the detached relaunch helper, and signals the running daemon to enter its normal
+// graceful shutdown path. A replacement that reports it cannot boot fails the operation with
+// ErrRestartPreflightFailed before anything is launched or signaled. Requests are serialized: one
+// made while another is still running is refused with ErrRestartInProgress and changes nothing.
 func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 	if ctx == nil {
 		return RestartOperation{}, errors.New("daemon: restart context is required")
@@ -106,10 +112,25 @@ func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 	if err != nil {
 		return RestartOperation{}, err
 	}
+	if !d.claimRestart() {
+		return RestartOperation{}, ErrRestartInProgress
+	}
+	// The claim outlives a signaled restart: the shutdown it started ends this process.
+	signaled := false
+	defer func() {
+		if !signaled {
+			d.releaseRestart()
+		}
+	}()
+
 	store := newRestartStore(d.homePaths, runtime.now)
 	operation, err := store.Create(runtime.newOperation())
 	if err != nil {
 		return RestartOperation{}, err
+	}
+
+	if err := runtime.preflightReplacement(ctx, operation.OperationID); err != nil {
+		return failRestartOperation(store, operation, restartPreflightFailureAction, err)
 	}
 
 	if err := runtime.launchRelaunchHelper(ctx, d.homePaths, operation.OperationID); err != nil {
@@ -121,17 +142,31 @@ func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 		return RestartOperation{}, fmt.Errorf("daemon: mark restart operation stopping: %w", err)
 	}
 
-	d.mu.Lock()
-	d.restartRequested = true
-	d.mu.Unlock()
 	if err := runtime.signalProcess(operation.OldPID, syscall.SIGTERM); err != nil {
-		d.mu.Lock()
-		d.restartRequested = false
-		d.mu.Unlock()
 		return failRestartOperation(store, operation, "signal daemon shutdown", err)
 	}
+	signaled = true
 
 	return operation, nil
+}
+
+// claimRestart takes the single restart claim. It is held from before the pre-flight until the
+// request fails, or until the shutdown the request signaled resets the runtime state.
+func (d *Daemon) claimRestart() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.restartRequested {
+		return false
+	}
+	d.restartRequested = true
+	return true
+}
+
+// releaseRestart returns the claim of a request that did not signal the daemon.
+func (d *Daemon) releaseRestart() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.restartRequested = false
 }
 
 func (d *Daemon) restartRequestRuntime() (restartRequestRuntime, error) {
@@ -144,6 +179,7 @@ func (d *Daemon) restartRequestRuntime() (restartRequestRuntime, error) {
 	executable := d.executable
 	startDetached := d.startDetached
 	signalProcess := d.signalProcess
+	preflight := d.preflightReplacement
 	d.mu.Unlock()
 
 	if startedAt.IsZero() || pidFn == nil {
@@ -178,6 +214,7 @@ func (d *Daemon) restartRequestRuntime() (restartRequestRuntime, error) {
 		executable:    executable,
 		startDetached: startDetached,
 		signalProcess: signalProcess,
+		preflight:     preflight,
 	}, nil
 }
 

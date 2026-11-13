@@ -91,7 +91,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		version = "0.0.0"
 	}
 
-	bind, err := client.BindHostedMCP(ctx, HostedBindRequest{SessionID: sessionID, Nonce: nonce})
+	bind, err := bindHostedMCPWithDialRetry(ctx, client, HostedBindRequest{SessionID: sessionID, Nonce: nonce})
 	if err != nil {
 		return err
 	}

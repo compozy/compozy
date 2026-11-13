@@ -45,6 +45,7 @@ func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeTo
 		toolspkg.ToolIDAgentInstanceResume,
 		toolspkg.ToolIDAgentInstanceArchive,
 		toolspkg.ToolIDAgentInstanceEnsureMain,
+		toolspkg.ToolIDAgentInstanceClearMain,
 		toolspkg.ToolIDAgentInstanceReports,
 		toolspkg.ToolIDAgentActivity,
 		toolspkg.ToolIDAgentInstanceGet,
@@ -114,6 +115,9 @@ func (n *daemonNativeTools) agentInstanceCall(
 	if action == "ensure_main" && input.DryRun {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID,
 			errors.New("ensure_main does not support dry_run; use agent_instance_get to inspect the instance"))
+	}
+	if action == nativeInstanceActionClearMain {
+		return n.clearNativeInstanceMain(ctx, api, req, instance, input)
 	}
 	return executeNativeInstanceAction(ctx, api, actor, instance, input, action, req.View)
 }

@@ -28,6 +28,21 @@ describe("bootstrap event parser", () => {
     expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
   });
 
+  it("Should accept typed config failure evidence", () => {
+    const event = {
+      type: "bootstrap",
+      phase: "resolve",
+      status: "failed",
+      message: "cli: CompozyOS configuration could not be loaded",
+      classification: "config-invalid",
+      config: { path: "/home/dora/.compozy/config.toml", unknown_keys: ["permissions.bogus"] },
+    };
+    expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
+    expect(
+      parseBootstrapEvent(JSON.stringify({ ...event, config: { line: 3, column: 9 } }))
+    ).toMatchObject({ config: { line: 3, column: 9 } });
+  });
+
   it.each([0, 42, 100])("Should accept replacement data-migration progress at %i percent", pct => {
     const event = {
       type: "bootstrap",
@@ -154,6 +169,16 @@ describe("bootstrap event parser", () => {
       message: "x",
       daemon: { origin: "http://127.0.0.1", version: "1", pid: 1, owned: "yes" },
     },
+    { type: "bootstrap", phase: "resolve", status: "failed", message: "x", config: null },
+    { type: "bootstrap", phase: "resolve", status: "failed", message: "x", config: { path: 1 } },
+    {
+      type: "bootstrap",
+      phase: "resolve",
+      status: "failed",
+      message: "x",
+      config: { unknown_keys: [1] },
+    },
+    { type: "bootstrap", phase: "resolve", status: "failed", message: "x", config: { line: 0 } },
     { type: "bootstrap", phase: "start", status: "started", message: "x", attempt: 0 },
     { type: "bootstrap", phase: "start", status: "retrying", message: "x", backoff_ms: -1 },
     {
@@ -165,5 +190,49 @@ describe("bootstrap event parser", () => {
     },
   ])("Should reject malformed structured event %#", value => {
     expect(parseBootstrapEvent(JSON.stringify(value))).toBeNull();
+  });
+
+  // Invariant: lifecycle and wait evidence is additive. Events carrying it parse, events without
+  // it keep parsing, and it reaches the bootstrap log.
+  it("Should accept runtime lifecycle and mutation-wait evidence and log it", () => {
+    const waiting = {
+      type: "bootstrap",
+      phase: "start",
+      status: "started",
+      message: "Another CompozyOS update or restart is in progress (pid 4242); waiting.",
+      attempt: 1,
+      classification: "mutation-in-progress",
+      wait: { reason: "runtime_mutation", owner_pid: 4242 },
+    };
+    expect(parseBootstrapEvent(JSON.stringify(waiting))).toMatchObject(waiting);
+    const serving = {
+      type: "bootstrap",
+      phase: "start",
+      status: "started",
+      message: "The CompozyOS runtime is starting.",
+      attempt: 1,
+      readiness: { phase: "serving", step: "resumeBootInterruptedSessions" },
+    };
+    const event = parseBootstrapEvent(JSON.stringify(serving));
+    if (!event) throw new Error("expected a lifecycle event");
+    expect(bootstrapLogRecord(event, "boot-1", new Date("2026-11-12T12:00:00Z"))).toMatchObject({
+      phase: "start",
+      readiness: { phase: "serving", step: "resumeBootInterruptedSessions" },
+    });
+    // A lifecycle phase this app does not know yet is still a valid event.
+    const unknown = JSON.stringify({ ...serving, readiness: { phase: "warming" } });
+    expect(parseBootstrapEvent(unknown)).toMatchObject({ readiness: { phase: "warming" } });
+  });
+
+  it.each([
+    { readiness: "serving" },
+    { readiness: { phase: "" } },
+    { readiness: { phase: "serving", step: 1 } },
+    { wait: { owner_pid: 4242 } },
+    { wait: { reason: "runtime_mutation", owner_pid: 0 } },
+    { classification: 1 },
+  ])("Should reject malformed lifecycle evidence %#", extra => {
+    const base = { type: "bootstrap", phase: "start", status: "started", message: "x" };
+    expect(parseBootstrapEvent(JSON.stringify({ ...base, ...extra }))).toBeNull();
   });
 });

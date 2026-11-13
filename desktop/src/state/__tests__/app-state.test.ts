@@ -48,6 +48,30 @@ describe("app state publisher", () => {
     }
   });
 
+  // Invariant: live boot detail reaches the boot window but never app.json, whose schema is closed.
+  it("Should hand live boot detail to the window without recording it", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
+    const path = join(home, "app.json");
+    const rendered: unknown[] = [];
+    try {
+      const publisher = new AppStatePublisher({
+        path,
+        appVersion: "0.3.0",
+        channel: "development",
+        startedAt: new Date("2026-08-16T00:00:00Z"),
+        onPublished: snapshot => rendered.push(snapshot),
+      });
+      const boot = { wait: "runtime_mutation", owner_pid: 4242 } as const;
+      await publisher.publish({ state: "starting", stage: "start", attempt: 1, boot });
+      expect(rendered).toEqual([{ state: "starting", stage: "start", attempt: 1, boot }]);
+      const record: unknown = JSON.parse(await readFile(path, "utf8"));
+      expect(record).toMatchObject({ state: "starting", attempt: 1 });
+      expect(record).not.toHaveProperty("boot");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("Should preserve acquired kernel identity across later publications", async () => {
     const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
     const path = join(home, "app.json");

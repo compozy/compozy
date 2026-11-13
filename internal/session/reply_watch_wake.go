@@ -97,6 +97,10 @@ func (s *replyWatchService) resumeSender(ctx context.Context, watchID, sender st
 	// Admitted under lifecycleMu, so Close cannot start waiting between the closed check and Go.
 	s.wakes.Go(func() {
 		defer s.resuming.Delete(sender)
+		// A delivery can fire during boot, before the listeners its provider's tools need exist.
+		if err := s.manager.waitTransportsListening(runCtx); err != nil {
+			return
+		}
 		if _, err := s.manager.Resume(runCtx, sender); err != nil {
 			s.manager.logger.WarnContext(
 				runCtx, "reply_watch.sender_resume_failed", "id", watchID, "sender_session_id", sender, "error", err,

@@ -81,14 +81,13 @@ func (m *Manager) attemptPromptRecovery(
 
 		request, message := recoveredPromptPayload(recovery, reason)
 		source, _, err := m.startRecoveredPrompt(
-			recovery.executionCtx,
-			session,
-			turnState,
-			request,
-			message,
-			budget.expiresAt,
+			recovery.executionCtx, session, turnState, request, message, budget.expiresAt,
 		)
 		if err != nil {
+			if errors.Is(err, ErrDaemonShuttingDown) {
+				// A spawn the shutdown refused is the interruption, not a spent recovery attempt.
+				return m.stoppedPromptRecovery(ctx, session, turnState, trigger, reason)
+			}
 			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
 				return false, nil, persistErr
 			}
@@ -386,7 +385,7 @@ func (m *Manager) startPromptRecoveryCandidate(
 	if err == nil {
 		return candidate, nil
 	}
-	if !acp.IsLoadSessionResourceMissing(err) && !errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
+	if !acp.LoadSessionRequiresFreshThread(err) {
 		return nil, err
 	}
 

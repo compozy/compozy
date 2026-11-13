@@ -28,12 +28,15 @@ Update the daemon and CLI together. Use `always_on` for AGENT.md `kind`, `--kind
 create/update/duplicate requests, and native agent creation. Old input fails with
 `agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
 
-Starting in v0.6.1, persisted `[agents.stays_on]` tables and AGENT.md `kind: stays_on`
-are rejected without rewriting their files. Use `[agents.always_on]` and `kind: always_on`.
-The lossless file migration shipped through v0.6.0; run v0.6.0 before v0.6.1 if these files
-have not been migrated, and resolve any deferred-migration warning before upgrading.
-Already archived comments remain inactive. The v0.5.1 database migration is retained.
-CLI/native retired paths keep their replacement guidance.
+Persisted `[agents.stays_on]` tables migrate on load to `[agents.always_on]`. Canonical keys
+win conflicts; original values and source text are retained as inactive comments. Persisted
+AGENT.md files with `kind: stays_on` migrate when loaded from any discovery root.
+Writable user-owned scalar layouts update only the kind value. Extension packages are never
+edited. Read-only files and unsupported edit layouts still decode as `always_on` and log guidance
+to update the source. v0.6.1 rejected these files, which could stop CompozyOS from starting;
+v0.6.2 restores the migration. This persisted-file shim is removed in v0.7.0.
+CLI/native `agents.stays_on.*` paths still fail with replacement guidance; public creation,
+update and duplicate inputs still reject the retired kind. Database rows already migrated in v0.5.1.
 
 The permission labels in the app also changed. The values did not, so nothing needs editing:
 **Accept edits** (`approve-edits`), **Auto-review** (`auto`), and **Full access** (`approve-all`).
@@ -188,10 +191,26 @@ Nothing needs editing by hand. On the first start:
   that the removed CompozyOS compaction had archived, together with their transcript entries and tool
   routes, so old compacted sessions show their full history again in the transcript, search, outline,
   and fork and rewind anchors. Events archived by a conversation rewind stay archived.
-- **Expired file shims (v0.6.1).** Config memory/compaction archives and the SOUL, tool-policy,
-  manifest, automation-resource and hook-matcher ignore filters have been removed. Run v0.6.0
-  first to migrate old config files. Remove leftover declarations before upgrading; invalid files
-  fail validation and remain unchanged. Prior inactive comment archives are retained.
+- **Config archive (until v0.7.0).** When the global, profile, or workspace `config.toml` contains
+  `[memory]` (every sub-table), `[roles.dream]`, `[roles.checkpoint_summary]`,
+  `[roles.memory_extractor]`, `[roles.memory_controller]`, `[session.compaction]`, an
+  `[[automation.triggers]]` entry with `event = "memory.consolidated"`, or hook-matcher keys
+  `compaction_reason` / `compaction_strategy`, the daemon removes them and appends them, commented,
+  at the end of the same file under
+  `# Archived retired memory and compaction settings; these values are inactive.`. The rewrite is
+  atomic and lossless, logged once as `config.retired_keys_archived`, and a second start changes
+  nothing. Archiving never blocks a start: if the file changes while it is being rewritten, or the
+  daemon cannot write it (for example a read-only directory), the daemon logs a
+  `config.retired_keys_archive_failed` warning with the path and the reason, loads with the retired
+  values inactive, leaves the file untouched, and tries again on the next load. Explicitly setting a
+  retired key (`compozy config set memory.enabled true`) is still refused.
+- **AGENT.md hook matchers (until v0.7.0).** The hook-matcher keys `compaction_reason` and
+  `compaction_strategy` in `AGENT.md` hook declarations are ignored with one
+  `agent.retired_entries_ignored` warning per file, and the file is left untouched.
+- **Filters removed in v0.6.1.** The SOUL `memory_policy`, tool-policy, extension-manifest,
+  automation-resource and `SKILL.md` hook-matcher ignore filters stay removed. A leftover
+  declaration fails validation for that one file or package, which stays unchanged, and CompozyOS
+  still starts.
 - **Saved desktop layouts.** The Knowledge window is dropped from saved layouts, including persisted
   layout resources, a Settings window on `/settings/memory` moves to `/settings`, and the reconciled
   layout is saved once.
@@ -269,18 +288,34 @@ Retired toolsets fail catalog validation. Exact retired tool IDs remain inert po
 match no tool; persisted session lineage remains readable. Wildcards are not rewritten and match no
 retired tool. Explicit allow-lists never become unrestricted.
 
-### Compatibility shims removed in v0.6.1
+### Compatibility shims: restored until v0.7.0, and removed in v0.6.1
 
-The v0.6.0 release was the final file-migration/ignore window. Before upgrading to v0.6.1,
-run v0.6.0 over every user, profile, workspace and workspace-profile config, resolve deferred
-writes, and update signed extension sources rather than editing installed packages.
-The v0.5.1 and memory-retirement SQL migrations and permanent session-catalog recovery remain.
-No archived comment, memory file, transcript or retained extension registration is deleted.
+v0.6.1 removed every file-migration and ignore shim at once. Files that v0.6.0 still accepted then
+stopped CompozyOS from starting, so v0.6.2 restores the shims that guard a start. They are one
+shim generation and are removed in v0.7.0:
+
+- the config archive for retired memory and compaction settings, in every config layer;
+- the `[agents.stays_on]` to `[agents.always_on]` config migration;
+- the AGENT.md `kind: stays_on` migration, including files that cannot be rewritten;
+- the AGENT.md hook-matcher ignore rule for `compaction_reason` / `compaction_strategy`;
+- the `permissions.provider_full_access` removal described below.
+
+A config file that cannot be rewritten still loads with the retired values inactive. An installed
+extension whose packaged resources no longer load is skipped with an `extension.resources.skipped`
+warning that names the extension and the reason; every other extension still loads.
+
+The other v0.6.1 removals stand. Update signed extension sources rather than editing installed
+packages. The v0.5.1 and memory-retirement SQL migrations and permanent session-catalog recovery
+remain. No archived comment, memory file, transcript or retained extension registration is deleted.
 
 ACP adapters must send `cachedReadTokens` and `cachedWriteTokens`: the deprecated
 `cacheReadTokens` / `cacheWriteTokens` aliases are no longer counted.
-Remove `permissions.provider_full_access`; it was a no-op accepted with a warning in v0.6.0
-and is now an unknown key. `permissions.mode` selects provider access.
+`permissions.provider_full_access` was a no-op accepted with a warning in v0.6.0, and v0.6.1
+rejected it as an unknown key, which stopped CompozyOS from starting. From v0.6.2 the key is
+ignored again in every config layer and removed from `config.toml` on load: only that line
+changes, the original is kept beside the file as `config.toml.retired-keys.bak`, and a file that
+cannot be rewritten still loads. `permissions.mode` selects provider access. Support for ignoring
+the key ends in v0.7.0.
 Bundled `dev-cycle` state no longer transfers automatically to `spec-cycle`. Retained predecessor
 state remains available for operator migration and `compozy doctor` diagnostics.
 Take-over no longer reclassifies process failures from launches canceled before v0.4.8;

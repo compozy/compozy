@@ -289,6 +289,10 @@ func (c settingsRestartController) RequestRestart(ctx context.Context) (core.Set
 
 	operation, err := c.daemon.RequestRestart(ctx)
 	if err != nil {
+		if errors.Is(err, ErrRestartPreflightFailed) || errors.Is(err, ErrRestartInProgress) {
+			// The request conflicts with the installed runtime's state, and the reason must reach the caller.
+			return core.SettingsRestartOperation{}, core.NewSettingsConflictError(err)
+		}
 		return core.SettingsRestartOperation{}, err
 	}
 	return settingsRestartOperationFromDaemon(operation), nil

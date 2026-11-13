@@ -122,7 +122,7 @@ func (m *Manager) persistResumeReplayMarker(
 	}
 	if err := m.recordTranscriptMarker(ctx, session, turnID, transcriptMarkerInput{
 		Kind:    transcript.MarkerSessionRecovered,
-		Summary: contextRebuiltMarkerSummary,
+		Summary: resumeReplayMarkerSummary(fallbackReason),
 		Evidence: map[string]any{
 			transcriptMarkerEvidenceSourceKey: "events.db",
 			"message_count":                   spec.resumeReplayMessageCount,

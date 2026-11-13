@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"reflect"
 	"slices"
 	"strings"
@@ -216,6 +218,51 @@ func TestReconcileHostedTools(t *testing.T) {
 				}
 			}
 		}
+	})
+}
+
+// Invariant: the proxy keeps dialing while the daemon's socket is not listening yet and binds once
+// it is, but returns any answer from the daemon, and a dial failure that outlives the window, at once.
+func TestBindHostedMCPRetriesOnlyWhileTheDaemonCannotBeDialed(t *testing.T) {
+	t.Parallel()
+	dialErr := &net.OpError{Op: "dial", Net: "unix", Err: errors.New("connect: no such file or directory")}
+	request := HostedBindRequest{SessionID: "sess-1", Nonce: "nonce"}
+	t.Run("Should bind after the daemon starts listening", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			client := newHostedProxyClientStub(HostedBindResponse{BindID: "bind-1"})
+			client.bindErrors = []error{fmt.Errorf("cli: request failed: %w", dialErr), dialErr}
+			bind, err := bindHostedMCPWithDialRetry(t.Context(), client, request)
+			if err != nil || bind.BindID != "bind-1" || client.bindCalls != 3 {
+				t.Fatalf("bind = %#v, %v after %d calls; want bind-1 on the third call", bind, err, client.bindCalls)
+			}
+		})
+	})
+	t.Run("Should return a daemon refusal without retrying", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			client := newHostedProxyClientStub(HostedBindResponse{BindID: "bind-1"})
+			client.bindErrors = []error{ErrHostedNonceInvalid}
+			_, err := bindHostedMCPWithDialRetry(t.Context(), client, request)
+			if !errors.Is(err, ErrHostedNonceInvalid) || client.bindCalls != 1 {
+				t.Fatalf("bind error = %v after %d calls; want the refusal on the first call", err, client.bindCalls)
+			}
+		})
+	})
+	t.Run("Should stop when the daemon never listens within the window", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			client := newHostedProxyClientStub(HostedBindResponse{BindID: "bind-1"})
+			attempts := int(hostedBindDialRetryWindow/hostedBindDialRetryInterval) + 2
+			for range attempts {
+				client.bindErrors = append(client.bindErrors, dialErr)
+			}
+			started := time.Now()
+			_, err := bindHostedMCPWithDialRetry(t.Context(), client, request)
+			if !isHostedDialError(err) || time.Since(started) != hostedBindDialRetryWindow {
+				t.Fatalf("bind error = %v after %s; want the dial error at the window", err, time.Since(started))
+			}
+		})
 	})
 }
 
@@ -1167,6 +1214,8 @@ type hostedProxyClientStub struct {
 	streamClosed chan struct{}
 	mu           sync.Mutex
 	bind         HostedBindResponse
+	bindErrors   []error
+	bindCalls    int
 	callResult   HostedCallResponse
 	block        func(HostedCallRequest) (HostedCallResponse, error)
 	calls        []HostedCallRequest
@@ -1190,6 +1239,12 @@ func newHostedProxyClientStub(bind HostedBindResponse) *hostedProxyClientStub {
 func (c *hostedProxyClientStub) BindHostedMCP(context.Context, HostedBindRequest) (HostedBindResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.bindCalls++
+	if len(c.bindErrors) > 0 {
+		err := c.bindErrors[0]
+		c.bindErrors = c.bindErrors[1:]
+		return HostedBindResponse{}, err
+	}
 	return c.bind, nil
 }
 

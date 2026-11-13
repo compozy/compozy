@@ -24,6 +24,19 @@ const (
 		"Do not repeat completed tool calls solely because they appear in the log."
 )
 
+// providerMismatchMarkerSummary names the cause and the recovery already applied, so the
+// operator reads one notice instead of a retry failure per wake.
+const providerMismatchMarkerSummary = "The provider backend changed, so the saved provider thread " +
+	"could not load. Started a new provider thread and rebuilt context from log."
+
+// resumeReplayMarkerSummary selects the recovery notice for one replay reason.
+func resumeReplayMarkerSummary(reason string) string {
+	if reason == providerMismatchReplayReason {
+		return providerMismatchMarkerSummary
+	}
+	return contextRebuiltMarkerSummary
+}
+
 type rebuildReplayContext struct {
 	workspace        *workspacepkg.ResolvedWorkspace
 	historyAvailable bool

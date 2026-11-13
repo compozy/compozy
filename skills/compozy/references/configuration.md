@@ -47,6 +47,12 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 uses that runtime truth, including changes saved from CLI or API after a previous restart.
 Choosing **Not now** dismisses the observed change; a later apply record can show the notice again.
 
+`POST /api/settings/actions/restart` (HTTP or UDS) pre-flights the replacement binary before the
+running daemon is signaled: config load and validation, plus a read-only global database migration
+plan. A positive failure returns `409` with the reason, records the restart operation as `failed`
+with that `failure_reason`, and leaves the running daemon serving; fix the cause and request the
+restart again. An unavailable or timed-out pre-flight never blocks the restart.
+
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
 
@@ -373,9 +379,8 @@ them. Claude sessions accept `providers.claude.auto_compact_window` (100000–10
 capped at the model window and always forwarded as a full token count,
 with `auto_compact_window` in an agent definition taking precedence. Omission preserves the provider
 default; the value is forwarded on new, load and resume. This is independent of retired
-`session.compaction` keys, which fail validation from v0.6.1 without rewriting the file. Existing
-comment archives remain inactive; run v0.6.0 first if these settings still need migration. Manual
-compaction is requested through the surfaces in
+`session.compaction` keys, which remain archived on load until v0.7.0. Manual compaction is
+requested through the surfaces in
 `references/runtime-operations.md`. Changes to `session.*` keys are restart-required and do not mutate
 the policy bound to the running daemon.
 
@@ -482,14 +487,33 @@ provider drops the definition's `command`, `model`, and `reasoning_effort`; a ch
 
 ## Retired Memory And Compaction Settings
 
-Starting in v0.6.1, retired memory/compaction config and hook matcher keys fail validation;
-the loader no longer archives or ignores them. Run v0.6.0 first to migrate old files,
-resolve deferred writes, then remove leftover declarations from every config scope.
-Existing comment archives remain inactive. The older skill-acquisition archive is unchanged.
+A `config.toml` (global, profile, or workspace) that still carries settings of the removed memory and
+CompozyOS-side compaction features loads without failing. On load, CompozyOS archives these settings
+in place: the `memory` table and its sub-tables, `roles.dream`, `roles.checkpoint_summary`,
+`roles.memory_extractor`, `roles.memory_controller`, `session.compaction`, every
+`[[automation.triggers]]` entry whose `event` is `memory.consolidated`, and the hook matcher keys
+`compaction_reason` and `compaction_strategy`. The values move, commented and inactive, under
+`# Archived retired memory and compaction settings; these values are inactive.` at the end of the same
+file, every other setting is kept, the daemon logs `config.retired_keys_archived` once, and the next load
+finds nothing to archive. It is non-fatal: if the rewrite is refused because the file changed
+concurrently, or fails because the file or its directory is not writable, the loader logs the warning
+`config.retired_keys_archive_failed` (`path`, `reason`), loads with the retired values inactive, leaves
+the file untouched, and retries on the next load. Treat that warning as work to do: fix the permission
+or finish the edit. (A file whose only retired settings are the older `skills.marketplace` values still
+fails the load when its rewrite cannot publish.) `compozy config set` on a retired key is still refused.
 
-Remove `compaction_reason` and `compaction_strategy` from AGENT.md and SKILL.md hook matchers
-and extension manifests; declarations now fail validation. Use `compaction_trigger` for context
-hooks. Remove `memory.consolidated` automation triggers and retired memory manifest entries.
+`compaction_reason` and `compaction_strategy` in an `AGENT.md` hook matcher are ignored with one
+`agent.retired_entries_ignored` (`agent`, `entries`) warning and the file is not rewritten (other
+invalid fields still fail).
+
+Both are one shim generation, removed in v0.7.0. v0.6.1 shipped without them and a v0.6.0 file that
+still held these values stopped the daemon from starting; v0.6.2 restores them. Replace the matcher
+keys with `compaction_trigger` before v0.7.0.
+
+Still rejected, as in v0.6.1: the same matcher keys in a `SKILL.md` or an extension manifest,
+`memory.consolidated` extension automation triggers, and retired memory manifest entries. They fail
+only that skill or extension. An installed extension whose packaged resources fail to load is skipped
+with an `extension.resources.skipped` warning (`extension`, `error`) and the daemon still starts.
 
 ## Auto-Title Role
 

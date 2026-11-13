@@ -1,11 +1,21 @@
 package session
 
-import "context"
+import (
+	"context"
+	"errors"
+	"time"
+)
 
 const (
 	daemonStoppedDetail     = "daemon stopped by user"
 	daemonRestartStopDetail = "Interrupted by daemon restart."
+	// daemonShutdownTurnTerminalGrace is the default bound on how long a shutdown stop keeps a recorder
+	// open for the terminal event of the turn it interrupted, once the agent process is gone.
+	daemonShutdownTurnTerminalGrace = 5 * time.Second
 )
+
+// ErrDaemonShuttingDown reports that the daemon has begun shutting down, so no agent runtime starts.
+var ErrDaemonShuttingDown = errors.New("session: daemon is shutting down")
 
 // daemonShutdownStop is the stop classification the daemon applies while it is shutting down.
 type daemonShutdownStop struct {
@@ -26,6 +36,76 @@ func DaemonShutdownStopCause(restart bool) (StopCause, string) {
 func (m *Manager) markDaemonShutdown(restart bool) {
 	cause, detail := DaemonShutdownStopCause(restart)
 	m.daemonShutdown.Store(&daemonShutdownStop{cause: cause, detail: detail, restart: restart})
+}
+
+// BeginDaemonShutdown closes agent-runtime admission the moment the daemon starts shutting down,
+// before it drains: no provider spawn or automatic recovery is admitted from here on, and an agent
+// exit is the daemon's interruption rather than a crash. PrepareDaemonShutdown later writes the
+// restart checkpoints with the same decision.
+func (m *Manager) BeginDaemonShutdown(restart bool) {
+	if m == nil {
+		return
+	}
+	m.markDaemonShutdown(restart)
+}
+
+// interruptStartForDaemonShutdown settles a start that failed after shutdown began as the shutdown
+// stop it is. Whether the spawn was refused or its dependencies were torn down, the failure says
+// nothing about the agent, so it must not be retained as a session failure or as failure transcript
+// rows; the next boot resumes the session. The caller holds the start's launch commit.
+func (m *Manager) interruptStartForDaemonShutdown(
+	ctx context.Context,
+	accepted *acceptedSessionStart,
+	startErr error,
+) bool {
+	stop := m.daemonShutdown.Load()
+	if stop == nil || accepted == nil || accepted.run == nil {
+		return false
+	}
+	session := accepted.session
+	writeMeta, _, err := session.prepareStop(m.now(), stop.cause, stop.detail)
+	if err != nil {
+		m.sessionLogger(session).Warn(
+			"session: start failure during daemon shutdown could not settle as interrupted",
+			"error", err,
+			"start_error", startErr,
+		)
+		return false
+	}
+	accepted.run.markStopRequested()
+	if writeMeta {
+		// As for any stop that lands during startup, the catalog leaves Starting with the stop intent.
+		if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
+			m.sessionLogger(session).Warn("session: persist daemon shutdown start interruption failed", "error", err)
+		}
+	}
+	m.sessionLogger(session).Info(
+		"session: start interrupted by daemon shutdown",
+		"stop_cause", stop.cause.String(),
+		"start_error", startErr,
+	)
+	return true
+}
+
+// awaitDaemonShutdownTurnTerminal keeps the recorder open until the turn a shutdown stop interrupted
+// has recorded its terminal event. The prompt pump only learns of the exit once the process is gone,
+// and finalization closes the recorder, so finalizing first would drop that event. The wait ends
+// with the caller's stop budget or the grace, whichever comes first.
+func (m *Manager) awaitDaemonShutdownTurnTerminal(ctx context.Context, promptDone <-chan struct{}) {
+	if promptDone == nil || !m.daemonShuttingDown() {
+		return
+	}
+	grace := m.daemonShutdownTurnGrace
+	if grace <= 0 {
+		grace = daemonShutdownTurnTerminalGrace
+	}
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	select {
+	case <-promptDone:
+	case <-timer.C:
+	case <-ctx.Done():
+	}
 }
 
 // daemonShutdownCaptureReason is the restart checkpoint reason for a turn interrupted by daemon shutdown.

@@ -190,6 +190,11 @@ func triggerSettingsRestartOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 202, Description: specAcceptedDescription, Body: contract.RestartActionResponse{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Replacement runtime failed its restart pre-flight; the running daemon was kept",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

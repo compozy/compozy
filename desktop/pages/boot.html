@@ -14,7 +14,7 @@
   <body>
     <main id="boot" class="boot" data-layout="center" aria-labelledby="boot-title">
       <img class="boot__atmosphere" src="assets/horizon.jpg" alt="" />
-      <div class="boot__lead">
+      <div id="boot-lead" class="boot__lead">
         <img class="boot__symbol" src="assets/symbol.png" alt="" />
         <h1 id="boot-title" class="boot__title" aria-atomic="true" aria-live="polite">
           Looking for CompozyOS
@@ -41,6 +41,9 @@
         >
           <button id="boot-retry" class="boot__btn" data-variant="primary" type="button" hidden>
             Try again
+          </button>
+          <button id="boot-open-config" class="boot__btn" type="button" hidden>
+            Open config file
           </button>
           <button id="boot-open-logs" class="boot__btn" type="button" hidden>Open logs</button>
           <button id="boot-quit" class="boot__btn" type="button" hidden>Quit</button>

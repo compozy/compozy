@@ -1,12 +1,20 @@
 import type { DesktopLogger } from "../logging/desktop-logger";
 import type { ShellSnapshot } from "../state/app-state";
-import { RuntimeHealthMonitor } from "./runtime-health-monitor";
+import { RuntimeHealthMonitor, type RuntimeIdentity } from "./runtime-health-monitor";
+import { runtimeProcessAlive } from "./runtime-liveness";
 
 export interface ProductRuntimeShell {
   /** True once the shell is quitting; no reconnect work may start after that. */
   readonly stopped: () => boolean;
   readonly publish: (snapshot: ShellSnapshot) => Promise<void>;
   readonly reloadProduct: () => Promise<void>;
+  /**
+   * Whether the product window still shows a loaded page of this runtime. Only such a page can
+   * refresh itself after a reconnect; absent, every reconnect reloads.
+   */
+  readonly productLoaded?: () => boolean;
+  /** The CompozyOS home whose lock files name runtime processes; absent, none counts as alive. */
+  readonly home?: string;
   /** Shows the boot window. It must exist before the product window closes, or the app quits. */
   readonly showBoot: () => void;
   /** Renders a snapshot in the boot window without waiting for it to be persisted. */
@@ -23,24 +31,81 @@ export interface ProductRuntimeShell {
   readonly logPath: string;
 }
 
+const STATUS_TIMEOUT_MS = 3_000;
+
+/** A version without its optional `v`, so the status and identity spellings compare equal. */
+function releaseVersion(version: string): string {
+  return version.trim().replace(/^v/u, "");
+}
+
+type MonitorOptions = Partial<
+  Pick<
+    ConstructorParameters<typeof RuntimeHealthMonitor>[0],
+    | "fetcher"
+    | "intervalMs"
+    | "timeoutMs"
+    | "failureThreshold"
+    | "reconnectTimeoutMs"
+    | "maximumWaitMs"
+    | "runtimeAlive"
+    | "now"
+  >
+>;
+
+/**
+ * Whether the runtime's own web refreshes itself after a reconnect. The web that does ships with
+ * the runtimes that report a lifecycle phase, so the phase's presence is the capability.
+ */
+async function refreshesItself(
+  origin: string,
+  fetcher: NonNullable<MonitorOptions["fetcher"]>
+): Promise<boolean> {
+  try {
+    const response = await fetcher(new URL("/api/status", origin).toString(), {
+      method: "GET",
+      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const body: unknown = await response.json();
+    const daemon = (body as { daemon?: { readiness?: { phase?: unknown } } } | null)?.daemon;
+    return typeof daemon?.readiness?.phase === "string";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Keeps the product window bound to its runtime across daemon restarts. A settings restart or
- * runtime update replaces the daemon on the same origin: the window stays open and reloads its
- * route once the replacement answers. A runtime that never returns hands off to the boot window,
- * which resolves the runtime again and offers retry on failure.
+ * runtime update replaces the daemon on the same origin: the window stays open and, once the
+ * replacement answers, the loaded page refreshes its own data. The window reloads instead when
+ * the page cannot do that: the runtime now serves another version's web bundle, the page did not
+ * load, or the runtime predates self-refresh. A runtime whose process is gone hands off to the
+ * boot window, which resolves the runtime again and offers retry on failure.
  */
 export function monitorProductRuntime(
-  runtime: { readonly origin: string; readonly owned: boolean },
+  runtime: {
+    readonly origin: string;
+    readonly owned: boolean;
+    readonly version?: string;
+    readonly pid?: number;
+  },
   shell: ProductRuntimeShell,
-  monitorOptions: Partial<
-    Pick<
-      ConstructorParameters<typeof RuntimeHealthMonitor>[0],
-      "fetcher" | "intervalMs" | "timeoutMs" | "failureThreshold" | "reconnectTimeoutMs" | "now"
-    >
-  > = {}
+  monitorOptions: MonitorOptions = {}
 ): RuntimeHealthMonitor {
   const fields = { origin: runtime.origin };
+  const home = shell.home;
+  // The bound process answered the bootstrap, so it existed by now; a later start is a reused pid.
+  const bound =
+    runtime.pid === undefined ? undefined : { pid: runtime.pid, recordedAt: Date.now() };
+  /** True when the loaded page is this runtime version's own and can refresh its data itself. */
+  const keepsPage = async (identity: RuntimeIdentity | null): Promise<boolean> =>
+    identity !== null &&
+    runtime.version !== undefined &&
+    releaseVersion(identity.version) === releaseVersion(runtime.version) &&
+    shell.productLoaded?.() === true &&
+    (await refreshesItself(runtime.origin, monitorOptions.fetcher ?? fetch));
   return new RuntimeHealthMonitor({
+    ...(home === undefined ? {} : { runtimeAlive: () => runtimeProcessAlive(home, bound) }),
     ...monitorOptions,
     origin: runtime.origin,
     onError: error => shell.logger.error("follow product runtime", error),
@@ -49,16 +114,24 @@ export function monitorProductRuntime(
       shell.logger.info("runtime unreachable; awaiting reconnect", fields);
       await shell.publish({ state: "disconnected" });
     },
-    onReconnected: async () => {
+    onReconnected: async identity => {
       if (shell.stopped()) return;
-      shell.logger.info("runtime reconnected; reloading product window", fields);
+      const soft = await keepsPage(identity);
+      if (shell.stopped()) return;
+      shell.logger.info(
+        soft
+          ? "runtime reconnected; product window refreshes its data"
+          : "runtime reconnected; reloading product window",
+        fields
+      );
       try {
         await shell.publish({ state: "product", origin: runtime.origin, owned: runtime.owned });
       } catch (error) {
         // The app record is advisory and the next state change rewrites it; reload regardless.
         shell.logger.error("publish reconnected runtime state", error);
       }
-      await shell.reloadProduct();
+      // Shutdown may have begun while the publish was pending; it must not start window work.
+      if (!soft && !shell.stopped()) await shell.reloadProduct();
     },
     onLost: async () => {
       if (shell.stopped()) return;

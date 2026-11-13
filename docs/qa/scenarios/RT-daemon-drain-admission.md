@@ -21,8 +21,9 @@ same state through the other transports, verify new work receives the stable tem
 finish the admitted prompt and run. Undrain and confirm new work succeeds. Repeat drain, restart the
 daemon, and confirm the in-memory state returns to active only after boot reconciliation.
 
-With three sessions still streaming, request `compozy daemon restart`. During the configured
-`daemon.shutdown_grace`, admitted work may finish but new work is refused. Remaining turns retain
+With three sessions still streaming, request `compozy daemon restart`. During the restart drain (the
+smaller of `daemon.shutdown_grace` and 5 seconds, skipping turns blocked on the operator), admitted
+work may finish but new work is refused. Remaining turns retain
 their interruption checkpoints; provider stop ladders run concurrently inside the total shutdown
 budget. Replacement boot refuses new work while reconciliation runs, then admits at most one
 continuation per interrupted turn before queued inputs drain. Repeat with a slow/cooperatively

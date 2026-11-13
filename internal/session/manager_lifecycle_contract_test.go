@@ -757,6 +757,24 @@ func TestDaemonShutdownExitReclassification(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep an agent exit after a manager shutdown stop interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		// A daemon the user stopped labels its own stops user_requested; a shutdown stop is still one.
+		h.manager.BeginDaemonShutdown(false)
+		session.setStopCause(CauseShutdown)
+
+		exitErr := errors.New("acp subprocess exited: signal: terminated")
+		if got := h.manager.classifyDaemonShutdownExit(session, exitErr); got != nil {
+			t.Fatalf("classifyDaemonShutdownExit() = %v, want nil", got)
+		}
+	})
+
 	t.Run("Should keep an agent exit after a non-shutdown stop a failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -770,6 +788,98 @@ func TestDaemonShutdownExitReclassification(t *testing.T) {
 		exitErr := errors.New("boom")
 		if got := h.manager.classifyDaemonShutdownExit(session, exitErr); !errors.Is(got, exitErr) {
 			t.Fatalf("classifyDaemonShutdownExit() = %v, want %v while the daemon runs", got, exitErr)
+		}
+	})
+}
+
+// Invariant: once daemon shutdown has begun no provider is spawned, and a start it refuses is an
+// interruption: no session failure and no failure transcript row is retained.
+// Owner: session lifecycle; canonical suite: manager_lifecycle_contract_test.go.
+func TestDaemonShutdownRefusesProviderStarts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse a resume after shutdown began without retaining a start failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		before := readStoredEvents(t, session)
+		metaBefore := readMeta(t, session.MetaPath())
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+
+		h.manager.BeginDaemonShutdown(true)
+		if _, err := h.manager.Resume(testutil.Context(t), session.ID); !errors.Is(err, ErrDaemonShuttingDown) {
+			t.Fatalf("Resume() error = %v, want %v", err, ErrDaemonShuttingDown)
+		}
+
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if startsAfter != startsBefore {
+			t.Fatalf("driver start calls = %d, want %d: no provider starts during shutdown", startsAfter, startsBefore)
+		}
+		if _, active := h.manager.Get(session.ID); active {
+			t.Fatal("refused start left the session active")
+		}
+		meta := readMeta(t, session.MetaPath())
+		if !reflect.DeepEqual(meta.Failure, metaBefore.Failure) {
+			t.Fatalf("meta.Failure = %#v, want the pre-resume %#v: shutdown is not a start failure",
+				meta.Failure, metaBefore.Failure)
+		}
+		if meta.State != string(StateStopped) {
+			t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
+		}
+		after := readStoredEvents(t, session)
+		if got, want := countEventType(
+			after,
+			acp.EventTypeError,
+		), countEventType(
+			before,
+			acp.EventTypeError,
+		); got != want {
+			t.Fatalf("stored error events = %d, want %d: a refused start is not a failure row", got, want)
+		}
+	})
+
+	// Invariant: a start whose failure settles as a shutdown interruption retains no session
+	// failure, yet its start run still reports the failure to a Stop that joins it.
+	t.Run("Should keep the start failure in the run result of an interrupted settlement", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		accepted := prepareLifecycleStart(t, h)
+		closeFail := new(atomic.Bool)
+		closeFail.Store(true)
+		accepted.storage.recorder = &terminalCloseFailingRecorder{
+			EventRecorder: accepted.storage.recorder,
+			fail:          closeFail,
+			closeErr:      errors.New("recorder close failed"),
+			terminal:      true,
+		}
+		h.manager.BeginDaemonShutdown(true)
+
+		failure := errors.New("startup failed")
+		err := h.manager.discardAcceptedSessionStart(t.Context(), accepted, failure)
+		if !accepted.cleanupPending {
+			h.manager.finishSessionStartRun(accepted.session.ID, accepted.run, err)
+		}
+		if !errors.Is(err, failure) {
+			t.Fatalf("discardAcceptedSessionStart() error = %v, want %v", err, failure)
+		}
+		if runErr := waitForSessionStartRun(testutil.Context(t), accepted.run); !errors.Is(runErr, failure) {
+			t.Fatalf("start run result = %v, want %v for a joining Stop", runErr, failure)
+		}
+		if accepted.retainedFailure != nil {
+			t.Fatal("shutdown interruption retained a start failure")
+		}
+		wantCause, _ := DaemonShutdownStopCause(true)
+		if got, _ := accepted.session.stopCauseDetail(); got != wantCause {
+			t.Fatalf("stop cause = %v, want %v", got, wantCause)
 		}
 	})
 }

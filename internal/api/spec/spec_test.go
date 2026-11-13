@@ -3425,6 +3425,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		browseSchema["required"] = append([]any{"categories"}, browseSchema["required"].([]any)...)
 
 		addCheckInToolSchemaFields(baseline)
+		addDaemonReadinessSchema(t, baseline, current)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -5929,6 +5930,67 @@ func addAlwaysOnAdditiveSchemas(value any) {
 			)
 		}
 	}
+}
+
+// addDaemonReadinessSchema accepts the additive optional daemon readiness phase on the status read.
+// The baseline predates components, so the current schema is dereferenced before it is copied in.
+func addDaemonReadinessSchema(t *testing.T, baseline, current map[string]any) {
+	t.Helper()
+	components, _ := current["components"].(map[string]any)
+	schemas, _ := components["schemas"].(map[string]any)
+	var deref func(value any, depth int) any
+	deref = func(value any, depth int) any {
+		if depth > 32 {
+			t.Fatal("status daemon schema references nest too deeply")
+		}
+		switch node := value.(type) {
+		case map[string]any:
+			if ref, ok := node["$ref"].(string); ok {
+				return deref(schemas[strings.TrimPrefix(ref, "#/components/schemas/")], depth+1)
+			}
+			resolved := make(map[string]any, len(node))
+			for key, child := range node {
+				resolved[key] = deref(child, depth+1)
+			}
+			return resolved
+		case []any:
+			resolved := make([]any, len(node))
+			for index, child := range node {
+				resolved[index] = deref(child, depth+1)
+			}
+			return resolved
+		default:
+			return value
+		}
+	}
+	daemonProperties := func(document map[string]any, resolve bool) map[string]any {
+		var node any = document
+		for _, key := range []string{
+			"paths", "/api/status", "get", "responses", "200", "content", "application/json", "schema",
+			"properties", "daemon", "properties",
+		} {
+			object, ok := node.(map[string]any)
+			if ok && resolve {
+				if ref, isRef := object["$ref"].(string); isRef {
+					object, ok = schemas[strings.TrimPrefix(ref, "#/components/schemas/")].(map[string]any)
+				}
+			}
+			if !ok || object[key] == nil {
+				t.Fatalf("status daemon schema is missing %q", key)
+			}
+			node = object[key]
+		}
+		properties, ok := node.(map[string]any)
+		if !ok {
+			t.Fatal("status daemon schema properties are not an object")
+		}
+		return properties
+	}
+	readiness, ok := daemonProperties(current, true)["readiness"]
+	if !ok {
+		t.Fatal("status daemon schema is missing the readiness property")
+	}
+	daemonProperties(baseline, false)["readiness"] = deref(readiness, 0)
 }
 
 func addCheckInToolSchemaFields(value any) {

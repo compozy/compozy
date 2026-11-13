@@ -35,6 +35,26 @@ export interface BootstrapEvent {
     readonly runtime: string;
     readonly needed: string;
   };
+  /**
+   * Present only when the bootstrap could not load its configuration. The failure is terminal: no
+   * runtime answered and a retry reads the same file.
+   */
+  readonly config?: {
+    readonly path?: string;
+    readonly unknown_keys?: readonly string[];
+    /** 1-based position of invalid TOML. */
+    readonly line?: number;
+    readonly column?: number;
+  };
+  /** The bootstrap's own failure class; only the classes the shell acts on are read. */
+  readonly classification?: string;
+  /** The lifecycle phase and step of a runtime that reports them; absent on older runtimes. */
+  readonly readiness?: { readonly phase: string; readonly step?: string };
+  /**
+   * Present while the bootstrap waits on another process's runtime update, restart or start
+   * instead of spending a start attempt.
+   */
+  readonly wait?: { readonly reason: string; readonly owner_pid?: number };
   readonly daemon?: {
     readonly origin: string;
     readonly version: string;
@@ -62,6 +82,41 @@ function validDaemonOrigin(value: unknown): value is string {
   } catch {
     return false;
   }
+}
+
+function optionalPosition(value: unknown): boolean {
+  return (
+    value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 1)
+  );
+}
+
+function validConfigFailure(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const config = value as Record<string, unknown>;
+  if (config.path !== undefined && typeof config.path !== "string") return false;
+  const keys = config.unknown_keys;
+  if (keys !== undefined && !(Array.isArray(keys) && keys.every(key => typeof key === "string"))) {
+    return false;
+  }
+  return optionalPosition(config.line) && optionalPosition(config.column);
+}
+
+function validReadiness(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const readiness = value as Record<string, unknown>;
+  return (
+    typeof readiness.phase === "string" &&
+    readiness.phase.trim() !== "" &&
+    (readiness.step === undefined || typeof readiness.step === "string")
+  );
+}
+
+function validWait(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const wait = value as Record<string, unknown>;
+  return (
+    typeof wait.reason === "string" && wait.reason.trim() !== "" && optionalPosition(wait.owner_pid)
+  );
 }
 
 export function parseBootstrapEvent(line: string): BootstrapEvent | null {
@@ -156,6 +211,10 @@ export function parseBootstrapEvent(line: string): BootstrapEvent | null {
       return null;
     }
   }
+  if (record.config !== undefined && !validConfigFailure(record.config)) return null;
+  if (record.classification !== undefined && typeof record.classification !== "string") return null;
+  if (record.readiness !== undefined && !validReadiness(record.readiness)) return null;
+  if (record.wait !== undefined && !validWait(record.wait)) return null;
   if (record.daemon !== undefined) {
     if (!record.daemon || typeof record.daemon !== "object") return null;
     const daemon = record.daemon as Record<string, unknown>;
@@ -189,6 +248,8 @@ export function bootstrapLogRecord(
     ...(event.resolution ? { resolution: event.resolution } : {}),
     ...(event.stage ? { stage: event.stage } : {}),
     ...(event.pct === undefined ? {} : { pct: event.pct }),
+    ...(event.readiness ? { readiness: event.readiness } : {}),
+    ...(event.wait ? { wait: event.wait } : {}),
     ...(event.daemon ? { daemon: event.daemon } : {}),
   };
 }

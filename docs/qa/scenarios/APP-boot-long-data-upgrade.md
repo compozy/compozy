@@ -48,8 +48,14 @@ Walk:
    error layout with the Upgrade data step failed.
 7. The upgrade ends in the product window. `compozy app status -o json` validates against the
    schema, and every seeded session opens with its transcript.
+8. Restart the same build once more without touching any session (wait a few seconds first, so the
+   upgraded files are older than the 2-second settle window). `daemon: retained session databases
+   ready` in the daemon log reports `unchanged_sessions` equal to the retained session count and
+   `opened_sessions` 0, and `observe: session reconcile complete` reports `read_sessions` 0. Prompt
+   one session, restart again, and only that session is opened and read.
 
-Owning suites: `TestBootSessionRepair` (per-session progress, cleared on exit),
+Owning suites: `TestBootSessionRepair` (per-session progress, cleared on exit, unchanged sessions
+skipped), `TestReconciliationReadsOnlyChangedSessions` (reconcile reads only changed sessions),
 `TestGlobalDBUsageCostRepair` (usage cost repair progress), `TestDesktopRuntimeBootstrapReplacement`
 (counts, stage name and version transition on bootstrap events), desktop `bootstrap-state`,
 `bootstrap-event`, `boot-journey`, `boot-runner-engine` and `boot-control`.

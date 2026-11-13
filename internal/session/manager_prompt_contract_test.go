@@ -1121,6 +1121,80 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		})
 	}
 
+	// Invariant: a turn interrupted by the daemon's own shutdown stop keeps its terminal event, because
+	// the recorder stays open until the prompt pump has recorded it.
+	t.Run("Should record the interrupted turn terminal before a shutdown stop closes the recorder", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t,
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
+			WithDaemonShutdownTurnGrace(time.Minute),
+		)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		source := make(chan acp.AgentEvent, 1)
+		turnStarted := make(chan string, 1)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			turnStarted <- req.TurnID
+			return source, nil
+		}
+		// A provider's prompt stream fails only once its process is gone, so the pump learns of the
+		// interruption after the stop has already verified the exit.
+		var failStream sync.Once
+		h.driver.mu.Lock()
+		h.driver.verifyExitHook = func(proc *AgentProcess) (bool, error) {
+			exited := isProcessDone(proc)
+			if exited {
+				failStream.Do(func() {
+					go func() {
+						defer close(source)
+						source <- acp.AgentEvent{
+							Type:      acp.EventTypeError,
+							SessionID: originalACP,
+							Timestamp: time.Now().UTC(),
+							Error:     "ACP connection closed",
+							Failure: &store.SessionFailure{
+								Kind:    store.FailureTransport,
+								Summary: "ACP connection closed",
+							},
+						}
+					}()
+				})
+			}
+			return exited, nil
+		}
+		h.driver.mu.Unlock()
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		turnID := <-turnStarted
+		h.manager.BeginDaemonShutdown(true)
+		if err := h.manager.PrepareDaemonShutdown(testutil.Context(t), true); err != nil {
+			t.Fatalf("PrepareDaemonShutdown() error = %v", err)
+		}
+		cause, detail := DaemonShutdownStopCause(true)
+		if err := h.manager.StopWithCause(testutil.Context(t), session.ID, cause, detail); err != nil {
+			t.Fatalf("StopWithCause() error = %v", err)
+		}
+		collectEvents(t, eventsCh)
+
+		terminals := 0
+		for _, event := range readStoredEvents(t, session) {
+			if event.TurnID == turnID && event.Type == acp.EventTypeDone {
+				terminals++
+			}
+		}
+		if terminals != 1 {
+			t.Fatalf("stored terminal events of the interrupted turn = %d, want 1", terminals)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.Failure != nil || meta.StopReason == nil || *meta.StopReason != store.StopShutdown {
+			t.Fatalf("meta failure = %#v stop reason = %#v, want a restart interruption", meta.Failure, meta.StopReason)
+		}
+	})
+
 	t.Run("Should classify an ACP error followed by exit code zero as a transport failure", func(t *testing.T) {
 		t.Parallel()
 

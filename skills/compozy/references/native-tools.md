@@ -1189,6 +1189,12 @@ does not produce a lost-wake report; stopping the main session still reports its
   Request `result_view: "full"` for poll timestamps and `last_item_count`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
+- `compozy__agent_instance_clear_main` is operator only and takes the instance selector. It
+  discards the main session's conversation and starts a fresh provider thread under the same
+  session ID; queued inputs, agent memory and the instance are kept. It is refused while the
+  main is running a turn, for an instance without a main, and with `dry_run`. A provider
+  account/backend mismatch does not need it: the main rotates its provider thread and replays
+  the transcript on its next wake.
 - `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
   Results contain `state` (`running` or `finished`), and completed `result`, `reason`, and
   optional `report_id`. Reads stay within the authorized profile and instance.

@@ -78,7 +78,7 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		undecoded = withoutDynamicLoopInputKeys(undecoded)
+		undecoded = withoutRetiredProviderFullAccessKeys(withoutDynamicLoopInputKeys(undecoded))
 		if len(undecoded) == 0 {
 			return overlay, nil
 		}

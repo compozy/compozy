@@ -1,10 +1,18 @@
 package daemon
 
+import "context"
+
+// stdioMCPCloser is the pooled stdio MCP runtime, which tool calls use until their session stops.
+type stdioMCPCloser interface {
+	Close(context.Context) error
+}
+
 type shutdownTargets struct {
 	daemonRuntimeState
 	closeLogger func() error
 	infoPath    string
 	retention   observerRetentionStopper
+	stdioMCP    stdioMCPCloser
 	// A failed manager shutdown still owns the shared database and singleton.
 	sessionShutdownIncomplete bool
 }
@@ -19,6 +27,9 @@ func (d *Daemon) snapshotShutdownTargetsLocked() shutdownTargets {
 	}
 	if stopper, ok := d.observer.(observerRetentionStopper); ok {
 		targets.retention = stopper
+	}
+	if d.mcpStdioPool != nil {
+		targets.stdioMCP = d.mcpStdioPool
 	}
 	return targets
 }

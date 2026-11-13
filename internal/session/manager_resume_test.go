@@ -207,6 +207,7 @@ func TestResumeInterruptedSession(t *testing.T) {
 			if err := h.manager.CaptureRestartInterruptions(t.Context(), infos); err != nil {
 				t.Fatal(err)
 			}
+			simulateDaemonRestart(h.manager)
 			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
 			if err != nil && !errors.Is(err, ErrRestartContinuationSkipped) {
 				t.Fatal(err)
@@ -448,6 +449,20 @@ func (r *restartSkipFaultRecorder) AppendEventIfAbsent(
 		}
 	}
 	return r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
+}
+
+// providerMismatchLoadError reproduces the session/load refusal codex-acp returns after
+// `model_provider` changes, wrapped the way the ACP driver reports a failed load.
+func providerMismatchLoadError(opts acp.StartOpts) error {
+	return acp.WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+		"%w: load session %q for %q: %w",
+		acp.ErrLoadSessionFailed,
+		opts.ResumeSessionID,
+		opts.AgentName,
+		&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: map[string]any{
+			"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+		}},
+	))
 }
 
 // assertInstanceRestartContinuation proves an instance lineage's continuation runs through the durable
@@ -1273,6 +1288,177 @@ func TestResumeReplayFallback(t *testing.T) {
 		collectEvents(t, prompt)
 		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[0].Message, eventsBeforeResume)
 		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
+	})
+
+	// Invariant: a provider account/backend mismatch is a permanent load failure. Repeated instance
+	// wakes try the stored provider thread once, leave one failure row and one recovery notice, keep
+	// the transcript, and drain the queue on a fresh thread. Owner: session resume; canonical suite:
+	// manager_resume_test.go. The ACP boundary is fake; the queue and instance rows use real SQLite.
+	t.Run("Should replace a provider thread owned by another backend once across repeated instance wakes",
+		func(t *testing.T) {
+			t.Parallel()
+
+			admissions := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionPromptAdmissionStore(admissions),
+				WithSessionInputQueueStore(admissions),
+			)
+			registerManagerInputQueueWorkspace(t, admissions, h)
+			main := createSession(t, h)
+			registerManagerInputQueueSession(t, admissions, h, main)
+			t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+			if _, err := admissions.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main.ID, 10); err != nil {
+				t.Fatal(err)
+			}
+			recordResumeReplayFixture(t, h.manager, main, "provider-mismatch-context")
+			originalACP := main.Info().ACPSessionID
+			if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			eventsBeforeResume := readStoredEvents(t, main)
+			if _, _, err := admissions.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+				ID: "provider-mismatch-queued", SessionID: main.ID, Text: "queued instance work",
+				QueueCap: 3, Now: h.manager.now(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+				if opts.ResumeSessionID != "" {
+					return nil, providerMismatchLoadError(opts)
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+			}
+
+			for wake := range 3 {
+				if err := h.manager.ReleaseInstanceInputs(t.Context(), main.ID); err != nil {
+					t.Fatalf("ReleaseInstanceInputs(wake %d) error = %v", wake, err)
+				}
+			}
+			waitForCondition(t, "queued instance input after provider mismatch", func() bool {
+				return len(managerPromptCalls(h)) == 1
+			})
+			if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+
+			h.driver.mu.Lock()
+			starts := append([]acp.StartOpts(nil), h.driver.startCalls...)
+			h.driver.mu.Unlock()
+			if len(starts) != 3 || starts[1].ResumeSessionID != originalACP || starts[2].ResumeSessionID != "" {
+				t.Fatalf(
+					"provider starts = %d, want create, one load of %q and one fresh thread",
+					len(starts),
+					originalACP,
+				)
+			}
+			prompt := managerPromptCalls(h)[0].Message
+			if strings.Count(prompt, resumeReplayOpenTag) != 1 ||
+				!strings.Contains(prompt, "provider-mismatch-context") ||
+				!strings.Contains(prompt, "queued instance work") {
+				t.Fatalf("drained prompt lacks replayed context or queued work: %q", prompt)
+			}
+			resumed, ok := h.manager.Get(main.ID)
+			if !ok {
+				t.Fatal("recovered instance main is not active")
+			}
+			if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
+				t.Fatalf("recovered ACPSessionID = %q, want a fresh provider thread", got)
+			}
+			events := readStoredEvents(t, resumed)
+			failures := 0
+			for _, event := range events {
+				if event.Type == acp.EventTypeError {
+					failures++
+				}
+			}
+			if failures != 1 {
+				t.Fatalf("load failure rows = %d, want 1", failures)
+			}
+			for _, original := range eventsBeforeResume {
+				if !slices.ContainsFunc(events, func(event store.SessionEvent) bool {
+					return event.ID == original.ID && event.Content == original.Content
+				}) {
+					t.Fatalf("provider mismatch recovery lost durable event %q", original.ID)
+				}
+			}
+			messages, err := transcript.Assemble(events)
+			if err != nil {
+				t.Fatalf("transcript.Assemble(events) error = %v", err)
+			}
+			notices := 0
+			for _, message := range messages {
+				if message.Role == transcript.RoleSystem && message.Content == providerMismatchMarkerSummary {
+					notices++
+				}
+			}
+			if notices != 1 {
+				t.Fatalf("provider mismatch notices = %d, want 1", notices)
+			}
+		})
+
+	// Invariant: an unclassified session/load failure is transient. Each resume retries the stored
+	// provider thread and never rotates to a fresh one. Owner: session resume; canonical suite:
+	// manager_resume_test.go.
+	t.Run("Should keep retrying the stored provider thread after a transient load failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		var healthy atomic.Bool
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID == "" {
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+			}
+			if healthy.Load() {
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, opts.ResumeSessionID), nil
+			}
+			return nil, acp.WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				acp.ErrLoadSessionFailed,
+				opts.ResumeSessionID,
+				opts.AgentName,
+				&acpsdk.RequestError{Code: -32603, Message: "Internal error"},
+			))
+		}
+
+		for attempt := range 2 {
+			if _, err := h.manager.Resume(t.Context(), session.ID); !errors.Is(err, acp.ErrLoadSessionFailed) {
+				t.Fatalf("Resume(attempt %d) error = %v, want %v", attempt, err, acp.ErrLoadSessionFailed)
+			}
+			if got := derefString(readMeta(t, session.MetaPath()).ACPSessionID); got != originalACP {
+				t.Fatalf("meta ACPSessionID after transient failure = %q, want %q", got, originalACP)
+			}
+		}
+		healthy.Store(true)
+		resumed, err := h.manager.Resume(t.Context(), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(after transient failures) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+
+		h.driver.mu.Lock()
+		starts := append([]acp.StartOpts(nil), h.driver.startCalls...)
+		h.driver.mu.Unlock()
+		if len(starts) != 4 {
+			t.Fatalf("provider starts = %d, want create and three loads", len(starts))
+		}
+		for _, start := range starts[1:] {
+			if start.ResumeSessionID != originalACP {
+				t.Fatalf("retry ResumeSessionID = %q, want %q", start.ResumeSessionID, originalACP)
+			}
+		}
+		if got := resumed.Info().ACPSessionID; got != originalACP {
+			t.Fatalf("resumed ACPSessionID = %q, want %q", got, originalACP)
+		}
+		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 0)
 	})
 
 	t.Run("Should not stage replay when session load succeeds", func(t *testing.T) {

@@ -52,6 +52,10 @@ func writeBootstrapFailure(
 	if compatibilityFailure, ok := errors.AsType[*bootstrapCompatibilityFailure](cause); ok {
 		event.Compatibility = new(compatibilityFailure.bootstrapCompatibility)
 	}
+	if configFailure, ok := errors.AsType[*bootstrapConfigFailure](cause); ok {
+		event.Classification = bootstrapProbeConfigInvalid
+		event.Config = configFailure.detail()
+	}
 	if err := writeBootstrapEvent(cmd, event); err != nil {
 		return err
 	}

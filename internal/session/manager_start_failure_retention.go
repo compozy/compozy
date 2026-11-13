@@ -77,7 +77,7 @@ func (m *Manager) prepareFailedStartRetention(
 		events:        []acp.AgentEvent{errorEvent, stopEvent},
 		diagnosticErr: diagnosticErr,
 	}
-	if !acp.IsLoadSessionResourceMissing(startErr) && !errors.Is(startErr, acp.ErrAgentDoesNotSupportSession) {
+	if !acp.LoadSessionRequiresFreshThread(startErr) {
 		if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(stopEvent); ok {
 			marker, err := m.prepareTranscriptMarkerEvent(accepted.session, stopEvent.TurnID, transcriptMarkerInput{
 				EventID: "session-start-marker:" + stopEvent.TurnID, Kind: kind, Summary: summary, Evidence: evidence,

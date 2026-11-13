@@ -693,6 +693,7 @@ export type {
   CurateProviderModelResponses,
   CursorPagePayload,
   DaemonIdentityPayload,
+  DaemonReadinessPayload,
   DaemonStatusPayload,
   DeleteAgentData,
   DeleteAgentError,

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -70,9 +69,22 @@ type bootstrapDaemonProbe struct {
 	homePaths compozyconfig.HomePaths
 	target    ClientTarget
 	client    DaemonClient
+	// readyPhase is the bootstrap target; the zero value accepts only a `running` daemon.
+	readyPhase bootstrapReadyPhase
 }
 
-// status reuses one transport while rechecking discovery identity on every observation.
+// probeBootstrapDaemon probes the recorded daemon for the default target: only `running` is healthy.
+func probeBootstrapDaemon(
+	ctx context.Context,
+	deps commandDeps,
+	homePaths compozyconfig.HomePaths,
+) (DaemonStatus, bool, error) {
+	probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths}
+	return probe.status(ctx)
+}
+
+// status reuses one transport while rechecking discovery identity on every observation. A daemon
+// in the serving phase is healthy only for the serving target, and only with a matching identity.
 func (p *bootstrapDaemonProbe) status(ctx context.Context) (DaemonStatus, bool, error) {
 	info, running, err := daemonInfo(p.homePaths, p.deps)
 	if err != nil || !running {
@@ -81,7 +93,7 @@ func (p *bootstrapDaemonProbe) status(ctx context.Context) (DaemonStatus, bool, 
 	if p.client == nil {
 		p.target, err = resolveLocalClientTarget(p.deps, p.homePaths)
 		if err != nil {
-			return DaemonStatus{}, false, err
+			return DaemonStatus{}, false, &bootstrapConfigFailure{cause: err}
 		}
 		p.client, err = p.deps.newClient(p.target)
 		if err != nil {
@@ -90,17 +102,31 @@ func (p *bootstrapDaemonProbe) status(ctx context.Context) (DaemonStatus, bool, 
 	}
 	status, err := p.client.DaemonStatus(ctx)
 	if err != nil {
-		return DaemonStatus{}, false, err
+		return DaemonStatus{}, false, &bootstrapStatusFailure{cause: err}
 	}
-	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
-		return status, false, errors.New("cli: running daemon did not report healthy status")
+	if status.PID <= 0 || !daemonServesAs(status, p.readyPhase) {
+		return status, false, &bootstrapStatusFailure{
+			cause: errors.New("cli: running daemon did not report healthy status"),
+		}
 	}
 	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
 		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(p.target.socketPath) {
-		return status, false, errors.New("cli: daemon status does not match the local discovery record")
+		return status, false, &bootstrapStatusFailure{
+			cause: errors.New("cli: daemon status does not match the local discovery record"),
+		}
 	}
 	return status, true, nil
 }
+
+// bootstrapStatusFailure marks a failed daemon status response: the recorded daemon was asked and
+// did not answer healthy. Only this class is reported as "listening but unhealthy".
+type bootstrapStatusFailure struct {
+	cause error
+}
+
+func (e *bootstrapStatusFailure) Error() string { return e.cause.Error() }
+
+func (e *bootstrapStatusFailure) Unwrap() error { return e.cause }
 
 // waitForLockOwnerReady rechecks ownership because a holder may record its PID after taking the lock.
 func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, error) {
@@ -108,6 +134,7 @@ func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, 
 	ctx, cancel := context.WithTimeout(e.cmd.Context(), timeout)
 	defer cancel()
 	probe := bootstrapDaemonProbe{deps: e.deps, homePaths: e.homePaths}
+	serving := bootstrapServingProbe{execution: e}
 	ticker := time.NewTicker(e.deps.pollInterval)
 	defer ticker.Stop()
 	for ctx.Err() == nil {
@@ -119,6 +146,12 @@ func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, 
 		}
 		if probeErr == nil && running && daemonReadyAs(status, ownerPID) {
 			return status, nil
+		}
+		if servingStatus, ok := serving.status(ctx, ownerPID); ok {
+			return servingStatus, nil
+		}
+		if _, ok := errors.AsType[*bootstrapConfigFailure](probeErr); ok {
+			return DaemonStatus{}, probeErr
 		}
 		// The holder may not have recorded its PID yet, so a held lock takes precedence over liveness.
 		if !lockHeld && !e.deps.processAlive(ownerPID) {

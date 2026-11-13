@@ -55,9 +55,11 @@ const versionArrow = byId("boot-version-arrow");
 const versionTo = byId("boot-version-to");
 const releaseNotes = byId<HTMLButtonElement>("boot-release-notes");
 const detail = byId("boot-detail");
+const lead = byId("boot-lead");
 const errorCode = byId("boot-error-code");
 const controls = byId("boot-controls");
 const retry = byId<HTMLButtonElement>("boot-retry");
+const openConfig = byId<HTMLButtonElement>("boot-open-config");
 const openLogs = byId<HTMLButtonElement>("boot-open-logs");
 const quit = byId<HTMLButtonElement>("boot-quit");
 const runnerHost = byId("boot-runner");
@@ -221,6 +223,13 @@ retry.addEventListener(
   "click",
   () => void invoke(retry, "retry", {}, "Retrying…", () => setResult("Retry started.", "success"))
 );
+openConfig.addEventListener(
+  "click",
+  () =>
+    void invoke(openConfig, "open_config", {}, "Opening…", () =>
+      setResult("Config file opened.", "success")
+    )
+);
 openLogs.addEventListener("click", onLogs(openLogs));
 noticeLogs.addEventListener("click", onLogs(noticeLogs));
 noticeDiagnose.addEventListener("click", onDiagnose(noticeDiagnose));
@@ -347,9 +356,14 @@ function renderWork(view: JourneyView): void {
 
 /** The game plays itself while work runs; after a failure it waits at rest for Space. */
 function renderRunner(view: JourneyView): void {
-  const wanted = view.layout === "journey";
+  let wanted = view.layout === "journey";
   const autoplay = snapshot.state !== "error";
   show(runnerHost, wanted);
+  // The reason and the actions outrank the game: it yields when the column cannot hold all three.
+  if (wanted && lead.scrollHeight > lead.clientHeight) {
+    wanted = false;
+    show(runnerHost, false);
+  }
   if (runner && (!wanted || runnerAutoplay !== autoplay)) {
     runner.stop();
     runner = null;
@@ -410,6 +424,8 @@ function render(payload: unknown): void {
   // A retry or a new failure must not show the previous outcome's report.
   if (failed !== wasFailed) resetDiagnostics();
   show(retry, failed);
+  // Only a config failure is fixed by editing the file, so only it offers to open it.
+  show(openConfig, failed && snapshot.error?.code === "config_invalid");
   show(openLogs, failed || snapshot.state === "skew" || snapshot.state === "disconnected");
   show(quit, failed || snapshot.state === "skew" || snapshot.state === "disconnected");
   show(controls, retry.hidden !== true || openLogs.hidden !== true);

@@ -36,6 +36,16 @@ func EditConfigOverlayAndApply(
 	if err != nil {
 		return Config{}, err
 	}
+	// Same order as migrateRetiredConfigKeys, so a write to an overlay that still carries retired
+	// settings validates the document the loader would read.
+	contents, _, err = archiveRetiredMemorySettings(contents, target.path)
+	if err != nil {
+		return Config{}, err
+	}
+	contents, _, err = migrateRetiredAlwaysOnTable(contents, target.path)
+	if err != nil {
+		return Config{}, err
+	}
 	editor, err := newOverlayEditor(target.path, contents)
 	if err != nil {
 		return Config{}, err

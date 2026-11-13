@@ -36,7 +36,7 @@ func (m *Manager) restartSkipReason(
 	if checkpoint.Reason != "" {
 		return checkpoint.Reason, nil
 	}
-	if meta.Failure != nil {
+	if restartFailureRequiresOperator(meta.Failure) {
 		return "agent_failure", nil
 	}
 	if checkpoint.Delivery != string(PromptDeliveryNormal) {
@@ -60,6 +60,26 @@ func (m *Manager) restartSkipReason(
 		return reason, err
 	}
 	return m.restartLimitReason(ctx, meta, cfg)
+}
+
+// restartFailureRequiresOperator reports whether a failure retained on an interrupted session
+// records a genuine agent failure. Launch, handshake, deadline and cancellation failures, and a
+// transport loss outside a prompt, come from the infrastructure that starts a provider (hosted MCP
+// bind, adapter prepare or initialize, a start canceled by daemon shutdown). They say nothing about
+// the interrupted turn, so continuation proceeds and the successful resume clears them.
+func restartFailureRequiresOperator(failure *store.SessionFailure) bool {
+	if failure == nil || failure.IsZero() {
+		return false
+	}
+	switch failure.Kind {
+	case store.FailureStartup, store.FailureHandshake, store.FailureTimeout, store.FailureCanceled:
+		return false
+	case store.FailureTransport:
+		return failure.ReasonCode == store.FailureReasonPromptStreamIncomplete ||
+			failure.ReasonCode == store.FailureReasonPromptDeliveryReadFailed
+	default:
+		return true
+	}
 }
 
 func (m *Manager) restartRuntimeSkipReason(

@@ -397,21 +397,32 @@ type DaemonIdentityPayload struct {
 	Version     string    `json:"version"`
 }
 
+// DaemonReadinessPayload is a daemon API value.
+type DaemonReadinessPayload struct {
+	Phase DaemonReadinessPhase `json:"phase"`
+	Step  string               `json:"step,omitempty"`
+	Since time.Time            `json:"since"`
+}
+
+// DaemonReadinessPhase is a daemon API value.
+type DaemonReadinessPhase string
+
 // DaemonStatusPayload is a daemon API value.
 type DaemonStatusPayload struct {
-	Status         string                `json:"status"`
-	PID            int                   `json:"pid"`
-	StartedAt      time.Time             `json:"started_at"`
-	Socket         string                `json:"socket"`
-	HTTPHost       string                `json:"http_host"`
-	HTTPPort       int                   `json:"http_port"`
-	UserHomeDir    string                `json:"user_home_dir"`
-	ActiveSessions int                   `json:"active_sessions"`
-	TotalSessions  int                   `json:"total_sessions"`
-	Version        string                `json:"version,omitempty"`
-	MinAppVersion  string                `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload `json:"gateway,omitzero"`
-	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
+	Status         string                  `json:"status"`
+	PID            int                     `json:"pid"`
+	StartedAt      time.Time               `json:"started_at"`
+	Socket         string                  `json:"socket"`
+	HTTPHost       string                  `json:"http_host"`
+	HTTPPort       int                     `json:"http_port"`
+	UserHomeDir    string                  `json:"user_home_dir"`
+	ActiveSessions int                     `json:"active_sessions"`
+	TotalSessions  int                     `json:"total_sessions"`
+	Version        string                  `json:"version,omitempty"`
+	MinAppVersion  string                  `json:"min_app_version"`
+	Gateway        *GatewayStatusPayload   `json:"gateway,omitzero"`
+	SchemaStreams  []SchemaStreamStatus    `json:"schema_streams"`
+	Readiness      *DaemonReadinessPayload `json:"readiness,omitzero"`
 }
 
 // DeleteAgentResponse is a daemon API value.
@@ -435,15 +446,4 @@ type DeleteProfilePlan struct {
 	Removed           ProfileRemovalSummary `json:"removed"`
 	SelectionsToSweep int                   `json:"selections_to_sweep"`
 	ApprovalBlockers  []string              `json:"approval_blockers"`
-}
-
-// DeleteProfileResponse is a daemon API value.
-type DeleteProfileResponse struct {
-	Deleted bool                  `json:"deleted"`
-	Removed ProfileRemovalSummary `json:"removed"`
-}
-
-// DeleteResourceRequest is a daemon API value.
-type DeleteResourceRequest struct {
-	ExpectedVersion int64 `json:"expected_version"`
 }

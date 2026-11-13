@@ -335,10 +335,12 @@ func assertConfigSentinelUnchanged(t *testing.T, path string, want string) {
 	}
 }
 
+// Invariant: editing a persisted AGENT.md that still says kind: stays_on saves it as always_on
+// (#1618; shim removal: v0.7.0). Owner: AGENT.md edit boundary.
 func TestAgentKindAliasEdit(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"stays_on", "\"stays_on\"", "'stays_on'", "stays_on # note"} {
-		t.Run("Should reject retired persisted kind while editing "+kind, func(t *testing.T) {
+		t.Run("Should migrate persisted kind while editing "+kind, func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), "triage", AgentDefinitionFileName)
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -346,13 +348,18 @@ func TestAgentKindAliasEdit(t *testing.T) {
 			}
 			body := "---\nname: triage\nkind: " + kind + "\n---\nWatch.\n"
 			writeFile(t, path, body)
-			_, err := EditAgentDefFile(path, func(a *AgentDef) error { a.Description = "New"; return nil })
-			if !errors.Is(err, ErrAgentKindInvalid) {
-				t.Fatalf("edit error = %v, want ErrAgentKindInvalid", err)
+			edited, err := EditAgentDefFile(path, func(a *AgentDef) error { a.Description = "New"; return nil })
+			if err != nil || edited.Kind != AgentKindAlwaysOn || edited.Description != "New" {
+				t.Fatalf("edit = %+v %v", edited, err)
 			}
+
 			got, err := os.ReadFile(path)
-			if err != nil || string(got) != body {
-				t.Fatalf("rejected definition changed: %q, %v", got, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parsed, err := ParseAgentDef(got)
+			if err != nil || parsed.Kind != AgentKindAlwaysOn || parsed.Prompt != "Watch." {
+				t.Fatalf("saved = %+v %v", parsed, err)
 			}
 		})
 	}

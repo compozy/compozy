@@ -2026,6 +2026,12 @@ export type DaemonIdentityPayload = {
   version: string;
 };
 
+export type DaemonReadinessPayload = {
+  phase: string;
+  since: string;
+  step?: string;
+};
+
 export type DaemonStatusPayload = {
   active_sessions: number;
   gateway?: GatewayStatusPayload | null;
@@ -2033,6 +2039,7 @@ export type DaemonStatusPayload = {
   http_port: number;
   min_app_version: string;
   pid: number;
+  readiness?: DaemonReadinessPayload | null;
   schema_streams: Array<SchemaStreamStatus>;
   socket: string;
   started_at: string;
@@ -26784,6 +26791,10 @@ export type TriggerSettingsRestartErrors = {
    * Forbidden
    */
   403: ErrorPayload;
+  /**
+   * Replacement runtime failed its restart pre-flight; the running daemon was kept
+   */
+  409: ErrorPayload;
   /**
    * Internal server error
    */

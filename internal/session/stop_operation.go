@@ -274,6 +274,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 			waitErr = proc.Wait()
 		}
 		reconcileObservedTerminalStop(session, requested, waitErr)
+		m.awaitDaemonShutdownTurnTerminal(ctx, promptDone)
 		run.err = errors.Join(run.err, m.finalizeObservedStop(context.WithoutCancel(ctx), session, observed, waitErr))
 		run.outcome.FinalState = session.Info().State
 		if errors.Is(run.err, ErrStopVerificationFailed) {

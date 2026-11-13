@@ -6,6 +6,8 @@ const RELEASE_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/u;
 
 export interface BootControlDependencies {
   readonly openLogs: () => Promise<string>;
+  /** Opens the global config file; resolves to a failure message, or "" once it opened. */
+  readonly openConfig: () => Promise<string>;
   readonly openExternal: (url: string) => Promise<void>;
   /** The version the current boot moves to, if the shell state names one. */
   readonly targetVersion: () => string | undefined;
@@ -20,13 +22,18 @@ export function releaseNotesURL(version: string | undefined): string | null {
 }
 
 /**
- * Answers the boot page's `boot:control` calls. Shell-local actions (logs, release notes, quit)
- * run here; diagnostics and retry go to the app control handler the CLI uses too.
+ * Answers the boot page's `boot:control` calls. Shell-local actions (logs, config, release notes,
+ * quit) run here; diagnostics and retry go to the app control handler the CLI uses too.
  */
 export function createBootControl(dependencies: BootControlDependencies) {
   return async (method: unknown, params: unknown): Promise<unknown> => {
     if (method === "open_logs") {
       const failure = await dependencies.openLogs();
+      if (failure) throw new Error(failure);
+      return { opened: true };
+    }
+    if (method === "open_config") {
+      const failure = await dependencies.openConfig();
       if (failure) throw new Error(failure);
       return { opened: true };
     }

@@ -4,8 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
+
+// timeShutdownPhase publishes and logs one named shutdown phase with its duration.
+func (d *Daemon) timeShutdownPhase(ctx context.Context, phase string, run func() error) error {
+	return d.timeLifecycleStep(ctx, d.runtimeLogger(), contract.DaemonReadinessStopping, phase, run)
+}
 
 // daemonShutdownOperation is one daemon-owned teardown attempt. Callers share
 // its result while retaining independent wait contexts.
@@ -59,14 +67,39 @@ func (d *Daemon) runShutdownOperation(
 	operation *daemonShutdownOperation,
 	targets *shutdownTargets,
 ) {
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), timeout)
+	// The teardown phases share this deadline; the phases after them own detached budgets that the
+	// complete budget reserves.
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), shutdownTeardownBudget(timeout))
 	defer cancel()
 
-	drainErr := d.Drain(context.WithoutCancel(shutdownCtx))
-	checkpointErr := d.prepareShutdownSessions(shutdownCtx, targets.sessions)
-	shutdownErr := d.shutdownDetached(shutdownCtx, targets)
+	started := time.Now()
+	// Before anything drains: from here on no provider is spawned and no automatic recovery starts.
+	d.beginSessionShutdown(targets.sessions)
+	drainErr := d.timeShutdownPhase(shutdownCtx, "close_admission", func() error {
+		return d.Drain(context.WithoutCancel(shutdownCtx))
+	})
+	checkpointErr := d.timeShutdownPhase(shutdownCtx, "drain_and_checkpoint_sessions", func() error {
+		return d.prepareShutdownSessions(shutdownCtx, targets.sessions)
+	})
+	shutdownErr := d.shutdownDetached(shutdownCtx, operation, targets)
 	operation.sessionShutdownIncomplete = targets.sessionShutdownIncomplete
+	// The logger may already be closed; the default logger still records the total.
+	slog.Default().Info("daemon: shutdown complete",
+		"duration_ms", time.Since(started).Milliseconds(),
+		"budget_ms", timeout.Milliseconds(),
+		"session_shutdown_incomplete", targets.sessionShutdownIncomplete,
+	)
 	d.completeShutdownOperation(operation, errors.Join(drainErr, checkpointErr, shutdownErr))
+}
+
+// shutdownIsTerminal reports that a process-terminal caller owns or joined this operation.
+func (d *Daemon) shutdownIsTerminal(operation *daemonShutdownOperation) bool {
+	if operation == nil {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return operation.withdrawDiscovery
 }
 
 // completeShutdownOperation withdraws stale discovery only while the singleton remains owned.

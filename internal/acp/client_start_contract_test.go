@@ -2299,6 +2299,75 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 	}
 }
 
+// Invariant: only the provider's account/backend mismatch wording on a failed session/load is a
+// permanent failure that may rotate to a fresh provider thread; other load failures stay retryable.
+// Owner: ACP failure classification; canonical suite: client_start_contract_test.go.
+func TestLoadSessionRequiresFreshThread(t *testing.T) {
+	t.Parallel()
+
+	loadFailure := func(reqErr *acpsdk.RequestError) error {
+		return WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
+			"%w: load session %q for %q: %w", ErrLoadSessionFailed, "sess-existing", "helper", reqErr,
+		))
+	}
+	mismatch := map[string]any{
+		"details": "This chat uses openai, but your current provider is cliproxyapi. Switch to openai to continue.",
+	}
+	tests := []struct {
+		name         string
+		err          error
+		wantMismatch bool
+		wantFresh    bool
+	}{
+		{
+			name:         "Should classify the provider backend mismatch as permanent",
+			err:          loadFailure(&acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: mismatch}),
+			wantMismatch: true,
+			wantFresh:    true,
+		},
+		{
+			name: "Should keep a missing provider session on the fresh thread path",
+			err: loadFailure(&acpsdk.RequestError{
+				Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing",
+			}),
+			wantFresh: true,
+		},
+		{
+			name:      "Should keep an unsupported session load on the fresh thread path",
+			err:       fmt.Errorf("%w: agent %q", ErrAgentDoesNotSupportSession, "helper"),
+			wantFresh: true,
+		},
+		{
+			name: "Should keep a generic internal load error transient",
+			err:  loadFailure(&acpsdk.RequestError{Code: -32603, Message: "Internal error"}),
+		},
+		{
+			name: "Should keep a load error that only names the current provider transient",
+			err: loadFailure(&acpsdk.RequestError{
+				Code: -32603, Message: "Internal error",
+				Data: map[string]any{"details": "your current provider is cliproxyapi and it is overloaded"},
+			}),
+		},
+		{
+			name: "Should ignore the mismatch wording outside a session load failure",
+			err:  &acpsdk.RequestError{Code: -32603, Message: "Internal error", Data: mismatch},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsLoadSessionProviderMismatch(tc.err); got != tc.wantMismatch {
+				t.Fatalf("IsLoadSessionProviderMismatch() = %v, want %v", got, tc.wantMismatch)
+			}
+			if got := LoadSessionRequiresFreshThread(tc.err); got != tc.wantFresh {
+				t.Fatalf("LoadSessionRequiresFreshThread() = %v, want %v", got, tc.wantFresh)
+			}
+		})
+	}
+}
+
 func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	t.Parallel()
 

@@ -7476,6 +7476,25 @@
         ],
         "type": "object"
       },
+      "DaemonReadinessPayload": {
+        "properties": {
+          "phase": {
+            "type": "string"
+          },
+          "since": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "phase",
+          "since"
+        ],
+        "type": "object"
+      },
       "DaemonStatusPayload": {
         "properties": {
           "active_sessions": {
@@ -7505,6 +7524,19 @@
           },
           "pid": {
             "type": "integer"
+          },
+          "readiness": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DaemonReadinessPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "schema_streams": {
             "items": {
@@ -75458,6 +75490,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Replacement runtime failed its restart pre-flight; the running daemon was kept"
           },
           "500": {
             "content": {

@@ -249,7 +249,11 @@ are additional evidence, not replacements for earlier events.
 
 A normal prompt on an eligible stopped session first tries ACP `session/load`. When the agent cannot
 load its own conversation, CompozyOS starts a fresh agent session and sends the stored transcript as one
-bounded replay. The same bound applies when a runtime or model replacement, an account fallback, a
+bounded replay. That covers an agent without `session/load`, a provider session the provider no longer
+knows, and a provider session that belongs to another provider account or backend (Codex refuses a
+thread created under a different `model_provider`). In the last case the transcript shows one notice
+that the provider backend changed and a new provider thread was started. Any other `session/load`
+failure keeps the stored provider session and is retried on the next resume. The same bound applies when a runtime or model replacement, an account fallback, a
 prompt recovery, or a conversation rewind starts a new agent session. The bound is
 `[session.derive] max_replay_bytes` (default 131072): the newest messages and the original request are
 kept, older ones are replaced by an omission note, and the agent is told where to read them. See

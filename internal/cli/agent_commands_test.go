@@ -1185,6 +1185,8 @@ func TestAgentInstanceCommands(t *testing.T) {
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
 		{"checks off", []string{"checks", "off", "ainst-test"}, "Checks off for Triage Lead in Global\n"},
 		{"ensure-main", []string{"ensure-main", "ainst-test"}, "Main session: sess-main\n"},
+		{"clear-main", []string{"clear-main", "ainst-test"}, "Triage Lead main session cleared in Global. " +
+			"Queued inputs and memory are kept.\nMain session: sess-main\n"},
 		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
 			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
 		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
@@ -1215,6 +1217,11 @@ func TestAgentInstanceCommands(t *testing.T) {
 					if r.Method != http.MethodGet && r.Method != http.MethodPatch {
 						t.Errorf("unexpected method %s", r.Method)
 					}
+				case "/api/workspaces/@user/sessions/sess-main/clear":
+					if r.Method != http.MethodPost || tc.name != "clear-main" {
+						t.Errorf("unexpected session clear: %s for %s", r.Method, tc.name)
+					}
+					body = `{"session":{"id":"sess-main"}}`
 				case "/api/agent-instances/ainst-test/check":
 					body = `{"occurrence_id":"occ-test"}`
 				case "/api/agent-instances/ainst-test/occurrences/occ-test":
@@ -1279,6 +1286,25 @@ func TestAgentInstanceCommands(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "proposal_pick_operator_only") {
 			t.Fatalf("agent pick err=%v", err)
+		}
+	})
+
+	t.Run("Should refuse clear-main from an agent session before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, nil)
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
+			t.Error("agent clear-main reached the daemon client")
+			return nil, errors.New("unexpected client")
+		}
+		deps.getenv = func(key string) string {
+			if key == agentidentity.EnvSessionID {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err := executeRootCommand(t, deps, "agent", "instance", "clear-main", "ainst-test", "--global")
+		if err == nil || !strings.Contains(err.Error(), "clear_main_operator_only") {
+			t.Fatalf("agent clear-main err=%v", err)
 		}
 	})
 
