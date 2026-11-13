@@ -691,6 +691,7 @@ func (a *helperACPAgent) NewSession(
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
 		a.scenario == "config_options_confirm_on_retry" ||
+		a.scenario == "config_options_late_update" ||
 		a.scenario == "config_options_stale_update" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
@@ -1160,6 +1161,26 @@ func (a *helperACPAgent) SetSessionConfigOption(
 		}); err != nil {
 			return acpsdk.SetSessionConfigOptionResponse{}, err
 		}
+	}
+	if a.scenario == "config_options_late_update" {
+		// Apply the value only in a notification that lands after this response:
+		// that is the race the confirmation window exists for.
+		updated := append([]acpsdk.SessionConfigOption(nil), a.configOptions...)
+		for index := range updated {
+			if updated[index].Select != nil && string(updated[index].Select.Id) == "reasoning_effort" {
+				updated[index].Select.CurrentValue = "high"
+			}
+		}
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			_ = a.conn.SessionUpdate(context.Background(), acpsdk.SessionNotification{
+				SessionId: "sess-new",
+				Update: acpsdk.SessionUpdate{ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+					ConfigOptions: updated,
+				}},
+			})
+		}()
+		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
 	}
 	if a.scenario == "config_options_confirm_on_retry" {
 		// Mimic a provider that applies the value only after the first response,

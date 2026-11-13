@@ -1507,6 +1507,30 @@ func TestConfigureRuntime(t *testing.T) {
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
 	})
 
+	// Invariant: a confirmation that arrives as a later notification settles the
+	// bind without a second set request.
+	t.Run("Should accept a late config_option_update without resending", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-update.jsonl")
+		proc := startHelperProcess(t, driver, "config_options_late_update", "", StartOpts{
+			Env: helperEnvWithCapture("config_options_late_update", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(
+			testutil.Context(t),
+			proc,
+			RuntimeConfig{ReasoningEffort: "high"},
+		); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want the late confirmation accepted", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		if len(requests) != 1 {
+			t.Fatalf("set_config_option requests = %d, want 1: the late notification must confirm", len(requests))
+		}
+	})
+
 	// Invariant: a notification sent before the provider's response cannot discard that confirmation.
 	t.Run("Should confirm a model when a stale update precedes the response", func(t *testing.T) {
 		t.Parallel()
