@@ -108,8 +108,12 @@ function withSeamPreview(
 ): WindowManagerSnapshot {
   if (!preview) return snapshot;
   let changed = false;
+  const owner = tabWithSplit(snapshot, preview.splitId);
+  if (owner === null) return snapshot;
   const desktops = snapshot.desktops.map(desktop => {
     const tabs = desktop.tabs.map(tab => {
+      // Only the tab that owns the split is projected to admit the shift.
+      if (tab !== owner) return tab;
       const admitted = admitSeamShift(projectionInputFor(tab, context), preview, preview.deltaPx);
       if (admitted === null) return tab;
       const previewed = applySeamPreviewToTab(tab, admitted.seam, admitted.shiftPx);
@@ -154,13 +158,10 @@ export function authoritativeSeamShift(
     focusOrder: view.client?.focusOrder ?? [],
     compact: view.presentation === "compact",
   };
-  for (const desktop of snapshot.desktops) {
-    for (const tab of desktop.tabs) {
-      const admitted = admitSeamShift(projectionInputFor(tab, context), target, requestedPx);
-      if (admitted !== null) return admitted;
-    }
-  }
-  return null;
+  const tab = tabWithSplit(snapshot, target.splitId);
+  return tab === null
+    ? null
+    : admitSeamShift(projectionInputFor(tab, context), target, requestedPx);
 }
 
 function findSplitMembers(node: LayoutNode, splitId: string): number | null {
@@ -169,6 +170,16 @@ function findSplitMembers(node: LayoutNode, splitId: string): number | null {
   for (const child of node.children) {
     const found = findSplitMembers(child, splitId);
     if (found !== null) return found;
+  }
+  return null;
+}
+
+/** The tab whose tree holds the split; null when no tab does. A tree walk, no projection. */
+function tabWithSplit(snapshot: WindowManagerSnapshot, splitId: string): LayoutTab | null {
+  for (const desktop of snapshot.desktops) {
+    for (const tab of desktop.tabs) {
+      if (findSplitMembers(tab.root, splitId) !== null) return tab;
+    }
   }
   return null;
 }
