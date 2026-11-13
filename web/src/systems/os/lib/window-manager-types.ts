@@ -316,6 +316,17 @@ export interface WindowManagerCommandInput {
    * here instead of from dispatch. Local to this client: never part of the command on the wire.
    */
   inputAt?: number;
+  /**
+   * A `window.focus` whose caller does nothing with its result but show the window: a newer focus
+   * may drop it before it is sent or resolve it `false` as replaced (never as refused). Local to
+   * this client: never part of the command on the wire.
+   */
+  replaceable?: boolean;
+}
+
+/** How a caller dispatches `window.focus`; see `WindowManagerCommandInput.replaceable`. */
+export interface FocusWindowOptions {
+  replaceable?: boolean;
 }
 
 export interface WindowManagerCommandResult {

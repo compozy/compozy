@@ -269,7 +269,8 @@ export class RoutingCoordinator {
     if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
     if (alreadyActive) return false;
-    const outcome = this.manager.focusWindow(windowId);
+    // Nothing follows a replaced focus but the newer focus's own route.
+    const outcome = this.manager.focusWindow(windowId, { replaceable: true });
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);
@@ -286,7 +287,8 @@ export class RoutingCoordinator {
     const win = state.windows[windowId];
     if (!win) return false;
     this.nextUserIntentToken += 1;
-    const outcome = this.manager.focusWindow(windowId);
+    // Nothing follows a replaced focus but the newer focus's own route.
+    const outcome = this.manager.focusWindow(windowId, { replaceable: true });
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);

@@ -141,6 +141,13 @@ export function useDesktopChrome(
     [manager, shell]
   );
 
+  // A client view held behind this client's focuses is authoritative state once adopted, like
+  // one adopted on arrival below.
+  useEffect(
+    () => manager.onHeldClientAdopted(() => shell.coordinator.reportAuthoritativeState()),
+    [manager, shell]
+  );
+
   useEffect(() => {
     if (activeWorkspaceId === null) {
       manager.unbind();

@@ -677,7 +677,7 @@ describe("RoutingCoordinator", () => {
     await expect(coordinator.userFocus(tasks.id)).resolves.toBe(true);
 
     expect(store.spies.focusWindow).toHaveBeenCalledOnce();
-    expect(store.spies.focusWindow).toHaveBeenCalledWith(tasks.id);
+    expect(store.spies.focusWindow).toHaveBeenCalledWith(tasks.id, { replaceable: true });
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
@@ -888,7 +888,7 @@ describe("RoutingCoordinator", () => {
     ).resolves.toBe(true);
 
     expect(store.spies.retargetWindow).not.toHaveBeenCalled();
-    expect(store.spies.focusWindow).toHaveBeenCalledWith(other.id);
+    expect(store.spies.focusWindow).toHaveBeenCalledWith(other.id, { replaceable: true });
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(other.route);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-a");

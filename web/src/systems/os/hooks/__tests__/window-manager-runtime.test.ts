@@ -32,6 +32,7 @@ import {
   windowManagerStore,
 } from "../../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../../stores/window-manager-store-commands";
+import { FOCUS_HOLD_LIMIT_MS } from "../../runtime/window-manager-focus-turns";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import {
   WINDOW_MANAGER_COMMAND_DEADLINE_MS,
@@ -50,6 +51,33 @@ vi.mock("../../adapters/window-manager-api", async importOriginal => {
 /** Settles one microtask so the runtime's command serializer starts the queued runCommand. */
 async function flushCommandQueue(): Promise<void> {
   await Promise.resolve();
+}
+
+type CommandAnswer = Awaited<ReturnType<typeof executeWindowManagerCommand>>;
+
+/** Holds every command's answer until the test gives it, in send order. */
+function deferCommandAnswers(): Array<(answer: CommandAnswer) => void> {
+  const answers: Array<(answer: CommandAnswer) => void> = [];
+  vi.mocked(executeWindowManagerCommand).mockImplementation(
+    () =>
+      new Promise<CommandAnswer>(resolve => {
+        answers.push(resolve);
+      })
+  );
+  onTestFinished(() => {
+    vi.mocked(executeWindowManagerCommand).mockReset();
+  });
+  return answers;
+}
+
+/** What reached the daemon, in order: a focus by its window, any other command by its id. */
+function sentCommands(): string[] {
+  return vi.mocked(executeWindowManagerCommand).mock.calls.map(call => {
+    const command = call[4];
+    return command.commandId === "window.focus"
+      ? `focus ${(command.payload as { window_id: string }).window_id}`
+      : command.commandId;
+  });
 }
 
 const CONFIG: WindowManagerConfig = {
@@ -473,6 +501,192 @@ describe("WindowManagerRuntime", () => {
     expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[5]).toBe(deadlines[0]?.signal);
     timeout.mockRestore();
     runtime.stop();
+  });
+
+  describe("focus coalescing", () => {
+    const FOCUS_IDS = ["app:a", "app:b", "app:c"];
+    const focusSnapshot: WindowManagerSnapshot = {
+      ...SNAPSHOT,
+      desktops: tabsOnDesktopOne(SNAPSHOT.desktops, FOCUS_IDS),
+      windows: Object.fromEntries(FOCUS_IDS.map(id => [id, testWindow(id, "tasks")])),
+    };
+    const baseClient = {
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      profileId: "marketing",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:c",
+      focusOrder: ["app:c"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    };
+    /** This client's view once the daemon focused `windowId`. */
+    const focusedView = (windowId: string, presentationRevision: number) => ({
+      ...baseClient,
+      presentationRevision,
+      focusedWindowId: windowId,
+      focusOrder: [windowId],
+      activeTab: { "desktop:one": tabIdFor(windowId) },
+    });
+    const answer = (client: ReturnType<typeof focusedView> | null): CommandAnswer => ({
+      snapshot: focusSnapshot,
+      applied: true,
+      changes: { ...EMPTY_CHANGES, clientIds: client ? ["client:web"] : [] },
+      diagnostics: [],
+      client,
+      deprecations: [],
+      rebasedFrom: null,
+    });
+    // A tab-bar or dock click: nothing acts on its result but the window it shows.
+    const REPLACEABLE = { replaceable: true };
+    const shownTab = (runtime: WindowManagerRuntime) =>
+      runtime.getState().activeTabIds["desktop:one"];
+
+    function startRuntime() {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(
+        windowManagerKeys.snapshot("workspace:test", "marketing"),
+        focusSnapshot
+      );
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.start();
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient(baseClient);
+      onTestFinished(() => runtime.stop());
+      return runtime;
+    }
+
+    it("Should not send a queued focus that a newer focus replaced before its turn", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+
+      const first = runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // Behind the focus in flight, two more clicks queue: only the newer one is still wanted.
+      const replaced = runtime.focusWindow("app:b", REPLACEABLE);
+      const newest = runtime.focusWindow("app:c", REPLACEABLE);
+      expect(replaced.accepted).toBe(true);
+      answers[0]!(answer(null));
+
+      await expect(replaced.completion).resolves.toBe(false);
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(answer(null));
+      await expect(newest.completion).resolves.toBe(true);
+      await expect(first.completion).resolves.toBe(false);
+      expect(sentCommands()).toEqual(["focus app:a", "focus app:c"]);
+    });
+
+    it("Should never drop or reorder a layout command queued between two focuses", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+
+      runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // The layout command sits between the two focuses, so the earlier focus keeps its turn.
+      const kept = runtime.focusWindow("app:b", REPLACEABLE);
+      runtime.undoLayout();
+      const last = runtime.focusWindow("app:c", REPLACEABLE);
+      for (let sent = 0; sent < 4; sent += 1) {
+        await vi.waitFor(() => expect(answers).toHaveLength(sent + 1));
+        answers[sent]!(answer(null));
+      }
+
+      await expect(kept.completion).resolves.toBe(false);
+      await expect(last.completion).resolves.toBe(true);
+      expect(sentCommands()).toEqual(["focus app:a", "focus app:b", "layout.undo", "focus app:c"]);
+    });
+
+    it("Should not move the shown tab back to a focus whose answer arrives after a newer click", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+
+      const replaced = runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      const newest = runtime.focusWindow("app:b", REPLACEABLE);
+      // The stream reports the daemon focusing the replaced window, then its answer lands.
+      runtime.setClient(focusedView("app:a", 2));
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+      answers[0]!(answer(focusedView("app:a", 2)));
+      await expect(replaced.completion).resolves.toBe(false);
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(answer(focusedView("app:b", 3)));
+      await expect(newest.completion).resolves.toBe(true);
+      expect(shownTab(runtime)).toBe(tabIdFor("app:b"));
+      expect(runtime.getState().focusedId).toBe("app:b");
+      expect(sentCommands()).toEqual(["focus app:a", "focus app:b"]);
+    });
+
+    it("Should send and complete a focus whose caller acts on its result", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+
+      runtime.focusWindow("app:a", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // An open or a landing waits for its focus; a newer click does not replace it.
+      const landing = runtime.focusWindow("app:b");
+      const click = runtime.focusWindow("app:c", REPLACEABLE);
+      for (let sent = 0; sent < 3; sent += 1) {
+        await vi.waitFor(() => expect(answers).toHaveLength(sent + 1));
+        answers[sent]!(answer(null));
+      }
+
+      await expect(landing.completion).resolves.toBe(true);
+      await expect(click.completion).resolves.toBe(true);
+      expect(sentCommands()).toEqual(["focus app:a", "focus app:b", "focus app:c"]);
+    });
+
+    it("Should adopt and report a view from another source held while a focus waited", async () => {
+      const answers = deferCommandAnswers();
+      const runtime = startRuntime();
+      const adopted = vi.fn();
+      runtime.onHeldClientAdopted(adopted);
+
+      const click = runtime.focusWindow("app:b", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      // Another source focuses app:a while this click waits for its answer.
+      runtime.setClient(focusedView("app:a", 5));
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+      answers[0]!(answer(focusedView("app:b", 4)));
+      await expect(click.completion).resolves.toBe(true);
+
+      await vi.waitFor(() => expect(shownTab(runtime)).toBe(tabIdFor("app:a")));
+      expect(runtime.getState().client?.presentationRevision).toBe(5);
+      expect(adopted).toHaveBeenCalledOnce();
+    });
+
+    it("Should not hold a view from another source past the hold limit while clicks keep coming", async () => {
+      const answers = deferCommandAnswers();
+      const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+      onTestFinished(() => now.mockRestore());
+      const runtime = startRuntime();
+      const adopted = vi.fn();
+      runtime.onHeldClientAdopted(adopted);
+
+      runtime.focusWindow("app:b", REPLACEABLE);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      runtime.setClient(focusedView("app:a", 9));
+      // A newer click is still in flight when the first answer lands past the hold limit.
+      const newest = runtime.focusWindow("app:c", REPLACEABLE);
+      now.mockReturnValue(1_000 + FOCUS_HOLD_LIMIT_MS);
+      answers[0]!(answer(focusedView("app:b", 2)));
+
+      await vi.waitFor(() => expect(adopted).toHaveBeenCalledOnce());
+      expect(shownTab(runtime)).toBe(tabIdFor("app:a"));
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(answer(focusedView("app:c", 10)));
+      await expect(newest.completion).resolves.toBe(true);
+      expect(shownTab(runtime)).toBe(tabIdFor("app:c"));
+      expect(adopted).toHaveBeenCalledOnce();
+    });
   });
 
   it("Should hold a command that carries its input time to the deadline counted from that input", async () => {
@@ -1980,11 +2194,13 @@ describe("WindowManagerRuntime", () => {
     runtime.focusDirection("right");
     await flushCommandQueue();
 
+    // `replaceable` is local like `inputAt`: the executor gets it, the wire body never carries it.
     expect(vi.mocked(executeWindowManagerCommand).mock.calls.map(call => call[4])).toEqual([
       {
         commandId: "window.focus",
         payload: { window_id: "app:agents", direction: "" },
         rebase: { windowId: "app:agents" },
+        replaceable: true,
       },
     ]);
     runtime.stop();

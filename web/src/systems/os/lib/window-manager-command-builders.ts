@@ -12,6 +12,7 @@ import type {
   LayoutTab,
   TabId,
   WindowId,
+  FocusWindowOptions,
   WindowManagerCommandInput,
 } from "./window-manager-types";
 import { defaultOsWindowRoute } from "./window-manager-view";
@@ -41,11 +42,15 @@ export function openWindowCommand(
   };
 }
 
-export function focusWindowCommand(windowId: string): WindowManagerCommandInput {
+export function focusWindowCommand(
+  windowId: string,
+  options: FocusWindowOptions = {}
+): WindowManagerCommandInput {
   return {
     commandId: "window.focus",
     payload: { window_id: windowId, direction: "" },
     rebase: { windowId },
+    ...(options.replaceable === true ? { replaceable: true } : {}),
   };
 }
 

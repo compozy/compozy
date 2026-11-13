@@ -12,7 +12,7 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import type { FocusDirection } from "../lib/window-manager-types";
+import type { FocusDirection, FocusWindowOptions } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { buildOsDesktopRuntimeView } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -66,7 +66,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
       wrap: config.focusWrap,
     });
     if (target === null || target === this.view.focusedId) return;
-    this.dispatch(focusWindowCommand(target));
+    this.dispatch(focusWindowCommand(target, { replaceable: true }));
   }
 
   undoLayout(): void {
@@ -186,7 +186,16 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     viewOnly ? this.closeWindowViewOnly(id) : this.closeWindowScoped(id, "tab");
 
   /** Focus also makes the window's tab this client's active tab (daemon client projection). */
-  focusWindow = (id: string): WindowManagerCommandOutcome => this.dispatch(focusWindowCommand(id));
+  focusWindow = (id: string, options?: FocusWindowOptions): WindowManagerCommandOutcome =>
+    this.dispatch(focusWindowCommand(id, options));
+
+  /**
+   * Calls `listener` after the runtime adopts an authoritative client view it held behind this
+   * client's focuses. Views adopted on arrival (`setClient`) and command answers are not reported
+   * here: their callers already act on them.
+   */
+  onHeldClientAdopted = (listener: () => void): (() => void) =>
+    this.focusTurns.onHeldViewAdopted(listener);
 
   setWallpaper = (wallpaper: OsWallpaper): void => {
     this.wallpaper = wallpaper;

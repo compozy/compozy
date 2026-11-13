@@ -13,6 +13,7 @@ import type {
   WindowManagerConnectionStatus,
   WindowManagerRebaseGuard,
   WindowManagerSnapshot,
+  FocusWindowOptions,
 } from "./window-manager-types";
 
 /** The app surfaces rendered inside daemon-managed logical windows. */
@@ -199,7 +200,7 @@ export interface WindowManagerController extends OsDesktopRuntime {
   setLoadError(error: Error | null): void;
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   closeWindow(id: string, viewOnly?: boolean): Promise<boolean>;
-  focusWindow(id: string): WindowManagerCommandOutcome;
+  focusWindow(id: string, options?: FocusWindowOptions): WindowManagerCommandOutcome;
   moveWindow(
     id: string,
     input: MoveWindowInput,

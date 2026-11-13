@@ -5,6 +5,7 @@ import type {
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "./os-types";
+import type { FocusWindowOptions } from "./window-manager-types";
 
 export interface OsRouterPort {
   /** Pushes one history entry reflecting the location. */
@@ -18,7 +19,7 @@ export type RoutingManager = {
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   /** `viewOnly` takes the window off the desk without the operator guard; its item keeps running. */
   closeWindow(windowId: string, viewOnly?: boolean): Promise<boolean>;
-  focusWindow(windowId: string): WindowManagerCommandOutcome;
+  focusWindow(windowId: string, options?: FocusWindowOptions): WindowManagerCommandOutcome;
   navigateWindow(
     windowId: string,
     route: OsWindowRoute,

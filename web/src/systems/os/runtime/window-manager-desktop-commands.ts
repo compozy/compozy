@@ -3,6 +3,7 @@ import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { moveWindowCommand } from "../lib/window-manager-command-builders";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { WindowManagerLayoutRuntime } from "./window-manager-layout-commands";
+import { desktopTransitionDirection } from "./window-manager-runtime-helpers";
 
 /** Desktop lifecycle commands shared by the window-manager runtime. */
 export abstract class WindowManagerDesktopRuntime extends WindowManagerLayoutRuntime {
@@ -33,7 +34,7 @@ export abstract class WindowManagerDesktopRuntime extends WindowManagerLayoutRun
         intent: {
           fromDesktopId: current,
           toDesktopId: desktopId,
-          direction: this.desktopTransitionDirection(this.view.desktops, current, desktopId),
+          direction: desktopTransitionDirection(this.view.desktops, current, desktopId),
           mode: this.reduceMotion ? "instant" : config.desktopTransition,
         },
       });

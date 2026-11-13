@@ -1,5 +1,8 @@
 import type { QueryCacheNotifyEvent } from "@tanstack/react-query";
 
+import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
+import type { WindowManagerConfig, WindowManagerSnapshot } from "../lib/window-manager-types";
+import type { DesktopTransitionIntent } from "../stores/window-manager-store";
 import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
 
 /** How long a refused-command notice stays before the surface clears it on its own. */
@@ -55,4 +58,34 @@ export function queryCacheEventChangesData(event: QueryCacheNotifyEvent): boolea
     case "observerOptionsUpdated":
       return false;
   }
+}
+
+/** Which way a desktop switch slides: toward a later or an earlier desktop in pager order. */
+export function desktopTransitionDirection(
+  desktops: readonly { id: string; order: number }[],
+  fromDesktopId: string,
+  toDesktopId: string
+): "earlier" | "later" {
+  const fromOrder = desktops.find(desktop => desktop.id === fromDesktopId)?.order ?? 0;
+  const toOrder = desktops.find(desktop => desktop.id === toDesktopId)?.order ?? 0;
+  return toOrder >= fromOrder ? "later" : "earlier";
+}
+
+/** The slide a reported desktop switch animates; none without a layout, config, or motion. */
+export function desktopTransitionIntent(
+  snapshot: WindowManagerSnapshot | null,
+  globalConfig: WindowManagerConfig | null,
+  reduceMotion: boolean,
+  fromDesktopId: string,
+  toDesktopId: string
+): DesktopTransitionIntent | null {
+  if (snapshot === null || globalConfig === null) return null;
+  const config = effectiveWindowManagerConfig(globalConfig, snapshot.overrides);
+  if (reduceMotion || config.desktopTransition === "instant") return null;
+  return {
+    fromDesktopId,
+    toDesktopId,
+    direction: desktopTransitionDirection(snapshot.desktops, fromDesktopId, toDesktopId),
+    mode: config.desktopTransition,
+  };
 }
