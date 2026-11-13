@@ -12,7 +12,7 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
@@ -1457,6 +1457,27 @@ describe("WindowPaneHosts", () => {
       scroller.scrollTop = 0;
       if (document.activeElement === field) field.blur();
     };
+    /**
+     * The tab stops showing. The browser drops the offsets and, by its focus fixup, takes focus
+     * from a focused field inside with a focusout that fires once the surface no longer renders.
+     * jsdom's `blur()` is a no-op under `hidden`, so the surface is hidden from the first
+     * listener of that focusout (window, capture phase), before the hosts read it.
+     */
+    const stopRendering = () => {
+      scroller.scrollTop = 0;
+      if (document.activeElement !== field) {
+        surface.hidden = true;
+        return;
+      }
+      window.addEventListener(
+        "focusout",
+        () => {
+          surface.hidden = true;
+        },
+        { capture: true, once: true }
+      );
+      field.blur();
+    };
     const box = (width: number, height: number) =>
       observe(
         [
@@ -1487,6 +1508,7 @@ describe("WindowPaneHosts", () => {
       second,
       scrollTo,
       loseLayoutState,
+      stopRendering,
       box,
       cleanup,
     };
@@ -1529,22 +1551,23 @@ describe("WindowPaneHosts", () => {
   });
 
   it("Should restore scroll offsets and focus when a hidden pane is shown again", () => {
-    const { hosts, surface, scroller, field, first, scrollTo, loseLayoutState, box, cleanup } =
+    const { hosts, surface, scroller, field, first, scrollTo, stopRendering, box, cleanup } =
       setup();
     hosts.place("w", first);
     box(640, 480);
     scrollTo(80);
     field.focus();
+    const refocus = vi.spyOn(field, "focus");
 
-    // The tab stops showing: the surface has no box.
-    surface.hidden = true;
-    loseLayoutState();
+    stopRendering();
     box(0, 0);
     expect(scroller.scrollTop).toBe(0);
+    expect(document.activeElement).toBe(document.body);
     surface.hidden = false;
     box(640, 480);
 
     expect(scroller.scrollTop).toBe(80);
+    expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
     expect(document.activeElement).toBe(field);
     cleanup();
   });
@@ -1568,26 +1591,17 @@ describe("WindowPaneHosts", () => {
   });
 
   it("Should restore scroll but not focus into a pane whose window lost focus meanwhile", () => {
-    const { hosts, focus, surface, scroller, field, first, scrollTo, box, cleanup } = setup();
+    const { hosts, focus, surface, scroller, field, first, scrollTo, stopRendering, box, cleanup } =
+      setup();
     hosts.place("w", first);
     box(640, 480);
     scrollTo(90);
     field.focus();
     const refocus = vi.spyOn(field, "focus");
 
-    surface.hidden = true;
-    // The browser's focus fixup for a focused element that stops rendering: focus goes to `body`
-    // with a focusout. jsdom keeps focus there (its `blur()` is a no-op under `hidden`), so the
-    // fixup is reproduced; otherwise the restore would stop at "something holds focus" and the
-    // window check would never run.
-    Object.defineProperty(document, "activeElement", {
-      configurable: true,
-      get: () => document.body,
-    });
-    onTestFinished(() => Reflect.deleteProperty(document, "activeElement"));
-    field.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
-    scroller.scrollTop = 0;
+    stopRendering();
     box(0, 0);
+    expect(document.activeElement).toBe(document.body);
     // A directional focus, an open beside it or a peer's move gave another window the focus.
     focus.windowId = "other";
     surface.hidden = false;
@@ -1595,6 +1609,7 @@ describe("WindowPaneHosts", () => {
 
     expect(scroller.scrollTop).toBe(90);
     expect(refocus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(document.body);
 
     // Kept for when the window has focus again.
     surface.hidden = true;
@@ -1602,7 +1617,8 @@ describe("WindowPaneHosts", () => {
     focus.windowId = "w";
     surface.hidden = false;
     box(640, 480);
-    expect(refocus).toHaveBeenCalledOnce();
+    expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+    expect(document.activeElement).toBe(field);
     cleanup();
   });
 
