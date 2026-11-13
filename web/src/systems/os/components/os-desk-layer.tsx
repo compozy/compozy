@@ -1,5 +1,5 @@
 import { MonitorX } from "@compozy/ui/icons";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
 import { Empty } from "@compozy/ui";
@@ -8,6 +8,7 @@ import type { SessionPayload } from "@/systems/session";
 import {
   useOsDeskLayer,
   useVisitedTabs,
+  useWindowPaneHosts,
   type DeskDesktopModel,
   type OsDeskLayerModel,
 } from "../hooks/use-os-desk-layer";
@@ -16,9 +17,7 @@ import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useOsSplitSeam } from "../hooks/use-os-split-seam";
 import { useOsTabDrag } from "../hooks/use-os-tab-drag";
-import { descendantWindowIds } from "../lib/layout-minimums";
 import type { OsWindow } from "../lib/os-types";
-import { WindowPaneHosts } from "../lib/window-pane-hosts";
 import type { TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
 import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
@@ -195,18 +194,9 @@ function DeskLayer({
     tabs.map(tab => tab.id),
     shownTabId
   );
-  const [hosts] = useState(() => new WindowPaneHosts());
-  // Every window of a visited tab keeps one pane, keyed by window, never by tab or split position.
-  const paneWindowIds = visited.flatMap(tabId => {
-    const tab = tabs.find(entry => entry.id === tabId);
-    return tab === undefined ? [] : descendantWindowIds(tab.root);
-  });
-  const paneKey = paneWindowIds.join("\n");
-  useEffect(() => {
-    hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
-  }, [hosts, paneKey]);
+  const { paneWindowIds, hostOf } = useWindowPaneHosts(tabs, visited);
   const renderWindow = (windowId: string) => (
-    <OsWindowSlot key={windowId} host={hosts.hostOf(windowId)} />
+    <OsWindowSlot key={windowId} host={hostOf(windowId)} />
   );
 
   return (
@@ -256,7 +246,7 @@ function DeskLayer({
       })}
       {/* After the tab layers: each slot has adopted its host before the pane's layout effects. */}
       {paneWindowIds.map(windowId =>
-        createPortal(<OsWindowPane windowId={windowId} />, hosts.hostOf(windowId), windowId)
+        createPortal(<OsWindowPane windowId={windowId} />, hostOf(windowId), windowId)
       )}
     </section>
   );

@@ -1,8 +1,10 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
+import { descendantWindowIds } from "../lib/layout-minimums";
 import type { OsPresentation, OsViewportState } from "../lib/os-types";
-import type { LayoutDesktop, TabId } from "../lib/window-manager-types";
+import type { LayoutDesktop, LayoutTab, TabId } from "../lib/window-manager-types";
+import { WindowPaneHosts } from "../lib/window-pane-hosts";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 
@@ -42,6 +44,27 @@ export function useVisitedTabs(
   // Bar order keeps sibling tab layers stable while the set changes.
   const kept = new Set(next);
   return tabIds.filter(tabId => kept.has(tabId));
+}
+
+/**
+ * Every window of a desktop's visited tabs keeps one pane, keyed by window, never by tab or split
+ * position: the pane renders into the window's host (`WindowPaneHosts`) and the split slot it
+ * occupies adopts the host, so a window changing tab or position never remounts.
+ */
+export function useWindowPaneHosts(
+  tabs: readonly LayoutTab[],
+  visited: readonly TabId[]
+): { paneWindowIds: readonly string[]; hostOf: (windowId: string) => HTMLElement } {
+  const [hosts] = useState(() => new WindowPaneHosts());
+  const paneWindowIds = visited.flatMap(tabId => {
+    const tab = tabs.find(entry => entry.id === tabId);
+    return tab === undefined ? [] : descendantWindowIds(tab.root);
+  });
+  const paneKey = paneWindowIds.join("\n");
+  useEffect(() => {
+    hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
+  }, [hosts, paneKey]);
+  return { paneWindowIds, hostOf: windowId => hosts.hostOf(windowId) };
 }
 
 /** Measures the one shared content area and lists each desktop with its active tab. */

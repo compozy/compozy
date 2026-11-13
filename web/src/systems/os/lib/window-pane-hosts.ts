@@ -14,7 +14,6 @@ export class WindowPaneHosts {
       host = document.createElement("div");
       host.style.display = "contents";
       host.dataset.slot = "os-window-host";
-      host.dataset.windowId = windowId;
       this.hosts.set(windowId, host);
     }
     return host;
