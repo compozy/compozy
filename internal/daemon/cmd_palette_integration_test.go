@@ -164,9 +164,12 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		manager := newCmdPaletteIntegrationWindowManager(t)
 		clientA := windowmanager.ClientID("client-a")
 		clientB := windowmanager.ClientID("client-b")
+		// A focuses a session; B will focus its desktop's New Tab, which has no session state.
 		registeredA, err := manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
 			WorkspaceID: "workspace-acme", ClientID: clientA, Kind: windowmanager.ClientKindShell,
-			Context: windowmanager.ClientContextInput{WorkspaceTrusted: true},
+			Context: windowmanager.ClientContextInput{
+				WorkspaceTrusted: true, FocusedSessionState: "running",
+			},
 		})
 		if err != nil {
 			t.Fatalf("RegisterClient(A) error = %v", err)
@@ -217,7 +220,7 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		}
 
 		executor := &cmdPaletteIntegrationExecutor{result: json.RawMessage(`{"closed":true}`)}
-		descriptor := integrationFocusedClientDescriptor()
+		descriptor := integrationFocusedSessionClientDescriptor()
 		registry := newCmdPaletteIntegrationRegistry(
 			t,
 			descriptor,
@@ -588,15 +591,20 @@ func integrationToolDescriptor() cmdpalette.Descriptor {
 	}
 }
 
-func integrationFocusedClientDescriptor() cmdpalette.Descriptor {
+func integrationFocusedSessionClientDescriptor() cmdpalette.Descriptor {
+	const reason = "requires a focused window"
 	return cmdpalette.Descriptor{
-		ID: "window.close", Title: "Close window", Section: "Window", Icon: "x-square",
+		ID: "window.close", Title: "Close session window", Section: "Window", Icon: "x-square",
 		Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
 		Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindClientOp, Op: "window.close"},
 		Arguments: []cmdpalette.Argument{},
-		When: []cmdpalette.Predicate{{
-			Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window",
-		}},
+		When: []cmdpalette.Predicate{
+			{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: reason},
+			{
+				Key: cmdpalette.ContextSessionState, Operator: cmdpalette.PredicateNotEquals,
+				Value: "", Reason: reason,
+			},
+		},
 		Policy: cmdpalette.ExecutionPolicy{SingleFlight: true},
 	}
 }
