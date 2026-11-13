@@ -134,7 +134,9 @@ export function useUnsavedGuard({
     blocker.proceed?.();
   };
 
+  // Keep editing answers for these edits: an earlier Discard no longer holds.
   const reset = () => {
+    latest.current.pendingDiscard = null;
     blocker.reset?.();
   };
 

@@ -185,6 +185,20 @@ describe("useUnsavedGuard", () => {
     expect(onDiscard).not.toHaveBeenCalled();
   });
 
+  it("Should keep the edits when Keep editing answers after an earlier Discard [#1653]", () => {
+    mockUseBlocker.mockReturnValue({ status: "blocked", proceed: mockProceed, reset: mockReset });
+    const onDiscard = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useUnsavedGuard({ dirty: true, entityName: "Memory", onDiscard, revision: 1 })
+    );
+
+    act(() => result.current.proceed?.());
+    // A later navigation asks again and the operator keeps the same edits.
+    act(() => result.current.reset?.());
+    unmount();
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
   describe("inside a window of the desktop shell [B-1]", () => {
     function shell(port: Partial<WindowNavigationGuardPort>) {
       const held: Array<{ windowId: string; edits: UnsavedWindowEdits }> = [];
