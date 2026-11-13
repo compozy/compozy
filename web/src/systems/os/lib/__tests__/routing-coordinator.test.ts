@@ -674,6 +674,157 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledWith(route("/settings/layouts"));
   });
 
+  it("Should write one entry when a frame shows an open-or-focus before it settles [#1655]", async () => {
+    const files = windowFixture("files", "/files/project-a");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, router, store, history } = createCoordinator([files, tasks]);
+    coordinator.completeHydration();
+    coordinator.reportRouteMatch(tasks.route, history.current());
+    const tasksEntry = history.current();
+    vi.mocked(router.replace).mockClear();
+    store.deferLifecycle();
+
+    // Dock Files: open-or-focus of the project's Files window.
+    const pending = coordinator.userOpen({ app: "files", route: files.route });
+    // The stream shows the new focus before the command's answer.
+    store.setAuthoritativeFocus(files.id);
+    coordinator.reportAuthoritativeState();
+    expect(router.replace).not.toHaveBeenCalled();
+    store.settleLifecycle(true);
+    await expect(pending).resolves.toBe(files.id);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(files.route);
+    expect(router.replace).not.toHaveBeenCalled();
+
+    // One Back returns to Tasks.
+    store.resumeLifecycle();
+    coordinator.reportRouteMatch(files.route, history.current());
+    expect(history.back()).toBe(tasksEntry);
+    coordinator.reportRouteMatch(tasks.route, tasksEntry);
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
+  });
+
+  it("Should write nothing when an open-or-focus names the focused, shown window the URL names [#1655]", async () => {
+    const files = { ...windowFixture("files", "/files/project-a"), tabActive: true, shown: true };
+    const { coordinator, router, store } = createCoordinator([files]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+
+    await expect(coordinator.userOpen({ app: "files" })).resolves.toBe(files.id);
+
+    expect(store.getState().focusedId).toBe(files.id);
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("Should hand the keyboard only to focus changes this client asked for [#1655]", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const agents = windowFixture("agents", "/agents");
+    const { coordinator, store, history } = createCoordinator([tasks, settings, agents]);
+    coordinator.completeHydration();
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+
+    // A pane's pointer or focus activation keeps the focus the click gave.
+    await coordinator.userFocus(tasks.id);
+    const tasksEntry = history.current();
+    coordinator.reportRouteMatch(tasks.route, tasksEntry);
+    // Another client or the CLI focuses Settings: the marker moves, the caret stays.
+    store.setAuthoritativeFocus(settings.id);
+    coordinator.reportAuthoritativeState();
+    expect(request).not.toHaveBeenCalled();
+
+    // A chord (tab next, "Focus last window"), the dock and the palette carry the keyboard.
+    await coordinator.userFocus(agents.id, { keyboard: true });
+    expect(request).toHaveBeenLastCalledWith(agents.id, expect.any(Number));
+    await coordinator.userActivateWindow(settings.id);
+    expect(request).toHaveBeenLastCalledWith(settings.id, expect.any(Number));
+    await coordinator.userOpen({ app: "agents" });
+    expect(request).toHaveBeenLastCalledWith(agents.id, expect.any(Number));
+    coordinator.reportRouteMatch(agents.route, history.current());
+
+    // Back to an earlier window's entry.
+    request.mockClear();
+    history.back();
+    const backEntry = history.current();
+    coordinator.reportRouteMatch(route("/settings/general"), backEntry);
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith(settings.id, expect.any(Number)));
+  });
+
+  it("Should hand the keyboard to the window an open recovered onto [#1655]", async () => {
+    const files = windowFixture("files", "/files/project-a");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([files, tasks]);
+    coordinator.completeHydration();
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    // Another client opened Files first; the conflict retry focuses that window instead and the
+    // outcome names it once the completion settles.
+    store.spies.openOrFocus.mockImplementationOnce(() => {
+      const outcome = {
+        windowId: "w-files-unplaced",
+        accepted: true,
+        completion: Promise.resolve().then(() => {
+          store.setAuthoritativeFocus(files.id);
+          outcome.windowId = files.id;
+          return true;
+        }),
+      };
+      return outcome;
+    });
+
+    const opened = await coordinator.userOpen({ app: "files", route: files.route });
+
+    expect(opened).toBe(files.id);
+    expect(request).toHaveBeenCalledExactlyOnceWith(files.id, expect.any(Number));
+  });
+
+  it("Should not hand the keyboard to a window a foreign focus moved to during an open [#1655]", async () => {
+    const files = windowFixture("files", "/files/project-a", "project-a");
+    const other = windowFixture("files", "/files/project-b", "project-b");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([files, other, tasks]);
+    coordinator.completeHydration();
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    store.deferLifecycle();
+
+    const pending = coordinator.userOpen({ app: "files", instanceKey: "project-a" });
+    // `compozy window focus --client` to the other Files window lands before the open resumes.
+    store.settleLifecycle(true);
+    // The open applied; the foreign focus arrives before the open's caller resumes.
+    await Promise.resolve();
+    store.setAuthoritativeFocus(other.id);
+    await pending;
+
+    expect(store.getState().focusedId).toBe(other.id);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("Should keep a navigation's first keyboard mark when the router reports it again [#1655]", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, store, history } = createCoordinator([tasks, settings]);
+    coordinator.completeHydration();
+    await coordinator.userFocus(tasks.id);
+    coordinator.reportRouteMatch(tasks.route, history.current());
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    store.deferLifecycle();
+
+    // Back to Settings: the router reports the entry as loading starts and again when it mounts,
+    // and the operator clicks a field between the two reports.
+    history.back();
+    const entry = history.current();
+    coordinator.reportRouteMatch(settings.route, entry);
+    coordinator.keyboardFocus.cancel();
+    coordinator.reportRouteMatch(settings.route, entry);
+    store.settleLifecycle(true);
+
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(settings.id));
+    await vi.waitFor(() => expect(request).toHaveBeenCalled());
+    const [, since] = request.mock.lastCall!;
+    expect(since).not.toBe(coordinator.keyboardFocus.begin());
+  });
+
   it("Should hold user route intent until window commands become available", () => {
     const { coordinator, router, store, history } = createCoordinator();
     coordinator.completeHydration();

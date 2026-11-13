@@ -74,13 +74,14 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
 
   /**
    * Moves focus between the windows on screen in the active tab, by projected geometry with this
-   * client's unanswered swaps applied, from the newest focus this client asked for.
+   * client's unanswered swaps applied, from the newest focus this client asked for. Returns the
+   * focus it dispatched, with its target window.
    */
-  focusDirection(direction: FocusDirection): void {
+  focusDirection(direction: FocusDirection): WindowManagerOpenOutcome | null {
     const config = this.view.windowManagerConfig;
-    if (config === null) return;
+    if (config === null) return null;
     const candidates = this.directionalCandidates();
-    if (candidates.length === 0) return;
+    if (candidates.length === 0) return null;
     const from = this.directionalFocusId();
     const target = directionalFocusTarget({
       candidates,
@@ -88,8 +89,11 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
       direction,
       wrap: config.focusWrap,
     });
-    if (target === null || target === from) return;
-    this.dispatch(focusWindowCommand(target, { replaceable: true }));
+    if (target === null || target === from) return null;
+    return {
+      windowId: target,
+      ...this.dispatch(focusWindowCommand(target, { replaceable: true })),
+    };
   }
 
   /**
@@ -258,7 +262,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   ): WindowManagerOpenOutcome {
     const startedFromIdle = windowManagerStore.getSnapshot().context.commandState.status === "idle";
     if (!enabled || !outcome.accepted || !startedFromIdle) return { windowId: id, ...outcome };
-    return {
+    const recovered: WindowManagerOpenOutcome = {
       windowId: id,
       accepted: true,
       completion: outcome.completion.then(async applied => {
@@ -267,9 +271,12 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
           return false;
         if (!(await this.awaitConflictRecovery())) return false;
         const retry = this.openOrFocusAttempt(target, false);
+        // The retry can land on another client's instance: the outcome names that window.
+        recovered.windowId = retry.windowId;
         return retry.accepted && (await retry.completion);
       }),
     };
+    return recovered;
   }
 
   closeWindow = (id: string, viewOnly = false): Promise<boolean> =>

@@ -9,11 +9,23 @@ export type WindowManagerRegistrationPhase =
   | "waiting-retry"
   | "retry-paused";
 
+/**
+ * What this page showed when its registration was lost (a daemon restart forgets client views):
+ * the re-registration asks for the desktop again and then refocuses the window (#1655). Kept in
+ * memory only, for one (workspace, profile) binding; the first registration has none.
+ */
+export interface WindowManagerClientRestore {
+  /** The desktop hint the next registration sends; `null` once the daemon refused it. */
+  activeDesktopId: string | null;
+  focusedWindowId: string | null;
+}
+
 interface WindowManagerRegistrationBase {
   clientId: string;
   documentVisible: boolean;
   epoch: number;
   retryCount: number;
+  restore: WindowManagerClientRestore | null;
 }
 
 export type WindowManagerRegistrationContext =
@@ -46,8 +58,12 @@ export type WindowManagerRegistrationContext =
 
 type WindowManagerRegistrationEvents = {
   documentVisibilityChanged: { visible: boolean };
-  recoveryRequested: Record<never, never>;
+  recoveryRequested: { restore?: WindowManagerClientRestore | null };
   registrationFailed: { error: Error; epoch: number };
+  /** The daemon refused the desktop hint (that desktop is gone): register again without it. */
+  desktopHintRefused: { epoch: number };
+  /** The restored focus of `windowId` was applied or is moot; a newer restore stays. */
+  restoreSettled: { windowId: string };
   registrationSucceeded: { client: WindowManagerRegisteredClientView; epoch: number };
   retryElapsed: Record<never, never>;
 };
@@ -73,6 +89,7 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
           epoch: 0,
           error: null,
           phase: "idle",
+          restore: null,
           retryCount: 0,
           workspaceId: null,
         }
@@ -83,6 +100,7 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
           epoch: 0,
           error: null,
           phase: "registering",
+          restore: null,
           retryCount: 0,
           workspaceId: input.workspaceId,
         },
@@ -103,15 +121,31 @@ export const windowManagerClientRegistrationLogic = createStoreLogic<
       }
       return { ...context, documentVisible: event.visible };
     },
-    recoveryRequested: context => {
+    recoveryRequested: (context, event) => {
       if (context.workspaceId === null) return;
       return {
         ...context,
         client: null,
         epoch: context.epoch + 1,
         phase: "registering",
+        // A restore still pending (a second loss before the first settled) outlives the view the
+        // fallback registration showed: that view is the daemon's default, not this page's.
+        restore: context.restore ?? event.restore ?? null,
         retryCount: 0,
       };
+    },
+    desktopHintRefused: (context, event) => {
+      if (context.phase !== "registering" || context.epoch !== event.epoch) return;
+      if (context.restore === null) return;
+      return {
+        ...context,
+        epoch: context.epoch + 1,
+        restore: { ...context.restore, activeDesktopId: null },
+      };
+    },
+    restoreSettled: (context, event) => {
+      if (context.restore?.focusedWindowId !== event.windowId) return;
+      return { ...context, restore: null };
     },
     registrationFailed: (context, event) => {
       if (context.phase !== "registering" || context.epoch !== event.epoch) return;

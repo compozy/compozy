@@ -48,7 +48,15 @@ export class WindowManagerSemanticOpenCoordinator {
     const completion = outcome.completion.finally(() => {
       if (this.pending.get(key) === tracked) this.pending.delete(key);
     });
-    tracked = { bindingKey, target, outcome: { ...outcome, completion } };
+    // Read through to the open's window: a conflict recovery updates it (`WindowManagerOpenOutcome`).
+    const tracking: WindowManagerOpenOutcome = {
+      get windowId() {
+        return outcome.windowId;
+      },
+      accepted: outcome.accepted,
+      completion,
+    };
+    tracked = { bindingKey, target, outcome: tracking };
     this.pending.set(key, tracked);
     return tracked.outcome;
   }
@@ -64,36 +72,49 @@ export class WindowManagerSemanticOpenCoordinator {
     ) {
       return pending.outcome;
     }
-    return {
+    // Names the window the continuation lands on, as the open it follows does.
+    const followed: WindowManagerOpenOutcome = {
       windowId: pending.outcome.windowId,
       accepted: true,
-      completion: pending.outcome.completion.then(applied =>
-        this.continueAfterPending(applied, pending.bindingKey, target)
-      ),
+      completion: pending.outcome.completion.then(applied => {
+        followed.windowId = pending.outcome.windowId;
+        return this.continueAfterPending(applied, pending.bindingKey, target, landed => {
+          followed.windowId = landed;
+        });
+      }),
     };
+    return followed;
   }
 
   private async continueAfterPending(
     applied: boolean,
     bindingKey: string,
-    target: OsOpenTarget
+    target: OsOpenTarget,
+    land: (windowId: string) => void
   ): Promise<boolean> {
     if (this.delegate.bindingKey() !== bindingKey) return false;
-    if (!applied) return await this.retry(bindingKey, target);
+    if (!applied) return await this.retry(bindingKey, target, land);
     const state = this.delegate.getState();
     const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
       app: target.app,
       instanceKey: target.instanceKey ?? null,
     });
-    if (existing === null) return await this.retry(bindingKey, target);
+    if (existing === null) return await this.retry(bindingKey, target, land);
+    land(existing.id);
     if (target.route === undefined || sameOsWindowRoute(existing.route, target.route)) return true;
     const navigation = this.delegate.navigate(existing.id, target.route, target.navigateMode);
     return navigation.accepted && (await navigation.completion);
   }
 
-  private async retry(bindingKey: string, target: OsOpenTarget): Promise<boolean> {
+  private async retry(
+    bindingKey: string,
+    target: OsOpenTarget,
+    land: (windowId: string) => void
+  ): Promise<boolean> {
     if (this.delegate.bindingKey() !== bindingKey) return false;
     const retry = this.openOrFocus(target);
-    return retry.accepted && (await retry.completion);
+    const applied = retry.accepted && (await retry.completion);
+    land(retry.windowId);
+    return applied;
   }
 }

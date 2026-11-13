@@ -272,7 +272,9 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         userOpen: target => coordinator.userOpen(target),
       });
     },
-    activateWindow: windowId => void coordinator.userFocus(windowId),
+    // Chords and palette commands: the keyboard follows the window they activate (#1655).
+    activateWindow: windowId => void coordinator.userFocus(windowId, { keyboard: true }),
+    focusDirection: direction => void coordinator.followKeyboard(manager.focusDirection(direction)),
     // The seam already recorded which step it needs; raising the overlay is all
     // that is left, and it must not toggle a palette that is already open.
     openPaletteExecution: () => overlays.setOverlayOpen("palette", true),

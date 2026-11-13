@@ -378,6 +378,27 @@ test("E2E-005: a direct task detail deep link returns to the catalog with Back",
   await expect(tasksWindow.getByTestId("tasks-shell")).toBeVisible();
 });
 
+test("Issue 1655: dock Files writes one history entry and one Back returns to the window it left", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareProjectShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  await expect(windowPane(tasks)).toHaveAttribute("data-focused", "");
+  await expect(appPage).toHaveURL(/\/tasks$/);
+
+  // Files is not open yet, then it is: both open-or-focus paths write exactly one entry.
+  for (const pass of ["opens", "focuses"]) {
+    const files = await openDockApp(appPage, "Files", "files");
+    await expect(windowPane(files), pass).toHaveAttribute("data-focused", "");
+    await expect(appPage).toHaveURL(/\/files(?:\/|$|\?)/);
+
+    await appPage.goBack({ waitUntil: "domcontentloaded" });
+    await expect(appPage, pass).toHaveURL(/\/tasks$/);
+    await expect(windowPane(appWindow(appPage, "tasks")), pass).toHaveAttribute("data-focused", "");
+  }
+});
+
 test("E2E-007: window.navigate preserves detail and search across peers, reload, and restart", async ({
   appPage,
   browser,

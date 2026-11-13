@@ -44,6 +44,7 @@ import {
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
 import { useOsDeskLayer, useVisitedTabs } from "../use-os-desk-layer";
+import { KeyboardFocusHandoff } from "../../lib/keyboard-focus-handoff";
 import { WindowPaneHosts } from "../../lib/window-pane-hosts";
 import { useOsShortcuts } from "../use-os-shortcuts";
 import { WINDOW_MANAGER_COMMAND_DEADLINE_MS } from "../../runtime/window-manager-runtime-helpers";
@@ -1438,7 +1439,7 @@ describe("useVisitedTabs", () => {
 // jsdom does not lay out or reset offsets: each case removes what the browser would lose and
 // asserts what the hosts write back.
 describe("WindowPaneHosts", () => {
-  function setup() {
+  function setup(handoff: KeyboardFocusHandoff | null = null) {
     /** Every live resize observer and what it watches. */
     const observers = new Map<
       ResizeObserver,
@@ -1467,10 +1468,13 @@ describe("WindowPaneHosts", () => {
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
     const focus = { windowId: "w" };
     const content = { route: { pathname: "/files", search: {} } as OsWindowRoute };
-    const hosts = new WindowPaneHosts({
-      isFocused: windowId => windowId === focus.windowId,
-      routeOf: () => content.route,
-    });
+    const hosts = new WindowPaneHosts(
+      {
+        isFocused: windowId => windowId === focus.windowId,
+        routeOf: () => content.route,
+      },
+      handoff
+    );
     const host = hosts.hostOf("w");
     const surface = document.createElement("section");
     const scroller = document.createElement("div");
@@ -1657,6 +1661,192 @@ describe("WindowPaneHosts", () => {
     expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
     expect(document.activeElement).toBe(field);
     cleanup();
+  });
+
+  describe("keyboard handoff [#1655]", () => {
+    /** The caret in another window's composer, where the operator types before the change. */
+    function elsewhere() {
+      const composer = document.createElement("textarea");
+      document.body.append(composer);
+      onTestFinished(() => composer.remove());
+      return composer;
+    }
+
+    it("Should carry the keyboard to the element the window last held, without scrolling", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, focus, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      focus.windowId = "other";
+      composer.focus();
+      const refocus = vi.spyOn(field, "focus");
+
+      // A focus-left chord moved this client's focus back to the window.
+      focus.windowId = "w";
+      handoff.request("w", handoff.begin());
+
+      expect(refocus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      expect(document.activeElement).toBe(field);
+    });
+
+    it("Should land on the window itself when nothing in it held focus", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, surface, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      const composer = elsewhere();
+      composer.focus();
+
+      handoff.request("w", handoff.begin());
+
+      expect(document.activeElement).toBe(surface);
+      // Focusable for the handoff only: a later click on an empty area does not focus it.
+      composer.focus();
+      expect(surface.hasAttribute("tabindex")).toBe(false);
+    });
+
+    it("Should land on the window itself when the element it last held cannot take focus", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, focus, surface, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      focus.windowId = "other";
+      composer.focus();
+      // A send button disabled after sending, still mounted.
+      field.disabled = true;
+
+      focus.windowId = "w";
+      handoff.request("w", handoff.begin());
+
+      expect(document.activeElement).toBe(surface);
+    });
+
+    it("Should wait for a window in a tab that shows a frame later", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, surface, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      composer.focus();
+      surface.hidden = true;
+      box(0, 0);
+
+      // Tab next: the window manager focused the window before its tab renders.
+      handoff.request("w", handoff.begin());
+      expect(document.activeElement).toBe(composer);
+      surface.hidden = false;
+      box(640, 480);
+
+      expect(document.activeElement).toBe(field);
+    });
+
+    it("Should leave the caret where it is for a focus another client or the CLI sent", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, focus, surface, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      focus.windowId = "other";
+      composer.focus();
+
+      // `compozy window focus --client`: the marker moves and the tab shows, nothing is requested.
+      focus.windowId = "w";
+      surface.hidden = true;
+      box(0, 0);
+      surface.hidden = false;
+      box(640, 480);
+
+      expect(document.activeElement).toBe(composer);
+    });
+
+    it("Should not take the keyboard out of an overlay, and land once the overlay gives it back", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      const palette = document.createElement("div");
+      palette.setAttribute("role", "dialog");
+      const input = document.createElement("input");
+      palette.append(input);
+      document.body.append(palette);
+      onTestFinished(() => palette.remove());
+      input.focus();
+
+      handoff.request("w", handoff.begin());
+      expect(document.activeElement).toBe(input);
+
+      // The palette closes and returns focus to where it opened from.
+      palette.remove();
+      composer.focus();
+      expect(document.activeElement).toBe(field);
+    });
+
+    it("Should leave a dialog region another window shows in its own pane", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      // A Sessions board's inline drawer: persistent pane content, not an overlay.
+      const pane = document.createElement("div");
+      pane.dataset.slot = "os-window-host";
+      const drawer = document.createElement("div");
+      drawer.setAttribute("role", "dialog");
+      const input = document.createElement("input");
+      drawer.append(input);
+      pane.append(drawer);
+      document.body.append(pane);
+      onTestFinished(() => pane.remove());
+      input.focus();
+
+      handoff.request("w", handoff.begin());
+
+      expect(document.activeElement).toBe(field);
+    });
+
+    it("Should not take the caret from a field the operator clicked while the focus change was in flight", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      composer.focus();
+
+      // A directional focus starts; before the daemon answers, the operator clicks a field.
+      const since = handoff.begin();
+      composer.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      handoff.request("w", since);
+
+      expect(document.activeElement).toBe(composer);
+    });
+
+    it("Should drop a waiting handoff when the operator presses a pointer", () => {
+      const handoff = new KeyboardFocusHandoff();
+      const { hosts, surface, field, first, box } = setup(handoff);
+      hosts.place("w", first);
+      box(640, 480);
+      field.focus();
+      const composer = elsewhere();
+      composer.focus();
+      surface.hidden = true;
+      box(0, 0);
+
+      handoff.request("w", handoff.begin());
+      composer.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      surface.hidden = false;
+      box(640, 480);
+
+      expect(document.activeElement).toBe(composer);
+    });
   });
 
   describe("through the pane's focus capture", () => {
