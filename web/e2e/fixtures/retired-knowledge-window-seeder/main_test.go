@@ -128,7 +128,11 @@ func readSeededEntries(t *testing.T, homeDir string) []clientstate.Entry {
 			t.Error(err)
 		}
 	}()
-	entries, err := engine.List(t.Context(), clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID), "window_manager")
+	entries, err := engine.List(
+		t.Context(),
+		clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+		"window_manager",
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
