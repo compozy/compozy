@@ -242,12 +242,13 @@ test("E2E-001 / E2E-014: fresh boot shows one New Tab window and a CLI move spli
   await test.step("E2E-014: a CLI window move splits two tabs into one, rendered live", async () => {
     const tasks = await openDockApp(appPage, "Tasks", "tasks");
     const tasksID = await windowID(tasks);
+    // A window that joins another tab's split keeps its pane: the same element, never a remount
+    // of its app (a peer converging on a split would otherwise pay a full app startup). The probe
+    // is set while the pane is shown; the locator only matches a shown pane.
+    await tasks.evaluate(element => Reflect.set(element, "__mountProbe", true));
     const agents = await openDockApp(appPage, "Agents", "agents");
     const agentsID = await windowID(agents);
     await expect(tasks).toBeHidden();
-    // A window that joins another tab's split keeps its pane: the same element, never a remount
-    // of its app (a peer converging on a split would otherwise pay a full app startup).
-    await tasks.evaluate(element => Reflect.set(element, "__mountProbe", true));
 
     await moveWindowFromCLI(runtime, workspace.id, tasksID, agentsID, "right");
 
