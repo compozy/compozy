@@ -7,6 +7,8 @@ import {
   type ShortcutMap,
 } from "@/systems/os";
 
+import { withoutRetiredShortcuts } from "./window-manager-retired-shortcuts";
+
 export const TERMINAL_SHORTCUT_PRESET: ShortcutMap = {
   "window.focus.left": ["control+ArrowLeft", "alt+KeyH"],
   "window.focus.down": ["control+ArrowDown", "alt+KeyJ"],
@@ -72,7 +74,10 @@ export function previewTerminalShortcutPreset(
   const before = effectiveShortcutMap(defaults, overrides);
   const afterOverrides = applyTerminalShortcutPreset(overrides).overrides;
   const after = effectiveShortcutMap(defaults, afterOverrides);
-  const conflicts = findShortcutConflicts(afterOverrides, defaults);
+  const conflicts = findShortcutConflicts(
+    withoutRetiredShortcuts(afterOverrides),
+    withoutRetiredShortcuts(defaults)
+  );
   const beforeRows = new Map(
     deriveShortcutCheatsheet(before, overrides, actions).map(row => [row.id, row.bindings])
   );

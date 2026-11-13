@@ -392,6 +392,21 @@ describe("Terminal shortcut preset", () => {
     ).toBe(true);
   });
 
+  it("Should not let a stored binding to a retired action block a preset chord", () => {
+    // The daemon skips retired ids, so the chord a retired override still holds is free.
+    const preview = previewTerminalShortcutPreset(
+      { "window.zoom": ["control+ArrowLeft"] },
+      SHORTCUT_DEFAULTS,
+      PRESET_ACTIONS
+    );
+
+    expect(
+      preview
+        .find(change => change.actionId === "window.focus.left")
+        ?.conflicts.some(conflict => conflict.actionIds.includes("window.zoom"))
+    ).toBe(false);
+  });
+
   it("Should apply atomically, re-apply idempotently, and restore only touched keys [UT-064]", () => {
     const before = {
       "window.close": ["meta+shift+KeyW"],

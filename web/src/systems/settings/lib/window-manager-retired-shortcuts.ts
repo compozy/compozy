@@ -25,3 +25,12 @@ export function isRetiredShortcutId(commandId: string): boolean {
 export function retiredShortcutTitle(commandId: string): string {
   return RETIRED_SHORTCUT_TITLES[commandId] ?? commandId;
 }
+
+/**
+ * The map without its retired entries. The daemon skips a retired binding, so
+ * its chord is free: it must not block or shadow a live action in any conflict
+ * check, even while the row stays listed for removal.
+ */
+export function withoutRetiredShortcuts<T>(map: Readonly<Record<string, T>>): Record<string, T> {
+  return Object.fromEntries(Object.entries(map).filter(([id]) => !isRetiredShortcutId(id)));
+}

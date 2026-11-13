@@ -41,8 +41,8 @@ const OVERFLOWS: ReadonlyArray<{
 }> = [
   {
     value: "stack",
-    label: "Fold into a stack",
-    hint: "Windows that no longer fit share one tile.",
+    label: "Open as tabs",
+    hint: "Windows that no longer fit open as tabs of their own.",
   },
   {
     value: "reject",

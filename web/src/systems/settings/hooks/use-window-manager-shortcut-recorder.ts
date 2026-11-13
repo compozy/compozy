@@ -11,6 +11,7 @@ import {
   type WindowManagerShortcutMap,
 } from "@/systems/os";
 
+import { withoutRetiredShortcuts } from "../lib/window-manager-retired-shortcuts";
 import { withCommandReset } from "../lib/window-manager-shortcut-rows";
 import {
   shortcutRecorderLogic,
@@ -134,9 +135,10 @@ export function useWindowManagerShortcutRecorder(
     recordingMode: activeRecording?.mode ?? null,
     announcement,
     conflict,
-    conflicts: findShortcutConflicts(overrides, defaults).filter(
-      entry => entry.kind === "shadowed"
-    ),
+    conflicts: findShortcutConflicts(
+      withoutRetiredShortcuts(overrides),
+      withoutRetiredShortcuts(defaults)
+    ).filter(entry => entry.kind === "shadowed"),
     error,
     saving: mutations.saving,
     start: (commandId, mode = "replace") => {

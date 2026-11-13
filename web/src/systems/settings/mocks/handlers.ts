@@ -249,6 +249,7 @@ export const handlers: HttpHandler[] = [
       applied: true,
       changes: {},
       diagnostics: [],
+      deprecations: [],
     })
   ),
   compozyApiMock.post(
@@ -274,6 +275,7 @@ export const handlers: HttpHandler[] = [
         window_ids: [],
       },
       diagnostics: [],
+      deprecations: [],
     })
   ),
   compozyApiMock.get(

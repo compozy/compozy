@@ -6,7 +6,7 @@ import { SettingRow } from "../setting-row";
 import {
   DiagramClickAndKeys,
   DiagramCrossfade,
-  DiagramFoldIntoStack,
+  DiagramOneAtATime,
   DiagramInstant,
   DiagramKeysOnly,
   DiagramRefuse,
@@ -46,7 +46,7 @@ const SMALL_VIEWPORT: PickRow<"smallViewportPolicy"> = {
   label: "Not enough room",
   description: "When the screen can no longer hold every window of a split side by side.",
   options: [
-    { value: "stack", label: "One window at a time", diagram: DiagramFoldIntoStack },
+    { value: "stack", label: "One window at a time", diagram: DiagramOneAtATime },
     { value: "reject", label: "Refuse the layout", diagram: DiagramRefuse },
   ],
 };

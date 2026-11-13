@@ -19,6 +19,7 @@ import {
   parseWindowManagerLayoutDocument,
   parseWindowManagerLayoutResource,
 } from "../../lib/window-manager-layout-schema";
+import type { WindowManagerLayoutProfile } from "../../lib/window-manager-layout-types";
 
 import {
   updateWindowManagerSettings,
@@ -51,7 +52,9 @@ function jsonResponse(body: unknown): Response {
 }
 
 afterEach(() => {
-  vi.clearAllMocks();
+  // Reset, not clear: a test that stops early must not leave queued responses
+  // for the next one.
+  vi.resetAllMocks();
 });
 
 describe("window-manager layouts API", () => {
@@ -229,9 +232,12 @@ describe("window-manager layouts API", () => {
 
   it("Should carry the profile through every layout read and mutation", async () => {
     const document = parseWindowManagerLayoutDocument(windowManagerLayoutDocumentFixture);
-    const profile = parseWindowManagerLayoutResource({
+    // What Settings writes is always a version 6 document; a listed spec only
+    // says where its stored document came from, so the save carries the draft.
+    const { source: _source, ...listed } = parseWindowManagerLayoutResource({
       record: windowManagerLayoutResourceFixture,
     }).spec;
+    const profile: WindowManagerLayoutProfile = { ...listed, document };
     apiMocks.fetch
       .mockResolvedValueOnce(jsonResponse(windowManagerLayoutDocumentFixture))
       .mockResolvedValueOnce(
@@ -298,10 +304,7 @@ describe("window-manager layouts API", () => {
   });
 
   it("Should convert a document of an earlier version through a layout.replace preview", async () => {
-    const earlier = windowManagerEarlierLayoutResourceFixture.spec.document as Record<
-      string,
-      unknown
-    >;
+    const earlier = windowManagerEarlierLayoutResourceFixture.spec.document;
     apiMocks.fetch.mockResolvedValueOnce(
       jsonResponse({
         snapshot: { ...settingsWindowManagerSnapshotFixture, revision: 7 },

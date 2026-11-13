@@ -88,7 +88,7 @@ function renderCanvas(
   return { onSelect, onRootChange };
 }
 
-function weightsOf(node: WindowManagerLayoutNode, splitId: string): number[] {
+function weightsOf(node: WindowManagerLayoutNode, splitId: string): readonly number[] {
   if (node.kind === "leaf") return [];
   if (node.id === splitId) return node.weights;
   return node.children.flatMap(child => weightsOf(child, splitId));

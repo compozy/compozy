@@ -42,6 +42,13 @@ type WindowManagerLayoutResourceFixture = Omit<WindowManagerResourceRecord, "spe
   spec: WindowManagerLayoutProfileWire;
 };
 
+/** A profile stored before tabs and splits: its document is whatever version it was saved as. */
+type WindowManagerEarlierLayoutResourceFixture = Omit<WindowManagerResourceRecord, "spec"> & {
+  spec: Omit<WindowManagerLayoutProfileWire, "document"> & {
+    document: Record<string, unknown> & { version: 4 | 5 };
+  };
+};
+
 type WindowManagerLayoutDocumentWire = CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager/layout"
@@ -87,25 +94,20 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     focus_policy: "click_directional",
     focus_wrap: true,
     focus_follows_pointer: false,
-    // Retired keys: the generated `SettingsWindowManagerConfigPayload` still
-    // requires them, so this daemon payload carries them; the client parser
-    // drops them and no domain config or save holds them (remove in v0.8.0).
-    raise_on_focus: true,
+    // Retired keys, at the fixed values the daemon serves until v0.8.0: the
+    // generated payload still requires them; the client parser drops them and
+    // no domain config or save holds them.
+    raise_on_focus: false,
     drag_away_policy: "window",
-    group_move_modifier: "alt",
+    group_move_modifier: "none",
     swap_modifier: "shift",
     history_limit: 100,
     nav_stack_limit: 50,
     closed_entry_limit: 20,
     desktop_transition: "slide",
     gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
-    snap: {
-      edge_band: 32,
-      corner_reach: 150,
-      exit_slack: 16,
-      repeat_ratios: [0.5, 0.666667, 0.333333],
-    },
-    bindings: { top_center: "zoom", bottom_center: "zoom" },
+    snap: { edge_band: 0, corner_reach: 0, exit_slack: 0, repeat_ratios: [] },
+    bindings: { top_center: "none", bottom_center: "none" },
     shortcuts: { "window.tab.new": ["meta+Digit3"] },
     global_shortcuts: { "palette.summon.global": "meta+shift+Space" },
   },
@@ -318,52 +320,53 @@ export const windowManagerLayoutResourceFixture: WindowManagerLayoutResourceFixt
  * A profile saved before tabs and splits: the record keeps the version 5
  * document it was stored with, and the daemon converts it when it is opened.
  */
-export const windowManagerEarlierLayoutResourceFixture: WindowManagerResourceRecord = {
-  kind: "window_layout",
-  id: "classic-grid",
-  version: 2,
-  scope: { kind: "user" },
-  owner: { kind: "daemon", id: "storybook" },
-  source: { kind: "operator", id: "storybook" },
-  spec: {
-    version: 1,
+export const windowManagerEarlierLayoutResourceFixture: WindowManagerEarlierLayoutResourceFixture =
+  {
+    kind: "window_layout",
     id: "classic-grid",
-    display_name: "Classic grid",
-    aspect_variant: "any",
-    participant_slots: ["app:tasks", "app:terminal"],
-    overflow_policy: "stack",
-    document: {
-      version: 5,
-      workspace_id: "",
-      desktops: [
-        {
-          id: "desktop-main",
-          name: "Main",
-          order: 0,
-          groups: [
-            {
-              id: "group-main",
-              frame: { x: 0, y: 0, width: 1, height: 1 },
-              root: {
-                id: "split-main",
-                kind: "split",
-                axis: "horizontal",
-                weights: [0.5, 0.5],
-                children: [
-                  { id: "leaf-tasks", kind: "leaf", window_id: "app:tasks" },
-                  { id: "leaf-terminal", kind: "leaf", window_id: "app:terminal" },
-                ],
+    version: 2,
+    scope: { kind: "user" },
+    owner: { kind: "daemon", id: "storybook" },
+    source: { kind: "operator", id: "storybook" },
+    spec: {
+      version: 1,
+      id: "classic-grid",
+      display_name: "Classic grid",
+      aspect_variant: "any",
+      participant_slots: ["app:tasks", "app:terminal"],
+      overflow_policy: "stack",
+      document: {
+        version: 5,
+        workspace_id: "",
+        desktops: [
+          {
+            id: "desktop-main",
+            name: "Main",
+            order: 0,
+            groups: [
+              {
+                id: "group-main",
+                frame: { x: 0, y: 0, width: 1, height: 1 },
+                root: {
+                  id: "split-main",
+                  kind: "split",
+                  axis: "horizontal",
+                  weights: [0.5, 0.5],
+                  children: [
+                    { id: "leaf-tasks", kind: "leaf", window_id: "app:tasks" },
+                    { id: "leaf-terminal", kind: "leaf", window_id: "app:terminal" },
+                  ],
+                },
               },
-            },
-          ],
-          floating: [],
-          floating_stacks: [],
-        },
-      ],
-      windows: {},
-      overrides: {},
+            ],
+            floating: [],
+            floating_stacks: [],
+          },
+        ],
+        windows: {},
+        overrides: {},
+      },
     },
-  },
-  created_at: "2026-06-01T10:00:00Z",
-  updated_at: "2026-06-01T10:00:00Z",
-};
+    created_at: "2026-06-01T10:00:00Z",
+    updated_at: "2026-06-01T10:00:00Z",
+  };

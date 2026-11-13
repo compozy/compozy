@@ -75,7 +75,7 @@ export function DiagramTabInFocus() {
   );
 }
 
-export function DiagramFoldIntoStack() {
+export function DiagramOneAtATime() {
   return (
     <Diagram>
       <Pane height={26} opacity={0.1} width={50} x={6} y={8} />
