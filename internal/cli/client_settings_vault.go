@@ -2,16 +2,15 @@ package cli
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
-
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 
@@ -32,10 +31,20 @@ func defaultCLIRedirectPolicy(_ *http.Request, via []*http.Request) error {
 	return nil
 }
 
-// NewClient constructs a daemon client for one fully resolved connection target.
+// NewClient constructs a daemon client for one fully resolved connection target,
+// using the default unary request budget.
 func NewClient(target ClientTarget) (DaemonClient, error) {
+	return newClientWithTimeout(target, defaultUnixSocketClientTimeout)
+}
+
+// newClientWithTimeout constructs a daemon client whose unary requests use the
+// resolved budget. Streams keep their own untimed client.
+func newClientWithTimeout(target ClientTarget, requestTimeout time.Duration) (DaemonClient, error) {
 	if err := target.validate(); err != nil {
 		return nil, err
+	}
+	if requestTimeout <= 0 {
+		requestTimeout = defaultUnixSocketClientTimeout
 	}
 
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
@@ -69,7 +78,7 @@ func NewClient(target ClientTarget) (DaemonClient, error) {
 	return &daemonClient{
 		target: target,
 		httpClient: &http.Client{
-			Transport: transport, Timeout: defaultUnixSocketClientTimeout, CheckRedirect: checkRedirect,
+			Transport: transport, Timeout: requestTimeout, CheckRedirect: checkRedirect,
 		},
 		streamClient: &http.Client{Transport: transport, CheckRedirect: checkRedirect},
 	}, nil

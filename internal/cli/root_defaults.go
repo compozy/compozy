@@ -21,6 +21,22 @@ func (d commandDeps) withDefaults() commandDeps {
 	d = d.withRuntimeDefaults()
 	d = d.withBootstrapDefaults()
 	d = d.withTimingDefaults()
+	d = d.withClientTimeoutDefaults()
+	return d
+}
+
+// withClientTimeoutDefaults wires the daemon client after every dependency it
+// reads (getenv, loadConfig) has its default.
+func (d commandDeps) withClientTimeoutDefaults() commandDeps {
+	if d.newClient == nil {
+		d.newClient = func(target ClientTarget) (DaemonClient, error) {
+			timeout, err := resolveClientRequestTimeout(d.getenv, d.loadConfig)
+			if err != nil {
+				return nil, err
+			}
+			return newClientWithTimeout(target, timeout)
+		}
+	}
 	return d
 }
 
@@ -52,9 +68,6 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 func (d commandDeps) withGatewayRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
-	}
-	if d.newClient == nil {
-		d.newClient = NewClient
 	}
 	if d.writeGatewayCredential == nil {
 		d.writeGatewayCredential = WriteGatewayCredential

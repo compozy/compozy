@@ -26,6 +26,7 @@ type configOverlay struct {
 	Providers     map[string]providerOverlay `toml:"providers"`
 	ModelCatalog  modelCatalogOverlay        `toml:"model_catalog"`
 	Marketplace   *marketplaceRuntimeOverlay `toml:"marketplace"`
+	Client        clientOverlay              `toml:"client"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
 	Redact        redactOverlay              `toml:"redact"`
@@ -83,6 +84,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	if o.Marketplace != nil {
 		o.Marketplace.Apply(&dst.Marketplace)
 	}
+	o.Client.Apply(&dst.Client)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Redact.Apply(&dst.Redact)
