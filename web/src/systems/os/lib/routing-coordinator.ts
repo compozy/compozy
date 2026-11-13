@@ -261,12 +261,11 @@ export class RoutingCoordinator {
     if (entry !== null) this.pushRoute(entry);
     else if (!this.activations.settling) this.reportAuthoritativeState();
     if (!applied) return null;
-    // A conflict recovery can land on another client's window of the same app and instance.
-    const landed = state.focusedId === null ? undefined : state.windows[state.focusedId];
-    const opened =
-      landed?.app === target.app &&
-      (target.instanceKey === undefined || landed.instanceKey === target.instanceKey);
-    if (intentToken === newest && landed && opened) this.handOffKeyboard(landed.id, keyboardSince);
+    // The window that landed: a conflict recovery can retarget the open to an existing instance.
+    const landed = outcome.windowId;
+    if (intentToken === newest && state.focusedId === landed) {
+      this.handOffKeyboard(landed, keyboardSince);
+    }
     return id;
   }
 

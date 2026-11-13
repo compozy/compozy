@@ -48,7 +48,15 @@ export class WindowManagerSemanticOpenCoordinator {
     const completion = outcome.completion.finally(() => {
       if (this.pending.get(key) === tracked) this.pending.delete(key);
     });
-    tracked = { bindingKey, target, outcome: { ...outcome, completion } };
+    // Read through to the open's window: a conflict recovery updates it (`WindowManagerOpenOutcome`).
+    const tracking: WindowManagerOpenOutcome = {
+      get windowId() {
+        return outcome.windowId;
+      },
+      accepted: outcome.accepted,
+      completion,
+    };
+    tracked = { bindingKey, target, outcome: tracking };
     this.pending.set(key, tracked);
     return tracked.outcome;
   }
@@ -65,7 +73,9 @@ export class WindowManagerSemanticOpenCoordinator {
       return pending.outcome;
     }
     return {
-      windowId: pending.outcome.windowId,
+      get windowId() {
+        return pending.outcome.windowId;
+      },
       accepted: true,
       completion: pending.outcome.completion.then(applied =>
         this.continueAfterPending(applied, pending.bindingKey, target)

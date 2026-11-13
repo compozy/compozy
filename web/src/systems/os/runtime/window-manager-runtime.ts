@@ -262,7 +262,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
   ): WindowManagerOpenOutcome {
     const startedFromIdle = windowManagerStore.getSnapshot().context.commandState.status === "idle";
     if (!enabled || !outcome.accepted || !startedFromIdle) return { windowId: id, ...outcome };
-    return {
+    const recovered: WindowManagerOpenOutcome = {
       windowId: id,
       accepted: true,
       completion: outcome.completion.then(async applied => {
@@ -271,9 +271,12 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
           return false;
         if (!(await this.awaitConflictRecovery())) return false;
         const retry = this.openOrFocusAttempt(target, false);
+        // The retry can land on another client's instance: the outcome names that window.
+        recovered.windowId = retry.windowId;
         return retry.accepted && (await retry.completion);
       }),
     };
+    return recovered;
   }
 
   closeWindow = (id: string, viewOnly = false): Promise<boolean> =>

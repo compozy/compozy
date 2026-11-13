@@ -154,6 +154,10 @@ export interface WindowManagerCommandOutcome {
 }
 
 export interface WindowManagerOpenOutcome extends WindowManagerCommandOutcome {
+  /**
+   * The window the open names. A conflict recovery that lands on an existing instance updates it
+   * before `completion` settles, so read it after the completion for the window that landed.
+   */
   windowId: string;
 }
 

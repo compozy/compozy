@@ -758,15 +758,45 @@ describe("RoutingCoordinator", () => {
     const { coordinator, store } = createCoordinator([files, tasks]);
     coordinator.completeHydration();
     const request = vi.spyOn(coordinator.keyboardFocus, "request");
-    // Another client opened Files first; the conflict retry focuses that window instead.
+    // Another client opened Files first; the conflict retry focuses that window instead and the
+    // outcome names it once the completion settles.
     store.spies.openOrFocus.mockImplementationOnce(() => {
-      store.setAuthoritativeFocus(files.id);
-      return { windowId: "w-files-unplaced", accepted: true, completion: Promise.resolve(true) };
+      const outcome = {
+        windowId: "w-files-unplaced",
+        accepted: true,
+        completion: Promise.resolve().then(() => {
+          store.setAuthoritativeFocus(files.id);
+          outcome.windowId = files.id;
+          return true;
+        }),
+      };
+      return outcome;
     });
 
     await coordinator.userOpen({ app: "files", route: files.route });
 
     expect(request).toHaveBeenCalledExactlyOnceWith(files.id, expect.any(Number));
+  });
+
+  it("Should not hand the keyboard to a window a foreign focus moved to during an open [#1655]", async () => {
+    const files = windowFixture("files", "/files/project-a", "project-a");
+    const other = windowFixture("files", "/files/project-b", "project-b");
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, store } = createCoordinator([files, other, tasks]);
+    coordinator.completeHydration();
+    const request = vi.spyOn(coordinator.keyboardFocus, "request");
+    store.deferLifecycle();
+
+    const pending = coordinator.userOpen({ app: "files", instanceKey: "project-a" });
+    // `compozy window focus --client` to the other Files window lands before the open resumes.
+    store.settleLifecycle(true);
+    // The open applied; the foreign focus arrives before the open's caller resumes.
+    await Promise.resolve();
+    store.setAuthoritativeFocus(other.id);
+    await pending;
+
+    expect(store.getState().focusedId).toBe(other.id);
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("Should keep a navigation's first keyboard mark when the router reports it again [#1655]", async () => {

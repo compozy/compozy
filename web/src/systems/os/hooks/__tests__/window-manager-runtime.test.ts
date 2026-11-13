@@ -2191,6 +2191,8 @@ describe("WindowManagerRuntime", () => {
 
     expect(outcome.accepted).toBe(true);
     await expect(outcome.completion).resolves.toBe(true);
+    // The outcome names the instance the recovery landed on (#1655).
+    expect(outcome.windowId).toBe(session.id);
     expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
     expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
       1,
