@@ -131,6 +131,14 @@ function notificationRow(
         redacted: item.redacted,
         stale,
       };
+    case "layout-upgrade":
+      return {
+        ...common,
+        kind: "layout-upgrade",
+        reason: item.detail ?? "",
+        occurredAt: item.occurred_at,
+        stale,
+      };
     default:
       return { ...common, kind: "task", reason: item.detail };
   }

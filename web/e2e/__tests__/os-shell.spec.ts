@@ -2715,10 +2715,12 @@ test("Tabs-split E2E-011: a tab dragged onto a desktop indicator moves there; th
 });
 
 // Invariant: a stored v5 layout opens as tabs: floating and minimized windows become their own
-// tabs, a side-by-side snapped pair one split tab and a split stays a split; the notice counts
-// what moved, survives a reload, and once dismissed is gone after a reload and in every client
-// (US-017). Owner: v5 converter + migration status + upgrade notice; canonical suite: this file.
-test("Tabs-split E2E-012: a v5 layout opens as tabs and the upgrade notice is dismissed for every client", async ({
+// tabs, a side-by-side snapped pair one split tab and a split stays a split; the success is told
+// in the bell (an item counting what moved, toasted once), never inline, and reading it in one
+// client clears it in every client and after a reload (US-017). The failure variants stay inline
+// and are owned by the notice suite. Owner: v5 converter + migration status + bell; canonical
+// suite: this file.
+test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item is read for every client", async ({
   appPage,
   browser,
   runtime,
@@ -2794,35 +2796,40 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the upgrade notice is di
   }
 
   const description = `${floating.length} floating ${floating.length === 1 ? "window" : "windows"} and 1 minimized window are tabs now. 1 pin inside a split was removed.`;
+  const bellTrigger = '[data-slot="os-menubar-bell"]';
+  const upgradeRow = `os-attention-layout-upgrade-${workspace.id}`;
   const notice = appPage.locator('[data-slot="os-upgrade-notice"]');
-  await expect(notice).toHaveAttribute("data-state", "migrated");
-  await expect(notice).toContainText("Your windows are now tabs");
-  await expect(notice).toContainText(description);
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(notice).toContainText(description);
+  const toast = appPage.getByTestId("os-attention-toast-layout-upgrade");
+  await expect(toast).toContainText("Your windows are now tabs");
+  await expect(toast).toContainText(description);
+  await expect(notice).toHaveCount(0);
 
   const peer = await openPeerPage(browser, runtime);
   try {
-    const peerNotice = peer.locator('[data-slot="os-upgrade-notice"]');
-    await expect(peerNotice).toContainText(description);
+    await peer.locator(bellTrigger).click();
+    const peerRow = peer.getByTestId(upgradeRow);
+    await expect(peerRow).toContainText("Your windows are now tabs");
+    await expect(peerRow).toContainText(description);
+    await expect(peer.locator('[data-slot="os-upgrade-notice"]')).toHaveCount(0);
 
-    await notice.getByRole("button", { name: "Dismiss" }).click();
-    await expect(notice).toHaveCount(0);
-    // The acknowledgement reaches the peer as a snapshot frame on its stream.
-    await expect(peerNotice).toHaveCount(0);
+    await appPage.locator(bellTrigger).click();
+    const row = appPage.getByTestId(upgradeRow);
+    await expect(row).toContainText(description);
+    await row.click();
+    // Reading it acknowledges the move daemon-side; the bell stays open on what is left.
+    await expect(row).toHaveCount(0);
+    await expect(appPage.getByTestId("os-bell-popover")).toBeVisible();
+    // The peer's open bell drops the item on its next read of the list.
+    await expect(peerRow).toHaveCount(0, { timeout: 15_000 });
   } finally {
     await peer.context().close();
   }
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(osShellSelectors(appPage).tabs.first()).toBeVisible();
+  await appPage.locator(bellTrigger).click();
+  await expect(appPage.getByTestId("os-bell-popover")).toBeVisible();
+  await expect(appPage.getByTestId(upgradeRow)).toHaveCount(0);
   await expect(notice).toHaveCount(0);
-  const later = await openPeerPage(browser, runtime);
-  try {
-    await expect(osShellSelectors(later).tabs.first()).toBeVisible();
-    await expect(later.locator('[data-slot="os-upgrade-notice"]')).toHaveCount(0);
-  } finally {
-    await later.context().close();
-  }
 });
 
 const RETIRED_CONTROL =

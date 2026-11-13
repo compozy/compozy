@@ -11,20 +11,19 @@ import { DeskProfileContext } from "../contexts/desk-profile-context";
 import { windowManagerKeys } from "../lib/window-manager-query";
 import type {
   WindowManagerMigrationStatus,
-  WindowManagerMigrationSummary,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 import { useDesktop } from "./use-desktop";
 
 /**
- * `layout-changed`: the conversion failed and the layout changed since, so the daemon refuses a
- * plain retry; only a confirmed replace can still convert the preserved layout.
+ * The inline notice's states, all of a failed conversion; a successful one is announced in the
+ * bell (`layout-upgrade`). `layout-changed`: the layout changed since the failure, so the daemon
+ * refuses a plain retry; only a confirmed replace can still convert the preserved layout.
  */
-export type UpgradeNoticeState = "migrated" | "failed" | "layout-changed" | "retrying";
+export type UpgradeNoticeState = "failed" | "layout-changed" | "retrying";
 
 export interface UpgradeNoticeModel {
   state: UpgradeNoticeState;
-  summary: WindowManagerMigrationSummary | null;
   /** Whether the "Replace current layout" confirmation is open. */
   confirmingReplace: boolean;
   dismiss: () => void;
@@ -55,8 +54,36 @@ export function retryRefused(
   return revision !== (status.failureRevision ?? 0);
 }
 
+export interface UpgradeNoticeInputs {
+  migration: WindowManagerMigrationStatus | null;
+  /** The snapshot's revision, which a plain retry is checked against. */
+  revision: number | null;
+  /** A dismissal in flight hides the notice at once; a failed one shows it again. */
+  acknowledging: boolean;
+  retrying: boolean;
+  /** The status `at` a refused (409) retry answered, if any. */
+  refusedAt: string | null;
+}
+
+/** What the inline notice shows, or `null` when it shows nothing. */
+export function deriveUpgradeNoticeState({
+  migration,
+  revision,
+  acknowledging,
+  retrying,
+  refusedAt,
+}: UpgradeNoticeInputs): UpgradeNoticeState | null {
+  if (migration === null || upgradeNoticeState(migration) !== "failed" || acknowledging) {
+    return null;
+  }
+  if (retrying) return "retrying";
+  const refused =
+    retryRefused(migration, revision) || (refusedAt !== null && refusedAt === (migration.at ?? ""));
+  return refused ? "layout-changed" : "failed";
+}
+
 /**
- * The one-time notice after the layout moved to tabs (US-017.AC-6, EC-6), read from the
+ * The inline notice of a failed move to tabs (US-017.AC-6, EC-6), read from the
  * snapshot's `migration`. Acknowledging or retrying reaches every client of the workspace and
  * profile as a `snapshot` frame (same revision for an ack or a failed retry), so a dismissal
  * elsewhere hides it here and a reload keeps it until then.
@@ -72,7 +99,8 @@ export function useOsUpgradeNotice(): UpgradeNoticeModel | null {
   const [refusedAt, setRefusedAt] = useState<string | null>(null);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
   // The route's answer settles the cached snapshot now, so the notice neither waits for the
-  // frame nor comes back before it: an ack clears `migration`, a retry shows its outcome.
+  // frame nor comes back before it: an ack clears `migration`, a retry shows its outcome (a
+  // success leaves the inline notice for the bell).
   const settle = (next: WindowManagerMigrationStatus) =>
     queryClient.setQueryData<WindowManagerSnapshot>(
       windowManagerKeys.snapshot(workspaceId, profile),
@@ -98,29 +126,22 @@ export function useOsUpgradeNotice(): UpgradeNoticeModel | null {
       notifyUser({ message: "Couldn't move your layout to tabs. Try again.", tone: "error" });
     },
   });
-  const noticeState = upgradeNoticeState(migration);
-  // Hidden as soon as it is dismissed here; a failed dismissal shows it again.
-  const shown = migration !== null && noticeState !== null && !acknowledge.isPending;
-  const refused =
-    shown &&
-    (retryRefused(migration, revision) ||
-      (noticeState === "failed" && refusedAt !== null && refusedAt === (migration.at ?? "")));
-  const state: UpgradeNoticeState | null = !shown
-    ? null
-    : retry.isPending
-      ? "retrying"
-      : refused
-        ? "layout-changed"
-        : noticeState;
+  const state = deriveUpgradeNoticeState({
+    migration,
+    revision,
+    acknowledging: acknowledge.isPending,
+    retrying: retry.isPending,
+    refusedAt,
+  });
   // The confirmation belongs to the offer on screen: once the notice leaves it (another client
   // replaced the layout), a later return to it must not reopen the dialog unasked.
-  if (confirmingReplace && state !== "layout-changed") setConfirmingReplace(false);
+  const confirming = confirmingReplace && state === "layout-changed";
+  if (confirmingReplace && !confirming) setConfirmingReplace(false);
   if (migration === null || state === null) return null;
   const at = migration.at ?? "";
   return {
     state,
-    summary: migration.summary,
-    confirmingReplace: confirmingReplace && state === "layout-changed",
+    confirmingReplace: confirming,
     dismiss: () => acknowledge.mutate(),
     retry: () => retry.mutate({ replace: false, at }),
     requestReplace: () => setConfirmingReplace(true),

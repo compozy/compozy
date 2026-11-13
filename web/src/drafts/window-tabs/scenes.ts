@@ -190,11 +190,6 @@ export const SCENES: Record<string, Scene> = {
     activeTabId: TAB.twoUp.id,
     seams: { "s-two:0": "limit" },
   },
-  "notice-migrated": {
-    tabs: [TAB.dash, TAB.auth, TAB.twoUp, TAB.review, TAB.docs, TAB.term, TAB.files],
-    activeTabId: TAB.twoUp.id,
-    notice: "migrated",
-  },
   "notice-failed": { tabs: [EMPTY], activeTabId: EMPTY.id, notice: "failed" },
   "notice-retrying": { tabs: [EMPTY], activeTabId: EMPTY.id, notice: "retrying" },
   "notice-layout-changed": {

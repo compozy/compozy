@@ -118,12 +118,29 @@ export interface OsTerminalInputAttentionRow {
   stale: boolean;
 }
 
+/**
+ * A workspace's layout moved to tabs: told once, in the bell. It has nowhere to open; reading it
+ * acknowledges the move for every client.
+ */
+export interface OsLayoutUpgradeAttentionRow {
+  kind: "layout-upgrade";
+  id: string;
+  title: string;
+  workspaceId: string;
+  workspaceLabel: string;
+  /** What the upgrade did, in the counts it reported. */
+  reason: string;
+  occurredAt: string;
+  stale: boolean;
+}
+
 export type OsAttentionRow = (
   | OsSessionAttentionRow
   | OsTaskAttentionRow
   | OsLoopNodeAttentionRow
   | OsLoopRequestAttentionRow
   | OsTerminalInputAttentionRow
+  | OsLayoutUpgradeAttentionRow
 ) & { notificationId?: string };
 
 export interface OsAttentionSections {

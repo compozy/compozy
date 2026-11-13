@@ -36,7 +36,11 @@ function BellSection({
           className="flex min-w-0 items-center"
           key={row.notificationId ?? `${row.kind}:${row.id}`}
         >
-          <AttentionBellRow row={row} onSelect={onSelect} />
+          <AttentionBellRow
+            row={row}
+            // A layout upgrade has nowhere to open: activating it marks it read.
+            onSelect={row.kind === "layout-upgrade" ? next => onAcknowledge?.(next) : onSelect}
+          />
           <Button
             size="icon-sm"
             variant="quiet"

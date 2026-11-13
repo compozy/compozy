@@ -1,8 +1,8 @@
 // Suite: upgrade notice
-// Invariant: the notice shows while the snapshot's `migration` reports an unacknowledged
-// migration, with the counts the upgrade reported; dismissing posts `ack` and hides it at once
-// without coming back before or after the frame; a snapshot without `migration` (another client's
-// ack) hides it; a failed migration offers Retry and shows "Retrying" while it runs; a retry the
+// Invariant: the notice shows while the snapshot's `migration` reports an unacknowledged failed
+// migration; a successful one shows nothing inline (the bell announces it); dismissing posts `ack`
+// and hides it at once without coming back before or after the frame; a snapshot without
+// `migration` (another client's ack) hides it; a failed migration offers Retry and shows "Retrying" while it runs; a retry the
 // daemon would refuse because the layout changed since the failure (or a 409 that still arrives)
 // is offered as a confirmed "Replace current layout": confirming sends `replace: true` once,
 // cancelling sends nothing (US-017.AC-6, EC-6, EC-8; operator decision Q1 — a).
@@ -25,7 +25,7 @@ import type {
   WindowManagerMigrationStatus,
   WindowManagerSnapshot,
 } from "../../lib/window-manager-types";
-import { upgradeNoticeDescription } from "../../lib/upgrade-notice-description";
+import { deriveUpgradeNoticeState } from "../../hooks/use-os-upgrade-notice";
 import { OsUpgradeNotice } from "../os-upgrade-notice";
 
 const api = vi.hoisted(() => ({ updateWindowManagerMigration: vi.fn() }));
@@ -106,32 +106,58 @@ beforeEach(() => {
   api.updateWindowManagerMigration.mockReset();
 });
 
-describe("upgradeNoticeDescription", () => {
-  it("Should name what became tabs and the pins the upgrade dropped", () => {
-    expect(upgradeNoticeDescription(SUMMARY)).toBe(
-      "3 floating windows and 2 minimized windows are tabs now. 1 pin inside a split was removed."
+describe("deriveUpgradeNoticeState", () => {
+  const idle = { revision: REVISION, acknowledging: false, retrying: false, refusedAt: null };
+
+  it("Should show nothing inline for no migration, a success or an acknowledged failure", () => {
+    expect(deriveUpgradeNoticeState({ ...idle, migration: null })).toBeNull();
+    expect(deriveUpgradeNoticeState({ ...idle, migration: status() })).toBeNull();
+    expect(
+      deriveUpgradeNoticeState({
+        ...idle,
+        migration: { ...failedStatus(REVISION), acknowledged: true },
+      })
+    ).toBeNull();
+  });
+
+  it("Should hide a failure while its dismissal is in flight, even during a retry", () => {
+    expect(
+      deriveUpgradeNoticeState({
+        ...idle,
+        migration: failedStatus(REVISION),
+        acknowledging: true,
+        retrying: true,
+      })
+    ).toBeNull();
+  });
+
+  it("Should read a failure as retrying, refused by revision, refused by a 409, or plain", () => {
+    const failed = failedStatus(REVISION);
+    expect(deriveUpgradeNoticeState({ ...idle, migration: failed, retrying: true })).toBe(
+      "retrying"
+    );
+    expect(deriveUpgradeNoticeState({ ...idle, migration: failedStatus(REVISION - 3) })).toBe(
+      "layout-changed"
+    );
+    expect(deriveUpgradeNoticeState({ ...idle, migration: failed, refusedAt: failed.at })).toBe(
+      "layout-changed"
     );
     expect(
-      upgradeNoticeDescription({
-        ...SUMMARY,
-        floatingToTabs: 1,
-        minimizedToTabs: 0,
-        pinsDropped: 2,
-      })
-    ).toBe("1 floating window is a tab now. 2 pins inside splits were removed.");
-    expect(
-      upgradeNoticeDescription({
-        ...SUMMARY,
-        floatingToTabs: 0,
-        minimizedToTabs: 0,
-        pinsDropped: 0,
-      })
-    ).toBe("Floating and minimized windows are tabs now.");
+      deriveUpgradeNoticeState({ ...idle, migration: failed, refusedAt: "2026-11-12T14:00:00Z" })
+    ).toBe("failed");
+    expect(deriveUpgradeNoticeState({ ...idle, migration: failed, revision: null })).toBe("failed");
   });
 });
 
 describe("OsUpgradeNotice", () => {
-  it("Should show the counts until dismissed, then hide at once and stay hidden after the frame", async () => {
+  it("Should show nothing inline for a successful conversion", () => {
+    const { container } = renderNotice(status());
+
+    expect(container.querySelector('[data-slot="os-upgrade-notice"]')).toBeNull();
+    expect(screen.queryByText("Your windows are now tabs")).toBeNull();
+  });
+
+  it("Should show a failure until dismissed, then hide at once and stay hidden after the frame", async () => {
     const user = userEvent.setup();
     let finishAck: (value: WindowManagerMigrationStatus) => void = () => {};
     api.updateWindowManagerMigration.mockReturnValue(
@@ -139,10 +165,9 @@ describe("OsUpgradeNotice", () => {
         finishAck = resolve;
       })
     );
-    const { frame } = renderNotice(status());
+    const { frame } = renderNotice(failedStatus(REVISION));
 
-    expect(screen.getByText("Your windows are now tabs")).toBeInTheDocument();
-    expect(screen.getByText(/3 floating windows and 2 minimized windows/)).toBeInTheDocument();
+    expect(screen.getByText("We could not move your layout to tabs")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(api.updateWindowManagerMigration).toHaveBeenCalledWith(
@@ -151,19 +176,19 @@ describe("OsUpgradeNotice", () => {
       "ack"
     );
     // Hidden while the ack is in flight, and still hidden once it settles before the frame.
-    expect(screen.queryByText("Your windows are now tabs")).toBeNull();
-    await act(async () => finishAck(status({ acknowledged: true })));
-    expect(screen.queryByText("Your windows are now tabs")).toBeNull();
+    expect(screen.queryByText("We could not move your layout to tabs")).toBeNull();
+    await act(async () => finishAck({ ...failedStatus(REVISION), acknowledged: true }));
+    expect(screen.queryByText("We could not move your layout to tabs")).toBeNull();
     frame(null);
-    expect(screen.queryByText("Your windows are now tabs")).toBeNull();
+    expect(screen.queryByText("We could not move your layout to tabs")).toBeNull();
   });
 
   it("Should hide when a same-revision snapshot arrives without a migration", () => {
-    const { frame } = renderNotice(status());
-    expect(screen.getByText("Your windows are now tabs")).toBeInTheDocument();
+    const { frame } = renderNotice(failedStatus(REVISION));
+    expect(screen.getByText("We could not move your layout to tabs")).toBeInTheDocument();
 
     frame(null);
-    expect(screen.queryByText("Your windows are now tabs")).toBeNull();
+    expect(screen.queryByText("We could not move your layout to tabs")).toBeNull();
     expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
   });
 
@@ -197,8 +222,10 @@ describe("OsUpgradeNotice", () => {
     );
     expect(await screen.findByRole("button", { name: "Retrying" })).toBeDisabled();
 
-    finishRetry(status());
-    expect(await screen.findByText("Your windows are now tabs")).toBeInTheDocument();
+    // A conversion that succeeds leaves the inline notice for the bell.
+    await act(async () => finishRetry(status()));
+    expect(screen.queryByText("We could not move your layout to tabs")).toBeNull();
+    expect(screen.queryByText("Your windows are now tabs")).toBeNull();
   });
 
   it("Should offer a confirmed replace when the layout changed after the failure, sending replace once", async () => {
@@ -228,8 +255,8 @@ describe("OsUpgradeNotice", () => {
     expect(await screen.findByRole("button", { name: "Retrying" })).toBeDisabled();
     expect(screen.queryByText("Replace current layout?")).toBeNull();
 
-    finishReplace(status());
-    expect(await screen.findByText("Your windows are now tabs")).toBeInTheDocument();
+    await act(async () => finishReplace(status()));
+    expect(screen.queryByText("We could not move your layout to tabs")).toBeNull();
   });
 
   it("Should send nothing and keep the notice when the replace is cancelled", async () => {

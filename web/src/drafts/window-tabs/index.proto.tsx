@@ -39,7 +39,6 @@ export const meta = definePrototype({
     { id: "seam-drag", label: "S6 · Divider, dragging" },
     { id: "seam-focus", label: "S6 · Divider, keyboard" },
     { id: "seam-limit", label: "S6 · Divider at the minimum size" },
-    { id: "notice-migrated", label: "S10 · After the upgrade" },
     { id: "notice-failed", label: "S10 · Upgrade could not move the layout" },
     { id: "notice-retrying", label: "S10 · Retrying the upgrade" },
     { id: "notice-layout-changed", label: "S10 · Layout changed since the failure" },

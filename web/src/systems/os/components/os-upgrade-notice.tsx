@@ -2,19 +2,16 @@ import { ActionResultBanner, Button, ConfirmDialog } from "@compozy/ui";
 import { RefreshCw, X } from "@compozy/ui/icons";
 
 import { useOsUpgradeNotice, type UpgradeNoticeState } from "../hooks/use-os-upgrade-notice";
-import { upgradeNoticeDescription } from "../lib/upgrade-notice-description";
-import type { WindowManagerMigrationSummary } from "../lib/window-manager-types";
 
 const NOTICE_FRAME = "border-b border-line bg-canvas px-3 py-2";
 const FAILED_TITLE = "We could not move your layout to tabs";
 
 /**
- * S10: the one-time notice after the layout moved to tabs, its failure variant with Retry, and,
- * once the layout changed after the failure, a confirmed "Replace current layout".
+ * S10: the notice of a failed move to tabs, with Retry, and, once the layout changed after the
+ * failure, a confirmed "Replace current layout". A successful move is announced in the bell.
  */
 export function OsUpgradeNoticeView({
   state,
-  summary,
   confirmingReplace = false,
   onDismiss,
   onRetry,
@@ -23,7 +20,6 @@ export function OsUpgradeNoticeView({
   onConfirmReplace,
 }: {
   state: UpgradeNoticeState;
-  summary: WindowManagerMigrationSummary | null;
   confirmingReplace?: boolean;
   onDismiss: () => void;
   onRetry: () => void;
@@ -36,18 +32,6 @@ export function OsUpgradeNoticeView({
       <X aria-hidden="true" className="size-3.75" />
     </Button>
   );
-  if (state === "migrated") {
-    return (
-      <div className={NOTICE_FRAME} data-slot="os-upgrade-notice" data-state={state}>
-        <ActionResultBanner
-          actions={dismiss}
-          description={upgradeNoticeDescription(summary)}
-          title="Your windows are now tabs"
-          tone="info"
-        />
-      </div>
-    );
-  }
   if (state === "layout-changed") {
     return (
       <div className={NOTICE_FRAME} data-slot="os-upgrade-notice" data-state={state}>
@@ -100,14 +84,13 @@ export function OsUpgradeNoticeView({
   );
 }
 
-/** The notice between the tab bar and the content, while the migration status asks for it. */
+/** The notice between the tab bar and the content, while a failed migration asks for it. */
 export function OsUpgradeNotice() {
   const notice = useOsUpgradeNotice();
   if (notice === null) return null;
   return (
     <OsUpgradeNoticeView
       state={notice.state}
-      summary={notice.summary}
       confirmingReplace={notice.confirmingReplace}
       onDismiss={notice.dismiss}
       onRetry={notice.retry}

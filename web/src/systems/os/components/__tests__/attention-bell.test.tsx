@@ -4,7 +4,8 @@
 // and stale rows stay listed and activatable; loop-node rows render only when
 // supplied and hand their deep-link state to the host; scripts waiting for approval group above
 // Needs you, approve or open Heartbeat without acknowledging anything, and keep the bell from
-// reading as all quiet.
+// reading as all quiet. A layout-upgrade row is news with nowhere to open: activating it marks
+// it read and leaves the bell where it is.
 // Boundary IN: AttentionBell props, section shape, and row union.
 // Boundary OUT: menubar navigation and the cross-workspace jump.
 import { render, screen, within } from "@testing-library/react";
@@ -17,6 +18,7 @@ import { ScriptApprovalsBellSection, type ScriptApprovalItem } from "@/systems/a
 
 import type {
   OsAttentionSections,
+  OsLayoutUpgradeAttentionRow,
   OsLoopNodeAttentionRow,
   OsLoopRequestAttentionRow,
   OsSessionAttentionRow,
@@ -65,6 +67,18 @@ const LOOP_REQUEST: OsLoopRequestAttentionRow = {
   requestKind: "review",
   openedAt: "2026-07-20T12:00:00Z",
   expiresAt: "2026-07-20T12:04:00Z",
+  stale: false,
+};
+
+const LAYOUT_UPGRADE: OsLayoutUpgradeAttentionRow = {
+  kind: "layout-upgrade",
+  id: "ws-atlas",
+  notificationId: "layout-upgrade:ws-atlas:default:2026-11-13T09:00:00Z",
+  title: "Your windows are now tabs",
+  workspaceId: "ws-atlas",
+  workspaceLabel: "atlas",
+  reason: "4 windows became 2 tabs.",
+  occurredAt: "2026-11-13T09:00:00Z",
   stale: false,
 };
 
@@ -378,5 +392,31 @@ describe("AttentionBell sections", () => {
 
     await user.click(row);
     expect(onSelect).toHaveBeenCalledWith(TERMINAL_INPUT);
+  });
+
+  it("Should mark a layout upgrade read on activation instead of opening anything", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onAcknowledge = vi.fn();
+    render(
+      <AttentionBell
+        sections={{ needsYou: [LAYOUT_UPGRADE], finished: [] }}
+        loading={false}
+        onSelect={onSelect}
+        onAcknowledge={onAcknowledge}
+        sessionsDisconnected={false}
+        tasksDisconnected={false}
+      />
+    );
+
+    const row = screen.getByTestId(`os-attention-layout-upgrade-${LAYOUT_UPGRADE.id}`);
+    expect(row).toHaveTextContent("Your windows are now tabs");
+    expect(row).toHaveTextContent("4 windows became 2 tabs.");
+    expect(row).toHaveTextContent("atlas");
+    expect(within(row).getByRole("time")).toBeInTheDocument();
+
+    await user.click(row);
+    expect(onAcknowledge).toHaveBeenCalledWith(LAYOUT_UPGRADE);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

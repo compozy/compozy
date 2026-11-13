@@ -1,14 +1,12 @@
-/** S10: the one-time notice after the layout moved to tabs, driven by the migration status. */
+/**
+ * S10: the notice of a failed move to tabs, driven by the migration status. A successful move is
+ * announced in the bell (`layout-upgrade`), not here.
+ */
 import { RefreshCw, X } from "@compozy/ui/icons";
 
 import { ActionResultBanner, Button, ConfirmDialog } from "@compozy/ui";
 
-export type UpgradeNoticeState =
-  | "migrated"
-  | "failed"
-  | "retrying"
-  | "layout-changed"
-  | "replace-confirm";
+export type UpgradeNoticeState = "failed" | "retrying" | "layout-changed" | "replace-confirm";
 
 export function UpgradeNotice({
   state,
@@ -19,22 +17,6 @@ export function UpgradeNotice({
   onDismiss?: () => void;
   onRetry?: () => void;
 }) {
-  if (state === "migrated") {
-    return (
-      <div className="border-b border-line bg-canvas px-3 py-2" data-slot="os-upgrade-notice">
-        <ActionResultBanner
-          actions={
-            <Button aria-label="Dismiss" onClick={onDismiss} size="icon-sm" variant="quiet">
-              <X aria-hidden="true" className="size-3.75" />
-            </Button>
-          }
-          description="3 floating windows and 2 minimized windows are tabs on this desktop. 1 pin inside a split was removed."
-          title="Your windows are now tabs"
-          tone="info"
-        />
-      </div>
-    );
-  }
   if (state === "layout-changed" || state === "replace-confirm") {
     return (
       <div className="border-b border-line bg-canvas px-3 py-2" data-slot="os-upgrade-notice">
