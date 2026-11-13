@@ -13,6 +13,7 @@ import {
   focusWindow,
   MockCommandError,
   moveWindow,
+  nodeWindowIds,
   openWindow,
   pinTab,
   reopenClosed,
@@ -74,6 +75,35 @@ function parseRoute(value: unknown): MockSnapshot["windows"][string]["route"] {
     throw new MockCommandError("invalid-command", "route must name an absolute path.");
   }
   return { pathname, search: structuredClone(search) };
+}
+
+type MockNode = MockSnapshot["desktops"][number]["tabs"][number]["root"];
+
+function swapLeaves(node: MockNode, first: string, second: string): MockNode {
+  if (node.kind === "leaf") {
+    if (node.window_id === first) return { ...node, window_id: second };
+    if (node.window_id === second) return { ...node, window_id: first };
+    return node;
+  }
+  return {
+    ...node,
+    children: (node.children ?? []).map(child => swapLeaves(child, first, second)),
+  };
+}
+
+/** `window.swap`: two windows of one tab trade places; the shares stay with the places. */
+function swapWindows(snapshot: MockSnapshot, first: string, second: string): MockReduction {
+  for (const desktop of snapshot.desktops) {
+    const index = desktop.tabs.findIndex(tab => {
+      const members = nodeWindowIds(tab.root);
+      return members.includes(first) && members.includes(second);
+    });
+    const tab = desktop.tabs[index];
+    if (tab === undefined) continue;
+    desktop.tabs[index] = { ...tab, root: swapLeaves(tab.root, first, second) };
+    return { windowIds: [first, second], tabIds: [tab.id], desktopIds: [desktop.id] };
+  }
+  throw new MockCommandError("invalid-command", "Swapped windows must share a tab.");
 }
 
 function dedupe(values: readonly string[]): string[] {
@@ -207,6 +237,12 @@ export class StorybookWindowManagerMockRuntime {
           moveGroup: Reflect.get(payload, "move_group") === true,
         });
       }
+      case "window.swap":
+        return swapWindows(
+          snapshot,
+          requiredText(payload, "first_window_id"),
+          requiredText(payload, "second_window_id")
+        );
       case "layout.arrange": {
         const windowIds = Reflect.get(payload, "window_ids");
         if (!Array.isArray(windowIds) || !windowIds.every(id => typeof id === "string")) {

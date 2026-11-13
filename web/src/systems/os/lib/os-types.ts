@@ -4,12 +4,14 @@ import type {
   FocusDirection,
   LayoutDesktop,
   LayoutNodeId,
+  LayoutRevision,
   TabId,
   TabProjection,
   WindowManagerClientView,
   WindowManagerRegisteredClientView,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
+  WindowManagerRebaseGuard,
   WindowManagerSnapshot,
 } from "./window-manager-types";
 
@@ -132,6 +134,15 @@ export interface MoveWindowInput {
   moveGroup?: boolean;
 }
 
+/**
+ * Fences a gesture's command to the layout the operator saw: a stale command still applies when
+ * the guarded window, node or tab is where the gesture found it, and is refused otherwise.
+ */
+export interface WindowManagerCommandFence {
+  expectedRevision: LayoutRevision;
+  rebase: WindowManagerRebaseGuard;
+}
+
 export interface WindowManagerCommandOutcome {
   accepted: boolean;
   /** Total completion: diagnosed runtime failures resolve false instead of rejecting. */
@@ -187,7 +198,17 @@ export interface WindowManagerController extends OsDesktopRuntime {
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   closeWindow(id: string, viewOnly?: boolean): Promise<boolean>;
   focusWindow(id: string): WindowManagerCommandOutcome;
-  moveWindow(id: string, input: MoveWindowInput): WindowManagerCommandOutcome;
+  moveWindow(
+    id: string,
+    input: MoveWindowInput,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
+  /** Swaps two windows of one tab; both keep their places' shares. */
+  swapWindows(
+    firstWindowId: string,
+    secondWindowId: string,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
   resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
   balanceLayout(target: { tabId?: string; splitId?: string }): void;
@@ -203,7 +224,11 @@ export interface WindowManagerController extends OsDesktopRuntime {
   ): WindowManagerCommandOutcome;
   popWindowRoute(id: string, expectedRoute?: OsWindowRoute): WindowManagerCommandOutcome;
   /** Moves the window's tab to `index` within its pinned or unpinned range. */
-  reorderTab(windowId: string, index: number): WindowManagerCommandOutcome;
+  reorderTab(
+    windowId: string,
+    index: number,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome;
   /** Makes the window's tab this client's active tab and the desktop default. */
   activateTab(windowId: string): WindowManagerCommandOutcome;
   /** Pins or unpins the window's tab. */

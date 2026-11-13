@@ -340,7 +340,9 @@ test("E2E-825: a new session lands in the existing Session window instead of ope
   await expect(windowPane(hostWindow)).toHaveAttribute("data-focused", "");
 
   await expect
-    .poll(async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[hostID]?.instance_key)
+    .poll(
+      async () => (await windowManagerSnapshot(runtime, workspace.id)).windows[hostID]?.instance_key
+    )
     .toBe(second);
 });
 
@@ -1724,7 +1726,9 @@ test("E2E-032 (logical E2E-005): the tab shortcut creates a real destination-bac
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const tasksID = await windowID(tasks);
   const shell = osShellSelectors(appPage);
-  const existing = new Set(Object.keys((await windowManagerSnapshot(runtime, workspace.id)).windows));
+  const existing = new Set(
+    Object.keys((await windowManagerSnapshot(runtime, workspace.id)).windows)
+  );
   const freshNewTab = (snapshot: WindowManagerSnapshot) =>
     Object.values(snapshot.windows).find(
       window => window.app === "new-tab" && !existing.has(window.id)
@@ -1882,10 +1886,7 @@ test("E2E-034 (logical E2E-008): a pinned tab refuses Cmd+W and offers Unpin unt
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-  ]);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
   if (!tasksID || !agentsID) throw new Error("pin fixture must open two tabs");
   await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "window.pin",
@@ -2046,7 +2047,10 @@ test("Tabs-split E2E-003: jump and next/previous shortcuts activate the expected
   const workspace = await prepareShell(appPage, runtime);
   await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace"]);
   const shell = osShellSelectors(appPage);
-  const order = desktopTabIds(await windowManagerSnapshot(runtime, workspace.id), "desktop-default");
+  const order = desktopTabIds(
+    await windowManagerSnapshot(runtime, workspace.id),
+    "desktop-default"
+  );
   expect(order.length).toBeGreaterThanOrEqual(4);
   expect(order.length).toBeLessThan(8);
   const expectActive = async (tabId: string | undefined) => {
@@ -2081,10 +2085,7 @@ test("Tabs-split E2E-014 / E2E-037: two clients keep independent active tabs and
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, [
-    "tasks",
-    "agents",
-  ]);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
   if (!tasksID || !agentsID) throw new Error("client-independence fixture must open two tabs");
   const peer = await openPeerPage(browser, runtime);
   try {
@@ -2132,10 +2133,7 @@ test("Tabs-split E2E-014 / E2E-037: two clients keep independent active tabs and
     const marketplace = await openDockApp(appPage, "Marketplace", "marketplace");
     const marketplaceID = await windowID(marketplace);
     await expect(peerShell.tabOfWindow(marketplaceID)).toBeVisible();
-    await expect(peerShell.tabOfWindow(marketplaceID)).not.toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    await expect(peerShell.tabOfWindow(marketplaceID)).not.toHaveAttribute("aria-selected", "true");
     await expect(peerShell.tab(tasksTab)).toHaveAttribute("aria-selected", "true");
     await expect(peer.getByTestId(`os-window-${marketplaceID}`)).toBeHidden();
   } finally {
@@ -2143,16 +2141,241 @@ test("Tabs-split E2E-014 / E2E-037: two clients keep independent active tabs and
   }
 });
 
+// Invariant: dragging a tab along the bar reorders it within its range and the order persists;
+// a pinned tab sits icon-only at the left after reload (US-004, US-005). Owner: tab drag store +
+// `window.tab.reorder`; canonical suite: this file. The "Move left" step of E2E-004 lands with
+// the tab menu's Move left/right in S5.
+test("Tabs-split E2E-004: dragging a tab two positions persists its order; a pinned tab stays left", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  await openFixtureWindows(runtime, workspace.id, ["tasks", "agents", "marketplace"]);
+  const shell = osShellSelectors(appPage);
+  const order = desktopTabIds(
+    await windowManagerSnapshot(runtime, workspace.id),
+    "desktop-default"
+  );
+  expect(order.length).toBeGreaterThanOrEqual(4);
+  // The boot tab leads and is active; drag an inactive fixture tab past two others.
+  const moved = order[1] ?? "";
+  const landing = order[3] ?? "";
+  await expect(shell.tabs).toHaveCount(order.length);
+
+  const from = await boxCenter(shell.tab(moved));
+  const landingBox = await requiredBox(shell.tab(landing));
+  await startPointerDrag(appPage, from);
+  // Past the middle of the tab two places on: the dragged tab lands right after it.
+  await movePointer(appPage, { x: landingBox.x + landingBox.width * 0.8, y: from.y });
+  await expect(appPage.locator('[data-slot="os-tab-insertion"]')).toBeVisible();
+  // Nothing activates during the drag.
+  await expect(shell.tab(moved)).not.toHaveAttribute("aria-selected", "true");
+  await appPage.mouse.up();
+
+  const expected = [order[0], order[2], order[3], moved, ...order.slice(4)];
+  await expect
+    .poll(async () =>
+      desktopTabIds(await windowManagerSnapshot(runtime, workspace.id), "desktop-default")
+    )
+    .toEqual(expected);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(shell.tabs).toHaveCount(order.length);
+  expect(await barTabIds(appPage)).toEqual(expected);
+
+  await shell.tab(landing).click({ button: "right" });
+  await appPage.getByRole("menuitem", { name: "Pin tab" }).click();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(shell.tab(landing)).toHaveAttribute("data-pinned", "");
+  await expect(shell.tabClose(landing)).toHaveCount(0);
+  expect((await barTabIds(appPage))[0]).toBe(landing);
+});
+
+// Invariant: a tab dragged below the bar splits into the active tab at the nearest edge of the
+// window under the pointer, and within 24px of the content's outer edge it becomes a full-height
+// member at that root edge (US-007). Owner: drop-edge + drag store + `window.move`.
+test("Tabs-split E2E-005: dropping tabs on a window's edge and on the content's outer edge splits them", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID, marketplaceID] = await openFixtureWindows(runtime, workspace.id, [
+    "tasks",
+    "agents",
+    "marketplace",
+  ]);
+  if (!tasksID || !agentsID || !marketplaceID) throw new Error("split fixture needs three tabs");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+
+  const tasksBox = await requiredBox(shell.window(tasksID));
+  await startPointerDrag(appPage, await boxCenter(shell.tabOfWindow(agentsID)));
+  await movePointer(appPage, {
+    x: tasksBox.x + tasksBox.width * 0.85,
+    y: tasksBox.y + tasksBox.height / 2,
+  });
+  await expect(appPage.locator('[data-slot="os-drop-zone"][data-edge="right"]')).toBeVisible();
+  await appPage.mouse.up();
+  await expect
+    .poll(async () => {
+      const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+      return tab?.root.kind === "split"
+        ? { axis: tab.root.axis, members: nodeWindowIds(tab.root), weights: tab.root.weights }
+        : null;
+    })
+    .toEqual({ axis: "horizontal", members: [tasksID, agentsID], weights: [0.5, 0.5] });
+  await expect(shell.window(tasksID)).toBeVisible();
+  await expect(shell.window(agentsID)).toBeVisible();
+
+  const layer = await requiredBox(appPage.locator('[data-slot="os-desk-layer"]'));
+  await startPointerDrag(appPage, await boxCenter(shell.tabOfWindow(marketplaceID)));
+  await movePointer(appPage, { x: layer.x + 8, y: layer.y + layer.height / 2 });
+  await expect(appPage.locator('[data-slot="os-drop-zone-root"][data-edge="left"]')).toBeVisible();
+  await appPage.mouse.up();
+  await expect
+    .poll(async () => {
+      const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+      return tab?.root.kind === "split"
+        ? { axis: tab.root.axis, members: (tab.root.children ?? []).map(nodeWindowIds) }
+        : null;
+    })
+    .toEqual({ axis: "horizontal", members: [[marketplaceID], [tasksID], [agentsID]] });
+});
+
+// Invariant: dragging the active tab below the bar previews the previously active tab as the
+// drop target, and Escape restores the active tab and order without a command (US-007.EC-1/EC-4).
+test("Tabs-split E2E-006: dragging the active tab previews the previous tab and Escape restores it", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("preview fixture needs two tabs");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  await showTab(appPage, runtime, workspace.id, agentsID);
+  const before = await windowManagerSnapshot(runtime, workspace.id);
+
+  const from = await boxCenter(shell.tabOfWindow(agentsID));
+  const layer = await requiredBox(appPage.locator('[data-slot="os-desk-layer"]'));
+  await startPointerDrag(appPage, from);
+  await movePointer(appPage, { x: layer.x + layer.width * 0.6, y: layer.y + layer.height / 2 });
+  await expect(shell.window(tasksID)).toBeVisible();
+  await expect(shell.window(agentsID)).toBeHidden();
+  await expect(appPage.locator('[data-slot="os-drag-ghost"]')).toBeVisible();
+
+  await appPage.keyboard.press("Escape");
+  await appPage.mouse.up();
+  await expect(appPage.locator('[data-slot="os-drag-ghost"]')).toHaveCount(0);
+  await expect(shell.tabOfWindow(agentsID)).toHaveAttribute("aria-selected", "true");
+  await expect(shell.window(agentsID)).toBeVisible();
+  await expect(shell.window(tasksID)).toBeHidden();
+  const after = await windowManagerSnapshot(runtime, workspace.id);
+  expect(desktopTabIds(after, "desktop-default")).toEqual(desktopTabIds(before, "desktop-default"));
+  expect(tabForWindow(after, agentsID)?.root.kind).toBe("leaf");
+});
+
+// Invariant: a member's head dropped on a sibling's edge moves it there; with the swap modifier
+// the two members trade places (US-008). Owner: drag store + `window.move` / `window.swap`.
+test("Tabs-split E2E-007: a head dropped on a sibling's top edge stacks them, and Shift swaps them", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("rearrange fixture needs two windows");
+  await splitWindowBeside(runtime, workspace.id, agentsID, tasksID, "right");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  await expect(shell.window(agentsID)).toBeVisible();
+
+  const head = (windowId: string) => shell.window(windowId).locator('[data-slot="os-window-head"]');
+  const tasksBox = await requiredBox(shell.window(tasksID));
+  await startPointerDrag(appPage, await boxCenter(head(agentsID)));
+  await movePointer(appPage, {
+    x: tasksBox.x + tasksBox.width / 2,
+    y: tasksBox.y + tasksBox.height * 0.2,
+  });
+  await expect(appPage.locator('[data-slot="os-drop-zone"][data-edge="top"]')).toBeVisible();
+  await appPage.mouse.up();
+  const arrangement = async () => {
+    const tab = tabForWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID);
+    return tab?.root.kind === "split"
+      ? { axis: tab.root.axis, members: nodeWindowIds(tab.root) }
+      : null;
+  };
+  await expect.poll(arrangement).toEqual({ axis: "vertical", members: [agentsID, tasksID] });
+
+  const target = await requiredBox(shell.window(tasksID));
+  await startPointerDrag(appPage, await boxCenter(head(agentsID)));
+  await appPage.keyboard.down("Shift");
+  await movePointer(appPage, { x: target.x + target.width / 2, y: target.y + target.height / 2 });
+  await expect(appPage.locator('[data-slot="os-drop-zone"][data-mode="swap"]')).toBeVisible();
+  await appPage.mouse.up();
+  await appPage.keyboard.up("Shift");
+  await expect.poll(arrangement).toEqual({ axis: "vertical", members: [tasksID, agentsID] });
+});
+
+// Invariant: a seam drag changes only its two sides' shares and persists; a double-click
+// balances them; arrow keys move a focused seam (US-009). Owner: seam hook + `layout.resize`
+// and `layout.balance`.
+test("Tabs-split E2E-008: seam drag persists, double-click balances, and arrow keys resize", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const [tasksID, agentsID] = await openFixtureWindows(runtime, workspace.id, ["tasks", "agents"]);
+  if (!tasksID || !agentsID) throw new Error("seam fixture needs two windows");
+  await splitWindowBeside(runtime, workspace.id, agentsID, tasksID, "right");
+  const shell = osShellSelectors(appPage);
+  await showTab(appPage, runtime, workspace.id, tasksID);
+  const seam = appPage.locator('[data-slot="os-split-seam"][role="separator"]:visible');
+  await expect(seam).toHaveCount(1);
+  const leading = async () =>
+    splitHoldingWindow(await windowManagerSnapshot(runtime, workspace.id), tasksID)?.weights?.[0] ??
+    0;
+
+  const from = await boxCenter(seam);
+  await startPointerDrag(appPage, from);
+  await movePointer(appPage, { x: from.x + 150, y: from.y });
+  await expect(seam).toHaveAttribute("data-state", "drag");
+  await appPage.mouse.up();
+  await expect.poll(leading).toBeGreaterThan(0.55);
+  const committed = await leading();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(shell.window(tasksID)).toBeVisible();
+  const share = async () => {
+    const [left, right] = await Promise.all([
+      requiredBox(shell.window(tasksID)),
+      requiredBox(shell.window(agentsID)),
+    ]);
+    return left.width / (left.width + right.width);
+  };
+  await expect.poll(share).toBeCloseTo(committed, 1);
+
+  await seam.dblclick();
+  await expect.poll(leading).toBeCloseTo(0.5, 3);
+
+  await seam.focus();
+  await appPage.keyboard.press("ArrowRight");
+  await expect.poll(leading).toBeCloseTo(0.52, 3);
+  await expect(seam).toHaveAttribute("aria-valuenow", "52");
+});
+
 test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque identity", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const [tasksID, agentsID, duplicateAgentsID] = await openFixtureWindows(
-    runtime,
-    workspace.id,
-    ["tasks", "agents", "agents"]
-  );
+  const [tasksID, agentsID, duplicateAgentsID] = await openFixtureWindows(runtime, workspace.id, [
+    "tasks",
+    "agents",
+    "agents",
+  ]);
   if (!tasksID || !agentsID || !duplicateAgentsID) {
     throw new Error("palette fixture must create duplicate tab labels");
   }
@@ -2224,7 +2447,10 @@ test("E2E-039 (logical E2E-004/013): a crowded tab bar keeps overflow, tooltip, 
     Array.from({ length: 15 }, () => "tasks")
   );
   const shell = osShellSelectors(appPage);
-  const order = desktopTabIds(await windowManagerSnapshot(runtime, workspace.id), "desktop-default");
+  const order = desktopTabIds(
+    await windowManagerSnapshot(runtime, workspace.id),
+    "desktop-default"
+  );
   expect(order.length).toBeGreaterThanOrEqual(15);
   await expect(shell.tabs).toHaveCount(order.length);
   for (const id of ids) await expect(shell.tabOfWindow(id)).toHaveCount(1);
@@ -2819,9 +3045,9 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     for (const peer of peers) {
       await expect(osShellSelectors(peer).tabs).toHaveCount(measuredCount);
     }
-    expect(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id).toBe(
-      tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id
-    );
+    expect(
+      tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id
+    ).toBe(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id);
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
   } finally {
     await peerA.context().close();
@@ -3262,12 +3488,48 @@ function splitHoldingWindow(
       const nested = visit(child);
       if (nested) return nested;
     }
-    return (node.children ?? []).some(child => child.kind === "leaf" && child.window_id === windowId)
+    return (node.children ?? []).some(
+      child => child.kind === "leaf" && child.window_id === windowId
+    )
       ? node
       : null;
   };
   const tab = tabForWindow(snapshot, windowId);
   return tab ? visit(tab.root) : null;
+}
+
+async function requiredBox(locator: Locator): Promise<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}> {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("the drag fixture needs a visible element");
+  return box;
+}
+
+async function boxCenter(locator: Locator): Promise<{ x: number; y: number }> {
+  const box = await requiredBox(locator);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** Presses at `point` and moves past the drag threshold, leaving the button down. */
+async function startPointerDrag(page: Page, point: { x: number; y: number }): Promise<void> {
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  await page.mouse.move(point.x + 8, point.y + 2, { steps: 4 });
+}
+
+async function movePointer(page: Page, point: { x: number; y: number }): Promise<void> {
+  await page.mouse.move(point.x, point.y, { steps: 12 });
+}
+
+/** The active desktop's tab IDs in rendered bar order. */
+async function barTabIds(page: Page): Promise<string[]> {
+  return osShellSelectors(page).tabs.evaluateAll(tabs =>
+    tabs.map(tab => (tab.getAttribute("data-testid") ?? "").replace(/^os-tab-/, ""))
+  );
 }
 
 async function assertDesktopPagerLayout(page: Page): Promise<void> {

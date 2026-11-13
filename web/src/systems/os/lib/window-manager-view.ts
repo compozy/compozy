@@ -70,6 +70,53 @@ export function buildActiveTabIds(
   return activeTabIds;
 }
 
+interface ProjectionContext {
+  workArea: PixelRect;
+  config: WindowManagerConfig;
+  minimums: WindowMinimums;
+  focusOrder: readonly string[];
+  compact: boolean;
+}
+
+function projectionInputFor(tab: LayoutTab, context: ProjectionContext) {
+  return {
+    tab,
+    workArea: context.workArea,
+    gaps: context.config.gaps,
+    minimums: context.minimums,
+    focusOrder: context.focusOrder,
+    compact: context.compact,
+  };
+}
+
+/**
+ * The snapshot with a live seam drag applied to its split, so the rendered weights, the
+ * projection and every view of the tab show the previewed shares until `layout.resize` commits.
+ * The pixel delta is clamped against the tab's unpreviewed projection.
+ */
+function withSeamPreview(
+  snapshot: WindowManagerSnapshot,
+  context: ProjectionContext,
+  preview: SeamPreview | null | undefined
+): WindowManagerSnapshot {
+  if (!preview) return snapshot;
+  let changed = false;
+  const desktops = snapshot.desktops.map(desktop => {
+    const tabs = desktop.tabs.map(tab => {
+      const seam = projectTab(projectionInputFor(tab, context)).seams.find(
+        candidate =>
+          candidate.splitId === preview.splitId && candidate.boundaryIndex === preview.boundaryIndex
+      );
+      if (seam === undefined) return tab;
+      const previewed = applySeamPreviewToTab(tab, seam, preview.deltaPx);
+      if (previewed !== tab) changed = true;
+      return previewed;
+    });
+    return tabs.some((tab, index) => tab !== desktop.tabs[index]) ? { ...desktop, tabs } : desktop;
+  });
+  return changed ? { ...snapshot, desktops } : snapshot;
+}
+
 /** Every tab's split tree projected against the one measured content area. */
 export function buildWindowManagerProjections(input: {
   snapshot: WindowManagerSnapshot | null;
@@ -77,42 +124,22 @@ export function buildWindowManagerProjections(input: {
   workArea: PixelRect;
   config: WindowManagerConfig | null;
   compact: boolean;
-  seamPreview?: SeamPreview | null;
 }): Readonly<Record<TabId, TabProjection>> {
   const { snapshot, config } = input;
   if (snapshot === null || config === null) return {};
-  const minimums = buildWindowManagerMinimums(snapshot);
+  const context: ProjectionContext = {
+    workArea: input.workArea,
+    config,
+    minimums: buildWindowManagerMinimums(snapshot),
+    focusOrder: input.client?.focusOrder ?? [],
+    compact: input.compact,
+  };
   const projections: Record<TabId, TabProjection> = {};
   for (const desktop of snapshot.desktops) {
-    for (const tab of desktop.tabs) {
-      const projectionInput = {
-        tab,
-        workArea: input.workArea,
-        gaps: config.gaps,
-        minimums,
-        focusOrder: input.client?.focusOrder ?? [],
-        compact: input.compact,
-      };
-      const projection = projectTab(projectionInput);
-      projections[tab.id] = withSeamPreview(projection, projectionInput, input.seamPreview);
-    }
+    for (const tab of desktop.tabs)
+      projections[tab.id] = projectTab(projectionInputFor(tab, context));
   }
   return projections;
-}
-
-/** Re-projects a tab against its unadjusted seam while a live seam preview is active. */
-function withSeamPreview(
-  projection: TabProjection,
-  input: Parameters<typeof projectTab>[0],
-  preview: SeamPreview | null | undefined
-): TabProjection {
-  if (!preview) return projection;
-  const seam = projection.seams.find(
-    candidate =>
-      candidate.splitId === preview.splitId && candidate.boundaryIndex === preview.boundaryIndex
-  );
-  if (seam === undefined) return projection;
-  return projectTab({ ...input, tab: applySeamPreviewToTab(input.tab, seam, preview.deltaPx) });
 }
 
 function leafNodeIds(node: LayoutNode, into: Map<string, string>): Map<string, string> {
@@ -193,7 +220,20 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
   const compactViewport = (input.viewportWidth ?? workArea.w) < OS_COMPACT_BREAKPOINT;
   const compact = compactViewport && config?.smallViewportPolicy === "stack";
   const viewportRejected = compactViewport && config?.smallViewportPolicy === "reject";
-  const live = config ? snapshot : null;
+  const live =
+    snapshot && config
+      ? withSeamPreview(
+          snapshot,
+          {
+            workArea,
+            config,
+            minimums: buildWindowManagerMinimums(snapshot),
+            focusOrder: client?.focusOrder ?? [],
+            compact,
+          },
+          input.seamPreview
+        )
+      : null;
   const activeTabIds = buildActiveTabIds(live, client);
   const projections = buildWindowManagerProjections({
     snapshot: live,
@@ -201,7 +241,6 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     workArea,
     config,
     compact,
-    seamPreview: input.seamPreview,
   });
   const windows = buildWindowManagerWindows({
     snapshot: live,
@@ -217,7 +256,8 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     windowManagerConfig: config,
     client,
     clientAttachmentToken: null,
-    desktops: snapshot?.desktops ?? [],
+    // The rendered desktops carry a live seam preview; `snapshot` stays authoritative.
+    desktops: (live ?? snapshot)?.desktops ?? [],
     activeTabIds,
     projections,
     windows,

@@ -9,6 +9,8 @@ import {
 } from "@/systems/workspace";
 
 import { WindowLiveDataContext } from "../contexts/window-live-data-context";
+import { useDesktop } from "../hooks/use-desktop";
+import { useOsTabDragStart, useOsTabPreviewed, useOsWindowDragged } from "../hooks/use-os-tab-drag";
 import { useOsWindowMember } from "../hooks/use-os-window-member";
 import { useDeskBoundToActingProfile } from "../hooks/use-window-manager-store";
 import { osAppId } from "../lib/app-catalog";
@@ -30,7 +32,17 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
   // Mount layout-heavy bodies, including app skeletons, after the pane commits.
   const contentHost = useDeferredValue(overlayHost);
   const deskBound = useDeskBoundToActingProfile();
+  const { startHeadDrag } = useOsTabDragStart();
+  const dragged = useOsWindowDragged(windowId);
+  // A drag previews another tab's content without activating it: its windows show too.
+  const previewed = useOsTabPreviewed(win?.tabId ?? null);
+  const projectedShown = useDesktop(
+    state =>
+      state.projections[win?.tabId ?? ""]?.windows.find(entry => entry.windowId === windowId)
+        ?.shown ?? true
+  );
   if (!win) return null;
+  const visible = win.shown || (previewed && projectedShown);
   const appId = osAppId(win.app);
   if (appId === null) return null;
   const app = getOsApp(appId);
@@ -68,8 +80,9 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
       slotStore={ensureWindowSlotStore(windowId)}
       // The runtime animates in-window drills against this one named body.
       bodyTransitionName={focused && win.shown ? "os-window-body" : undefined}
-      className="relative"
-      hidden={!win.shown}
+      onHeadPointerDown={event => startHeadDrag(windowId, event)}
+      className={dragged ? "relative opacity-45" : "relative"}
+      hidden={!visible}
       // Named region landmark per window: assistive tech can jump between
       // windows the way sighted users scan the desktop (WCAG landmarks).
       aria-label={`${app.title} window`}
@@ -78,7 +91,7 @@ export const OsWindowPane = memo(function OsWindowPane({ windowId }: { windowId:
       data-app={win.app}
       data-instance-key={win.instanceKey}
       data-focused={focused ? "" : undefined}
-      data-shown={win.shown ? "" : undefined}
+      data-shown={visible ? "" : undefined}
     >
       <OverlayContainerContext.Provider value={contentHost}>
         {contentHost && deskBound ? (

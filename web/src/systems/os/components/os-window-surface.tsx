@@ -99,6 +99,8 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
   focused?: boolean;
   /** Closes this window; omitted renders a head without controls. */
   onClose?: () => void;
+  /** Starts a drag by the head: the window moves inside its split, or its tab moves. */
+  onHeadPointerDown?: (event: React.PointerEvent<HTMLElement>) => void;
   headClassName?: string;
   slotStore?: TopbarSlotStore;
   /**
@@ -115,6 +117,7 @@ export function OsWindowSurface({
   leading,
   focused = true,
   onClose,
+  onHeadPointerDown,
   headClassName,
   slotStore,
   bodyTransitionName,
@@ -134,6 +137,7 @@ export function OsWindowSurface({
         <Topbar
           data-slot="os-window-head"
           data-scrolled={scrolled ? "" : undefined}
+          onPointerDown={onHeadPointerDown}
           // S5 adds the window head's split controls (Move to new tab) beside Close.
           controls={
             onClose ? (
@@ -147,6 +151,7 @@ export function OsWindowSurface({
           leading={leading}
           className={cn(
             scrolled && "border-line-strong",
+            onHeadPointerDown && "cursor-grab active:cursor-grabbing",
             !focused &&
               "[&_[data-slot=topbar-identity]]:opacity-55 [&_[data-slot=topbar-trailing]]:opacity-55",
             headClassName

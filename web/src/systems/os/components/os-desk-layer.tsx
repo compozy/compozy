@@ -13,9 +13,14 @@ import {
 import { useTabSessions } from "../hooks/use-os-tab-bar";
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
+import { useOsSplitSeam } from "../hooks/use-os-split-seam";
+import { useOsTabDrag } from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
+import type { TabProjection } from "../lib/window-manager-types";
+import type { TabDragState } from "../stores/os-tab-drag-store";
+import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
-import { OsSplitView } from "./os-split-view";
+import { OsSplitSeam, OsSplitView, type OsSplitSeamSlot } from "./os-split-view";
 import { OsWindowPane } from "./os-window-pane";
 
 /** Maps transition state to a keyframe name; reduced motion still fires an instant fade so end events run. */
@@ -85,6 +90,55 @@ function desktopLayerView(input: {
 
 const renderWindow = (windowId: string) => <OsWindowPane key={windowId} windowId={windowId} />;
 
+/** A laid-out seam: drag to resize, double-click to balance, arrow keys when focused. */
+function LiveOsSplitSeam({ slot }: { slot: OsSplitSeamSlot }) {
+  const { state, onPointerDown, onKeyDown, onDoubleClick } = useOsSplitSeam(
+    slot.seam,
+    slot.memberCount
+  );
+  if (slot.seam === undefined) return <OsSplitSeam axis={slot.axis} />;
+  const { leadingWeight, trailingWeight } = slot.seam;
+  const pair = leadingWeight + trailingWeight;
+  return (
+    <OsSplitSeam
+      axis={slot.axis}
+      valueNow={pair > 0 ? Math.round((leadingWeight / pair) * 100) : undefined}
+      state={state}
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+      onDoubleClick={onDoubleClick}
+    />
+  );
+}
+
+const renderSeam = (slot: OsSplitSeamSlot) => (
+  <LiveOsSplitSeam key={`${slot.splitId}:${slot.boundaryIndex}`} slot={slot} />
+);
+
+/** The drop zone a drag shows over this tab's content, if its target is here. */
+function DropZones({
+  tabId,
+  drag,
+  projection,
+}: {
+  tabId: string;
+  drag: TabDragState;
+  projection: TabProjection | undefined;
+}) {
+  const target = drag.target;
+  if (drag.phase !== "dragging" || drag.contentTabId !== tabId || target === null) return null;
+  if (target.kind === "root")
+    return target.tabId === tabId ? <OsRootDropZone edge={target.edge} /> : null;
+  if (target.kind !== "window" && target.kind !== "swap") return null;
+  const rect = projection?.windows.find(entry => entry.windowId === target.windowId)?.rect;
+  if (rect === undefined) return null;
+  return target.kind === "swap" ? (
+    <OsDropZone rect={rect} edge="left" mode="swap" />
+  ) : (
+    <OsDropZone rect={rect} edge={target.edge} />
+  );
+}
+
 function DeskLayer({
   model,
   windows,
@@ -110,10 +164,18 @@ function DeskLayer({
     viewportReady,
     transition,
   });
+  const drag = useOsTabDrag();
   const tabs = model.desktop.tabs;
+  // A drag shows another tab's content as its drop target; nothing activates until the drop.
+  const previewing =
+    drag.phase === "dragging" &&
+    drag.session?.desktopId === model.desktop.id &&
+    drag.contentTabId !== null &&
+    tabs.some(tab => tab.id === drag.contentTabId);
+  const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
   const visited = useVisitedTabs(
     tabs.map(tab => tab.id),
-    model.activeTabId
+    shownTabId
   );
 
   return (
@@ -134,7 +196,8 @@ function DeskLayer({
       {visited.map(tabId => {
         const tab = tabs.find(entry => entry.id === tabId);
         if (tab === undefined) return null;
-        const active = tabId === model.activeTabId;
+        const active = tabId === shownTabId;
+        const projection = projections[tabId];
         return (
           <div
             key={tabId}
@@ -147,11 +210,15 @@ function DeskLayer({
             <OsSplitView
               root={tab.root}
               windows={windows}
-              collapsed={projections[tabId]?.collapsed ?? []}
+              collapsed={projection?.collapsed ?? []}
+              seams={projection?.seams}
               sessionOf={sessionOf}
               renderWindow={renderWindow}
+              renderSeam={renderSeam}
               onShowMember={windowId => void coordinator.userFocus(windowId)}
-            />
+            >
+              <DropZones tabId={tabId} drag={drag} projection={projection} />
+            </OsSplitView>
           </div>
         );
       })}

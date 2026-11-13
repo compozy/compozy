@@ -10,7 +10,13 @@ import {
   type StateGlyphState,
 } from "@compozy/ui";
 import { X } from "@compozy/ui/icons";
-import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import {
+  Fragment,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -175,8 +181,14 @@ export interface OsTabProps {
   sessionOf: (win: OsWindow) => SessionPayload | undefined;
   /** Allocated width; omitted renders at the widest. Pinned tabs ignore it. */
   width?: number;
+  /** This tab is being dragged. */
+  dragging?: boolean;
+  /** A dragged window head is held over this tab (US-008.AC-3). */
+  dwelling?: boolean;
   onActivate?: () => void;
   onClose?: () => void;
+  /** Starts a drag: along the bar to reorder, into the content to split. */
+  onPointerDown?: (event: PointerEvent<HTMLElement>) => void;
 }
 
 /**
@@ -191,8 +203,11 @@ export function OsTab({
   active,
   sessionOf,
   width,
+  dragging = false,
+  dwelling = false,
   onActivate,
   onClose,
+  onPointerDown,
 }: OsTabProps) {
   const lead = members[0]!;
   const title = useOsWindowTitle(lead, sessionOf(lead));
@@ -228,8 +243,11 @@ export function OsTab({
               // A pinned tab hugs its tile: the same 3.5px on every side.
               pinned ? "pr-[3.5px]" : "pr-1",
               active ? "bg-fg/7 text-fg" : "bg-fg/4 text-fg-2 hover:bg-fg/6 hover:text-fg",
-              "has-[:focus-visible]:shadow-focus-ring"
+              "has-[:focus-visible]:shadow-focus-ring",
+              dwelling && "bg-brand-tint-strong text-fg ring-1 ring-brand",
+              dragging && "opacity-40"
             )}
+            data-dragging={dragging ? "" : undefined}
             data-active={active ? "" : undefined}
             data-pinned={pinned ? "" : undefined}
             data-slot="os-tab"
@@ -251,6 +269,7 @@ export function OsTab({
               )}
               onClick={onActivate}
               onAuxClick={closeOnMiddleClick}
+              onPointerDown={onPointerDown}
             >
               <span className="relative shrink-0">
                 <OsTabTiles members={members} sessionOf={sessionOf} />

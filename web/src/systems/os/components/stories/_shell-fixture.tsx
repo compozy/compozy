@@ -78,7 +78,10 @@ const SNAPSHOT: WindowManagerSnapshot = {
       id: STORY_DESKTOP_ID,
       name: "Launch",
       order: 0,
-      tabs: [soloTab("tab:story-tasks", "w-story-tasks"), soloTab("tab:story-agents", "w-story-agents")],
+      tabs: [
+        soloTab("tab:story-tasks", "w-story-tasks"),
+        soloTab("tab:story-agents", "w-story-agents"),
+      ],
       activeTabId: "tab:story-tasks",
     },
     {
@@ -160,6 +163,7 @@ export function createLiveStoryShell({
     closeWindow: async () => true,
     focusWindow: () => outcome(),
     moveWindow: () => outcome(),
+    swapWindows: () => outcome(),
     arrangeLayout: fn(),
     resizeLayout: () => outcome(),
     balanceLayout: fn(),

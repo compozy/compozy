@@ -4,6 +4,7 @@ import type {
   OsCloseScope,
   OsNavigateMode,
   OsWindowRoute,
+  WindowManagerCommandFence,
   WindowManagerCommandOutcome,
 } from "../lib/os-types";
 import {
@@ -136,8 +137,12 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     return this.withRouteIntent(id, expectedRoute, outcome, "drill-out");
   };
 
-  reorderTab = (windowId: string, index: number): WindowManagerCommandOutcome =>
-    this.dispatch(reorderTabCommand(windowId, index));
+  reorderTab = (
+    windowId: string,
+    index: number,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome =>
+    this.dispatch({ ...reorderTabCommand(windowId, index), ...fence });
 
   activateTab = (windowId: string): WindowManagerCommandOutcome =>
     this.dispatch(activateTabCommand(windowId));

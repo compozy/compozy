@@ -1,4 +1,5 @@
 import { shallowEqual } from "@xstate/store";
+import { useSelector } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 
 import { type SessionPayload, useSessions } from "@/systems/session";
@@ -9,6 +10,7 @@ import { leadWindowId, resolveActiveTabId, tabWindowIds } from "../lib/tab-model
 import { allocateTabWidths, type TabWidthAllocation } from "../lib/tab-width";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type { LayoutTab } from "../lib/window-manager-types";
+import { osTabDragStore } from "../stores/os-tab-drag-store";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -50,9 +52,30 @@ function sameTabModels(left: readonly OsTabModel[] | undefined, right: readonly 
   });
 }
 
+/**
+ * The bar order a reorder drop committed, held until the daemon answers so the tab never jumps
+ * back for a round trip. Tabs the held order does not know keep their place after it.
+ */
+function withSettlingOrder(
+  models: readonly OsTabModel[],
+  order: readonly string[] | null
+): readonly OsTabModel[] {
+  if (order === null) return models;
+  const rank = (model: OsTabModel) => {
+    const index = order.indexOf(model.tab.id);
+    return index < 0 ? order.length : index;
+  };
+  return [...models].sort((left, right) => rank(left) - rank(right));
+}
+
 /** The active desktop's tabs in bar order, each with its members and lead window. */
 export function useOsTabModels(): readonly OsTabModel[] {
-  return useDesktop(state => {
+  const activeDesktopId = useDesktop(state => state.activeDesktopId);
+  const settlingOrder = useSelector(osTabDragStore, snapshot => {
+    const settling = snapshot.context.settling;
+    return settling !== null && settling.desktopId === activeDesktopId ? settling.order : null;
+  });
+  const models = useDesktop(state => {
     const desktop = state.desktops.find(entry => entry.id === state.activeDesktopId);
     if (desktop === undefined) return [];
     const activeTabId = state.activeTabIds[desktop.id] ?? resolveActiveTabId(desktop, null);
@@ -66,6 +89,7 @@ export function useOsTabModels(): readonly OsTabModel[] {
       return [{ tab, active: tab.id === activeTabId, leadId, members }];
     });
   }, sameTabModels);
+  return withSettlingOrder(models, settlingOrder);
 }
 
 /** Live sessions by id, read only while some tab holds a session window. */

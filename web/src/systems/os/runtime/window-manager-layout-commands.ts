@@ -1,6 +1,7 @@
 import type {
   MoveWindowInput,
   OsArrangePreset,
+  WindowManagerCommandFence,
   WindowManagerCommandOutcome,
 } from "../lib/os-types";
 import {
@@ -8,6 +9,7 @@ import {
   balanceLayoutCommand,
   moveWindowCommand,
   resizeLayoutCommand,
+  swapWindowsCommand,
 } from "../lib/window-manager-command-builders";
 import { arrangeParticipants } from "../lib/window-manager-navigation";
 import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
@@ -17,8 +19,19 @@ import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
  * and split weights. Every method dispatches one semantic daemon command; pixels never persist.
  */
 export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime {
-  moveWindow = (id: string, input: MoveWindowInput): WindowManagerCommandOutcome =>
-    this.dispatch(moveWindowCommand(id, input));
+  /** A fenced move is refused when the window or its target is no longer where the gesture saw it. */
+  moveWindow = (
+    id: string,
+    input: MoveWindowInput,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome => this.dispatch({ ...moveWindowCommand(id, input), ...fence });
+
+  swapWindows = (
+    firstWindowId: string,
+    secondWindowId: string,
+    fence?: WindowManagerCommandFence
+  ): WindowManagerCommandOutcome =>
+    this.dispatch({ ...swapWindowsCommand(firstWindowId, secondWindowId), ...fence });
 
   /** Gathers the anchor, the rest of its tab, and one window per other tab into one split tab. */
   arrangeLayout = (anchorId: string, preset: OsArrangePreset): void => {

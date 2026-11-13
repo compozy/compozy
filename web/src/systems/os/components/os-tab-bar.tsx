@@ -6,13 +6,16 @@ import {
   DropdownMenuTrigger,
 } from "@compozy/ui";
 import { ChevronDown, Plus } from "@compozy/ui/icons";
-import { Fragment } from "react";
+import { Fragment, type PointerEvent } from "react";
 
 import { cn } from "@/lib/utils";
 import type { SessionPayload } from "@/systems/session";
 
 import { useOsTabBar, type OsTabBarModel, type OsTabModel } from "../hooks/use-os-tab-bar";
+import { useOsTabDrag, useOsTabDragStart } from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
+import type { TabDragState } from "../stores/os-tab-drag-store";
+import { OsDragGhost } from "./os-drag-ghost";
 import { OsTab, useOsWindowTitle } from "./os-tab";
 import { OsTabMenu } from "./os-tab-menu";
 
@@ -81,12 +84,56 @@ function OsTabOverflow({
   );
 }
 
+/** The 2px marker where a dragged tab would land. */
+function OsTabInsertion() {
+  return (
+    <span
+      aria-hidden="true"
+      className="h-6.75 w-0.5 shrink-0 rounded-pill bg-brand"
+      data-slot="os-tab-insertion"
+    />
+  );
+}
+
+/** What a drag in progress shows on the bar; the idle bar shows none of it. */
+export interface OsTabBarDragView {
+  insertionIndex: number | null;
+  draggingTabId: string | null;
+  dwellingTabId: string | null;
+}
+
+const IDLE_DRAG: OsTabBarDragView = {
+  insertionIndex: null,
+  draggingTabId: null,
+  dwellingTabId: null,
+};
+
+function barDragView(drag: TabDragState): OsTabBarDragView {
+  if (drag.phase !== "dragging" || drag.session === null) return IDLE_DRAG;
+  const { source } = drag.session;
+  return {
+    insertionIndex: drag.insertionIndex,
+    draggingTabId: source.kind === "tab" ? source.tabId : null,
+    dwellingTabId: drag.dwell?.tabId ?? null,
+  };
+}
+
 /**
  * The active desktop's one bar, on the chrome above the content. Pinned tabs lead, regular tabs
  * shrink to fit, then the new-tab button; when tabs hit the floor the strip scrolls and the
  * overflow list names every tab.
  */
-export function OsTabBarView({ bar, className }: { bar: OsTabBarModel; className?: string }) {
+export function OsTabBarView({
+  bar,
+  drag = IDLE_DRAG,
+  onTabPointerDown,
+  className,
+}: {
+  bar: OsTabBarModel;
+  drag?: OsTabBarDragView;
+  onTabPointerDown?: (tabId: string, event: PointerEvent<HTMLElement>) => void;
+  className?: string;
+}) {
   const sessionOf = sessionLookup(bar.sessionById);
   const pinnedCount = bar.tabs.filter(model => model.tab.pinned).length;
   return (
@@ -102,6 +149,7 @@ export function OsTabBarView({ bar, className }: { bar: OsTabBarModel; className
         <div aria-label="Tabs" className="contents" data-testid="os-tab-bar" role="tablist">
           {bar.tabs.map((model, index) => (
             <Fragment key={model.tab.id}>
+              {drag.insertionIndex === index ? <OsTabInsertion /> : null}
               {index === pinnedCount && pinnedCount > 0 ? (
                 <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-line-strong" />
               ) : null}
@@ -113,12 +161,16 @@ export function OsTabBarView({ bar, className }: { bar: OsTabBarModel; className
                   active={model.active}
                   sessionOf={sessionOf}
                   width={bar.widthByTabId.get(model.tab.id)}
+                  dragging={drag.draggingTabId === model.tab.id}
+                  dwelling={drag.dwellingTabId === model.tab.id}
                   onActivate={() => bar.activate(model.tab.id)}
                   onClose={() => bar.close(model.tab.id)}
+                  onPointerDown={event => onTabPointerDown?.(model.tab.id, event)}
                 />
               </OsTabMenu>
             </Fragment>
           ))}
+          {drag.insertionIndex === bar.tabs.length ? <OsTabInsertion /> : null}
         </div>
         <Button
           type="button"
@@ -139,8 +191,20 @@ export function OsTabBarView({ bar, className }: { bar: OsTabBarModel; className
 
 export type OsTabBarProps = { className?: string };
 
-/** The live tab bar bound to the shell's window manager. */
+/** The live tab bar bound to the shell's window manager, with its drags and their ghost. */
 export function OsTabBar({ className }: OsTabBarProps) {
   const bar = useOsTabBar();
-  return <OsTabBarView bar={bar} className={className} />;
+  const drag = useOsTabDrag();
+  const { startTabDrag } = useOsTabDragStart();
+  return (
+    <>
+      <OsTabBarView
+        bar={bar}
+        drag={barDragView(drag)}
+        onTabPointerDown={startTabDrag}
+        className={className}
+      />
+      <OsDragGhost sessionOf={sessionLookup(bar.sessionById)} />
+    </>
+  );
 }

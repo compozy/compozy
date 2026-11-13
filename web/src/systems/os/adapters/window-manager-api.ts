@@ -165,6 +165,7 @@ function commandBody(
 ): Record<string, unknown> {
   const rebase = command.rebase
     ? {
+        ...(command.rebase.tabId ? { tab_id: command.rebase.tabId } : {}),
         ...(command.rebase.windowId ? { window_id: command.rebase.windowId } : {}),
         ...(command.rebase.sourceNodeId ? { source_node_id: command.rebase.sourceNodeId } : {}),
         ...(command.rebase.targetNodeId ? { target_node_id: command.rebase.targetNodeId } : {}),

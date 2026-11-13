@@ -238,13 +238,20 @@ describe("window-manager view", () => {
     expect(view.hydration).toBe("live");
   });
 
-  it("Should re-project a split against a live seam preview", () => {
+  // Invariant: a seam drag previews in the rendered tab and its projection alike, while the
+  // authoritative snapshot keeps the committed weights until `layout.resize` lands.
+  it("Should re-project and render a split against a live seam preview", () => {
     const view = buildOsDesktopRuntimeView(
       viewInput({ seamPreview: { splitId: "split:main", boundaryIndex: 0, deltaPx: 100 } })
     );
     const [dashboard, tasks] = view.projections["tab:split"]?.windows ?? [];
 
     expect(dashboard?.rect.w).toBeGreaterThan(tasks?.rect.w ?? Number.POSITIVE_INFINITY);
+    const rendered = view.desktops[0]?.tabs[1]?.root;
+    expect(rendered?.kind === "split" && rendered.weights[0]).toBeGreaterThan(
+      rendered?.kind === "split" ? (rendered.weights[1] ?? 1) : 1
+    );
+    expect(view.snapshot?.desktops[0]?.tabs[1]?.root).toBe(SNAPSHOT.desktops[0]?.tabs[1]?.root);
   });
 
   it("Should stay pending without a snapshot and degrade on a load error", () => {

@@ -238,6 +238,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
     closeWindow: vi.fn(async () => true),
     focusWindow: vi.fn(() => acceptedOutcome()),
     moveWindow: vi.fn(() => acceptedOutcome()),
+    swapWindows: vi.fn(() => acceptedOutcome()),
     arrangeLayout,
     resizeLayout: vi.fn(() => acceptedOutcome()),
     balanceLayout: vi.fn(),
