@@ -100,11 +100,6 @@ export class WindowPaneHosts {
   private resizeObserver: ResizeObserver | null = null;
   private mutationObserver: MutationObserver | null = null;
   private listening: Document | null = null;
-  /**
-   * Hosts `place` restored in the current task: the re-insertion its slot's mount reports to the
-   * mutation observer in the following microtask is the same move, not a second one.
-   */
-  private readonly placedThisTurn = new Map<PaneHost, object>();
   /** Set while a host leaves its slot: the blur that causes is not the operator's. */
   private detaching = false;
 
@@ -125,18 +120,15 @@ export class WindowPaneHosts {
     const host = this.ensure(windowId);
     slot.appendChild(host.element);
     this.listen(slot.ownerDocument);
+    // The mutations queued so far include this slot's own mount, which would read as a
+    // re-insertion of the host just restored: handle them now, without restoring it twice. A
+    // re-insertion after this call is a new move and reaches the observer as usual.
+    const pending = this.mutationObserver?.takeRecords() ?? [];
     this.mutationObserver?.observe(host.element, { childList: true });
     this.trackRoots(host);
     this.watchAncestors(slot);
     this.restore(host);
-    // Queued after the observer's own notification for this commit's mutations, so it reads
-    // the host as placed and the next turn's re-insertions as new; a later `place` of the same
-    // host in this task keeps its own mark.
-    const mark = {};
-    this.placedThisTurn.set(host, mark);
-    queueMicrotask(() => {
-      if (this.placedThisTurn.get(host) === mark) this.placedThisTurn.delete(host);
-    });
+    this.handleMutations(pending, host);
     return () => {
       if (host.element.parentNode !== slot) return;
       const active = slot.ownerDocument.activeElement;
@@ -252,7 +244,8 @@ export class WindowPaneHosts {
     }
   }
 
-  private handleMutations(records: readonly MutationRecord[]): void {
+  /** `placed`: the host `place` just restored, which these records do not move again. */
+  private handleMutations(records: readonly MutationRecord[], placed?: PaneHost): void {
     const reinserted = new Set<PaneHost>();
     for (const record of records) {
       const own = record.target instanceof Element ? this.byElement.get(record.target) : undefined;
@@ -264,7 +257,7 @@ export class WindowPaneHosts {
       for (const node of record.addedNodes) {
         if (!(node instanceof Element)) continue;
         for (const host of this.hosts.values()) {
-          if (!this.placedThisTurn.has(host) && node.contains(host.element)) reinserted.add(host);
+          if (host !== placed && node.contains(host.element)) reinserted.add(host);
         }
       }
     }
