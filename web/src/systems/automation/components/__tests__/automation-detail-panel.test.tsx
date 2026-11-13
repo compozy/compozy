@@ -528,17 +528,17 @@ describe("AutomationDetailPanel", () => {
     });
 
     it("Should report a copy failure when the browser has no Clipboard API", async () => {
-      // jsdom has no geometry for the submenu's hover guard, which keeps its items at
-      // pointer-events: none until a real pointer crosses it. Set up before removing the
-      // Clipboard API: setup installs its own clipboard stub.
-      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      // Set up before removing the Clipboard API: setup installs its own clipboard stub.
+      const user = userEvent.setup();
       const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
       try {
         renderPanel(morningDigestJob);
         await user.click(screen.getByTestId("automation-detail-overflow"));
-        await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
-        await user.click(await screen.findByTestId("automation-copy-id-btn"));
+        // A schedule has one copy, so it sits at the top level instead of behind Copy.
+        const menu = await screen.findByTestId("automation-detail-overflow-menu");
+        expect(within(menu).queryByRole("menuitem", { name: "Copy" })).not.toBeInTheDocument();
+        await user.click(within(menu).getByTestId("automation-copy-id-btn"));
         expect(toast.error).toHaveBeenCalledWith("Could not copy the automation id.");
       } finally {
         if (descriptor) Object.defineProperty(navigator, "clipboard", descriptor);

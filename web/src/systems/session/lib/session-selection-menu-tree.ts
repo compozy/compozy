@@ -15,8 +15,6 @@ import {
 
 import { tidyMenuTree, type MenuTreeHost, type MenuTreeNode } from "@compozy/ui";
 
-import type { SessionBulkFolderMenu } from "../hooks/use-session-list-bulk-folders";
-import type { SessionSelectionVerbs } from "../hooks/use-session-list-bulk-selection";
 import { getSessionDisplayTitle } from "./session-display-title";
 import { sessionCountLabel } from "./session-folders";
 import {
@@ -24,6 +22,7 @@ import {
   sessionRowAction,
   type SessionBatchMenuActionId,
 } from "./session-menu-actions";
+import type { SessionBulkFolderMenu, SessionSelectionVerbs } from "./session-selection-verbs";
 
 type ItemNode = Extract<MenuTreeNode, { kind: "item" }>;
 
@@ -44,8 +43,8 @@ function folderGroup(menu: SessionBulkFolderMenu, testId: string): MenuTreeNode 
       id: "folder",
       label: "Folder",
       children: [
-        // Focusable, unlike a disabled item: keyboard and screen reader users land on the reason
-        // instead of an empty submenu. It has nothing to run.
+        // Focusable but inert, unlike a disabled item: keyboard and screen reader users land on
+        // the reason instead of an empty submenu, and choosing it keeps the menu open.
         {
           kind: "item",
           id: "folder-blocked",

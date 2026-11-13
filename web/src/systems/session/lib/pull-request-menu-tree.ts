@@ -127,7 +127,7 @@ export function pullRequestMenuTree(input: PullRequestMenuTreeInput): MenuTreeNo
           : undefined;
     }
   };
-  const node = (item: PullRequestMenuItem): MenuTreeNode[] => {
+  const node = (item: PullRequestMenuItem, title?: string): MenuTreeNode[] => {
     const onSelect = run(item);
     if (!onSelect) return [];
     const busy =
@@ -149,6 +149,8 @@ export function pullRequestMenuTree(input: PullRequestMenuTreeInput): MenuTreeNo
         label,
         icon: item.id === "exit" ? (EXIT_ICON[item.action] ?? UploadIcon) : ITEM_ICON[item.id],
         ...(hint ? { hint } : {}),
+        // Why the next step is the one offered (what blocks Commit & push or Open PR).
+        ...(title ? { title } : {}),
         disabled: busy,
         testId: testId(item.id),
         onSelect,
@@ -181,7 +183,7 @@ export function pullRequestMenuTree(input: PullRequestMenuTreeInput): MenuTreeNo
   const url = pr?.url;
   const branch = input.branch;
   return tidyMenuTree([
-    ...(model.primary ? node(model.primary) : []),
+    ...(model.primary ? node(model.primary, model.primaryReason) : []),
     ...(open ? node(open) : []),
     ...action("review-changes", "Review changes", FileDiffIcon, input.onReviewChanges),
     ...(refresh ? node(refresh) : []),
@@ -189,7 +191,7 @@ export function pullRequestMenuTree(input: PullRequestMenuTreeInput): MenuTreeNo
       kind: "group",
       id: `${key}ask`,
       label: "Ask the agent",
-      children: model.prompts.flatMap(node),
+      children: model.prompts.flatMap(prompt => node(prompt)),
     },
     sep(key, "where"),
     ...(worktree

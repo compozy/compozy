@@ -26,7 +26,7 @@ export type ProjectMenuAction = "archive" | "remove";
 
 /** Where a project sits among its profile's project folders, and how it moves. */
 export interface ProjectMenuMove {
-  /** Every folder of the layout; the one holding the project is left out of the choices. */
+  /** Every folder of the layout; the one holding the project is drawn checked and disabled. */
   folders: readonly { id: string; name: string }[];
   /** The folder holding the project; `null` at the root. */
   folderId: string | null;
@@ -116,15 +116,20 @@ export function projectMenuTree({
 }
 
 function moveSubmenu(move: ProjectMenuMove, testId: string): MenuTreeNode {
-  const targets = move.folders.filter(folder => folder.id !== move.folderId);
-  const folderRows: MenuTreeNode[] = targets.map(folder => ({
-    kind: "item",
-    id: `folder-${folder.id}`,
-    label: folder.name,
-    icon: Folder,
-    testId: `${testId}-move-to-${folder.id}`,
-    onSelect: () => move.onMove(folder.id),
-  }));
+  // The current folder is checked, not hidden, as in the session row's Move ▸.
+  const folderRows: MenuTreeNode[] = move.folders.map(folder => {
+    const current = folder.id === move.folderId;
+    return {
+      kind: "item",
+      id: `folder-${folder.id}`,
+      label: folder.name,
+      icon: Folder,
+      checked: current,
+      disabled: current,
+      testId: `${testId}-move-to-${folder.id}`,
+      onSelect: () => move.onMove(folder.id),
+    };
+  });
   if (move.folderId !== null) {
     folderRows.push({
       kind: "item",

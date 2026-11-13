@@ -1,8 +1,8 @@
 // Suite: the one project menu tree
 // Invariant: every project surface draws New ▸, Open files, Move ▸, then Archive and Remove
 // (destructive, last); a verb the surface cannot reach is absent, never a dead row; an archived
-// project offers only Unarchive and Remove; Move ▸ never offers the project's own folder and
-// offers Move out only from inside one.
+// project offers only Unarchive and Remove; Move ▸ draws the project's own folder checked and
+// disabled, and offers Move out only from inside one.
 // Owning layer: workspace lib. Canonical suite: this file (surfaces only pass verbs).
 import { describe, expect, it, vi } from "vitest";
 
@@ -79,13 +79,17 @@ describe("projectMenuTree", () => {
     expect(choose).toHaveBeenCalledWith("archive");
   });
 
-  it("Should move to other folders or out of the current one, and disable a missing step", () => {
+  it("Should check the current folder, move to the others or out, and disable a missing step", () => {
     const move = child(
       projectMenuTree({ workspace: PROJECT, verbs: ALL, choose: vi.fn() }),
       "move"
     );
 
-    expect(labels(child(move, "folder"))).toEqual(["Labs", "Move out of folder"]);
+    expect(child(move, "folder")).toMatchObject([
+      { label: "Clients", checked: true, disabled: true },
+      { label: "Labs", checked: false, disabled: false },
+      { label: "Move out of folder" },
+    ]);
     expect(move.filter(node => node.kind === "item")).toMatchObject([
       { label: "Move project up", disabled: true },
       { label: "Move project down", disabled: false },

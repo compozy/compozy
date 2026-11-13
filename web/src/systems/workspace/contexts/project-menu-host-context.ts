@@ -10,8 +10,11 @@ import type { WorkspacePayload } from "../types";
  */
 export interface ProjectMenuHost {
   verbsFor: (workspace: WorkspacePayload) => ProjectMenuVerbs;
-  /** A project menu opened: the host starts the reads its verbs need (the folder layout). */
-  menuOpened: () => void;
+  /**
+   * A project menu opened: the host reads what its verbs need (the folder layout) until the
+   * returned release runs, when that menu closes.
+   */
+  holdMenuOpen: () => () => void;
 }
 
 export const ProjectMenuHostContext = createContext<ProjectMenuHost | null>(null);

@@ -102,6 +102,7 @@ export function MenuTreeItems({
                 data-testid={node.testId}
                 disabled={node.disabled}
                 onClick={node.onSelect}
+                title={node.title}
                 variant={node.destructive ? "destructive" : undefined}
               >
                 {Icon ? <Icon aria-hidden="true" className="size-3" /> : null}

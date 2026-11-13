@@ -5,11 +5,11 @@ import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { isEditableTarget } from "../lib/editable-target";
 import { sessionListShortcut, type SessionListShortcut } from "../lib/session-list-threads";
 import type { SessionListShelf } from "../lib/session-list-shelf";
+import type { SessionSelectionNest, SessionSelectionVerbs } from "../lib/session-selection-verbs";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import {
   useSessionListBulkFolders,
-  type SessionBulkFolderMenu,
   type SessionBulkFolderSource,
 } from "./use-session-list-bulk-folders";
 import { copySessionText } from "../lib/session-copy";
@@ -32,47 +32,6 @@ interface SessionListBulkSelectionInput {
    * session moving between reads (a board card changing column) is briefly in neither.
    */
   holdMissing?: (missingIds: readonly string[]) => boolean;
-}
-
-/** What the selection can do, shared by the selection bar's menu and a selected row's context menu. */
-export interface SessionSelectionVerbs {
-  count: number;
-  markSeenable: number;
-  topLevelable: number;
-  stoppable: number;
-  archivable: number;
-  /** Archivable sessions that archiving stops first. */
-  archivableLive: number;
-  unarchivable: number;
-  /** Top-level sessions not yet in Later. */
-  laterable: number;
-  /** Top-level sessions in Later. */
-  backFromLaterable: number;
-  disabled: boolean;
-  onDelete?: () => void;
-  onStop?: () => void;
-  onArchive?: () => void;
-  onUnarchive?: () => void;
-  onMoveToLater?: () => void;
-  onBackFromLater?: () => void;
-  onCopyIds: () => void;
-  onCopyTitles: () => void;
-  onMarkSeen?: () => void;
-  onMakeTopLevel?: () => void;
-  /** Selected sessions with a branch, for Copy branch names. */
-  branches: number;
-  onCopyBranches: () => void;
-  /** Nest under: the listed sessions some selected session can move under; absent without a host verb. */
-  nest?: SessionSelectionNest;
-  /** Move to folder; absent while the list has no folders to move into. */
-  folders?: SessionBulkFolderMenu;
-}
-
-export interface SessionSelectionNest {
-  parents: readonly SessionPayload[];
-  /** Selected sessions that can move under at least one of the parents. */
-  nestable: number;
-  onNest: (parent: SessionPayload) => void;
 }
 
 type ManyHandler = ((sessions: readonly SessionPayload[]) => void) | undefined;

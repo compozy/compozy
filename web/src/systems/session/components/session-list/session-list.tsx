@@ -379,6 +379,7 @@ function SessionListControls({
                 : null
             }
             testId={testIdPrefix}
+            variant="quiet"
           />
         }
         testIdPrefix={testIdPrefix}

@@ -23,7 +23,7 @@ export function SessionPullRequestMenu(props: SessionPullRequestMenuProps) {
     <DropdownMenuContent
       align="start"
       aria-label="Pull request actions"
-      className="min-w-58"
+      className="w-auto min-w-58"
       data-testid="session-pull-request-menu"
     >
       <MenuTreeItems host="dropdown" nodes={nodes} />

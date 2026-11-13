@@ -26,7 +26,8 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
 // Invariant: one tree on every file surface — the configured editor (else the first detected one)
 // and the reveal target at the top, the other editors with Refresh list and Editor settings
 // behind Open in, then Copy path; directories open without a line; a vanished editor is named and
-// the list re-detected; a browser keeps only the surface's own verbs. Boundary: the desktop bridge
+// the list re-detected; the first detection shows a disabled loading row, never the Settings
+// shortcut; a browser keeps only the surface's own verbs. Boundary: the desktop bridge
 // (stubbed).
 const ROOT: FilesRootRef = { kind: "workspace", workspaceId: "ws_1" };
 const CURSOR: OpenTarget = { id: "cursor", label: "Cursor", kind: "editor", supportsLine: true };
@@ -273,6 +274,23 @@ describe("FileMenuItems", () => {
     ]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Open in Files" }));
     expect(onOpenInFiles).toHaveBeenCalledOnce();
+  });
+
+  it("Should show a disabled loading row, not the Settings shortcut, until editors are detected", async () => {
+    window.compozyShell = {
+      platform: "darwin",
+      files: {
+        openInEditor: vi.fn(),
+        openWith: vi.fn(),
+        listOpenTargets: vi.fn(() => new Promise<OpenTarget[]>(() => {})),
+      },
+    } as unknown as CompozyShellBridge;
+    const menu = await renderMenu(vi.fn());
+    expect(labels(menu)).toEqual(["Open in Files", "Finding editors…", "Copy path"]);
+    expect(within(menu).getByRole("menuitem", { name: "Finding editors…" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
   });
 
   it("Should keep only the surface's verbs and Copy path in the browser", async () => {

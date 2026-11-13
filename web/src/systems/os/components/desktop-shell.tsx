@@ -142,9 +142,7 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
           openDialog={props.model.agentCreate.openDialog}
           openForDuplicate={props.model.agentCreate.openForDuplicate}
         >
-          <ProjectMenuHostProvider>
-            <DesktopShellBody {...props} />
-          </ProjectMenuHostProvider>
+          <DesktopShellBody {...props} />
           <SessionCreateDialogHost
             activeWorkspace={props.model.runtimeWorkspace}
             agents={props.model.workspaceAgents}
@@ -166,7 +164,10 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
 
   return (
     <WindowScopeContext value={worktreeScope.worktreeScopeId}>
-      <DesktopShellScopedBody {...props} {...worktreeScope} />
+      {/* Below the scope, so New session from any project menu takes the focused window's worktree. */}
+      <ProjectMenuHostProvider>
+        <DesktopShellScopedBody {...props} {...worktreeScope} />
+      </ProjectMenuHostProvider>
     </WindowScopeContext>
   );
 }

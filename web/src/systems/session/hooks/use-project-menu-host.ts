@@ -14,10 +14,11 @@ export function useProjectMenuHost() {
   const openFiles = useOpenProjectFiles();
   const { params } = useProfileReadScope();
   const profile = "profile" in params ? params.profile : null;
-  const [layoutWanted, setLayoutWanted] = useState(false);
+  // The layout is read only while a project menu is open; a closed one keeps the cached answer.
+  const [openMenus, setOpenMenus] = useState(0);
   const { layout } = useWorkspaceLayout({
     profile: profile ?? "",
-    enabled: layoutWanted && profile !== null,
+    enabled: openMenus > 0 && profile !== null,
   });
   const [folderProject, setFolderProject] = useState<WorkspacePayload | null>(null);
   const folder = useSessionListGroupFolderCreate({
@@ -25,7 +26,10 @@ export function useProjectMenuHost() {
     profile,
   });
   const host: ProjectMenuHost = {
-    menuOpened: () => setLayoutWanted(true),
+    holdMenuOpen: () => {
+      setOpenMenus(count => count + 1);
+      return () => setOpenMenus(count => count - 1);
+    },
     verbsFor: workspace => ({
       newSession: () =>
         openForAgent("", { workspaceId: workspace.id, ...(profile ? { profile } : {}) }),

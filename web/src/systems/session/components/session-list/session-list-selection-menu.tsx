@@ -1,6 +1,6 @@
 import { ContextMenuGroup, ContextMenuLabel, MenuTreeItems, type MenuTreeHost } from "@compozy/ui";
 
-import type { SessionSelectionVerbs } from "../../hooks/use-session-list-bulk-selection";
+import type { SessionSelectionVerbs } from "../../lib/session-selection-verbs";
 import { sessionCountLabel } from "../../lib/session-folders";
 import { selectionMenuTree } from "../../lib/session-selection-menu-tree";
 

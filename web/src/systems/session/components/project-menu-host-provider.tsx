@@ -10,7 +10,7 @@ import { SessionListGroupFolderDialog } from "./session-list/session-list-group-
  * row and board lane offer what the session list's project header does: New session and
  * New folder in the project, Open files, and Move to a project folder of the acting
  * profile. Mount it inside the session-create provider and the OS shell. The folder layout
- * is read the first time a project menu opens; under All profiles no single profile owns
+ * is read only while a project menu is open (on a first open, Move ▸ appears once it lands); under All profiles no single profile owns
  * the folders, so Move stays hidden.
  */
 export function ProjectMenuHostProvider({ children }: { children: ReactNode }) {

@@ -3266,7 +3266,7 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
-  // #1132: the label names what the action will do, and the action reports the opposite state.
+  // #1132: the toolbar button's name says what a click will do, and it reports the opposite state.
   it.each([
     { foldAll: null, label: "Collapse all", next: "collapsed" },
     { foldAll: "expanded", label: "Collapse all", next: "collapsed" },
@@ -3275,8 +3275,7 @@ describe("SessionList breadth and Group by", () => {
     const user = userEvent.setup();
     const setFoldAll = vi.fn();
     renderList({ view: { ...view, foldAll, setFoldAll } });
-    await user.click(screen.getByRole("button", { name: "View options" }));
-    await user.click(await screen.findByRole("menuitem", { name: label }));
+    await user.click(screen.getByRole("button", { name: label }));
     expect(setFoldAll).toHaveBeenCalledWith(next);
   });
 
@@ -3292,7 +3291,6 @@ describe("SessionList breadth and Group by", () => {
       const onHideChildrenChange = vi.fn();
       render(
         <SessionViewOptionsMenu
-          allCollapsed={false}
           groupBy="none"
           groupByOptions={["none"]}
           hideChildren={hideChildren}
@@ -3306,7 +3304,7 @@ describe("SessionList breadth and Group by", () => {
         />
       );
       const trigger = screen.getByRole("button", { name: "View options" });
-      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+      expect(trigger.classList.contains("text-brand-strong")).toBe(marked);
       await user.click(trigger);
       const filter = await screen.findByRole("menuitemcheckbox", { name: "Hide child sessions" });
       expect(filter).toHaveAttribute("aria-checked", String(hideChildren));
@@ -3327,7 +3325,6 @@ describe("SessionList breadth and Group by", () => {
     ({ groupByOptions, groupBy, marked }) => {
       render(
         <SessionViewOptionsMenu
-          allCollapsed={false}
           groupBy={groupBy}
           groupByOptions={groupByOptions}
           onGroupByChange={vi.fn()}
@@ -3339,7 +3336,7 @@ describe("SessionList breadth and Group by", () => {
         />
       );
       const trigger = screen.getByRole("button", { name: "View options" });
-      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+      expect(trigger.classList.contains("text-brand-strong")).toBe(marked);
     }
   );
 
@@ -3363,7 +3360,7 @@ describe("SessionList breadth and Group by", () => {
       const setShowAutomation = vi.fn();
       renderList({ view: { ...view, showAutomation, setShowAutomation } });
       const trigger = screen.getByRole("button", { name: "View options" });
-      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+      expect(trigger.classList.contains("text-brand-strong")).toBe(marked);
       await user.click(trigger);
       const toggle = await screen.findByRole("menuitemcheckbox", { name: "Show automation runs" });
       expect(toggle).toHaveAttribute("aria-checked", String(showAutomation));

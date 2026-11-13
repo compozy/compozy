@@ -44,11 +44,39 @@ function copyAutomationId(view: AutomationView): void {
     .catch(() => toast.error("Could not copy the automation id."));
 }
 
+/** The copies: behind Copy ▸ when there are several, else the single one in its place. */
+function copyNodes(view: AutomationView, testIds: AutomationMenuTestIds): MenuTreeNode[] {
+  const copies: MenuTreeNode[] = [
+    ...(view.webhookPath
+      ? [
+          {
+            kind: "item",
+            id: "copy-link",
+            label: "Copy link",
+            icon: Link2,
+            onSelect: () => copyAutomationLink(view),
+          } as const,
+        ]
+      : []),
+    {
+      kind: "item",
+      id: "copy-id",
+      label: "Copy automation id",
+      icon: Hash,
+      testId: testIds.copyId,
+      onSelect: () => copyAutomationId(view),
+    },
+  ];
+  if (copies.length === 1) return copies;
+  return [{ kind: "sub", id: "copy", label: "Copy", icon: Clipboard, children: copies }];
+}
+
 /**
  * The one automation menu, shared by the list row's `…` and the detail page's `⋯`. Only the
  * verbs the daemon supports for this kind and source (Business Rules 10–11): Run now for
  * schedules, Edit and Delete for automations created here, a disabled Edit in config.toml for a
- * config-owned one; Inspect and the copies for every automation.
+ * config-owned one; Inspect and the copies for every automation, behind Copy ▸ only when there are
+ * two (a webhook's link and its id).
  */
 export function automationMenuNodes(
   view: AutomationView,
@@ -100,33 +128,7 @@ export function automationMenuNodes(
       testId: testIds.inspect,
       onSelect: actions.onInspect,
     },
-    {
-      kind: "sub",
-      id: "copy",
-      label: "Copy",
-      icon: Clipboard,
-      children: [
-        ...(view.webhookPath
-          ? [
-              {
-                kind: "item",
-                id: "copy-link",
-                label: "Copy link",
-                icon: Link2,
-                onSelect: () => copyAutomationLink(view),
-              } as const,
-            ]
-          : []),
-        {
-          kind: "item",
-          id: "copy-id",
-          label: "Copy automation id",
-          icon: Hash,
-          testId: testIds.copyId,
-          onSelect: () => copyAutomationId(view),
-        },
-      ],
-    },
+    ...copyNodes(view, testIds),
     { kind: "separator", id: "danger" },
     ...(view.canEdit
       ? [

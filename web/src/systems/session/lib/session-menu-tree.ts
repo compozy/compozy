@@ -19,7 +19,6 @@ import {
 
 import { tidyMenuTree, type MenuTreeNode } from "@compozy/ui";
 
-import type { SessionLifecycleActionHandlers } from "../hooks/session-lifecycle-types";
 import type { SessionFolderPayload, SessionPayload } from "../types";
 import type { SessionCopyKind } from "./session-copy";
 import { getSessionDisplayTitle } from "./session-display-title";
@@ -49,6 +48,30 @@ export interface SessionRowLayoutMenu {
   onMoveDown?: () => void;
 }
 
+type SessionVerb = (session: SessionPayload) => void;
+
+/**
+ * The session verbs the tree reads. The lifecycle hooks' handlers (`SessionLifecycleActionHandlers`)
+ * satisfy it; an optional verb a host lacks is left out of the menu.
+ */
+export interface SessionMenuActions {
+  /** Any action in flight disables every verb but Copy. */
+  pendingAction: string | null;
+  onRename: SessionVerb;
+  onStop: SessionVerb;
+  onArchive: SessionVerb;
+  onUnarchive: SessionVerb;
+  onDelete: SessionVerb;
+  onMarkSeen?: SessionVerb;
+  onMoveToLater?: SessionVerb;
+  onBackFromLater?: SessionVerb;
+  /** Make top-level and Take over both detach the session from its parent. */
+  onMakeTopLevel?: SessionVerb;
+  /** Nest under: the candidate parents, and the verb that moves the session under one. */
+  nestParents?: readonly SessionPayload[];
+  onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
+}
+
 export interface SessionMenuProfileTarget {
   id: string;
   name: string;
@@ -57,7 +80,7 @@ export interface SessionMenuProfileTarget {
 /** What the host knows beyond the session, and the handlers it can act with. */
 export interface SessionMenuInput {
   session: SessionPayload;
-  actions: SessionLifecycleActionHandlers;
+  actions: SessionMenuActions;
   /** `session-row` behind `…`, `session-row-menu` on right-click; ids read `<prefix>-<verb>-<id>`. */
   testIdPrefix: string;
   onContinue?: (session: SessionPayload) => void;

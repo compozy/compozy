@@ -28,7 +28,7 @@ export function SessionRowActions(props: SessionRowActionsProps) {
       >
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
+      <DropdownMenuContent align="end" className="w-auto min-w-56">
         <SessionRowMenuItems {...props} host="dropdown" />
       </DropdownMenuContent>
     </DropdownMenu>

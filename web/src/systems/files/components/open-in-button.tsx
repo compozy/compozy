@@ -14,8 +14,12 @@ import { CursorLogo } from "@compozy/ui/logos";
 import { desktopShellBridge, type OpenTarget } from "@/systems/os";
 
 import type { FilesRootRef } from "../adapters/files-api";
-import { useOpenIn, type OpenInRequest } from "../hooks/use-open-in";
-import { canOpenInTargets, openTargetActionLabel } from "../lib/open-in-targets";
+import { useOpenIn } from "../hooks/use-open-in";
+import {
+  canOpenInTargets,
+  openTargetActionLabel,
+  type OpenInRequest,
+} from "../lib/open-in-targets";
 import { FileMenuItems, OpenInMenuItems } from "./open-in-menu-items";
 
 /** Brand marks that exist in `@compozy/ui/logos`; other editors use the generic code icon. */

@@ -18,6 +18,8 @@ export type MenuTreeNode =
       disabled?: boolean;
       /** The current choice of a set (a folder, a profile): drawn with a check. */
       checked?: boolean;
+      /** Native tooltip: why the item is unavailable, or what it will do. */
+      title?: string;
       /** False keeps the menu open on click, for an informational row such as a blocked reason. */
       closeOnClick?: boolean;
       onSelect?: () => void;

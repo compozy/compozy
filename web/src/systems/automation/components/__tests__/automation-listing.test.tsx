@@ -1,7 +1,7 @@
 // Suite: Automations listing rows, cards and states
 // Invariant: a row reads as a sentence with its time and last-run truth, shows only exception
-//   badges and supported actions (the automation menu the detail page shares, copies behind
-//   Copy ▸), never flips its switch before the daemon answers; the shell
+//   badges and supported actions (the automation menu the detail page shares; a lone copy sits at
+//   the top level, two go behind Copy ▸), never flips its switch before the daemon answers; the shell
 //   tells first run, filtered empty, loading and load error apart.
 // Boundary IN: AutomationView (board story fixtures) and row controls.
 // Boundary OUT: data loading (use-automations-page suite) and routing.
@@ -186,10 +186,10 @@ describe("AutomationRow", () => {
   });
 
   it.each([
-    ["morning-digest", ["Run now", "Edit", "Inspect", "Copy", "Delete automation…"]],
-    ["summarize-failures", ["Edit", "Inspect", "Copy", "Delete automation…"]],
+    ["morning-digest", ["Run now", "Edit", "Inspect", "Copy automation id", "Delete automation…"]],
+    ["summarize-failures", ["Edit", "Inspect", "Copy automation id", "Delete automation…"]],
     ["deploy-webhook", ["Edit", "Inspect", "Copy", "Delete automation…"]],
-    ["release-checklist", ["Run now", "Edit in config.toml", "Inspect", "Copy"]],
+    ["release-checklist", ["Run now", "Edit in config.toml", "Inspect", "Copy automation id"]],
   ])("Should offer only supported actions for %s", async (id, labels) => {
     const user = userEvent.setup();
     renderRow(view(id));
@@ -198,13 +198,10 @@ describe("AutomationRow", () => {
     expect(items.map(item => item.textContent?.trim())).toEqual(labels);
   });
 
-  it.each([
-    ["deploy-webhook", ["Copy link", "Copy automation id"]],
-    ["morning-digest", ["Copy automation id"]],
-  ])("Should keep the copies for %s behind Copy", async (id, labels) => {
+  it("Should keep a webhook's two copies behind Copy", async () => {
     const user = userEvent.setup();
-    renderRow(view(id));
-    await user.click(screen.getByRole("button", { name: `More actions for ${id}` }));
+    renderRow(view("deploy-webhook"));
+    await user.click(screen.getByRole("button", { name: "More actions for deploy-webhook" }));
     await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
     const copyId = await screen.findByRole("menuitem", { name: "Copy automation id" });
     const submenu = copyId.closest<HTMLElement>('[role="menu"]')!;
@@ -212,7 +209,7 @@ describe("AutomationRow", () => {
       within(submenu)
         .getAllByRole("menuitem")
         .map(item => item.textContent?.trim())
-    ).toEqual(labels);
+    ).toEqual(["Copy link", "Copy automation id"]);
   });
 
   it("Should inspect the row's automation from its menu", async () => {

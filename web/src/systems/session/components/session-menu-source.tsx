@@ -1,7 +1,9 @@
 /**
  * The data an open session menu reads: the session's full linked work (`useSessionLinkedWork`)
  * and, for a host without a folder layout of its own, the session's folder layout. The menu mounts
- * this only while open, so a closed row or card reads nothing.
+ * this only while open, so a closed row or card reads nothing. Each read keeps one wrapper and
+ * gates its query instead, so a lead or placement that changes while the menu is open never
+ * remounts the rows (an open submenu stays open, focus stays put).
  */
 import type { ReactNode } from "react";
 
@@ -35,7 +37,10 @@ export function SessionMenuSource({ session, folders, children }: SessionMenuSou
   );
 }
 
-type LinkedWork = SessionMenuSourceData["linkedWork"];
+/** The `@user` selector for a User-scope session, its project id otherwise. */
+function scopeSelector(session: SessionPayload): string {
+  return workspaceSelectorForScope(ownerDataScope(session.workspace_id));
+}
 
 /** Only a session the catalog says has linked work reads its full list. */
 function LinkedWorkSource({
@@ -43,68 +48,44 @@ function LinkedWorkSource({
   children,
 }: {
   session: SessionPayload;
-  children: Render<LinkedWork>;
+  children: Render<SessionMenuSourceData["linkedWork"]>;
 }) {
-  if (!session.linked_work?.lead) return children(null);
-  return <LoadedLinkedWork session={session}>{children}</LoadedLinkedWork>;
-}
-
-function LoadedLinkedWork({
-  session,
-  children,
-}: {
-  session: SessionPayload;
-  children: Render<LinkedWork>;
-}) {
+  const lead = !!session.linked_work?.lead;
   const model = useSessionLinkedWork({
     session,
-    workspaceId: workspaceSelectorForScope(ownerDataScope(session.workspace_id)),
+    workspaceId: scopeSelector(session),
     // A menu reads the list once; only a visible list keeps rereading it.
     enabled: false,
+    read: lead,
   });
-  return children({
-    items: model.items,
-    total: model.count.total,
-    refreshing: model.refreshing,
-    onRefresh: model.refresh,
-    onUnlink: model.unlink,
-  });
+  return children(
+    lead
+      ? {
+          items: model.items,
+          total: model.count.total,
+          refreshing: model.refreshing,
+          onRefresh: model.refresh,
+          onUnlink: model.unlink,
+        }
+      : null
+  );
 }
 
-type Layout = SessionMenuSourceData["layout"];
-
-/** Folders hold top-level sessions of a project; User-scope sessions have none. */
+/** Folders hold a scope's top-level sessions, User scope (`@user`) included. */
 function FolderSource({
   session,
   children,
 }: {
   session: SessionPayload;
-  children: Render<Layout>;
+  children: Render<SessionMenuSourceData["layout"]>;
 }) {
   const placed = sessionHasOwnPlacement(session) && sessionTreeParentId(session) === "";
-  if (!placed || !session.workspace_id) return children(undefined);
-  return (
-    <LoadedFolders session={session} workspaceId={session.workspace_id}>
-      {children}
-    </LoadedFolders>
-  );
-}
-
-function LoadedFolders({
-  session,
-  workspaceId,
-  children,
-}: {
-  session: SessionPayload;
-  workspaceId: string;
-  children: Render<Layout>;
-}) {
   const { layout } = useSessionFolders({
-    workspaceId,
+    workspaceId: scopeSelector(session),
     profile: session.profile_name,
-    enabled: true,
+    enabled: placed,
   });
-  if (!layout) return children(undefined);
+  if (!placed || !layout) return children(undefined);
   return children({
     folders: layout.folders,
     folderId: sessionFolderId(session),

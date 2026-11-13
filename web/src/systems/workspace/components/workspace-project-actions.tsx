@@ -1,4 +1,4 @@
-import { use, useEffect, type ComponentProps, type ReactElement } from "react";
+import { use, useEffect, useEffectEvent, type ComponentProps, type ReactElement } from "react";
 import { MoreHorizontal } from "@compozy/ui/icons";
 import {
   Button,
@@ -233,7 +233,7 @@ function pointAnchor({ x, y }: WorkspaceProjectMenuPoint) {
 
 /**
  * The project menu's rows, mounted only while the menu is open: the surface's verbs over the
- * shell's, then the archive/remove flow. Opening tells the shell to read what its verbs need.
+ * shell's, then the archive/remove flow. While open, the shell reads what its verbs need.
  */
 function ProjectMenuItems({
   workspace,
@@ -251,10 +251,9 @@ function ProjectMenuItems({
   onLeave?: () => void;
 }) {
   const shell = use(ProjectMenuHostContext);
-  const menuOpened = shell?.menuOpened;
-  useEffect(() => {
-    menuOpened?.();
-  }, [menuOpened]);
+  // Held for as long as this menu is mounted, which is as long as it is open.
+  const holdMenuOpen = useEffectEvent(() => shell?.holdMenuOpen());
+  useEffect(() => holdMenuOpen(), []);
   const merged = mergeProjectMenuVerbs(
     workspace && shell ? shell.verbsFor(workspace) : undefined,
     verbs

@@ -3,9 +3,8 @@ import { AppWindow, Code2, Copy, FolderOpen, RefreshCw, Settings2 } from "@compo
 
 import type { OpenTarget } from "@/systems/os";
 
-import type { OpenIn, OpenInRequest } from "../hooks/use-open-in";
 import { copyFilePath } from "./copy-file-path";
-import { openTargetActionLabel } from "./open-in-targets";
+import { openTargetActionLabel, type OpenIn, type OpenInRequest } from "./open-in-targets";
 
 export interface FileMenuInput {
   /** The desktop Open in targets; null where this client cannot open them (a browser tab). */
@@ -48,6 +47,18 @@ export function fileMenuNodes({
 }
 
 function openInNodes(openIn: OpenIn, request: OpenInRequest): MenuTreeNode[] {
+  // Until the first detection answers, an empty list proves nothing: no Settings shortcut yet.
+  if (openIn.loading) {
+    return [
+      {
+        kind: "item",
+        id: "finding-editors",
+        label: "Finding editors…",
+        icon: AppWindow,
+        disabled: true,
+      },
+    ];
+  }
   const editors = openIn.targets.filter(target => target.kind === "editor");
   // `desktop.editor_command` when set, else the first detected editor: a lead that stays put.
   const lead = editors.find(target => target.id === "configured") ?? editors[0];

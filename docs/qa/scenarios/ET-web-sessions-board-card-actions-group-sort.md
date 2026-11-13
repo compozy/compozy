@@ -45,6 +45,8 @@ Expand all opens them again, opening subagents only on rows with no child sessio
 action covers swimlanes and leaves column folds alone. Open one group after Collapse all, reload: the
 choice and that exception hold, and a second window is unchanged. The Later and Archive shelves keep working.
 
+QA impact 2026-11-13 (grouped menus PR): Collapse all left View options for its own icon button, just before the View options sliders in the List toolbar and the Kanban head; its name and tooltip read Collapse all or Expand all. View options and the List's (+) are plain quiet icon buttons with a hover state; View options marks a non-default view with brand ink instead of a gray plate. Walk: hover both icons and see the hover plate appear only on hover; change Group by and see the sliders turn brand; click Collapse all in List and on the board and see the button flip to Expand all.
+
 QA impact 2026-11-01 (PR #1133): "Hide child sessions" moved from the board head into View options as a checkbox in a Filter section. The board head no longer shows it, and the List menu has no Filter section. The trigger is marked while child sessions show. The choice still survives a reload per window.
 
 QA impact 2026-11-10 (issue #1486): `shell.sessions.group_by` defaults to `project` in the daemon and the

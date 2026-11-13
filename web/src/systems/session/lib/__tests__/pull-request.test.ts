@@ -13,6 +13,7 @@ import {
   type PullRequestExitPlanView,
 } from "../pull-request-actions";
 import { formatMessageTimestamp } from "../format-timestamp";
+import { pullRequestMenuTree } from "../pull-request-menu-tree";
 import { pullRequestChipModel, pullRequestPill } from "../pull-request-signal";
 import {
   parseSessionLinkInput,
@@ -357,6 +358,24 @@ describe("pullRequestMenuModel", () => {
         exitPlan: exitPlan("view_pr"),
       }).primary?.id
     ).toBe("open");
+  });
+
+  // Invariant: the menu tree keeps the plan's reason on the primary item it renders (its tooltip).
+  it("Should carry the plan's blocked reason on the menu's primary item", () => {
+    const [primary] = pullRequestMenuTree({
+      pullRequest: DX_PR,
+      controllable: true,
+      exitPlan: exitPlan("push", {
+        primary: {
+          action: "push",
+          label: "Push",
+          enabled: false,
+          blockedReason: "Branch diverged",
+        },
+      }),
+      onPrompt: () => undefined,
+    });
+    expect(primary).toMatchObject({ kind: "item", id: "fix", title: "Branch diverged" });
   });
 
   it("UT-062: a non-controllable session offers only Open PR and Refresh", () => {
