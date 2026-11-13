@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -93,14 +94,29 @@ func (h *BaseHandlers) acknowledgeMigrationNotifications(ctx context.Context, id
 	for _, id := range ids {
 		members[id] = true
 	}
+	// Every member is attempted: one failing source must not leave the others unacknowledged.
+	var errs []error
 	for _, notice := range notices {
 		if members[migrationNotificationID(notice)] {
 			if err := source.AcknowledgeMigrationNotification(ctx, notice); err != nil {
-				return err
+				errs = append(errs, fmt.Errorf("api: acknowledge layout upgrade %s: %w", notice.WorkspaceID, err))
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// repairLayoutUpgradeSources finishes the source acknowledgement of conversions this reader has
+// already acknowledged by receipt: still pending at their source means an earlier acknowledgement
+// committed its receipts and then failed on the window-manager store. The read stays successful;
+// a source that fails again is retried on the next read.
+func (h *BaseHandlers) repairLayoutUpgradeSources(ctx context.Context, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	if err := h.acknowledgeMigrationNotifications(ctx, ids); err != nil {
+		h.Logger.Warn("api: layout upgrade acknowledgement repair failed", "error", err)
+	}
 }
 
 func migrationNotificationDetail(summary *windowmanager.MigrationSummary) string {

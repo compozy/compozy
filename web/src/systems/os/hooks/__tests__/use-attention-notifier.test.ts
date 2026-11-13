@@ -3,11 +3,20 @@
 // even before the attention catalog resolves the sending session.
 // A layout upgrade is offered to the toast once per occurrence per client, across reloads.
 // Owning layer: OS notifier. No prior suite owned this delivery-to-jump mapping.
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ReactElement } from "react";
+
+import { toast } from "@compozy/ui";
+
 import type { OsAttentionRow, OsLayoutUpgradeAttentionRow } from "../../lib/attention-model";
-import { takeUntoldLayoutUpgrades } from "../../lib/layout-upgrade-toasts";
+import {
+  takeUntoldLayoutUpgrades,
+  TOLD_LAYOUT_UPGRADES_CAP,
+} from "../../lib/layout-upgrade-toasts";
 import { attentionJumpTargetFor, planAttentionToasts } from "../use-attention-notifier";
+import { useLayoutUpgradeToast, type LayoutUpgradeToastOptions } from "../use-layout-upgrade-toast";
 
 function needsYouDelivery(id: string) {
   return {
@@ -100,20 +109,32 @@ describe("takeUntoldLayoutUpgrades", () => {
     expect(takeUntoldLayoutUpgrades([row], new Set())).toEqual([row]);
   });
 
-  it("Should never forget an occurrence the list still holds, and drop the ones that left it", () => {
+  it("Should not toast again an occurrence that left the list and is listed again", () => {
     const listed = Array.from({ length: 70 }, (_, index) => layoutUpgrade(`occ-${index}`));
     expect(takeUntoldLayoutUpgrades(listed, new Set())).toHaveLength(70);
 
-    // A reload with more unread upgrade items than any fixed cap: none toasts again.
+    // A reload with more unread upgrade items than the bell shows at once: none toasts again.
     expect(takeUntoldLayoutUpgrades(listed, new Set())).toEqual([]);
 
-    // The first was read and left the list; a new one arrives.
+    // A list without the first occurrence records a new one; the first then comes back.
     const next = layoutUpgrade("occ-70");
     expect(takeUntoldLayoutUpgrades([...listed.slice(1), next], new Set())).toEqual([next]);
+    expect(takeUntoldLayoutUpgrades([...listed, next], new Set())).toEqual([]);
+  });
+
+  it("Should bound the record by dropping unlisted occurrences before listed ones", () => {
+    const old = Array.from({ length: TOLD_LAYOUT_UPGRADES_CAP }, (_, index) =>
+      layoutUpgrade(`old-${index}`)
+    );
+    takeUntoldLayoutUpgrades(old, new Set());
+    const listed = [old[0]!, layoutUpgrade("new-1")];
+
+    expect(takeUntoldLayoutUpgrades(listed, new Set())).toEqual([listed[1]]);
     const stored: string[] = JSON.parse(localStorage.getItem("compozy.layout-upgrade.toasted")!);
-    expect(stored).toHaveLength(70);
-    expect(stored).not.toContain("occ-0");
-    expect(stored).toContain("occ-70");
+    expect(stored).toHaveLength(TOLD_LAYOUT_UPGRADES_CAP);
+    expect(stored).toContain("old-0");
+    expect(stored).toContain("new-1");
+    expect(stored).not.toContain("old-1");
   });
 
   it("Should read storage only for an occurrence the page has not seen", () => {
@@ -139,5 +160,70 @@ describe("takeUntoldLayoutUpgrades", () => {
 
     expect(takeUntoldLayoutUpgrades([row], told)).toEqual([row]);
     expect(takeUntoldLayoutUpgrades([row], told)).toEqual([]);
+  });
+});
+
+// Invariant: an occurrence suppressed by an open bell, a muted workspace or toasts turned off counts
+// as told and never toasts later; occurrences that arrive together share one toast.
+describe("useLayoutUpgradeToast", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function render(
+    finished: OsLayoutUpgradeAttentionRow[],
+    options: Partial<Omit<LayoutUpgradeToastOptions, "sections">> = {}
+  ) {
+    const custom = vi.spyOn(toast, "custom").mockReturnValue("toast");
+    const initial: LayoutUpgradeToastOptions = {
+      sections: { needsYou: [], finished },
+      bellOpen: false,
+      toasts: true,
+      mutedWorkspaceIds: new Set(),
+      onOpenBell: () => undefined,
+      ...options,
+    };
+    const hook = renderHook((props: LayoutUpgradeToastOptions) => useLayoutUpgradeToast(props), {
+      initialProps: initial,
+    });
+    return { custom, hook, initial };
+  }
+
+  it.each([
+    ["the bell is open", { bellOpen: true }],
+    ["toasts are off", { toasts: false }],
+    ["the workspace is muted", { mutedWorkspaceIds: new Set(["ws-atlas"]) }],
+  ])("Should count an occurrence as told without a toast when %s", (_, suppression) => {
+    const row = layoutUpgrade("occ-1");
+    const { custom, hook, initial } = render([row], suppression);
+    expect(custom).not.toHaveBeenCalled();
+
+    hook.rerender({
+      ...initial,
+      bellOpen: false,
+      toasts: true,
+      mutedWorkspaceIds: new Set(),
+      sections: { needsYou: [], finished: [{ ...row }] },
+    });
+    expect(custom).not.toHaveBeenCalled();
+  });
+
+  it("Should raise one toast for occurrences that arrive together, skipping muted ones", () => {
+    const rows = [
+      layoutUpgrade("occ-1"),
+      layoutUpgrade("occ-2", { id: "ws-beta", workspaceId: "ws-beta", workspaceLabel: "beta" }),
+      layoutUpgrade("occ-3", { id: "ws-gamma", workspaceId: "ws-gamma", workspaceLabel: "gamma" }),
+    ];
+    const { custom } = render(rows, { mutedWorkspaceIds: new Set(["ws-gamma"]) });
+
+    expect(custom).toHaveBeenCalledOnce();
+    expect(custom.mock.calls[0]?.[1]).toMatchObject({ id: "layout-upgrade:occ-1,occ-2" });
+    const frame = custom.mock.calls[0]?.[0]("toast") as ReactElement<{
+      body?: string;
+      meta: string;
+    }>;
+    expect(frame.props.body).toBe("Floating and minimized windows are tabs now.");
+    expect(frame.props.meta).toBe("atlas · beta");
   });
 });
