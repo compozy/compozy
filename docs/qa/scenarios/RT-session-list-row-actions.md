@@ -50,6 +50,11 @@ Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-groupe
 QA impact 2026-10-22 (issue #904): both row menus add Copy session ID and Copy title, and a
 nested provenance child adds Make top-level. Walked in ET-web-session-list-aggregate-parity.
 
+QA impact 2026-11-13 (issue #1645): both row menus replace the loaded-rows "Nest under…" submenu
+with "Move under…", which opens a searchable parent picker (also reachable from the command
+palette for the focused session). Continued and forked sessions get the action with a refusal
+reason instead of parents. Walked in ET-web-session-list-aggregate-parity step 5.
+
 QA impact 2026-10-24 (issue #952): the session window head no longer carries a per-session `…`
 menu. Rename, Continue, Fork, and Delete were already row verbs; Clear conversation, the only
 verb unique to the head menu, is now a row verb offered only on the row of the session that

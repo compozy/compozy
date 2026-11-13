@@ -38,6 +38,10 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   const root = normalizedText(filters.root);
   if (parent) normalized.parent = parent;
   if (root) normalized.root = root;
+  // Leaving one tree out is a population filter applied before the page cut, so
+  // it belongs in the request and the key (the parent picker's candidates).
+  const excludeRoot = normalizedText(filters.exclude_root);
+  if (excludeRoot) normalized.exclude_root = excludeRoot;
   if (search) normalized.q = search;
   if (filters.resumable !== undefined) normalized.resumable = filters.resumable;
   // Attention scoping is server-side too: the daemon owns the needs-you class

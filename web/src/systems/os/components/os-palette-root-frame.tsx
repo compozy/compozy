@@ -137,6 +137,7 @@ export function OsPaletteRootFrame({
           entities={model.entities}
           onGoToTab={model.goToTab}
           onLinkSession={model.linkSession}
+          onMoveSession={model.moveSession}
           onOpenSession={model.openSession}
           onSelectWorktree={model.selectWorktree}
         />

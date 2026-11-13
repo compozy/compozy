@@ -58,6 +58,7 @@ import type { SessionPayload, WorkspacePlacementPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
+import { sessionParentPickerStore } from "../../hooks/use-session-parent-picker";
 import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
@@ -2672,23 +2673,41 @@ describe("SessionList folders and manual order", () => {
     expect(rowContainer(child.id)).not.toHaveAttribute("data-drop");
   });
 
-  it("Should nest through the keyboard menu using only eligible parent choices", async () => {
+  // Invariant: Move under… opens the shell's parent picker for the row's session; it is
+  // offered on unarchived user sessions of hosts that can move lineage, and the picker
+  // explains a continued or forked session's refusal instead of the menu hiding it.
+  it("Should open the parent picker from the keyboard row menu", async () => {
     const user = userEvent.setup();
-    const onAdopt = vi.fn();
     const source = { ...layoutRows[0]!, lineage: undefined };
-    const target = { ...layoutRows[1]!, name: "Destination", lineage: undefined };
-    const foreign = { ...target, id: "foreign", name: "Foreign", profile_id: "another-profile" };
-    renderList({ sessions: [source, target, foreign], actions: { onAdopt } });
+    const continued = {
+      ...layoutRows[1]!,
+      id: "continued",
+      name: "Continued",
+      lineage: { ...layoutRows[0]!.lineage!, parent_session_id: source.id, kind: "continue" },
+    } as SessionPayload;
+    renderList({ sessions: [source, continued], actions: { onAdopt: vi.fn() } });
     screen.getByTestId(`session-row-actions-${source.id}`).focus();
     await user.keyboard("{Enter}");
-    await user.keyboard("Nest{ArrowRight}");
-    const destination = await screen.findByRole("menuitem", { name: "Destination" });
-    expect(destination).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Foreign" })).not.toBeInTheDocument();
-    // Mounting precedes the submenu's scheduled keyboard focus handoff.
-    await waitFor(() => expect(destination).toHaveFocus());
+    await user.keyboard("Move under");
+    const moveUnder = await screen.findByTestId(`session-row-move-under-${source.id}`);
+    await waitFor(() => expect(moveUnder).toHaveFocus());
     await user.keyboard("{Enter}");
-    expect(onAdopt).toHaveBeenCalledWith(source, target);
+    expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe(source.id);
+    sessionParentPickerStore.trigger.closed();
+
+    await user.click(screen.getByTestId(`session-row-actions-${continued.id}`));
+    await user.click(await screen.findByTestId(`session-row-move-under-${continued.id}`));
+    expect(sessionParentPickerStore.getSnapshot().context.sessionId).toBe(continued.id);
+    sessionParentPickerStore.trigger.closed();
+  });
+
+  it("Should leave Move under out where the host cannot move lineage", async () => {
+    const user = userEvent.setup();
+    const source = { ...layoutRows[0]!, lineage: undefined };
+    renderList({ sessions: [source] });
+    await user.click(screen.getByTestId(`session-row-actions-${source.id}`));
+    await screen.findByRole("menu");
+    expect(screen.queryByTestId(`session-row-move-under-${source.id}`)).not.toBeInTheDocument();
   });
 
   it("Should offer Make top-level only on a nested provenance child", async () => {

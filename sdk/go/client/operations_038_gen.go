@@ -9,6 +9,114 @@ import (
 	"strings"
 )
 
+// UploadSessionAttachmentParams carries the path, query, and header parameters.
+type UploadSessionAttachmentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// UploadSessionAttachment Upload a session attachment
+func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessionAttachmentParams, body *UploadFile) (*SessionAttachmentUploadResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionAttachmentUploadResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "multipart/form-data", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
+type ValidateAgentDefinitionSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// ValidateAgentDefinitionSoul Validate a proposed Soul body for an agent definition
+func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params ValidateAgentDefinitionSoulParams, body AgentSoulValidateByPathRequest) (*AgentSoulPayload, error) {
+	path := "/api/agents/{name}/soul/validate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateAgentHeartbeatParams carries the path, query, and header parameters.
+type ValidateAgentHeartbeatParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// ValidateAgentHeartbeat Validate a proposed HEARTBEAT.md body
+func (c *Client) ValidateAgentHeartbeat(ctx context.Context, params ValidateAgentHeartbeatParams, body HeartbeatValidateByPathRequest) (*HeartbeatPolicyPayload, error) {
+	path := "/api/agents/{name}/heartbeat/validate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatPolicyPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateAgentMemoryParams carries the path, query, and header parameters.
+type ValidateAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ValidateAgentMemory Validate proposed memory content (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ValidateAgentMemory(ctx context.Context, params ValidateAgentMemoryParams, body AgentMemoryValidateRequest) (*AgentMemoryValidateResponse, error) {
+	path := "/api/agents/{name}/memory/validate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryValidateResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateAgentSoulParams carries the path, query, and header parameters.
+type ValidateAgentSoulParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
 // ValidateAgentSoul Validate a proposed Soul body or the calling agent's current Soul
 func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoulParams, body AgentSoulValidateRequest) (*AgentSoulPayload, error) {
 	path := "/api/agent/soul/validate"

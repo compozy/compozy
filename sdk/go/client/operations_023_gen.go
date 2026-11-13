@@ -266,6 +266,7 @@ type ListSessionsParams struct {
 	Children                  *string   `url:"children"`
 	Parent                    *string   `url:"parent"`
 	Root                      *string   `url:"root"`
+	ExcludeRoot               *string   `url:"exclude_root"`
 	Worktree                  *string   `url:"worktree"`
 	Q                         *string   `url:"q"`
 	SearchFields              *string   `url:"search_fields"`
@@ -332,6 +333,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.Root != nil {
 		query.Set("root", *params.Root)
+	}
+	if params.ExcludeRoot != nil {
+		query.Set("exclude_root", *params.ExcludeRoot)
 	}
 	if params.Worktree != nil {
 		query.Set("worktree", *params.Worktree)
@@ -422,27 +426,4 @@ type ListSettingsHooksParams struct {
 	Scope       *string `url:"scope"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ListSettingsHooks List settings-backed hook declarations
-func (c *Client) ListSettingsHooks(ctx context.Context, params ListSettingsHooksParams) (*SettingsHooksResponse, error) {
-	path := "/api/settings/hooks"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsHooksResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

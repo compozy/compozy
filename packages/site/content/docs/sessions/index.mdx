@@ -308,16 +308,30 @@ parent and cannot be moved on their own. Archived sessions keep their folder whe
 ## Nest a session under another session
 
 A session started without a parent can become another session's child, so work an agent started
-on its own sits under the session it belongs to. In the sessions sidebar, drag a top-level session
-onto the middle of another session's row (anywhere on the row outside **Manual** sort); the row
-highlights when the drop is allowed. The confirmation offers **Undo**, and **Make top-level** in a
-nested session's row menu returns it later.
+on its own sits under the session it belongs to. There are three ways to do it:
+
+- Choose **Move under…** in the session's row menu (the `…` button or a right-click). A picker
+  searches the project's sessions by title or agent; use the arrow keys and Enter to choose the
+  new parent.
+- In the command palette, type `move` or `parent` while a session window is focused and choose
+  **Move under another session…** to open the same picker for that session.
+- In the sessions sidebar, drag a top-level session onto the middle of another session's row
+  (anywhere on the row outside **Manual** sort); the row highlights when the drop is allowed.
+
+The confirmation offers **Undo**. **Make top-level** in a nested session's row menu, or in its
+**Move under…** picker, returns it to the top level later. To move a nested session under a
+different parent, make it top-level first, then move it.
 
 The daemon checks every request. Both sessions must be user sessions in the same project and
-profile, neither can be archived, and the new parent can't be the session itself or one of its
-descendants. Subagents, spawned workers, and continued or forked sessions keep their lineage. Only
-the parent link changes: the session's children move with it, and its runtime, permissions, and
-spawn limits stay as they were.
+profile, neither can be archived, the new parent can't be in Later, and it can't be the session
+itself or one of its descendants. The picker lists only sessions that pass these checks. Subagents
+and spawned workers keep their lineage (take over a stopped spawned worker first). Only the parent
+link changes: the session's children move with it, and its runtime, permissions, and spawn limits
+stay as they were.
+
+Continued and forked sessions can't move under another session. Their parent link records the
+session they came from, which their origin pill and divider show; nesting them would replace that
+record. They stay top-level, and their picker says so instead of listing parents.
 
 ```bash
 compozy session reparent sess_child --parent sess_parent   # nest

@@ -9,6 +9,29 @@ import (
 	"strings"
 )
 
+// ListSettingsHooks List settings-backed hook declarations
+func (c *Client) ListSettingsHooks(ctx context.Context, params ListSettingsHooksParams) (*SettingsHooksResponse, error) {
+	path := "/api/settings/hooks"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsHooksResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSettingsMCPServersParams carries the path, query, and header parameters.
 type ListSettingsMCPServersParams struct {
 	Scope       *string `url:"scope"`
@@ -397,52 +420,4 @@ type ListTerminalsAggregateParams struct {
 	WorkspaceIds  *[]string `url:"workspace_ids"`
 	Profile       *string   `url:"profile"`
 	AllProfiles   *bool     `url:"all_profiles"`
-}
-
-// ListTerminalsAggregate List workspace terminals
-func (c *Client) ListTerminalsAggregate(ctx context.Context, params ListTerminalsAggregateParams) (*TerminalListResponse, error) {
-	path := "/api/terminals"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListToolApprovalGrantsParams carries the path, query, and header parameters.
-type ListToolApprovalGrantsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-}
-
-// ListToolApprovalGrants List remembered native-tool approval decisions for one workspace
-func (c *Client) ListToolApprovalGrants(ctx context.Context, params ListToolApprovalGrantsParams) (*ToolApprovalGrantListResponse, error) {
-	path := "/api/tool-approval-grants"
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalGrantListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

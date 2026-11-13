@@ -209,6 +209,16 @@ func appendSessionWorkspaceIDsFilter(where []string, args []any, workspaceIDs []
 	return where, append(args, string(encoded)), nil
 }
 
+// appendSessionExcludeRootFilter leaves out one session and every session rooted at it.
+func appendSessionExcludeRootFilter(where []string, args []any, rootID string) ([]string, []any) {
+	rootID = strings.TrimSpace(rootID)
+	if rootID == "" {
+		return where, args
+	}
+	where = append(where, "id <> ?", "(root_session_id IS NULL OR root_session_id <> ?)")
+	return where, append(args, rootID, rootID)
+}
+
 func sessionCatalogPageFilters(
 	query store.SessionCatalogPageQuery,
 	now string,
@@ -224,6 +234,7 @@ func sessionCatalogPageFilters(
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
+	where, args = appendSessionExcludeRootFilter(where, args, query.ExcludeRootSessionID)
 	where, args, err := appendSessionWorkspaceIDsFilter(where, args, query.WorkspaceIDs)
 	if err != nil {
 		return nil, nil, err

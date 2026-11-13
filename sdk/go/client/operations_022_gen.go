@@ -249,6 +249,7 @@ type ListSessionFacetsParams struct {
 	Children                  *string   `url:"children"`
 	Parent                    *string   `url:"parent"`
 	Root                      *string   `url:"root"`
+	ExcludeRoot               *string   `url:"exclude_root"`
 	Resumable                 *bool     `url:"resumable"`
 	State                     *string   `url:"state"`
 	Type                      *string   `url:"type"`
@@ -299,6 +300,9 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 	}
 	if params.Root != nil {
 		query.Set("root", *params.Root)
+	}
+	if params.ExcludeRoot != nil {
+		query.Set("exclude_root", *params.ExcludeRoot)
 	}
 	if params.Resumable != nil {
 		query.Set("resumable", strconv.FormatBool(*params.Resumable))

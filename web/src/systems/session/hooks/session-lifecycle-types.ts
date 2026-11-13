@@ -48,9 +48,10 @@ export interface SessionLifecycleActionHandlers {
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void
   ) => void;
-  /** Nests a top-level session under `parent` (dropped onto its row); absent where unsupported. */
-  /** Loaded rows offered by the owning list as candidate parents. */
-  nestParents?: readonly SessionPayload[];
+  /**
+   * Nests a top-level session under `parent` (dropped onto its row); absent where the host
+   * cannot move lineage, which also hides the row menu's Move under….
+   */
   onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
   /** Returns a nested child to the top level; the row menu's Make top-level. */
   onMakeTopLevel?: (session: SessionPayload) => void;

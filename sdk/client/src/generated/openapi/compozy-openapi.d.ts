@@ -38820,6 +38820,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Leave out this session and every session rooted at it (for example, a session's own tree) */
+        exclude_root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
         /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
@@ -39128,6 +39130,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Leave out this session and every session rooted at it (for example, a session's own tree) */
+        exclude_root?: string;
         /** @description Only count sessions eligible for explicit attach */
         resumable?: boolean;
         /** @description Filter by exact session state */
@@ -53762,6 +53766,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Leave out this session and every session rooted at it (for example, a session's own tree) */
+        exclude_root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
         /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */

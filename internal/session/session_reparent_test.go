@@ -584,9 +584,10 @@ func TestValidateReparentNodes(t *testing.T) {
 	t.Run("Should refuse adopting sessions that already carry lineage or are not user sessions", func(t *testing.T) {
 		t.Parallel()
 		for _, test := range []struct {
-			name string
-			node reparentNode
-			want ReparentRefusal
+			name   string
+			node   reparentNode
+			want   ReparentRefusal
+			detail string
 		}{
 			{
 				name: "subagent",
@@ -601,14 +602,22 @@ func TestValidateReparentNodes(t *testing.T) {
 				want: ReparentRefusalSourceNotUser,
 			},
 			{
-				name: "continued session",
-				node: user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindContinue}),
-				want: ReparentRefusalSourceHasParent,
+				name:   "continued session",
+				node:   user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindContinue}),
+				want:   ReparentRefusalSourceHasParent,
+				detail: "continued and forked sessions stay linked to the session they came from",
 			},
 			{
-				name: "forked session",
-				node: user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindFork}),
-				want: ReparentRefusalSourceHasParent,
+				name:   "forked session",
+				node:   user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindFork}),
+				want:   ReparentRefusalSourceHasParent,
+				detail: "continued and forked sessions stay linked to the session they came from",
+			},
+			{
+				name:   "adopted child",
+				node:   user(store.SessionLineage{ParentSessionID: "sess-p", Kind: store.LineageKindProvenance}),
+				want:   ReparentRefusalSourceHasParent,
+				detail: "session already has a parent; make it top-level first",
 			},
 			{
 				name: "recovery session",
@@ -621,6 +630,9 @@ func TestValidateReparentNodes(t *testing.T) {
 				refusal, ok := errors.AsType[*ReparentError](validateAdoptSource(&test.node))
 				if !ok || refusal.Reason != test.want {
 					t.Fatalf("validateAdoptSource(%s) refusal = %#v, want %q", test.name, refusal, test.want)
+				}
+				if test.detail != "" && refusal.Detail != test.detail {
+					t.Fatalf("validateAdoptSource(%s) detail = %q, want %q", test.name, refusal.Detail, test.detail)
 				}
 			})
 		}

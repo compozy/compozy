@@ -93,12 +93,7 @@ export function SessionListSections({
       thread.session,
     ])
   );
-  const nestParents = [
-    ...sections.folders.flatMap(section => section.threads),
-    ...sections.root,
-  ].flatMap(thread => [thread.session, ...thread.childSessions]);
   const allFolderIds = layout.folders.map(folder => folder.id);
-  const threadActions = { ...sessionActions, nestParents };
   const renderThreads = (threads: readonly SessionThreadModel[], folderId: string | null) => (
     <SectionThreads
       threads={threads}
@@ -115,7 +110,7 @@ export function SessionListSections({
       onThreadBranchChange={onThreadBranchChange}
       onSelectSession={onSelectSession}
       selection={selection}
-      sessionActions={threadActions}
+      sessionActions={sessionActions}
       testIdPrefix={testIdPrefix}
     />
   );

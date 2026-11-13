@@ -60,6 +60,7 @@ export interface OsPaletteRootModel {
   openSession(session: OsPaletteSessionResult): void;
   goToTab(windowId: string): void;
   linkSession(sessionId: string): void;
+  moveSession(sessionId: string): void;
   selectWorktree(entry: OsPaletteWorktreeResult): void;
   openDomainRow(row: OsPaletteDomainRow): void;
 }
@@ -91,6 +92,8 @@ function visiblePaletteFallback(
     entities.sessions.length > 0 ||
     entities.tabs.length > 0 ||
     entities.worktrees.length > 0 ||
+    Boolean(entities.linkSessionId) ||
+    Boolean(entities.moveSessionId) ||
     domainSections.some(section => section.rows.length > 0);
   return fallback !== null && hasDirectResult ? null : fallback;
 }
@@ -112,7 +115,10 @@ function paletteRowSources({
     tabs: destination ? [] : entities.tabs,
     worktrees: destination ? [] : entities.worktrees,
     domainRows: domainSections.flatMap(section => section.rows),
-    linkRows: entities.linkSessionId ? ["session-link"] : [],
+    linkRows: [
+      ...(entities.linkSessionId ? ["session-link"] : []),
+      ...(entities.moveSessionId ? ["session-move-under"] : []),
+    ],
   };
 }
 
@@ -242,6 +248,7 @@ export function useOsPaletteRoot({
     openSession: landing.openSession,
     goToTab: landing.goToTab,
     linkSession: landing.linkSession,
+    moveSession: landing.moveSession,
     selectWorktree: landing.selectWorktree,
     openDomainRow,
   };
