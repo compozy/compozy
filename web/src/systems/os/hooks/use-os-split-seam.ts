@@ -41,11 +41,11 @@ function clearPreview(): void {
 let previewGeneration = 0;
 
 /**
- * This client's own resizes and balances in flight on one split, and the drag releases waiting
- * for them to settle. Kept per manager (one per client) and split, so a sibling seam's command
- * counts too, and only while something is in flight: the map never outgrows the splits this
- * client is resizing right now. The runtime publishes a command's snapshot before its completion
- * settles, so its result always lands while it is still counted here.
+ * This client's own resizes and balances in flight on one split, and the seam commands (held
+ * releases, keystrokes) queued behind them. Kept per manager (one per client) and split, so a
+ * sibling seam's command counts too, and only while something is in flight or queued: the map
+ * never outgrows the splits this client is resizing right now. The runtime publishes a command's
+ * snapshot before its completion settles, so its result always lands while it is still counted.
  */
 interface OwnSplitCommands {
   pending: number;
@@ -56,6 +56,12 @@ const ownCommands = new WeakMap<object, Map<string, OwnSplitCommands>>();
 
 function ownPending(manager: object, splitId: string): number {
   return ownCommands.get(manager)?.get(splitId)?.pending ?? 0;
+}
+
+/** Whether a command of this client is in flight on the split, or queued behind one. */
+function ownBusy(manager: object, splitId: string): boolean {
+  const own = ownCommands.get(manager)?.get(splitId);
+  return own !== undefined && (own.pending > 0 || own.settled.length > 0);
 }
 
 /** Counts one of this client's commands on a split until it settles. */
@@ -79,16 +85,21 @@ function trackOwnCommand(
   tracked.pending += 1;
   return completion.finally(() => {
     tracked.pending -= 1;
-    if (tracked.pending > 0) return;
-    owner.delete(splitId);
-    for (const resume of tracked.settled.splice(0)) resume();
+    // Strictly one at a time: a queued command that sends puts the rest behind its own result,
+    // so each one is computed against the layout the one before it leaves.
+    while (tracked.pending === 0) {
+      const resume = tracked.settled.shift();
+      if (resume === undefined) break;
+      resume();
+    }
+    if (tracked.pending === 0 && owner.get(splitId) === tracked) owner.delete(splitId);
   });
 }
 
-/** Runs `resume` once nothing of this client is in flight on the split. */
+/** Runs `resume` once nothing of this client is in flight or queued ahead on the split. */
 function afterOwnCommands(manager: object, splitId: string, resume: () => void): void {
   const own = ownCommands.get(manager)?.get(splitId);
-  if (own === undefined || own.pending === 0) resume();
+  if (own === undefined || (own.pending === 0 && own.settled.length === 0)) resume();
   else own.settled.push(resume);
 }
 
@@ -185,6 +196,22 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
 
   const sent = (splitId: string, outcome: WindowManagerCommandOutcome): Promise<boolean> =>
     outcome.accepted ? trackOwnCommand(manager, splitId, outcome.completion) : outcome.completion;
+
+  /**
+   * Runs a keyboard or balance command against the layout it will execute on: now, or — behind
+   * this client's commands in flight or queued on the split — against the seam as their results
+   * left it. A seam that is gone by then gets nothing.
+   */
+  const againstSettledLayout = (target: ProjectedSeam, run: (current: ProjectedSeam) => void) => {
+    if (!ownBusy(manager, target.splitId)) {
+      run(target);
+      return;
+    }
+    afterOwnCommands(manager, target.splitId, () => {
+      const latest = authoritativeSeam(manager.getState(), projectedWorkArea(), target);
+      if (latest !== null) run(latest);
+    });
+  };
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     const revision = manager.getState().snapshot?.revision;
@@ -287,13 +314,13 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     const onUp = (up: globalThis.PointerEvent) => {
       if (up.pointerId !== pointerId) return;
       store.trigger.pointerMoved({ pointerId, coordinate: coordinate(up) });
-      if (ownPending(manager, splitId) === 0) {
+      if (!ownBusy(manager, splitId)) {
         commit();
         return;
       }
-      // A command of this client on the split is still in flight, and its result moves the
-      // layout this release would be sent against: hold the release, previewed, until it settles,
-      // then re-base on the latest layout and send.
+      // A command of this client on the split is still in flight (or queued), and its result
+      // moves the layout this release would be sent against: hold the release, previewed, in line
+      // behind it; once everything ahead has settled, re-base on the latest layout and send.
       detach();
       showPreview();
       afterOwnCommands(manager, splitId, () => {
@@ -334,13 +361,15 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
     const direction = keyDirection(event.key);
     if (direction === null) return;
     event.preventDefault();
-    const delta = seamWeightDelta(seam, direction * seamKeyStep(event) * seam.axisSpan);
-    if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
+    const step = direction * seamKeyStep(event);
+    againstSettledLayout(seam, current => {
+      const delta = seamWeightDelta(current, step * current.axisSpan);
+      if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
       void sent(
-        seam.splitId,
-        manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam))
+        current.splitId,
+        manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fenceFor(current))
       );
-    }
+    });
   };
 
   /**
@@ -349,17 +378,21 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined, memberCount: num
    */
   const onDoubleClick = () => {
     if (seam === undefined) return;
-    if (memberCount <= 2) {
-      void sent(seam.splitId, manager.balanceLayout({ splitId: seam.splitId }, fenceFor(seam)));
-      return;
-    }
-    const delta = (seam.trailingWeight - seam.leadingWeight) / 2;
-    if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
+    againstSettledLayout(seam, current => {
+      if (memberCount <= 2) {
+        void sent(
+          current.splitId,
+          manager.balanceLayout({ splitId: current.splitId }, fenceFor(current))
+        );
+        return;
+      }
+      const delta = (current.trailingWeight - current.leadingWeight) / 2;
+      if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
       void sent(
-        seam.splitId,
-        manager.resizeLayout(seam.splitId, seam.boundaryIndex, delta, fenceFor(seam))
+        current.splitId,
+        manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fenceFor(current))
       );
-    }
+    });
   };
 
   return { state, onPointerDown, onKeyDown, onDoubleClick };

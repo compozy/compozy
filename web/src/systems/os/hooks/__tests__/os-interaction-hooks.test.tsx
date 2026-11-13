@@ -2232,8 +2232,8 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(seam).not.toHaveAttribute("data-state");
   });
 
-  it("Should keep a drag through a sibling seam's own resize and send it against the moved bounds", async () => {
-    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+  /** The two seams of a 30/40/30 split at 300 and 700; the second one's test id is "sibling". */
+  function renderThirds(shell: ReturnType<typeof createShell>) {
     const first: ProjectedSeam = {
       ...EXACT_SEAM,
       rect: { x: 300, y: 0, w: 0, h: 700 },
@@ -2260,6 +2260,38 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       </>,
       { wrapper: shell.wrapper }
     );
+  }
+
+  function dragSeam(element: HTMLElement, pointerId: number, from: number, to: number) {
+    fireEvent.pointerDown(element, { button: 0, pointerId, clientX: from, clientY: 300 });
+    fireEvent.pointerMove(element, { pointerId, clientX: to, clientY: 300 });
+  }
+
+  /** The shares the sent resizes leave, applied in order onto `start`. */
+  function sharesAfterResizes(
+    shell: ReturnType<typeof createShell>,
+    start: number[],
+    from: number
+  ) {
+    return vi
+      .mocked(shell.controller.resizeLayout)
+      .mock.calls.slice(from)
+      .reduce((weights, [, boundary, delta]) => {
+        return weights.map((weight, index) => {
+          if (index === boundary) return weight + delta;
+          return index === boundary + 1 ? weight - delta : weight;
+        });
+      }, start);
+  }
+
+  const fenceOn = (boundaryIndex: number, expectedRevision: number) => ({
+    expectedRevision,
+    rebase: { splitId: "split:main", boundaryIndex },
+  });
+
+  it("Should keep a drag through a sibling seam's own resize and send it against the moved bounds", async () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    renderThirds(shell);
     const settle = deferResize(shell);
     fireEvent.keyDown(screen.getByTestId("sibling"), { key: "ArrowLeft" });
     const seam = stubPointerCapture(screen.getByTestId("seam"));
@@ -2281,6 +2313,129 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       expect.closeTo(0.16),
       fenceAt(8)
     );
+  });
+
+  it("Should send held sibling releases one at a time, each against the layout the one before leaves (AS-F-12)", async () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    renderThirds(shell);
+    const settleArrow = deferResize(shell);
+    const settleLeft = deferResize(shell);
+    const settleRight = deferResize(shell);
+    const left = stubPointerCapture(screen.getByTestId("seam"));
+    const right = stubPointerCapture(screen.getByTestId("sibling"));
+
+    // +0.02 in flight; both seams are dragged and released behind it.
+    fireEvent.keyDown(left, { key: "ArrowRight" });
+    dragSeam(left, 4, 300, 460);
+    fireEvent.pointerUp(left, { pointerId: 4, clientX: 460, clientY: 300 });
+    dragSeam(right, 5, 700, 550);
+    fireEvent.pointerUp(right, { pointerId: 5, clientX: 550, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
+
+    // The arrow lands (32/38/30) and settles: only the first held release goes out.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.32, 0.38, 0.3], 8) }));
+    await settleArrow();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.14),
+      fenceOn(0, 8)
+    );
+    expect(right).toHaveAttribute("data-state", "drag");
+
+    // Its result (46/24/30) puts the second seam's floor at 680: the held preview stops there.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.46, 0.24, 0.3], 9) }));
+    expect(right).toHaveAttribute("data-state", "limit");
+    await settleLeft();
+
+    // Sent against that layout: -0.02, not the -0.15 computed against 32/38/30.
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(3);
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      3,
+      "split:main",
+      1,
+      expect.closeTo(-0.02),
+      fenceOn(1, 9)
+    );
+    expect(right).not.toHaveAttribute("data-state");
+    // 46/22/32: what the last preview showed, every member at or above its 220px floor.
+    const shares = sharesAfterResizes(shell, [0.32, 0.38, 0.3], 1);
+    expect(shares).toEqual([expect.closeTo(0.46), expect.closeTo(0.22), expect.closeTo(0.32)]);
+    for (const share of shares) expect(share).toBeGreaterThanOrEqual(0.22 - 1e-9);
+    await settleRight();
+  });
+
+  it("Should hold a sibling's release made while a resumed release is in flight, then send it against its result", async () => {
+    const shell = exactShell(snapshotWithSplit([0.3, 0.4, 0.3]));
+    renderThirds(shell);
+    const settleArrow = deferResize(shell);
+    const settleLeft = deferResize(shell);
+    const left = stubPointerCapture(screen.getByTestId("seam"));
+    const right = stubPointerCapture(screen.getByTestId("sibling"));
+    fireEvent.keyDown(left, { key: "ArrowRight" });
+    dragSeam(left, 4, 300, 460);
+    fireEvent.pointerUp(left, { pointerId: 4, clientX: 460, clientY: 300 });
+    // The second seam is still being dragged when the first release resumes.
+    dragSeam(right, 5, 700, 550);
+
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.32, 0.38, 0.3], 8) }));
+    await settleArrow();
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      2,
+      "split:main",
+      0,
+      expect.closeTo(0.14),
+      fenceOn(0, 8)
+    );
+
+    // Released before that resize lands: it waits behind it instead of using 32/38/30.
+    fireEvent.pointerUp(right, { pointerId: 5, clientX: 550, clientY: 300 });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledTimes(2);
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.46, 0.24, 0.3], 9) }));
+    expect(right).toHaveAttribute("data-state", "limit");
+    await settleLeft();
+
+    expect(shell.controller.resizeLayout).toHaveBeenNthCalledWith(
+      3,
+      "split:main",
+      1,
+      expect.closeTo(-0.02),
+      fenceOn(1, 9)
+    );
+    const shares = sharesAfterResizes(shell, [0.32, 0.38, 0.3], 1);
+    for (const share of shares) expect(share).toBeGreaterThanOrEqual(0.22 - 1e-9);
+  });
+
+  it("Should compute an arrow press made while a resize is in flight against that resize's result", async () => {
+    const shell = exactShell(snapshotWithSplit([0.7, 0.3]));
+    const near: ProjectedSeam = {
+      ...EXACT_SEAM,
+      rect: { x: 700, y: 0, w: 0, h: 700 },
+      value: 700,
+      leadingWeight: 0.7,
+      trailingWeight: 0.3,
+    };
+    render(<SeamHarness seam={near} />, { wrapper: shell.wrapper });
+    const seam = screen.getByTestId("seam");
+    const settle = deferResize(shell);
+
+    // Two quick Shift+Right presses 80px from the floor: the first takes all 80px.
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    fireEvent.keyDown(seam, { key: "ArrowRight", shiftKey: true });
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:main",
+      0,
+      expect.closeTo(0.08),
+      fenceAt(7)
+    );
+
+    // The second waits for 78/22 and finds the seam at its floor: it sends nothing, so it can
+    // never push the trailing side under 220px.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.78, 0.22], 8) }));
+    await settle();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledOnce();
   });
 
   it("Should cancel when someone else moves an ancestor of the dragged seam, and keep a drag the layout leaves in place", () => {
