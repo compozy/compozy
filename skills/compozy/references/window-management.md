@@ -434,24 +434,31 @@ meaningful for `retry`.
   succeeds; a migrated workspace's backup is removed at the first boot of v0.8.0. A set-aside
   backup follows the conversion it belonged to: one from a `migrated` conversion is removed at the
   first boot of v0.8.0 by the same rule, one from a `failed` (or unrecorded) conversion is kept
-  until its workspace or profile is removed.
+  until its workspace or profile is removed. Identical bytes set aside more than once are one copy;
+  its disposition is `failed` if any occurrence came from a failed or unrecorded conversion, and a
+  later success does not restore its expiry.
 - Downgrading to v0.6 after the upgrade is not supported: v0.6 cannot read a version 6 snapshot and
   replaces it with a default layout. The backup key is untouched by v0.6. The next upgrade
   converts the layout v0.6 wrote, whatever the earlier status was. When that value differs from the
   backup, the earlier backup is set aside unchanged under a content-addressed key in the same write,
   the new value becomes the backup, and `status`, `ack`, and `retry [--replace]` act on the newest
-  backup; `superseded_backups` counts the kept copies. Nothing is refused and nothing is lost. If
-  the extra keys would exceed the workspace's client-state key quota, nothing is written: the
+  backup; `superseded_backups` counts the kept copies. No earlier status refuses it and nothing is
+  lost. The one refusal is the quota: if the extra keys would exceed the workspace's client-state
+  key quota, the whole re-upgrade is refused and nothing is written: the
   workspace answers `window_manager_unavailable` (HTTP 503) with the diagnostic
   `snapshot_key_quota`, every stored value stays intact, and boot continues for other workspaces.
   Report it to the operator.
 - A stored snapshot newer than version 6 (written by a later CompozyOS) is never converted or
   rewritten: that workspace answers `window_manager_unavailable` (HTTP 503) while the daemon starts,
   logs `window_manager.partition_reconciliation_skipped`, and serves every other workspace. That
-  holds at boot only: session-deletion and workspace-unregistration cleanup process every readable
-  layout first, then report the unreadable one. A session deletion succeeds and the remaining
-  cleanup is retried in the background; workspace unregistration fails with HTTP 500 naming the
-  partition and completes when repeated after the newer snapshot is gone. Report it to the operator; do not try to repair it.
+  holds at boot only. A re-upgrade refused by the key quota behaves the same way: it is retried on
+  every load, writes nothing while the quota is exceeded, and answers HTTP 503
+  `window_manager_unavailable` with `snapshot_key_quota`. For either kind of unusable partition,
+  session-deletion and workspace-unregistration cleanup process every usable partition first, then
+  report the unavailable ones. A session deletion succeeds and the remaining cleanup is retried in
+  the background. Workspace unregistration purges the removed workspace's own partitions first
+  (whatever their state), so only an unusable partition of another workspace or profile blocks it:
+  it fails with HTTP 500 naming that partition and completes when repeated once it is usable. Report it to the operator; do not try to repair it.
 
 ## Raw Layout Recovery
 

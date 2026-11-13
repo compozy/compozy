@@ -21,11 +21,19 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   and serves the other partitions instead of stopping the daemon. Only boot skips it: session-delete
   window reconciliation and workspace unregistration call `reconcilePartitions` strictly, which
   processes every readable partition and then returns the unavailable ones joined (any other error
-  still returns at once). While a version 7 partition exists the session delete still succeeds but
-  its window cleanup is retried in the background (tombstone kept), and unregistration answers HTTP
-  500 with the intent staged until a repeat succeeds (a 503 needs a contract change; follow-up). A
+  still returns at once). While a partition the daemon cannot read or cannot write exists (version
+  7+, or a re-upgrade refused by the key quota) the session delete still succeeds but its window
+  cleanup is retried in the background (tombstone kept), and unregistration answers HTTP 500 with
+  the intent staged until a repeat succeeds (a 503 needs a contract change; follow-up). Both causes
+  are traced: a quota-refused v5 value is re-migrated on every `Load` and its single `Apply` fails
+  again (`SnapshotQuotaError`, `ErrUnavailable`), and `ReconcileDeletedSession` /
+  `ReconcileUnregisteredWorkspace` call `Snapshot` first. Unregistration purges the removed
+  workspace's own partitions before the cross-partition reconciliation (`window_manager_boot.go`),
+  so only an unusable partition of another workspace or profile blocks it; that purge is the one
+  place a v5 value is deleted without conversion, at the user's request. A
   re-upgrade after a downgrade
-  converts the layout v0.6 wrote whatever the earlier status (no refusal, no 503): when its bytes
+  converts the layout v0.6 wrote whatever the earlier status (no status-based refusal; the only
+  refusal is the key quota below): when its bytes
   differ from `legacy:<profileID>`, the same atomic batch copies the earlier backup to
   `superseded:<profileID>:<sha256 hex>` with a sibling disposition record
   `superseded:<profileID>:<sha256 hex>:disposition` (`{"state":"migrated"}` when the status the copy

@@ -248,7 +248,9 @@ below) and is omitted when there are none.
   set aside unchanged in the same write, and **Retry**, **Dismiss**, and `compozy layout migration
   retry [--replace]` act on the newest saved copy. A copy set aside this way follows the conversion
   it belonged to: a copy from a successful conversion is removed at the first start of v0.8.0, and a
-  copy from a failed conversion is kept until its workspace or profile is deleted. If keeping the
+  copy from a failed conversion is kept until its workspace or profile is deleted. The same layout
+  set aside more than once is kept as one copy; it is treated as failed if any of those conversions
+  failed, and a later success does not make it expire again. If keeping the
   extra copy would exceed the workspace's storage quota, nothing is changed: every stored layout
   and copy stays as it was, the workspace's layout answers `window_manager_unavailable` with the
   diagnostic `snapshot_key_quota`, and CompozyOS keeps serving the other workspaces.
@@ -256,12 +258,16 @@ below) and is omitted when there are none.
 A layout saved by a newer CompozyOS (layout version 7 or later) is left untouched: that
 workspace's layout answers `window_manager_unavailable` until you run the newer version again,
 while CompozyOS starts, logs the skipped workspace (`window_manager.partition_reconciliation_skipped`),
-and serves every other workspace. Two cleanups that touch every stored layout clean every layout
-CompozyOS can read but cannot finish while the newer one is stored: deleting a session succeeds and
-removes its windows from every readable layout, and the rest is retried in the background (logged
-as `session: retained deletion tombstone for window reconciliation retry`); removing a workspace
-cleans every readable layout, then fails with an internal error (HTTP 500) naming the skipped
-layout, and completes when repeated after the newer layout is gone.
+and serves every other workspace. The same holds for a layout whose upgrade was refused by the
+storage quota: it is retried on every load, changes nothing while the quota is exceeded, and
+answers `window_manager_unavailable` with the diagnostic `snapshot_key_quota`. Two cleanups that
+touch every stored layout clean every layout CompozyOS can use but cannot finish while a layout it
+cannot read or cannot write (either case) is stored: deleting a session succeeds and removes its
+windows from every usable layout, and the rest is retried in the background (logged as
+`session: retained deletion tombstone for window reconciliation retry`); removing a workspace
+deletes that workspace's own layouts first, whatever their state, then cleans every other usable
+layout and fails with an internal error (HTTP 500) naming the unusable layout of another workspace,
+and completes when repeated once that layout is usable again.
 
 </OperatorNote>
 
