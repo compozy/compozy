@@ -437,6 +437,31 @@ describe("OsTabBar", () => {
     expect(screen.getByTestId("os-tab-tab:split")).toHaveFocus();
   });
 
+  it("Should leave focus in a menubar menu that took it while a tab's menu was closing [E2E-013]", async () => {
+    renderBar();
+    fireEvent.contextMenu(screen.getByTestId("os-tab-tab:vault"));
+    const tabMenu = await screen.findByRole("menu");
+    await waitFor(() => expect(tabMenu.contains(document.activeElement)).toBe(true));
+    // The menubar's Window menu as it renders: a menu, but not a context menu.
+    const windowMenu = document.createElement("div");
+    windowMenu.setAttribute("role", "menu");
+    windowMenu.dataset.slot = "menubar-content";
+    const item = document.createElement("div");
+    item.setAttribute("role", "menuitem");
+    item.tabIndex = -1;
+    windowMenu.append(item);
+    document.body.append(windowMenu);
+
+    act(() => item.focus());
+    fireEvent.keyDown(tabMenu, { key: "Escape" });
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull()
+    );
+
+    expect(item).toHaveFocus();
+    windowMenu.remove();
+  });
+
   it("Should hand focus to the first tab when tabs remain but none is active [R3-08]", () => {
     // The active tab's window is not projected, so the bar shows no active tab.
     const ghost = solo("tab:ghost", "w-ghost");

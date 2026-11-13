@@ -46,10 +46,11 @@ type SessionOf = (win: OsWindow) => SessionPayload | undefined;
  * Where focus goes when a tab's menu closes: the tab it was opened from. The menu's trigger is the
  * plate wrapper, which takes no focus, and the menu's default return lands on the trigger's first
  * tabbable descendant; a tab off the bar's one roving stop has none, so focus fell out of the bar.
- * Focus that already moved on stays there: into a window the closing click landed in, or into
- * another tab's menu that opened while this one was still closing (the return runs when this
- * menu's popup unmounts, after its exit, which a slow machine or a quick second right-click
- * outruns).
+ * The return runs when this menu's popup unmounts, after its exit, which a quick next action
+ * outruns. Focus still in this menu (its popup, or one of its submenus while no other context
+ * menu is open) goes back to the tab; focus that already moved on stays there: into a window the
+ * closing click landed in, or into any other menu that opened meanwhile (another tab's menu, the
+ * menubar's, a dropdown), which taking focus back would close.
  */
 function tabReturnFocus(plate: HTMLElement | null, popup: HTMLElement | null): HTMLElement | false {
   const tab = plate?.querySelector<HTMLElement>('[role="tab"]');
@@ -57,7 +58,9 @@ function tabReturnFocus(plate: HTMLElement | null, popup: HTMLElement | null): H
   const doc = tab.ownerDocument;
   const focused = doc.activeElement;
   if (focused === null || focused === doc.body) return tab;
-  if (focused.closest('[role="menu"]') === null) return false;
+  if (popup !== null && popup.contains(focused)) return tab;
+  if (focused.closest('[data-slot="context-menu-sub-content"]') === null) return false;
+  // A submenu portals outside its menu: it is this menu's only while no other context menu is open.
   const anotherMenuOpen = Array.from(
     doc.querySelectorAll<HTMLElement>('[data-slot="context-menu-content"]')
   ).some(menu => menu !== popup);

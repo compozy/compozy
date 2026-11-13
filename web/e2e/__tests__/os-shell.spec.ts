@@ -4287,9 +4287,12 @@ type MenubarMenu = "CompozyOS" | "Session" | "Go" | "Window" | "Help";
 
 /** Menubar triggers are `role="menuitem"` inside the shell's single menubar. */
 async function openMenu(page: Page, name: MenubarMenu): Promise<void> {
-  await page.getByRole("menuitem", { name, exact: true }).click();
+  const trigger = page.getByRole("menuitem", { name, exact: true });
+  await trigger.click();
   const menuTestID = name === "CompozyOS" ? "os-menu-compozy" : `os-menu-${name.toLowerCase()}`;
   await expect(page.getByTestId(menuTestID)).toBeVisible();
+  // A popup already closing is still visible: the trigger says whether the menu is open.
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
 }
 
 /** Creates a session through Session > New session and resolves its id. */
