@@ -430,6 +430,81 @@ describe("app update consumer", () => {
     }
   );
 
+  // Invariant: a failed download journals the network error it hit, not a generic install failure.
+  // Owner: desktop update consumer. Canonical suite: app-update-consumer.test.ts.
+  it.each([
+    [
+      "the download",
+      new Error("net::ERR_CONNECTION_RESET"),
+      "The app update could not be downloaded. The connection failed with " +
+        "net::ERR_CONNECTION_RESET. Check your network connection, then retry the update.",
+    ],
+    [
+      "the feed and the recorded release",
+      new AggregateError(
+        [new Error("net::ERR_CONNECTION_CLOSED"), new Error("HttpError: 404")],
+        "The update feed and the recorded app release could not be reached."
+      ),
+      "The app update could not be downloaded. The connection failed with " +
+        "net::ERR_CONNECTION_CLOSED. Check your network connection, then retry the update.",
+    ],
+    [
+      "the installer",
+      new Error("Squirrel rejected the bundle"),
+      "The app update could not be installed.",
+    ],
+  ])("Should journal why %s failed", async (_source, failure, expected) => {
+    let current = stagedOperation();
+    const failures: { lastError?: string; incrementFailures?: boolean }[] = [];
+    const errors: Error[] = [];
+    const transitions: AppUpdateTransitions = {
+      async acquire() {
+        current = nextOperation(current);
+        return current;
+      },
+      async recover() {
+        throw new Error("unexpected recovery");
+      },
+      async renew() {
+        return current;
+      },
+      async phase(transition) {
+        if (transition.phase === "failed") failures.push(transition);
+        current = nextOperation(current, transition.phase, transition.percent);
+        return current;
+      },
+      async progress() {
+        return current;
+      },
+      async verifyArtifact() {
+        return current;
+      },
+      async fence() {
+        return current;
+      },
+    };
+    const consumer = new AppUpdateConsumer({
+      currentVersion: "1.0.0",
+      transitions,
+      installer: {
+        async download() {
+          throw failure;
+        },
+        async prepareInstall() {},
+        async quitAndInstall() {
+          throw new Error("unexpected install");
+        },
+      },
+      onError: error => errors.push(error),
+    });
+    await consumer.handle(current);
+    expect(failures).toEqual([
+      expect.objectContaining({ lastError: expected, incrementFailures: true }),
+    ]);
+    expect(errors).toEqual([failure]);
+    consumer.stop();
+  });
+
   // Invariant: an unchanged staged journal is retried after a transient acquire failure.
   // Owner: desktop consumer/watch loop. Canonical suite: app-update-consumer.test.ts.
   it("Should retry acquisition on the next poll without reinstalling a journaled failure", async () => {

@@ -1,11 +1,18 @@
 import { EventEmitter } from "node:events";
 
 import { describe, expect, it, vi } from "vitest";
-import type { AppUpdater, CancellationToken } from "electron-updater";
+import type {
+  AppUpdater,
+  CancellationToken,
+  ResolvedUpdateFileInfo,
+  UpdateCheckResult,
+} from "electron-updater";
+import type { ProviderRuntimeOptions } from "electron-updater/out/providers/Provider";
 
 import { ElectronUpdateInstaller } from "../electron-installer";
 import { recordedUpdateAsset } from "../electron-installer-policy";
 import type { AppOperationState } from "../operation-contract";
+import type { RecordedReleaseFeed } from "../recorded-release-provider";
 
 const architecture = vi.hoisted(() => ({ translated: false }));
 vi.mock("electron", () => ({
@@ -18,7 +25,8 @@ vi.mock("electron", () => ({
 }));
 vi.mock("electron-updater", async () => {
   const { CancellationToken } = await import("electron-updater/out/types");
-  return { autoUpdater: {}, CancellationToken };
+  const { Provider } = await import("electron-updater/out/providers/Provider");
+  return { autoUpdater: {}, CancellationToken, Provider };
 });
 
 const operation: AppOperationState = {
@@ -31,6 +39,49 @@ const operation: AppOperationState = {
   phase: "staged",
   consecutive_failures: 0,
 };
+
+/** Stands in for electron-updater's feed selection: app-update.yml unless setFeedURL overrides it. */
+class FeedUpdater extends EventEmitter {
+  feed: RecordedReleaseFeed | null = null;
+  resolved: ResolvedUpdateFileInfo[] = [];
+  readonly #failures: { readonly channel: Error; readonly release?: Error };
+  readonly #files: readonly string[];
+
+  constructor(
+    failures: { readonly channel: Error; readonly release?: Error },
+    files: readonly string[]
+  ) {
+    super();
+    this.#failures = failures;
+    this.#files = files;
+  }
+
+  set updateConfigPath(_path: string | null) {
+    this.feed = null;
+  }
+
+  setFeedURL(feed: RecordedReleaseFeed): void {
+    this.feed = feed;
+  }
+
+  async checkForUpdates(): Promise<UpdateCheckResult> {
+    if (!this.feed) throw this.#failures.channel;
+    if (this.#failures.release) throw this.#failures.release;
+    const runtime: ProviderRuntimeOptions = {
+      isUseMultipleRangeRequest: false,
+      platform: "darwin",
+      executor: {} as ProviderRuntimeOptions["executor"],
+    };
+    const provider = new this.feed.updateProvider({}, this, runtime);
+    const updateInfo = await provider.getLatestVersion();
+    this.resolved = provider.resolveFiles(updateInfo);
+    return { isUpdateAvailable: true, updateInfo, versionInfo: updateInfo };
+  }
+
+  async downloadUpdate(): Promise<string[]> {
+    return [...this.#files];
+  }
+}
 
 // Invariant: installer feed identity must exactly match the durable app operation.
 describe("electron installer feed policy", () => {
@@ -138,5 +189,63 @@ describe("electron installer feed policy", () => {
     expect(token?.cancelled).toBe(true);
     finish();
     await expect(downloading).rejects.toThrow("download deadline exceeded");
+  });
+
+  // Invariant: an unreachable channel feed host cannot block the release the daemon recorded,
+  // and the recorded download is verified against the daemon's signed sha256.
+  // Owner: Electron installer adapter. Canonical suite: electron-installer-policy.test.ts.
+  it("Should download the recorded release when the channel feed is unreachable", async () => {
+    const sha256 = "ab".repeat(32);
+    const recorded = { ...operation, digest: `sha256:${sha256}` };
+    const updater = new FeedUpdater({ channel: new Error("net::ERR_CONNECTION_CLOSED") }, [
+      `/tmp/${recorded.asset}`,
+    ]);
+    const feedFailures: Error[] = [];
+    const installer = new ElectronUpdateInstaller({
+      updater: updater as unknown as AppUpdater,
+      nativeUpdater: null,
+      prepareForRestart: async () => {},
+      onFeedFallback: error => feedFailures.push(error),
+    });
+
+    await expect(
+      installer.download(recorded, async () => {}, new AbortController().signal)
+    ).resolves.toEqual({ artifactPath: `/tmp/${recorded.asset}`, version: "1.1.0" });
+    expect(feedFailures.map(error => error.message)).toEqual(["net::ERR_CONNECTION_CLOSED"]);
+    expect(updater.resolved.map(file => ({ url: file.url.href, info: file.info }))).toEqual([
+      {
+        url: "https://github.com/compozy/compozy/releases/download/v1.1.0/CompozyOS-1.1.0-arm64.zip",
+        info: { url: recorded.asset, sha2: sha256 },
+      },
+    ]);
+    // The next attempt reads the channel feed again.
+    expect(updater.feed).toBeNull();
+  });
+
+  it("Should report both sources when the recorded release is unreachable too", async () => {
+    const updater = new FeedUpdater(
+      {
+        channel: new Error("net::ERR_CONNECTION_CLOSED"),
+        release: new Error("net::ERR_NAME_NOT_RESOLVED"),
+      },
+      []
+    );
+    const installer = new ElectronUpdateInstaller({
+      updater: updater as unknown as AppUpdater,
+      nativeUpdater: null,
+      prepareForRestart: async () => {},
+    });
+
+    await expect(
+      installer.download(
+        { ...operation, digest: `sha256:${"cd".repeat(32)}` },
+        async () => {},
+        new AbortController().signal
+      )
+    ).rejects.toThrow(
+      "The update feed and the recorded app release could not be reached " +
+        "(net::ERR_CONNECTION_CLOSED; net::ERR_NAME_NOT_RESOLVED)."
+    );
+    expect(updater.feed).toBeNull();
   });
 });

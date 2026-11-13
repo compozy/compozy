@@ -194,10 +194,7 @@ export class AppUpdateConsumer {
         ...identity(operation, this.#executorGeneration),
         phase: "failed",
         percent: -1,
-        lastError:
-          cause instanceof InstallerDeadlineError
-            ? cause.message
-            : "The app update could not be installed.",
+        lastError: installFailureMessage(cause),
         outcome: "failed",
         watchdogDeadline: "clear",
         incrementFailures: true,
@@ -257,6 +254,31 @@ export class AppUpdateConsumer {
 }
 
 class InstallerDeadlineError extends Error {}
+
+/** Journals a safe failure that names the network error instead of a generic install failure. */
+function installFailureMessage(cause: unknown): string {
+  if (cause instanceof InstallerDeadlineError) return cause.message;
+  const networkError = findNetworkError(cause, 0);
+  if (networkError) {
+    return (
+      `The app update could not be downloaded. The connection failed with ${networkError}. ` +
+      "Check your network connection, then retry the update."
+    );
+  }
+  return "The app update could not be installed.";
+}
+
+function findNetworkError(error: unknown, depth: number): string | undefined {
+  if (!(error instanceof Error) || depth > 4) return undefined;
+  const code = /\bnet::ERR_[A-Z0-9_]+\b/u.exec(error.message)?.[0];
+  if (code) return code;
+  const nested = error instanceof AggregateError ? [...error.errors, error.cause] : [error.cause];
+  for (const candidate of nested) {
+    const found = findNetworkError(candidate, depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
 
 async function withInstallerDeadline<T>(
   duration: number,
