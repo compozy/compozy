@@ -1760,6 +1760,32 @@ describe("WindowPaneHosts", () => {
     cleanup();
   });
 
+  it("Should restore once when a slot mounts and adopts its pane in the same commit [R14-05]", async () => {
+    const { hosts, surface, cleanup } = setup();
+    const owner = document.createElement("div");
+    owner.setAttribute(SCROLL_OWNER_ATTRIBUTE, "");
+    surface.append(owner);
+    const deskLayer = document.createElement("div");
+    deskLayer.dataset.slot = "os-desk-layer";
+    const split = document.createElement("div");
+    const [before, after] = [document.createElement("div"), document.createElement("div")];
+    split.append(before);
+    deskLayer.append(split);
+    document.body.append(deskLayer);
+    hosts.place("w", before);
+    const told = vi.fn();
+    owner.addEventListener(SCROLL_RESTORE_EVENT, told);
+
+    // A drag into a split: the new slot mounts in the observed split, then adopts the host.
+    split.append(after);
+    hosts.place("w", after);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(told).toHaveBeenCalledOnce();
+    deskLayer.remove();
+    cleanup();
+  });
+
   it("Should size-observe a pane root that mounts after placing, and release it by name [R13-04]", async () => {
     const { hosts, sized, first, cleanup } = setup();
     const late = hosts.hostOf("late");
