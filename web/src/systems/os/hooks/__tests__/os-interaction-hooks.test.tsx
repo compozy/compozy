@@ -57,7 +57,7 @@ import { useOsTabDragStart } from "../use-os-tab-drag";
 import { TAB_DRAG_EXIT_PX } from "../../lib/drop-edge";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { applySeamPreviewToTab, seamWeightDelta } from "../../lib/seam-preview";
-import { projectTab } from "../../lib/tab-projection";
+import { admitSeamShift, projectTab } from "../../lib/tab-projection";
 import { authoritativeSeam, buildWindowManagerMinimums } from "../../lib/window-manager-view";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
@@ -3010,13 +3010,18 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     });
     const tab = snapshot.desktops[0]?.tabs[0];
     if (stored === null || tab === undefined) throw new Error("expected the first row seam");
-    const project = (previewed: LayoutTab) =>
-      projectTab({
-        tab: previewed,
-        workArea: area,
-        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
-        minimums: buildWindowManagerMinimums(snapshot),
-      });
+    const input = (layout: LayoutTab) => ({
+      tab: layout,
+      workArea: area,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: buildWindowManagerMinimums(snapshot),
+    });
+    // The frame the published preview renders, admitted as the runtime view admits it.
+    const shownShift = () => {
+      const admitted = admitSeamShift(input(tab), stored, previewDelta() ?? 0);
+      if (admitted === null) throw new Error("expected the first row seam");
+      return admitted.shiftPx;
+    };
     // Rendered half a pixel past where the layout has it, as a preview frame may leave it: the
     // press re-anchors on the stored seam, so every whole-pixel pointer asks for k + 0.5px.
     render(<SeamHarness seam={{ ...stored, value: stored.value + 0.5 }} />, {
@@ -3032,7 +3037,8 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       fireEvent.pointerMove(seam, { pointerId: 4, clientX: pointer, clientY: 300 });
       flushFrames();
       const requestedPx = pointer - stored.value + 0.5;
-      const frame = project(applySeamPreviewToTab(tab, stored, previewDelta() ?? 0));
+      expect(previewDelta()).toBe(requestedPx);
+      const frame = projectTab(input(applySeamPreviewToTab(tab, stored, shownShift())));
       expect(frame.collapsed).toEqual([]);
       expect(frame.seams.map(entry => entry.id)).toEqual(["split:main:0", "split:main:1"]);
       expect(seam).toHaveAttribute(
@@ -3043,7 +3049,8 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     // Released asking for 40.5px: the last frame shows 40px, and that is what commits.
     fireEvent.pointerUp(seam, { pointerId: 4, clientX: stored.value + 40, clientY: 300 });
 
-    expect(previewDelta()).toBe(40);
+    expect(previewDelta()).toBe(40.5);
+    expect(shownShift()).toBe(40);
     expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
       "split:main",
       0,

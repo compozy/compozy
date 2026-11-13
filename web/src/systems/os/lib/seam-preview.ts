@@ -7,6 +7,7 @@ const MIN_SPLIT_WEIGHT = 0.01;
 export interface SeamPreview {
   readonly splitId: string;
   readonly boundaryIndex: number;
+  /** The shift the pointer asks for; the rendered frame shows the shift `admitSeamShift` admits. */
   readonly deltaPx: number;
 }
 

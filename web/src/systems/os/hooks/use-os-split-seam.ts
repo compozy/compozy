@@ -291,7 +291,9 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
         preview: {
           splitId: drag.seam.splitId,
           boundaryIndex: drag.seam.boundaryIndex,
-          deltaPx: drag.shownPx,
+          // The shift the pointer asks for: the preview admits it by the same rule `shownPx` came
+          // from, against the layout it renders.
+          deltaPx: drag.deltaPx,
         },
       });
     };
@@ -315,7 +317,6 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
       }
       if (sameSeamGeometry(latest, drag.seam)) {
         store.trigger.readmitted({ admit });
-        if (store.getSnapshot().context.shownPx !== drag.shownPx) showPreview();
         return true;
       }
       if (!owned || latest.orientation !== drag.seam.orientation) {
