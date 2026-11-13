@@ -1,4 +1,6 @@
 const HOST_SLOT = "os-window-host";
+/** Where re-insertions stop mattering: the desk layer holds every desktop, tab and slot. */
+const DESK_LAYER = '[data-slot="os-desk-layer"]';
 
 interface ScrollOffset {
   top: number;
@@ -12,6 +14,8 @@ interface PaneHost {
   offsets: Map<Element, ScrollOffset>;
   /** Whether the pane's surface had a box at the last observation; `null` before the first. */
   rendered: boolean | null;
+  /** The pane roots the resize observer watches, so they can be released by name. */
+  observed: Set<Element>;
 }
 
 /** What the hosts read from the window manager, at the moment they act. */
@@ -36,8 +40,13 @@ function isRendered(element: Element): boolean {
  * The host keeps both for every app:
  * - A capture-phase `scroll` listener on the host records each container's offsets as they change
  *   (one map write per scroll event; the offsets are already laid out when it fires).
- * - Placing the host in a slot, and the pane's surface getting a box again after it had none,
- *   writes back every recorded offset the browser dropped (now 0), which lays the pane out once.
+ * - Placing the host in a slot, re-inserting it with an ancestor (a keyed reorder of tab layers,
+ *   collapsed split members or desktops moves their DOM nodes without remounting a slot), and the
+ *   pane's surface getting a box again after it had none write back every recorded offset the
+ *   browser dropped (now 0), which lays the pane out once. A re-insertion is seen by a
+ *   `childList` mutation observer on the slot's ancestors up to the desk layer: those lists change
+ *   only when the layout does, never with an app's content. The same observer watches each host's
+ *   own children, so a pane root that mounts after `place` is observed for size too.
  *   It runs before the apps' own resize handling for that frame (its observer is created first),
  *   so an app that sets its offset again still has the last word.
  * - Focus that last landed inside the pane returns to that element (`preventScroll`) when it was
@@ -60,6 +69,7 @@ export class WindowPaneHosts {
   /** Where focus last landed inside a pane, while nothing outside the panes took it since. */
   private lastFocus: { windowId: string; element: HTMLElement } | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private mutationObserver: MutationObserver | null = null;
   private listening: Document | null = null;
   /** Set while a host leaves its slot: the blur that causes is not the operator's. */
   private detaching = false;
@@ -81,7 +91,9 @@ export class WindowPaneHosts {
     const host = this.ensure(windowId);
     slot.appendChild(host.element);
     this.listen(slot.ownerDocument);
-    for (const child of host.element.children) this.resizeObserver?.observe(child);
+    this.mutationObserver?.observe(host.element, { childList: true });
+    this.trackRoots(host);
+    this.watchAncestors(slot);
     this.restore(host);
     return () => {
       if (host.element.parentNode !== slot) return;
@@ -103,7 +115,9 @@ export class WindowPaneHosts {
   retain(windowIds: ReadonlySet<string>): void {
     for (const [windowId, host] of this.hosts) {
       if (windowIds.has(windowId)) continue;
-      for (const child of host.element.children) this.resizeObserver?.unobserve(child);
+      // By the roots it observed: the portal's children are already gone by now.
+      for (const root of host.observed) this.resizeObserver?.unobserve(root);
+      host.observed.clear();
       this.hosts.delete(windowId);
       if (this.lastFocus?.windowId === windowId) this.lastFocus = null;
     }
@@ -113,10 +127,15 @@ export class WindowPaneHosts {
   dispose(): void {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.mutationObserver?.disconnect();
+    this.mutationObserver = null;
     this.listening?.removeEventListener("focusin", this.handleFocusIn, true);
     this.listening?.removeEventListener("focusout", this.handleFocusOut, true);
     this.listening = null;
-    for (const host of this.hosts.values()) host.rendered = null;
+    for (const host of this.hosts.values()) {
+      host.rendered = null;
+      host.observed.clear();
+    }
   }
 
   private ensure(windowId: string): PaneHost {
@@ -125,7 +144,13 @@ export class WindowPaneHosts {
     const element = document.createElement("div");
     element.style.display = "contents";
     element.dataset.slot = HOST_SLOT;
-    const host: PaneHost = { windowId, element, offsets: new Map(), rendered: null };
+    const host: PaneHost = {
+      windowId,
+      element,
+      offsets: new Map(),
+      rendered: null,
+      observed: new Set(),
+    };
     element.addEventListener(
       "scroll",
       event => {
@@ -146,10 +171,54 @@ export class WindowPaneHosts {
     this.listening = document;
     document.addEventListener("focusin", this.handleFocusIn, true);
     document.addEventListener("focusout", this.handleFocusOut, true);
+    if (typeof MutationObserver !== "undefined") {
+      this.mutationObserver = new MutationObserver(records => this.handleMutations(records));
+    }
     if (typeof ResizeObserver === "undefined") return;
     this.resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) this.observeBox(entry);
     });
+  }
+
+  /** Observes the host's current pane roots for size and releases the ones that left it. */
+  private trackRoots(host: PaneHost): void {
+    for (const root of host.observed) {
+      if (root.parentElement === host.element) continue;
+      this.resizeObserver?.unobserve(root);
+      host.observed.delete(root);
+    }
+    for (const root of host.element.children) {
+      if (host.observed.has(root)) continue;
+      host.observed.add(root);
+      this.resizeObserver?.observe(root);
+    }
+  }
+
+  /** Watches the lists a keyed reorder can re-insert the slot through, up to the desk layer. */
+  private watchAncestors(slot: HTMLElement): void {
+    const body = slot.ownerDocument.body;
+    for (let node = slot.parentElement; node !== null && node !== body; node = node.parentElement) {
+      this.mutationObserver?.observe(node, { childList: true });
+      if (node.matches(DESK_LAYER)) return;
+    }
+  }
+
+  private handleMutations(records: readonly MutationRecord[]): void {
+    const reinserted = new Set<PaneHost>();
+    for (const record of records) {
+      const own = record.target instanceof Element ? this.byElement.get(record.target) : undefined;
+      if (own !== undefined) {
+        this.trackRoots(own);
+        continue;
+      }
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        for (const host of this.hosts.values()) {
+          if (node.contains(host.element)) reinserted.add(host);
+        }
+      }
+    }
+    for (const host of reinserted) this.restore(host);
   }
 
   /** A surface with no box was hidden; one that gets a box back is shown again. */

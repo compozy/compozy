@@ -1414,15 +1414,23 @@ describe("WindowPaneHosts", () => {
   function setup() {
     let observe!: ResizeObserverCallback;
     let observer!: ResizeObserver;
+    /** What the live resize observer watches. */
+    const sized = new Set<Element>();
     class ResizeObserverMock implements ResizeObserver {
       constructor(callback: ResizeObserverCallback) {
         observe = callback;
         observer = this;
       }
 
-      observe() {}
-      unobserve() {}
-      disconnect() {}
+      observe(target: Element) {
+        sized.add(target);
+      }
+      unobserve(target: Element) {
+        sized.delete(target);
+      }
+      disconnect() {
+        sized.clear();
+      }
     }
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
     const focus = { windowId: "w" };
@@ -1465,6 +1473,7 @@ describe("WindowPaneHosts", () => {
     return {
       hosts,
       focus,
+      sized,
       surface,
       scroller,
       field,
@@ -1693,6 +1702,46 @@ describe("WindowPaneHosts", () => {
       expect(shell.history.navigate).not.toHaveBeenCalled();
       cleanup();
     });
+  });
+
+  it("Should restore scroll and focus when a keyed reorder re-inserts the pane's layer [R13-01]", async () => {
+    const { hosts, scroller, field, scrollTo, cleanup } = setup();
+    const deskLayer = document.createElement("div");
+    deskLayer.dataset.slot = "os-desk-layer";
+    const [shown, other] = [document.createElement("div"), document.createElement("div")];
+    const slot = document.createElement("div");
+    shown.append(slot);
+    deskLayer.append(shown, other);
+    document.body.append(deskLayer);
+    hosts.place("w", slot);
+    scrollTo(120);
+    field.focus();
+
+    // The shown tab is dragged right past the other: React re-inserts its layer, no slot remounts.
+    deskLayer.appendChild(shown);
+    scroller.scrollTop = 0;
+    expect(document.activeElement).toBe(document.body);
+
+    await waitFor(() => expect(scroller.scrollTop).toBe(120));
+    expect(document.activeElement).toBe(field);
+    deskLayer.remove();
+    cleanup();
+  });
+
+  it("Should size-observe a pane root that mounts after placing, and release it by name [R13-04]", async () => {
+    const { hosts, sized, first, cleanup } = setup();
+    const late = hosts.hostOf("late");
+    hosts.place("late", first);
+    const root = document.createElement("section");
+
+    late.append(root);
+    await waitFor(() => expect(sized.has(root)).toBe(true));
+
+    // The portal's children leave in the same commit that drops the window.
+    root.remove();
+    hosts.retain(new Set(["w"]));
+    expect(sized.has(root)).toBe(false);
+    cleanup();
   });
 
   it("Should not write offsets back while a shown pane only resizes", () => {
