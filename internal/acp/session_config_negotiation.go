@@ -2,8 +2,10 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -155,7 +157,16 @@ func ValidateModelConfigValue(options []SessionConfigOption, modelID string) err
 	)
 }
 
-// applySessionReasoningEffort rejects unadvertised intent before requesting provider acknowledgement.
+// Providers may apply a selected value and announce it in a config_option_update
+// that arrives after the set response returns, so one readback is not proof of
+// rejection. These bounds keep the confirmation wait short and deterministic.
+const (
+	reasoningEffortConfirmAttempts = 4
+	reasoningEffortConfirmBackoff  = 50 * time.Millisecond
+)
+
+// applySessionReasoningEffort rejects unadvertised intent before requesting provider
+// acknowledgement, and retries an unconfirmed apply while the provider snapshot settles.
 func (d *Driver) applySessionReasoningEffort(
 	ctx context.Context,
 	process *AgentProcess,
@@ -169,45 +180,82 @@ func (d *Driver) applySessionReasoningEffort(
 		return false, nil
 	}
 
-	caps := process.CapsSnapshot()
-	option, ok := findReasoningConfigOption(caps.ConfigOptions)
-	if !ok {
-		return false, newNegotiationError(
-			NegotiationCodeReasoningOptionMissing,
-			"reasoning effort",
-			effortID,
-			"",
-			nil,
-			nil,
-		)
+	requested := false
+	optionID := ""
+	var unconfirmed error
+	for attempt := range reasoningEffortConfirmAttempts {
+		if attempt > 0 {
+			if err := waitReasoningEffortConfirmation(ctx, attempt); err != nil {
+				return requested, err
+			}
+		}
+		option, ok := findReasoningConfigOption(process.CapsSnapshot().ConfigOptions)
+		if !ok {
+			return requested, newNegotiationError(
+				NegotiationCodeReasoningOptionMissing,
+				"reasoning effort",
+				effortID,
+				"",
+				nil,
+				nil,
+			)
+		}
+		optionID = option.ID
+		if !configOptionAllowsValue(option, effortID) {
+			return requested, newNegotiationError(
+				NegotiationCodeReasoningEffortUnsupported,
+				"reasoning effort",
+				effortID,
+				option.ID,
+				configOptionChoices(option),
+				nil,
+			)
+		}
+		if strings.TrimSpace(option.CurrentValueID) == effortID {
+			return requested, nil
+		}
+		requested = true
+		err := d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{
+			ID:      option.ID,
+			ValueID: effortID,
+		})
+		if err == nil {
+			return true, nil
+		}
+		if !errors.Is(err, errConfigOptionUnconfirmed) {
+			return true, newNegotiationError(
+				NegotiationCodeReasoningEffortUnsupported,
+				"reasoning effort",
+				effortID,
+				option.ID,
+				configOptionChoices(option),
+				err,
+			)
+		}
+		unconfirmed = err
 	}
-	if !configOptionAllowsValue(option, effortID) {
-		return false, newNegotiationError(
-			NegotiationCodeReasoningEffortUnsupported,
-			"reasoning effort",
-			effortID,
-			option.ID,
-			configOptionChoices(option),
-			nil,
-		)
+	// The provider advertises the value but never confirmed it across the retry
+	// window: report the unconfirmed cause without claiming the value is absent
+	// from the advertised choices.
+	return true, newNegotiationError(
+		NegotiationCodeReasoningEffortUnsupported,
+		"reasoning effort",
+		effortID,
+		optionID,
+		nil,
+		unconfirmed,
+	)
+}
+
+func waitReasoningEffortConfirmation(ctx context.Context, attempt int) error {
+	timer := time.NewTimer(reasoningEffortConfirmBackoff << (attempt - 1))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("acp: wait for reasoning effort confirmation: %w", ctx.Err())
+	case <-timer.C:
+		return nil
 	}
-	if strings.TrimSpace(option.CurrentValueID) == effortID {
-		return false, nil
-	}
-	if err := d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{
-		ID:      option.ID,
-		ValueID: effortID,
-	}); err != nil {
-		return true, newNegotiationError(
-			NegotiationCodeReasoningEffortUnsupported,
-			"reasoning effort",
-			effortID,
-			option.ID,
-			configOptionChoices(option),
-			err,
-		)
-	}
-	return true, nil
 }
 
 // applySessionConfigOption requires confirmation without replacing a concurrent provider observation.
