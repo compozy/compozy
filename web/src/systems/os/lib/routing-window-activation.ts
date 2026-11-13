@@ -10,16 +10,47 @@ export interface WindowActivationStart {
   readonly startedOn: string | null;
   /** The requested window was already focused and shown when the activation began. */
   readonly alreadyShown: boolean;
+  /** The workspace cycle it began in (`WindowActivations.abandon`). */
+  readonly generation: number;
 }
 
-export function startWindowActivation(
-  state: ActivationState,
-  windowId: string,
-  intent: number
-): WindowActivationStart {
-  const startedOn = state.focusedId;
-  const alreadyShown = startedOn === windowId && state.windows[windowId]?.shown === true;
-  return { windowId, intent, startedOn, alreadyShown };
+/**
+ * The window activations in flight. Each writes its own entry once its focus settles; reports
+ * meanwhile defer to them. An activation a workspace switch abandoned writes nothing: the state it
+ * settles into belongs to the workspace switched to, whose one entry the switch writes itself.
+ */
+export class WindowActivations {
+  private inFlight = 0;
+  private generation = 0;
+
+  /** Whether an activation's focus is still in flight. */
+  get settling(): boolean {
+    return this.inFlight > 0;
+  }
+
+  begin(state: ActivationState, windowId: string, intent: number): WindowActivationStart {
+    this.inFlight += 1;
+    const startedOn = state.focusedId;
+    const alreadyShown = startedOn === windowId && state.windows[windowId]?.shown === true;
+    return { windowId, intent, startedOn, alreadyShown, generation: this.generation };
+  }
+
+  /** Ends an activation once its focus settled; returns the entry it writes, if any. */
+  end(
+    start: WindowActivationStart,
+    state: ActivationState,
+    currentRoute: OsWindowRoute | null,
+    newestIntent: number
+  ): OsWindowRoute | null {
+    this.inFlight -= 1;
+    if (start.generation !== this.generation) return null;
+    return windowActivationEntry(start, state, currentRoute, newestIntent);
+  }
+
+  /** A workspace switch began: no activation in flight writes into what follows. */
+  abandon(): void {
+    this.generation += 1;
+  }
 }
 
 /**

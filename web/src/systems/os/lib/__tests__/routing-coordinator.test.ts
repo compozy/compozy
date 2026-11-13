@@ -914,6 +914,30 @@ describe("RoutingCoordinator", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("Should leave the entry of a workspace switch to the switch when an activation from the workspace it left settles", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const agents = windowFixture("agents", "/agents");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([tasks, agents, settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const settles = deferFocusCompletions(store);
+
+    const activation = coordinator.userFocus(tasks.id);
+    // The workspace switches while the focus is in flight; the target workspace focuses Agents.
+    coordinator.beginWorkspaceSwitch();
+    store.setAuthoritativeFocus(agents.id);
+    // The daemon applied the focus sent from the workspace that was left.
+    settles[0]!(true);
+    await activation;
+    expect(router.navigate).not.toHaveBeenCalled();
+    coordinator.completeHydration();
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(agents.route, expect.any(String));
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it("Should push where another source moved this client during an activation, keeping the entry before it [R9-02]", async () => {
     const tasks = windowFixture("tasks", "/tasks");
     const settings = windowFixture("settings", "/settings/general");

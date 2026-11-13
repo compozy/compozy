@@ -17,7 +17,7 @@ import {
 } from "./routing-default-view-intent";
 import { decideRouteReconciliation } from "./routing-route-decision";
 import { RoutingWriteEchoes, type RouteWriteId } from "./routing-write-echoes";
-import { startWindowActivation, windowActivationEntry } from "./routing-window-activation";
+import { WindowActivations } from "./routing-window-activation";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -57,8 +57,7 @@ export class RoutingCoordinator {
    * late push would drag the operator back to a destination they left (rule 3 coalescing).
    */
   private nextUserIntentToken = 0;
-  /** Window activations whose focus is still in flight; each writes its own entry when it settles. */
-  private activationsInFlight = 0;
+  private readonly activations = new WindowActivations();
   private pendingNavigateMode: "push" | "pop" | null = null;
   private createdSessionIntent: { instanceKey: string; afterToken: number } | null = null;
   private readonly echoes = new RoutingWriteEchoes();
@@ -160,7 +159,7 @@ export class RoutingCoordinator {
       return;
     }
     // A window activation in flight writes the URL once it settles (`activate`).
-    if (this.activationsInFlight > 0) return;
+    if (this.activations.settling) return;
     const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
@@ -296,21 +295,19 @@ export class RoutingCoordinator {
    * meanwhile defer to it, so the entry before a burst stays a Back target.
    */
   private async activate(windowId: string): Promise<boolean> {
-    const start = startWindowActivation(
+    const start = this.activations.begin(
       this.manager.getState(),
       windowId,
       this.nextUserIntentToken
     );
-    this.activationsInFlight += 1;
     // A rejected completion still ends the activation: the count must never leak.
     await this.manager.focusWindow(windowId, { replaceable: true }).completion.catch(() => false);
-    this.activationsInFlight -= 1;
     const state = this.manager.getState();
     const newest = this.nextUserIntentToken;
-    const entry = windowActivationEntry(start, state, this.currentRoute, newest);
+    const entry = this.activations.end(start, state, this.currentRoute, newest);
     if (entry !== null) this.pushRoute(entry);
     // Reports deferred to activations catch up once none is left in flight.
-    else if (this.activationsInFlight === 0) this.reportAuthoritativeState();
+    else if (!this.activations.settling) this.reportAuthoritativeState();
     return start.intent === newest && state.focusedId === windowId;
   }
 
@@ -386,6 +383,7 @@ export class RoutingCoordinator {
   beginWorkspaceSwitch(): void {
     if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
     this.invalidateRouteReconciliation();
+    this.activations.abandon();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
   }
