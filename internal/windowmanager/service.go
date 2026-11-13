@@ -272,13 +272,10 @@ func (m *Manager) previewLocked(
 	if err != nil {
 		return Preview{}, err
 	}
-	reduced, err := (&reducer{
+	reduced, err := reduceCommandSurfaces(&working, payload, &reducer{
 		generate: previewGenerate, config: config, focusedWindow: focused,
 		activeDesktop: activeDesktop, activeTabs: clientActiveTabs(client), now: m.now,
-	}).reduce(
-		&working,
-		payload,
-	)
+	})
 	if err != nil {
 		return Preview{}, err
 	}

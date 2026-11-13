@@ -189,9 +189,6 @@ func (r *reducer) placeMovedTab(
 	} else if d.ID == w.DesktopID {
 		index = tabHoldingID(d.Tabs, source.ID) + 1
 	}
-	insertTab(d, tab, index)
-	assignTabWindows(snapshot, d, tab)
-	d.ActiveTabID = tab.ID
-	r.changes.tab(tab.ID)
+	r.placeTab(snapshot, d, tab, index)
 	return nil
 }

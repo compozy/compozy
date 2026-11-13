@@ -621,16 +621,43 @@ func TestTabsAndSplits(t *testing.T) {
 		client := ClientID("caller")
 		registerTestClient(t, e.manager, "workspace-a", client)
 		before := mustSnapshot(t, e.manager, "workspace-a")
+		commitsBefore := len(e.repository.Commits("workspace-a"))
+		request := CommandRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: before.Revision, ClientID: &client,
+			Payload: OpenWindowCommand{RestoreWindowID: new(WindowID("a"))},
+		}
+		preview, err := e.manager.Preview(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Preview(restore) error=%v", err)
+		}
+		requireWindowSurfaceDeprecation(t, preview.Deprecations, "window.open.restore_window_id")
+		if preview.Changed || !reflect.DeepEqual(preview.Snapshot, before) ||
+			!reflect.DeepEqual(preview.Changes, ChangeSet{}) {
+			t.Fatalf("restore preview=%+v", preview)
+		}
 		r := executeTestCommand(
 			t,
 			e.manager,
 			"workspace-a",
 			&client,
-			OpenWindowCommand{RestoreWindowID: new(WindowID("a"))},
+			request.Payload,
 		)
-		if r.Applied || r.Snapshot.Revision != before.Revision ||
+		requireWindowSurfaceDeprecation(t, r.Deprecations, "window.open.restore_window_id")
+		if r.Applied || !reflect.DeepEqual(r.Snapshot, before) ||
+			!reflect.DeepEqual(r.Changes, ChangeSet{}) ||
 			r.Client.ActiveTab["desktop-default"] != before.Windows["a"].TabID {
 			t.Fatalf("reuse=%+v", r)
+		}
+		request.Payload = OpenWindowCommand{RestoreWindowID: new(WindowID("missing"))}
+		if _, err := e.manager.Execute(t.Context(), request); !errors.Is(err, ErrWindowNotFound) {
+			t.Fatalf("Execute(missing restore) error=%v", err)
+		}
+		if _, err := e.manager.Preview(t.Context(), request); !errors.Is(err, ErrWindowNotFound) {
+			t.Fatalf("Preview(missing restore) error=%v", err)
+		}
+		if !reflect.DeepEqual(mustSnapshot(t, e.manager, "workspace-a"), before) ||
+			len(e.repository.Commits("workspace-a")) != commitsBefore {
+			t.Fatal("restore changed durable state")
 		}
 	})
 	t.Run("Should open without client (UT-004)", func(t *testing.T) {
@@ -1228,13 +1255,27 @@ func TestRetiredWindowCommands(t *testing.T) {
 		e := threeTabs(t)
 		for _, command := range []Command{ToggleFloatingCommand{WindowID: "a"}, ZoomWindowCommand{WindowID: "a"}, ResizeWindowCommand{WindowID: "a", Frame: fullRect()}, FrameResizeLayoutCommand{}, CloseWindowCommand{WindowID: "a", Minimize: true}} {
 			before := mustSnapshot(t, e.manager, "workspace-a")
-			r := executeTestCommand(t, e.manager, "workspace-a", nil, command)
+			commitsBefore := len(e.repository.Commits("workspace-a"))
 			surface := string(command.CommandID())
 			if c, ok := command.(CloseWindowCommand); ok && c.Minimize {
 				surface = "window.close.minimize"
 			}
+			preview, err := e.manager.Preview(t.Context(), CommandRequest{
+				WorkspaceID: "workspace-a", ExpectedRevision: before.Revision, Payload: command,
+			})
+			if err != nil {
+				t.Fatalf("Preview(%s) error=%v", command.CommandID(), err)
+			}
+			requireWindowSurfaceDeprecation(t, preview.Deprecations, surface)
+			if preview.Changed || !reflect.DeepEqual(preview.Snapshot, before) ||
+				!reflect.DeepEqual(preview.Changes, ChangeSet{}) {
+				t.Fatalf("retired preview %s=%+v", command.CommandID(), preview)
+			}
+			r := executeTestCommand(t, e.manager, "workspace-a", nil, command)
 			requireWindowSurfaceDeprecation(t, r.Deprecations, surface)
-			if r.Applied || len(r.Deprecations) != 1 || !reflect.DeepEqual(r.Snapshot, before) {
+			if r.Applied || len(r.Deprecations) != 1 || !reflect.DeepEqual(r.Snapshot, before) ||
+				!reflect.DeepEqual(r.Changes, ChangeSet{}) ||
+				len(e.repository.Commits("workspace-a")) != commitsBefore {
 				t.Fatalf("retired %s=%+v", command.CommandID(), r)
 			}
 		}
@@ -1262,15 +1303,36 @@ func TestRetiredWindowCommands(t *testing.T) {
 			t.Fatalf("legacy move=%+v", r)
 		}
 		for _, command := range []Command{ArrangeLayoutCommand{DesktopID: "desktop-default", WindowIDs: []WindowID{"a", "b"}, Arrangement: ArrangementStack}, GroupWindowsCommand{TargetWindowID: "a", WindowIDs: []WindowID{"c", "b"}}} {
-			r = executeTestCommand(t, e.manager, "workspace-a", nil, command)
-			if len(r.Deprecations) != 1 {
-				t.Fatalf("adjacent tabs=%+v", r)
+			before := mustSnapshot(t, e.manager, "workspace-a")
+			commitsBefore := len(e.repository.Commits("workspace-a"))
+			preview, err := e.manager.Preview(t.Context(), CommandRequest{
+				WorkspaceID: "workspace-a", ExpectedRevision: before.Revision, Payload: command,
+			})
+			if err != nil {
+				t.Fatalf("Preview(%s) error=%v", command.CommandID(), err)
 			}
 			surface := "layout.arrange.arrangement=stack"
 			if _, grouping := command.(GroupWindowsCommand); grouping {
 				surface = "window.stack.group"
 			}
+			requireWindowSurfaceDeprecation(t, preview.Deprecations, surface)
+			if !preview.Changed || !reflect.DeepEqual(mustSnapshot(t, e.manager, "workspace-a"), before) ||
+				len(e.repository.Commits("workspace-a")) != commitsBefore {
+				t.Fatalf("adjacent preview=%+v", preview)
+			}
+			r = executeTestCommand(t, e.manager, "workspace-a", nil, command)
 			requireWindowSurfaceDeprecation(t, r.Deprecations, surface)
+			commits := e.repository.Commits("workspace-a")
+			if !r.Applied || r.Snapshot.Revision != before.Revision+1 || len(commits) != commitsBefore+1 ||
+				len(r.Snapshot.History.Undo) != len(before.History.Undo)+1 {
+				t.Fatalf("adjacent transaction=%+v commits=%+v", r, commits)
+			}
+			entry := r.Snapshot.History.Undo[len(r.Snapshot.History.Undo)-1]
+			event := commits[len(commits)-1].Event
+			if entry.CommandID != command.CommandID() || event.CommandID != command.CommandID() ||
+				!reflect.DeepEqual(event.Changes, r.Changes) {
+				t.Fatalf("adjacent history=%+v event=%+v changes=%+v", entry, event, r.Changes)
+			}
 
 			d := r.Snapshot.Desktops[0]
 			a := tabHoldingID(d.Tabs, r.Snapshot.Windows["a"].TabID)

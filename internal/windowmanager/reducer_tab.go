@@ -67,3 +67,10 @@ func (r *reducer) pinWindow(s *Snapshot, c PinWindowCommand) (bool, error) {
 	r.changes.desktop(d.ID)
 	return true, nil
 }
+
+func (r *reducer) placeTab(s *Snapshot, d *Desktop, tab Tab, index int) {
+	insertTab(d, tab, index)
+	assignTabWindows(s, d, tab)
+	d.ActiveTabID = tab.ID
+	r.changes.tab(tab.ID)
+}

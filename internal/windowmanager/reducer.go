@@ -26,21 +26,12 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 	var changed bool
 	var err error
 	switch c := command.(type) {
-	case reuseWindowCommand:
-		if _, ok := s.Windows[c.id]; !ok {
-			return reduction{}, ErrWindowNotFound
-		}
-		return reduction{}, nil
-	case noTopologyCommand:
-		return reduction{}, nil
 	case ReorderTabCommand:
 		changed, err = r.reorderTab(s, c)
 	case ActivateTabCommand:
 		changed, err = r.activateTab(s, c)
 	case PinWindowCommand:
 		changed, err = r.pinWindow(s, c)
-	case adjacentTabsCommand:
-		changed, err = r.placeAdjacentTabs(s, c)
 	case ArrangeLayoutCommand:
 		changed, err = r.arrange(s, c)
 	case ResizeLayoutCommand:
@@ -59,6 +50,10 @@ func (r *reducer) reduce(s *Snapshot, command Command) (reduction, error) {
 	if err != nil {
 		return reduction{}, err
 	}
+	return r.finishReduction(s, beforeMembers, changed)
+}
+
+func (r *reducer) finishReduction(s *Snapshot, beforeMembers map[TabID]int, changed bool) (reduction, error) {
 	if changed {
 		if err := r.ensureDesktopTabs(s); err != nil {
 			return reduction{}, err

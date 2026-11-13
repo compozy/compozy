@@ -130,10 +130,10 @@ func (m *Manager) reduceDurable(
 		focused = clonePointer(client.FocusedWindowID)
 		activeDesktop = new(client.ActiveDesktopID)
 	}
-	reduced, err := (&reducer{
+	reduced, err := reduceCommandSurfaces(&working, payload, &reducer{
 		generate: m.generate, config: config, focusedWindow: focused,
 		activeDesktop: activeDesktop, activeTabs: clientActiveTabs(client), now: m.now,
-	}).reduce(&working, payload)
+	})
 	if err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
 	}

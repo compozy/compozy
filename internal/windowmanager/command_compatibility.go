@@ -61,7 +61,29 @@ func canonicalCommandSurfaces(request CommandRequest) (CommandRequest, []Depreca
 	return request, deprecations
 }
 
-func (r *reducer) placeAdjacentTabs(s *Snapshot, c adjacentTabsCommand) (bool, error) {
+// reduceCommandSurfaces resolves v0.6 shims before the v6 reducer; remove in v0.8.0.
+func reduceCommandSurfaces(s *Snapshot, command Command, r *reducer) (reduction, error) {
+	switch c := command.(type) {
+	case reuseWindowCommand:
+		if _, ok := s.Windows[c.id]; !ok {
+			return reduction{}, ErrWindowNotFound
+		}
+		return reduction{}, nil
+	case noTopologyCommand:
+		return reduction{}, nil
+	case adjacentTabsCommand:
+		beforeMembers := tabMemberCounts(s)
+		changed, err := placeAdjacentTabs(s, c, r)
+		if err != nil {
+			return reduction{}, err
+		}
+		return r.finishReduction(s, beforeMembers, changed)
+	default:
+		return r.reduce(s, command)
+	}
+}
+
+func placeAdjacentTabs(s *Snapshot, c adjacentTabsCommand, r *reducer) (bool, error) {
 	if len(c.ids) == 0 {
 		return false, ErrInvalidCommand
 	}
@@ -106,12 +128,9 @@ func (r *reducer) placeAdjacentTabs(s *Snapshot, c adjacentTabsCommand) (bool, e
 		if after != nil {
 			index = tabHoldingID(d.Tabs, s.Windows[*after].TabID) + 1
 		}
-		insertTab(d, tab, index)
-		assignTabWindows(s, d, tab)
-		d.ActiveTabID = tab.ID
+		r.placeTab(s, d, tab, index)
 		r.changes.window(id)
 		r.changes.tab(source)
-		r.changes.tab(tab.ID)
 		after = new(id)
 		changed = true
 	}
