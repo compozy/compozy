@@ -19,18 +19,26 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   snapshot with `state: "failed"`; a newer value (version 7+) is never modified: its partition answers
   `ErrUnavailable` (HTTP 503), and boot reconciliation logs `window_manager.partition_reconciliation_skipped`
   and serves the other partitions instead of stopping the daemon. Only boot skips it: session-delete
-  window reconciliation and workspace unregistration call `reconcilePartitions` strictly, so while a
-  version 7 partition exists the session delete still succeeds but its window cleanup is retried in
-  the background (tombstone kept), and unregistration answers HTTP 500 with the intent staged until
-  a repeat succeeds. A re-upgrade after a downgrade
+  window reconciliation and workspace unregistration call `reconcilePartitions` strictly, which
+  processes every readable partition and then returns the unavailable ones joined (any other error
+  still returns at once). While a version 7 partition exists the session delete still succeeds but
+  its window cleanup is retried in the background (tombstone kept), and unregistration answers HTTP
+  500 with the intent staged until a repeat succeeds (a 503 needs a contract change; follow-up). A
+  re-upgrade after a downgrade
   converts the layout v0.6 wrote whatever the earlier status (no refusal, no 503): when its bytes
   differ from `legacy:<profileID>`, the same atomic batch copies the earlier backup to
-  `superseded:<profileID>:<sha256 hex>` and writes the new bytes to `legacy:`; `migration:` holds the
-  latest status, and retry, ack and `retry --replace` act on the latest `legacy:`. No wire field is
-  added: the status `error` reports the set-aside backups ("<n> earlier layout backup(s) were set
-  aside and preserved; retry uses the current legacy backup."), appended to a failure's message or,
-  with no conversion error, as `code` `migration.backup_superseded` with `path` set to a superseded
-  key. Superseded keys never expire (the v0.8.0 retention skips them). Stored `window_layout` profiles are
+  `superseded:<profileID>:<sha256 hex>` with a sibling disposition record
+  `superseded:<profileID>:<sha256 hex>:disposition` (`{"state":"migrated"}` when the status the copy
+  belonged to was `migrated` without an error, otherwise `{"state":"failed"}`; a copy already marked
+  failed stays failed) and writes the new bytes to `legacy:`; `migration:` holds the latest status,
+  and retry, ack and `retry --replace` act on the latest `legacy:`. The status reports the number of
+  kept copies in `superseded_backups` (recomputed on read); `error` is present only on `failed`.
+  Retention from v0.8.0 deletes a superseded copy and its record when the record says `migrated`
+  (the same rule as a migrated `legacy:`); copies of `failed` or unrecorded conversions are kept
+  until the workspace or profile is purged. A re-upgrade whose extra keys would exceed the
+  client-state key quota per workspace (`MaxKeysPerWorkspace`, 512 by default) writes nothing (one atomic batch): the partition answers `ErrUnavailable`
+  (HTTP 503 `window_manager_unavailable`, diagnostic `snapshot_key_quota`) and boot skips it like a
+  version 7 partition. Stored `window_layout` profiles are
   rewritten to document v6 at boot (`reconcileStoredWindowLayouts`). Lossy: undo/redo history, floating
   rects, group frames, minimized and zoomed flags, return anchors, stack grouping (members become
   adjacent tabs), pins on windows that land in a split tab. The user is told by `snapshot.migration`
@@ -57,7 +65,10 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
   stream frame. A failed status carries `failure_revision` (`omitempty`; the fallback snapshot is revision 0, so
   a fresh failure omits it; cleared by a successful retry) and `error`,
-  whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`.
+  whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`;
+  `error` is absent on every other state. New additive `superseded_backups` (integer, `minimum: 0`,
+  omitted at 0) on `MigrationStatus`, in OpenAPI, `sdk/go`, `sdk/client` and the `layout migration`
+  JSON output.
   `window open` and its preview refuse an unregistered app id with `window_manager_invalid_command`
   (HTTP 422, "unregistered window app") on HTTP, UDS, CLI and native tools, after the retired
   `jobs`/`triggers` ids are translated to `automations`.
@@ -89,7 +100,8 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`,
   `layout.frame_resize`, `window.stack.group`.
 - **Workspace data isolation.** `snapshot:`, `legacy:`, `migration:` and the new
-  `superseded:<profileID>:<sha256 hex>` keys are keyed per workspace and profile, and
+  `superseded:<profileID>:<sha256 hex>` keys and their `:disposition` records are keyed per
+  workspace and profile, and
   `purgeWindowManagerPartition` deletes all of them (workspace or profile removal). The active tab is per
   client (`active_tab`), with `active_tab_id` as the shared default. The boot rewrite keeps each layout
   profile's scope, owner and source.

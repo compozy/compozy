@@ -419,13 +419,10 @@ meaningful for `retry`.
   revision 0, which is the revision of the fallback layout a failed upgrade writes, so it is
   normally absent: treat a missing `failure_revision` as 0. `error.code` is the
   converter's own topology diagnostic code when it reports one, otherwise
-  `migration.conversion_failed`. A successful retry clears `error` and `failure_revision`, except
-  for the superseded-backup note below.
-- When an upgrade set earlier backups aside, the status says so: a failure's `error.message` ends
-  with "<n> earlier layout backup(s) were set aside and preserved; retry uses the current legacy
-  backup.", and a status with no conversion error carries that sentence as `error` with `code`
-  `migration.backup_superseded` and `path` naming one set-aside key. This is informational, not a
-  failure; branch on `state`.
+  `migration.conversion_failed`. `error` is present only when `state` is `failed`; a successful
+  retry clears `error` and `failure_revision`.
+- `superseded_backups` (integer, omitted when 0) is the number of earlier backups currently kept
+  for the profile after later upgrades set them aside (see the downgrade bullet).
 - `ack` dismisses the notice for every client and deletes nothing.
 - `retry` re-runs the conversion from the preserved original. It is valid only for `failed`;
   otherwise `window_manager_invalid_command`. When the current layout changed after the failure,
@@ -434,21 +431,27 @@ meaningful for `retry`.
   `error`, and resets `acknowledged` to `false`.
 - The same object appears as `migration` on the snapshot and in `compozy__layout_get` until
   acknowledged. Never delete or edit a backup yourself: a failed workspace keeps it until a retry
-  succeeds; a migrated workspace's backup is removed at the first boot of v0.8.0; set-aside
-  backups are never removed automatically and go only with their workspace or profile.
+  succeeds; a migrated workspace's backup is removed at the first boot of v0.8.0. A set-aside
+  backup follows the conversion it belonged to: one from a `migrated` conversion is removed at the
+  first boot of v0.8.0 by the same rule, one from a `failed` (or unrecorded) conversion is kept
+  until its workspace or profile is removed.
 - Downgrading to v0.6 after the upgrade is not supported: v0.6 cannot read a version 6 snapshot and
   replaces it with a default layout. The backup key is untouched by v0.6. The next upgrade
   converts the layout v0.6 wrote, whatever the earlier status was. When that value differs from the
   backup, the earlier backup is set aside unchanged under a content-addressed key in the same write,
   the new value becomes the backup, and `status`, `ack`, and `retry [--replace]` act on the newest
-  backup. Nothing is refused and nothing is lost.
+  backup; `superseded_backups` counts the kept copies. Nothing is refused and nothing is lost. If
+  the extra keys would exceed the workspace's client-state key quota, nothing is written: the
+  workspace answers `window_manager_unavailable` (HTTP 503) with the diagnostic
+  `snapshot_key_quota`, every stored value stays intact, and boot continues for other workspaces.
+  Report it to the operator.
 - A stored snapshot newer than version 6 (written by a later CompozyOS) is never converted or
   rewritten: that workspace answers `window_manager_unavailable` (HTTP 503) while the daemon starts,
   logs `window_manager.partition_reconciliation_skipped`, and serves every other workspace. That
-  holds at boot only: while the newer snapshot is stored, a session deletion succeeds but its window
-  cleanup is retried in the background (its windows can linger in some layouts), and workspace
-  unregistration fails with HTTP 500 naming the partition and completes when repeated after the
-  newer snapshot is gone. Report it to the operator; do not try to repair it.
+  holds at boot only: session-deletion and workspace-unregistration cleanup process every readable
+  layout first, then report the unreadable one. A session deletion succeeds and the remaining
+  cleanup is retried in the background; workspace unregistration fails with HTTP 500 naming the
+  partition and completes when repeated after the newer snapshot is gone. Report it to the operator; do not try to repair it.
 
 ## Raw Layout Recovery
 

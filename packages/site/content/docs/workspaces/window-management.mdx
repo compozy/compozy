@@ -235,10 +235,9 @@ compozy layout migration retry --workspace <workspace-id> --replace  # replace t
 `islands_merged`, `pins_dropped`, and `zoom_desktops_merged`. A failed status adds `error` (its
 `code` is the converter's diagnostic code, or `migration.conversion_failed`) and
 `failure_revision`, the layout revision written at the failure, which is shown only when it is not 0. The fallback desktop a failed upgrade writes is revision 0, so the field is normally absent, and
-a missing field means 0. A successful retry clears both. When an upgrade has set earlier saved copies
-aside (see the note below), `error.message` also says "<n> earlier layout backup(s) were set aside
-and preserved; retry uses the current legacy backup." On a status with no conversion error, that
-note is the `error` itself, with `code` `migration.backup_superseded`.
+a missing field means 0. `error` appears only on a failed status, and a successful retry clears
+both. `superseded_backups` counts the earlier saved copies kept for the profile (see the note
+below) and is omitted when there are none.
 `compozy layout get` and `compozy__layout_get` include it as `migration` until it is acknowledged.
 
 <OperatorNote>
@@ -247,17 +246,22 @@ note is the `error` itself, with `code` `migration.backup_superseded`.
   v0.6 does not restore it. Upgrading again converts the layout you used on v0.6, even when the
   first conversion failed. Nothing stored is lost: when the saved copy differs, the earlier copy is
   set aside unchanged in the same write, and **Retry**, **Dismiss**, and `compozy layout migration
-  retry [--replace]` act on the newest saved copy. Copies set aside this way are never removed
-  automatically; they are deleted only with their workspace or profile.
+  retry [--replace]` act on the newest saved copy. A copy set aside this way follows the conversion
+  it belonged to: a copy from a successful conversion is removed at the first start of v0.8.0, and a
+  copy from a failed conversion is kept until its workspace or profile is deleted. If keeping the
+  extra copy would exceed the workspace's storage quota, nothing is changed: every stored layout
+  and copy stays as it was, the workspace's layout answers `window_manager_unavailable` with the
+  diagnostic `snapshot_key_quota`, and CompozyOS keeps serving the other workspaces.
 
 A layout saved by a newer CompozyOS (layout version 7 or later) is left untouched: that
 workspace's layout answers `window_manager_unavailable` until you run the newer version again,
 while CompozyOS starts, logs the skipped workspace (`window_manager.partition_reconciliation_skipped`),
-and serves every other workspace. Two cleanups that touch every stored layout wait until the newer
-layout is gone: deleting a session succeeds, but closing its windows is retried in the background
-(logged as `session: retained deletion tombstone for window reconciliation retry`), so its windows
-can stay in some layouts meanwhile; removing a workspace fails with an internal error (HTTP 500)
-naming the skipped layout and completes when repeated after the newer layout is gone.
+and serves every other workspace. Two cleanups that touch every stored layout clean every layout
+CompozyOS can read but cannot finish while the newer one is stored: deleting a session succeeds and
+removes its windows from every readable layout, and the rest is retried in the background (logged
+as `session: retained deletion tombstone for window reconciliation retry`); removing a workspace
+cleans every readable layout, then fails with an internal error (HTTP 500) naming the skipped
+layout, and completes when repeated after the newer layout is gone.
 
 </OperatorNote>
 
