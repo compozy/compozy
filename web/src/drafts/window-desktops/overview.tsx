@@ -3,16 +3,20 @@
  * thumbnail drawn from its active tab's split tree, its tabs, and its actions.
  */
 import { GripVertical, Pencil, Plus } from "@compozy/ui/icons";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Button,
   DeleteButton,
   type DeleteButtonPhase,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   Input,
   Kbd,
   NativeSelect,
   NativeSelectOption,
+  OverlayContainerContext,
   StateGlyph,
   StatusDot,
   Tooltip,
@@ -136,8 +140,6 @@ function DesktopCard({
   destinations,
   state = {},
 }: DesktopCardProps) {
-  const shown = desktop.tabs.slice(0, TAB_ROWS);
-  const hidden = desktop.tabs.length - shown.length;
   const closing = state.closing;
   if (state.placeholder) {
     return (
@@ -159,86 +161,159 @@ function DesktopCard({
     >
       <DesktopThumbnail desktop={desktop} />
       <div className="flex min-h-7 items-center gap-2">
-        {state.renaming ? (
-          <Input
-            aria-label="Desktop name"
-            autoFocus
-            className="h-7 flex-1"
-            defaultValue={desktop.name}
-          />
-        ) : (
-          <>
-            <GripVertical
-              aria-hidden="true"
-              className="-ml-1 size-3.5 shrink-0 cursor-grab text-subtle opacity-0 group-hover/card:opacity-100"
-            />
-            <span className="truncate font-medium text-fg">{desktop.name}</span>
-            <span className="shrink-0 text-meta text-muted-foreground">
-              {desktop.tabs.length} tab{desktop.tabs.length === 1 ? "" : "s"}
-            </span>
-            {desktop.needsYou && !active ? (
-              <StatusDot label="Needs you" size="sm" tone="attn" />
-            ) : null}
-          </>
-        )}
-        <span className="ml-auto flex shrink-0 items-center gap-0.5">
-          {state.renaming ? (
-            <>
-              <Button size="sm" variant="ghost">
-                Cancel
-              </Button>
-              <Button size="sm">Save</Button>
-            </>
-          ) : (
-            <>
-              {closing ? null : <Kbd>{`⌃${index + 1}`}</Kbd>}
-              <DesktopCardAction label="Rename">
-                <Pencil aria-hidden="true" className="size-3.75" />
-              </DesktopCardAction>
-              {canClose ? (
-                <DeleteButton
-                  canConfirm={closing?.destinationId !== undefined}
-                  label={`Close ${desktop.name}`}
-                  phase={closing?.phase}
-                />
-              ) : null}
-            </>
-          )}
-        </span>
+        <DesktopCardName active={active} desktop={desktop} renaming={state.renaming} />
+        <DesktopCardActions
+          canClose={canClose}
+          closing={closing}
+          desktop={desktop}
+          index={index}
+          renaming={state.renaming}
+        />
       </div>
       {closing?.phase === "open" ? (
-        <label className="flex items-center gap-2 text-small-body text-muted-foreground">
-          <span className="shrink-0">
-            Move {desktop.tabs.length} tab{desktop.tabs.length === 1 ? "" : "s"} to
-          </span>
-          <NativeSelect className="flex-1" defaultValue={closing.destinationId ?? ""}>
-            {closing.destinationId === undefined ? (
-              <NativeSelectOption value="">Choose a desktop</NativeSelectOption>
-            ) : null}
-            {destinations.map(destination => (
-              <NativeSelectOption key={destination.id} value={destination.id}>
-                {destination.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </label>
+        <DesktopCardCloseDestination
+          closing={closing}
+          desktop={desktop}
+          destinations={destinations}
+        />
       ) : null}
-      <ul className="flex flex-col gap-0.5">
-        {shown.map(tab => (
-          <li key={tab.id}>
-            <TabRow active={tab.id === desktop.activeTabId} tab={tab} />
-          </li>
-        ))}
-        {hidden > 0 ? (
-          <li className="px-1 pt-1 text-meta text-muted-foreground">+{hidden} more</li>
-        ) : null}
-        {state.dropTarget ? (
-          <li className="mt-1 rounded-sm border border-dashed border-brand py-1 text-center text-meta text-brand">
-            Move tab here
-          </li>
-        ) : null}
-      </ul>
+      <DesktopCardTabs desktop={desktop} dropTarget={state.dropTarget} />
     </li>
+  );
+}
+
+/** The card's name and tab count, or the rename field while renaming. */
+function DesktopCardName({
+  desktop,
+  active,
+  renaming,
+}: {
+  desktop: DraftDesktop;
+  active: boolean;
+  renaming: boolean | undefined;
+}) {
+  if (renaming) {
+    return (
+      <Input
+        aria-label="Desktop name"
+        autoFocus
+        className="h-7 flex-1"
+        defaultValue={desktop.name}
+      />
+    );
+  }
+  return (
+    <>
+      <GripVertical
+        aria-hidden="true"
+        className="-ml-1 size-3.5 shrink-0 cursor-grab text-subtle opacity-0 group-hover/card:opacity-100"
+      />
+      <span className="truncate font-medium text-fg">{desktop.name}</span>
+      <span className="shrink-0 text-meta text-muted-foreground">
+        {desktop.tabs.length} tab{desktop.tabs.length === 1 ? "" : "s"}
+      </span>
+      {desktop.needsYou && !active ? <StatusDot label="Needs you" size="sm" tone="attn" /> : null}
+    </>
+  );
+}
+
+/** Save and Cancel while renaming; else the switch chord, Rename and the in-place close. */
+function DesktopCardActions({
+  desktop,
+  index,
+  canClose,
+  closing,
+  renaming,
+}: {
+  desktop: DraftDesktop;
+  index: number;
+  canClose: boolean;
+  closing: CardState["closing"];
+  renaming: boolean | undefined;
+}) {
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-0.5">
+      {renaming ? (
+        <>
+          <Button size="sm" variant="ghost">
+            Cancel
+          </Button>
+          <Button size="sm">Save</Button>
+        </>
+      ) : (
+        <>
+          {closing ? null : <Kbd>{`⌃${index + 1}`}</Kbd>}
+          <DesktopCardAction label="Rename">
+            <Pencil aria-hidden="true" className="size-3.75" />
+          </DesktopCardAction>
+          {canClose ? (
+            <DeleteButton
+              canConfirm={closing?.destinationId !== undefined}
+              label={`Close ${desktop.name}`}
+              phase={closing?.phase}
+            />
+          ) : null}
+        </>
+      )}
+    </span>
+  );
+}
+
+/** While closing: where the desktop's tabs go, chosen before the check confirms. */
+function DesktopCardCloseDestination({
+  desktop,
+  destinations,
+  closing,
+}: {
+  desktop: DraftDesktop;
+  destinations: readonly DraftDesktop[];
+  closing: NonNullable<CardState["closing"]>;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-small-body text-muted-foreground">
+      <span className="shrink-0">
+        Move {desktop.tabs.length} tab{desktop.tabs.length === 1 ? "" : "s"} to
+      </span>
+      <NativeSelect className="flex-1" defaultValue={closing.destinationId ?? ""}>
+        {closing.destinationId === undefined ? (
+          <NativeSelectOption value="">Choose a desktop</NativeSelectOption>
+        ) : null}
+        {destinations.map(destination => (
+          <NativeSelectOption key={destination.id} value={destination.id}>
+            {destination.name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    </label>
+  );
+}
+
+/** The first tabs, "+N more" for the rest, and the drop hint while a tab is dragged over. */
+function DesktopCardTabs({
+  desktop,
+  dropTarget,
+}: {
+  desktop: DraftDesktop;
+  dropTarget: boolean | undefined;
+}) {
+  const shown = desktop.tabs.slice(0, TAB_ROWS);
+  const hidden = desktop.tabs.length - shown.length;
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {shown.map(tab => (
+        <li key={tab.id}>
+          <TabRow active={tab.id === desktop.activeTabId} tab={tab} />
+        </li>
+      ))}
+      {hidden > 0 ? (
+        <li className="px-1 pt-1 text-meta text-muted-foreground">+{hidden} more</li>
+      ) : null}
+      {dropTarget ? (
+        <li className="mt-1 rounded-sm border border-dashed border-brand py-1 text-center text-meta text-brand">
+          Move tab here
+        </li>
+      ) : null}
+    </ul>
   );
 }
 
@@ -269,16 +344,56 @@ export function DesktopsOverviewDraft({
   cards,
   draggedTab,
 }: DesktopsOverviewDraftProps) {
+  // The overview portals into this desk-sized host so it covers the desk only, as in production.
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
   return (
     <div
-      aria-label="Desktops"
-      className="relative z-40 col-start-2 row-span-2 row-start-2 flex min-h-0 flex-col gap-5 overflow-y-auto rounded-tl-lg bg-overlay-scrim px-8 py-7 backdrop-blur-md"
-      data-slot="desktops-overview"
-      role="dialog"
+      ref={setHost}
+      className="relative z-40 col-start-2 row-span-2 row-start-2 overflow-hidden rounded-tl-lg contain-paint"
+      data-slot="desktops-overview-host"
     >
+      {host ? (
+        <OverlayContainerContext value={host}>
+          <Dialog open>
+            <DialogContent
+              unframed
+              showCloseButton={false}
+              data-slot="desktops-overview"
+              aria-describedby={undefined}
+              className={cn(
+                "inset-0 h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none",
+                // The dialog's overlay is the scrim; the popup adds the draft's stronger blur.
+                "flex flex-col gap-5 overflow-y-auto rounded-none bg-transparent px-8 py-7 shadow-none backdrop-blur-md"
+              )}
+              style={{ maxHeight: "none" }}
+            >
+              <DesktopsOverviewDraftBody
+                activeDesktopId={activeDesktopId}
+                cards={cards}
+                desktops={desktops}
+                draggedTab={draggedTab}
+              />
+            </DialogContent>
+          </Dialog>
+        </OverlayContainerContext>
+      ) : null}
+    </div>
+  );
+}
+
+function DesktopsOverviewDraftBody({
+  desktops,
+  activeDesktopId,
+  cards,
+  draggedTab,
+}: DesktopsOverviewDraftProps) {
+  return (
+    <>
       <header className="flex items-center gap-3">
         <div className="flex min-w-0 flex-col">
-          <h2 className="text-heading font-medium tracking-tight text-fg">Desktops</h2>
+          <DialogTitle className="text-heading font-medium tracking-tight text-fg">
+            Desktops
+          </DialogTitle>
           <p className="text-meta text-fg-2">Each desktop keeps its own tabs</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -310,6 +425,6 @@ export function DesktopsOverviewDraft({
           <TabRow active lifted tab={draggedTab.tab} />
         </span>
       ) : null}
-    </div>
+    </>
   );
 }

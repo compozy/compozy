@@ -1,5 +1,5 @@
 import { MonitorUp, Plus, RefreshCw } from "@compozy/ui/icons";
-import { useRef, useState, type PointerEvent } from "react";
+import type { PointerEvent } from "react";
 
 import {
   Alert,
@@ -18,6 +18,7 @@ import {
 
 import type { SessionPayload } from "@/systems/session";
 
+import { useDesktopsOverviewInitialFocus } from "../hooks/use-desktops-overview-initial-focus";
 import type { OsWindow } from "../lib/os-types";
 import type { LayoutNode, TabId, WindowId } from "../lib/window-manager-types";
 import { DesktopsOverviewGrid, DesktopsOverviewSkeleton } from "./desktops-overview-grid";
@@ -113,14 +114,6 @@ export interface DesktopsOverviewProps {
   onResolveConflict?: () => void;
 }
 
-function nearestHiddenDesktopId(
-  segment: DesktopOverviewFocusSegment | null | undefined
-): string | null {
-  if (!segment) return null;
-  if (segment.direction === "later") return segment.hiddenDesktopIds[0] ?? null;
-  return segment.hiddenDesktopIds[segment.hiddenDesktopIds.length - 1] ?? null;
-}
-
 /** On-demand, daemon-backed management surface for persistent workspace desktops. */
 export function DesktopsOverview({
   open,
@@ -147,22 +140,14 @@ export function DesktopsOverview({
   onRetry,
   onResolveConflict,
 }: DesktopsOverviewProps) {
-  const initialFocusRef = useRef<HTMLButtonElement | null>(null);
-  // The card consumes the action once applied, so the overview keeps the one it opened with: the
-  // dialog's initial focus must not move to a thumbnail while the card's action holds focus.
-  const [openingAction, setOpeningAction] = useState(desktopAction);
-  if (desktopAction !== null && desktopAction !== openingAction) setOpeningAction(desktopAction);
-  if (!open && openingAction !== null) setOpeningAction(null);
   const ready = state.status === "ready" ? state : null;
+  const { initialFocusRef, initialFocusDesktopId } = useDesktopsOverviewInitialFocus(
+    open,
+    desktopAction,
+    initialFocusSegment,
+    ready
+  );
   const empty = ready?.desktops.length === 0;
-  // A menu action focuses inside its card (the rename field, the close confirm), not the thumbnail.
-  const requestedFocusDesktopId = openingAction
-    ? null
-    : (nearestHiddenDesktopId(initialFocusSegment) ?? ready?.activeDesktopId ?? null);
-  const initialFocusDesktopId =
-    ready?.desktops.some(desktop => desktop.id === requestedFocusDesktopId) === true
-      ? requestedFocusDesktopId
-      : null;
   const mutationsDisabled = busy || !canMutate;
 
   return (

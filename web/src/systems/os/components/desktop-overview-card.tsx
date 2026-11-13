@@ -1,35 +1,19 @@
-import {
-  Button,
-  DeleteButton,
-  Input,
-  Kbd,
-  NativeSelect,
-  NativeSelectOption,
-  StatusDot,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  cn,
-} from "@compozy/ui";
-import { GripVertical, Pencil } from "@compozy/ui/icons";
-import { useState, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { Button, Input, cn } from "@compozy/ui";
+import { useState, type PointerEvent, type RefObject } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
 import { useDesktopCardActions } from "../hooks/use-desktop-card-actions";
 import { DESKTOP_DROP_TARGET_ATTRIBUTE } from "../hooks/use-os-tab-drag";
-import type { OsAppId, OsWindow } from "../lib/os-types";
-import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
+import type { OsWindow } from "../lib/os-types";
+import {
+  DesktopCardCloseDestination,
+  DesktopCardNameRow,
+  DesktopCardTabList,
+  DesktopCardThumbnail,
+} from "./desktop-overview-card-sections";
 import { DesktopOverviewCardMenu } from "./desktop-overview-card-menu";
-import { DesktopOverviewTabRow } from "./desktop-overview-tab-row";
 import type { DesktopOverviewItem } from "./desktops-overview";
-
-/** Tab rows a card lists before it counts the rest as "+N more" (US-014.EC-3). */
-const DESKTOP_CARD_TAB_ROWS = 4;
-
-function tabCount(count: number): string {
-  return `${count} tab${count === 1 ? "" : "s"}`;
-}
 
 export interface DesktopOverviewCardProps {
   desktop: DesktopOverviewItem;
@@ -90,12 +74,7 @@ export function DesktopOverviewCard({
   const { renaming, setRenaming, closing, setClosing, closeKey, binRef, cancelCloseOnEscape } =
     useDesktopCardActions(initialAction, onInitialActionApplied);
   const needsYou = desktop.needsYou === true && !active;
-  const shown = desktop.tabs.slice(0, DESKTOP_CARD_TAB_ROWS);
-  const hidden = desktop.tabs.length - shown.length;
-  const destinations = desktops.filter(candidate => candidate.id !== desktop.id);
   const needsDestination = desktop.movableTabCount > 0;
-  const apps = new Map<string, OsAppId>();
-  for (const tab of desktop.tabs) for (const member of tab.members) apps.set(member.id, member.app);
 
   return (
     <DesktopOverviewCardMenu
@@ -115,12 +94,7 @@ export function DesktopOverviewCard({
         {...{ [DESKTOP_DROP_TARGET_ATTRIBUTE]: lifted ? undefined : desktop.id }}
         aria-current={active ? "true" : undefined}
         aria-label={desktop.name}
-        className={cn(
-          "group/card relative flex min-w-0 flex-col gap-3 rounded-xl bg-card p-3 shadow-card transition-shadow duration-fast",
-          active && "ring-2 ring-fg",
-          dropTarget && "bg-brand-tint ring-2 ring-brand",
-          lifted && "z-10 rotate-1 shadow-elevated"
-        )}
+        className={desktopCardClassName(active, dropTarget, lifted)}
         data-current={active ? "true" : undefined}
         data-card-desktop-id={desktop.id}
         data-drop-target={dropTarget ? "true" : undefined}
@@ -128,22 +102,14 @@ export function DesktopOverviewCard({
         onKeyDown={cancelCloseOnEscape}
         onPointerDown={onCardPointerDown}
       >
-        <button
-          ref={thumbnailRef}
-          aria-label={`${active ? "Current desktop" : "Switch to"} ${desktop.name}${needsYou ? " — needs you" : ""}`}
-          className="block w-full rounded-md outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed"
-          data-slot="desktops-overview-card"
-          disabled={busy}
-          onClick={onSwitch}
-          type="button"
-        >
-          <DesktopLayoutThumbnail
-            activeTabId={desktop.activeTabId}
-            appOf={windowId => apps.get(windowId)}
-            root={desktop.activeRoot}
-            tabIds={desktop.tabs.map(tab => tab.id)}
-          />
-        </button>
+        <DesktopCardThumbnail
+          active={active}
+          busy={busy}
+          desktop={desktop}
+          needsYou={needsYou}
+          thumbnailRef={thumbnailRef}
+          onSwitch={onSwitch}
+        />
         {renaming ? (
           <RenameDesktop
             busy={busy}
@@ -155,105 +121,53 @@ export function DesktopOverviewCard({
             }}
           />
         ) : (
-          <div className="flex min-h-7 items-center gap-2">
-            <GripVertical
-              aria-hidden="true"
-              className="-ml-1 size-3.5 shrink-0 cursor-grab text-subtle opacity-0 group-hover/card:opacity-100"
-            />
-            <span className="truncate font-medium text-fg">{desktop.name}</span>
-            <span className="shrink-0 text-meta text-muted-foreground">
-              {tabCount(desktop.tabs.length)}
-            </span>
-            {needsYou ? <StatusDot label="Needs you" size="sm" tone="attn" /> : null}
-            <span className="ml-auto flex shrink-0 items-center gap-0.5">
-              {closing === null && desktop.switchShortcut ? (
-                <Kbd>{desktop.switchShortcut}</Kbd>
-              ) : null}
-              <DesktopCardAction
-                disabled={busy}
-                label="Rename"
-                onClick={() => {
-                  setClosing(null);
-                  setRenaming(true);
-                }}
-              >
-                <Pencil aria-hidden="true" className="size-3.75" />
-              </DesktopCardAction>
-              {desktops.length > 1 ? (
-                <DeleteButton
-                  key={closeKey}
-                  binRef={binRef}
-                  // Opened from the indicator menu's Close desktop, the confirm takes focus.
-                  autoFocusCancel={initialAction === "close"}
-                  phase={closing?.phase ?? "rest"}
-                  canConfirm={!needsDestination || (closing?.destinationId ?? "") !== ""}
-                  disabled={busy}
-                  label={`Close ${desktop.name}`}
-                  onConfirm={() =>
-                    onDelete(needsDestination ? (closing?.destinationId ?? null) : null)
-                  }
-                  onPhaseChange={phase => {
-                    if (phase === "rest") setClosing(null);
-                    else
-                      setClosing(previous => ({
-                        phase,
-                        destinationId: phase === "open" ? "" : (previous?.destinationId ?? ""),
-                      }));
-                  }}
-                />
-              ) : null}
-            </span>
-          </div>
+          <DesktopCardNameRow
+            binRef={binRef}
+            busy={busy}
+            closeKey={closeKey}
+            closing={closing}
+            desktop={desktop}
+            desktopCount={desktops.length}
+            initialAction={initialAction}
+            needsDestination={needsDestination}
+            needsYou={needsYou}
+            setClosing={setClosing}
+            onDelete={onDelete}
+            onStartRename={() => {
+              setClosing(null);
+              setRenaming(true);
+            }}
+          />
         )}
         {closing !== null && needsDestination ? (
-          <label className="flex items-center gap-2 text-small-body text-muted-foreground">
-            <span className="shrink-0">Move {tabCount(desktop.movableTabCount)} to</span>
-            <NativeSelect
-              className="flex-1"
-              disabled={busy}
-              value={closing.destinationId}
-              onChange={event =>
-                setClosing({ phase: "open", destinationId: event.currentTarget.value })
-              }
-            >
-              {closing.destinationId === "" ? (
-                <NativeSelectOption value="">Choose a desktop</NativeSelectOption>
-              ) : null}
-              {destinations.map(destination => (
-                <NativeSelectOption key={destination.id} value={destination.id}>
-                  {destination.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </label>
+          <DesktopCardCloseDestination
+            busy={busy}
+            closing={closing}
+            desktop={desktop}
+            desktops={desktops}
+            setClosing={setClosing}
+          />
         ) : null}
-        <ul aria-label={`Tabs on ${desktop.name}`} className="flex flex-col gap-0.5">
-          {shown.map(tab => (
-            <li key={tab.id}>
-              <DesktopOverviewTabRow
-                active={tab.id === desktop.activeTabId}
-                disabled={busy}
-                members={tab.members}
-                sessionOf={sessionOf}
-                tabId={tab.id}
-                onChoose={() => onChooseTab(tab.leadWindowId)}
-                onPointerDown={
-                  onTabPointerDown ? event => onTabPointerDown(tab.id, event) : undefined
-                }
-              />
-            </li>
-          ))}
-          {hidden > 0 ? (
-            <li className="px-1 pt-1 text-meta text-muted-foreground">+{hidden} more</li>
-          ) : null}
-          {dropTarget ? (
-            <li className="mt-1 rounded-sm border border-dashed border-brand py-1 text-center text-meta text-brand-strong">
-              Move {dragKind} here
-            </li>
-          ) : null}
-        </ul>
+        <DesktopCardTabList
+          busy={busy}
+          desktop={desktop}
+          dragKind={dragKind}
+          dropTarget={dropTarget}
+          sessionOf={sessionOf}
+          onChooseTab={onChooseTab}
+          onTabPointerDown={onTabPointerDown}
+        />
       </li>
     </DesktopOverviewCardMenu>
+  );
+}
+
+function desktopCardClassName(active: boolean, dropTarget: boolean, lifted: boolean): string {
+  return cn(
+    "group/card relative flex min-w-0 flex-col gap-3 rounded-xl bg-card p-3 shadow-card transition-shadow duration-fast",
+    active && "ring-2 ring-fg",
+    dropTarget && "bg-brand-tint ring-2 ring-brand",
+    lifted && "z-10 rotate-1 shadow-elevated"
   );
 }
 
@@ -266,38 +180,6 @@ export function DesktopOverviewCardGap({ desktopId }: { desktopId: string }) {
       data-card-desktop-id={desktopId}
       data-slot="desktop-gap"
     />
-  );
-}
-
-function DesktopCardAction({
-  label,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string;
-  disabled: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            aria-label={label}
-            disabled={disabled}
-            size="icon-sm"
-            type="button"
-            variant="quiet"
-            onClick={onClick}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
   );
 }
 
