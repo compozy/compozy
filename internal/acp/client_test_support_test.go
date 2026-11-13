@@ -696,6 +696,9 @@ func (a *helperACPAgent) NewSession(
 	if a.scenario == "model_catalog_late" {
 		return a.newSessionWithDeferredModelCatalog(), nil
 	}
+	if a.scenario == "model_catalog_exit" {
+		return a.newSessionWithExitingModelCatalog(), nil
+	}
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
@@ -798,6 +801,29 @@ func (a *helperACPAgent) newSessionWithDeferredModelCatalog() acpsdk.NewSessionR
 				ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{ConfigOptions: full},
 			},
 		})
+	}()
+	return acpsdk.NewSessionResponse{
+		SessionId:     "sess-new",
+		Modes:         helperModeState("new-mode"),
+		ConfigOptions: builtin,
+	}
+}
+
+// newSessionWithExitingModelCatalog mirrors a provider that dies before it can
+// publish the full catalog: session/new advertises only the builtin catalog and
+// the subprocess exits while a model pin waits for the config_option_update.
+func (a *helperACPAgent) newSessionWithExitingModelCatalog() acpsdk.NewSessionResponse {
+	builtin := []acpsdk.SessionConfigOption{
+		helperSelectConfigOption("model", "Model", "new-model", "new-model", "other-model"),
+	}
+	a.setHelperConfigOptions(builtin)
+	delay := 300 * time.Millisecond
+	if parsed, err := time.ParseDuration(a.filePath); err == nil {
+		delay = parsed
+	}
+	go func() {
+		time.Sleep(delay)
+		os.Exit(23)
 	}()
 	return acpsdk.NewSessionResponse{
 		SessionId:     "sess-new",

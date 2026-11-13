@@ -2,12 +2,14 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -165,7 +167,7 @@ func (d *Driver) awaitSessionModelOption(
 		if backoff > remaining {
 			backoff = remaining
 		}
-		if err := waitForCatalogUpdate(ctx, backoff); err != nil {
+		if err := waitForCatalogUpdate(ctx, process, backoff); err != nil {
 			return SessionConfigOption{}, err
 		}
 		options = process.CapsSnapshot().ConfigOptions
@@ -188,15 +190,39 @@ func (d *Driver) awaitSessionModelOption(
 	return SessionConfigOption{}, ValidateModelConfigValue(options, modelID)
 }
 
-func waitForCatalogUpdate(ctx context.Context, wait time.Duration) error {
+func waitForCatalogUpdate(ctx context.Context, process *AgentProcess, wait time.Duration) error {
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
+	var exited <-chan struct{}
+	if process != nil {
+		exited = process.Done()
+	}
 	select {
 	case <-timer.C:
 		return nil
+	case <-exited:
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("acp: wait for session model catalog: %w", err)
+		}
+		return catalogWaitProcessExitError(process)
 	case <-ctx.Done():
 		return fmt.Errorf("acp: wait for session model catalog: %w", ctx.Err())
 	}
+}
+
+// catalogWaitProcessExitError reports a provider that died before it could publish
+// the catalog. The announcement can never arrive, so the wait fails fast instead
+// of spending the readiness budget and blaming the model with model_unavailable.
+func catalogWaitProcessExitError(process *AgentProcess) error {
+	cause := errProcessExited
+	if waitErr := process.Wait(); waitErr != nil {
+		cause = errors.Join(cause, waitErr)
+	}
+	return WrapFailure(
+		store.FailureProcess,
+		"ACP subprocess exited while waiting for the model catalog",
+		fmt.Errorf("acp: wait for session model catalog: %w", cause),
+	)
 }
 
 // ValidateModelConfigValue verifies that modelID is an exact advertised ACP model value.

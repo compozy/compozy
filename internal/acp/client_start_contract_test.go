@@ -1140,6 +1140,44 @@ func TestStartWaitsForModelCatalogPublishedAfterSessionNew(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fail fast when the provider exits while the catalog is pending", func(t *testing.T) {
+		t.Parallel()
+
+		driver := newTestDriverWithCatalogBudget(t, 5*time.Second)
+		captureFile := filepath.Join(t.TempDir(), "exited-model-catalog.jsonl")
+		startedAt := time.Now()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("model_catalog_exit", "300ms", captureFile),
+			Permissions:    compozyconfig.PermissionModeApproveAll,
+			PreferredModel: "catalog-late-model",
+		})
+		elapsed := time.Since(startedAt)
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want a process exit error before the readiness budget")
+		}
+		if elapsed >= 2*time.Second {
+			t.Fatalf("Start() waited %v, want a fast failure under the 5s readiness budget", elapsed)
+		}
+		if !errors.Is(err, errProcessExited) {
+			t.Fatalf("Start() error = %v, want wrapped errProcessExited", err)
+		}
+		if !strings.Contains(err.Error(), "exited") {
+			t.Fatalf("Start() error = %v, want the process exit reported", err)
+		}
+		if _, matched := errors.AsType[*NegotiationError](err); matched {
+			t.Fatalf("Start() error = %v, want a process exit error instead of a model negotiation rejection", err)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent for a model the exited provider never announced")
+		}
+	})
+
 	t.Run("Should stop waiting at the readiness budget", func(t *testing.T) {
 		t.Parallel()
 
