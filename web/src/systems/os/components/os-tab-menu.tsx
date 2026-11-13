@@ -80,15 +80,13 @@ function tabReturnFocus(plate: HTMLElement | null, popup: HTMLElement | null): H
 /** The live title of each tab's lead window, re-read whenever a window publishes a new label. */
 function useTabTitles(models: readonly OsTabModel[], sessionOf: SessionOf): readonly string[] {
   // One string snapshot keeps the read stable between publications; NUL never occurs in a title.
-  const joined = useSyncExternalStore(
-    subscribeWindowSlotRegistry,
-    () =>
-      models
-        .map(model => {
-          const lead = model.members[0]!;
-          return osWindowTitle(lead, sessionOf(lead), windowSlotSnapshot(lead.id));
-        })
-        .join("\0")
+  const joined = useSyncExternalStore(subscribeWindowSlotRegistry, () =>
+    models
+      .map(model => {
+        const lead = model.members[0]!;
+        return osWindowTitle(lead, sessionOf(lead), windowSlotSnapshot(lead.id));
+      })
+      .join("\0")
   );
   return models.length === 0 ? [] : joined.split("\0");
 }
