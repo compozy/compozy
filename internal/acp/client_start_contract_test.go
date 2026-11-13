@@ -357,7 +357,11 @@ func TestStartClaudeStaleModelPicker(t *testing.T) {
 			if tc.resume {
 				resumeID, wantSessionID = "existing-claude", "existing-claude"
 			}
-			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			// The ignored-startup-option cases pin a permanent rejection, so a short
+			// catalog budget keeps them from waiting the full readiness window.
+			driver := newTestDriverWithCatalogBudget(
+				t, 400*time.Millisecond, WithProviderPreStarter(providers.NewPreStarter()),
+			)
 			proc, err := driver.Start(t.Context(), StartOpts{
 				AgentName: "helper", ProviderName: "claude", ProviderConfig: &provider,
 				ProviderAuthEnv: probe, Command: command, Cwd: t.TempDir(),
@@ -1075,6 +1079,102 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
+func TestStartWaitsForModelCatalogPublishedAfterSessionNew(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply a model announced by a later config_option_update", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-model-catalog.jsonl")
+		proc := startHelperProcess(t, driver, "model_catalog_late", "150ms", StartOpts{
+			PreferredModel: "catalog-late-model",
+			Env:            helperEnvWithCapture("model_catalog_late", "150ms", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if request.ConfigID != "model" || request.Value != "catalog-late-model" {
+			t.Fatalf("set-config request = %#v, want the model from the late catalog", request)
+		}
+		assertConfigOption(
+			t,
+			proc.CapsSnapshot().ConfigOptions,
+			"model",
+			"catalog-late-model",
+			"catalog-late-model",
+		)
+	})
+
+	t.Run("Should reject a model the provider never announces", func(t *testing.T) {
+		t.Parallel()
+
+		driver := newTestDriverWithCatalogBudget(t, 400*time.Millisecond)
+		captureFile := filepath.Join(t.TempDir(), "never-model-catalog.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("model_catalog_late", "never", captureFile),
+			Permissions:    compozyconfig.PermissionModeApproveAll,
+			PreferredModel: "catalog-late-model",
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want model_unavailable after the readiness budget")
+		}
+		negotiationErr, matched := errors.AsType[*NegotiationError](err)
+		if !matched || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
+		}
+		if !slices.Contains(negotiationErr.ValidChoices, "new-model") {
+			t.Fatalf("valid choices = %#v, want the advertised builtin catalog", negotiationErr.ValidChoices)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent for a model the provider never announced")
+		}
+	})
+
+	t.Run("Should stop waiting at the readiness budget", func(t *testing.T) {
+		t.Parallel()
+
+		const budget = 400 * time.Millisecond
+		driver := newTestDriverWithCatalogBudget(t, budget)
+		captureFile := filepath.Join(t.TempDir(), "slow-model-catalog.jsonl")
+		startedAt := time.Now()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("model_catalog_late", "5s", captureFile),
+			Permissions:    compozyconfig.PermissionModeApproveAll,
+			PreferredModel: "catalog-late-model",
+		})
+		elapsed := time.Since(startedAt)
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want model_unavailable when the catalog misses the budget")
+		}
+		negotiationErr, matched := errors.AsType[*NegotiationError](err)
+		if !matched || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
+		}
+		if elapsed > 4*time.Second {
+			t.Fatalf("Start() waited %v, want the readiness budget of %v to bound the wait", elapsed, budget)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent before the catalog announced the model")
+		}
+	})
+}
+
 func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 	t.Parallel()
 
@@ -1709,7 +1809,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			driver := New()
+			driver := newTestDriverWithCatalogBudget(t, 400*time.Millisecond)
 			captureFile := filepath.Join(t.TempDir(), "session-unavailable-config-option.jsonl")
 			opts := StartOpts{
 				AgentName:   "helper",

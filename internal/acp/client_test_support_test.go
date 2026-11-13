@@ -132,6 +132,13 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 	}
 }
 
+func newTestDriverWithCatalogBudget(t *testing.T, budget time.Duration, opts ...Option) *Driver {
+	t.Helper()
+	driver := New(opts...)
+	driver.modelCatalogWait = budget
+	return driver
+}
+
 type failingToolRuntimeStore struct {
 	updateErr error
 	upserts   int
@@ -686,6 +693,9 @@ func (a *helperACPAgent) NewSession(
 			ConfigOptions: configOptions,
 		}, nil
 	}
+	if a.scenario == "model_catalog_late" {
+		return a.newSessionWithDeferredModelCatalog(), nil
+	}
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
@@ -740,6 +750,60 @@ func (a *helperACPAgent) NewSession(
 		SessionId: "sess-new",
 		Modes:     helperModeState("new-mode"),
 	}, nil
+}
+
+// newSessionWithDeferredModelCatalog mirrors opencode's readiness race: session/new
+// announces only the builtin catalog and the full catalog arrives later as one
+// config_option_update notification. filePath overrides the announcement delay.
+func (a *helperACPAgent) newSessionWithDeferredModelCatalog() acpsdk.NewSessionResponse {
+	const lateModel = "catalog-late-model"
+	builtin := []acpsdk.SessionConfigOption{
+		helperSelectConfigOption("model", "Model", "new-model", "new-model", "other-model"),
+	}
+	a.setHelperConfigOptions(builtin)
+	if a.filePath == "never" {
+		return acpsdk.NewSessionResponse{
+			SessionId:     "sess-new",
+			Modes:         helperModeState("new-mode"),
+			ConfigOptions: builtin,
+		}
+	}
+	delay := 300 * time.Millisecond
+	if parsed, err := time.ParseDuration(a.filePath); err == nil {
+		delay = parsed
+	}
+	go func() {
+		select {
+		case <-time.After(delay):
+		case <-a.conn.Done():
+			return
+		}
+		// Build the announced option instead of mutating the select that
+		// session/new already returned, which would make that response confirm
+		// the model and leave the notification untested.
+		full := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption(
+				"model",
+				"Model",
+				"new-model",
+				"new-model",
+				"other-model",
+				lateModel,
+			),
+		}
+		a.setHelperConfigOptions(full)
+		_ = a.conn.SessionUpdate(context.Background(), acpsdk.SessionNotification{
+			SessionId: "sess-new",
+			Update: acpsdk.SessionUpdate{
+				ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{ConfigOptions: full},
+			},
+		})
+	}()
+	return acpsdk.NewSessionResponse{
+		SessionId:     "sess-new",
+		Modes:         helperModeState("new-mode"),
+		ConfigOptions: builtin,
+	}
 }
 
 func (a *helperACPAgent) LoadSession(
