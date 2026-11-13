@@ -37,6 +37,9 @@ type SessionCatalog interface {
 	UpdateSessionState(ctx context.Context, update SessionStateUpdate) error
 	DeleteSession(ctx context.Context, sessionID string) error
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error)
+	// SessionInstanceID is a keyed read of one session's instance binding ("" when
+	// unbound); a missing session returns ErrSessionNotFound.
+	SessionInstanceID(ctx context.Context, sessionID string) (string, error)
 	AttachSession(ctx context.Context, req SessionAttachRequest) (SessionAttach, error)
 	ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error)
 }
