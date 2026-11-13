@@ -1172,6 +1172,43 @@ func TestWindowManagerSnapshotMigration(t *testing.T) {
 			t.Fatalf("retry snapshot=%+v error=%v", s, err)
 		}
 	})
+	t.Run("Should list the domain on load only while a migration notice is pending", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		ws := windowmanager.WorkspaceID(f.workspace.ID)
+		counting := &listCountingClientState{Service: f.engine}
+		repository, err := newWindowManagerRepository(counting, testWindowManagerProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		putDaemonState(t, &f, windowManagerSnapshotKey(testWindowManagerProfileID), daemonLegacySnapshot(t, ws, false))
+		if _, err := repository.Load(t.Context(), ws); err != nil {
+			t.Fatal(err)
+		}
+		counting.lists.Store(0)
+		pending, err := repository.Load(t.Context(), ws)
+		if err != nil || pending.Migration == nil || pending.Migration.State != "migrated" {
+			t.Fatalf("pending notice=%+v error=%v", pending.Migration, err)
+		}
+		if counting.lists.Load() == 0 {
+			t.Fatal("pending notice did not count superseded backups")
+		}
+		explicit, err := f.manager.Migration(t.Context(), ws, "", false)
+		if err != nil || explicit.SupersededBackups != pending.Migration.SupersededBackups {
+			t.Fatalf("explicit status=%+v load=%+v error=%v", explicit, pending.Migration, err)
+		}
+		if _, err := f.manager.Migration(t.Context(), ws, "ack", false); err != nil {
+			t.Fatal(err)
+		}
+		counting.lists.Store(0)
+		quiet, err := repository.Load(t.Context(), ws)
+		if err != nil || quiet.Migration != nil {
+			t.Fatalf("acknowledged notice=%+v error=%v", quiet.Migration, err)
+		}
+		if got := counting.lists.Load(); got != 0 {
+			t.Fatalf("load without a pending notice listed the domain %d times", got)
+		}
+	})
 	t.Run("Should refuse future state without modifying bytes (IT-005)", func(t *testing.T) {
 		t.Parallel()
 		f := newDaemonWindowManagerFixture(t)
@@ -1432,4 +1469,19 @@ func assertFailedMigrationSurvivesRestart(t *testing.T, f *daemonWindowManagerFi
 		!bytes.Equal(getDaemonState(t, f, windowManagerLegacyKey(testWindowManagerProfileID)).Value, raw) {
 		t.Fatalf("restart=%+v error=%v", s, err)
 	}
+}
+
+// listCountingClientState counts whole-domain listings through the client-state boundary.
+type listCountingClientState struct {
+	clientstate.Service
+	lists atomic.Int64
+}
+
+func (s *listCountingClientState) List(
+	ctx context.Context,
+	ws clientstate.WorkspaceID,
+	domain string,
+) ([]clientstate.Entry, error) {
+	s.lists.Add(1)
+	return s.Service.List(ctx, ws, domain)
 }

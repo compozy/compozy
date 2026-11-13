@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -227,6 +228,54 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 	}
 	if len(deleted) != 0 {
 		t.Fatalf("Delete() calls = %#v, want none before failed unregister", deleted)
+	}
+}
+
+func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	held := fmt.Errorf(
+		"workspace: commit unregister %q: daemon: reconcile profile %q partition %q: %w",
+		"ws_alpha", "prof_1", "ws_beta", windowmanager.ErrUnavailable,
+	)
+	calls := 0
+	workspaces := stubWorkspaceService{
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		UnregisterFn: func(context.Context, string) error {
+			calls++
+			if calls == 1 {
+				return held
+			}
+			return nil
+		},
+	}
+	engine := newTestRouter(
+		t,
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+	)
+
+	resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("delete workspace status = %d, want %d; body=%s",
+			resp.Code, http.StatusServiceUnavailable, resp.Body.String())
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, resp, &payload)
+	if payload.Code != string(contract.WindowManagerErrorUnavailable) {
+		t.Fatalf("code = %q, want %q", payload.Code, contract.WindowManagerErrorUnavailable)
+	}
+	for _, want := range []string{`"prof_1"`, `"ws_beta"`, "finishes when it is retried"} {
+		if !strings.Contains(payload.Error, want) {
+			t.Fatalf("error = %q, want it to contain %q", payload.Error, want)
+		}
+	}
+
+	retry := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if retry.Code != http.StatusNoContent {
+		t.Fatalf("retry status = %d, want %d; body=%s", retry.Code, http.StatusNoContent, retry.Body.String())
 	}
 }
 

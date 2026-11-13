@@ -49587,6 +49587,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Removal held by a desktop layout that could not be read; retry finishes it */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
     };
   };
   updateWorkspace: {

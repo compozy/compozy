@@ -300,7 +300,8 @@ func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
 	}
 
 	if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+		status, removalErr := workspaceRemovalError(err)
+		h.respondError(c, status, removalErr)
 		return
 	}
 

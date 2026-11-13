@@ -2694,6 +2694,22 @@ func TestDescribeExtensionProjectsHealthAndState(t *testing.T) {
 		t.Fatalf("DescribeExtension(disabled) health = %q, want %q", got, want)
 	}
 
+	disabledLive := DescribeExtension(&Extension{
+		Info: ExtensionInfo{
+			Name:    "ext-disabled-live",
+			Version: "1.0.0",
+			Enabled: false,
+			Source:  SourceUser,
+		},
+		Status: ExtensionStatus{Registered: true},
+	}, true, now)
+	if got, want := disabledLive.State, "disabled"; got != want {
+		t.Fatalf("DescribeExtension(disabled, daemon running) state = %q, want %q", got, want)
+	}
+	if got, want := disabledLive.Health, "unknown"; got != want {
+		t.Fatalf("DescribeExtension(disabled, daemon running) health = %q, want %q", got, want)
+	}
+
 	registered := DescribeExtension(&Extension{
 		Info: ExtensionInfo{
 			Name:    "ext-registered",

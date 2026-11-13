@@ -34012,6 +34012,10 @@ export type DeleteWorkspaceErrors = {
    * Internal server error
    */
   500: ErrorPayload;
+  /**
+   * Removal held by a desktop layout that could not be read; retry finishes it
+   */
+  503: ErrorPayload;
 };
 
 export type DeleteWorkspaceError = DeleteWorkspaceErrors[keyof DeleteWorkspaceErrors];

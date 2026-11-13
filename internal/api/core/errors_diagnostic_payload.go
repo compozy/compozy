@@ -38,6 +38,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		}
 	}
 	enrichWorkspaceBusyError(&payload, err)
+	enrichWorkspaceRemovalError(&payload, err)
 	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
 		payload.Code = workspaceRootMissingCode
 	}

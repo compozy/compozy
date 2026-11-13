@@ -1726,6 +1726,43 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 	}
 }
 
+func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	calls := 0
+	workspaces := stubWorkspaceService{
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		UnregisterFn: func(context.Context, string) error {
+			calls++
+			if calls == 1 {
+				return fmt.Errorf("daemon: reconcile profile %q partition %q: %w",
+					"prof_1", "ws_beta", windowmanager.ErrUnavailable)
+			}
+			return nil
+		},
+	}
+	engine := newTestRouter(
+		t,
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+	)
+
+	recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusServiceUnavailable, recorder.Body.String())
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, recorder, &payload)
+	if payload.Code != string(contract.WindowManagerErrorUnavailable) ||
+		!strings.Contains(payload.Error, `"ws_beta"`) {
+		t.Fatalf("payload = %+v, want window_manager_unavailable naming the layout partition", payload)
+	}
+	retry := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if retry.Code != http.StatusNoContent {
+		t.Fatalf("retry status = %d, want %d; body=%s", retry.Code, http.StatusNoContent, retry.Body.String())
+	}
+}
+
 func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()

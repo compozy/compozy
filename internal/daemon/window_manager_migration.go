@@ -24,6 +24,19 @@ func (r *windowManagerRepository) readMigration(
 	ctx context.Context,
 	workspace windowmanager.WorkspaceID,
 ) (windowmanager.MigrationStatus, error) {
+	status, err := r.readMigrationRecord(ctx, workspace)
+	if err != nil {
+		return status, err
+	}
+	return r.countSupersededBackups(ctx, workspace, status)
+}
+
+// readMigrationRecord reads the stored migration status without counting superseded backups,
+// which lists the whole window-manager domain.
+func (r *windowManagerRepository) readMigrationRecord(
+	ctx context.Context,
+	workspace windowmanager.WorkspaceID,
+) (windowmanager.MigrationStatus, error) {
 	entry, err := r.service.Get(
 		ctx,
 		clientstate.WorkspaceID(workspace),
@@ -39,14 +52,22 @@ func (r *windowManagerRepository) readMigration(
 			return status, fmt.Errorf("decode migration status: %w", err)
 		}
 	}
+	if status.State != windowManagerMigrationFailed {
+		status.Error = nil
+	}
+	return status, nil
+}
+
+func (r *windowManagerRepository) countSupersededBackups(
+	ctx context.Context,
+	workspace windowmanager.WorkspaceID,
+	status windowmanager.MigrationStatus,
+) (windowmanager.MigrationStatus, error) {
 	entries, err := r.service.List(ctx, clientstate.WorkspaceID(workspace), windowManagerStateDomain)
 	if err != nil {
 		return status, mapWindowManagerStoreError("count superseded backups", err)
 	}
 	status.SupersededBackups = len(supersededBackupKeys(entries, r.profileID))
-	if status.State != windowManagerMigrationFailed {
-		status.Error = nil
-	}
 	return status, nil
 }
 
