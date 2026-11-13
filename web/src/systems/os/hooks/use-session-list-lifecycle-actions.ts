@@ -6,10 +6,11 @@ import { useOsShell } from "./use-os-shell";
 export type SessionListRemoval = "archive" | "later" | "delete";
 
 /**
- * Retire the windows of archived and deleted list targets; a delete does so before its
- * detail caches can refetch a 404. `onRemoved` hears each session this host archived, moved
- * to Later, or deleted, before its windows retire. Later keeps its windows: the composer of
- * a parked session is one of the ways back.
+ * Retire the windows of archived list targets. A delete leaves windows to the daemon, which
+ * removes the deleted session's windows before the delete answers; a client retire after that
+ * would only race it with a stale revision. `onRemoved` hears each session this host archived,
+ * moved to Later, or deleted, before any window retires. Later keeps its windows: the
+ * composer of a parked session is one of the ways back.
  */
 export function useSessionListLifecycleActions(
   options: {
@@ -19,8 +20,8 @@ export function useSessionListLifecycleActions(
 ) {
   const { coordinator, manager } = useOsShell();
   const { onRemoved } = options;
-  const retireWindows = async (session: { id: string }, action: "archive" | "delete") => {
-    onRemoved?.(session, action);
+  const retireArchivedWindows = async (session: { id: string }) => {
+    onRemoved?.(session, "archive");
     const windows = Object.values(manager.getState().windows);
     // The runtime serializes commands against fresh layout revisions; await every outcome.
     await Promise.all(
@@ -33,8 +34,8 @@ export function useSessionListLifecycleActions(
   };
   return useSessionLifecycleActions({
     archiveRequestOwnerId: options.windowId,
-    onArchiveSuccess: session => retireWindows(session, "archive"),
+    onArchiveSuccess: session => retireArchivedWindows(session),
     onLaterSuccess: session => onRemoved?.(session, "later"),
-    onDeleteSuccess: session => retireWindows(session, "delete"),
+    onDeleteSuccess: session => onRemoved?.(session, "delete"),
   });
 }

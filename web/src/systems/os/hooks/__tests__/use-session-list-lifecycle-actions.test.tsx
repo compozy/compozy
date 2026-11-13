@@ -1,6 +1,7 @@
 // Suite: OS session-list lifecycle host
-// Invariant: an archive or delete a list confirms retires every window showing that session,
-// and only those; Move to Later leaves windows alone.
+// Invariant: an archive a list confirms retires every window showing that session, and only
+// those; a delete leaves windows to the daemon, which removes them with the session (a client
+// retire would race it and fail on a stale revision); Move to Later leaves windows alone.
 // Boundary IN: the mapping from confirmed lifecycle outcomes to window retirement.
 // Boundary OUT: the mutations (use-session-actions) and retirement itself (routing coordinator).
 import { renderHook } from "@testing-library/react";
@@ -44,20 +45,27 @@ const openSession = { id: "sess-open" } as Parameters<
 describe("useSessionListLifecycleActions", () => {
   beforeEach(() => harness.userRetireSession.mockClear());
 
-  it.each([
-    ["archive", () => harness.options.onArchiveSuccess?.(openSession)],
-    ["delete", () => harness.options.onDeleteSuccess?.(openSession)],
-  ])("Should retire every window showing a session after %s", async (action, confirm) => {
+  it("Should retire every window showing a session after archive", async () => {
     const onRemoved = vi.fn();
     renderHook(() => useSessionListLifecycleActions({ onRemoved }));
 
-    await confirm();
+    await harness.options.onArchiveSuccess?.(openSession);
 
-    expect(onRemoved).toHaveBeenCalledExactlyOnceWith(openSession, action);
+    expect(onRemoved).toHaveBeenCalledExactlyOnceWith(openSession, "archive");
     expect(harness.userRetireSession.mock.calls.map(([windowId]) => windowId)).toEqual([
       "session:open",
       "session:twin",
     ]);
+  });
+
+  it("Should leave a deleted session's windows to the daemon", async () => {
+    const onRemoved = vi.fn();
+    renderHook(() => useSessionListLifecycleActions({ onRemoved }));
+
+    await harness.options.onDeleteSuccess?.(openSession);
+
+    expect(onRemoved).toHaveBeenCalledExactlyOnceWith(openSession, "delete");
+    expect(harness.userRetireSession).not.toHaveBeenCalled();
   });
 
   it("Should leave windows alone after Move to Later", () => {
