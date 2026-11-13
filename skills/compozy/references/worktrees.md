@@ -214,9 +214,11 @@ new changes. Adoption rejects trash paths, and collection preserves live registe
 If restoring a refused staged checkout fails, its record stays `removing` and collection keeps
 its bytes. Retry removal after freeing the original path: recovery verifies the saved Git pointer,
 restores the checkout and repeats safety checks before permitting any discard. Relative Git
-pointers and orphaned checkouts use synchronous removal. If Git registration was already cleared
-before an interrupted state write, recovery finishes the removal record and leaves staged bytes
-for collection instead of restoring a checkout with missing Git metadata.
+pointers and orphaned checkouts use synchronous removal. After the staged safety check succeeds,
+CompozyOS saves durable removal approval before clearing Git registration. If that cleanup finishes
+before an interrupted state write, recovery uses the approval to finish the removal record without
+restoring a checkout with missing Git metadata. An external Git prune without that approval keeps
+the record `removing` and preserves staged bytes for recovery.
 
 ## Configuration And Errors
 

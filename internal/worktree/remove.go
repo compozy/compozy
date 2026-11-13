@@ -162,7 +162,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalM
 			restoreReady = staged == ""
 			return nil, err
 		}
-		restoreReady = true
+		restoreReady = staged == "" || hasAbsoluteCheckoutPointer(item.Path, item.GitDir)
 	}
 	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal {

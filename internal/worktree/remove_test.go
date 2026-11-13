@@ -89,11 +89,10 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			f.dirty.Store(true)
 			return os.Rename(from, to)
 		}
+		workspaces := staticWorkspaceResolver{workspaces: map[string]Workspace{f.workspace.ID: f.workspace}}
 		f.service.resolver = removalTrashRootsResolver{
-			staticWorkspaceResolver: {
-				workspaces: map[string]Workspace{f.workspace.ID: f.workspace},
-			},
-			roots: []string{f.service.root},
+			staticWorkspaceResolver: workspaces,
+			roots:                   []string{f.service.root},
 			onList: func() {
 				if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); !errors.Is(
 					err,

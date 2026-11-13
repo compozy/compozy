@@ -81,5 +81,10 @@ pointers and orphaned checkouts use synchronous removal.
 
 Fail the removal state write after staged Git registration cleanup. Both repeating removal and
 boot recovery must mark the row removed without restoring an unregistered checkout, emit one
-removed event, and leave staged bytes until collection succeeds. The existing real-Git lifecycle
-suite owns this crash-window invariant.
+removed event, and leave staged bytes until collection succeeds. An unavailable session inventory
+during recovery must retain the removing fence and staged bytes until a later successful retry.
+Approval must be durable before Git cleanup; failed Git cleanup must restore a usable checkout
+with a clean Git status. After a non-force late-change refusal and a failed restore, externally
+prune Git registration, then retry, restart and collect: the refused bytes and branch must remain,
+the record must stay `removing`, and no removed event may be emitted. The existing real-Git
+lifecycle suite owns these recovery and data-preservation invariants.

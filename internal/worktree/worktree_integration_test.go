@@ -99,6 +99,21 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			staged := filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "README.md")
 			assertFileContent(t, staged, "initial\n")
 			f.service = f.newService(f.runner)
+			f.service.sessions = fixedSessionGuard{err: errors.New("session inventory unavailable")}
+			if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(
+				err,
+				ErrNotReady,
+			) {
+				t.Fatalf("recovery with unavailable sessions = %v", err)
+			}
+			if f.item(item.ID).State != StateRemoving {
+				t.Fatal("session inspection failure cleared the removing fence")
+			}
+			if err := f.service.collectTrash(t.Context(), nil); err != nil {
+				t.Fatal(err)
+			}
+			assertFileContent(t, staged, "initial\n")
+			f.service.sessions = nil
 			if restart {
 				err = f.service.RecoverCreations(t.Context())
 			} else {
@@ -120,6 +135,86 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should retain refused staged changes after external Git pruning", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Pruned refused removal",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.service.renameCheckout = func(from, to string) error {
+			if from != item.Path {
+				return errors.New("restore busy")
+			}
+			if err := os.WriteFile(
+				filepath.Join(from, "README.md"), []byte("refused change\n"), 0o600,
+			); err != nil {
+				return err
+			}
+			return os.Rename(from, to)
+		}
+		refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+		if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || f.item(item.ID).State != StateRemoving {
+			t.Fatalf("failed refusal restore = %#v, %v, state=%s", refusal, err, f.item(item.ID).State)
+		}
+		f.git(f.workspace.Root, "worktree", "prune", "--expire=now")
+		if _, err := os.Lstat(item.GitDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("prune retained Git registration: %v", err)
+		}
+		f.service = f.newService(f.runner)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(err, ErrNotReady) {
+			t.Fatalf("recovery after external prune = %v", err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.service.collectTrash(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		assertFileContent(t,
+			filepath.Join(f.worktreesRoot, trashDirectory, item.ID, "README.md"),
+			"refused change\n",
+		)
+		if f.item(item.ID).State != StateRemoving || f.events.count(EventRemoved) != 0 {
+			t.Fatal("external pruning authorized disposal of refused work")
+		}
+		if got := f.git(f.workspace.Root, "rev-parse", "refs/heads/"+item.Branch); got != item.CreatedHead {
+			t.Fatalf("refused work branch = %s, want %s", got, item.CreatedHead)
+		}
+	})
+
+	t.Run("Should restore a clean checkout after approved Git cleanup fails", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Approved cleanup rollback",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.service.runner = &interceptingGitRunner{
+			inner: f.runner,
+			intercept: func(_ string, args []string) ([]byte, []byte, error, bool) {
+				if len(args) >= 5 && args[2] == "worktree" && args[3] == "remove" {
+					return nil, []byte("cleanup busy"), errors.New("exit 1"), true
+				}
+				return nil, nil, nil, false
+			},
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); !errors.Is(
+			err,
+			ErrRemovalFailed,
+		) {
+			t.Fatalf("Git cleanup failure = %v", err)
+		}
+		assertFileContent(t, filepath.Join(item.Path, "README.md"), "initial\n")
+		if f.item(item.ID).State != StateReady || f.git(item.Path, "status", "--porcelain") != "" {
+			t.Fatal("cleanup rollback left an unusable or dirty checkout")
+		}
+	})
 
 	t.Run("Should restore a real tracked write made immediately before staging", func(t *testing.T) {
 		t.Parallel()

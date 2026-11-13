@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // Recovery restores staged bytes before classifying the original checkout as absent.
@@ -40,7 +43,13 @@ func (s *Service) restoreStagedRemoval(workspace Workspace, item Worktree) (stri
 		return staged, refusal(ErrSafetyCheckFailed, "staged checkout cannot replace an existing or unreadable path")
 	}
 	if _, err := os.Lstat(item.GitDir); errors.Is(err, os.ErrNotExist) {
-		// Git cleanup already committed; finish metadata without restoring a broken checkout.
+		approved, approvalErr := stagedRemovalApproved(staged)
+		if approvalErr != nil {
+			return staged, approvalErr
+		}
+		if !approved {
+			return staged, refusal(ErrSafetyCheckFailed, "staged removal approval cannot be verified")
+		}
 		return staged, nil
 	} else if err != nil {
 		return staged, fmt.Errorf("%w: inspect staged Git identity: %v", ErrRemovalFailed, err)
@@ -48,7 +57,7 @@ func (s *Service) restoreStagedRemoval(workspace Workspace, item Worktree) (stri
 	s.trash.mu.Lock()
 	s.trash.active[staged] = true
 	s.trash.mu.Unlock()
-	if err := s.renameCheckout(staged, item.Path); err != nil {
+	if err := s.restoreRemovalCheckout(staged, item.Path); err != nil {
 		return staged, fmt.Errorf("%w: restore staged checkout: %v", ErrRemovalFailed, err)
 	}
 	return staged, nil
@@ -80,4 +89,44 @@ func (s *Service) removingTrashEntry(ctx context.Context, id string) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+const (
+	removalApprovalFile    = ".compozy-removal-approved"
+	removalApprovalContent = "CompozyOS staged removal approved v1\n"
+)
+
+func approveStagedRemoval(staged string) (err error) {
+	directory, name, err := fileutil.OpenParentDirectory(filepath.Join(staged, removalApprovalFile))
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, directory.Close()) }()
+	return directory.AtomicWriteFile(name, []byte(removalApprovalContent), 0o600, false)
+}
+
+func stagedRemovalApproved(staged string) (approved bool, err error) {
+	marker, err := fileutil.OpenRegularFile(filepath.Join(staged, removalApprovalFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer func() { err = errors.Join(err, marker.Close()) }()
+	raw, err := io.ReadAll(io.LimitReader(marker, int64(len(removalApprovalContent)+1)))
+	return string(raw) == removalApprovalContent, err
+}
+
+func (s *Service) restoreRemovalCheckout(staged, path string) error {
+	approved, err := stagedRemovalApproved(staged)
+	if err != nil {
+		return err
+	}
+	if approved {
+		if err := fileutil.AtomicRemoveFile(filepath.Join(staged, removalApprovalFile)); err != nil {
+			return err
+		}
+	}
+	return s.renameCheckout(staged, path)
 }

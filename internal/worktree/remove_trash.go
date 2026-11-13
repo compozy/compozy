@@ -56,6 +56,9 @@ func (s *Service) stageRemoval(workspace Workspace, item Worktree, commonDir str
 		// Orphaned checkouts and relative pointers retain the synchronous Git path.
 		return "", nil
 	}
+	if _, err := os.Lstat(filepath.Join(item.Path, removalApprovalFile)); !errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
 	// Keep Git's populated-submodule safeguards on the synchronous path.
 	if hasSubmoduleRemovalMetadata(item, commonDir) {
 		return "", nil
@@ -103,10 +106,13 @@ func (s *Service) completeFencedRemoval(
 	if staged != "" {
 		refusalResult, err := s.checkStagedRemoval(ctx, item, staged, mode)
 		if err == nil && refusalResult == nil {
-			err = s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, mode.force)
+			err = approveStagedRemoval(staged)
+			if err == nil {
+				err = s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, mode.force)
+			}
 		}
 		if err != nil || refusalResult != nil {
-			if restoreErr := s.renameCheckout(staged, item.Path); restoreErr != nil {
+			if restoreErr := s.restoreRemovalCheckout(staged, item.Path); restoreErr != nil {
 				return staged, true, refusalResult, errors.Join(
 					err,
 					fmt.Errorf("worktree: restore staged checkout: %w", restoreErr),
