@@ -11,7 +11,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 interface LimitWait {
   key: string;
   status: "waiting" | "claimed" | "dismissed";
-  /** The limit dialog's own Close was used: its dismissal keeps the wait. */
+  /** The limit dialog's own Close was used: the dismissal that follows keeps the wait. */
   closeRequested: boolean;
 }
 
@@ -82,9 +82,13 @@ export function useTerminalLimitWait({
     changeLimitOpen: open => {
       setLimitOpen(open);
       if (open) return;
-      setLimitWait(wait =>
-        wait?.status === "waiting" && !wait.closeRequested ? { ...wait, status: "dismissed" } : wait
-      );
+      // The dialog's own Close keeps the wait once; any other dismissal ends it.
+      setLimitWait(wait => {
+        if (wait?.status !== "waiting") return wait;
+        return wait.closeRequested
+          ? { ...wait, closeRequested: false }
+          : { ...wait, status: "dismissed" };
+      });
     },
     closeLimitTerminal: terminalId => {
       setLimitWait(wait => (wait?.status === "waiting" ? { ...wait, closeRequested: true } : wait));

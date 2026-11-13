@@ -279,6 +279,38 @@ func TestDeleteWorkspaceHandlerReturnsUnavailableWhileLayoutHoldsRemoval(t *test
 	}
 }
 
+func TestDeleteWorkspaceHandlerKeepsServerErrorWhenRemovalFailsBeyondLayouts(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	workspaces := stubWorkspaceService{
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		UnregisterFn: func(context.Context, string) error {
+			return errors.Join(
+				fmt.Errorf("daemon: reconcile profile %q partition %q: %w", "prof_1", "ws_beta", windowmanager.ErrUnavailable),
+				errors.New("daemon: reconcile profile partition: store closed"),
+			)
+		},
+	}
+	engine := newTestRouter(
+		t,
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+	)
+
+	resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("delete workspace status = %d, want %d; body=%s",
+			resp.Code, http.StatusInternalServerError, resp.Body.String())
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, resp, &payload)
+	if payload.Code == string(contract.WindowManagerErrorUnavailable) {
+		t.Fatalf("code = %q, want no retry code for a failure a retry cannot finish", payload.Code)
+	}
+}
+
 func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *testing.T) {
 	t.Parallel()
 

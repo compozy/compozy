@@ -21,13 +21,39 @@ func (e *workspaceRemovalHeldError) Error() string {
 
 func (e *workspaceRemovalHeldError) Unwrap() error { return e.cause }
 
-// workspaceRemovalError maps an unregister failure to its transport status. An unusable layout
-// holding the removal answers 503 with the window-manager unavailable code.
+// workspaceRemovalError maps an unregister failure to its transport status. A removal held only
+// by unusable layouts answers 503 with the window-manager unavailable code; a failure that also
+// carries another cause keeps its workspace status, because a retry would not finish it.
 func workspaceRemovalError(err error) (int, error) {
-	if errors.Is(err, windowmanager.ErrUnavailable) {
+	if onlyWindowManagerUnavailable(err) {
 		return http.StatusServiceUnavailable, &workspaceRemovalHeldError{cause: err}
 	}
 	return StatusForWorkspaceError(err), err
+}
+
+// onlyWindowManagerUnavailable reports whether every leaf of err is windowmanager.ErrUnavailable.
+// A joined error (one entry per partition) qualifies only when all its branches do, and an error
+// that names a second cause beside ErrUnavailable (a quota failure) does not.
+func onlyWindowManagerUnavailable(err error) bool {
+	switch {
+	case err == nil:
+		return false
+	case err == windowmanager.ErrUnavailable:
+		return true
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		branches := joined.Unwrap()
+		if len(branches) == 0 {
+			return false
+		}
+		for _, branch := range branches {
+			if !onlyWindowManagerUnavailable(branch) {
+				return false
+			}
+		}
+		return true
+	}
+	return onlyWindowManagerUnavailable(errors.Unwrap(err))
 }
 
 func enrichWorkspaceRemovalError(payload *contract.ErrorPayload, err error) {
