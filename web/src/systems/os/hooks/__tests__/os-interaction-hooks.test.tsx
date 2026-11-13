@@ -3127,6 +3127,99 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
   });
 
+  /**
+   * A 1000px-wide column: a row of five windows over one window. Five 220px floors do not fit in
+   * 1000px, so the row shows one member at a time under its 36px switcher (256px tall at least).
+   */
+  function rowOverWindow(weights: number[]): WindowManagerSnapshot {
+    const row = ["window:r1", "window:r2", "window:r3", "window:r4", "window:r5"];
+    return snapshotWithRoot(
+      {
+        id: "split:outer",
+        kind: "split",
+        axis: "vertical",
+        weights,
+        children: [
+          {
+            id: "split:row",
+            kind: "split",
+            axis: "horizontal",
+            weights: row.map(() => 0.2),
+            children: row.map(id => leafNode(id)),
+          },
+          leafNode("window:below"),
+        ],
+      },
+      [...row, "window:below"],
+      SNAPSHOT.revision
+    );
+  }
+
+  function projectColumn(weights: number[], height: number) {
+    const snapshot = rowOverWindow(weights);
+    const tab = snapshot.desktops[0]?.tabs[0];
+    if (tab === undefined) throw new Error("expected the column's tab");
+    return projectTab({
+      tab,
+      workArea: { x: 0, y: 0, w: 1000, h: height },
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: buildWindowManagerMinimums(snapshot),
+    });
+  }
+
+  function outerSeam(shell: ReturnType<typeof exactShell>, height: number) {
+    const outer = authoritativeSeam(
+      shell.state,
+      { x: 0, y: 0, w: 1000, h: height },
+      { splitId: "split:outer", boundaryIndex: 0 }
+    );
+    if (outer === null) throw new Error("expected the column seam");
+    return outer;
+  }
+
+  it("Should hold a balance back to the nearest shift its split still lays out side by side at", () => {
+    // 1000×500: 260px for the collapsed row (≥ 256) and 240px for the window (≥ 220) both fit.
+    // An even split gives each 250px, under the row's 256px, and would show the column one member
+    // at a time; the balance stops at the row's 256px instead, a -4px shift.
+    expect(projectColumn([0.5, 0.5], 500).collapsed.map(entry => entry.splitId)).toContain(
+      "split:outer"
+    );
+    const shell = exactShell(rowOverWindow([0.52, 0.48]), 1000, 500);
+    const outer = outerSeam(shell, 500);
+    render(<SeamHarness seam={outer} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.balanceLayout).not.toHaveBeenCalled();
+    expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
+      "split:outer",
+      0,
+      expect.closeTo(-4 / 500, 9),
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    const delta = vi.mocked(shell.controller.resizeLayout).mock.lastCall?.[2] ?? 0;
+    const after = projectColumn([0.52 + delta, 0.48 - delta], 500);
+    expect(after.collapsed.map(entry => entry.splitId)).toEqual(["split:row"]);
+    expect(after.seams.map(entry => entry.id)).toEqual(["split:outer:0"]);
+  });
+
+  it("Should balance a two-member split with layout.balance when the even split lays out side by side", () => {
+    // 1000×600: an even split gives the collapsed row 300px, over its 256px, and the window 300px.
+    const shell = exactShell(rowOverWindow([0.6, 0.4]), 1000, 600);
+    render(<SeamHarness seam={outerSeam(shell, 600)} />, { wrapper: shell.wrapper });
+
+    fireEvent.doubleClick(screen.getByTestId("seam"));
+
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
+    expect(shell.controller.balanceLayout).toHaveBeenCalledExactlyOnceWith(
+      { splitId: "split:outer" },
+      seamFence("split:outer", 0, SNAPSHOT.revision)
+    );
+    expect(projectColumn([0.5, 0.5], 600).collapsed.map(entry => entry.splitId)).toEqual([
+      "split:row",
+    ]);
+  });
+
   it("Should fence a two-member balance like a drag", () => {
     const shell = exactShell(snapshotWithSplit([0.5, 0.5]));
     render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });

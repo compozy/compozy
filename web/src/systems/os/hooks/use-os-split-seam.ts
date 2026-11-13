@@ -427,20 +427,31 @@ export function useOsSplitSeam(seam: ProjectedSeam | undefined) {
   };
 
   /**
-   * Balances the two sides this seam separates. With two members that is the whole split, which
-   * `layout.balance` evens; in a wider split only this pair is evened, so the others keep theirs.
-   * The member count is the split's when the command is sent; a seam that by then separates another
+   * Balances the two sides this seam separates. The shift that evens them goes through the same
+   * admission as a key step, against the layout at send time, so a balance never leaves the split
+   * one member at a time: it lands on the even split when that fits, on the nearest fitting shift
+   * otherwise. With two members an admitted even split is `layout.balance`; a held-back one, or a
+   * pair in a wider split (the others keep theirs), is `layout.resize` by the admitted shift. The
+   * member count is the split's when the command is sent; a seam that by then separates another
    * pair gets nothing.
    */
   const onDoubleClick = () => {
     if (seam === undefined) return;
     sendSeamCommand(seam, (current, { members, inputAt }) => {
+      const requestedPx = ((current.trailingWeight - current.leadingWeight) / 2) * current.axisSpan;
+      const admitted = authoritativeSeamShift(
+        manager.getState(),
+        projectedWorkArea(),
+        current,
+        requestedPx
+      );
+      if (admitted === null) return;
       const fence = fenceFor(current, inputAt);
-      if (members <= 2) {
+      if (members <= 2 && admitted.shiftPx === requestedPx) {
         void sent(manager.balanceLayout({ splitId: current.splitId }, fence));
         return;
       }
-      const delta = (current.trailingWeight - current.leadingWeight) / 2;
+      const delta = seamWeightDelta(admitted.seam, admitted.shiftPx);
       if (Math.abs(delta) <= SEAM_WEIGHT_EPSILON) return;
       void sent(manager.resizeLayout(current.splitId, current.boundaryIndex, delta, fence));
     });
