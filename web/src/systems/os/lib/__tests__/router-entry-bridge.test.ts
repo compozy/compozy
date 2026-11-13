@@ -2,8 +2,9 @@
 // Invariant: the coordinator's history writes add no state to their entries, so the router's own
 // same-location check holds (a link to the URL shown commits nothing); the ledger learns each
 // entry's identity from the key the router's history assigns: the entry the coordinator's own
-// call committed and a same-path redirect the router makes while loading it are its own; a link,
-// Back, a replace to another path and a write a navigation blocker held are not.
+// call committed (a navigation blocker never holds it) and a same-path redirect the router makes
+// while loading it are its own; a link, Back, a replace to another path and an operator
+// navigation a blocker held are not.
 // Owning layer: the bridge between the coordinator and TanStack Router's history. It needs the
 // real router and history: the same-location check, the redirect's replace and the blocker's
 // deferral live in router-core and the history.
@@ -94,15 +95,18 @@ function createHarness() {
  */
 function holdNavigations(router: ReturnType<typeof createHarness>["router"]) {
   let resolveHeld: ((blocked: boolean) => void) | null = null;
+  let asked = 0;
   const release = router.history.block({
     blockerFn: () =>
       new Promise<boolean>(resolve => {
+        asked += 1;
         resolveHeld = resolve;
       }),
     enableBeforeUnload: false,
   });
   return {
     held: () => resolveHeld !== null,
+    asked: () => asked,
     answer: (blocked: boolean) => {
       const resolve = resolveHeld;
       resolveHeld = null;
@@ -193,13 +197,74 @@ describe("RouterEntryBridge", () => {
     disconnect();
   });
 
-  it("Should read an operator link as intent after a blocker cancelled a write to the same URL [AS-F-17]", async () => {
+  it.each([
+    ["lets every navigation through", false],
+    ["holds every navigation", true],
+  ] as const)(
+    "Should commit and own a coordinator write inside its call when a blocker %s [AS-F-17]",
+    async (_label, holds) => {
+      const { router, entries, bridge, disconnect, currentKey } = createHarness();
+      await router.load();
+      const start = currentKey();
+      let asked = 0;
+      const release = router.history.block({
+        blockerFn: () => {
+          asked += 1;
+          return holds ? new Promise<boolean>(() => undefined) : false;
+        },
+        enableBeforeUnload: false,
+      });
+
+      bridge.port.navigate({ pathname: "/bound", search: {} });
+      // Committed before the call returned, without asking the blocker.
+      const written = currentKey();
+      expect(written).not.toBe(start);
+      expect(router.history.location.pathname).toBe("/bound");
+      expect(entries.isEcho(written)).toBe(true);
+      await router.load();
+      const redirected = currentKey();
+
+      // The router's same-path redirect of that write is the coordinator's too, reported twice.
+      expect(redirected).not.toBe(written);
+      expect(router.history.location.search).toContain("workspace");
+      expect(entries.isEcho(redirected)).toBe(true);
+      expect(entries.isEcho(redirected)).toBe(true);
+      bridge.port.replace({ pathname: "/tasks", search: {} });
+      expect(entries.isEcho(currentKey())).toBe(true);
+      expect(asked).toBe(0);
+      release();
+      disconnect();
+    }
+  );
+
+  it("Should still hold an operator's router navigation behind a blocker [AS-F-17]", async () => {
+    const { router, bridge, disconnect, currentKey } = createHarness();
+    await router.load();
+    const start = currentKey();
+    const blocker = holdNavigations(router);
+
+    void router.navigate({ to: "/settings" });
+    await settle();
+    expect(blocker.held()).toBe(true);
+    expect(currentKey()).toBe(start);
+    // Keep editing: the operator's navigation is dropped; a coordinator write still commits.
+    blocker.answer(true);
+    await settle();
+    expect(router.history.location.pathname).toBe("/tasks");
+    bridge.port.replace({ pathname: "/settings", search: {} });
+    expect(router.history.location.pathname).toBe("/settings");
+    expect(blocker.asked()).toBe(1);
+    blocker.release();
+    disconnect();
+  });
+
+  it("Should read an operator link as intent after a blocker cancelled an operator write to the same URL [AS-F-17]", async () => {
     const { router, entries, bridge, disconnect, currentKey } = createHarness();
     await router.load();
     const start = currentKey();
     const blocker = holdNavigations(router);
 
-    bridge.port.navigate({ pathname: "/settings", search: {} });
+    bridge.port.navigate({ pathname: "/settings", search: {} }, "operator");
     await settle();
     expect(blocker.held()).toBe(true);
     // Keep editing: the write never commits.
@@ -215,16 +280,16 @@ describe("RouterEntryBridge", () => {
     disconnect();
   });
 
-  it("Should read a write a blocker let through later as intent, in one entry [AS-F-17]", async () => {
+  it("Should read an operator write a blocker let through later as intent, in one entry [AS-F-17]", async () => {
     const { router, entries, bridge, disconnect, currentKey } = createHarness();
     await router.load();
     const length = router.history.length;
     const blocker = holdNavigations(router);
 
-    bridge.port.navigate({ pathname: "/settings", search: {} });
+    bridge.port.navigate({ pathname: "/settings", search: {} }, "operator");
     await settle();
     expect(blocker.held()).toBe(true);
-    // Discard changes: the write lands outside the bridge's call.
+    // Discard changes: the operator's write lands outside the bridge's call.
     blocker.answer(false);
     await vi.waitFor(() => expect(router.history.location.pathname).toBe("/settings"));
 
@@ -234,12 +299,12 @@ describe("RouterEntryBridge", () => {
     disconnect();
   });
 
-  it("Should read a held write that lands after another navigation as intent [AS-F-17]", async () => {
+  it("Should read a held operator write that lands after another navigation as intent [AS-F-17]", async () => {
     const { router, entries, bridge, disconnect, currentKey } = createHarness();
     await router.load();
     const blocker = holdNavigations(router);
 
-    bridge.port.navigate({ pathname: "/settings", search: {} });
+    bridge.port.navigate({ pathname: "/settings", search: {} }, "operator");
     await settle();
     expect(blocker.held()).toBe(true);
     // Another navigation the blocker does not hold overtakes the held write.

@@ -6,8 +6,8 @@ import type { RouterEntryEvent, RoutingEntryLedger } from "./routing-entry-ledge
 
 /** The part of the router's history the bridge writes to; the router's own history satisfies it. */
 export interface RouterEntryHistory {
-  push(path: string): void;
-  replace(path: string): void;
+  push(path: string, state: undefined, options: { ignoreBlocker: boolean }): void;
+  replace(path: string, state: undefined, options: { ignoreBlocker: boolean }): void;
 }
 
 /**
@@ -15,15 +15,14 @@ export interface RouterEntryHistory {
  * the coordinator's own writes and everything else.
  *
  * A notification is the coordinator's own only when it arrives inside the bridge's own `push` or
- * `replace` call: the history notifies synchronously inside the call when nothing defers it.
- * Nothing is remembered once the call returns, so a write a navigation blocker cancelled can never
- * claim a later entry, and nothing accumulates.
+ * `replace` call. The coordinator's writes are projections of authoritative window-manager state
+ * and never answer a navigation blocker (`OsRouterPort`), so the history commits and notifies
+ * each one synchronously inside the call. Nothing is remembered once the call returns, so nothing
+ * accumulates and no later entry can be claimed by an earlier write.
  *
- * A write a blocker deferred and later let through lands outside the call and reads as any other
- * navigation: the route the coordinator wrote is still its current route then, so reconciling it
- * finds the focused window already showing it and does nothing. A newer coordinator write while
- * the blocker still holds one is held by the same blocker, which answers only its newest request,
- * so only the newest write can land.
+ * An operator navigation the coordinator writes for a control (`origin: "operator"`) answers
+ * blockers like any router navigation. Held by one, it lands outside the call, if at all, and
+ * reads as the operator's navigation it is.
  *
  * A write adds no state to its entry: the router compares user state when a navigation targets
  * the location already shown, and an entry carrying state the navigation lacks would get a
@@ -40,8 +39,8 @@ export class RouterEntryBridge {
     this.history = history;
     this.hrefOf = hrefOf;
     this.port = {
-      navigate: route => this.write("push", route),
-      replace: route => this.write("replace", route),
+      navigate: (route, origin) => this.write("push", route, origin === "operator"),
+      replace: route => this.write("replace", route, false),
     };
   }
 
@@ -61,12 +60,13 @@ export class RouterEntryBridge {
     return mode === "push" ? { kind: "push", key } : { kind: "replace", key, pathname };
   }
 
-  private write(mode: "push" | "replace", route: OsWindowRoute): void {
+  private write(mode: "push" | "replace", route: OsWindowRoute, blockable: boolean): void {
     const href = this.hrefOf(route);
+    const options = { ignoreBlocker: !blockable };
     this.writing = mode;
     try {
-      if (mode === "push") this.history.push(href);
-      else this.history.replace(href);
+      if (mode === "push") this.history.push(href, undefined, options);
+      else this.history.replace(href, undefined, options);
     } finally {
       this.writing = null;
     }

@@ -228,7 +228,7 @@ export class RoutingCoordinator {
    */
   userNavigate(route: OsWindowRoute): void {
     this.nextUserIntentToken += 1;
-    this.pushRoute(route);
+    this.pushRoute(route, "operator");
     if (this.phase === "ready") this.queueRouteReconciliation(route);
   }
 
@@ -396,10 +396,10 @@ export class RoutingCoordinator {
     this.cycle = "workspace-switch";
   }
 
-  private pushRoute(route: OsWindowRoute): void {
+  private pushRoute(route: OsWindowRoute, ...origin: [origin?: "operator"]): void {
     this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
-    this.router.navigate(route);
+    this.router.navigate(route, ...origin);
   }
 
   private replaceRoute(route: OsWindowRoute): void {

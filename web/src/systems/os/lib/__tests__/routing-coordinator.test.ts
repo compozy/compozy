@@ -3,9 +3,17 @@
 // hydration, command fences, and in-flight authority races, and user causes produce exactly one
 // history write.
 // Owning layer: the sole URL ↔ window-manager bridge.
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  redirect,
+} from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import type { OsHydration, OsOpenTarget, OsWindow, OsWindowRoute } from "../os-types";
+import { connectRouterEntries, RouterEntryBridge } from "../router-entry-bridge";
 import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
 import { RoutingEntryLedger } from "../routing-entry-ledger";
 import type { WindowManagerClientView } from "../window-manager-types";
@@ -281,6 +289,69 @@ function createCoordinator(initialWindows: readonly OsWindow[] = []) {
     history,
   };
 }
+
+/**
+ * The coordinator over the real router, history and bridge, with a navigation blocker registered
+ * as a dirty agent editor's unsaved guard does. Session routes canonicalize with a same-path
+ * loader redirect that adds the workspace binding, as the session permalink does.
+ */
+function createBridgedCoordinator(
+  initialWindows: readonly OsWindow[],
+  blockerFn: () => boolean | Promise<boolean>
+) {
+  const rootRoute = createRootRoute();
+  const sessionRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/agents/general/sessions/$id",
+    beforeLoad: ({ location }) => {
+      if (!("workspace" in location.search)) {
+        throw redirect({ href: `${location.pathname}?workspace=w`, replace: true });
+      }
+    },
+  });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([
+      createRoute({ getParentRoute: () => rootRoute, path: "/tasks" }),
+      createRoute({ getParentRoute: () => rootRoute, path: "/settings" }),
+      sessionRoute,
+    ]),
+    history: createMemoryHistory({ initialEntries: ["/tasks"] }),
+  });
+  const store = createStore(initialWindows);
+  const entries = new RoutingEntryLedger();
+  const bridge = new RouterEntryBridge(
+    router.history,
+    route => `${route.pathname}${router.options.stringifySearch(route.search)}`
+  );
+  // As the mounted Transitioner does: the router loads each history change.
+  const stopLoading = router.history.subscribe(() => void router.load());
+  const stopEntries = connectRouterEntries(router, bridge, entries);
+  const releaseBlocker = router.history.block({ blockerFn, enableBeforeUnload: false });
+  // The key of every entry a push committed, so a test names a write after its redirect landed.
+  const pushed: string[] = [];
+  const stopPushLog = router.history.subscribe(({ location, action }) => {
+    const key = location.state.__TSR_key;
+    if (action.type === "PUSH" && key !== undefined) pushed.push(key);
+  });
+  return {
+    coordinator: new RoutingCoordinator(store, bridge.port, entries),
+    router,
+    store,
+    currentKey: () => router.history.location.state.__TSR_key ?? null,
+    lastPushKey: () => pushed.at(-1) ?? null,
+    disconnect: () => {
+      releaseBlocker();
+      stopPushLog();
+      stopEntries();
+      stopLoading();
+    },
+  };
+}
+
+const registeredBlockers = [
+  ["lets every navigation through", () => false],
+  ["holds every navigation", () => new Promise<boolean>(() => undefined)],
+] as const;
 
 describe("RoutingCoordinator", () => {
   it.each(["/loops", "/loop-runs", "/loops/studio-onboarding-review"])(
@@ -588,7 +659,8 @@ describe("RoutingCoordinator", () => {
     coordinator.reportRouteMatch(settingsRoute, history.current());
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(settingsRoute);
+    // The operator's own navigation still answers navigation blockers.
+    expect(router.navigate).toHaveBeenCalledWith(settingsRoute, "operator");
     expect(store.spies.openOrFocus).not.toHaveBeenCalled();
 
     store.setClientConnected(true);
@@ -613,7 +685,7 @@ describe("RoutingCoordinator", () => {
     coordinator.userNavigate(profiles);
 
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(profiles);
+    expect(router.navigate).toHaveBeenCalledWith(profiles, "operator");
     expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
     expect(store.spies.openOrFocus).toHaveBeenCalledWith({
       app: "settings",
@@ -659,7 +731,7 @@ describe("RoutingCoordinator", () => {
     // The operator picks Profiles while the daemon still holds the open.
     coordinator.userNavigate(profiles);
     expect(router.navigate).toHaveBeenCalledOnce();
-    expect(router.navigate).toHaveBeenCalledWith(profiles);
+    expect(router.navigate).toHaveBeenCalledWith(profiles, "operator");
 
     store.settleLifecycle(true);
     await expect(pending).resolves.toBe(settings.id);
@@ -1850,6 +1922,72 @@ describe("RoutingCoordinator", () => {
         expect.objectContaining({ route: b.route })
       );
     });
+
+    it.each(registeredBlockers)(
+      "Should keep B when A's redirect reports after B was chosen and a blocker %s [AS-F-17]",
+      async (_label, blockerFn) => {
+        const a = sessionA();
+        const tasks = windowFixture("tasks", "/tasks");
+        const { coordinator, router, store, currentKey, lastPushKey, disconnect } =
+          createBridgedCoordinator([a, tasks], blockerFn);
+        await router.load();
+        coordinator.completeHydration();
+        coordinator.reportRouteMatch(tasks.route, currentKey());
+
+        // All projects: A's route has no workspace binding; its loader will add one.
+        await coordinator.userActivateWindow(a.id);
+        const writeOfA = lastPushKey();
+        expect(router.history.location.pathname).toBe(a.route.pathname);
+        store.deferLifecycle();
+        const toB = coordinator.userActivateWindow(tasks.id);
+        await router.load();
+        const redirectOfA = currentKey();
+        expect(redirectOfA).not.toBe(writeOfA);
+        coordinator.reportRouteMatch(a.route, writeOfA);
+        coordinator.reportRouteMatch(route(a.route.pathname, { workspace: "w" }), redirectOfA);
+        store.settleLifecycle(true);
+        await toB;
+        coordinator.reportAuthoritativeState();
+        await Promise.resolve();
+
+        expect(store.getState().focusedId).toBe(tasks.id);
+        expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+        expect(store.spies.navigateWindow).not.toHaveBeenCalled();
+        expect(router.history.location.pathname).toBe("/tasks");
+        disconnect();
+      }
+    );
+
+    it.each(registeredBlockers)(
+      "Should read one written entry reported twice as an echo when a blocker %s [E2E-040]",
+      async (_label, blockerFn) => {
+        const a = windowFixture("tasks", "/tasks");
+        const b = windowFixture("settings", "/settings");
+        const { coordinator, router, store, currentKey, disconnect } = createBridgedCoordinator(
+          [b, a],
+          blockerFn
+        );
+        await router.load();
+        coordinator.completeHydration();
+        coordinator.reportRouteMatch(a.route, currentKey());
+        store.setAuthoritativeFocus(b.id);
+        coordinator.reportAuthoritativeState();
+        const writeOfB = currentKey();
+        expect(router.history.location.pathname).toBe("/settings");
+
+        coordinator.reportRouteMatch(b.route, writeOfB);
+        store.setAuthoritativeFocus(a.id);
+        coordinator.reportRouteMatch(b.route, writeOfB);
+        coordinator.reportAuthoritativeState();
+        await Promise.resolve();
+
+        expect(store.getState().focusedId).toBe(a.id);
+        expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+        expect(store.spies.focusWindow).not.toHaveBeenCalled();
+        expect(router.history.location.pathname).toBe("/tasks");
+        disconnect();
+      }
+    );
 
     it("Should end on B when A's redirect reports after B was activated [AS-F-17]", async () => {
       const a = sessionA();
