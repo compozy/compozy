@@ -941,10 +941,12 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 				Status:          "running",
 				Delivery:        "none",
 			}
-			runtime.errorStop = testSubagentError()
+			stopErr := testSubagentError()
+			runtime.errorStop = stopErr
 			got, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
 			synctest.Wait()
-			if err == nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
+			if !errors.Is(err, stopErr) || got.Status != "cancel_requested" ||
+				db.rows[row.ID].Delivery != "disposed" {
 				t.Fatal(got, err)
 			}
 			if db.rows[row.ID].Status != store.SubagentStatusCanceled ||
@@ -958,7 +960,7 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			row.Status = "completed"
 			db.rows[row.ID] = row.SessionSubagent
 			got, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-			if err == nil || got.Status != "completed" || len(runtime.stopped) != 4 ||
+			if !errors.Is(err, stopErr) || got.Status != "completed" || len(runtime.stopped) != 4 ||
 				runtime.stopped[3] != *row.ChildSessionID {
 				t.Fatal(got, err, runtime.stopped)
 			}
@@ -3410,6 +3412,31 @@ func TestSubagentCancelStopsChild(t *testing.T) {
 		if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
 			got.SettledAt == nil || !got.SettledAt.Equal(settledAt) {
 			t.Fatalf("terminal row changed by cancel: %+v", got)
+		}
+	})
+	t.Run("Should stop the child when descendant cleanup fails", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		descendant := db.rows[row.ID]
+		descendant.ID = "grandchild"
+		descendant.ParentSessionID = *row.ChildSessionID
+		descendant.ChildSessionID = new("grandchild-session")
+		db.rows[descendant.ID] = descendant
+		cleanupErr := errors.New("descendant cleanup unavailable")
+		db.finalizeErrIDs = map[string]error{"grandchild": cleanupErr}
+		var stoppedIDs []string
+		s.runtime = cancelStopRuntime{
+			subagentTestRuntime: runtime,
+			onStop:              func(_ context.Context, id string) { stoppedIDs = append(stoppedIDs, id) },
+		}
+
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if !errors.Is(err, cleanupErr) || out.Status != "cancel_requested" {
+			t.Fatalf("Cancel() = %+v, %v; want the cleanup error surfaced", out, err)
+		}
+		if !slices.Contains(stoppedIDs, *row.ChildSessionID) {
+			t.Fatalf("child stop was not attempted after a cleanup error: %v", stoppedIDs)
 		}
 	})
 }
