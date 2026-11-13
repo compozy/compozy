@@ -76,6 +76,110 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should recheck the removal fence when staging changes during trash discovery", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		f.service.renameCheckout = func(from, to string) error {
+			if from != f.item.Path {
+				return errors.New("restore busy")
+			}
+			if err := os.WriteFile(filepath.Join(from, "changed.txt"), []byte("refused work"), 0o600); err != nil {
+				return err
+			}
+			f.dirty.Store(true)
+			return os.Rename(from, to)
+		}
+		f.service.resolver = removalTrashRootsResolver{
+			staticWorkspaceResolver: staticWorkspaceResolver{
+				workspaces: map[string]Workspace{f.workspace.ID: f.workspace},
+			},
+			roots: []string{f.service.root},
+			onList: func() {
+				if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); !errors.Is(
+					err,
+					ErrDirtyRequiresForce,
+				) {
+					t.Fatalf("late refusal = %v", err)
+				}
+			},
+		}
+		if err := f.service.collectTrash(t.Context(), nil); err != nil {
+			t.Fatal(err)
+		}
+		staged := filepath.Join(f.service.root, trashDirectory, f.item.ID, "changed.txt")
+		if data, err := os.ReadFile(staged); err != nil || string(data) != "refused work" {
+			t.Fatalf("stale-sweep refused work = %q, %v", data, err)
+		}
+	})
+
+	for _, recreated := range []bool{false, true} {
+		t.Run(
+			"Should preserve refused staging across failed recovery with recreated path "+strconv.FormatBool(recreated),
+			func(t *testing.T) {
+				t.Parallel()
+				f := newRemovalTestFixture(t)
+				f.service.renameCheckout = func(from, to string) error {
+					if from != f.item.Path {
+						return errors.New("restore busy")
+					}
+					if err := os.WriteFile(filepath.Join(from, "changed.txt"), []byte("refused work"), 0o600); err != nil {
+						return err
+					}
+					f.dirty.Store(true)
+					return os.Rename(from, to)
+				}
+				refusal, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false)
+				if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || f.mustItem(t).State != StateRemoving {
+					t.Fatalf("failed restore = %#v, %v, state %s", refusal, err, f.mustItem(t).State)
+				}
+				staged := filepath.Join(f.service.root, trashDirectory, f.item.ID, "changed.txt")
+				if recreated {
+					if err := os.Mkdir(f.item.Path, 0o700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(f.item.Path, "foreign"), []byte("keep"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); !errors.Is(
+					err,
+					ErrNotReady,
+				) {
+					t.Fatalf("retry = %v, want pending recovery", err)
+				}
+				if err := f.service.RecoverCreations(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.service.collectTrash(t.Context(), nil); err != nil {
+					t.Fatal(err)
+				}
+				if data, err := os.ReadFile(staged); err != nil || string(data) != "refused work" {
+					t.Fatalf("refused staged work = %q, %v", data, err)
+				}
+				if f.mustItem(t).State != StateRemoving || f.removeCalls.Load() != 0 {
+					t.Fatal("failed recovery cleared the fence or Git registration")
+				}
+				if recreated {
+					if err := os.Remove(filepath.Join(f.item.Path, "foreign")); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Remove(f.item.Path); err != nil {
+						t.Fatal(err)
+					}
+				}
+				f.service.renameCheckout = os.Rename
+				refusal, err = f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false)
+				if !errors.Is(err, ErrDirtyRequiresForce) || refusal == nil || f.mustItem(t).State != StateReady {
+					t.Fatalf("restored dirty checkout = %#v, %v, state %s", refusal, err, f.mustItem(t).State)
+				}
+				if data, err := os.ReadFile(filepath.Join(f.item.Path, "changed.txt")); err != nil ||
+					string(data) != "refused work" {
+					t.Fatalf("restored work = %q, %v", data, err)
+				}
+			},
+		)
+	}
+
 	t.Run("Should remove synchronously when the same ID still has staged bytes", func(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)
@@ -124,7 +228,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 					t.Fatal(err)
 				}
 				live := f.item
-				live.ID, live.Path = "wt-live", canonicalComparablePath(checkout)
+				live.ID, live.Name, live.Path = "wt-live", "live-checkout", canonicalComparablePath(checkout)
 				if err := f.store.Insert(t.Context(), live); err != nil {
 					t.Fatal(err)
 				}
@@ -267,7 +371,9 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Run("Should reconcile an abandoned removal on the next removal request", func(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)
-		if err := f.store.SetState(t.Context(), f.workspace.ID, f.item.ID, StateRemoving, f.item.UpdatedAt); err != nil {
+		if err := f.store.SetState(
+			t.Context(), f.workspace.ID, f.item.ID, StateRemoving, f.item.UpdatedAt,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
@@ -1694,9 +1800,14 @@ func (s *recordingEventSink) count(name string) int {
 
 type removalTrashRootsResolver struct {
 	staticWorkspaceResolver
-	roots []string
+	roots  []string
+	err    error
+	onList func()
 }
 
 func (r removalTrashRootsResolver) ListWorktreeTrashRoots(context.Context) ([]string, error) {
-	return r.roots, nil
+	if r.onList != nil {
+		r.onList()
+	}
+	return r.roots, r.err
 }

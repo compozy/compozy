@@ -224,7 +224,11 @@ func TestNativeWorktreeTools(t *testing.T) {
 				nativeApproveAllPolicyInputs(),
 			)
 			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDWorktreeRemove, Input: json.RawMessage(fmt.Sprintf(`{"workspace":"ws-a","targets":[{"ref":"dirty"},{"ref":"clean"}],"dry_run":%t}`, dryRun)),
+				ToolID: toolspkg.ToolIDWorktreeRemove,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"workspace":"ws-a","targets":[{"ref":"dirty"},{"ref":"clean"}],"dry_run":%t}`,
+					dryRun,
+				)),
 			})
 			if err != nil {
 				t.Fatal(err)

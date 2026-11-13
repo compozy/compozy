@@ -211,6 +211,11 @@ The CLI gives batches one ordinary request budget per target; caller cancellatio
 Before clearing registration, non-force removal rechecks the staged checkout and restores it on
 new changes. Adoption rejects trash paths, and collection preserves live registered checkouts.
 
+If restoring a refused staged checkout fails, its record stays `removing` and collection keeps
+its bytes. Retry removal after freeing the original path: recovery verifies the saved Git pointer,
+restores the checkout and repeats safety checks before permitting any discard. Relative Git
+pointers and orphaned checkouts use synchronous removal.
+
 ## Configuration And Errors
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and

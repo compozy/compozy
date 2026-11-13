@@ -3618,7 +3618,10 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 			defer timer.Stop()
 			select {
 			case <-timer.C:
-				if _, err := io.WriteString(w, `{"dry_run":false,"results":[{"target":{"ref":"one"},"state":"removed"},{"target":{"ref":"two"},"state":"removed"}]}`); err != nil {
+				if _, err := io.WriteString(
+					w,
+					`{"dry_run":false,"results":[{"target":{"ref":"one"},"state":"removed"},{"target":{"ref":"two"},"state":"removed"}]}`,
+				); err != nil {
 					t.Error(err)
 				}
 			case <-r.Context().Done():

@@ -115,7 +115,8 @@ func (s *Service) remove(
 }
 
 func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalMode) (_ *RemovalRefusal, err error) {
-	restoreReady := true
+	recoverStaged := item.State == StateRemoving
+	restoreReady := !recoverStaged
 	defer func() {
 		if !restoreReady {
 			return
@@ -155,6 +156,15 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalM
 		return nil, err
 	}
 	item = current
+	if recoverStaged {
+		staged, err = s.restoreStagedRemoval(workspace, item)
+		if err != nil {
+			// The staged checkout may contain changes a previous attempt refused.
+			restoreReady = staged == ""
+			return nil, err
+		}
+		restoreReady = true
+	}
 	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal {
 		restoreReady = false

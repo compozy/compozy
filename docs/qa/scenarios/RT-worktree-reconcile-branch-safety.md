@@ -73,3 +73,8 @@ Inject a tracked write immediately before rename: non-force removal must restore
 keep the ready Git registration. Reject adoption under a trash root and preserve preexisting
 registered checkouts found there, including nested paths. Reuse an ID with old staged bytes and
 confirm synchronous removal succeeds without overwriting the previous discard.
+
+If restoring a refused staged checkout fails, its record stays `removing` and collection keeps
+its bytes. Retry removal after freeing the original path: recovery verifies the saved Git pointer,
+restores the checkout and repeats safety checks before permitting any discard. Relative Git
+pointers and orphaned checkouts use synchronous removal.

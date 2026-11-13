@@ -100,6 +100,36 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should synchronously remove a real checkout with a relative Git pointer", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Relative pointer removal",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pointer, err := filepath.Rel(item.Path, item.GitDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(item.Path, ".git"), []byte("gitdir: "+pointer+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if f.item(item.ID).State != StateRemoved {
+			t.Fatal("relative-pointer checkout was not removed")
+		}
+		if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("checkout remains: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(f.worktreesRoot, trashDirectory, item.ID)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("relative-pointer checkout was staged: %v", err)
+		}
+	})
+
 	t.Run("Should preserve Git refusal for populated submodules before forced synchronous removal", func(t *testing.T) {
 		t.Parallel()
 		f := newRealGitFixture(t)

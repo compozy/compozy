@@ -10,3 +10,5 @@ The worktree removal CLI, native tool and HTTP/UDS API accept batches with per-t
 Migration notes: no action needed. Background cleanup may retain staged bytes under the managed worktrees root until CPU pressure subsides.
 
 Collection rediscovers profile-specific roots after restart and only empties CompozyOS-owned trash. Existing trash folders stay untouched, submodule checkouts retain Git's synchronous safety checks, and CLI batch timeouts scale with the number of targets.
+
+Interrupted staging now restores verified checkout bytes before retrying safety checks. Failed restores keep the removal fence and preserve staged changes across retries and daemon recovery.

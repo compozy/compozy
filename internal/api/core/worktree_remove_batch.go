@@ -102,7 +102,7 @@ func removeWorktreeBatchItem(
 		if err != nil {
 			result.Code = WorktreeErrorCode(err)
 			if result.Code == "" {
-				result.Code = "worktree_removal_failed"
+				result.Code = WorktreeErrorCode(worktree.ErrRemovalFailed)
 			}
 			result.Error = formatError(err)
 		}
@@ -130,7 +130,7 @@ func failedWorktreeRemoval(
 		}
 	}
 	if result.Code == "" {
-		result.Code = "worktree_removal_failed"
+		result.Code = WorktreeErrorCode(worktree.ErrRemovalFailed)
 	}
 	return result
 }

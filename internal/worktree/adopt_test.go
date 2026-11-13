@@ -15,6 +15,21 @@ import (
 func TestServiceAdopt(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should adopt a healthy checkout despite unrelated trash configuration errors", func(t *testing.T) {
+		t.Parallel()
+		f := newAdoptionTestFixture(t)
+		f.service.resolver = removalTrashRootsResolver{
+			staticWorkspaceResolver: staticWorkspaceResolver{
+				workspaces: map[string]Workspace{f.workspace.ID: f.workspace},
+			},
+			err: errors.New("unrelated private configuration failure"),
+		}
+		item, err := f.service.Adopt(t.Context(), testWorktreeProfileID, f.workspace.ID, f.candidate)
+		if err != nil || item == nil || item.Path != f.candidate {
+			t.Fatalf("healthy adoption = %#v, %v", item, err)
+		}
+	})
+
 	t.Run("Should refuse adoption inside the managed trash root", func(t *testing.T) {
 		t.Parallel()
 		f := newAdoptionTestFixture(t)

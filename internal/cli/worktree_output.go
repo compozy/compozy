@@ -207,7 +207,7 @@ func worktreeRemovalBatchBundle(response contract.RemoveWorktreesResponse) outpu
 		response,
 		response.Results,
 		"Worktree removal",
-		[]string{"Target", "State", "Changed Files", "Unpushed", "Leftover", "Code", "Error", "Branch"},
+		[]string{"Target", "State", "Changed Files", "Unpushed", "Leftover", "Code", "Error", worktreeBranchLabel},
 		"results",
 		[]string{
 			"target",

@@ -176,7 +176,9 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 	var dryRun bool
 	var opts WorktreeCleanupOptions
 	cmd := &cobra.Command{
-		Use: "remove <ref> [<ref>...] | --path <path>", Short: "Remove a worktree", Args: worktreeRemoveArgs(&discoveredPath),
+		Use:   "remove <ref> [<ref>...] | --path <path>",
+		Short: "Remove a worktree",
+		Args:  worktreeRemoveArgs(&discoveredPath),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := worktreeCommandContext(cmd, deps, workspaceRef)
 			if err != nil {

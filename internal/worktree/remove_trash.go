@@ -52,6 +52,10 @@ func (s *Service) stageRemoval(workspace Workspace, item Worktree, commonDir str
 	if _, err := checkoutRemovalArgs(commonDir, item.Path, item.GitDir, force); err != nil {
 		return "", err
 	}
+	if !hasAbsoluteCheckoutPointer(item.Path, item.GitDir) {
+		// Orphaned checkouts and relative pointers retain the synchronous Git path.
+		return "", nil
+	}
 	// Keep Git's populated-submodule safeguards on the synchronous path.
 	if hasSubmoduleRemovalMetadata(item, commonDir) {
 		return "", nil
@@ -190,19 +194,9 @@ func (s *Service) stopTrashCollector() {
 }
 
 func (s *Service) collectTrash(ctx context.Context, pressured func() bool) error {
-	rows, err := s.store.ListRecoverable(ctx)
-	if err != nil {
-		return err
-	}
-	protected := make(map[string]bool)
-	for _, row := range rows {
-		if row.State == StateRemoving {
-			protected[row.ID] = true
-		}
-	}
 	roots, sweepErr := s.trashRoots(ctx)
 	for _, path := range roots {
-		sweepErr = errors.Join(sweepErr, s.collectTrashRoot(ctx, path, protected, pressured))
+		sweepErr = errors.Join(sweepErr, s.collectTrashRoot(ctx, path, pressured))
 	}
 	return sweepErr
 }
@@ -236,7 +230,7 @@ func (s *Service) trashRoots(ctx context.Context) ([]string, error) {
 }
 
 func (s *Service) collectTrashRoot(
-	ctx context.Context, path string, protected map[string]bool, pressured func() bool,
+	ctx context.Context, path string, pressured func() bool,
 ) error {
 	root, err := openOwnedTrash(path)
 	if err != nil || root == nil {
@@ -259,7 +253,16 @@ func (s *Service) collectTrashRoot(
 		s.trash.mu.Lock()
 		active := s.trash.active[filepath.Join(path, entry.Name())]
 		s.trash.mu.Unlock()
-		if active || protected[entry.Name()] {
+		if active {
+			continue
+		}
+		// Read after the active check: a failed restore can release staging during this sweep.
+		protected, err := s.removingTrashEntry(ctx, entry.Name())
+		if err != nil {
+			sweepErr = errors.Join(sweepErr, err)
+			continue
+		}
+		if protected {
 			continue
 		}
 		if err := s.deleteTrashEntry(ctx, root, entry.Name(), pressured); !errors.Is(err, errTrashRegisteredCheckout) {
