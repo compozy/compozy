@@ -134,9 +134,13 @@ function SessionParentSearch({
 }: SessionParentPickerProps & { title: string }) {
   const locked = pending || stale;
   return (
-    <Command data-testid="session-parent-picker" shouldFilter={false} className="h-auto">
+    <Command
+      className="h-auto"
+      data-testid="session-parent-picker"
+      label="Search sessions"
+      shouldFilter={false}
+    >
       <CommandInput
-        aria-label="Search sessions"
         autoFocus
         onValueChange={onSearchChange}
         placeholder={`Move “${title}” under…`}
