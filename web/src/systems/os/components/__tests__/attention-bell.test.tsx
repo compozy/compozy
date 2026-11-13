@@ -4,8 +4,9 @@
 // and stale rows stay listed and activatable; loop-node rows render only when
 // supplied and hand their deep-link state to the host; scripts waiting for approval group above
 // Needs you, approve or open Heartbeat without acknowledging anything, and keep the bell from
-// reading as all quiet. A layout-upgrade row is news with nowhere to open: activating it marks
-// it read and leaves the bell where it is.
+// reading as all quiet. A layout-upgrade row is news with nowhere to open: it lists under
+// Finished (visible, never counted), and activating it marks it read and leaves the bell where
+// it is.
 // Boundary IN: AttentionBell props, section shape, and row union.
 // Boundary OUT: menubar navigation and the cross-workspace jump.
 import { render, screen, within } from "@testing-library/react";
@@ -400,7 +401,7 @@ describe("AttentionBell sections", () => {
     const onAcknowledge = vi.fn();
     render(
       <AttentionBell
-        sections={{ needsYou: [LAYOUT_UPGRADE], finished: [] }}
+        sections={{ needsYou: [], finished: [LAYOUT_UPGRADE] }}
         loading={false}
         onSelect={onSelect}
         onAcknowledge={onAcknowledge}
@@ -409,7 +410,10 @@ describe("AttentionBell sections", () => {
       />
     );
 
-    const row = screen.getByTestId(`os-attention-layout-upgrade-${LAYOUT_UPGRADE.id}`);
+    const row = within(screen.getByTestId("os-bell-finished")).getByTestId(
+      `os-attention-layout-upgrade-${LAYOUT_UPGRADE.id}`
+    );
+    expect(screen.queryByTestId("os-bell-needs-you")).not.toBeInTheDocument();
     expect(row).toHaveTextContent("Your windows are now tabs");
     expect(row).toHaveTextContent("4 windows became 2 tabs.");
     expect(row).toHaveTextContent("atlas");

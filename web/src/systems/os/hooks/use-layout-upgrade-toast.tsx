@@ -32,7 +32,7 @@ export function useLayoutUpgradeToast({
 }: LayoutUpgradeToastOptions): void {
   const [told] = useState(() => new Set<string>());
   useEffect(() => {
-    const untold = takeUntoldLayoutUpgrades(sections.needsYou, told);
+    const untold = takeUntoldLayoutUpgrades([...sections.needsYou, ...sections.finished], told);
     if (!toasts || bellOpen) return;
     for (const row of untold) {
       if (mutedWorkspaceIds.has(row.workspaceId)) continue;

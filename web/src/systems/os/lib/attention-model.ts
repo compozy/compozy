@@ -125,7 +125,7 @@ export interface OsTerminalInputAttentionRow {
 export interface OsLayoutUpgradeAttentionRow {
   kind: "layout-upgrade";
   id: string;
-  /** The bell occurrence: what a read acknowledges and what the once-only toast is keyed by. */
+  /** The bell item's occurrence id: what reading it acknowledges and what its toast is once for. */
   notificationId?: string;
   title: string;
   workspaceId: string;
@@ -148,8 +148,8 @@ export type OsAttentionRow = (
 export interface OsAttentionSections {
   /** Questions, permissions, failures, task approvals, loop nodes. */
   needsYou: OsAttentionRow[];
-  /** Finished-unseen sessions — visible, never counted. */
-  finished: OsSessionAttentionRow[];
+  /** Finished-unseen sessions and news that asks nothing (a layout upgrade) — visible, never counted. */
+  finished: (OsSessionAttentionRow | OsLayoutUpgradeAttentionRow)[];
 }
 
 export interface OsAttentionSummary {
