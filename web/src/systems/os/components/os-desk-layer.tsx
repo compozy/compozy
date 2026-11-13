@@ -17,6 +17,7 @@ import { useOsShell } from "../hooks/use-os-shell";
 import { useOsSplitSeam } from "../hooks/use-os-split-seam";
 import { useOsTabDrag } from "../hooks/use-os-tab-drag";
 import type { OsWindow } from "../lib/os-types";
+import type { WindowPaneHosts } from "../lib/window-pane-hosts";
 import type { TabProjection } from "../lib/window-manager-types";
 import type { TabDragState } from "../stores/os-tab-drag-store";
 import { OsDropZone, OsRootDropZone } from "./os-drop-zone";
@@ -94,16 +95,13 @@ function desktopLayerView(input: {
  * Where a window sits in its tab's split: the slot adopts the window's host node, which the pane
  * renders into. Slot and host are `display: contents`, so the pane lays out as the split member.
  */
-function OsWindowSlot({ host }: { host: HTMLElement }) {
+function OsWindowSlot({ hosts, windowId }: { hosts: WindowPaneHosts; windowId: string }) {
   const slotRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const slot = slotRef.current;
     if (slot === null) return;
-    slot.appendChild(host);
-    return () => {
-      if (host.parentNode === slot) slot.removeChild(host);
-    };
-  }, [host]);
+    return hosts.place(windowId, slot);
+  }, [hosts, windowId]);
   return <div ref={slotRef} className="contents" data-slot="os-window-slot" />;
 }
 
@@ -189,9 +187,9 @@ function DeskLayer({
     drag.contentTabId !== null &&
     tabs.some(tab => tab.id === drag.contentTabId);
   const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
-  const { visited, paneWindowIds, hostOf } = useDeskTabPanes(tabs, shownTabId);
+  const { visited, paneWindowIds, hosts } = useDeskTabPanes(tabs, shownTabId);
   const renderWindow = (windowId: string) => (
-    <OsWindowSlot key={windowId} host={hostOf(windowId)} />
+    <OsWindowSlot key={windowId} hosts={hosts} windowId={windowId} />
   );
 
   return (
@@ -241,7 +239,7 @@ function DeskLayer({
       })}
       {/* After the tab layers: each slot has adopted its host before the pane's layout effects. */}
       {paneWindowIds.map(windowId =>
-        createPortal(<OsWindowPane windowId={windowId} />, hostOf(windowId), windowId)
+        createPortal(<OsWindowPane windowId={windowId} />, hosts.hostOf(windowId), windowId)
       )}
     </section>
   );

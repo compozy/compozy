@@ -51,7 +51,8 @@ export interface DeskTabPanes {
   visited: readonly TabId[];
   /** Every window of the visited tabs; each renders its one pane into its host. */
   paneWindowIds: readonly string[];
-  hostOf: (windowId: string) => HTMLElement;
+  /** The hosts the panes render into and the slots place; stable for the layer's life. */
+  hosts: WindowPaneHosts;
 }
 
 /**
@@ -76,7 +77,8 @@ export function useDeskTabPanes(
   useEffect(() => {
     hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
   }, [hosts, paneKey]);
-  return { visited, paneWindowIds, hostOf: windowId => hosts.hostOf(windowId) };
+  useEffect(() => () => hosts.dispose(), [hosts]);
+  return { visited, paneWindowIds, hosts };
 }
 
 /** Measures the one shared content area and lists each desktop with its active tab. */

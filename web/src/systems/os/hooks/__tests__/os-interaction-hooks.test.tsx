@@ -41,6 +41,7 @@ import {
   useWindowLiveDataEnabled,
 } from "../use-window-live-data-enabled";
 import { useOsDeskLayer, useVisitedTabs } from "../use-os-desk-layer";
+import { WindowPaneHosts } from "../../lib/window-pane-hosts";
 import { useOsShortcuts } from "../use-os-shortcuts";
 import { WINDOW_MANAGER_COMMAND_DEADLINE_MS } from "../../runtime/window-manager-runtime-helpers";
 import { useOsPaletteExecution } from "../use-os-palette-execution";
@@ -1398,6 +1399,167 @@ describe("useVisitedTabs", () => {
 
     rerender({ tabIds: ["a", "c"], active: "c" });
     expect(result.current).toEqual(["a", "c"]);
+  });
+});
+
+// Invariant: a pane keeps the scroll offsets of its scroll containers and its focused element
+// across a slot change and across being hidden and shown, unless focus was given elsewhere.
+// Owning layer: the pane hosts the desk layer's slots place; canonical suite: OS interaction hooks.
+// jsdom does not lay out or reset offsets: each case removes what the browser would lose and
+// asserts what the hosts write back.
+describe("WindowPaneHosts", () => {
+  function setup() {
+    let observe!: ResizeObserverCallback;
+    let observer!: ResizeObserver;
+    class ResizeObserverMock implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        observe = callback;
+        observer = this;
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    const hosts = new WindowPaneHosts();
+    const host = hosts.hostOf("w");
+    const surface = document.createElement("section");
+    const scroller = document.createElement("div");
+    const field = document.createElement("textarea");
+    surface.append(scroller, field);
+    host.append(surface);
+    const [first, second] = [document.createElement("div"), document.createElement("div")];
+    document.body.append(first, second);
+    const scrollTo = (top: number) => {
+      scroller.scrollTop = top;
+      scroller.dispatchEvent(new Event("scroll"));
+    };
+    /** What the browser loses when the subtree leaves the document or stops rendering. */
+    const loseLayoutState = () => {
+      scroller.scrollTop = 0;
+      if (document.activeElement === field) field.blur();
+    };
+    const box = (width: number, height: number) =>
+      observe(
+        [
+          {
+            target: surface,
+            contentRect: new DOMRectReadOnly(0, 0, width, height),
+            borderBoxSize: [],
+            contentBoxSize: [],
+            devicePixelContentBoxSize: [],
+          },
+        ],
+        observer
+      );
+    const cleanup = () => {
+      hosts.dispose();
+      first.remove();
+      second.remove();
+    };
+    return {
+      hosts,
+      surface,
+      scroller,
+      field,
+      first,
+      second,
+      scrollTo,
+      loseLayoutState,
+      box,
+      cleanup,
+    };
+  }
+
+  it("Should restore scroll offsets and focus when a pane moves to another slot", () => {
+    const { hosts, scroller, field, first, second, scrollTo, loseLayoutState, cleanup } = setup();
+    const leave = hosts.place("w", first);
+    scrollTo(120);
+    field.focus();
+
+    leave();
+    loseLayoutState();
+    expect(document.activeElement).toBe(document.body);
+    hosts.place("w", second);
+
+    expect(hosts.hostOf("w").parentElement).toBe(second);
+    expect(scroller.scrollTop).toBe(120);
+    expect(document.activeElement).toBe(field);
+    cleanup();
+  });
+
+  it("Should leave focus where the move gave it, and still restore scroll", () => {
+    const { hosts, scroller, field, first, second, scrollTo, loseLayoutState, cleanup } = setup();
+    const dragSource = document.createElement("button");
+    document.body.append(dragSource);
+    const leave = hosts.place("w", first);
+    scrollTo(64);
+    field.focus();
+
+    leave();
+    loseLayoutState();
+    dragSource.focus();
+    hosts.place("w", second);
+
+    expect(scroller.scrollTop).toBe(64);
+    expect(document.activeElement).toBe(dragSource);
+    dragSource.remove();
+    cleanup();
+  });
+
+  it("Should restore scroll offsets and focus when a hidden pane is shown again", () => {
+    const { hosts, surface, scroller, field, first, scrollTo, loseLayoutState, box, cleanup } =
+      setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(80);
+    field.focus();
+
+    // The tab stops showing: the surface has no box.
+    surface.hidden = true;
+    loseLayoutState();
+    box(0, 0);
+    expect(scroller.scrollTop).toBe(0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(scroller.scrollTop).toBe(80);
+    expect(document.activeElement).toBe(field);
+    cleanup();
+  });
+
+  it("Should not give focus back after the operator moved it away from the pane", () => {
+    const { hosts, surface, field, first, loseLayoutState, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    field.focus();
+    // A click on an empty area blurs the field while it still renders.
+    field.blur();
+
+    surface.hidden = true;
+    loseLayoutState();
+    box(0, 0);
+    surface.hidden = false;
+    box(640, 480);
+
+    expect(document.activeElement).toBe(document.body);
+    cleanup();
+  });
+
+  it("Should not write offsets back while a shown pane only resizes", () => {
+    const { hosts, scroller, first, scrollTo, box, cleanup } = setup();
+    hosts.place("w", first);
+    box(640, 480);
+    scrollTo(50);
+    // Scroll anchoring moved the container during a seam drag; its scroll event is still queued.
+    scroller.scrollTop = 70;
+
+    box(600, 480);
+    box(560, 480);
+
+    expect(scroller.scrollTop).toBe(70);
+    cleanup();
   });
 });
 
