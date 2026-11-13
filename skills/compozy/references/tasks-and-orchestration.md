@@ -16,6 +16,10 @@ The daemon owns task state. Treat task.Service, persisted task/run records, sess
 
 Do not infer task ownership from a message. Do not mutate task state outside CompozyOS task tools or the equivalent CLI/API surface.
 
+Task-level `compozy__task_recover` is operator-only. A bound session cannot recover an escalated
+task after approval; ask the operator to run `compozy task recover <task-id> --note <note>`.
+This is separate from task-run lease recovery and forced-run operations.
+
 Task inspect, pause/resume, and forced run release/fail/retry plus scheduler pause/resume/drain and
 backlog are CLI or HTTP/UDS management surfaces. Native tools do expose task block/list/unblock and
 task-level `needs_attention` recovery; use those only for their narrower daemon-owned contracts.

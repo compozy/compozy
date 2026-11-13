@@ -56,9 +56,10 @@ var errWatchQuiesced = errors.New("monitor: session watches are quiesced")
 
 // TargetStatus is the state of one watched session.
 type TargetStatus struct {
-	SessionID string `json:"session_id"`
-	Name      string `json:"name,omitempty"`
-	State     string `json:"state"`
+	OccurrenceID string `json:"occurrence_id,omitempty"`
+	SessionID    string `json:"session_id"`
+	Name         string `json:"name,omitempty"`
+	State        string `json:"state"`
 	// Matched reports that this target counts toward the monitor's condition.
 	Matched bool `json:"matched"`
 }

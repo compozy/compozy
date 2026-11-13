@@ -11,7 +11,7 @@ liveness, not task ownership, not a scheduler, and not a durable work queue.
 
 - **Session health.** Metadata-only presence, attachability, and wake eligibility maintained by
   the daemon. It never injects prompts or renews task leases.
-- **CompozyOS Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
+- **CompozyOS Heartbeat wake service.** Evaluates the current `HEARTBEAT.md` policy plus session
   health, applies cooldown and coalescing, and dispatches one synthetic wake prompt. It never
   creates, claims, completes, fails, releases, or renews `task_runs`.
 
@@ -119,8 +119,8 @@ resolver is metadata-only and never calls the model.
 Validation outcomes:
 
 - **Missing file:** `present=false`, no diagnostics, sessions remain healthy and wakeable.
-- **Valid file:** snapshot stored in `agent_heartbeat_snapshots`, latest valid snapshot drives
-  wake decisions.
+- **Valid file:** real wakes store a snapshot in `agent_heartbeat_snapshots`; the current file drives
+  policy selection. Reverting A to B to A reuses the immutable A snapshot without changing its provenance.
 - **Invalid file:** wake policy is disabled for that agent; status returns `heartbeat_invalid`
   with diagnostics. Normal sessions and task APIs still work.
 
@@ -171,9 +171,10 @@ scheduler/manual/harness ──► HeartbeatWakeService
 
 Wake guarantees:
 
-1. Manual wake resolves the current `HEARTBEAT.md` through the same policy loader as status,
-   including repository edits without an authoring revision. A real wake persists its snapshot; a
-   dry run evaluates without writing one. Scheduler and harness wakes use persisted snapshots.
+1. Manual, scheduler, and harness wakes resolve the current `HEARTBEAT.md` through the same policy
+   loader as status, including repository edits and deletion without an authoring revision. A real
+   wake persists its snapshot. A dry run reuses a matching snapshot ID when one exists and writes
+   nothing; a policy not yet persisted has an empty snapshot ID.
 2. Wake never calls `ClaimNextRun`, never creates `task_runs`, never renews leases, and never
    issues raw claim tokens.
 3. Wake serializes with the session prompt gate. If a user/model prompt starts concurrently, wake
@@ -242,7 +243,7 @@ Common deterministic codes:
 | `heartbeat_conflict`                                   | `expected_digest` did not match.                                          |
 | `heartbeat_if_match_header_unsupported`                | HTTP `If-Match` header was sent; use `expected_digest` instead.           |
 | `heartbeat_rate_limited`                               | The agent exceeded `max_wakes_per_cycle` for the current scheduler cycle. |
-| `heartbeat_no_policy`                                  | No current manual policy or stored scheduler/harness snapshot exists.     |
+| `heartbeat_no_policy`                                  | No current policy exists.                                                 |
 | `cooldown_active`                                      | The session is inside `wake_cooldown` from a prior wake.                  |
 | `quiet_window`                                         | Wake fell inside an authored quiet window.                                |
 | `session_not_found`                                    | The target session id was not resolved.                                   |
@@ -254,6 +255,10 @@ Common deterministic codes:
 
 Logs and audit rows redact actor identities, never include raw claim tokens or full prompt
 transcripts, and use workspace-relative paths.
+
+Scheduler batches share one successful-wake count across targets. Each request uses the
+lower of the daemon's `max_wakes_per_cycle` and its resolved configuration limit;
+a target override cannot increase the daemon-wide cap or create a separate quota.
 
 ## Boundaries with other authorities
 
@@ -596,3 +601,7 @@ description. Use `agent_instance_check` to retry manually after correcting confi
 
 Manual wake `source` accepts `timer`, `instance_check`, `scheduler`, `manual`, or `harness_reentry`
 (default: `manual`). Unknown values return a validation error listing these values.
+
+The native tool schema requires exact enum members when `source` is supplied: empty strings and
+padded values are rejected before dispatch. Omit `source` to use `manual`. HTTP/UDS and direct
+service callers retain their existing whitespace normalization; this does not expand the native schema.

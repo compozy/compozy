@@ -18967,6 +18967,10 @@ export type TriggerAutomationJobData = {
 
 export type TriggerAutomationJobErrors = {
   /**
+   * Invalid wait or completion budget
+   */
+  400: ErrorPayload;
+  /**
    * Automation job not found
    */
   404: ErrorPayload;
@@ -43913,7 +43917,7 @@ export type ReadToolArtifactData = {
      */
     offset?: number;
     /**
-     * Page size in bytes; defaults to and is capped at 65536
+     * Page size in bytes; defaults to 32768 and is capped at 65536
      */
     limit?: number;
     /**

@@ -33,6 +33,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	nativeDescriptors := NativeDescriptors()
 	descriptors := descriptorMap(nativeDescriptors)
 
+	t.Run("Should keep retired native tool IDs reserved", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range toolspkg.RetiredMemoryToolIDs {
+			if _, registered := descriptors[id]; registered {
+				t.Fatalf("retired tool %s is registered", id)
+			}
+		}
+	})
+
 	t.Run("Should return independently owned terminal descriptors matching the catalog", func(t *testing.T) {
 		t.Parallel()
 

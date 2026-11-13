@@ -28,7 +28,7 @@ func applyToolArtifactContract(operations []OperationSpec) []OperationSpec {
 			pathParam("workspace_id", "Durable workspace id or @user"),
 			pathParam("artifact_id", "Opaque content-addressed artifact id"),
 			toolArtifactInt64QueryParam("offset", "Zero-based byte offset"),
-			toolArtifactInt64QueryParam("limit", "Page size in bytes; defaults to and is capped at 65536"),
+			toolArtifactInt64QueryParam("limit", "Page size in bytes; defaults to 32768 and is capped at 65536"),
 		}, false),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ToolArtifactPageResponse{}},

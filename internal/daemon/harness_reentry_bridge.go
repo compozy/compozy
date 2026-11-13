@@ -189,6 +189,7 @@ func withHarnessHeartbeatWake(
 	store any,
 	sessions harnessReentrySessionManager,
 	config compozyconfig.HeartbeatConfig,
+	options ...heartbeat.WakeOption,
 ) harnessReentryOption {
 	return func(bridge *harnessReentryBridge) error {
 		if bridge == nil || !config.Enabled {
@@ -202,7 +203,7 @@ func withHarnessHeartbeatWake(
 		if !ok {
 			return nil
 		}
-		service, err := heartbeat.NewManagedWakeService(wakeStore, healthReader, bridge, config)
+		service, err := heartbeat.NewManagedWakeService(wakeStore, healthReader, bridge, config, options...)
 		if err != nil {
 			return fmt.Errorf("daemon: create harness heartbeat wake service: %w", err)
 		}

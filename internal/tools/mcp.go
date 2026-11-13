@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 )
@@ -103,50 +102,8 @@ func (p *MCPProvider) ID() SourceRef {
 
 // List discovers configured MCP tools and normalizes them into registry descriptors.
 func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, error) {
-	if p == nil || isNilInterface(p.exec) || isNilInterface(p.sources) {
-		return nil, NewValidationError(
-			"provider",
-			ReasonDependencyMissing,
-			"mcp provider is required",
-		)
-	}
-	if err := contextErr(ctx, ""); err != nil {
-		return nil, err
-	}
-	sources, err := p.sources.ListMCPSources(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("tools: list mcp sources: %w", err)
-	}
-	sources = MCPSourcesForScope(sources, scope)
-	if p.reliability != nil {
-		p.reliability.retainActiveSources(scope, sources)
-	}
-	descriptors := make([]Descriptor, 0)
-	var deadline time.Time
-	if p.discoveryBudget > 0 {
-		deadline = time.Now().Add(p.discoveryBudget)
-		if callerDeadline, ok := ctx.Deadline(); ok {
-			remaining := time.Now().Add(time.Until(callerDeadline) / 2)
-			if remaining.Before(deadline) {
-				deadline = remaining
-			}
-		}
-	}
-	for idx, source := range sources {
-		var timeout time.Duration
-		if !deadline.IsZero() {
-			timeout = max(time.Until(deadline)/time.Duration(len(sources)-idx), time.Nanosecond)
-		}
-		sourceDescriptors, err := p.listSourceDescriptors(ctx, source, scope.ProfileID, timeout)
-		if err != nil {
-			return nil, err
-		}
-		descriptors = append(descriptors, sourceDescriptors...)
-	}
-	slices.SortFunc(descriptors, func(left, right Descriptor) int {
-		return strings.Compare(left.ID.String(), right.ID.String())
-	})
-	return descriptors, nil
+	descriptors, _, err := p.listProjection(ctx, scope)
+	return descriptors, err
 }
 
 // MCPSourcesForScope selects the sources one scope projects, keeping the most specific definition per server.

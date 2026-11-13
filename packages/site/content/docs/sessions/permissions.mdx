@@ -340,7 +340,11 @@ Success response:
 ### Approval timeout
 
 Pending interactive permission requests wait up to 5 minutes by default. If no approval arrives,
-CompozyOS resolves the request as `reject-once`.
+CompozyOS resolves the provider request as `reject-once` and records `resolved_by: timeout`.
+Daemon-owned native tool approvals return `approval_timed_out`, including an identical retry
+suppressed as `repeat_denied`. An explicit rejection keeps its denial reason. Ask the operator to
+answer a pending request or send a new human-authored prompt after expiry before retrying; agent
+and monitor prompts do not clear the expired-request suppression.
 
 ### What `allow-always` and `reject-always` mean
 

@@ -4,29 +4,42 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sync"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
+// ErrPermissionExpired distinguishes an unanswered approval from an operator rejection.
+var ErrPermissionExpired = errors.New("acp: approval expired; ask the operator to prompt the session before retrying")
+
 // PermissionDenials outlives an ACP process and is cleared by the next human prompt.
 type PermissionDenials struct {
 	mu      sync.Mutex
-	expired map[string]struct{}
+	expired map[string]string
 	epoch   uint64
 }
 
 func (d *PermissionDenials) Contains(key string) bool {
-	if d == nil || key == "" {
-		return false
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	_, found := d.expired[key]
+	_, found := d.lookup(key)
 	return found
 }
 
+func (d *PermissionDenials) lookup(key string) (string, bool) {
+	if d == nil || key == "" {
+		return "", false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	actor, found := d.expired[key]
+	return actor, found
+}
+
 func (d *PermissionDenials) Record(key string, epoch uint64) {
+	d.record(key, epoch, permissionActorTimeout)
+}
+
+func (d *PermissionDenials) record(key string, epoch uint64, actor string) {
 	if d == nil || key == "" {
 		return
 	}
@@ -36,9 +49,9 @@ func (d *PermissionDenials) Record(key string, epoch uint64) {
 		return
 	}
 	if d.expired == nil {
-		d.expired = make(map[string]struct{})
+		d.expired = make(map[string]string)
 	}
-	d.expired[key] = struct{}{}
+	d.expired[key] = actor
 }
 
 func (d *PermissionDenials) Clear() {

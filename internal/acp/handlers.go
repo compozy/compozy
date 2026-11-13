@@ -274,12 +274,15 @@ func (p *AgentProcess) resolvePermissionRequest(
 
 	digest := permissionRequestDigest(request)
 	denialEpoch := p.permissionDenials.Epoch()
-	if p.permissionDenials.Contains(digest) {
+	if denialActor, denied := p.permissionDenials.lookup(digest); denied {
 		slog.InfoContext(ctx, "permission.repeat_denied", "session_id", sessionID, "request_id", requestID)
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
 			appliedDecision, "repeat_denied", raw)
+		if cancellationActor == permissionActorSystem && denialActor == permissionActorTimeout {
+			return acpsdk.RequestPermissionResponse{Outcome: outcome}, ErrPermissionExpired
+		}
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 	requestID, pending, err := p.registerPendingPermission(turnID, request)
@@ -300,13 +303,16 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	endPermissionWaitSpan(waitSpan, appliedDecision)
 	if p.permissionExpiryCountsAsDenial(actor, decision) {
-		p.permissionDenials.Record(digest, denialEpoch)
+		p.permissionDenials.record(digest, denialEpoch, actor)
 	}
 	if cancellationActor == permissionActorProvider {
 		p.rememberHostedApproval(request, appliedDecision)
 	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
+	if cancellationActor == permissionActorSystem && actor == permissionActorTimeout {
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, ErrPermissionExpired
+	}
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
 
@@ -324,7 +330,7 @@ func (p *AgentProcess) awaitPendingPermission(
 	case decision := <-pending.response:
 		return decision, pending.resolvedBy
 	case <-timer.C:
-		return p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+		return p.expirePendingPermission(pending, decisionRejectOnce, permissionActorTimeout)
 	case <-p.permissionConnectionDone():
 		return p.expirePendingPermission(pending, decisionCanceled, permissionActorSystem)
 	case <-ctx.Done():
@@ -332,7 +338,7 @@ func (p *AgentProcess) awaitPendingPermission(
 			cancellationActor = permissionActorSystem
 		}
 		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
-			cancellationActor = "timeout"
+			cancellationActor = permissionActorTimeout
 		}
 		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	}

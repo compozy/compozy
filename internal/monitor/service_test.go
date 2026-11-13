@@ -2974,6 +2974,9 @@ func TestServicePullRequestMonitorSpec(t *testing.T) {
 		{"Should refuse a timeout past 24 hours", func(s *Spec) { s.Timeout = 25 * time.Hour }},
 		{"Should refuse a qualified branch without an owner", func(s *Spec) { s.Branch = ":topic" }},
 		{"Should refuse a qualified branch without a branch", func(s *Spec) { s.Branch = "contributor:" }},
+		{"Should refuse whitespace in a qualified branch", func(s *Spec) { s.Branch = "contributor: topic" }},
+		{"Should refuse a repository as owner", func(s *Spec) { s.Branch = "acme/repo:topic" }},
+		{"Should refuse whitespace in the owner", func(s *Spec) { s.Branch = "acme corp:topic" }},
 		{"Should refuse multiple owner separators", func(s *Spec) { s.Branch = "contributor:topic:other" }},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -2986,6 +2989,21 @@ func TestServicePullRequestMonitorSpec(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: qualified selectors retain GitHub owner names and slash-separated branches.
+	t.Run("Should preserve valid owners and branch slashes", func(t *testing.T) {
+		t.Parallel()
+		for _, branch := range []string{
+			"contributor:feat/topic", "Acme-123:fix/one/two", "a:topic",
+			"octocat_acme:feature/topic", "legacy--owner:topic", "legacy-:topic",
+		} {
+			spec := pullRequestSpec("sess-1")
+			spec.Branch = branch
+			normalized, err := normalizeSpec(spec)
+			if err != nil || normalized.Branch != branch {
+				t.Fatalf("branch %q normalized to %q: %v", branch, normalized.Branch, err)
+			}
+		}
+	})
 	t.Run("Should refuse branch on other kinds", func(t *testing.T) {
 		t.Parallel()
 		service := newPullRequestService(t, forge, &recordingWaker{})

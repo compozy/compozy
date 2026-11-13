@@ -116,6 +116,7 @@ type SyntheticWakePromptResult struct {
 // ManagedWakeService is the production Heartbeat wake decision engine.
 type ManagedWakeService struct {
 	policyResolver PolicyResolver
+	targetResolver func(context.Context, WakeRequest) (AuthoringTarget, error)
 	store          WakeStore
 	healthReader   SessionHealthReader
 	prompter       SyntheticWakePrompter
@@ -135,6 +136,11 @@ func WithWakePolicyResolver(resolver PolicyResolver) WakeOption {
 	return func(service *ManagedWakeService) {
 		service.policyResolver = resolver
 	}
+}
+
+// WithWakeTargetResolver resolves current policy targets for autonomous wake sources.
+func WithWakeTargetResolver(resolve func(context.Context, WakeRequest) (AuthoringTarget, error)) WakeOption {
+	return func(service *ManagedWakeService) { service.targetResolver = resolve }
 }
 
 // WithWakeClock injects deterministic time for wake decisions.
@@ -196,7 +202,7 @@ func (s *ManagedWakeService) Wake(ctx context.Context, req WakeRequest) (WakeDec
 	if ctx == nil {
 		return WakeDecision{}, errors.New("heartbeat: wake context is required")
 	}
-	normalized, err := normalizeWakeRequest(req)
+	normalized, err := s.resolveWakeRequest(ctx, req)
 	if err != nil {
 		return WakeDecision{}, err
 	}
@@ -223,7 +229,17 @@ func (s *ManagedWakeService) WakeMany(ctx context.Context, requests []WakeReques
 	sent := 0
 	var errs []error
 	for _, req := range requests {
-		if sent >= s.config.MaxWakesPerCycle {
+		req, err := s.resolveWakeRequest(ctx, req)
+		if err != nil {
+			errs = append(errs, err)
+			decisions = append(decisions, s.failedWakeManyDecision(err))
+			continue
+		}
+		limit := s.config.MaxWakesPerCycle
+		if req.PolicyTarget != nil {
+			limit = min(limit, req.PolicyTarget.Config.MaxWakesPerCycle)
+		}
+		if sent >= limit {
 			decision, err := s.recordRateLimited(ctx, req)
 			if err != nil {
 				errs = append(errs, err)

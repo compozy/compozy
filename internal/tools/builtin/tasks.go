@@ -142,7 +142,8 @@ var taskTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDTaskRecover,
 		"task_recover",
 		"Task Recover",
-		"Recover one task from needs_attention through the task service.",
+		"Operator-only: recover one task from needs_attention. Bound agent sessions cannot recover tasks; "+
+			"ask the operator to run compozy task recover.",
 		taskRecoverInputSchema,
 		toolspkg.RiskMutating,
 		false,

@@ -140,3 +140,15 @@ listing scopes rather than sessions. Canonical automated coverage is in
 verdict: the operator forbids local verification on the saturated machine, so CI
 owns automated validation and the live profile remains unmeasured. Historical
 scenario verdicts above are unchanged.
+
+QA impact #1545 (CI-only verification; no local runtime walk): tool info/search must describe
+`compozy__task_recover` as operator-only before approval. A bound-session refusal names
+`compozy task recover`. Native terminal exec/open reject a whitespace-only `worktree` before
+approval/root resolution. Heartbeat wake accepts omitted `source` as manual and exact documented
+enum members; explicit empty/padded native values fail schema validation. For legacy scheduler
+and harness wakes, edit policy A→B→A and then remove it: each wake follows the current policy,
+reuses A's immutable snapshot, and stops policy dispatch after deletion. Dry run reuses an existing
+matching snapshot ID without writing any snapshot or revision.
+Scheduler batches with mixed resolved limits use one shared sent count: a lower target limit
+blocks excess wakes, and a higher target limit cannot exceed the daemon cap. Rate-limited
+requests retain their ordered decision and persisted audit state without dispatching a prompt.

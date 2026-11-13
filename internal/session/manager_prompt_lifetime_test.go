@@ -501,6 +501,12 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 			requests[1].Meta.Synthetic == nil || requests[1].Meta.Synthetic.Kind != SpawnWakeKindEndedEarly {
 			t.Fatalf("requests = %#v, want the same admitted creator turn replayed", requests)
 		}
+		for _, request := range requests {
+			if request.Meta.Synthetic == nil || request.Meta.Synthetic.ChildSessionID != child.ID ||
+				request.Meta.Synthetic.WakeEventID != wakeID {
+				t.Fatalf("recovery metadata = %#v, want original child and wake identity", request.Meta.Synthetic)
+			}
+		}
 		if parent.Info().State != StateActive {
 			t.Fatal("recovery stopped the creator")
 		}

@@ -459,6 +459,23 @@ func (s *permissionTransitionFailOnce) TransitionPendingInteraction(
 // TestManagerLifecycleCatalogTransitions keeps memory, persisted metadata, and catalog transitions consistent.
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
+	// Owner: lifecycle catalog boundary; absence stays distinguishable from transient storage failure.
+	t.Run("Should preserve typed lifecycle snapshot lookup errors", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		manager := &Manager{sessionCatalog: catalog}
+		_, err := manager.durableSessionInfoForLifecycleTransition(t.Context(), "missing")
+		if !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("missing lifecycle row = %v, want ErrSessionNotFound", err)
+		}
+		failure := errors.New("catalog read unavailable")
+		catalog.listErr = failure
+		_, err = manager.durableSessionInfoForLifecycleTransition(t.Context(), "missing")
+		if !errors.Is(err, failure) || errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("failed lifecycle read = %v, want storage error without not-found classification", err)
+		}
+	})
+
 	t.Run("Should classify retained clarification deadlines during stop cleanup", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -2908,6 +2925,7 @@ func assertOrphanResolutionQueue(
 }
 
 type recordingSessionCatalog struct {
+	listErr         error
 	mu              sync.Mutex
 	sessions        map[string]store.SessionInfo
 	registerHook    func(context.Context, *store.SessionInfo) error
@@ -3060,6 +3078,9 @@ func (c *recordingSessionCatalog) ListSessions(
 ) ([]store.SessionInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.listErr != nil {
+		return nil, c.listErr
+	}
 	out := make([]store.SessionInfo, 0, len(c.sessions))
 	for id := range c.sessions {
 		if query.WorkspaceID != "" && c.sessions[id].WorkspaceID != query.WorkspaceID {

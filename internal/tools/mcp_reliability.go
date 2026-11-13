@@ -58,17 +58,18 @@ func (p *MCPProvider) listSourceDescriptors(
 	source SourceRef,
 	profileID string,
 	timeout time.Duration,
-) ([]Descriptor, error) {
+) ([]Descriptor, bool, error) {
 	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {
 		reliabilityState = p.reliability.stateFor(key)
 		decision, err := p.reliability.service.BeforeProbe(ctx, key)
 		if err != nil {
-			return nil, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
+			return nil, false, fmt.Errorf("tools: admit mcp source %q: %w", source.Owner, err)
 		}
 		if !decision.Allowed {
-			return p.reliability.cached(key, reliabilityState), nil
+			// A settled breaker decision is reusable; failed discovery attempts are not.
+			return p.reliability.cached(key, reliabilityState), true, nil
 		}
 	}
 
@@ -77,7 +78,7 @@ func (p *MCPProvider) listSourceDescriptors(
 		// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
 		// from one executor is a source failure and must not hide healthy MCP servers.
 		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
-			return nil, contextError
+			return nil, false, contextError
 		}
 		if tracked && p.reliability != nil {
 			if recordErr := p.reliability.service.RecordFailure(
@@ -86,28 +87,28 @@ func (p *MCPProvider) listSourceDescriptors(
 				MCPDiscoveryFailureClass(err),
 				err.Error(),
 			); recordErr != nil {
-				return nil, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
+				return nil, false, fmt.Errorf("tools: record mcp source %q failure: %w", source.Owner, recordErr)
 			}
-			return p.reliability.cached(key, reliabilityState), nil
+			return p.reliability.cached(key, reliabilityState), false, nil
 		}
-		return nil, nil
+		return nil, false, nil
 	}
 
 	descriptors := make([]Descriptor, 0, len(discovered))
 	for i := range discovered {
 		descriptor, err := mcpRegistryDescriptor(source, discovered[i])
 		if err != nil {
-			return nil, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
+			return nil, false, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
 		}
 		descriptors = append(descriptors, descriptor)
 	}
 	if tracked && p.reliability != nil {
 		if err := p.reliability.service.RecordSuccess(ctx, key); err != nil {
-			return nil, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
+			return nil, false, fmt.Errorf("tools: record mcp source %q recovery: %w", source.Owner, err)
 		}
 		p.reliability.store(key, reliabilityState, descriptors)
 	}
-	return descriptors, nil
+	return descriptors, true, nil
 }
 
 // ForgetMCPServer retires one workspace MCP server's volatile reliability state.

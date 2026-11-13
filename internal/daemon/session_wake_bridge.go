@@ -184,6 +184,10 @@ func sessionWakeKind(event session.SpawnWakeEvent) string {
 
 func sessionWakeAction(event session.SpawnWakeEvent) string {
 	if event.EndedEarly {
+		if event.FinalAnswer == "" {
+			return "The final answer is unavailable. Inspect the child with compozy__session_history or " +
+				"compozy__session_events before deciding whether to prompt it again or stop it with compozy__session_stop."
+		}
 		return "Review its answer and decide whether to prompt it again or stop it with compozy__session_stop."
 	}
 	switch event.Badge {

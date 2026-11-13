@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -174,8 +175,9 @@ func TestRetiredToolPolicy(t *testing.T) {
 			_, err := NewEffectivePolicyEvaluator(PolicyInputs{
 				Agent: AgentToolPolicy{Toolsets: []ToolsetID{id}},
 			}, ToolsetCatalog{}, []ToolID{"compozy__session_list"})
-			if err == nil {
-				t.Fatalf("retired toolset %q accepted", id)
+			if validation, ok := errors.AsType[*ValidationError](err); !ok ||
+				validation.Reason != ReasonToolsetUnknown || !strings.Contains(validation.Detail, string(id)) {
+				t.Fatalf("retired toolset %q error = %v, want typed unknown-toolset diagnostic", id, err)
 			}
 		}
 	})

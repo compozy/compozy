@@ -289,12 +289,19 @@ func (s sessionWorkSources) creatorMonitorCovers(creatorID string, child *sessio
 		case monitor.StatusActive:
 			return true
 		case monitor.StatusDelivering, monitor.StatusFired:
-			// A monitor can observe the attention edge before its creator wake is dispatched.
-			if item.Reason == monitor.ReasonConditionMet && child.AttentionChangedAt != nil &&
-				!item.FiredAt.Before(*child.AttentionChangedAt) {
-				return slices.ContainsFunc(item.Targets, func(target monitor.TargetStatus) bool {
-					return target.SessionID == child.ID && target.Matched && target.State == string(badge)
-				})
+			if item.Reason != monitor.ReasonConditionMet {
+				continue
+			}
+			if slices.ContainsFunc(item.Targets, func(target monitor.TargetStatus) bool {
+				if target.SessionID != child.ID || !target.Matched || target.State != string(badge) {
+					return false
+				}
+				if target.OccurrenceID != "" {
+					return target.OccurrenceID == monitorAttentionOccurrence(child, badge)
+				}
+				return child.AttentionChangedAt != nil && !item.FiredAt.Before(*child.AttentionChangedAt)
+			}) {
+				return true
 			}
 		}
 	}

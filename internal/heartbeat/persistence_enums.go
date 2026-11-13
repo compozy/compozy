@@ -65,6 +65,9 @@ func ValidSessionHealthIneligibilityReason(reason string) bool {
 	}
 }
 
+// WakeSourceNames lists accepted source values for boundary diagnostics.
+const WakeSourceNames = "timer, instance_check, scheduler, manual, harness_reentry"
+
 // ValidWakeSource reports whether source is a supported wake source enum member.
 func ValidWakeSource(source WakeSource) bool {
 	switch source {

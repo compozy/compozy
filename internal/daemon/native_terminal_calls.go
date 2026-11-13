@@ -23,6 +23,9 @@ func (n *daemonNativeTools) terminalExec(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.Worktree != "" && strings.TrimSpace(input.Worktree) == "" {
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "worktree")
+	}
 	argv := append([]string{input.Command}, input.Args...)
 	classification := terminalpkg.ClassifyArgv(argv, nil)
 	approval, err := n.authorizeNativeTerminalExec(ctx, scope, req, classification)
@@ -53,6 +56,9 @@ func (n *daemonNativeTools) terminalOpen(
 	var input terminalOpenInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if input.Worktree != "" && strings.TrimSpace(input.Worktree) == "" {
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "worktree")
 	}
 	handle, err := manager.Open(ctx, terminalpkg.OpenRequest{
 		WS: workspaceID, Worktree: strings.TrimSpace(input.Worktree), Cwd: input.Cwd,

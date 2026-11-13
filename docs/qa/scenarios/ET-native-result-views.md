@@ -93,3 +93,11 @@ message ID, state and creation time, matching the full view. Repeat in `fired` s
 delivered and abandoned watches remain excluded by the existing sender query.
 The canonical native result-view fixtures cover both pending states. This addition
 requires CI verification; the earlier QA verdict does not cover it.
+
+QA impact #1545 (CI-only verification): the real SQLite/native-handler fixture stops reply-watch
+delivery before inserting armed/fired records, so a slow run cannot consume the read fixture.
+Native replay continues applying independent rows after one row fails and reports the failed row
+and original error; multi-turn result diagnostics identify the parent. Promoted synthetic streams
+remain open after turn advancement while live injection is durably pending, then close successfully
+only after confirmation. MCP discovery retains healthy sources without sharing degraded aggregate
+listings with a concurrently recovering peer.
