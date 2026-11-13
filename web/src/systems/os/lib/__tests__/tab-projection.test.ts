@@ -8,6 +8,7 @@
 // Boundary OUT: daemon normalization/validation and rendered split view.
 import { describe, expect, it } from "vitest";
 
+import { planTabBalance } from "../tab-balance-admission";
 import { normalizedWeights, projectTab } from "../tab-projection";
 import type { LayoutTab, PixelRect, TabProjectionInput } from "../window-manager-types";
 
@@ -373,5 +374,71 @@ describe("projectTab collapsed splits", () => {
         projection.windows[1]?.rect ?? projection.workArea
       )
     ).toBe(0);
+  });
+});
+
+// Invariant: a tab-wide balance is admitted like a seam double-click — evening splits never turns
+// a split laid out side by side to one member at a time — solved over the whole tab, since evening
+// an outer split resizes every split inside it.
+describe("planTabBalance", () => {
+  /** `a` beside a nested pair `b | c`, all on one axis, in a 400px-high work area with no gaps. */
+  function balanceInput(width: number, rootWeights: number[], rightWeights: number[]) {
+    return {
+      tab: {
+        id: "tab:balance",
+        pinned: false,
+        root: {
+          id: "split:root",
+          kind: "split",
+          axis: "horizontal",
+          weights: rootWeights,
+          children: [
+            { id: "leaf:a", kind: "leaf", windowId: "window:a" },
+            {
+              id: "split:right",
+              kind: "split",
+              axis: "horizontal",
+              weights: rightWeights,
+              children: [
+                { id: "leaf:b", kind: "leaf", windowId: "window:b" },
+                { id: "leaf:c", kind: "leaf", windowId: "window:c" },
+              ],
+            },
+          ],
+        },
+      },
+      workArea: { x: 0, y: 0, w: width, h: 400 },
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      minimums: {
+        "window:a": { width: 200, height: 100 },
+        "window:b": { width: 300, height: 100 },
+        "window:c": { width: 250, height: 100 },
+      },
+    } satisfies TabProjectionInput;
+  }
+
+  it("Should balance the whole tab when every split, evened together, still lays out", () => {
+    // Evened, `a` and the pair take 700px each, and the pair 350px a side.
+    expect(planTabBalance(balanceInput(1400, [0.3, 0.7], [0.6, 0.4]))).toEqual({
+      whole: true,
+      splitIds: ["split:root", "split:right"],
+    });
+  });
+
+  it("Should even only the splits that fit together when evening them all would collapse one", () => {
+    const tab = balanceInput(1000, [0.3, 0.7], [0.6, 0.4]);
+    // Today the pair has 700px: 420 | 280, side by side.
+    expect(projectTab(tab).collapsed).toEqual([]);
+    // Evening the root leaves it 500px, which neither 250 | 250 nor 300 | 200 fits; evening the
+    // pair alone gives 350 | 350.
+    const plan = planTabBalance(tab);
+    expect(plan).toEqual({ whole: false, splitIds: ["split:right"] });
+  });
+
+  it("Should balance nothing when no split can be evened without collapsing one", () => {
+    expect(planTabBalance(balanceInput(1000, [0.3, 0.7], [0.5, 0.5]))).toEqual({
+      whole: false,
+      splitIds: [],
+    });
   });
 });

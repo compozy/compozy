@@ -3,7 +3,7 @@
 // revision and split of the seam it is based on, and a cancelled drag commits nothing. A re-based
 // drag keeps the seam on screen under the pointer and commits against the new seam only. The
 // shift a frame's admission lets through is the one it commits; it reports its limit once that
-// holds the frame back by a pixel or more.
+// holds the frame back by a pixel or more, from the frame that shows that shift on.
 // Owning layer: the shared seam drag interaction store. Boundary OUT: pointer transport, the seam
 // preview and command I/O (useOsSplitSeam in the OS interaction hooks suite).
 import { describe, expect, it } from "vitest";
@@ -82,6 +82,10 @@ describe("seamDragLogic", () => {
     store.trigger.pointerMoved({ pointerId: 7, coordinate: -150, admit: within(SEAM) });
 
     expect(seamDragAtLimit(store.getSnapshot().context)).toBe(true);
+    // The limit state changes with the frame that shows the clamp, not with the pointer move.
+    expect(store.getSnapshot().context.limitShown).toBe(false);
+    store.trigger.framePresented({});
+    expect(store.getSnapshot().context.limitShown).toBe(true);
     // The commit is clamped to the minimum: 200px of travel in a 1000px span.
     expect(seamDragCommit(store.getSnapshot().context)?.delta).toBeCloseTo(-0.2);
   });

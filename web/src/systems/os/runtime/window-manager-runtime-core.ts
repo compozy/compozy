@@ -31,6 +31,7 @@ import {
 import { FocusTurns, type FocusTicket } from "./window-manager-focus-turns";
 import {
   clientViewInBinding,
+  commandClockNow,
   commandTimeLeft,
   desktopTransitionIntent,
   queryCacheEventChangesData,
@@ -395,7 +396,7 @@ export abstract class WindowManagerRuntimeCore {
     // Rapid input queues behind the in-flight command and reads a fresh revision when it runs.
     // One deadline spans every queue a command waits in: from its input (`inputAt`) when it has
     // one, else from dispatch. Expired input is refused unqueued; a stalled backlog expires.
-    const timeLeft = commandTimeLeft(command.inputAt, Date.now());
+    const timeLeft = commandTimeLeft(command.inputAt, commandClockNow());
     if (timeLeft <= 0) return null;
     const deadline = AbortSignal.timeout(timeLeft);
     // A queued focus that a newer one replaces is not sent (window-manager-focus-turns).

@@ -19,6 +19,7 @@ import {
   unsplitWindowCommand,
 } from "../lib/window-manager-command-builders";
 import { arrangeParticipants } from "../lib/window-manager-navigation";
+import { authoritativeTabBalance } from "../lib/window-manager-view";
 import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
 
 /**
@@ -70,6 +71,22 @@ export abstract class WindowManagerLayoutRuntime extends WindowManagerTabRuntime
     const command = balanceLayoutCommand(target);
     if (command === null) return { accepted: false, completion: Promise.resolve(false) };
     return this.dispatch({ ...command, ...fence });
+  };
+
+  /**
+   * "Balance sizes" for a whole tab, admitted like a seam double-click (`planTabBalance`): one
+   * `layout.balance` of the tab when every split, evened together, still lays out side by side
+   * wherever it does now; otherwise one `layout.balance` per split that can be evened without
+   * that, outermost first; nothing when none can.
+   */
+  balanceTab = (tabId: string): void => {
+    const plan = authoritativeTabBalance(this.view, this.workArea(), tabId);
+    if (plan === null) return;
+    if (plan.whole) {
+      this.balanceLayout({ tabId });
+      return;
+    }
+    for (const splitId of plan.splitIds) this.balanceLayout({ splitId });
   };
 
   /** "Move to new tab": a split member becomes its own tab right after its source tab. */

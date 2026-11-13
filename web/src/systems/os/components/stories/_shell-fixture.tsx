@@ -166,6 +166,8 @@ export function createLiveStoryShell({
     moveTab: fn(),
     resizeLayout: () => outcome(),
     balanceLayout: fn(() => outcome()),
+    balanceTab: fn(),
+    commandsInFlight: () => false,
     navigateWindow: () => outcome(),
     retargetWindow: () => outcome(),
     popWindowRoute: () => outcome(),

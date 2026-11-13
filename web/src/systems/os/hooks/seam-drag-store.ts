@@ -35,6 +35,12 @@ export interface SeamDragState {
    * last pointer move, re-base or re-admission carried lets it be. 0 shows the seam where it is.
    */
   shownPx: number;
+  /**
+   * Whether the frame on screen is at the seam's limit (`seamDragAtLimit`). A pointer move only
+   * records the shift; the frame that shows it is presented on the next animation frame, and the
+   * limit state changes with it, never a frame before the seam reaches the clamp.
+   */
+  limitShown: boolean;
   seam: ProjectedSeam | null;
   revision: LayoutRevision | null;
   contextKey: string | null;
@@ -56,8 +62,13 @@ export type SeamDragEvents = {
    */
   rebased: { seam: ProjectedSeam; revision: LayoutRevision; admit: SeamShiftAdmission };
   pointerMoved: { pointerId: number; coordinate: number; admit: SeamShiftAdmission };
-  /** The layout under the drag changed without moving its seam: the shift is admitted again. */
+  /**
+   * The layout under the drag changed without moving its seam: the shift is admitted again, in
+   * the frame that publishes that layout.
+   */
   readmitted: { admit: SeamShiftAdmission };
+  /** The drag's current shift is now on screen: the limit state follows it. */
+  framePresented: {};
   dragEnded: { pointerId: number };
   dragCancelled: { reason: GestureCancelReason };
 };
@@ -69,6 +80,7 @@ function idleSeamDrag(cancelReason: GestureCancelReason | null): SeamDragState {
     origin: 0,
     deltaPx: 0,
     shownPx: 0,
+    limitShown: false,
     seam: null,
     revision: null,
     contextKey: null,
@@ -87,6 +99,7 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
         origin: event.coordinate,
         deltaPx: 0,
         shownPx: 0,
+        limitShown: false,
         seam: event.seam,
         revision: event.revision,
         contextKey: event.contextKey,
@@ -116,7 +129,14 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
     readmitted: (state, event) => {
       if (state.phase !== "dragging") return;
       const shownPx = event.admit(state.deltaPx);
-      return shownPx === state.shownPx ? undefined : { ...state, shownPx };
+      const limitShown = atLimit(state.deltaPx, shownPx);
+      if (shownPx === state.shownPx && limitShown === state.limitShown) return;
+      return { ...state, shownPx, limitShown };
+    },
+    framePresented: state => {
+      if (state.phase !== "dragging") return;
+      const limitShown = seamDragAtLimit(state);
+      return limitShown === state.limitShown ? undefined : { ...state, limitShown };
     },
     dragEnded: (state, event) => {
       if (state.phase !== "dragging" || state.pointerId !== event.pointerId) return;
@@ -142,7 +162,11 @@ export const SEAM_LIMIT_HOLDBACK_PX = 1;
  */
 export function seamDragAtLimit(state: SeamDragState): boolean {
   if (state.phase !== "dragging" || state.seam === null) return false;
-  return Math.abs(state.deltaPx - state.shownPx) >= SEAM_LIMIT_HOLDBACK_PX;
+  return atLimit(state.deltaPx, state.shownPx);
+}
+
+function atLimit(deltaPx: number, shownPx: number): boolean {
+  return Math.abs(deltaPx - shownPx) >= SEAM_LIMIT_HOLDBACK_PX;
 }
 
 export interface SeamDragCommit {

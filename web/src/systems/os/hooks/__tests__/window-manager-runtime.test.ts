@@ -902,8 +902,9 @@ describe("WindowManagerRuntime", () => {
   });
 
   it("Should hold a command that carries its input time to the deadline counted from that input", async () => {
-    // Fake clock for both halves of the deadline: `Date.now()` and the timer that aborts it.
-    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    // Fake clock for both halves of the deadline: the monotonic command clock and the timer that
+    // aborts it.
+    vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
     const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(ms => {
       const controller = new AbortController();
       setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
@@ -949,7 +950,7 @@ describe("WindowManagerRuntime", () => {
       rebase: { splitId, boundaryIndex: 0 },
       inputAt,
     });
-    const pressedAt = Date.now();
+    const pressedAt = performance.now();
 
     // 7s later a resize on another split enters the queue and stays in flight; it has no input
     // time, so its deadline counts from now as before.
