@@ -261,6 +261,44 @@ describe("OsUpgradeNotice", () => {
     expect(screen.getByText("We could not move your layout to tabs")).toBeInTheDocument();
   });
 
+  it("Should not reopen the replace confirmation when the notice returns to the offer [R11-02]", async () => {
+    const user = userEvent.setup();
+    const failed = failedStatus(REVISION - 3);
+    const { frame } = renderNotice(failed);
+    await user.click(screen.getByRole("button", { name: "Replace current layout" }));
+    expect(screen.getByText("Replace current layout?")).toBeInTheDocument();
+
+    // Another client replaced the layout: the notice leaves the offer, then a frame brings it back.
+    frame(null);
+    expect(screen.queryByText("Replace current layout?")).toBeNull();
+    frame(failed);
+
+    expect(screen.getByRole("button", { name: "Replace current layout" })).toBeEnabled();
+    expect(screen.queryByText("Replace current layout?")).toBeNull();
+    expect(api.updateWindowManagerMigration).not.toHaveBeenCalled();
+  });
+
+  it("Should hold a refused retry for the status it was sent for [R11-03]", async () => {
+    const user = userEvent.setup();
+    let refuse: (error: unknown) => void = () => {};
+    api.updateWindowManagerMigration.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      })
+    );
+    const { frame } = renderNotice(failedStatus(REVISION));
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    // A newer failure at the same revision arrives before the 409 answers the first retry.
+    frame({ ...failedStatus(REVISION), at: "2026-11-12T16:00:00Z" });
+    await act(async () => {
+      refuse(new WindowManagerApiError("revision conflict", 409, null));
+    });
+
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Replace current layout" })).toBeNull();
+  });
+
   it("Should turn a refused plain retry into the confirmed replace", async () => {
     const user = userEvent.setup();
     api.updateWindowManagerMigration.mockRejectedValueOnce(

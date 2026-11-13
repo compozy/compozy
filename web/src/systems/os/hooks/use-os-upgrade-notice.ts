@@ -86,12 +86,13 @@ export function useOsUpgradeNotice(): UpgradeNoticeModel | null {
       notifyUser({ message: "Couldn't dismiss the notice. Try again.", tone: "error" }),
   });
   const retry = useMutation({
-    mutationFn: (replace: boolean) =>
+    // `at` is the status the retry was sent for; a 409 answers that status, not a later one.
+    mutationFn: ({ replace }: { replace: boolean; at: string }) =>
       updateWindowManagerMigration(workspaceId, profile, "retry", { replace }),
     onSuccess: settle,
-    onError: error => {
+    onError: (error, { at }) => {
       if (error instanceof WindowManagerApiError && error.status === 409) {
-        setRefusedAt(migration?.at ?? "");
+        setRefusedAt(at);
         return;
       }
       notifyUser({ message: "Couldn't move your layout to tabs. Try again.", tone: "error" });
@@ -99,26 +100,34 @@ export function useOsUpgradeNotice(): UpgradeNoticeModel | null {
   });
   const noticeState = upgradeNoticeState(migration);
   // Hidden as soon as it is dismissed here; a failed dismissal shows it again.
-  if (migration === null || noticeState === null || acknowledge.isPending) return null;
+  const shown = migration !== null && noticeState !== null && !acknowledge.isPending;
   const refused =
-    retryRefused(migration, revision) ||
-    (noticeState === "failed" && refusedAt !== null && refusedAt === (migration.at ?? ""));
-  const state: UpgradeNoticeState = retry.isPending
-    ? "retrying"
-    : refused
-      ? "layout-changed"
-      : noticeState;
+    shown &&
+    (retryRefused(migration, revision) ||
+      (noticeState === "failed" && refusedAt !== null && refusedAt === (migration.at ?? "")));
+  const state: UpgradeNoticeState | null = !shown
+    ? null
+    : retry.isPending
+      ? "retrying"
+      : refused
+        ? "layout-changed"
+        : noticeState;
+  // The confirmation belongs to the offer on screen: once the notice leaves it (another client
+  // replaced the layout), a later return to it must not reopen the dialog unasked.
+  if (confirmingReplace && state !== "layout-changed") setConfirmingReplace(false);
+  if (migration === null || state === null) return null;
+  const at = migration.at ?? "";
   return {
     state,
     summary: migration.summary,
     confirmingReplace: confirmingReplace && state === "layout-changed",
     dismiss: () => acknowledge.mutate(),
-    retry: () => retry.mutate(false),
+    retry: () => retry.mutate({ replace: false, at }),
     requestReplace: () => setConfirmingReplace(true),
     cancelReplace: () => setConfirmingReplace(false),
     confirmReplace: () => {
       setConfirmingReplace(false);
-      retry.mutate(true);
+      retry.mutate({ replace: true, at });
     },
   };
 }
