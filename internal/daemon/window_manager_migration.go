@@ -81,8 +81,10 @@ func (r *windowManagerRepository) migrateSnapshot(
 	if err != nil {
 		return windowmanager.Snapshot{}, err
 	}
-	ops := append(
-		backups,
+	ops := make([]clientstate.Op, len(backups), len(backups)+2)
+	copy(ops, backups)
+	ops = append(
+		ops,
 		clientstate.Op{
 			Kind:  clientstate.OpPut,
 			Key:   windowManagerSnapshotKey(r.profileID),

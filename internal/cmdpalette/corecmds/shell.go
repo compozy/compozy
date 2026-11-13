@@ -6,6 +6,8 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 )
 
+const requiresFocusedWindowReason = "requires a focused window"
+
 type shellCommandDefinition struct {
 	id                 cmdpalette.CommandID
 	title              string
@@ -22,7 +24,7 @@ type shellCommandDefinition struct {
 // visible peer on its desktop: with a single window they have nothing to lay
 // out, so they read disabled with a reason instead of doing nothing.
 var arrangeWhen = []cmdpalette.Predicate{
-	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window"},
+	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: requiresFocusedWindowReason},
 	{
 		Key:      cmdpalette.ContextDesktopWindowCount,
 		Operator: cmdpalette.PredicateGreaterThanOrEqual,
@@ -32,7 +34,7 @@ var arrangeWhen = []cmdpalette.Predicate{
 }
 
 var splitWindowWhen = []cmdpalette.Predicate{
-	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window"},
+	{Key: cmdpalette.ContextWindowFocused, Value: true, Reason: requiresFocusedWindowReason},
 	{Key: cmdpalette.ContextWindowStacked, Value: true, Reason: "needs a window in a split"},
 }
 
@@ -215,7 +217,7 @@ func shellCommands() []cmdpalette.Descriptor {
 			command.When = append([]cmdpalette.Predicate(nil), definition.when...)
 		case definition.needsFocus:
 			command.When = []cmdpalette.Predicate{{
-				Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window",
+				Key: cmdpalette.ContextWindowFocused, Value: true, Reason: requiresFocusedWindowReason,
 			}}
 		}
 		commands = append(commands, command)

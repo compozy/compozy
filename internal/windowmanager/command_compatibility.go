@@ -164,12 +164,12 @@ func canonicalOpenCommand(c OpenWindowCommand, report func(string)) Command {
 
 func canonicalMoveCommand(c MoveWindowCommand, report func(string)) Command {
 	var payload Command
-	if c.Placement == DropFloating {
+	switch c.Placement {
+	case DropFloating:
 		report("window.move.placement=floating")
-	} else if c.Placement == "" {
+		c.Placement = DropTab
+	case "":
 		report("window.move.placement=empty")
-	}
-	if c.Placement == DropFloating || c.Placement == "" {
 		c.Placement = DropTab
 	}
 	if c.FloatingRect != nil && *c.FloatingRect != (NormalizedRect{}) {
