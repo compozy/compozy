@@ -3535,7 +3535,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   // for every traced action, and that recorder work runs on the renderer thread
   // that this envelope is meant to measure.
   let longTasks: number[] = [];
-  let switchProbe: SwitchProbeRecords = { switches: [], tasks: [], frames: [] };
+  let switchProbe: SwitchProbeRecords = { switches: [], tasks: [], tooltipsShown: 0, frames: [] };
   let switchCount = 0;
   try {
     for (const target of targets) await clickAt(target);
@@ -3565,6 +3565,7 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     throw new Error("performance fixture must retain its split window IDs");
   }
   let worstPeerTask = 0;
+  let peerAttribution: ReturnType<typeof attributePeerLongTasks> = [];
   try {
     const peers = [peerA, peerB];
     for (const peer of peers) {
@@ -3589,7 +3590,11 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     const measuredCount = warmCount - 1;
     await Promise.all(peers.map(peer => installPeerConvergenceProbe(peer, measuredCount)));
     await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "right");
-    const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
+    const peerProbes = await Promise.all(peers.map(readPeerConvergenceProbe));
+    const peerLongTasks = peerProbes.map(probe => probe.tasks.map(task => task.duration));
+    peerAttribution = peerProbes.flatMap((probe, index) =>
+      attributePeerLongTasks(probe, index === 0 ? "A" : "B")
+    );
     for (const peer of peers) {
       await expect(osShellSelectors(peer).tabs).toHaveCount(measuredCount);
     }
@@ -3609,7 +3614,10 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
     switchesDispatched: switchCount,
     // Which switch each long task followed, and what the frames over 50ms spent their time on.
     switchAttribution: attributeSwitchLongTasks(switchProbe, appOfWindow),
+    tooltipsShownDuringSwitches: switchProbe.tooltipsShown,
     worstPeerConvergenceTaskMs: worstPeerTask,
+    // Each peer long task with the frame it ran in, and how long before the bar converged.
+    peerAttribution,
   };
   // Surfaced on stdout so completion notes can record the measured numbers.
   console.log(`[perf-envelope] ${JSON.stringify(envelope)}`);
@@ -3623,63 +3631,48 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
   expect(worstPeerTask).toBeLessThanOrEqual(50);
 });
 
+/** A long animation frame over 50ms, with its slowest scripts. */
+interface LongFrameRecord {
+  start: number;
+  duration: number;
+  blockingDuration: number;
+  /** Time from the frame's render start to its end: rAF, style, layout, paint. */
+  renderMs: number | null;
+  /** Time from style and layout start to the frame's end. */
+  styleAndLayoutMs: number | null;
+  scripts: Array<{
+    invoker: string;
+    invokerType: string;
+    source: string;
+    duration: number;
+    forcedStyleAndLayoutMs: number;
+  }>;
+}
+
 interface SwitchProbeRecords {
   /** Each tab press, by the lead window of the pressed tab. */
   switches: Array<{ at: number; windowId: string | null }>;
   tasks: Array<{ start: number; duration: number }>;
-  /** Long animation frames over 50ms, with their slowest scripts. */
-  frames: Array<{
-    start: number;
-    duration: number;
-    blockingDuration: number;
-    /** Time from the frame's render start to its end: rAF, style, layout, paint. */
-    renderMs: number | null;
-    /** Time from style and layout start to the frame's end. */
-    styleAndLayoutMs: number | null;
-    scripts: Array<{
-      invoker: string;
-      invokerType: string;
-      source: string;
-      duration: number;
-      forcedStyleAndLayoutMs: number;
-    }>;
-  }>;
+  /** Tooltip popups mounted during the run. */
+  tooltipsShown: number;
+  frames: LongFrameRecord[];
 }
 
+const SWITCH_FRAMES = "__osSwitchFrames";
+const PEER_FRAMES = "__osPeerFrames";
+
 /**
- * Records, page side, every tab press of the switching run with the long tasks and long
- * animation frames it produced. It only observes: the envelope's assertions read the same
- * long-task durations as before.
+ * Records, page side under `key`, every long animation frame over 50ms with its five slowest
+ * scripts and the share of render and of style and layout. It only observes.
  */
-async function installSwitchProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const records = {
-      switches: [] as Array<{ at: number; windowId: string | null }>,
-      tasks: [] as Array<{ start: number; duration: number }>,
-      frames: [] as unknown[],
-    };
-    Reflect.set(window, "__osSwitchProbe", records);
-    document.addEventListener(
-      "pointerdown",
-      event => {
-        const tab = event.target instanceof Element ? event.target.closest('[role="tab"]') : null;
-        if (!(tab instanceof HTMLElement)) return;
-        records.switches.push({
-          at: event.timeStamp,
-          windowId: tab.dataset.leadWindowId ?? null,
-        });
-      },
-      { capture: true }
-    );
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) {
-        records.tasks.push({ start: entry.startTime, duration: entry.duration });
-      }
-    }).observe({ type: "longtask", buffered: false });
+async function installLongFrameRecorder(page: Page, key: string): Promise<void> {
+  await page.evaluate(key => {
+    const recorder = { frames: [] as unknown[], flush: () => {} };
+    Reflect.set(window, key, recorder);
     if (!PerformanceObserver.supportedEntryTypes.includes("long-animation-frame")) return;
     const rounded = (value: number) => Math.round(value * 10) / 10;
-    new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) {
+    const record = (entries: PerformanceEntryList) => {
+      for (const entry of entries) {
         if (entry.duration <= 50) continue;
         const frame = entry as PerformanceEntry & {
           blockingDuration: number;
@@ -3696,7 +3689,7 @@ async function installSwitchProbe(page: Page): Promise<void> {
           }>;
         };
         const end = frame.startTime + frame.duration;
-        records.frames.push({
+        recorder.frames.push({
           start: rounded(frame.startTime),
           duration: rounded(frame.duration),
           blockingDuration: rounded(frame.blockingDuration),
@@ -3715,13 +3708,88 @@ async function installSwitchProbe(page: Page): Promise<void> {
             })),
         });
       }
-    }).observe({ type: "long-animation-frame", buffered: false });
+    };
+    const observer = new PerformanceObserver(list => record(list.getEntries()));
+    observer.observe({ type: "long-animation-frame", buffered: false });
+    recorder.flush = () => record(observer.takeRecords());
+  }, key);
+}
+
+/** The frames recorded under `key`, including those the observer has not delivered yet. */
+async function readLongFrames(page: Page, key: string): Promise<LongFrameRecord[]> {
+  return await page.evaluate(key => {
+    const recorder = Reflect.get(window, key) as
+      | { frames: LongFrameRecord[]; flush: () => void }
+      | undefined;
+    if (!recorder) return [];
+    recorder.flush();
+    return recorder.frames;
+  }, key);
+}
+
+/** The frame a long task ran in, if one was recorded. */
+function frameOfTask(
+  frames: readonly LongFrameRecord[],
+  task: { start: number }
+): LongFrameRecord | null {
+  return (
+    frames.find(
+      entry => entry.start <= task.start + 1 && task.start < entry.start + entry.duration
+    ) ?? null
+  );
+}
+
+/**
+ * Records, page side, every tab press of the switching run with the long tasks and long
+ * animation frames it produced. It only observes: the envelope's assertions read the same
+ * long-task durations as before.
+ */
+async function installSwitchProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const records = {
+      switches: [] as Array<{ at: number; windowId: string | null }>,
+      tasks: [] as Array<{ start: number; duration: number }>,
+      tooltipsShown: 0,
+    };
+    Reflect.set(window, "__osSwitchProbe", records);
+    // A tooltip popup mounted while switching: presses that open and position a popup.
+    new MutationObserver(changes => {
+      for (const change of changes) {
+        for (const node of change.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches('[data-slot="tooltip-content"]')) records.tooltipsShown += 1;
+          else
+            records.tooltipsShown += node.querySelectorAll('[data-slot="tooltip-content"]').length;
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener(
+      "pointerdown",
+      event => {
+        const tab = event.target instanceof Element ? event.target.closest('[role="tab"]') : null;
+        if (!(tab instanceof HTMLElement)) return;
+        records.switches.push({
+          at: event.timeStamp,
+          windowId: tab.dataset.leadWindowId ?? null,
+        });
+      },
+      { capture: true }
+    );
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries()) {
+        records.tasks.push({ start: entry.startTime, duration: entry.duration });
+      }
+    }).observe({ type: "longtask", buffered: false });
   });
+  await installLongFrameRecorder(page, SWITCH_FRAMES);
 }
 
 async function readSwitchProbe(page: Page): Promise<SwitchProbeRecords> {
   // Read at once, as the envelope always has: the measured window ends with the last press.
-  return await page.evaluate(() => Reflect.get(window, "__osSwitchProbe") as SwitchProbeRecords);
+  const probe = await page.evaluate(
+    () => Reflect.get(window, "__osSwitchProbe") as Omit<SwitchProbeRecords, "frames">
+  );
+  return { ...probe, frames: await readLongFrames(page, SWITCH_FRAMES) };
 }
 
 /** Each long task with the tab press it followed (the latest press at or before its start). */
@@ -3736,9 +3804,7 @@ function attributeSwitchLongTasks(
     });
     const press = pressIndex < 0 ? undefined : probe.switches[pressIndex];
     const previous = pressIndex > 0 ? probe.switches[pressIndex - 1] : undefined;
-    const frame = probe.frames.find(
-      entry => entry.start <= task.start + 1 && task.start < entry.start + entry.duration
-    );
+    const frame = frameOfTask(probe.frames, task);
     const appOf = (windowId: string | null | undefined) =>
       windowId ? (appOfWindow.get(windowId) ?? windowId) : null;
     return {
@@ -3747,7 +3813,7 @@ function attributeSwitchLongTasks(
       switchedFrom: appOf(previous?.windowId),
       msAfterPress: press === undefined ? null : Math.round(task.start - press.at),
       pressIndex,
-      frame: frame ?? null,
+      frame,
     };
   });
 }
@@ -3809,19 +3875,27 @@ async function waitForLongTaskQuiet(page: Page): Promise<void> {
  * Records long tasks on the peer until its tab bar renders `expectedTabs` tabs, i.e. until a
  * remote layout command has converged into this client's bar.
  */
+interface PeerConvergenceRecords {
+  tasks: Array<{ start: number; duration: number }>;
+  /** When the bar showed the expected tabs, two frames later. */
+  convergedAt: number;
+  frames: LongFrameRecord[];
+}
+
 async function installPeerConvergenceProbe(page: Page, expectedTabs: number): Promise<void> {
   await page.evaluate(expectedTabs => {
     const bar = document.querySelector<HTMLElement>('[data-testid="os-tab-bar"]');
     if (!bar) throw new Error("the tab bar must be mounted before measurement");
 
-    const tasks: number[] = [];
-    const longTasks = new PerformanceObserver(list => {
-      for (const entry of list.getEntries()) tasks.push(entry.duration);
-    });
+    const tasks: Array<{ start: number; duration: number }> = [];
+    const push = (entries: PerformanceEntryList) => {
+      for (const entry of entries) tasks.push({ start: entry.startTime, duration: entry.duration });
+    };
+    const longTasks = new PerformanceObserver(list => push(list.getEntries()));
     longTasks.observe({ type: "longtask", buffered: false });
 
-    let resolveProbe: (durations: number[]) => void = () => {};
-    const result = new Promise<number[]>(resolve => {
+    let resolveProbe: (records: Omit<PeerConvergenceRecords, "frames">) => void = () => {};
+    const result = new Promise<Omit<PeerConvergenceRecords, "frames">>(resolve => {
       resolveProbe = resolve;
     });
     Reflect.set(window, "__osPeerConvergence", result);
@@ -3832,22 +3906,40 @@ async function installPeerConvergenceProbe(page: Page, expectedTabs: number): Pr
       mutations.disconnect();
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          for (const entry of longTasks.takeRecords()) tasks.push(entry.duration);
+          push(longTasks.takeRecords());
           longTasks.disconnect();
-          resolveProbe(tasks);
+          resolveProbe({ tasks, convergedAt: performance.now() });
         });
       });
     });
     mutations.observe(bar, { childList: true, subtree: true });
   }, expectedTabs);
+  await installLongFrameRecorder(page, PEER_FRAMES);
 }
 
-async function readPeerConvergenceProbe(page: Page): Promise<number[]> {
-  return await page.evaluate(async () => {
-    const result = Reflect.get(window, "__osPeerConvergence") as Promise<number[]> | undefined;
+async function readPeerConvergenceProbe(page: Page): Promise<PeerConvergenceRecords> {
+  const probe = await page.evaluate(async () => {
+    const result = Reflect.get(window, "__osPeerConvergence") as
+      | Promise<Omit<PeerConvergenceRecords, "frames">>
+      | undefined;
     if (!result) throw new Error("peer convergence probe must be installed before it is read");
     return await result;
   });
+  // The measured window ends where the long tasks stopped being collected.
+  const frames = (await readLongFrames(page, PEER_FRAMES)).filter(
+    frame => frame.start <= probe.convergedAt
+  );
+  return { ...probe, frames };
+}
+
+/** Each peer long task with the frame it ran in and how long before the bar converged. */
+function attributePeerLongTasks(probe: PeerConvergenceRecords, peer: string) {
+  return probe.tasks.map(task => ({
+    peer,
+    durationMs: Math.round(task.duration),
+    msBeforeConverged: Math.round(probe.convergedAt - task.start),
+    frame: frameOfTask(probe.frames, task),
+  }));
 }
 
 /** Window scopes holding sessions-rail state in the persisted per-window store. */
