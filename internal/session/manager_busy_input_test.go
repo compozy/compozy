@@ -6149,10 +6149,14 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
 			completion := make(chan error, 1)
+			injection := make(chan struct{})
+			allowInjection := sync.OnceFunc(func() { close(injection) })
+			t.Cleanup(allowInjection)
 			if pending {
 				f.h.manager.driver = &steeringTestDriver{fakeDriver: f.h.driver, completion: completion,
 					steer: func(_ context.Context, _ *AgentProcess, _ string, text string) (acp.SteerAttempt, error) {
 						f.steered <- text
+						<-injection
 						return acp.SteerAttemptPendingInjection, nil
 					},
 				}
@@ -6173,7 +6177,7 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			}
 			var restoreTurn func()
 			if pending {
-				// Replay admission only to obtain its stable receipt; it must not inject twice.
+				// Obtain the receipt while delivery is still in flight: sent wakes may be admitted again.
 				receipt, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, SyntheticPromptOpts{
 					MessageID: "reply-stream", Message: "child reply",
 					Metadata: acp.PromptSyntheticMeta{Kind: acp.PromptSyntheticKindSessionReply,
@@ -6182,6 +6186,10 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				if receipt.Status != store.SessionInputQueueStatusDispatching {
+					t.Fatalf("replayed receipt status = %q, want dispatching", receipt.Status)
+				}
+				allowInjection()
 				waitForCondition(t, "durable pending injection", func() bool {
 					entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, receipt.ID)
 					return err == nil && entry.Status == store.SessionInputQueueStatusSent &&
@@ -6219,6 +6227,11 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			}
 			if restoreTurn != nil {
 				restoreTurn()
+			}
+			select {
+			case text := <-f.steered:
+				t.Fatalf("synthetic admission was injected twice: %q", text)
+			default:
 			}
 			drain(t, f)
 		})
