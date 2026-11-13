@@ -221,7 +221,9 @@ compozy window reopen --workspace <workspace-id> --revision <revision>
 
 Open jobs and triggers with `--app automations` (`--pathname /automations/jobs/<job-id>` or
 `/automations/triggers/<trigger-id>`). Never emit the retired app ids `jobs` or `triggers` in commands
-or `window_layout` resources.
+or `window_layout` resources; they are still translated to `automations` with a warning. After that
+translation, `window open` (and its preview) with an app id that is not registered is refused with
+`window_manager_invalid_command` ("unregistered window app") on every surface.
 
 Splitting, unsplitting, and moving:
 
@@ -426,7 +428,11 @@ meaningful for `retry`.
   acknowledged. Never delete or edit the backup yourself: a failed workspace keeps it until a retry
   succeeds; a migrated workspace's backup is removed at the first boot of v0.8.0.
 - Downgrading to v0.6 after the upgrade is not supported: v0.6 cannot read a version 6 snapshot and
-  replaces it with a default layout. The backup key is untouched by v0.6.
+  replaces it with a default layout. The backup key is untouched by v0.6. On the next upgrade the
+  backup is replaced by the layout v0.6 wrote, unless the earlier status was `failed` and the two
+  differ: then loading the workspace fails with `window_manager_unavailable` (HTTP 503, "resolve
+  the failed layout migration before replacing newer legacy bytes") and neither value is written.
+  Do not edit the backup to get past it; report it to the operator.
 
 ## Raw Layout Recovery
 
@@ -551,7 +557,7 @@ per surface to stderr and exit 0.
 | `layout arrange --frame`, `--group`, `--keep-frames`                                                                                                                                                                     | ignored                                                                                     | `layout arrange`                                                       |
 | `layout balance --group` (`group_id`)                                                                                                                                                                                    | alias of `--tab`                                                                            | `layout balance --tab`                                                 |
 | `window group --insert-index` (`insert_index`)                                                                                                                                                                           | ignored                                                                                     | `window reorder --index`                                               |
-| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group`                                    | resolve as deprecated no-ops or aliases; not listed                                         | the live command, or none                                              |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group`                                    | invocable as no-ops (`applied: false`, `deprecations`); not listed                          | the live command, or none                                              |
 | Settings API `GET`/`PATCH /api/settings/window-manager` fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`, `new_window_policy: "floating"`                                          | returned with fixed values; ignored on save                                                 | omit them                                                              |
 | `compozy__window_list` `include_minimized`                                                                                                                                                                               | ignored; every window is listed                                                             | —                                                                      |
 | `changes.group_ids`, `stack_grouped`, `stack_ungrouped`; client `stack_active`; `palette_context.window_floating`, `window_stacked`                                                                                      | always empty / `{}` / `false`; `window_stacked` mirrors `window_in_split`                   | `tab_ids`, `tab_split`, `tab_unsplit`, `active_tab`, `window_in_split` |

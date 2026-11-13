@@ -16,7 +16,10 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   converter and the v4/v5 document decoder (`layout_decode.go`) are permanent. One client-state batch
   writes `snapshot:<profileID>` (v6), `legacy:<profileID>` (original bytes, new `clientstate.OpCopy`)
   and `migration:<profileID>` (status). A failed conversion keeps the bytes and writes a default
-  snapshot with `state: "failed"`; a newer value is never modified. Stored `window_layout` profiles are
+  snapshot with `state: "failed"`; a newer value is never modified. A re-upgrade after a downgrade
+  replaces the backup with the layout v0.6 wrote, except when the earlier status is `failed` and the
+  bytes differ: then the load refuses with `ErrUnavailable` (`window_manager_unavailable`, HTTP 503,
+  "resolve the failed layout migration before replacing newer legacy bytes") and writes nothing. Stored `window_layout` profiles are
   rewritten to document v6 at boot (`reconcileStoredWindowLayouts`). Lossy: undo/redo history, floating
   rects, group frames, minimized and zoomed flags, return anchors, stack grouping (members become
   adjacent tabs), pins on windows that land in a split tab. The user is told by `snapshot.migration`
@@ -42,6 +45,9 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   `MigrationStatus`; `replace` is optional, used only by `retry`); ack and retry publish a `snapshot`
   stream frame. A failed status carries `failure_revision` (cleared by a successful retry) and `error`,
   whose `code` is the converter's topology diagnostic code or else `migration.conversion_failed`.
+  `window open` and its preview refuse an unregistered app id with `window_manager_invalid_command`
+  (HTTP 422, "unregistered window app") on HTTP, UDS, CLI and native tools, after the retired
+  `jobs`/`triggers` ids are translated to `automations`.
   `desktop delete` needs no `--destination` when every tab of the desktop is a New tab placeholder;
   the placeholders are dropped, not moved. Client view: `active_tab`
   replaces `stack_active` (still sent, `{}`); `window_in_split` is new, `window_stacked` mirrors it,
@@ -65,7 +71,8 @@ New scenarios: `ET-window-layout-upgrade-v06`, `ET-window-layout-upgrade-failure
   move the window to that edge of its tab. New unbound IDs: `window.unsplit`, `window.tab.move_left`,
   `window.tab.move_right`.
 - **Command palette** (public regime). Retired palette command IDs keep resolving until v0.8.0 as
-  deprecated no-ops or aliases and are no longer listed: `window.minimize`, `window.zoom`,
+  deprecated no-ops (`applied: false` with a `deprecations` entry; the CLI also prints a `warning:`
+  line) and are no longer listed: `window.minimize`, `window.zoom`,
   `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`,
   `layout.frame_resize`, `window.stack.group`.
 - **Workspace data isolation.** Unchanged: `snapshot:`, `legacy:` and `migration:` are keyed per

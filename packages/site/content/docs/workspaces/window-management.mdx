@@ -49,10 +49,11 @@ compozy window navigate --workspace <workspace-id> --revision <revision> --id <w
 ```
 
 The app ids `jobs` and `triggers` are deprecated: one `automations` app replaced them in v0.4.0
-(`--app automations --pathname /automations/jobs/<job-id>`). Until v0.5.0, `--app jobs|triggers`,
-window commands, and `window_layout` resources that name them open Automations on the matching path
-and warn; v0.5.0 rejects them like any unknown app id. Saved layouts that named them migrate
-permanently. See [Upgrading from v0.3](/docs/automation#upgrading-from-v03).
+(`--app automations --pathname /automations/jobs/<job-id>`). `--app jobs|triggers`, window
+commands, and `window_layout` resources that name them still open Automations on the matching path
+and warn. Any other app id that is not registered is refused with `window_manager_invalid_command`
+(HTTP 422, "unregistered window app") on HTTP, UDS, the CLI, and native tools, before anything
+changes. Saved layouts that named `jobs` or `triggers` migrate permanently. See [Upgrading from v0.3](/docs/automation#upgrading-from-v03).
 
 On `window_manager_revision_conflict`, read the topology again and recompute the semantic action.
 Do not replay stale node IDs or weights blindly.
@@ -239,7 +240,10 @@ compozy layout migration retry --workspace <workspace-id> --replace  # replace t
 <OperatorNote>
   Do not downgrade to v0.6 after upgrading. v0.6 cannot read the converted layout and replaces it
   with a default desktop. The original v0.6 layout stays preserved inside the workspace state, but
-  v0.6 does not restore it.
+  v0.6 does not restore it. Upgrading again converts the layout you used on v0.6, except when the
+  first conversion failed: then CompozyOS will not overwrite the saved copy, and the workspace's
+  layout answers `window_manager_unavailable` ("resolve the failed layout migration before replacing
+  newer legacy bytes") with both layouts kept.
 </OperatorNote>
 
 ## Persistent desktops
@@ -414,7 +418,7 @@ answers with a `deprecations` entry (`code`, `surface`, `replacement`, `removal_
 | `layout balance --group`                                                                                                                                                              | Alias of `--tab`                                     | `layout balance --tab`                      |
 | `window group --insert-index` (`insert_index`)                                                                                                                                        | Ignored                                              | `window reorder --index`                    |
 | `window.move` with an empty `placement` over HTTP/UDS                                                                                                                                 | Treated as `tab`                                     | `"placement": "tab"`                        |
-| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group` | Resolve as no-ops or aliases; not listed             | The live command for the action, or none    |
+| Palette command IDs `window.minimize`, `window.zoom`, `window.toggle_floating`, `window.merge_all`, `window.tab.detach`, `window.resize`, `layout.frame_resize`, `window.stack.group` | Invocable as no-ops with a deprecation; not listed   | The live command for the action, or none    |
 | Settings API (`GET`/`PATCH /api/settings/window-manager`) fields `raise_on_focus`, `drag_away_policy`, `group_move_modifier`, `snap`, `bindings`; `new_window_policy: "floating"`     | Returned with fixed values; ignored on save          | Omit them                                   |
 | `compozy__window_list` `include_minimized`                                                                                                                                            | Ignored                                              | —                                           |
 | Hook `window_manager.stack.activated`                                                                                                                                                 | Fires with `tab.activated`                           | `window_manager.tab.activated`              |
