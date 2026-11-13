@@ -45,11 +45,15 @@ class FeedUpdater extends EventEmitter {
   feed: RecordedReleaseFeed | null = null;
   resolved: ResolvedUpdateFileInfo[] = [];
   #checkedRelease = false;
-  readonly #failures: { readonly channel: Error; readonly release?: Error };
+  #failStalledCheck: ((error: Error) => void) | null = null;
+  readonly #failures: { readonly channel: Error | "stall"; readonly release?: Error };
   readonly #files: readonly string[];
+  readonly netSession = {
+    closeAllConnections: async () => this.#failStalledCheck?.(new Error("net::ERR_ABORTED")),
+  };
 
   constructor(
-    failures: { readonly channel: Error; readonly release?: Error },
+    failures: { readonly channel: Error | "stall"; readonly release?: Error },
     files: readonly string[]
   ) {
     super();
@@ -66,7 +70,12 @@ class FeedUpdater extends EventEmitter {
   }
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
-    if (!this.feed) throw this.#failures.channel;
+    if (!this.feed) {
+      if (this.#failures.channel !== "stall") throw this.#failures.channel;
+      return await new Promise<never>((_resolve, reject) => {
+        this.#failStalledCheck = reject;
+      });
+    }
     this.#checkedRelease = true;
     const runtime: ProviderRuntimeOptions = {
       isUseMultipleRangeRequest: false,
@@ -197,12 +206,15 @@ describe("electron installer feed policy", () => {
   // Invariant: an unreachable channel feed host cannot block the release the daemon recorded,
   // and the recorded download is verified against the daemon's signed sha256.
   // Owner: Electron installer adapter. Canonical suite: electron-installer-policy.test.ts.
-  it("Should download the recorded release when the channel feed is unreachable", async () => {
+  const feeds = [
+    { feed: "closes the connection", channel: new Error("net::ERR_CONNECTION_CLOSED") },
+    { feed: "never answers", channel: "stall" as const },
+  ];
+  it.each(feeds)("Should download the recorded release if the feed $feed", async ({ channel }) => {
+    vi.useFakeTimers();
     const sha256 = "ab".repeat(32);
     const recorded = { ...operation, digest: `sha256:${sha256}` };
-    const updater = new FeedUpdater({ channel: new Error("net::ERR_CONNECTION_CLOSED") }, [
-      `/tmp/${recorded.asset}`,
-    ]);
+    const updater = new FeedUpdater({ channel }, [`/tmp/${recorded.asset}`]);
     const feedFailures: Error[] = [];
     const installer = new ElectronUpdateInstaller({
       updater: updater as unknown as AppUpdater,
@@ -211,10 +223,21 @@ describe("electron installer feed policy", () => {
       onFeedFallback: error => feedFailures.push(error),
     });
 
-    await expect(
-      installer.download(recorded, async () => {}, new AbortController().signal)
-    ).resolves.toEqual({ artifactPath: `/tmp/${recorded.asset}`, version: "1.1.0" });
-    expect(feedFailures.map(error => error.message)).toEqual(["net::ERR_CONNECTION_CLOSED"]);
+    try {
+      const signal = new AbortController().signal;
+      const downloading = installer.download(recorded, async () => {}, signal);
+      // A stalled feed check fails after its 20-second budget, inside the download deadline.
+      await vi.advanceTimersByTimeAsync(20_000);
+      await expect(downloading).resolves.toEqual({
+        artifactPath: `/tmp/${recorded.asset}`,
+        version: "1.1.0",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    const reported =
+      channel === "stall" ? "The update feed did not answer in time." : channel.message;
+    expect(feedFailures.map(error => error.message)).toEqual([reported]);
     expect(updater.resolved.map(file => ({ url: file.url.href, info: file.info }))).toEqual([
       {
         url: "https://github.com/compozy/compozy/releases/download/v1.1.0/CompozyOS-1.1.0-arm64.zip",

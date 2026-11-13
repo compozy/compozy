@@ -31,6 +31,9 @@ export interface AppUpdateInstaller {
 
 type NativeUpdater = Pick<EventEmitter, "on" | "off"> & { checkForUpdates(): void };
 
+/** Leaves the recorded-release fallback most of the 60-second download inactivity budget. */
+const FEED_CHECK_TIMEOUT_MS = 20_000;
+
 interface ElectronUpdateInstallerOptions {
   readonly updater?: AppUpdater;
   readonly nativeUpdater?: NativeUpdater | null;
@@ -127,7 +130,7 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
   ): Promise<{ checked: UpdateCheckResult | null; feedError: Error | null }> {
     let feedError: Error;
     try {
-      const checked = await this.#updater.checkForUpdates();
+      const checked = await this.#checkChannelFeed();
       signal.throwIfAborted();
       return { checked, feedError: null };
     } catch (error) {
@@ -147,6 +150,30 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
       // Restores app-update.yml as the feed for the next check; the checked provider stays
       // bound to this download.
       this.#updater.updateConfigPath = null;
+    }
+  }
+
+  /** Checks the channel feed, failing a stalled request so the fallback can run. */
+  async #checkChannelFeed(): Promise<UpdateCheckResult | null> {
+    const check = this.#updater.checkForUpdates();
+    let timer: NodeJS.Timeout | undefined;
+    const expired = new Promise<"expired">(resolve => {
+      timer = setTimeout(() => resolve("expired"), FEED_CHECK_TIMEOUT_MS);
+      timer.unref();
+    });
+    try {
+      const first = await Promise.race([check, expired]);
+      if (first !== "expired") return first;
+    } finally {
+      clearTimeout(timer);
+    }
+    // electron-updater cannot cancel one check and hands a pending check to the next caller,
+    // so fail the stalled feed request before the fallback checks again.
+    await this.#updater.netSession.closeAllConnections();
+    try {
+      return await check;
+    } catch (error) {
+      throw new Error("The update feed did not answer in time.", { cause: error });
     }
   }
 
