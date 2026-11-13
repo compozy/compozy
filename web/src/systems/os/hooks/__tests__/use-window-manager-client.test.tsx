@@ -21,8 +21,9 @@ import {
 import { useWindowManagerClient } from "../use-window-manager-client";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => ({
-  WindowManagerApiError: (await importOriginal<typeof import("../../adapters/window-manager-api")>())
-    .WindowManagerApiError,
+  WindowManagerApiError: (
+    await importOriginal<typeof import("../../adapters/window-manager-api")>()
+  ).WindowManagerApiError,
   registerWindowManagerClient: vi.fn(),
   unregisterWindowManagerClient: vi.fn(),
 }));

@@ -180,7 +180,11 @@ export function useDesktopChrome(
   useEffect(() => {
     if (restoredFocus === null || !snapshotReady) return;
     const state = manager.getState();
-    if (state.client !== null && state.windows[restoredFocus] && state.focusedId !== restoredFocus) {
+    if (
+      state.client !== null &&
+      state.windows[restoredFocus] &&
+      state.focusedId !== restoredFocus
+    ) {
       manager.focusWindow(restoredFocus, { replaceable: true });
     }
     restoreSettled();

@@ -151,7 +151,8 @@ export function useWindowManagerClient(
     status,
     error,
     restoredFocus: phase === "registered" ? (restore?.focusedWindowId ?? null) : null,
-    reregister: next => store.trigger.recoveryRequested(next === undefined ? {} : { restore: next }),
+    reregister: next =>
+      store.trigger.recoveryRequested(next === undefined ? {} : { restore: next }),
     restoreSettled: () => store.trigger.restoreSettled(),
   };
 }

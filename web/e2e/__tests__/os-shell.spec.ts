@@ -395,10 +395,7 @@ test("Issue 1655: dock Files writes one history entry and one Back returns to th
 
     await appPage.goBack({ waitUntil: "domcontentloaded" });
     await expect(appPage, pass).toHaveURL(/\/tasks$/);
-    await expect(windowPane(appWindow(appPage, "tasks")), pass).toHaveAttribute(
-      "data-focused",
-      ""
-    );
+    await expect(windowPane(appWindow(appPage, "tasks")), pass).toHaveAttribute("data-focused", "");
   }
 });
 

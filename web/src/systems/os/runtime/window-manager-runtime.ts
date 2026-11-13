@@ -90,7 +90,10 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
       wrap: config.focusWrap,
     });
     if (target === null || target === from) return null;
-    return { windowId: target, ...this.dispatch(focusWindowCommand(target, { replaceable: true })) };
+    return {
+      windowId: target,
+      ...this.dispatch(focusWindowCommand(target, { replaceable: true })),
+    };
   }
 
   /**
