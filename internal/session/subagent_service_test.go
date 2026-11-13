@@ -928,7 +928,7 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			t.Fatal(db.rows[row.ID])
 		}
 	})
-	t.Run("Should cancel descendants first and continue after stop errors UT-034 IT-028 service", func(t *testing.T) {
+	t.Run("Should cancel descendants first and surface a child stop error UT-034 IT-028 service", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
@@ -944,7 +944,7 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			runtime.errorStop = testSubagentError()
 			got, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
 			synctest.Wait()
-			if err != nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
+			if err == nil || got.Status != "cancel_requested" || db.rows[row.ID].Delivery != "disposed" {
 				t.Fatal(got, err)
 			}
 			if db.rows[row.ID].Status != store.SubagentStatusCanceled ||
@@ -958,8 +958,9 @@ func TestSubagentLifecycleBoundaries(t *testing.T) {
 			row.Status = "completed"
 			db.rows[row.ID] = row.SessionSubagent
 			got, err = s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
-			if err != nil || got.Status != "completed" || len(runtime.stopped) != 2 {
-				t.Fatal(got, err)
+			if err == nil || got.Status != "completed" || len(runtime.stopped) != 4 ||
+				runtime.stopped[3] != *row.ChildSessionID {
+				t.Fatal(got, err, runtime.stopped)
 			}
 		})
 	})
@@ -3199,22 +3200,22 @@ func TestSubagentRecoveryCorruptChild(t *testing.T) {
 	})
 }
 
-// N2: accepting cancellation finalizes the row before an independent lifecycle-owned stop.
+// N2: cancellation finalizes the row, then retires the child session before returning.
 // Owner: service cancellation; canonical subagent service suite.
-type blockedSubagentStop struct {
+type cancelStopRuntime struct {
 	*subagentTestRuntime
-	entered chan context.Context
-	release chan struct{}
+	onStop  func(context.Context, string)
+	stopErr error
 }
 
-func (r blockedSubagentStop) Stop(ctx context.Context, id string) error {
-	r.entered <- ctx
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-r.release:
-		return r.subagentTestRuntime.Stop(ctx, id)
+func (r cancelStopRuntime) Stop(ctx context.Context, id string) error {
+	if r.onStop != nil {
+		r.onStop(ctx, id)
 	}
+	if r.stopErr != nil {
+		return r.stopErr
+	}
+	return r.subagentTestRuntime.Stop(ctx, id)
 }
 
 // cancelReadBarrier signals the first row read of a Cancel so a test can link
@@ -3293,7 +3294,7 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			}
 		})
 	})
-	t.Run("Should leave a row that settled while cancel waited", func(t *testing.T) {
+	t.Run("Should stop the residual child of a row that settled while cancel waited", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			s, db, runtime := newSubagentTestService(t)
@@ -3314,49 +3315,102 @@ func TestSubagentCancelLifetime(t *testing.T) {
 			out := <-done
 			synctest.Wait()
 			if out.Status != store.SubagentStatusCompleted ||
-				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed ||
-				len(runtime.stopped) != 0 {
-				t.Fatal(out, db.rows[row.ID], runtime.stopped)
+				db.rows[row.ID].Delivery == store.SubagentDeliveryDisposed {
+				t.Fatal(out, db.rows[row.ID])
+			}
+			if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+				t.Fatal("residual child session was not stopped", runtime.stopped)
 			}
 		})
 	})
-	t.Run("Should finalize synchronously and keep stopping after the request is canceled", func(t *testing.T) {
+	t.Run("Should stop the child with a bounded context that survives request cancellation", func(t *testing.T) {
 		t.Parallel()
-		synctest.Test(t, func(t *testing.T) {
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		var stopCtx context.Context
+		var stopCtxErr error
+		s.runtime = cancelStopRuntime{
+			subagentTestRuntime: runtime,
+			onStop: func(ctx context.Context, _ string) {
+				stopCtx, stopCtxErr = ctx, ctx.Err()
+				if got := db.rows[row.ID].Status; got != store.SubagentStatusCanceled {
+					t.Errorf("row status at stop = %q, want canceled", got)
+				}
+			},
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != "cancel_requested" ||
+			db.rows[row.ID].Status != store.SubagentStatusCanceled ||
+			db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
+			t.Fatal(out, db.rows[row.ID], err)
+		}
+		if stopCtx == nil {
+			t.Fatal("child session was not stopped")
+		}
+		if stopCtxErr != nil {
+			t.Fatal("stop inherited request cancellation", stopCtxErr)
+		}
+		if _, ok := stopCtx.Deadline(); !ok {
+			t.Fatal("stop context has no deadline")
+		}
+		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+			t.Fatal(runtime.stopped)
+		}
+	})
+}
+
+func TestSubagentCancelStopsChild(t *testing.T) {
+	t.Run("Should stop the child session of a live subagent", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		child := *row.ChildSessionID
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != "cancel_requested" ||
+			db.rows[row.ID].Status != store.SubagentStatusCanceled {
+			t.Fatal(out, err, db.rows[row.ID])
+		}
+		if !slices.Contains(runtime.stopped, child) {
+			t.Fatalf("child session %s was not stopped: %v", child, runtime.stopped)
+		}
+		if snap := runtime.snapshots[child]; snap.Active || snap.Info == nil || snap.Info.State != StateStopped {
+			t.Fatalf("child snapshot = %+v", snap)
+		}
+	})
+	t.Run("Should accept a child session that is already retired", func(t *testing.T) {
+		t.Parallel()
+		for _, stopErr := range []error{ErrSessionNotActive, ErrSessionNotFound} {
 			s, db, runtime := newSubagentTestService(t)
 			row := requireSubagent(t, s, subagentTestRequest())
-			blocked := blockedSubagentStop{runtime, make(chan context.Context), make(chan struct{})}
-			s.runtime = blocked
-			start := make(chan struct{})
-			launch := s.launch
-			s.launch = func(f func()) {
-				launch(func() {
-					select {
-					case <-start:
-						f()
-					case <-s.ctx.Done():
-					}
-				})
-			}
-			ctx, cancel := context.WithCancel(t.Context())
-			out, err := s.Cancel(ctx, SubagentActor{Kind: "operator"}, row.ID, "")
-			cancel()
+			s.runtime = cancelStopRuntime{subagentTestRuntime: runtime, stopErr: stopErr}
+			out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
 			if err != nil || out.Status != "cancel_requested" ||
-				db.rows[row.ID].Status != store.SubagentStatusCanceled ||
-				db.rows[row.ID].Delivery != store.SubagentDeliveryDisposed {
-				t.Fatal(out, db.rows[row.ID], err)
+				db.rows[row.ID].Status != store.SubagentStatusCanceled {
+				t.Fatal(stopErr, out, err, db.rows[row.ID])
 			}
-			close(start)
-			stopCtx := <-blocked.entered
-			if stopCtx.Err() != nil {
-				t.Fatal("stop inherited request cancellation", stopCtx.Err())
-			}
-			close(blocked.release)
-			synctest.Wait()
-			if len(runtime.stopped) != 1 {
-				t.Fatal(runtime.stopped)
-			}
-		})
+		}
+	})
+	t.Run("Should stop the residual child of a terminal row", func(t *testing.T) {
+		t.Parallel()
+		s, db, runtime := newSubagentTestService(t)
+		row := requireSubagent(t, s, subagentTestRequest())
+		settledAt := s.now().Add(-time.Minute)
+		settled := db.rows[row.ID]
+		settled.Status, settled.SettledAt = store.SubagentStatusCompleted, &settledAt
+		db.rows[row.ID] = settled
+		out, err := s.Cancel(t.Context(), SubagentActor{Kind: "operator"}, row.ID, "")
+		if err != nil || out.Status != store.SubagentStatusCompleted {
+			t.Fatal(out, err)
+		}
+		if !slices.Contains(runtime.stopped, *row.ChildSessionID) {
+			t.Fatalf("residual child session was not stopped: %v", runtime.stopped)
+		}
+		if got := db.rows[row.ID]; got.Status != store.SubagentStatusCompleted ||
+			got.SettledAt == nil || !got.SettledAt.Equal(settledAt) {
+			t.Fatalf("terminal row changed by cancel: %+v", got)
+		}
 	})
 }
 
