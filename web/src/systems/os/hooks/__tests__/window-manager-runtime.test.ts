@@ -1302,7 +1302,7 @@ describe("WindowManagerRuntime", () => {
     });
 
     await expect(continuation.completion).resolves.toBe(true);
-    const reopened = vi.mocked(executeWindowManagerCommand).mock.calls.at(-1)?.[4] as {
+    const reopened = vi.mocked(executeWindowManagerCommand).mock.calls.at(-1)?.[4] as unknown as {
       payload: { window: { id: string } };
     };
     expect(reopened.payload.window.id).not.toBe(first.windowId);
