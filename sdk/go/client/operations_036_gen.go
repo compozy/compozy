@@ -10,6 +10,49 @@ import (
 	"strings"
 )
 
+// StreamSessionCatalog Stream session catalog changes across workspaces
+func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
+	path := "/api/sessions/catalog-stream"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamSessionCatalogFrame](ctx, c, "GET", path, headers, nil, "streamSessionCatalog")
+}
+
+// StreamSettingsObservabilityLogTail Stream daemon log output for the observability settings screen
+func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
+	path := "/api/settings/observability/log-tail"
+	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
+}
+
+// StreamTaskParams carries the path, query, and header parameters.
+type StreamTaskParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // StreamTask Stream task-native live events for one task
 func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stream[TaskStreamEventPayload], error) {
 	path := "/api/tasks/{id}/stream"
@@ -400,51 +443,4 @@ type UnpinCmdPaletteCommandParams struct {
 	ID        string  `url:"id"`
 	Workspace string  `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// UnpinCmdPaletteCommand Unpin one command palette command
-func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
-	path := "/api/cmd-palette/pins/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePinResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnregisterWindowManagerClientParams carries the path, query, and header parameters.
-type UnregisterWindowManagerClientParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ClientID    string  `url:"client_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UnregisterWindowManagerClient Unregister a window-manager client view
-func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params UnregisterWindowManagerClientParams) error {
-	path := "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{client_id}", url.PathEscape(params.ClientID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// UpdateAgentParams carries the path, query, and header parameters.
-type UpdateAgentParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

@@ -5452,6 +5452,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/files/raw/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream project file bytes */
+    get: operations["readFileBytes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/files/search": {
     parameters: {
       query?: never;
@@ -6510,6 +6527,23 @@ export interface paths {
     };
     /** Find project files */
     get: operations["findSessionFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream session file bytes */
+    get: operations["readSessionFileBytes"];
     put?: never;
     post?: never;
     delete?: never;
@@ -8041,6 +8075,23 @@ export interface paths {
     put?: never;
     /** Resolve forge capabilities and prepare the worktree exit plan */
     post: operations["prepareWorktreeExitPlan"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream worktree file bytes */
+    get: operations["readWorktreeFileBytes"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -50201,6 +50252,113 @@ export interface operations {
       };
     };
   };
+  readFileBytes: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Root-relative file path; its slashes are path segments */
+        path: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Requested byte range */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description File unchanged since the supplied validator */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Requested range not satisfiable */
+      416: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   searchFileContents: {
     parameters: {
       query: {
@@ -56147,6 +56305,115 @@ export interface operations {
         };
       };
       /** @description Search failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  readSessionFileBytes: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Root-relative file path; its slashes are path segments */
+        path: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Requested byte range */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description File unchanged since the supplied validator */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Requested range not satisfiable */
+      416: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
       500: {
         headers: {
           [name: string]: unknown;
@@ -64373,6 +64640,115 @@ export interface operations {
       };
       /** @description Worktree service is unavailable */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  readWorktreeFileBytes: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Worktree id */
+        worktree_id: string;
+        /** @description Root-relative file path; its slashes are path segments */
+        path: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Requested byte range */
+      206: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description File unchanged since the supplied validator */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Requested range not satisfiable */
+      416: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description File operation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description File operation failed */
+      500: {
         headers: {
           [name: string]: unknown;
         };

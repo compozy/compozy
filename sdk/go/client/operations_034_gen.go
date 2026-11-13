@@ -11,6 +11,53 @@ import (
 	"strings"
 )
 
+// SetToolApprovalGrant Set an explicit agent-wide or tool-wide native-tool approval decision
+func (c *Client) SetToolApprovalGrant(ctx context.Context, params SetToolApprovalGrantParams, body ToolApprovalGrantSetRequest) (*ToolApprovalGrantResponse, error) {
+	path := "/api/tool-approval-grants"
+	query := url.Values{}
+	query.Set("workspace_id", params.WorkspaceID)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalGrantResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SignalTerminalParams carries the path, query, and header parameters.
+type SignalTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
+// SignalTerminal Signal one running terminal
+func (c *Client) SignalTerminal(ctx context.Context, params SignalTerminalParams, body TerminalSignalRequest) (*TerminalDeliveredResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/signal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalDeliveredResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SpawnAgentSessionParams carries the path, query, and header parameters.
+type SpawnAgentSessionParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
 // SpawnAgentSession Spawn a narrowed child session for the calling agent
 func (c *Client) SpawnAgentSession(ctx context.Context, params SpawnAgentSessionParams, body AgentSpawnRequest) (*AgentSpawnResponse, error) {
 	path := "/api/agent/spawn"
@@ -377,28 +424,4 @@ func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSes
 		path += "?" + query.Encode()
 	}
 	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
-}
-
-// StreamLogsParams carries the path, query, and header parameters.
-type StreamLogsParams struct {
-	WorkspaceID      *string `url:"workspace_id"`
-	SessionID        *string `url:"session_id"`
-	AgentName        *string `url:"agent_name"`
-	Type             *string `url:"type"`
-	Run              *string `url:"run"`
-	Actor            *string `url:"actor"`
-	ActorKind        *string `url:"actor_kind"`
-	ActorID          *string `url:"actor_id"`
-	Provider         *string `url:"provider"`
-	Outcome          *string `url:"outcome"`
-	Component        *string `url:"component"`
-	ErrorOnly        *bool   `url:"error_only"`
-	AfterSeq         *int    `url:"after_seq"`
-	Since            *string `url:"since"`
-	Limit            *int    `url:"limit"`
-	Replay           *bool   `url:"replay"`
-	LastEventID      *string `url:"Last-Event-ID"`
-	LastEventIDQuery *string `url:"last_event_id"`
-	Profile          *string `url:"profile"`
-	AllProfiles      *bool   `url:"all_profiles"`
 }

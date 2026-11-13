@@ -3,6 +3,8 @@ package projectfiles
 import (
 	"context"
 	"errors"
+	"io"
+	"time"
 )
 
 type RootKind string
@@ -64,6 +66,14 @@ type Reader interface {
 	List(context.Context, Root, string, ListOptions) (Listing, error)
 	Read(context.Context, Root, string, ReadOptions) (Content, error)
 }
+
+// OpenedFile is a confined regular file opened for streaming; the caller closes Content.
+type OpenedFile struct {
+	Content io.ReadSeekCloser
+	Path    string
+	Size    int64
+	ModTime time.Time
+}
 type ListOptions struct{ ShowIgnored, Refresh bool }
 type ReadOptions struct{ Reveal bool }
 
@@ -76,4 +86,5 @@ var (
 	ErrNotAFile        = errors.New("projectfiles: not a file")
 	ErrRootUnavailable = errors.New("projectfiles: root unavailable")
 	ErrRootNotFound    = errors.New("projectfiles: root not found")
+	ErrSensitive       = errors.New("projectfiles: sensitive file")
 )

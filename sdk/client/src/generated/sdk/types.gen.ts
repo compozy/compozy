@@ -34560,6 +34560,77 @@ export type FindFilesResponses = {
 
 export type FindFilesResponse = FindFilesResponses[keyof FindFilesResponses];
 
+export type ReadFileBytesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Root-relative file path; its slashes are path segments
+     */
+    path: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/files/raw/{path}";
+};
+
+export type ReadFileBytesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Requested range not satisfiable
+   */
+  416: unknown;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadFileBytesError = ReadFileBytesErrors[keyof ReadFileBytesErrors];
+
+export type ReadFileBytesResponses = {
+  /**
+   * File bytes
+   */
+  200: Blob | File;
+  /**
+   * Requested byte range
+   */
+  206: Blob | File;
+};
+
+export type ReadFileBytesResponse = ReadFileBytesResponses[keyof ReadFileBytesResponses];
+
 export type SearchFileContentsData = {
   body?: never;
   path: {
@@ -39423,6 +39494,83 @@ export type FindSessionFilesResponses = {
 };
 
 export type FindSessionFilesResponse = FindSessionFilesResponses[keyof FindSessionFilesResponses];
+
+export type ReadSessionFileBytesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+    /**
+     * Root-relative file path; its slashes are path segments
+     */
+    path: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}";
+};
+
+export type ReadSessionFileBytesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Requested range not satisfiable
+   */
+  416: unknown;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadSessionFileBytesError =
+  ReadSessionFileBytesErrors[keyof ReadSessionFileBytesErrors];
+
+export type ReadSessionFileBytesResponses = {
+  /**
+   * File bytes
+   */
+  200: Blob | File;
+  /**
+   * Requested byte range
+   */
+  206: Blob | File;
+};
+
+export type ReadSessionFileBytesResponse =
+  ReadSessionFileBytesResponses[keyof ReadSessionFileBytesResponses];
 
 export type SearchSessionFileContentsData = {
   body?: never;
@@ -45490,6 +45638,83 @@ export type PrepareWorktreeExitPlanResponses = {
 
 export type PrepareWorktreeExitPlanResponse =
   PrepareWorktreeExitPlanResponses[keyof PrepareWorktreeExitPlanResponses];
+
+export type ReadWorktreeFileBytesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Worktree id
+     */
+    worktree_id: string;
+    /**
+     * Root-relative file path; its slashes are path segments
+     */
+    path: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}";
+};
+
+export type ReadWorktreeFileBytesErrors = {
+  /**
+   * File operation failed
+   */
+  400: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  403: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  404: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  409: ErrorPayload;
+  /**
+   * Requested range not satisfiable
+   */
+  416: unknown;
+  /**
+   * File operation failed
+   */
+  422: ErrorPayload;
+  /**
+   * File operation failed
+   */
+  500: ErrorPayload;
+};
+
+export type ReadWorktreeFileBytesError =
+  ReadWorktreeFileBytesErrors[keyof ReadWorktreeFileBytesErrors];
+
+export type ReadWorktreeFileBytesResponses = {
+  /**
+   * File bytes
+   */
+  200: Blob | File;
+  /**
+   * Requested byte range
+   */
+  206: Blob | File;
+};
+
+export type ReadWorktreeFileBytesResponse =
+  ReadWorktreeFileBytesResponses[keyof ReadWorktreeFileBytesResponses];
 
 export type GetWorktreeStatusData = {
   body?: never;

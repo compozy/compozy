@@ -1,17 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import type { KeyboardEvent } from "react";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 
-import { CodeViewer, FileImagePreview } from "@compozy/ui";
+import { FileImagePreview, FileMediaPreview } from "@compozy/ui";
 import { Info } from "@compozy/ui/icons";
 
-import type { FilesRootRef } from "../adapters/files-api";
-import { useViewerFind } from "../hooks/use-viewer-find";
+import type { FileContentResponse, FilesRootRef } from "../adapters/files-api";
 import { copyFilePath } from "../lib/copy-file-path";
+import { mediaPreviewKind, rawFileUrl, textPreviewKind } from "../lib/file-preview";
 import { FILE_TEXT_LIMIT, formatFileSize } from "../lib/format-file-size";
 import { fileViewerStale, fileViewerState, type FileViewerState } from "../lib/file-viewer-state";
+import type { FileViewerMode } from "../lib/file-preview";
 import type { FileViewerTarget, ViewerFindSeed } from "../lib/file-viewer-target";
-import { isFindChord } from "../lib/files-shortcuts";
 import { fileContentOptions } from "../lib/query-options";
 import { FileViewerHeader } from "./file-viewer-header";
 import {
@@ -24,8 +23,8 @@ import {
   FileViewerSelectState,
   FileViewerSensitiveState,
 } from "./file-viewer-states";
+import { FileTextView } from "./file-text-view";
 import { OpenInButton } from "./open-in-button";
-import { ViewerFindBar } from "./viewer-find-bar";
 
 export interface FileViewerPaneProps {
   root: FilesRootRef;
@@ -34,10 +33,26 @@ export interface FileViewerPaneProps {
   onRevealInTree?: (path: string) => void;
   /** Refetches the tree listings (the "File not found" recovery). */
   onRefreshTree?: () => void;
+  /** Opens another file of the same root, such as a relative link in a Markdown preview. */
+  onOpenFile?: (path: string) => void;
 }
+
+const FilePdfView = lazy(() => import("./file-pdf-view"));
 
 function basename(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1) || path;
+}
+
+/** An SVG's markup, decoded from the image payload for its Source view; `null` if undecodable. */
+function svgSource(content: FileContentResponse): string | null {
+  if (!content.image_base64 || content.image_mime !== "image/svg+xml") return null;
+  try {
+    const binary = atob(content.image_base64);
+    const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
 }
 
 function TruncationNotice({ size }: { size: number }) {
@@ -78,12 +93,13 @@ function OpenFileView({
   findSeed,
   onRevealInTree,
   onRefreshTree,
+  onOpenFile,
 }: {
   root: FilesRootRef;
   path: string;
   line?: number;
   findSeed?: ViewerFindSeed;
-} & Pick<FileViewerPaneProps, "onRevealInTree" | "onRefreshTree">) {
+} & Pick<FileViewerPaneProps, "onRevealInTree" | "onRefreshTree" | "onOpenFile">) {
   const [revealed, setRevealed] = useState(false);
   const gated = useQuery(fileContentOptions(root, path, false));
   const reveal = useQuery({ ...fileContentOptions(root, path, true), enabled: revealed });
@@ -91,9 +107,7 @@ function OpenFileView({
   const state: FileViewerState = fileViewerState(active);
   const stale = fileViewerStale(active);
   const content = "content" in state ? state.content : undefined;
-  const find = useViewerFind(state.kind === "text" ? state.text : "", findSeed, line);
-  const viewerRef = useRef<HTMLDivElement | null>(null);
-  const header = (
+  const header = (mode?: FileViewerMode, onModeChange?: (mode: FileViewerMode) => void) => (
     <FileViewerHeader
       path={path}
       size={content?.size}
@@ -102,73 +116,41 @@ function OpenFileView({
       onRevealInTree={onRevealInTree ? () => onRevealInTree(path) : undefined}
       onRefresh={() => void active.refetch()}
       openIn={<OpenInButton root={root} path={path} line={line} />}
+      mode={mode}
+      onModeChange={onModeChange}
     />
   );
+  const media = mediaPreviewKind(path);
+  const previewKind = textPreviewKind(path);
+  const svg = state.kind === "image" && previewKind === "svg" ? svgSource(state.content) : null;
+  const text = state.kind === "text" && media === null ? state.text : svg;
 
-  if (state.kind === "text") {
-    const closeFind = () => {
-      find.close();
-      viewerRef.current?.focus({ preventScroll: true });
-    };
-    // Viewer-scoped: Cmd/Ctrl+F only takes over while focus is inside the viewer, so the
-    // browser's find runs everywhere else (US-015.EC-3).
-    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-      if (isFindChord(event)) {
-        event.preventDefault();
-        find.show();
-      } else if (event.key === "Escape" && find.open) {
-        event.preventDefault();
-        closeFind();
-      }
-    };
-    const truncation = state.content.truncated ? (
-      <TruncationNotice size={state.content.size} />
-    ) : null;
+  if (text !== null && content) {
+    const truncated = content.truncated;
     return (
-      // The viewer is a labelled region that takes focus programmatically and owns its
-      // shortcuts (Cmd/Ctrl+F, Escape); it is not itself a control.
-      <div
-        ref={viewerRef}
-        role="region"
-        aria-label={`Contents of ${path}`}
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-        className="flex h-full min-h-0 flex-col outline-none"
-        data-testid="file-viewer-focus"
-      >
-        <CodeViewer
-          path={path}
-          text={state.text}
-          targetLine={line ?? null}
-          cacheKey={state.content.revision ?? `${state.content.size}`}
-          header={header}
-          notice={
-            <>
-              {stale ? <StaleNotice /> : null}
-              {truncation}
-              {find.open ? (
-                <ViewerFindBar
-                  find={find}
-                  truncated={state.content.truncated}
-                  onClose={closeFind}
-                />
-              ) : null}
-            </>
-          }
-          findMatches={find.matches}
-          activeFindMatch={find.active}
-          pastEndNotice={(requested, last) =>
-            `Line ${requested.toLocaleString("en-US")} is past the end (${last.toLocaleString("en-US")} lines)`
-          }
-          data-testid="file-viewer-text"
-        />
-      </div>
+      <FileTextView
+        root={root}
+        path={path}
+        text={text}
+        content={content}
+        previewKind={truncated ? null : previewKind}
+        line={line}
+        findSeed={findSeed}
+        header={header}
+        notices={
+          <>
+            {stale ? <StaleNotice /> : null}
+            {truncated ? <TruncationNotice size={content.size} /> : null}
+          </>
+        }
+        onOpenFile={onOpenFile}
+      />
     );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {header}
+      {header()}
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {stateBody(state, {
           root,
@@ -181,6 +163,34 @@ function OpenFileView({
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * Video, audio and PDF stream from the raw-bytes route whatever the daemon classified them as
+ * (an all-ASCII PDF reads as text); the binary state stays the fallback when playback fails.
+ */
+function mediaBody(content: FileContentResponse, props: { root: FilesRootRef; path: string }) {
+  const kind = mediaPreviewKind(props.path);
+  if (kind === null) return null;
+  const url = rawFileUrl(props.root, props.path);
+  const fallback = <FileViewerBinaryState size={content.size} />;
+  if (kind === "pdf") {
+    return (
+      <Suspense fallback={<FileViewerLoadingState />}>
+        <FilePdfView url={url} title={basename(props.path)} fallback={fallback} />
+      </Suspense>
+    );
+  }
+  return (
+    <FileMediaPreview
+      kind={kind}
+      src={url}
+      title={basename(props.path)}
+      meta={formatFileSize(content.size)}
+      fallback={fallback}
+      data-testid={`file-viewer-${kind}`}
+    />
   );
 }
 
@@ -239,7 +249,16 @@ function stateBody(
         />
       );
     case "image_too_large":
-      return <FileViewerImageTooLargeState size={state.content.size} />;
+      // Past the inline cap the image streams from the raw-bytes route instead.
+      return (
+        <FileImagePreview
+          src={rawFileUrl(props.root, props.path)}
+          alt={basename(props.path)}
+          meta={formatFileSize(state.content.size)}
+          fallback={<FileViewerImageTooLargeState size={state.content.size} />}
+          data-testid="file-viewer-image"
+        />
+      );
     case "sensitive":
       return (
         <FileViewerSensitiveState
@@ -249,9 +268,9 @@ function stateBody(
         />
       );
     case "binary":
-      return <FileViewerBinaryState size={state.content.size} />;
+      return mediaBody(state.content, props) ?? <FileViewerBinaryState size={state.content.size} />;
     case "text":
-      return null;
+      return mediaBody(state.content, props);
   }
 }
 
@@ -261,6 +280,7 @@ export function FileViewerPane({
   target,
   onRevealInTree,
   onRefreshTree,
+  onOpenFile,
 }: FileViewerPaneProps) {
   if (!target) return <FileViewerSelectState />;
   if (target.kind === "outside") {
@@ -280,6 +300,7 @@ export function FileViewerPane({
       findSeed={target.find}
       onRevealInTree={onRevealInTree}
       onRefreshTree={onRefreshTree}
+      onOpenFile={onOpenFile}
     />
   );
 }

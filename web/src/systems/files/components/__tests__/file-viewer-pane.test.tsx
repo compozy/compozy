@@ -16,6 +16,7 @@ import {
   outsideViewerTarget,
   type FileViewerTarget,
 } from "../../lib/file-viewer-target";
+import { fileViewerModeStore } from "../../hooks/use-file-viewer-mode";
 import { FileViewerPane } from "../file-viewer-pane";
 import { FilesSearchResults } from "../files-search-results";
 import { OpenInButton } from "../open-in-button";
@@ -245,6 +246,153 @@ describe("FileViewerPane", () => {
     expect(await screen.findByRole("button", { name: "Open in Cursor" })).toBeInTheDocument();
     expect(localStorage.getItem("compozy.open-target")).toBe("cursor");
     localStorage.removeItem("compozy.open-target");
+  });
+
+  // Suite: rendered previews (#1605). Invariant: a file with a rendered form opens in its
+  // remembered mode (Preview by default), Source/Preview/Split stay one click or Cmd+Shift+V
+  // apart, relative references stay inside the same root, and media stream from the raw route.
+  describe("Preview", () => {
+    const MARKDOWN = [
+      "---",
+      "title: Guide",
+      "---",
+      "# Overview",
+      "",
+      "| Key | Value |",
+      "| --- | ----- |",
+      "| a   | 1     |",
+      "",
+      "```mermaid",
+      "graph TD; A-->B",
+      "```",
+      "",
+      "See [the setup](./setup.md#install) and ![diagram](../assets/flow.png).",
+    ].join("\n");
+    const RAW_PREFIX = "/api/workspaces/ws_1/sessions/sess-1/files/raw/";
+
+    function stubFile(path: string, body: Record<string, unknown>) {
+      stubContent(() => content({ path, size: 512, revision: "r1", ...body }));
+    }
+
+    afterEach(() => {
+      for (const kind of ["markdown", "svg", "table"] as const) {
+        fileViewerModeStore.trigger.modeChosen({ kind, mode: "preview" });
+      }
+    });
+
+    it("Should open Markdown rendered and keep relative links and images in the root", async () => {
+      stubFile("docs/guide.md", { kind: "text", text: MARKDOWN });
+      const onOpenFile = vi.fn();
+      renderPane(
+        <FileViewerPane
+          root={ROOT}
+          target={fileViewerTarget("docs/guide.md")}
+          onOpenFile={onOpenFile}
+        />
+      );
+      const preview = await screen.findByTestId("file-viewer-markdown-preview");
+      expect(screen.getByTestId("file-viewer-focus")).toHaveAttribute("data-mode", "preview");
+      expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
+      expect(preview.querySelector("table")).not.toBeNull();
+      expect(preview.textContent).toContain("title: Guide");
+      const image = screen.getByRole("img", { name: "diagram" });
+      expect(new URL(image.getAttribute("src") ?? "").pathname).toBe(
+        `${RAW_PREFIX}assets/flow.png`
+      );
+      fireEvent.click(screen.getByText("the setup"));
+      expect(onOpenFile).toHaveBeenCalledWith("docs/setup.md");
+    });
+
+    it("Should switch Source, Preview and Split, remembering the choice for the kind", async () => {
+      stubFile("README.md", { kind: "text", text: "# Readme\n" });
+      const view = renderPane(
+        <FileViewerPane root={ROOT} target={fileViewerTarget("README.md")} />
+      );
+      await screen.findByTestId("file-viewer-markdown-preview");
+      fireEvent.click(screen.getByTestId("file-viewer-mode-split"));
+      expect(screen.getByTestId("file-viewer-split")).toBeInTheDocument();
+      expect(screen.getByTestId("file-viewer-text")).toBeInTheDocument();
+      expect(screen.getByTestId("file-viewer-markdown-preview")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("file-viewer-mode-source"));
+      expect(screen.getByTestId("file-viewer-focus")).toHaveAttribute("data-mode", "source");
+      expect(screen.queryByTestId("file-viewer-markdown-preview")).toBeNull();
+
+      view.rerenderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("README.md")} />);
+      expect(await screen.findByTestId("file-viewer-focus")).toHaveAttribute("data-mode", "source");
+    });
+
+    it("Should flip Source and Preview with Cmd+Shift+V and show Find over the source", async () => {
+      stubFile("notes.md", { kind: "text", text: "# Notes\nfoo\n" });
+      renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("notes.md")} />);
+      const viewer = await screen.findByTestId("file-viewer-focus");
+      viewer.focus();
+      fireEvent.keyDown(viewer, { key: "v", code: "KeyV", metaKey: true, shiftKey: true });
+      expect(viewer).toHaveAttribute("data-mode", "source");
+      fireEvent.keyDown(viewer, { key: "v", code: "KeyV", metaKey: true, shiftKey: true });
+      expect(viewer).toHaveAttribute("data-mode", "preview");
+      fireEvent.keyDown(viewer, { key: "f", code: "KeyF", metaKey: true });
+      expect(viewer).toHaveAttribute("data-mode", "source");
+      expect(await screen.findByTestId("viewer-find-input")).toBeInTheDocument();
+    });
+
+    it("Should open at a line in Source, and offer no preview for truncated text", async () => {
+      stubFile("guide.md", { kind: "text", text: "# A\n\nb\n" });
+      const view = renderPane(
+        <FileViewerPane root={ROOT} target={fileViewerTarget("guide.md", 3)} />
+      );
+      expect(await screen.findByTestId("file-viewer-focus")).toHaveAttribute("data-mode", "source");
+      expect(screen.getByTestId("file-viewer-mode")).toBeInTheDocument();
+      view.unmount();
+
+      stubFile("huge.md", { kind: "text", text: "# A\n", truncated: true, size: 3 * 1024 * 1024 });
+      renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("huge.md")} />);
+      expect(await screen.findByTestId("file-viewer-truncated")).toBeInTheDocument();
+      expect(screen.queryByTestId("file-viewer-mode")).toBeNull();
+      expect(screen.getByTestId("file-viewer-focus")).toHaveAttribute("data-mode", "source");
+    });
+
+    it("Should show an SVG as an image and its markup in Source", async () => {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>';
+      stubFile("logo.svg", { kind: "image", image_mime: "image/svg+xml", image_base64: btoa(svg) });
+      renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("logo.svg")} />);
+      expect(await screen.findByRole("img", { name: "logo.svg" })).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("file-viewer-mode-source"));
+      expect(screen.getByTestId("file-viewer-text")).toBeInTheDocument();
+    });
+
+    it("Should render CSV as a table", async () => {
+      stubFile("data/people.csv", { kind: "text", text: "id,name\n1,ada\n" });
+      renderPane(<FileViewerPane root={ROOT} target={fileViewerTarget("data/people.csv")} />);
+      const table = await screen.findByTestId("file-viewer-table-preview");
+      expect(table).toHaveAttribute("data-row-count", "1");
+    });
+
+    it("Should stream video and oversized images from the raw-bytes route", async () => {
+      stubFile("media/demo.mp4", { kind: "binary", size: 80 * 1024 * 1024 });
+      const view = renderPane(
+        <FileViewerPane root={ROOT} target={fileViewerTarget("media/demo.mp4")} />
+      );
+      const video = (await screen.findByTestId("file-viewer-video")).querySelector("video");
+      expect(new URL(video?.getAttribute("src") ?? "").pathname).toBe(
+        `${RAW_PREFIX}media/demo.mp4`
+      );
+      view.unmount();
+
+      const workspaceRoot: FilesRootRef = {
+        kind: "workspace",
+        workspaceId: "ws_1",
+        worktreeId: "wt 1",
+      };
+      stubFile("shots/big.png", { kind: "image", image_mime: "image/png", truncated: true });
+      renderPane(
+        <FileViewerPane root={workspaceRoot} target={fileViewerTarget("shots/big.png")} />
+      );
+      const image = await screen.findByRole("img", { name: "big.png" });
+      expect(new URL(image.getAttribute("src") ?? "").pathname).toBe(
+        "/api/workspaces/ws_1/worktrees/wt%201/files/raw/shots/big.png"
+      );
+    });
   });
 
   describe("Find in file", () => {

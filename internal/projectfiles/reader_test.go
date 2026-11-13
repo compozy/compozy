@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -362,6 +363,104 @@ func TestReader(t *testing.T) {
 		got, err := r.Read(t.Context(), root, "inner", ReadOptions{})
 		if !errors.Is(err, ErrPathOutsideRoot) || got.Text != "" {
 			t.Fatalf("Read = %#v, %v", got, err)
+		}
+	})
+	// Open shares Read's confinement: the stream reaches only regular, non-sensitive files of root.
+	t.Run("Should confine Open like Read and refuse sensitive files", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		writeReaderFile(t, root, "safe.txt", "safe")
+		writeReaderFile(t, root, ".env", "SECRET")
+		for name, target := range map[string]string{"outside": "/etc/hosts", "alias.txt": ".env"} {
+			if err := os.Symlink(target, filepath.Join(root.AbsPath, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.Mkdir(filepath.Join(root.AbsPath, "dir"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		for path, want := range map[string]error{
+			"../x": ErrInvalidPath, ".git/config": ErrInvalidPath, "outside": ErrPathOutsideRoot,
+			"missing": ErrNotFound, "dir": ErrNotAFile, ".env": ErrSensitive, "alias.txt": ErrSensitive,
+		} {
+			got, err := NewReader().Open(t.Context(), root, path)
+			if !errors.Is(err, want) || got.Content != nil {
+				t.Fatalf("Open(%q) = %#v, %v; want %v", path, got, err, want)
+			}
+		}
+		swapped := NewReader()
+		link := filepath.Join(root.AbsPath, "inner")
+		if err := os.Symlink("safe.txt", link); err != nil {
+			t.Fatal(err)
+		}
+		swapped.open = func(confined *os.Root, path string) (*os.File, error) {
+			if err := os.Remove(link); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("/etc/hosts", link); err != nil {
+				t.Fatal(err)
+			}
+			return confined.Open(path)
+		}
+		if got, err := swapped.Open(t.Context(), root, "inner"); !errors.Is(err, ErrPathOutsideRoot) ||
+			got.Content != nil {
+			t.Fatalf("swapped Open = %#v, %v", got, err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := NewReader().Open(ctx, root, "safe.txt"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled Open error = %v", err)
+		}
+	})
+	t.Run("Should open a seekable stream that outlives the confined root", func(t *testing.T) {
+		t.Parallel()
+		root := readerRoot(t)
+		writeReaderFile(t, root, "media/clip.mp4", "0123456789")
+		modTime := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+		if err := os.Chtimes(filepath.Join(root.AbsPath, "media", "clip.mp4"), modTime, modTime); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NewReader().Open(t.Context(), root, "media/clip.mp4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := got.Content.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if got.Path != "media/clip.mp4" || got.Size != 10 || !got.ModTime.Equal(modTime) {
+			t.Fatalf("Open metadata = %#v", got)
+		}
+		if _, err := got.Content.Seek(4, io.SeekStart); err != nil {
+			t.Fatal(err)
+		}
+		tail, err := io.ReadAll(got.Content)
+		if err != nil || string(tail) != "456789" {
+			t.Fatalf("tail = %q, %v", tail, err)
+		}
+	})
+	t.Run("Should type raw bytes from the extension allowlist only", func(t *testing.T) {
+		t.Parallel()
+		for path, want := range map[string]struct {
+			mime   string
+			inline bool
+		}{
+			"logo.SVG":       {"image/svg+xml", true},
+			"clip.mov":       {"video/quicktime", true},
+			"song.opus":      {"audio/ogg", true},
+			"paper.pdf":      {"application/pdf", true},
+			"notes.ipynb":    {"text/plain; charset=utf-8", true},
+			"index.html":     {"application/octet-stream", false},
+			"app.mjs":        {"application/octet-stream", false},
+			"feed.xml":       {"application/octet-stream", false},
+			"no-extension":   {"application/octet-stream", false},
+			"archive.tar.gz": {"application/octet-stream", false},
+		} {
+			mime, inline := InlineMediaType(path)
+			if mime != want.mime || inline != want.inline {
+				t.Fatalf("InlineMediaType(%q) = %q, %v; want %q, %v", path, mime, inline, want.mime, want.inline)
+			}
 		}
 	})
 

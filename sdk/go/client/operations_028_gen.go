@@ -270,6 +270,36 @@ func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJ
 	return &out, nil
 }
 
+// ReadFileBytesParams carries the path, query, and header parameters.
+type ReadFileBytesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Path        string  `url:"path"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadFileBytes Stream project file bytes
+func (c *Client) ReadFileBytes(ctx context.Context, params ReadFileBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/files/raw/{path}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ReadFileContentParams carries the path, query, and header parameters.
 type ReadFileContentParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -340,6 +370,38 @@ func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSess
 	return &out, nil
 }
 
+// ReadSessionFileBytesParams carries the path, query, and header parameters.
+type ReadSessionFileBytesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Path        string  `url:"path"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadSessionFileBytes Stream session file bytes
+func (c *Client) ReadSessionFileBytes(ctx context.Context, params ReadSessionFileBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ReadSessionFileContentParams carries the path, query, and header parameters.
 type ReadSessionFileContentParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -383,44 +445,4 @@ type ReadTaskRunResultParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadTaskRunResult Read one exact byte page from a task-run result
-func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
-	path := "/api/task-runs/{id}/result"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Offset != nil {
-		query.Set("offset", strconv.Itoa(*params.Offset))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResultPageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadTerminalParams carries the path, query, and header parameters.
-type ReadTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	View        *string `url:"view"`
-	MaxBytes    *int    `url:"max_bytes"`
-	Grep        *string `url:"grep"`
-	SinceSeq    *string `url:"since_seq"`
-	From        *int    `url:"from"`
-	To          *int    `url:"to"`
-	Profile     *string `url:"profile"`
 }

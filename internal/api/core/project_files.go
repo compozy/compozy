@@ -17,6 +17,7 @@ import (
 type FileTreeReader interface {
 	List(context.Context, projectfiles.Root, string, projectfiles.ListOptions) (projectfiles.Listing, error)
 	Read(context.Context, projectfiles.Root, string, projectfiles.ReadOptions) (projectfiles.Content, error)
+	Open(context.Context, projectfiles.Root, string) (projectfiles.OpenedFile, error)
 }
 
 func (h *BaseHandlers) ListFileEntries(c *gin.Context)        { h.listProjectFiles(c) }
@@ -24,6 +25,12 @@ func (h *BaseHandlers) ListSessionFileEntries(c *gin.Context) { h.listProjectFil
 func (h *BaseHandlers) ReadFileContent(c *gin.Context)        { h.readProjectFile(c) }
 func (h *BaseHandlers) ReadSessionFileContent(c *gin.Context) { h.readProjectFile(c) }
 func (h *BaseHandlers) projectFileRoot(c *gin.Context) (projectfiles.Root, bool) {
+	return h.projectFileRootFor(c, c.Query("worktree_id"))
+}
+
+// projectFileRootFor resolves the workspace checkout, the named worktree, or the session's own
+// root; a session route always reads its session's worktree whatever worktreeID names.
+func (h *BaseHandlers) projectFileRootFor(c *gin.Context, worktreeID string) (projectfiles.Root, bool) {
 	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
 		return projectfiles.Root{}, false
@@ -33,7 +40,6 @@ func (h *BaseHandlers) projectFileRoot(c *gin.Context) (projectfiles.Root, bool)
 		h.respondProfileReadScopeError(c, err)
 		return projectfiles.Root{}, false
 	}
-	worktreeID := c.Query("worktree_id")
 	if sessionID := c.Param("session_id"); sessionID != "" {
 		info, err := h.requireSessionInWorkspace(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 		if err != nil || !readScope.Matches(info.ProfileID) {
@@ -206,13 +212,15 @@ func (h *BaseHandlers) projectFileError(c *gin.Context, err error) {
 		status, code, message = 403, "path_outside_root", "path is outside root"
 	case errors.Is(err, projectfiles.ErrPathDenied):
 		status, code, message = 403, "path_denied", "path cannot be shown"
+	case errors.Is(err, projectfiles.ErrSensitive):
+		status, code, message = 403, "sensitive_file", "sensitive file cannot be streamed"
 	case errors.Is(err, projectfiles.ErrRootUnavailable):
 		status, code, message = 409, "root_unavailable", "root is unavailable"
 	case errors.Is(err, projectfiles.ErrRootNotFound):
 		status, code, message = 404, "workspace_not_found", "root not found"
 		if c.Param("session_id") != "" {
 			code = sessionFilesSessionNotFoundCode
-		} else if c.Query("worktree_id") != "" {
+		} else if c.Param("worktree_id") != "" || c.Query("worktree_id") != "" {
 			code = "worktree_not_found"
 		}
 	case errors.Is(err, projectfiles.ErrNotFound):

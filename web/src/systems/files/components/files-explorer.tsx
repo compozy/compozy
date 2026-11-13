@@ -264,6 +264,7 @@ export function FilesExplorer({ root, target, onOpenFile, unavailableAction }: F
                 explorer.revealSelection();
               }}
               onRefreshTree={bridge.refresh}
+              onOpenFile={path => onOpenFile(path)}
             />
           </div>
         </ResizablePanel>

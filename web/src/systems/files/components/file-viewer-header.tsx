@@ -1,11 +1,53 @@
 import type { ReactNode } from "react";
 
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import {
+  Button,
+  ToggleGroup,
+  ToggleGroupItem,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 import { Copy, FolderTree, RefreshCw } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 
+import type { FileViewerMode } from "../lib/file-preview";
 import { formatFileSize } from "../lib/format-file-size";
+
+const MODE_LABELS: Record<FileViewerMode, string> = {
+  source: "Source",
+  preview: "Preview",
+  split: "Split",
+};
+
+/** Source / Preview / Split, for files with a rendered form (Cmd/Ctrl+Shift+V flips the first two). */
+function FileViewerModeToggle({
+  mode,
+  onModeChange,
+}: {
+  mode: FileViewerMode;
+  onModeChange: (mode: FileViewerMode) => void;
+}) {
+  return (
+    <ToggleGroup
+      size="sm"
+      aria-label="View"
+      value={[mode]}
+      onValueChange={value => {
+        const next = value[0];
+        if (next === "source" || next === "preview" || next === "split") onModeChange(next);
+      }}
+      data-testid="file-viewer-mode"
+    >
+      {(Object.keys(MODE_LABELS) as FileViewerMode[]).map(value => (
+        <ToggleGroupItem key={value} value={value} data-testid={`file-viewer-mode-${value}`}>
+          {MODE_LABELS[value]}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+}
 
 function HeaderAction({
   label,
@@ -51,6 +93,9 @@ export interface FileViewerHeaderProps {
   onRefresh: () => void;
   /** The Open in slot (desktop only); absent elsewhere. */
   openIn?: ReactNode;
+  /** The view mode, for files with a rendered form; the toggle is absent without it. */
+  mode?: FileViewerMode;
+  onModeChange?: (mode: FileViewerMode) => void;
 }
 
 /** Path (directory muted, basename emphasised), size, and the viewer's header actions. */
@@ -62,6 +107,8 @@ export function FileViewerHeader({
   onRevealInTree,
   onRefresh,
   openIn,
+  mode,
+  onModeChange,
 }: FileViewerHeaderProps) {
   const slash = path.lastIndexOf("/");
   const directory = slash < 0 ? "" : path.slice(0, slash + 1);
@@ -75,6 +122,9 @@ export function FileViewerHeader({
         <span className="text-muted-foreground">{directory}</span>
         <span className="text-fg">{name}</span>
       </p>
+      {mode && onModeChange ? (
+        <FileViewerModeToggle mode={mode} onModeChange={onModeChange} />
+      ) : null}
       {size !== undefined ? (
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {formatFileSize(size)}

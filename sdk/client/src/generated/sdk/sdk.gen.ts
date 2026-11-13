@@ -1236,12 +1236,18 @@ import type {
   QueryTerminalJournalData,
   QueryTerminalJournalErrors,
   QueryTerminalJournalResponses,
+  ReadFileBytesData,
+  ReadFileBytesErrors,
+  ReadFileBytesResponses,
   ReadFileContentData,
   ReadFileContentErrors,
   ReadFileContentResponses,
   ReadSessionAttachmentBytesData,
   ReadSessionAttachmentBytesErrors,
   ReadSessionAttachmentBytesResponses,
+  ReadSessionFileBytesData,
+  ReadSessionFileBytesErrors,
+  ReadSessionFileBytesResponses,
   ReadSessionFileContentData,
   ReadSessionFileContentErrors,
   ReadSessionFileContentResponses,
@@ -1254,6 +1260,9 @@ import type {
   ReadToolArtifactData,
   ReadToolArtifactErrors,
   ReadToolArtifactResponses,
+  ReadWorktreeFileBytesData,
+  ReadWorktreeFileBytesErrors,
+  ReadWorktreeFileBytesResponses,
   RecordCmdPaletteUsageData,
   RecordCmdPaletteUsageErrors,
   RecordCmdPaletteUsageResponses,
@@ -12302,6 +12311,24 @@ export class workspaces extends HeyApiClient {
   }
 
   /**
+   * Stream project file bytes
+   */
+  public readFileBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadFileBytesData, ThrowOnError>
+  ): RequestResult<ReadFileBytesResponses, ReadFileBytesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ReadFileBytesResponses,
+      ReadFileBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/files/raw/{path}",
+      ...options,
+    });
+  }
+
+  /**
    * Search project file contents
    */
   public searchFileContents<ThrowOnError extends boolean = true>(
@@ -12466,6 +12493,29 @@ export class workspaces extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find",
+      ...options,
+    });
+  }
+
+  /**
+   * Stream session file bytes
+   */
+  public readSessionFileBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadSessionFileBytesData, ThrowOnError>
+  ): RequestResult<
+    ReadSessionFileBytesResponses,
+    ReadSessionFileBytesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadSessionFileBytesResponses,
+      ReadSessionFileBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}",
       ...options,
     });
   }
@@ -13208,6 +13258,29 @@ export class workspaces extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Stream worktree file bytes
+   */
+  public readWorktreeFileBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadWorktreeFileBytesData, ThrowOnError>
+  ): RequestResult<
+    ReadWorktreeFileBytesResponses,
+    ReadWorktreeFileBytesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadWorktreeFileBytesResponses,
+      ReadWorktreeFileBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}",
+      ...options,
     });
   }
 }

@@ -28,3 +28,8 @@ export function isSearchChord(event: KeyChord): boolean {
 export function isFindChord(event: KeyChord): boolean {
   return primaryHeld(event) && !event.shiftKey && !event.altKey && keyIs(event, "f");
 }
+
+/** Cmd/Ctrl+Shift+V: flip Source ↔ Preview (viewer-scoped), matching editors' Markdown preview. */
+export function isPreviewChord(event: KeyChord): boolean {
+  return primaryHeld(event) && event.shiftKey && !event.altKey && keyIs(event, "v");
+}

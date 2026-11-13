@@ -1,0 +1,72 @@
+const ASSET_ATTRIBUTES: ReadonlyArray<readonly [selector: string, attribute: string]> = [
+  ["img[src], source[src], video[src], audio[src], track[src], input[src]", "src"],
+  ["video[poster]", "poster"],
+  ["link[href]", "href"],
+];
+
+const STRIPPED =
+  "script, noscript, iframe, frame, frameset, object, embed, applet, portal, base, meta[http-equiv], link[rel~='import'], link[rel~='prefetch'], link[rel~='preload'], form";
+const INLINE_HANDLER = /^on/i;
+
+function originOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The document the frame shows: the authored HTML with scripts, inline handlers, nested frames,
+ * forms and refreshes removed, a `<base>` for relative URLs, and a Content-Security-Policy that
+ * blocks scripts and every load except data URLs and `baseUrl`'s origin.
+ */
+export function prepareHtmlPreview(
+  html: string,
+  baseUrl?: string,
+  resolveAssetUrl?: (url: string) => string
+): string {
+  const document = new DOMParser().parseFromString(html, "text/html");
+  document.querySelectorAll(STRIPPED).forEach(node => node.remove());
+  for (const element of Array.from(document.querySelectorAll("*"))) {
+    for (const attribute of Array.from(element.attributes)) {
+      if (INLINE_HANDLER.test(attribute.name)) element.removeAttribute(attribute.name);
+    }
+  }
+  const origin = originOf(baseUrl);
+  const sources = origin ? `data: ${origin}` : "data:";
+  const policy = document.createElement("meta");
+  policy.httpEquiv = "Content-Security-Policy";
+  policy.content = [
+    "default-src 'none'",
+    "script-src 'none'",
+    `img-src ${sources}`,
+    `media-src ${sources}`,
+    `font-src ${sources}`,
+    `style-src 'unsafe-inline' ${sources}`,
+    "form-action 'none'",
+  ].join("; ");
+  document.head.prepend(policy);
+  if (origin && baseUrl) {
+    const base = document.createElement("base");
+    base.href = baseUrl;
+    policy.after(base);
+    if (resolveAssetUrl) {
+      for (const [selector, attribute] of ASSET_ATTRIBUTES) {
+        for (const element of Array.from(document.querySelectorAll(selector))) {
+          const value = element.getAttribute(attribute);
+          if (value === null || value.startsWith("data:")) continue;
+          try {
+            element.setAttribute(attribute, resolveAssetUrl(new URL(value, baseUrl).href));
+          } catch {
+            element.removeAttribute(attribute);
+          }
+        }
+      }
+      // `srcset` candidates would bypass the rewrite; `src` stays the image.
+      document.querySelectorAll("[srcset]").forEach(node => node.removeAttribute("srcset"));
+    }
+  }
+  return `<!doctype html>\n${document.documentElement.outerHTML}`;
+}

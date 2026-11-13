@@ -589,6 +589,26 @@ every public surface (SD-013); no delete targets in the public or user-state reg
   `APP-open-transcript-paths-in-editor`; new `ET-session-review-files`, `ET-session-review-changes`,
   `ET-files-app`, `APP-open-in-targets`, `ET-files-search`.
 
+## File viewer previews and raw file bytes — 2026-11-13
+
+Owner: issue #1605 (branch `feat/files-preview`). Additive (SD-013); no delete targets.
+
+- **HTTP / UDS / SDK:** three stable `GET` operations, `AppAccessAllowed` with profile read scope:
+  `readFileBytes` (`/api/workspaces/{workspace_id}/files/raw/{path}`), `readWorktreeFileBytes`
+  (`.../worktrees/{worktree_id}/files/raw/{path}`, worktree in the path so relative assets resolve),
+  and `readSessionFileBytes` (`.../sessions/{session_id}/files/raw/{path}`). `Range`/`If-Range`/
+  `If-None-Match` via `http.ServeContent`; extension-only `Content-Type` allowlist (html/js/xml are
+  `application/octet-stream` + `attachment`), `nosniff`, `sandbox` CSP, CORP `same-origin`,
+  `private, no-cache`, weak ETag. Sensitive files always `403 sensitive_file` (no reveal). HTTP only:
+  `Sec-Fetch-Site: cross-site|same-site` without an app token is `403`. OpenAPI and TS/Go SDKs
+  regenerated. The production web CSP is unchanged.
+- **Native tools / CLI / extensibility / hooks / config:** none.
+- **User state / workspace isolation:** no SQLite or migration. Streams reuse the reader's
+  confinement (`projectfiles.FileReader.Open` shares `Read`'s realpath, `os.Root`, regular-file, and
+  open-time identity checks); worktree and session roots resolve exactly as the content routes do.
+- **Web / Docs / skill:** Files viewer Source/Preview/Split (frontend half of #1605);
+  `packages/site/content/docs/files/{file-viewer,files-app}.mdx`; `skills/compozy/references/app-sdk.md`.
+
 ## Oversized invoked skills deferred to `compozy__skill_view`
 
 Owner: `fix/oversized-skill-deferred-delivery`. QA:

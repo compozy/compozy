@@ -69,52 +69,17 @@ func (r *FileReader) Read(ctx context.Context, root Root, path string, opts Read
 	if err := ctx.Err(); err != nil {
 		return Content{}, err
 	}
-	rel, sensitive, err := resolvePath(root, path)
+	opened, err := r.openConfined(root, path)
 	if err != nil {
 		return Content{}, err
 	}
-	confined, err := os.OpenRoot(root.AbsPath)
-	if err != nil {
-		return Content{}, ErrRootUnavailable
-	}
-	defer func() { err = errors.Join(err, confined.Close()) }()
-	info, err := confined.Stat(rel)
-	if err != nil {
-		return Content{}, ErrNotFound
-	}
-	if !info.Mode().IsRegular() {
-		return Content{}, ErrNotAFile
-	}
-	file, err := r.open(confined, rel)
-	if err != nil {
-		if errors.Is(err, ErrNotAFile) {
-			return Content{}, err
-		}
-		return Content{}, ErrPathOutsideRoot
-	}
-	defer func() { err = errors.Join(err, file.Close()) }()
-	info, err = file.Stat()
-	if err != nil {
-		return Content{}, ErrNotFound
-	}
-	if !info.Mode().IsRegular() {
-		return Content{}, ErrNotAFile
-	}
-	currentRel, currentSensitive, err := resolvePath(root, path)
-	if err != nil {
-		return Content{}, err
-	}
-	current, err := confined.Stat(currentRel)
-	if err != nil || !os.SameFile(info, current) {
-		return Content{}, ErrPathOutsideRoot
-	}
-	sensitive = sensitive || currentSensitive
-	result := Content{Path: path, Size: info.Size(), Sensitive: sensitive}
-	if sensitive && !opts.Reveal {
+	defer func() { err = errors.Join(err, opened.file.Close()) }()
+	result := Content{Path: path, Size: opened.info.Size(), Sensitive: opened.sensitive}
+	if opened.sensitive && !opts.Reveal {
 		result.Kind = ContentKindSensitive
 		return result, nil
 	}
-	data, err := io.ReadAll(io.LimitReader(file, ImageLimit+1))
+	data, err := io.ReadAll(io.LimitReader(opened.file, ImageLimit+1))
 	if err != nil {
 		return Content{}, ErrNotFound
 	}
@@ -122,6 +87,100 @@ func (r *FileReader) Read(ctx context.Context, root Root, path string, opts Read
 		return Content{}, err
 	}
 	return classifyContent(result, data, path), nil
+}
+
+// Open returns a seekable handle on one confined regular file for streaming. Sensitive files are
+// refused outright because a byte stream has no reveal step. The caller closes Content.
+func (r *FileReader) Open(ctx context.Context, root Root, path string) (OpenedFile, error) {
+	if err := ctx.Err(); err != nil {
+		return OpenedFile{}, err
+	}
+	opened, err := r.openConfined(root, path)
+	if err != nil {
+		return OpenedFile{}, err
+	}
+	if opened.sensitive {
+		return OpenedFile{}, errors.Join(ErrSensitive, opened.file.Close())
+	}
+	return OpenedFile{
+		Content: opened.file,
+		Path:    path,
+		Size:    opened.info.Size(),
+		ModTime: opened.info.ModTime(),
+	}, nil
+}
+
+type confinedFile struct {
+	file      *os.File
+	info      os.FileInfo
+	sensitive bool
+}
+
+// openConfined opens path beneath root and proves the descriptor is still the regular file the
+// path names. The os.Root closes before returning; the opened descriptor stays valid on its own.
+func (r *FileReader) openConfined(root Root, path string) (confinedFile, error) {
+	rel, sensitive, err := resolvePath(root, path)
+	if err != nil {
+		return confinedFile{}, err
+	}
+	confined, err := os.OpenRoot(root.AbsPath)
+	if err != nil {
+		return confinedFile{}, ErrRootUnavailable
+	}
+	opened, err := r.openWithin(confined, root, path, rel)
+	if closeErr := confined.Close(); closeErr != nil {
+		if err == nil {
+			closeErr = errors.Join(closeErr, opened.file.Close())
+		}
+		return confinedFile{}, errors.Join(err, closeErr)
+	}
+	if err != nil {
+		return confinedFile{}, err
+	}
+	opened.sensitive = opened.sensitive || sensitive
+	return opened, nil
+}
+
+func (r *FileReader) openWithin(confined *os.Root, root Root, path, rel string) (confinedFile, error) {
+	info, err := confined.Stat(rel)
+	if err != nil {
+		return confinedFile{}, ErrNotFound
+	}
+	if !info.Mode().IsRegular() {
+		return confinedFile{}, ErrNotAFile
+	}
+	file, err := r.open(confined, rel)
+	if err != nil {
+		if errors.Is(err, ErrNotAFile) {
+			return confinedFile{}, err
+		}
+		return confinedFile{}, ErrPathOutsideRoot
+	}
+	opened, err := verifyOpened(confined, root, path, file)
+	if err != nil {
+		return confinedFile{}, errors.Join(err, file.Close())
+	}
+	return opened, nil
+}
+
+// verifyOpened re-resolves path after the open so a swap between resolution and open is refused.
+func verifyOpened(confined *os.Root, root Root, path string, file *os.File) (confinedFile, error) {
+	info, err := file.Stat()
+	if err != nil {
+		return confinedFile{}, ErrNotFound
+	}
+	if !info.Mode().IsRegular() {
+		return confinedFile{}, ErrNotAFile
+	}
+	currentRel, currentSensitive, err := resolvePath(root, path)
+	if err != nil {
+		return confinedFile{}, err
+	}
+	current, err := confined.Stat(currentRel)
+	if err != nil || !os.SameFile(info, current) {
+		return confinedFile{}, ErrPathOutsideRoot
+	}
+	return confinedFile{file: file, info: info, sensitive: currentSensitive}, nil
 }
 func classifyContent(result Content, data []byte, path string) Content {
 	mime := http.DetectContentType(data[:min(len(data), 8192)])
