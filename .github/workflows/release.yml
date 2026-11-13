@@ -437,8 +437,16 @@ jobs:
             runner: ubuntu-22.04
             platform: linux
             arch: x64
+          - name: Windows x64
+            id: windows
+            runner: windows-latest
+            platform: win
+            arch: x64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
@@ -497,6 +505,8 @@ jobs:
             desktop/.artifacts/builder/*.zip
             desktop/.artifacts/builder/*.AppImage
             desktop/.artifacts/builder/*.deb
+            desktop/.artifacts/builder/*.exe
+            desktop/.artifacts/builder/*.blockmap
             desktop/.artifacts/builder/latest*.yml
           if-no-files-found: error
           retention-days: 7
@@ -523,8 +533,16 @@ jobs:
             runner: ubuntu-22.04
             platform: linux
             artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-linux-x64.AppImage
+          - name: Windows x64 NSIS
+            id: windows
+            runner: windows-latest
+            platform: win
+            artifact: CompozyOS-${{ needs.dry-run-identity.outputs.release_version }}-win-x64.exe
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -553,6 +571,7 @@ jobs:
           path: .artifacts/desktop
 
       - name: Provision from the transferred package
+        if: matrix.platform != 'win'
         env:
           RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
         run: |
@@ -561,6 +580,14 @@ jobs:
             ".artifacts/desktop/${{ matrix.artifact }}" \
             "${{ needs.dry-run-identity.outputs.release_version }}" \
             "${{ needs.dry-run-identity.outputs.release_version }}"
+
+      - name: Install and launch the Windows package
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: >-
+          ./scripts/smoke-desktop-release-windows.ps1
+          -Artifact '.artifacts/desktop/${{ matrix.artifact }}'
+          -Version '${{ needs.dry-run-identity.outputs.release_version }}'
 
       - name: Verify Linux AppImage extraction fallback
         if: matrix.platform == 'linux'
@@ -992,7 +1019,9 @@ jobs:
             "CompozyOS-${RELEASE_VERSION}-mac-x64.dmg" \
             "CompozyOS-${RELEASE_VERSION}-mac-x64.zip" \
             "CompozyOS-${RELEASE_VERSION}-linux-x64.AppImage" \
-            "CompozyOS-${RELEASE_VERSION}-linux-x64.deb"; do
+            "CompozyOS-${RELEASE_VERSION}-linux-x64.deb" \
+            "CompozyOS-${RELEASE_VERSION}-win-x64.exe" \
+            "CompozyOS-${RELEASE_VERSION}-win-x64.exe.blockmap"; do
             cp ".artifacts/desktop-build/${artifact}" ".artifacts/desktop/${artifact}"
           done
           go run ./cmd/compozy-desktop-release assert-inventory \
@@ -1239,6 +1268,9 @@ jobs:
       matrix: *desktop-release-matrix
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1328,8 +1360,30 @@ jobs:
             printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID_VALUE}"
           } >>"${GITHUB_ENV}"
 
+      - name: Require the existing Azure Windows signing identity
+        if: matrix.platform == 'win' && steps.reuse.outputs.available != 'true'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_PUBLISHER_NAME: ${{ vars.AZURE_PUBLISHER_NAME }}
+        run: |
+          $required = @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_CODE_SIGNING_ACCOUNT', 'AZURE_CERTIFICATE_PROFILE', 'AZURE_SIGNING_ENDPOINT', 'AZURE_PUBLISHER_NAME')
+          foreach ($name in $required) {
+            if (![Environment]::GetEnvironmentVariable($name)) { throw "Missing Windows signing configuration: $name" }
+          }
+
       - name: Generate release builder configuration
         if: steps.reuse.outputs.available != 'true'
+        env:
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ matrix.platform == 'win' && secrets.AZURE_CODE_SIGNING_ACCOUNT || '' }}
+          AZURE_CERTIFICATE_PROFILE: ${{ matrix.platform == 'win' && secrets.AZURE_CERTIFICATE_PROFILE || '' }}
+          AZURE_SIGNING_ENDPOINT: ${{ matrix.platform == 'win' && vars.AZURE_SIGNING_ENDPOINT || '' }}
+          AZURE_PUBLISHER_NAME: ${{ matrix.platform == 'win' && vars.AZURE_PUBLISHER_NAME || '' }}
         run: |
           bun run --cwd desktop release:config -- \
             --version "${{ needs.release-plan.outputs.release_version }}" \
@@ -1354,6 +1408,9 @@ jobs:
           COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
           COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
+          AZURE_TENANT_ID: ${{ matrix.platform == 'win' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.platform == 'win' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.platform == 'win' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
@@ -1361,6 +1418,7 @@ jobs:
             --config .artifacts/release-config.json \
             --${{ matrix.platform }} \
             --${{ matrix.arch }} \
+            --config.forceCodeSigning=${{ matrix.platform == 'win' }} \
             --publish never
 
       - name: Verify macOS provenance and updater archive
@@ -1377,6 +1435,21 @@ jobs:
             ".artifacts/builder/latest-mac.yml"
           bun run --cwd desktop release:verify-mac-zip -- \
             ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.zip"
+
+      - name: Verify Windows Authenticode signatures
+        if: matrix.platform == 'win' && steps.reuse.outputs.available != 'true'
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          $files = @(
+            "desktop/.artifacts/builder/CompozyOS-$env:RELEASE_VERSION-win-x64.exe",
+            'desktop/.artifacts/builder/win-unpacked/CompozyOS.exe',
+            'desktop/.artifacts/builder/win-unpacked/resources/runtime/compozy.exe'
+          )
+          foreach ($file in $files) {
+            if ((Get-AuthenticodeSignature $file).Status -ne 'Valid') { throw "Invalid signature: $file" }
+          }
 
       - name: Collect exact desktop artifacts
         if: steps.reuse.outputs.available != 'true'
@@ -1402,6 +1475,10 @@ jobs:
             test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-mac-${ARCH}.dmg"
             test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-mac-${ARCH}.zip"
             test -s "${ARTIFACT_DIR}/latest-mac-${ARCH}.yml"
+          elif [[ "${PLATFORM}" == "win" ]]; then
+            test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-win-x64.exe"
+            test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-win-x64.exe.blockmap"
+            test -s "${ARTIFACT_DIR}/latest.yml"
           else
             test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-linux-x64.AppImage"
             test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-linux-x64.deb"
@@ -1475,13 +1552,16 @@ jobs:
             "CompozyOS-${version}-mac-x64.dmg" \
             "CompozyOS-${version}-mac-x64.zip" \
             "CompozyOS-${version}-linux-x64.AppImage" \
-            "CompozyOS-${version}-linux-x64.deb"; do
+            "CompozyOS-${version}-linux-x64.deb" \
+            "CompozyOS-${version}-win-x64.exe" \
+            "CompozyOS-${version}-win-x64.exe.blockmap"; do
             cp ".artifacts/desktop/${artifact}" ".artifacts/authority/${artifact}"
           done
           bun run --cwd desktop release:prepare-channel -- \
             ../.artifacts/desktop/latest-mac-arm64.yml \
             ../.artifacts/desktop/latest-mac-x64.yml \
             ../.artifacts/desktop/latest-linux.yml \
+            ../.artifacts/desktop/latest.yml \
             ../.artifacts/channel \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}"
 
@@ -1505,7 +1585,7 @@ jobs:
             .operation == "publish" and
             (.channel_ref_after | length > 0) and
             (.audit_commit == .channel_ref_after) and
-            (.verified_inventory | length == 7) and
+            (.verified_inventory | length == 9) and
             (.outcome == "published" or .outcome == "already_completed")
           ' .artifacts/channel-publish-result.json >/dev/null
 
@@ -1534,8 +1614,16 @@ jobs:
             runner: ubuntu-22.04
             platform: linux
             artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-linux-x64.AppImage
+          - name: Windows x64 NSIS
+            id: windows
+            runner: windows-latest
+            platform: win
+            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-win-x64.exe
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1565,6 +1653,7 @@ jobs:
           path: .artifacts/desktop
 
       - name: Provision from an empty isolated home
+        if: matrix.platform != 'win'
         env:
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
@@ -1574,6 +1663,15 @@ jobs:
             ".artifacts/desktop/${{ matrix.artifact }}" \
             "${RELEASE_VERSION}" \
             "${RELEASE_VERSION}"
+
+      - name: Install and launch the Windows package
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: >-
+          ./scripts/smoke-desktop-release-windows.ps1
+          -Artifact '.artifacts/desktop/${{ matrix.artifact }}'
+          -Version '${{ needs.release-plan.outputs.release_version }}'
+          -RequireSignature
 
       - name: Verify Linux AppImage extraction fallback
         if: matrix.platform == 'linux'

@@ -4,8 +4,10 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 func (a *Authority) publishAndVerifyInventory(
@@ -32,12 +34,20 @@ func (a *Authority) publishAndVerifyInventory(
 	return a.verifyArtifacts(ctx, version, local)
 }
 
-func (a *Authority) verifyRemoteInventory(ctx context.Context, version string) ([]Artifact, error) {
+func (a *Authority) verifyRemoteInventory(ctx context.Context, commit ChannelCommit) ([]Artifact, error) {
+	version := commit.Generation.Version
 	remote, err := a.backend.ReleaseInventory(ctx, version)
 	if err != nil {
 		return nil, errorWithCode(ErrorVerificationFailed, err)
 	}
-	required := append(DesktopArtifactNames(version), CompatibilityFile)
+	required := DesktopArtifactNames(version)
+	if _, hasWindows := commit.Files[path.Join(ChannelDirectory, ManifestWindows)]; !hasWindows {
+		// Historical releases published only macOS and Linux packages.
+		required = slices.DeleteFunc(required, func(name string) bool {
+			return strings.HasSuffix(name, "-win-x64.exe") || strings.HasSuffix(name, "-win-x64.exe.blockmap")
+		})
+	}
+	required = append(required, CompatibilityFile)
 	byName := make(map[string]Artifact, len(remote))
 	for _, artifact := range remote {
 		if artifact.Size <= 0 {
@@ -58,6 +68,9 @@ func (a *Authority) verifyRemoteInventory(ctx context.Context, version string) (
 			)
 		}
 		artifacts = append(artifacts, artifact)
+	}
+	if err := bindWindowsManifestIntegrity(artifacts, commit, a.backend.Repository()); err != nil {
+		return nil, errorWithCode(ErrorVerificationFailed, err)
 	}
 	return a.verifyArtifacts(ctx, version, artifacts)
 }

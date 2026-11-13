@@ -453,6 +453,8 @@ function registerProtocol(): void {
 }
 
 registerProtocol();
+if (process.platform === "win32") app.setAppUserModelId("com.compozy.os");
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {

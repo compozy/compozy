@@ -26,7 +26,9 @@ validateReleaseConfig({ arch, channel, notarize: false, platform, version });
 const packages =
   platform === "mac"
     ? [`CompozyOS-${version}-mac-${arch}.dmg`, `CompozyOS-${version}-mac-${arch}.zip`]
-    : [`CompozyOS-${version}-linux-x64.AppImage`, `CompozyOS-${version}-linux-x64.deb`];
+    : platform === "win"
+      ? [`CompozyOS-${version}-win-x64.exe`, `CompozyOS-${version}-win-x64.exe.blockmap`]
+      : [`CompozyOS-${version}-linux-x64.AppImage`, `CompozyOS-${version}-linux-x64.deb`];
 const files = await readdir(source);
 const manifestCandidates = files.filter(file => /^latest.*\.ya?ml$/u.test(file));
 if (manifestCandidates.length !== 1) {
@@ -42,5 +44,10 @@ await mkdir(output, { recursive: true });
 for (const packageName of packages) {
   await copyFile(resolve(source, packageName), resolve(output, packageName));
 }
-const manifestName = platform === "mac" ? `latest-mac-${arch}.yml` : "latest-linux.yml";
+const manifestName =
+  platform === "mac"
+    ? `latest-mac-${arch}.yml`
+    : platform === "win"
+      ? "latest.yml"
+      : "latest-linux.yml";
 await copyFile(resolve(source, manifestCandidates[0]!), resolve(output, manifestName));

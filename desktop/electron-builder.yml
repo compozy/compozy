@@ -47,6 +47,22 @@ linux:
   target:
     - AppImage
     - deb
+win:
+  icon: build/icon.png
+  executableName: CompozyOS
+  target:
+    - target: nsis
+      arch:
+        - x64
+  verifyUpdateCodeSignature: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  differentialPackage: true
+afterSign: scripts/after-sign.cjs
 artifactName: CompozyOS-${version}-${os}-${arch}.${ext}
 publish:
   provider: generic

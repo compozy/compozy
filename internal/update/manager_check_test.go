@@ -326,10 +326,14 @@ func TestManagerCheck(t *testing.T) {
 
 	t.Run("Should refresh stale cache entries and persist the new latest release", func(t *testing.T) {
 		t.Parallel()
+		// Invariant: cache refresh preserves update availability for a supported direct-binary platform.
+		// Owner: Manager.Check; canonical suite: TestManagerCheck.
 
 		now := time.Date(2026, 5, 3, 22, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
 		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS:   runtimeOSLinux,
+			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
 				return now
 			},
@@ -387,6 +391,8 @@ func TestManagerCheck(t *testing.T) {
 
 			now := time.Date(2026, 5, 3, 23, 0, 0, 0, time.UTC)
 			manager, _ := newManagerWithExecutable(t, &Config{
+				RuntimeOS:   runtimeOSLinux,
+				RuntimeArch: runtimeArchAMD64,
 				Now: func() time.Time {
 					return now
 				},
@@ -505,6 +511,8 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 7, 27, 9, 0, 0, 0, time.UTC)
 		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
 			CurrentVersion: "v0.3.0-beta.1",
 			Now:            func() time.Time { return now },
 			HTTPClient: &http.Client{
@@ -566,6 +574,8 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
 			CurrentVersion: "v0.3.0-beta.38",
 			Now:            func() time.Time { return now },
 			HTTPClient: &http.Client{
@@ -791,6 +801,7 @@ func TestManagerCheck(t *testing.T) {
 				{Name: "CompozyOS-1.2.0-mac-arm64.zip"},
 				{Name: "CompozyOS-1.2.0-mac-x64.zip"},
 				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
+				{Name: "CompozyOS-1.2.0-win-x64.exe"},
 				{Name: "compozy_darwin_x86_64.tar.gz"},
 				{Name: checksumsAssetName},
 				{Name: checksumsBundleAssetName},
@@ -856,8 +867,13 @@ func TestManagerCheck(t *testing.T) {
 		}
 
 		windows := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
-		if _, err := windows.resolveAppReleaseAsset(t.Context(), release); err == nil {
-			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
+		asset, err := windows.resolveAppReleaseAsset(t.Context(), release)
+		if err != nil || asset.Name != "CompozyOS-1.2.0-win-x64.exe" {
+			t.Fatalf("resolveAppReleaseAsset(Windows) = %q, %v, want NSIS installer", asset.Name, err)
+		}
+		windowsARM := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchARM64}
+		if _, err := windowsARM.resolveAppReleaseAsset(t.Context(), release); err == nil {
+			t.Fatal("resolveAppReleaseAsset(Windows arm64) must reject an unpublished native architecture")
 		}
 	})
 

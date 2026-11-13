@@ -70,7 +70,7 @@ export class BootstrapRunner {
     signal?: AbortSignal
   ): Promise<BootstrapResult> {
     await verifyRuntimeBundle(this.#bundlePath, this.#manifestPath);
-    await ensurePrivateDirectory(dirname(this.#logPath));
+    await ensurePrivateDirectory(dirname(this.#logPath), true);
     const child = spawn(
       this.#bundlePath,
       [

@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import { randomBytes } from "node:crypto";
 import { chmod, lstat, realpath, rm, stat } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { basename, dirname, join } from "node:path";
@@ -12,6 +13,10 @@ import {
   ControlMethodError,
 } from "./control-contract";
 import { tokenMatches } from "./control-token";
+import { controlEndpoint, InvalidControlEndpointError } from "./control-endpoint";
+import { writeFileAtomic } from "../files/atomic-write";
+import { ensurePrivateDirectory } from "../files/private-directory";
+import { protectWindowsPipe } from "../files/windows-permissions";
 
 const MAXIMUM_REQUEST_BYTES = 64 * 1024;
 const MAXIMUM_CONNECTIONS = 64;
@@ -142,7 +147,9 @@ async function canonicalSocketPath(path: string): Promise<string> {
   if (process.getuid && canonicalMetadata.uid !== process.getuid()) {
     throw new Error("The app control directory is not owned by this user.");
   }
-  if ((canonicalMetadata.mode & 0o777) !== 0o700) {
+  if (process.platform === "win32") {
+    await ensurePrivateDirectory(canonicalParent);
+  } else if ((canonicalMetadata.mode & 0o777) !== 0o700) {
     throw new Error("The app control directory permissions must be 0700.");
   }
   return join(canonicalParent, basename(path));
@@ -169,11 +176,23 @@ async function removeStaleSocket(path: string): Promise<void> {
     if (errorCode(error) === "ENOENT") return;
     throw error;
   }
-  if (!metadata.isSocket()) throw new Error("The app control path is not a socket.");
+  if (process.platform === "win32" ? !metadata.isFile() : !metadata.isSocket()) {
+    throw new Error("The app control path is not a socket.");
+  }
   if (process.getuid && metadata.uid !== process.getuid()) {
     throw new Error("The stale app control socket is not owned by this user.");
   }
-  if (await socketIsLive(path)) throw new Error("Another app control server is already listening.");
+  let endpoint: string;
+  try {
+    endpoint = await controlEndpoint(path);
+  } catch (error) {
+    if (!(error instanceof InvalidControlEndpointError)) throw error;
+    await rm(path);
+    return;
+  }
+  if (await socketIsLive(endpoint)) {
+    throw new Error("Another app control server is already listening.");
+  }
   await rm(path);
 }
 
@@ -194,6 +213,10 @@ export class ControlServer {
   ): Promise<ControlServer> {
     const canonicalPath = await canonicalSocketPath(path);
     await removeStaleSocket(canonicalPath);
+    const endpoint =
+      process.platform === "win32"
+        ? `\\\\.\\pipe\\compozyos-${randomBytes(32).toString("hex")}`
+        : canonicalPath;
     const server = createServer({ allowHalfOpen: true }, socket => {
       void serveConnection(socket, token, handler).catch(error => {
         onError(error instanceof Error ? error : new Error(String(error)));
@@ -203,12 +226,20 @@ export class ControlServer {
     server.maxConnections = MAXIMUM_CONNECTIONS;
     await new Promise<void>((resolveListen, reject) => {
       server.once("error", reject);
-      server.listen(canonicalPath, () => {
+      server.listen(endpoint, () => {
         server.off("error", reject);
         resolveListen();
       });
     });
-    await chmod(canonicalPath, 0o600);
+    try {
+      if (process.platform === "win32") {
+        await protectWindowsPipe(endpoint);
+        await writeFileAtomic(canonicalPath, `${endpoint}\n`, 0o600);
+      } else await chmod(canonicalPath, 0o600);
+    } catch (error) {
+      await new Promise<void>(resolveClose => server.close(() => resolveClose()));
+      throw error;
+    }
     return new ControlServer(server, canonicalPath);
   }
 

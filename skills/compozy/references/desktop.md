@@ -182,3 +182,14 @@ Packaged Linux startup refreshes the URI association with the current executable
 An update whose pre-handoff deadline expired is settled by status reads and daemon recovery;
 reopening the desktop app is unnecessary. A dead or replaced holder process can be canceled
 while `applying`. Installer handoff and runtime replacement remain protected from cancellation.
+
+## Windows desktop distribution
+
+The Windows x64 desktop uses a per-user NSIS installer. It bundles `compozy.exe`; no WSL is
+required. The runtime lives at `%USERPROFILE%\.compozy\bin\compozy.exe` by default. A custom
+`COMPOZY_HOME` remains the authority for the app and CLI. Use the existing `app open`, `app status`,
+`app diagnose`, `app retry`, and `update` commands. The local app control uses a same-user named
+pipe discovered through the private `app.sock` file, with the existing rotated token. Do not treat
+that file as a Unix socket on Windows. App updates verify and run the signed installer and relaunch;
+standalone runtime archives still require manual replacement. Uninstalling the desktop preserves
+the CompozyOS home and workspace data.

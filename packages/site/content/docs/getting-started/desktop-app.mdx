@@ -6,6 +6,19 @@ description: Start CompozyOS from the desktop, attach to the local runtime, and 
 The desktop app and the `compozy` command use the same local daemon, configuration, workspaces,
 and session history.
 
+## Install on Windows
+
+Download `CompozyOS-<version>-win-x64.exe` from the
+[GitHub release](https://github.com/compozy/compozy/releases). Run the installer, choose an
+installation directory, and open **CompozyOS** from the Start menu. The Windows desktop targets
+Windows 10 version 1809 or later, x64. No separate Go, Node.js, Bun, or WSL installation is needed.
+Git and the native agent providers you choose must be available in the Windows environment.
+
+The installer runs for the current user without elevation. The app stores data in
+`%USERPROFILE%\.compozy` unless `COMPOZY_HOME` is set. Its bundled CLI is installed at
+`%USERPROFILE%\.compozy\bin\compozy.exe`; use that full path, or add the directory to your user
+`Path`. Uninstalling the desktop preserves that home, configuration, databases and workspace files.
+
 ## First run
 
 Every packaged app includes the matching CompozyOS runtime. First run does not need a network
@@ -107,6 +120,9 @@ Click **Update** in the menubar or Settings to download, install, and restart. I
 runtime, one app package carries both updates; the new app starts its bundled runtime. The app
 stays open while its native installer prepares the verified package. A closed app is staged for
 the next launch. Standalone runtime updates keep their existing update path.
+
+On Windows, the app verifies the signed NSIS installer, installs it, and relaunches automatically.
+Windows standalone CLI archives retain their existing manual replacement path.
 
 On Linux, automatic app-track installation is available only for the AppImage. A `.deb` install
 must be updated by downloading and installing the current `.deb` package over the existing app.
