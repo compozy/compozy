@@ -92,6 +92,8 @@ function visiblePaletteFallback(
     entities.sessions.length > 0 ||
     entities.tabs.length > 0 ||
     entities.worktrees.length > 0 ||
+    Boolean(entities.linkSessionId) ||
+    Boolean(entities.moveSessionId) ||
     domainSections.some(section => section.rows.length > 0);
   return fallback !== null && hasDirectResult ? null : fallback;
 }

@@ -1453,12 +1453,15 @@ describe("useOsPaletteRoot", () => {
       route: { pathname: "/agents/codex/sessions/session%3Afocused", search: {} },
     });
     paletteMocks.desktop = desktopFixture({ [focused.id]: focused }, focused.id);
+    paletteMocks.fallbackAgentEnabled = true;
     const onOpenChange = vi.fn();
     const { result } = renderRoot(true, onOpenChange);
     expect(result.current.entities.moveSessionId).toBeNull();
 
     act(() => result.current.setQuery("parent"));
     expect(result.current.entities.moveSessionId).toBe("session:focused");
+    // A matched focused-session command is a direct result: no agent fallback ahead of it.
+    expect(result.current.fallback).toBeNull();
 
     act(() => result.current.moveSession("session:focused"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
