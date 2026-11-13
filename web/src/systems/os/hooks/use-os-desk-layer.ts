@@ -46,15 +46,27 @@ export function useVisitedTabs(
   return tabIds.filter(tabId => kept.has(tabId));
 }
 
+export interface DeskTabPanes {
+  /** The tabs the desktop keeps mounted (`useVisitedTabs`), in bar order. */
+  visited: readonly TabId[];
+  /** Every window of the visited tabs; each renders its one pane into its host. */
+  paneWindowIds: readonly string[];
+  hostOf: (windowId: string) => HTMLElement;
+}
+
 /**
- * Every window of a desktop's visited tabs keeps one pane, keyed by window, never by tab or split
- * position: the pane renders into the window's host (`WindowPaneHosts`) and the split slot it
- * occupies adopts the host, so a window changing tab or position never remounts.
+ * The tabs a desktop keeps mounted and one pane for every window in them, keyed by window, never
+ * by tab or split position: the pane renders into the window's host (`WindowPaneHosts`) and the
+ * split slot it occupies adopts the host, so a window changing tab or position never remounts.
  */
-export function useWindowPaneHosts(
+export function useDeskTabPanes(
   tabs: readonly LayoutTab[],
-  visited: readonly TabId[]
-): { paneWindowIds: readonly string[]; hostOf: (windowId: string) => HTMLElement } {
+  shownTabId: TabId | null
+): DeskTabPanes {
+  const visited = useVisitedTabs(
+    tabs.map(tab => tab.id),
+    shownTabId
+  );
   const [hosts] = useState(() => new WindowPaneHosts());
   const paneWindowIds = visited.flatMap(tabId => {
     const tab = tabs.find(entry => entry.id === tabId);
@@ -64,7 +76,7 @@ export function useWindowPaneHosts(
   useEffect(() => {
     hosts.retain(new Set(paneKey === "" ? [] : paneKey.split("\n")));
   }, [hosts, paneKey]);
-  return { paneWindowIds, hostOf: windowId => hosts.hostOf(windowId) };
+  return { visited, paneWindowIds, hostOf: windowId => hosts.hostOf(windowId) };
 }
 
 /** Measures the one shared content area and lists each desktop with its active tab. */

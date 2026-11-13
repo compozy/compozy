@@ -7,8 +7,7 @@ import type { SessionPayload } from "@/systems/session";
 
 import {
   useOsDeskLayer,
-  useVisitedTabs,
-  useWindowPaneHosts,
+  useDeskTabPanes,
   type DeskDesktopModel,
   type OsDeskLayerModel,
 } from "../hooks/use-os-desk-layer";
@@ -190,11 +189,7 @@ function DeskLayer({
     drag.contentTabId !== null &&
     tabs.some(tab => tab.id === drag.contentTabId);
   const shownTabId = previewing ? drag.contentTabId : model.activeTabId;
-  const visited = useVisitedTabs(
-    tabs.map(tab => tab.id),
-    shownTabId
-  );
-  const { paneWindowIds, hostOf } = useWindowPaneHosts(tabs, visited);
+  const { visited, paneWindowIds, hostOf } = useDeskTabPanes(tabs, shownTabId);
   const renderWindow = (windowId: string) => (
     <OsWindowSlot key={windowId} host={hostOf(windowId)} />
   );
