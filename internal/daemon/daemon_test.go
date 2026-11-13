@@ -71,6 +71,23 @@ import (
 	"golang.org/x/sys/execabs"
 )
 
+type lockedHostedMCPBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedHostedMCPBuffer) Write(payload []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(payload)
+}
+
+func (b *lockedHostedMCPBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
+}
+
 func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "daemon.lock")
 

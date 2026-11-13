@@ -17,7 +17,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -2347,23 +2346,6 @@ func hostedMCPStdioEnv(stdio acpsdk.McpServerStdio) []string {
 		env = append(env, name+"="+entry.Value)
 	}
 	return env
-}
-
-type lockedHostedMCPBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (b *lockedHostedMCPBuffer) Write(payload []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.Write(payload)
-}
-
-func (b *lockedHostedMCPBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.String()
 }
 
 func sdkToolListContains(tools []*sdkmcp.Tool, name string) bool {
