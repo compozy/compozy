@@ -270,14 +270,10 @@ function installFailureMessage(cause: unknown): string {
 
 function findNetworkError(error: unknown, depth: number): string | undefined {
   if (!(error instanceof Error) || depth > 4) return undefined;
+  // An aggregate lists the failures it fell back from first; its last error ended the update.
+  if (error instanceof AggregateError) return findNetworkError(error.errors.at(-1), depth + 1);
   const code = /\bnet::ERR_[A-Z0-9_]+\b/u.exec(error.message)?.[0];
-  if (code) return code;
-  const nested = error instanceof AggregateError ? [...error.errors, error.cause] : [error.cause];
-  for (const candidate of nested) {
-    const found = findNetworkError(candidate, depth + 1);
-    if (found) return found;
-  }
-  return undefined;
+  return code ?? findNetworkError(error.cause, depth + 1);
 }
 
 async function withInstallerDeadline<T>(

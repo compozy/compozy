@@ -226,6 +226,7 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
   }
 }
 
+/** Keeps both causes; the release failure stays last because it ended the update. */
 function bothSourcesFailed(feedError: Error, releaseError: unknown): AggregateError {
   return new AggregateError(
     [feedError, releaseError],
