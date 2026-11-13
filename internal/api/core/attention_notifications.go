@@ -91,26 +91,23 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: valid notification snapshot is required"))
 		return
 	}
+	// The receipts are the commit point: every member of the frozen population is acknowledged in
+	// one statement or none is. Conversion sources live in the window-manager store, outside that
+	// transaction, so they follow the receipts and are idempotent: a failed source leaves this bell
+	// fully read and a retry with the same snapshot finishes it. Writing sources first let a partial
+	// failure clear some conversions for every bell while the rest stayed unread.
+	var ids []string
+	var err error
 	if population == attentionBellPopulation {
-		ids, err := observer.AttentionSnapshotOccurrences(c.Request.Context(), scope, request.Snapshot, request.ID)
-		if err == nil {
-			err = h.acknowledgeMigrationNotifications(c.Request.Context(), ids)
-		}
-		if err != nil {
-			status := http.StatusInternalServerError
-			if errors.Is(err, attention.ErrSnapshotUnavailable) {
-				status = http.StatusConflict
-			}
-			h.respondError(c, status, err)
-			return
-		}
+		ids, err = observer.AttentionSnapshotOccurrences(c.Request.Context(), scope, request.Snapshot, request.ID)
 	}
-	if err := observer.AcknowledgeAttentionSnapshot(
-		c.Request.Context(),
-		scope,
-		request.Snapshot,
-		request.ID,
-	); err != nil {
+	if err == nil {
+		err = observer.AcknowledgeAttentionSnapshot(c.Request.Context(), scope, request.Snapshot, request.ID)
+	}
+	if err == nil && population == attentionBellPopulation {
+		err = h.acknowledgeMigrationNotifications(c.Request.Context(), ids)
+	}
+	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, attention.ErrSnapshotUnavailable) {
 			status = http.StatusConflict

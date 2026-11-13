@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -1044,6 +1045,8 @@ type bellMigrationSource struct {
 	workspaces []windowmanager.WorkspaceID
 	reads      int
 	acked      []windowmanager.MigrationNotice
+	// fail makes the next acknowledgement of a partition fail once.
+	fail map[windowmanager.WorkspaceID]error
 }
 
 func (s *bellMigrationSource) MigrationNotifications(
@@ -1058,6 +1061,10 @@ func (s *bellMigrationSource) AcknowledgeMigrationNotification(
 	_ context.Context,
 	notice windowmanager.MigrationNotice,
 ) error {
+	if err := s.fail[notice.WorkspaceID]; err != nil {
+		delete(s.fail, notice.WorkspaceID)
+		return err
+	}
 	s.acked = append(s.acked, notice)
 	for i := range s.notices {
 		if s.notices[i].ProfileID == notice.ProfileID && s.notices[i].WorkspaceID == notice.WorkspaceID {
@@ -1283,6 +1290,57 @@ func TestAttentionNotificationLayoutUpgrades(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: the receipts commit the whole frozen population before any source write, so a
+	// failing source never leaves the reader's bell partly read and a same-snapshot retry finishes it.
+	t.Run("Should commit every receipt before sources and finish a failed source on retry", func(t *testing.T) {
+		t.Parallel()
+		source := &bellMigrationSource{fail: map[windowmanager.WorkspaceID]error{
+			windowmanager.UserDesktopWorkspaceID: errors.New("window store unavailable"),
+		}}
+		for _, partition := range []windowmanager.WorkspaceID{
+			windowmanager.UserDesktopWorkspaceID, windowmanager.GlobalDesktopWorkspaceID, "ws-1",
+		} {
+			n := notice(store.DefaultProfileID)
+			n.WorkspaceID = partition
+			source.notices = append(source.notices, n)
+		}
+		f := newBellMigrationFixture(t, source)
+		before := readBellMigrationNotifications(t, f, "profile=default")
+		if before.Total != 3 {
+			t.Fatalf("before=%+v", before)
+		}
+		body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ack := func() *httptest.ResponseRecorder {
+			return performRequest(t, f.Engine, http.MethodPost,
+				"/notifications/attention/acknowledge?profile=default&surface=bell", body)
+		}
+		if response := ack(); response.Code != http.StatusInternalServerError {
+			t.Fatalf("failed source ack status=%d body=%s", response.Code, response.Body.String())
+		}
+		if len(source.acked) != 2 {
+			t.Fatalf("a failing source stopped the others: acked=%+v", source.acked)
+		}
+		if reader := readBellMigrationNotifications(t, f, "profile=default"); reader.Total != 0 {
+			t.Fatalf("reader bell partly read: %+v", reader)
+		}
+		other := readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=marketing")
+		if other.Total != 1 || other.Items[0].WorkspaceID != string(windowmanager.UserDesktopWorkspaceID) {
+			t.Fatalf("other bell=%+v, want only the failed source", other)
+		}
+		if response := ack(); response.Code != http.StatusNoContent {
+			t.Fatalf("retry status=%d body=%s", response.Code, response.Body.String())
+		}
+		if len(source.acked) != 3 {
+			t.Fatalf("retry acked=%+v", source.acked)
+		}
+		other = readBellMigrationNotifications(t, f, "profile=marketing&receipt_profile=marketing")
+		if other.Total != 0 {
+			t.Fatalf("other bell after retry=%+v", other)
+		}
+	})
 	for _, tc := range []struct {
 		name    string
 		summary *windowmanager.MigrationSummary

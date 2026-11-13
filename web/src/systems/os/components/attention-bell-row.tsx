@@ -45,6 +45,13 @@ function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
   );
 }
 
+const INFO_TONE = "bg-info-tint text-info";
+
+/** A layout upgrade is news, not a request: the info tone the agent notices use. */
+export function LayoutUpgradeMark() {
+  return <NonSessionMark icon={PanelsTopLeft} tone={INFO_TONE} />;
+}
+
 function RowMark({ row }: { row: OsAttentionRow }) {
   switch (row.kind) {
     case "session":
@@ -69,9 +76,8 @@ function RowMark({ row }: { row: OsAttentionRow }) {
           tone={row.state === "waiting" ? NEEDS_YOU_TONE : "bg-warning-tint text-warning"}
         />
       );
-    // News, not a request: the info tone the agent notices use.
     case "layout-upgrade":
-      return <NonSessionMark icon={PanelsTopLeft} tone="bg-info-tint text-info" />;
+      return <LayoutUpgradeMark />;
   }
 }
 

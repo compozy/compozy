@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -93,14 +94,16 @@ func (h *BaseHandlers) acknowledgeMigrationNotifications(ctx context.Context, id
 	for _, id := range ids {
 		members[id] = true
 	}
+	// Every member is attempted: one failing source must not leave the others unacknowledged.
+	var errs []error
 	for _, notice := range notices {
 		if members[migrationNotificationID(notice)] {
 			if err := source.AcknowledgeMigrationNotification(ctx, notice); err != nil {
-				return err
+				errs = append(errs, fmt.Errorf("api: acknowledge layout upgrade %s: %w", notice.WorkspaceID, err))
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func migrationNotificationDetail(summary *windowmanager.MigrationSummary) string {

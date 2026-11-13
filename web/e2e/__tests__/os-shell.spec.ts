@@ -2804,6 +2804,19 @@ test("Tabs-split E2E-012: a v5 layout opens as tabs and the bell's upgrade item 
   await expect(toast).toContainText(description);
   await expect(notice).toHaveCount(0);
 
+  // Told once per client: a reload that lists the still-unread item again raises no second toast.
+  // Waited for after the reload, so only the new page's read of the list (or a later poll) counts.
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await appPage.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === "/api/notifications/attention" && response.ok()
+  );
+  await expect(osShellSelectors(appPage).tabs.first()).toBeVisible();
+  await appPage.evaluate(
+    () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  );
+  await expect(toast).toHaveCount(0);
+
   const peer = await openPeerPage(browser, runtime);
   try {
     await peer.locator(bellTrigger).click();

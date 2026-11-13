@@ -1,13 +1,15 @@
-import { PanelsTopLeft } from "@compozy/ui/icons";
 import { useEffect, useState } from "react";
 
-import { Icon, toast } from "@compozy/ui";
+import { toast } from "@compozy/ui";
 
+import { LayoutUpgradeMark } from "../components/attention-bell-row";
 import { ToastFrame } from "../components/attention-toast";
-import type { OsAttentionSections } from "../lib/attention-model";
+import type { OsAttentionSections, OsLayoutUpgradeAttentionRow } from "../lib/attention-model";
 import { takeUntoldLayoutUpgrades } from "../lib/layout-upgrade-toasts";
 
 const TOAST_DURATION_MS = 8_000;
+/** The bell's own copy for a conversion with no counts, which also stands for several at once. */
+const COALESCED_BODY = "Floating and minimized windows are tabs now.";
 
 export interface LayoutUpgradeToastOptions {
   sections: OsAttentionSections;
@@ -18,10 +20,16 @@ export interface LayoutUpgradeToastOptions {
   onOpenBell: () => void;
 }
 
+function occurrenceOf(row: OsLayoutUpgradeAttentionRow): string {
+  return row.notificationId ?? row.id;
+}
+
 /**
  * Toasts a workspace's move to tabs once, read from the bell's list rather than an edge: the item
  * is news that waits in the bell, so the toast only points at it. An occurrence the open bell
- * already shows, or one of a muted workspace, counts as told and never toasts later.
+ * already shows, or one of a muted workspace, counts as told and never toasts later. Occurrences
+ * that arrive together (a client opening after an upgrade over several workspaces) share one
+ * toast naming their workspaces, so the burst never stacks identical toasts.
  */
 export function useLayoutUpgradeToast({
   sections,
@@ -34,31 +42,28 @@ export function useLayoutUpgradeToast({
   useEffect(() => {
     const untold = takeUntoldLayoutUpgrades([...sections.needsYou, ...sections.finished], told);
     if (!toasts || bellOpen) return;
-    for (const row of untold) {
-      if (mutedWorkspaceIds.has(row.workspaceId)) continue;
-      toast.custom(
-        id => (
-          <ToastFrame
-            testId="os-attention-toast-layout-upgrade"
-            mark={
-              <span
-                aria-hidden="true"
-                className="grid size-4.5 shrink-0 place-items-center rounded-full bg-info-tint text-info"
-              >
-                <Icon as={PanelsTopLeft} size="xs" />
-              </span>
-            }
-            title={row.title}
-            body={row.reason}
-            meta={row.workspaceLabel}
-            onActivate={() => {
-              toast.dismiss(id);
-              onOpenBell();
-            }}
-          />
-        ),
-        { id: `layout-upgrade:${row.notificationId ?? row.id}`, duration: TOAST_DURATION_MS }
-      );
-    }
+    const shown = untold.filter(row => !mutedWorkspaceIds.has(row.workspaceId));
+    const [first] = shown;
+    if (!first) return;
+    const single = shown.length === 1;
+    toast.custom(
+      id => (
+        <ToastFrame
+          testId="os-attention-toast-layout-upgrade"
+          mark={<LayoutUpgradeMark />}
+          title={first.title}
+          body={single ? first.reason : COALESCED_BODY}
+          meta={[...new Set(shown.map(row => row.workspaceLabel))].join(" · ")}
+          onActivate={() => {
+            toast.dismiss(id);
+            onOpenBell();
+          }}
+        />
+      ),
+      {
+        id: `layout-upgrade:${shown.map(occurrenceOf).join(",")}`,
+        duration: TOAST_DURATION_MS,
+      }
+    );
   });
 }
