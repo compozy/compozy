@@ -4,23 +4,11 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import type { TerminalInfo } from "../types";
+import { useTerminalLimitWait } from "./use-terminal-limit-wait";
 import { useTerminalScopeCleanup } from "./use-terminal-scope-cleanup";
 import { useTerminalStore } from "./use-terminal-store";
 
 const EMPTY_WINDOWED: ReadonlySet<string> = new Set();
-
-/**
- * An id-less window that found the project at its cap. `waiting` opens the
- * terminal as soon as a slot frees, `claimed` took that slot and is opening it,
- * and `dismissed` gave up and shows the empty state. Keyed to the arrival it
- * belongs to, so it never leaks across scopes.
- */
-interface LimitWait {
-  key: string;
-  status: "waiting" | "claimed" | "dismissed";
-  /** The limit dialog's own Close was used: its dismissal keeps the wait. */
-  closeRequested: boolean;
-}
 
 function hasTerminal(terminals: readonly TerminalInfo[], id: string): boolean {
   return terminals.some(terminal => terminal.id === id);
@@ -101,7 +89,6 @@ export function useTerminalWindowAppState({
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
   const [journalOpen, setJournalOpen] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
-  const [limitWait, setLimitWait] = useState<LimitWait | null>(null);
   // Interaction state belongs to one `(workspace, profile)`: a dialog opened
   // for one project must not survive into another. Compared during render so
   // there is never a frame where the stale dialog shows over the new scope.
@@ -134,9 +121,15 @@ export function useTerminalWindowAppState({
   // StrictMode's doubled effect land on the same key and are ignored, while
   // navigating away and back produces a new arrival.
   const resolutionKey = `${scope}::${requestedTerminalId ?? "auto"}`;
-  const currentWait = awaitingRoute && limitWait?.key === resolutionKey ? limitWait : null;
-  const waitingForSlot = currentWait?.status === "waiting";
-  const resolving = awaitingRoute && currentWait?.status !== "dismissed";
+  const limitWait = useTerminalLimitWait({
+    awaitingRoute,
+    resolutionKey,
+    atLimit,
+    setLimitOpen,
+    onOpenTerminal: actions.onOpenTerminal,
+    onCloseTerminal: actions.onCloseTerminal,
+  });
+  const resolving = awaitingRoute && !limitWait.dismissed;
 
   // The daemon refuses a create at the cap, so the offer becomes the way out.
   // A window with no terminal of its own keeps waiting behind the dialog.
@@ -144,9 +137,7 @@ export function useTerminalWindowAppState({
     actions.onOpenTerminal && !readOnly
       ? () => {
           if (atLimit) {
-            if (awaitingRoute) {
-              setLimitWait({ key: resolutionKey, status: "waiting", closeRequested: false });
-            }
+            limitWait.wait();
             setLimitOpen(true);
             return;
           }
@@ -154,23 +145,8 @@ export function useTerminalWindowAppState({
         }
       : undefined;
 
-  const changeLimitOpen = (open: boolean) => {
-    setLimitOpen(open);
-    if (open) return;
-    // Dismissed without freeing a slot: stop waiting and offer the empty state.
-    setLimitWait(wait =>
-      wait?.status === "waiting" && !wait.closeRequested ? { ...wait, status: "dismissed" } : wait
-    );
-  };
-  const closeLimitTerminal = (terminalId: string) => {
-    setLimitWait(wait => (wait?.status === "waiting" ? { ...wait, closeRequested: true } : wait));
-    actions.onCloseTerminal(terminalId);
-  };
-
   const lastResolutionKeyRef = useRef<string | null>(null);
   const resolveDestination = useEffectEvent(() => {
-    // A new arrival starts clean; the open below re-arms the wait at the cap.
-    setLimitWait(null);
     const adoptable = createIntent
       ? null
       : latestUnwindowedRunning(terminals, profile, windowedTerminalIds);
@@ -196,26 +172,6 @@ export function useTerminalWindowAppState({
     resolveDestination();
   }, [awaitingRoute, resolveReady, resolutionKey]);
 
-  // The live catalog is the signal: a close from the dialog, another window or
-  // the CLI drops the running count, and a waiting window claims the slot.
-  // Adjusted during render, like the scope reset above, so the dialog never
-  // shows over a window that already took its slot.
-  if (waitingForSlot && !atLimit && currentWait !== null) {
-    setLimitWait({ ...currentWait, status: "claimed" });
-    setLimitOpen(false);
-  }
-  const claimedWait = currentWait?.status === "claimed" ? currentWait : null;
-  // Creating the terminal is the daemon synchronization; once per claim.
-  const lastClaimRef = useRef<LimitWait | null>(null);
-  const openClaimedSlot = useEffectEvent(() => {
-    actions.onOpenTerminal?.();
-  });
-  useEffect(() => {
-    if (claimedWait === null || lastClaimRef.current === claimedWait) return;
-    lastClaimRef.current = claimedWait;
-    openClaimedSlot();
-  }, [claimedWait]);
-
   return {
     active,
     activeProfile,
@@ -233,8 +189,8 @@ export function useTerminalWindowAppState({
     missingRequested,
     resolving,
     openTerminal,
-    setLimitOpen: changeLimitOpen,
-    closeLimitTerminal,
+    setLimitOpen: limitWait.changeLimitOpen,
+    closeLimitTerminal: limitWait.closeLimitTerminal,
   };
 }
 
