@@ -21,8 +21,9 @@ overlaps: ET-window-tab-close-reopen
 Added 2026-08-07 by the deck uniform-width change: tab width moved off the tab (content-sized,
 title-dependent) onto the deck's per-tab slot. Root cause of the old variance: the minimum-width
 token used the `--width-*` namespace, which cannot generate Tailwind's `min-w-*` utility, so tabs
-were purely content-sized. The token now uses the canonical `--min-width-*` namespace; the slot
-carries `w-deck-tab-max` + `min-w-deck-tab`, and the tab fills it.
+were purely content-sized. That fix used the deck tokens, which were deleted with tabs and splits
+(2026-11-13): tab widths now come from `TAB_MAX_WIDTH` (224px) and `TAB_MIN_WIDTH` (40px) in
+`web/src/systems/os/lib/tab-width.ts`, which the tab bar applies as each tab plate's width.
 
 Walked 2026-08-07 against rendered Storybook visual contracts (MSW-backed): CDP measurement of
 VC-04 (7 unpinned tabs, mixed short/long titles) returned 118px for all seven slots with computed

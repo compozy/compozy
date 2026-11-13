@@ -299,7 +299,6 @@ tokens:
       chip: "7px"
       mono-badge: "4px"
       icon-well: "7px"
-      deck-tab: "9px"
     motion:
       distance:
         item-enter: "4px"
@@ -451,14 +450,8 @@ tokens:
       width-traffic-lights: "84px"
       height-window-head: "48px"
       height-window-toolbar: "44px"
-      size-seam-hit: "9px"
-      height-deck: "40px"
-      height-deck-tab: "32px"
-      min-width-deck-tab: "136px"
-      width-deck-tab-max: "208px"
       size-deck-glyph: "13px"
       min-width-deck-badge: "14px"
-      size-deck-close: "20px"
       height-setup-head: "52px"
       height-setup-steps: "44px"
       height-setup-footer: "58px"
@@ -1009,7 +1002,7 @@ widths come from `--site-*` tokens.
 | `--radius-md`        | `10px` | `--radius-lg`         | `14px`   |
 | `--radius-xl`        | `20px` | `--radius-pill`       | `9999px` |
 | `--radius-chip`      | `7px`  | `--radius-mono-badge` | `4px`    |
-| `--radius-icon-well` | `7px`  | `--radius-deck-tab`   | `9px`    |
+| `--radius-icon-well` | `7px`  |                       |          |
 
 <!-- END:tokens:radii -->
 
@@ -1055,9 +1048,7 @@ widths come from `--site-*` tokens.
 | `--height-modal-md`                  | `760px`                          | `--height-modal-tall`                   | `900px`                                                     | `--height-modal-wizard`                    | `960px`   |
 | `--height-modal-xl`                  | `840px`                          | `--width-rail`                          | `60px`                                                      | `--size-rail-item`                         | `40px`    |
 | `--height-menubar`                   | `52px`                           | `--width-traffic-lights`                | `84px`                                                      | `--height-window-head`                     | `48px`    |
-| `--height-window-toolbar`            | `44px`                           | `--size-seam-hit`                       | `9px`                                                       | `--height-deck`                            | `40px`    |
-| `--height-deck-tab`                  | `32px`                           | `--min-width-deck-tab`                  | `136px`                                                     | `--width-deck-tab-max`                     | `208px`   |
-| `--size-deck-glyph`                  | `13px`                           | `--min-width-deck-badge`                | `14px`                                                      | `--size-deck-close`                        | `20px`    |
+| `--height-window-toolbar`            | `44px`                           | `--size-deck-glyph`                     | `13px`                                                      | `--min-width-deck-badge`                   | `14px`    |
 | `--height-setup-head`                | `52px`                           | `--height-setup-steps`                  | `44px`                                                      | `--height-setup-footer`                    | `58px`    |
 | `--height-setup-split`               | `300px`                          | `--height-setup-row`                    | `30px`                                                      | `--size-setup-step-marker`                 | `18px`    |
 | `--width-setup-panel`                | `660px`                          | `--width-setup-panel-wide`              | `960px`                                                     | `--overlay-blur`                           | `3px`     |

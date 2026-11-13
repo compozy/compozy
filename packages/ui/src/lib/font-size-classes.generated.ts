@@ -63,7 +63,6 @@ export const fontSizeClasses = [
 // project scale lets a caller's `rounded-*` replace a variant's `rounded-pill`.
 export const radiusScale = [
   "chip",
-  "deck-tab",
   "icon-well",
   "lg",
   "md",
@@ -95,12 +94,8 @@ export const sizingScale = [
   "control-compact",
   "count-chip",
   "count-chip-sm",
-  "deck",
   "deck-badge",
-  "deck-close",
   "deck-glyph",
-  "deck-tab",
-  "deck-tab-max",
   "detail-inspector-inline",
   "editor-footer",
   "empty-icon",
@@ -128,7 +123,6 @@ export const sizingScale = [
   "qr-code-sm",
   "rail",
   "rail-item",
-  "seam-hit",
   "search",
   "search-input",
   "search-input-floor",

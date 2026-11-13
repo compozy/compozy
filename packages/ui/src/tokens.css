@@ -478,7 +478,7 @@
 
   /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
      `--min-width-*` / `--size-*` namespaces so Tailwind generates bare utilities
-     (`h-button-default`, `min-w-deck-tab`, `size-button-icon-xs`, `w-modal-md`,
+     (`h-button-default`, `min-w-deck-badge`, `size-button-icon-xs`, `w-modal-md`,
      etc.). Per L-023 these scale tokens stay in `@theme`; only truly bespoke
      component-internal values (pill-group / modal widths used pre-L-024) live in
      `:root` with explicit lint allowlist entries. */
@@ -651,10 +651,6 @@
   --height-modal-wizard: 960px;
   --height-modal-xl: 840px;
 
-  /* Shell chrome is flat (DESIGN.md §5): no glass, no backdrop blur. The deck
-     tab radius is the only shell-specific corner. */
-  --radius-deck-tab: 9px;
-
   /* Shell motion tier — chrome-scale spatial transitions (window entry,
      desktop switches, minimize travel) above the base ladder; one spring. */
   --duration-shell-fast: 120ms;
@@ -670,7 +666,7 @@
   --distance-workspaces-menu-entry: -3px;
   --distance-workspaces-caption-entry: 3px;
 
-  /* Shell chrome geometry — rail + menubar + deck (shell v2). The menubar's
+  /* Shell chrome geometry — rail + menubar (shell v2). The menubar's
      first 84px are reserved for the frameless window's traffic lights. */
   --width-rail: 60px;
   --size-rail-item: 40px;
@@ -679,16 +675,9 @@
   --height-window-head: 48px;
   /* Filter / view toolbar strip under the window head (OsWindowToolbar). */
   --height-window-toolbar: 44px;
-  --size-seam-hit: 9px;
-  /* The deck — 40px browser-tab strip above the window head; tabs shrink
-     from 208px to 136px. */
-  --height-deck: 40px;
-  --height-deck-tab: 32px;
-  --min-width-deck-tab: 136px;
-  --width-deck-tab-max: 208px;
+  /* Glyph and badge sizes shared by compact rows and palette sections. */
   --size-deck-glyph: 13px;
   --min-width-deck-badge: 14px;
-  --size-deck-close: 20px;
 
   /* Compact canvas faces in Settings layouts. */
   --text-workspace-avatar: 9px;
