@@ -33,7 +33,6 @@ function startedStore() {
     seam: SEAM,
     revision: 12,
     contextKey: "binding|desktop/tab|area",
-    weightsKey: "0.5,0.5",
   });
   return store;
 }
@@ -91,7 +90,7 @@ describe("seamDragLogic", () => {
       trailingWeight: 0.4,
     };
 
-    store.trigger.rebased({ seam: moved, revision: 13, weightsKey: "0.6,0.4" });
+    store.trigger.rebased({ seam: moved, revision: 13 });
 
     // The seam was shown at 500 + 60 = 560: from 600 that is -40, and the pointer still owns it.
     expect(store.getSnapshot().context).toMatchObject({ deltaPx: -40, revision: 13, seam: moved });

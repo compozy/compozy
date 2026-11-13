@@ -12,7 +12,7 @@ export const SEAM_WEIGHT_EPSILON = 0.000001;
  * One seam drag. Everything the commit needs is captured at press: the seam's geometry, the
  * layout revision the drag was authored against, and the context it was drawn in (binding,
  * shown desktop and tab, work area). A drag whose context changes is cancelled, never committed.
- * When the split's weights change under a drag that continues, the whole gesture is re-based on
+ * When the seam's layout changes under a drag that continues, the whole gesture is re-based on
  * the latest layout, so preview, limit and commit always share one seam.
  */
 export interface SeamDragState {
@@ -24,8 +24,6 @@ export interface SeamDragState {
   seam: ProjectedSeam | null;
   revision: LayoutRevision | null;
   contextKey: string | null;
-  /** The split's committed weights `seam` was laid out from. */
-  weightsKey: string | null;
   /** Why the last drag ended without a commit; null after a commit or before any drag. */
   cancelReason: GestureCancelReason | null;
 }
@@ -37,13 +35,12 @@ export type SeamDragEvents = {
     seam: ProjectedSeam;
     revision: LayoutRevision;
     contextKey: string;
-    weightsKey: string;
   };
   /**
-   * The split changed under the drag: `seam` is its latest unpreviewed layout at `revision`. The
+   * The seam's layout changed under the drag: `seam` is its latest unpreviewed layout at `revision`. The
    * pointer is re-anchored so the seam on screen stays under it.
    */
-  rebased: { seam: ProjectedSeam; revision: LayoutRevision; weightsKey: string };
+  rebased: { seam: ProjectedSeam; revision: LayoutRevision };
   pointerMoved: { pointerId: number; coordinate: number };
   dragEnded: { pointerId: number };
   dragCancelled: { reason: GestureCancelReason };
@@ -58,7 +55,6 @@ function idleSeamDrag(cancelReason: GestureCancelReason | null): SeamDragState {
     seam: null,
     revision: null,
     contextKey: null,
-    weightsKey: null,
     cancelReason,
   };
 }
@@ -76,7 +72,6 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
         seam: event.seam,
         revision: event.revision,
         contextKey: event.contextKey,
-        weightsKey: event.weightsKey,
         cancelReason: null,
       };
     },
@@ -89,7 +84,6 @@ export const seamDragLogic = createStoreLogic<SeamDragState, SeamDragEvents>({
         deltaPx: state.deltaPx - shift,
         seam: event.seam,
         revision: event.revision,
-        weightsKey: event.weightsKey,
       };
     },
     pointerMoved: (state, event) => {

@@ -1886,6 +1886,25 @@ function SeamHarness({
  */
 function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): WindowManagerSnapshot {
   const windowIds = ["window:primary", "window:peer", "window:third"].slice(0, weights.length);
+  return snapshotWithRoot(
+    {
+      id: "split:main",
+      kind: "split",
+      axis: "horizontal",
+      weights,
+      children: windowIds.map(id => leafNode(id)),
+    },
+    windowIds,
+    revision
+  );
+}
+
+/** The authoritative snapshot with one tab over this root, its windows of no catalog app. */
+function snapshotWithRoot(
+  root: LayoutNode,
+  windowIds: readonly string[],
+  revision: number
+): WindowManagerSnapshot {
   return {
     ...SNAPSHOT,
     revision,
@@ -1903,20 +1922,7 @@ function snapshotWithSplit(weights: number[], revision = SNAPSHOT.revision): Win
         },
       ])
     ),
-    desktops: [
-      desktopWith([
-        {
-          id: "tab:main",
-          root: {
-            id: "split:main",
-            kind: "split",
-            axis: "horizontal",
-            weights,
-            children: windowIds.map(id => leafNode(id)),
-          },
-        },
-      ]),
-    ],
+    desktops: [desktopWith([{ id: "tab:main", root }])],
   };
 }
 
@@ -1930,7 +1936,7 @@ const EXACT_SEAM: ProjectedSeam = {
 
 // Invariant: a seam drag commits one `layout.resize` fenced to the revision and split it is based
 // on; Escape, a cancelled or lost pointer, unmounting and a change of the context it was drawn in
-// — including the split's weights changed by someone else — (US-009.EC-2) cancel it, restore the
+// — including the seam's layout (own, ancestor or minimums) changed by someone else — (US-009.EC-2) cancel it, restore the
 // shares and send nothing. While this client has a command in flight on the split, the drag is
 // re-based on the latest layout instead and its release waits for that command, so what it sends
 // always equals what its preview showed, clamp included (US-009.EC-1). Keyboard and pair-balance
@@ -1947,16 +1953,10 @@ describe("useOsSplitSeam gesture lifecycle", () => {
     });
   }
 
-  function startSeamDrag(snapshot: WindowManagerSnapshot = SNAPSHOT) {
-    const shell = createShell();
-    shell.setRuntimeState({ snapshot, activeTabIds: { "desktop:main": "tab:main" } });
-    frames = [];
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      frames.push(callback);
-      return frames.length;
-    });
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    const { unmount } = render(<SeamHarness seam={SEAM} />, { wrapper: shell.wrapper });
+  /** A drag on the seam the snapshot really lays out, 60px past its 500px place. */
+  function startSeamDrag(snapshot: WindowManagerSnapshot = snapshotWithSplit([0.5, 0.5])) {
+    const shell = exactShell(snapshot);
+    const { unmount } = render(<SeamHarness seam={EXACT_SEAM} />, { wrapper: shell.wrapper });
     const seam = stubPointerCapture(screen.getByTestId("seam"));
     fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 500, clientY: 300 });
     fireEvent.pointerMove(seam, { pointerId: 4, clientX: 560, clientY: 300 });
@@ -2005,9 +2005,11 @@ describe("useOsSplitSeam gesture lifecycle", () => {
   it("Should commit one resize fenced to the revision the drag started from", async () => {
     const { shell, seam } = startSeamDrag();
 
-    // Another client changes the layout mid-drag: the commit still names the press revision and
-    // the seam's split, so the daemon applies it only while that split is still there.
-    act(() => shell.setRuntimeState({ snapshot: { ...SNAPSHOT, revision: 9 } }));
+    // Another client changes something that leaves this seam where it was: the drag carries on,
+    // and its commit still names the press revision and the seam's split, so the daemon applies
+    // it only while that split is still there.
+    act(() => shell.setRuntimeState({ snapshot: snapshotWithSplit([0.5, 0.5], 9) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
     fireEvent.pointerUp(seam, { pointerId: 4, clientX: 560, clientY: 300 });
 
     expect(shell.controller.resizeLayout).toHaveBeenCalledExactlyOnceWith(
@@ -2279,6 +2281,61 @@ describe("useOsSplitSeam gesture lifecycle", () => {
       expect.closeTo(0.16),
       fenceAt(8)
     );
+  });
+
+  it("Should cancel when someone else moves an ancestor of the dragged seam, and keep a drag the layout leaves in place", () => {
+    // [[a | b] | c] on one axis: the inner seam's place and bounds follow the outer weights too.
+    const nested = (outer: number[], revision: number) =>
+      snapshotWithRoot(
+        {
+          id: "split:outer",
+          kind: "split",
+          axis: "horizontal",
+          weights: outer,
+          children: [
+            {
+              id: "split:inner",
+              kind: "split",
+              axis: "horizontal",
+              weights: [0.5, 0.5],
+              children: [leafNode("window:a"), leafNode("window:b")],
+            },
+            leafNode("window:c"),
+          ],
+        },
+        ["window:a", "window:b", "window:c"],
+        revision
+      );
+    const shell = exactShell(nested([0.6, 0.4], SNAPSHOT.revision));
+    const inner: ProjectedSeam = {
+      ...EXACT_SEAM,
+      id: "split:inner:0",
+      splitId: "split:inner",
+      rect: { x: 300, y: 0, w: 0, h: 700 },
+      value: 300,
+      minValue: 220,
+      maxValue: 380,
+      axisSpan: 600,
+      leadingWindowIds: ["window:a"],
+      trailingWindowIds: ["window:b"],
+    };
+    render(<SeamHarness seam={inner} />, { wrapper: shell.wrapper });
+    const seam = stubPointerCapture(screen.getByTestId("seam"));
+    fireEvent.pointerDown(seam, { button: 0, pointerId: 4, clientX: 300, clientY: 300 });
+    fireEvent.pointerMove(seam, { pointerId: 4, clientX: 340, clientY: 300 });
+    flushFrames();
+
+    // A new revision that lays the seam out exactly where it was is no reason to stop.
+    act(() => shell.setRuntimeState({ snapshot: nested([0.6, 0.4], 8) }));
+    expect(seam).toHaveAttribute("data-state", "drag");
+
+    // Someone else widens the outer branch to 70/30: the inner seam now sits at 350 with room to
+    // 480, which the drag never previewed. Nothing of this client is in flight: it is cancelled.
+    act(() => shell.setRuntimeState({ snapshot: nested([0.7, 0.3], 9) }));
+    expect(seam).not.toHaveAttribute("data-state");
+    expect(windowManagerStore.getSnapshot().context.seamPreview).toBeNull();
+    fireEvent.pointerUp(seam, { pointerId: 4, clientX: 340, clientY: 300 });
+    expect(shell.controller.resizeLayout).not.toHaveBeenCalled();
   });
 
   it("Should fence a two-member balance like a drag", () => {
