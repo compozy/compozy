@@ -3706,69 +3706,6 @@ test("E2E-023: the 11-tab envelope holds for tab switches, restore, and converge
       tabForWindow(await windowManagerSnapshot(runtime, workspace.id), marketplaceID)?.id
     ).toBe(tabForWindow(await windowManagerSnapshot(runtime, workspace.id), loopsID)?.id);
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
-    if (worstPeerTask > 50) {
-      // Failure-only diagnosis, after both scored windows: restore the pre-merge tab count
-      // and replay the same pair. New tab/node IDs may differ; these are profiles, not scores.
-      const peerIndex = peerLongTasks.findIndex(tasks => tasks.includes(worstPeerTask));
-      const sampledPeer = peers[peerIndex] ?? peerB;
-      const diagnostic = await sampledPeer.context().newCDPSession(sampledPeer);
-      try {
-        await diagnostic.send("Debugger.enable");
-        await diagnostic.send("Profiler.enable");
-        const scripts = new Map<string, string>();
-        for (let replay = 0; replay < 3; replay += 1) {
-          await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "tab");
-          for (const peer of peers) {
-            await expect(osShellSelectors(peer).tabs).toHaveCount(warmCount);
-            await waitForLongTaskQuiet(peer);
-          }
-          await Promise.all(peers.map(peer => installPeerConvergenceProbe(peer, measuredCount)));
-          const started = await sampledPeer.evaluate(() => performance.now());
-          await diagnostic.send("Profiler.start");
-          await moveWindowFromCLI(runtime, workspace.id, marketplaceID, loopsID, "right");
-          await Promise.all(peers.map(readPeerConvergenceProbe));
-          const { profile } = await diagnostic.send("Profiler.stop");
-          await testInfo.attach(`peer-replay-${replay}.cpuprofile`, {
-            body: JSON.stringify(profile),
-            contentType: "application/json",
-          });
-          const resources = await sampledPeer.evaluate(since => {
-            return performance
-              .getEntriesByType("resource")
-              .filter(entry => entry.startTime >= since)
-              .map(entry => {
-                const resource = entry as PerformanceResourceTiming;
-                return {
-                  path: new URL(resource.name).pathname,
-                  start: resource.startTime,
-                  responseEnd: resource.responseEnd,
-                  initiator: resource.initiatorType,
-                  bytes: resource.decodedBodySize,
-                };
-              });
-          }, started);
-          await testInfo.attach(`peer-replay-${replay}-resources`, {
-            body: JSON.stringify(resources),
-            contentType: "application/json",
-          });
-          for (const node of profile.nodes) {
-            const { scriptId, url } = node.callFrame;
-            if (url.includes("/assets/")) scripts.set(scriptId, url);
-          }
-        }
-        for (const [scriptId, url] of scripts) {
-          const { scriptSource } = await diagnostic.send("Debugger.getScriptSource", { scriptId });
-          await testInfo.attach(`peer-replay-${new URL(url).pathname.split("/").pop()}`, {
-            body: scriptSource,
-            contentType: "text/javascript",
-          });
-        }
-      } catch (error) {
-        console.log("[peer-perf-diagnostic]", String(error));
-      } finally {
-        await diagnostic.detach();
-      }
-    }
   } finally {
     await peerA.context().close();
     await peerB.context().close();
